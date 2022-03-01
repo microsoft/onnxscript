@@ -30,6 +30,13 @@ def square(x):
 """
         self._convert(script)
 
+    def test_msdomain(self):
+        # Temporary patch to use com.microsoft domain
+        script = """
+def foo(x):
+    return msdomain.bar(x, x)
+"""
+        self._convert(script)
     def test_onnxfns(self):
         self._convert(os.path.join(CURRENT_DIR, "onnxfns.py"))
     
