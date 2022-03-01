@@ -67,7 +67,7 @@ class Stmt:
         args = format (self.args, "(", ", ", ")")
         module = str(self.module)
         callee =  module + "." + self.opname if (module != '') else self.opname
-        return (lhs + " = " + self.opname + " " + attrs + args)
+        return (lhs + " = " + callee + " " + attrs + args)
     
     def print(self):
         print (str(self))

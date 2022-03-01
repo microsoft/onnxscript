@@ -72,7 +72,7 @@ class Converter:
     def __init__(self, ir_builder = IRBuilder()):
         self.ir_builder = ir_builder
         self.known_modules = { 'onnxscript' : onnxscript, 'onnxscript.types' : types, 'onnx.opset15' : values.opset15 }
-        self.globals = { "int" : int, "float" : float, "str" : str, "onnx" : values.opset15, "Onnx" : values.opset15 } # 'os' : onnxscript
+        self.globals = { "int" : int, "float" : float, "str" : str, "onnx" : values.opset15, "Onnx" : values.opset15, "msdomain" : values.msdomain1 } # 'os' : onnxscript
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
 

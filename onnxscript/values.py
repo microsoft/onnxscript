@@ -23,6 +23,8 @@ class Opset:
 
 opset15 = Opset("", 15)
 
+msdomain1 = Opset("com.microsoft", 1)
+
 # ONNX ops
 
 class Op:
