@@ -1,7 +1,5 @@
 import ast
 
-from numpy import isin
-
 def used_vars(expr):
     ''' Return set of all variables used with an expression.'''
     if (isinstance(expr, ast.Name)):

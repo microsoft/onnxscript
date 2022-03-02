@@ -13,7 +13,7 @@ def is_attr(typeinfo):
     # (typeinfo is float) or (typeinfo is str) or (typeinfo is int)
 
 def is_tensor(typeinfo):
-    return hasattr(typeinfo, "toTypeProto")
+    return hasattr(typeinfo, "to_type_proto")
     # return isinstance(typeinfo, onnxscript.Tensor)  # TODO
 
 def is_valid(typeinfo):

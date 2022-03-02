@@ -1,6 +1,8 @@
 from typing import Any
 import onnxruntime as ort
 
+# TODO: enable invocation of ORT kernels
+
 class Model:
     def __init__(self, onnxfile) -> None:
         self.session = ort.InferenceSession(onnxfile)

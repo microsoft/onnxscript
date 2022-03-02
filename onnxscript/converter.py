@@ -87,7 +87,7 @@ class Converter:
 
     def enter_scope(self, name):
         self.outer.insert(0,self.current_fn)
-        self.current_fn = self.ir_builder.newFunction(name)
+        self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
     
     def exit_scope(self):
@@ -140,7 +140,7 @@ class Converter:
     def py_var_to_onnx_var(self, py_var): return self.to_onnx_var(self.lookup(py_var))
     
     def emit(self, outputs, callee, inputs, attrs):
-        self.ir_builder.addStmt(self.current_fn, outputs, callee.opset, callee.opname, inputs, attrs)
+        self.ir_builder.add_stmt(self.current_fn, outputs, callee.opset, callee.opname, inputs, attrs)
 
     def emit2(self, outputs, callee, inputs, attrs):
         def rename(x):
@@ -359,7 +359,7 @@ class Converter:
                 t = self.returntype[self.num_outputs]
             except Exception as e:
                 t = self.default_type
-            self.ir_builder.addOutput(self.current_fn, ovar, t)
+            self.ir_builder.add_output(self.current_fn, ovar, t)
             self.num_outputs += 1
             return ovar
 
@@ -411,26 +411,26 @@ class Converter:
         # build loop_body
         self.enter_scope("loop_body")
         o_loop_var = self.generate_unique_name(p_loop_var)
-        self.ir_builder.addInput(self.current_fn, o_loop_var, types.INT64)
+        self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64)
         self.bind(p_loop_var, Dynamic(o_loop_var))
         o_cond_var = self.generate_unique_name("cond_in")
-        self.ir_builder.addInput(self.current_fn, o_cond_var, types.BOOL)
+        self.ir_builder.add_input(self.current_fn, o_cond_var, types.BOOL)
         for pv in loop_state_vars:
             ov = self.generate_unique_name(pv)
-            self.ir_builder.addInput(self.current_fn, ov, self.default_type) 
+            self.ir_builder.add_input(self.current_fn, ov, self.default_type) 
             self.bind(pv, Dynamic(ov))            
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
         self.emit([o_cond_out], Op("", "Identity"), [o_cond_var], [])
-        self.ir_builder.addOutput(self.current_fn, o_cond_out, types.BOOL)
+        self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL)
         for pv in loop_state_vars:
             ov = self.py_var_to_onnx_var(pv)
-            self.ir_builder.addOutput(self.current_fn, ov, self.default_type) # TODO: type
+            self.ir_builder.add_output(self.current_fn, ov, self.default_type) # TODO: type
         body = self.exit_scope()
 
         inputs = [o_loop_bound, o_true] + [self.py_var_to_onnx_var(pv) for pv in loop_state_vars]
-        attrs = [self.ir_builder.attr("body", body.toGraph())]
+        attrs = [self.ir_builder.attr("body", body.to_graph_proto())]
         self.emit2(outputs, "Loop", inputs, attrs)
 
     # Translation of a statement-block to GraphProto attribute
@@ -442,7 +442,7 @@ class Converter:
             if (pvar in self.current_scope()):
                 pv_val = self.current_scope()[pvar]
                 output = self.to_onnx_var(pv_val, pvar)
-                self.ir_builder.addOutput(self.current_fn, output, self.default_type) # TODO: need type!
+                self.ir_builder.add_output(self.current_fn, output, self.default_type) # TODO: need type!
             else:
                 pv_val = None
                 for scope in self.locals: # TODO: skip current_scope
@@ -454,12 +454,9 @@ class Converter:
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
                 self.emit([ovar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
-                self.ir_builder.addOutput(self.current_fn, ovar, self.default_type) # TODO: need type!
+                self.ir_builder.add_output(self.current_fn, ovar, self.default_type) # TODO: need type!
         graph = self.exit_scope()
-        # if print_flag:
-        #     print ("Generated block")
-        #     graph.print()
-        return graph.toGraph()
+        return graph.to_graph_proto()
 
     def translate_function_def(self, fn: ast.FunctionDef):
         args = fn.args
@@ -467,7 +464,7 @@ class Converter:
             warn (f"{fn.name}: Default values not yet implemented.")
         if (args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg):
             warn (f"{fn.name}: Unsupported feature in function signature.")
-        self.current_fn = self.ir_builder.newFunction(fn.name)
+        self.current_fn = self.ir_builder.new_function(fn.name)
         for x in args.args:
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
@@ -475,10 +472,10 @@ class Converter:
                 typeinfo = self.default_type
             assert ta.is_valid(typeinfo)
             if (ta.is_attr(typeinfo)):
-                self.ir_builder.addAttr(self.current_fn, x.arg, typeinfo)
+                self.ir_builder.add_attr(self.current_fn, x.arg, typeinfo)
                 self.bind(x.arg, AttrRef(x.arg, typeinfo)) 
             else:
-                self.ir_builder.addInput(self.current_fn, x.arg, typeinfo)
+                self.ir_builder.add_input(self.current_fn, x.arg, typeinfo)
                 self.bind(x.arg, Dynamic(x.arg))
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)

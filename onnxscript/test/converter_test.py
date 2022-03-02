@@ -17,7 +17,7 @@ class TestConverter(unittest.TestCase):
         if (not os.path.exists(TEST_OUTPUT_DIR)):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
-            graph = f.toGraph()
+            graph = f.to_graph_proto()
             model = onnx.helper.make_model(graph, producer_name='p2o', opset_imports=[onnx.helper.make_opsetid("", 15)])
             model = onnx.shape_inference.infer_shapes(model)
             onnx.checker.check_model(model)

@@ -12,7 +12,7 @@ class Tensor:
         shapestr = str(self.shape) if self.shape else "[...]"
         return onnx.TensorProto.DataType.Name(self.dtype) + shapestr
     
-    def toTypeProto(self):
+    def to_type_proto(self):
         # TODO: handle None
         return onnx.helper.make_tensor_type_proto(self.dtype, self.shape)
 
@@ -45,7 +45,7 @@ class ParametricTensor:
             s = [shape]
         return Tensor(self.dtype, s)
     
-    def toTypeProto(self):
+    def to_type_proto(self):
         return onnx.helper.make_tensor_type_proto(self.dtype, ())
     
     def __str__(self) -> str:

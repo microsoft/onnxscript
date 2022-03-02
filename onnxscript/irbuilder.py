@@ -15,7 +15,7 @@ class Type:
         self.onnx_type = tp
         # helper.make_tensor_type_proto(onnx.TensorProto.FLOAT, [10])
     
-    def toTypeProto(self):
+    def to_type_proto(self):
         return self.onnx_type
     
     def __str__(self) -> str:
@@ -29,11 +29,11 @@ class Var:
     def __str__(self):
         return self.name
     
-    def typedstr(self):
+    def typed_str(self):
         return self.name + " : " + str(self.type)
     
-    def toValueInfo(self):
-        tp = self.type.toTypeProto()
+    def to_value_info(self):
+        tp = self.type.to_type_proto()
         # if (not tp.tensor_type.HasField('shape')):
         #     # TODO: temporary patch to export a function as a graph
         #     tp = helper.make_tensor_type_proto(tp.tensor_type.elem_type, [10])
@@ -72,7 +72,7 @@ class Stmt:
     def print(self):
         print (str(self))
     
-    def toNode(self):
+    def to_node_proto(self):
         n = helper.make_node(self.opname,
             [str(x) for x in self.args],
             [str(x) for x in self.result])
@@ -90,8 +90,8 @@ class Function:
 
     def __str__(self):
         attrs = format (self.attrs, "<", ", ", ">") if self.attrs else ""
-        inputs = format ([x.typedstr() for x in self.inputs], "(", ", ", ")")
-        outputs = format ([x.typedstr() for x in self.outputs], "(", ", ", ")")
+        inputs = format ([x.typed_str() for x in self.inputs], "(", ", ", ")")
+        outputs = format ([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format (self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
 
@@ -103,32 +103,32 @@ class Function:
                     print(helper.printable_graph(attr.attr_proto.g))
 
     
-    def toGraph(self):
-        return helper.make_graph([s.toNode() for s in self.stmts],
+    def to_graph_proto(self):
+        return helper.make_graph([s.to_node_proto() for s in self.stmts],
             self.name,
-            [x.toValueInfo() for x in self.inputs],
-            [y.toValueInfo() for y in self.outputs]
+            [x.to_value_info() for x in self.inputs],
+            [y.to_value_info() for y in self.outputs]
             )
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
 class IRBuilder:
-    def newFunction(self, name):
+    def new_function(self, name):
         return Function(name)
 
-    def addStmt(self, fn, results, module, opname, args, attrs):
+    def add_stmt(self, fn, results, module, opname, args, attrs):
         s = Stmt(results, module, opname, args, attrs)
         fn.stmts.append(s)
 
-    def addInput(self, fn, varname, type):
+    def add_input(self, fn, varname, type):
         v = Var(varname, type)
         fn.inputs.append(v)
 
-    def addAttr(self, fn, varname, type):
+    def add_attr(self, fn, varname, type):
         v = Var(varname, type)
         fn.attrs.append(v)
 
-    def addOutput(self, fn, varname, type):
+    def add_output(self, fn, varname, type):
         v = Var(varname, type)
         fn.outputs.append(v)
     
