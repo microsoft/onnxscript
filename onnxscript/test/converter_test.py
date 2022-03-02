@@ -5,12 +5,13 @@ from converter import Converter
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 class TestConverter(unittest.TestCase):
-    def _convert (self, script):
+    def _convert(self, script):
         converter = Converter()
         converter.convert(script)
 
-    def _convert_and_save (self, script):
+    def _convert_and_save(self, script):
         converter = Converter()
         fnlist = converter.convert(script)
         TEST_OUTPUT_DIR = os.path.join(CURRENT_DIR, "testoutputs")
@@ -37,9 +38,10 @@ def foo(x):
     return msdomain.bar(x, x)
 """
         self._convert(script)
+
     def test_onnxfns(self):
         self._convert(os.path.join(CURRENT_DIR, "onnxfns.py"))
-    
+
     def test_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
 
@@ -48,6 +50,7 @@ def foo(x):
 
     def test_loop_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
+
 
 if __name__ == '__main__':
     unittest.main()

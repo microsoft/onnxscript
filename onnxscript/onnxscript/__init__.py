@@ -6,6 +6,8 @@ import onnx.helper
 
 # ElementType: an enumeration encoding the allowed element types in a tensor
 # Corresponds to TensorProto::DataType
+
+
 class ElementType:
     UNDEFINED = 0
 
