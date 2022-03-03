@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 import ast
 
 
@@ -12,7 +14,8 @@ def used_vars(expr):
 
 
 def local_defs(lhs):
-    '''Utility function to return set of assigned/defined variables in the lhs of an assignment statement.'''
+    '''Utility function to return set of assigned/defined
+    variables in the lhs of an assignment statement.'''
     def get_id(e):
         assert isinstance(e, ast.Name), "Only simple assignments supported."
         return e.id
@@ -48,7 +51,7 @@ def do_liveness_analysis(fun):
     '''
     Perform liveness analysis of the given function-ast. The results of the
     analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
-    and `s.live_out`. 
+    and `s.live_out`.
     '''
     def visit(stmt, live_out):
         def visitBlock(block, live_out):
@@ -56,7 +59,8 @@ def do_liveness_analysis(fun):
                 live_out = visit(s, live_out)
             return live_out
         if (isinstance(stmt, ast.Assign)):
-            return (live_out.difference(local_defs(stmt.targets[0]))) | used_vars(stmt.value)
+            return (live_out.difference(local_defs(
+                stmt.targets[0]))) | used_vars(stmt.value)
         elif (isinstance(stmt, ast.Return)):
             return used_vars(stmt.value)
         elif (isinstance(stmt, ast.If)):
@@ -66,8 +70,9 @@ def do_liveness_analysis(fun):
         elif isinstance(stmt, ast.For):
             return live_out  # TODO
         else:
-            raise ValueError("Unsupported statement type: " + type(stmt).__name__)
-    assert type(fun) == ast.FunctionDef
+            raise ValueError("Unsupported statement type: " +
+                             type(stmt).__name__)
+    assert isinstance(fun, ast.FunctionDef)
     live = set()
     for s in reversed(fun.body):
         s.live_out = live
@@ -88,7 +93,8 @@ def exposed_uses(stmts):
 
     def visit(stmt, live_out):
         if (isinstance(stmt, ast.Assign)):
-            return (live_out.difference(local_defs(stmt.targets[0]))) | used_vars(stmt.value)
+            return (live_out.difference(local_defs(
+                stmt.targets[0]))) | used_vars(stmt.value)
         elif (isinstance(stmt, ast.Return)):
             return used_vars(stmt.value)
         elif (isinstance(stmt, ast.If)):
@@ -96,6 +102,7 @@ def exposed_uses(stmts):
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
         else:
-            raise ValueError("Unsupported statement type: " + type(stmt).__name__)
+            raise ValueError("Unsupported statement type: " +
+                             type(stmt).__name__)
 
     return visitBlock(stmts, set())

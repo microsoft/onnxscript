@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
 
 import onnx
-import onnxscript
+
 
 pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,

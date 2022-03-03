@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+
 import sys
-from converter import convert
+from .converter import convert
 
 # command-line utility to invoke converter on a python file
 

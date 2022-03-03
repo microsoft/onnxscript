@@ -1,14 +1,14 @@
-from argparse import ArgumentError
-from typing import Union
-from onnx.helper import make_tensor
-import onnx
-import onnx.helper
+# SPDX-License-Identifier: Apache-2.0
 
-# ElementType: an enumeration encoding the allowed element types in a tensor
-# Corresponds to TensorProto::DataType
+from enum import Enum
 
 
-class ElementType:
+class ElementType(Enum):
+    """
+    ElementType: an enumeration encoding the allowed element types in a tensor
+    Corresponds to `TensorProto::DataType`.
+    """
+
     UNDEFINED = 0
 
     FLOAT = 1   # float

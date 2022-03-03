@@ -1,6 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+
 import onnx
 import onnx.helper as helper
-import type_annotation as ta
+from . import type_annotation as ta
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -50,7 +52,8 @@ class Attr:
     def __str__(self):
         if (self.attr_proto.HasField("ref_attr_name")):
             return self.attr_proto.name + " = @" + self.attr_proto.ref_attr_name
-        return helper.printable_attribute(self.attr_proto)  # self.name + " = " + self.value
+        # self.name + " = " + self.value
+        return helper.printable_attribute(self.attr_proto)
 
 
 class Stmt:

@@ -1,6 +1,9 @@
-from onnxscript.types import FLOAT
+# SPDX-License-Identifier: Apache-2.0
 
-def maxsum (A : FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"] :
+from onnxscript._types import FLOAT
+
+
+def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = onnx.ReduceSum(A)
     sum2 = onnx.ReduceSum(B)
     if (sum1 < sum2):
@@ -10,7 +13,9 @@ def maxsum (A : FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"] :
     return result
 
 # Test inference of inputs/outputs for then/else blocks:
-def maxsum (A : FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"] :
+
+
+def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = onnx.ReduceSum(A)
     sum2 = onnx.ReduceSum(B)
     if (sum1 < sum2):
@@ -22,7 +27,9 @@ def maxsum (A : FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"] :
     return result
 
 # test variables assigned only in one branch
-def maxsum2 (A : FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"] :
+
+
+def maxsum2(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = onnx.ReduceSum(A)
     sum2 = onnx.ReduceSum(B)
     result = onnx.Identity(A)

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 import onnx
 
 # ONNX opsets (correspond to python modules in reference-mode)
@@ -16,7 +18,7 @@ class Opset:
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
             return True
-        except:
+        except BaseException:
             return False
 
     def __str__(self) -> str:
@@ -44,7 +46,8 @@ class Op:
 # Values fall into the following categories:
 # ConstValue: values known at translation-time, mapped to ONNX attributes
 # AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes
-# Dynamic: values computed at runtime (of tensor type, for now) mapped to NodeArgs
+# Dynamic: values computed at runtime (of tensor type, for now) mapped to
+# NodeArgs
 
 
 class Value:
