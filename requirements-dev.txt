@@ -1,3 +1,4 @@
+onnx
 onnxruntime
 sphinx
 pytest
