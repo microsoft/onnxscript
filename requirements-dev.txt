@@ -1,0 +1,4 @@
+onnxruntime
+sphinx
+pytest
+pytest-azurepipelines
