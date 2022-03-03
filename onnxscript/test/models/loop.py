@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from onnxscript.types import FLOAT, INT64
+from onnxscript.onnx_types import FLOAT, INT64
 
 # simple loop
 

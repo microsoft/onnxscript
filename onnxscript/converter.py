@@ -6,7 +6,7 @@ import ast
 import onnx
 import onnx.helper as helper
 import onnxscript
-import onnxscript._types as types
+import onnxscript.onnx_types as types
 from onnxscript.irbuilder import IRBuilder
 import onnxscript.analysis as analysis
 import onnxscript.type_annotation as ta
@@ -84,7 +84,7 @@ class Converter:
     def __init__(self, ir_builder=IRBuilder()):
         self.ir_builder = ir_builder
         self.known_modules = {'onnxscript': onnxscript,
-                              'onnxscript.types': types,
+                              'onnxscript.onnx_types': onnxscript.onnx_types,
                               'onnx.opset15': values.opset15}
         self.globals = {"int": int, "float": float,
                         "str": str, "onnx": values.opset15,
@@ -564,14 +564,15 @@ class Converter:
         elif isinstance(stmt, ast.ImportFrom):
             fail_if(stmt.module is None, "Import: module unspecified.")
             fail_if(stmt.module not in self.known_modules,
-                    f"Import: unsupported module {stmt.module}")
+                    f"Import: unsupported module '{stmt.module}' in "
+                    f"{list(sorted(self.known_modules))}")
             module = self.known_modules[stmt.module]
             for alias in stmt.names:
                 asname = alias.asname if alias.asname else alias.name
                 self.globals[asname] = getattr(module, alias.name)
         else:
             raise ValueError(
-                "Unsupported top-level statement type: " + type(stmt).__name__)
+                f"Unsupported top-level statement type: {type(stmt).__name__}.")
 
     def convert_source(self, src):
         module = ast.parse(src)

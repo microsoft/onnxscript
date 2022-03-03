@@ -2,6 +2,7 @@
 
 import unittest
 import os
+import textwrap
 import onnx
 from onnxscript.converter import Converter
 
@@ -29,18 +30,18 @@ class TestConverter(unittest.TestCase):
             onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
     def test_source_input(self):
-        script = """
-def square(x):
-    return onnx.Mul(x, x)
-"""
+        script = textwrap.dedent("""
+            def square(x):
+                return onnx.Mul(x, x)
+            """)
         self._convert(script)
 
     def test_msdomain(self):
         # Temporary patch to use com.microsoft domain
-        script = """
-def foo(x):
-    return msdomain.bar(x, x)
-"""
+        script = textwrap.dedent("""
+            def foo(x):
+                return msdomain.bar(x, x)
+            """)
         self._convert(script)
 
     def test_onnxfns(self):

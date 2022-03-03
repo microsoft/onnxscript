@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from onnxscript.types import FLOAT
+from onnxscript.onnx_types import FLOAT
 
 # tensor inputs can have ONNX-like type annotations
 

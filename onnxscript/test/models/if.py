@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from onnxscript._types import FLOAT
+from onnxscript.onnx_types import FLOAT
 
 
 def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
