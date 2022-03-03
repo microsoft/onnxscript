@@ -25,5 +25,9 @@ steps:
   displayName: 'Install dependencies'
 
 - script: |
+    python setup.py sdist
+  displayName: 'package'
+
+- script: |
     pytest -v onnxscript
   displayName: 'pytest'
