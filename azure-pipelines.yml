@@ -33,5 +33,5 @@ steps:
   displayName: 'pytest'
 
 - script: |
-    python -m flake8 onnx-script --max-line-length 90 --exclude "**test/models/*.py"
+    python -m flake8 onnx-script --max-line-length 95 --exclude "**test/models/*.py"
   displayName: 'flake8'

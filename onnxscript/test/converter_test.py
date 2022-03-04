@@ -6,8 +6,7 @@ import textwrap
 import onnx
 from onnxscript.converter import Converter
 
-CURRENT_DIR = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "models")
+CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 
 
 class TestConverter(unittest.TestCase):
@@ -19,7 +18,7 @@ class TestConverter(unittest.TestCase):
         converter = Converter()
         fnlist = converter.convert(script)
         TEST_OUTPUT_DIR = os.path.join(CURRENT_DIR, "testoutputs")
-        if (not os.path.exists(TEST_OUTPUT_DIR)):
+        if not os.path.exists(TEST_OUTPUT_DIR):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
             graph = f.to_graph_proto()

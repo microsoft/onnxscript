@@ -5,7 +5,7 @@ import ast
 
 def used_vars(expr):
     ''' Return set of all variables used with an expression.'''
-    if (isinstance(expr, ast.Name)):
+    if isinstance(expr, ast.Name):
         return set([expr.id])
     result = set()
     for c in ast.iter_child_nodes(expr):
@@ -35,11 +35,12 @@ def defs(stmt):
         for s in block:
             result = result | defs(s)
         return result
-    if (isinstance(stmt, ast.Assign)):
+
+    if isinstance(stmt, ast.Assign):
         return local_defs(stmt.targets[0])
-    if (isinstance(stmt, ast.Return)):
+    if isinstance(stmt, ast.Return):
         return set()
-    if (isinstance(stmt, ast.If)):
+    if isinstance(stmt, ast.If):
         return block_defs(stmt.body) | block_defs(stmt.orelse)
     if isinstance(stmt, list):
         return block_defs(stmt)
@@ -58,15 +59,14 @@ def do_liveness_analysis(fun):
                 live_out = visit(s, live_out)
             return live_out
 
-        if (isinstance(stmt, ast.Assign)):
-            return (live_out.difference(local_defs(
-                stmt.targets[0]))) | used_vars(stmt.value)
-        if (isinstance(stmt, ast.Return)):
+        if isinstance(stmt, ast.Assign):
+            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+        if isinstance(stmt, ast.Return):
             return used_vars(stmt.value)
-        if (isinstance(stmt, ast.If)):
+        if isinstance(stmt, ast.If):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
-            return (live1 | live2) | used_vars(stmt.test)
+            return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
             return live_out  # TODO
         raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
@@ -91,12 +91,11 @@ def exposed_uses(stmts):
         return live_out
 
     def visit(stmt, live_out):
-        if (isinstance(stmt, ast.Assign)):
-            return (live_out.difference(local_defs(
-                stmt.targets[0]))) | used_vars(stmt.value)
-        if (isinstance(stmt, ast.Return)):
+        if isinstance(stmt, ast.Assign):
+            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+        if isinstance(stmt, ast.Return):
             return used_vars(stmt.value)
-        if (isinstance(stmt, ast.If)):
+        if isinstance(stmt, ast.If):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
