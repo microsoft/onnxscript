@@ -5,9 +5,7 @@
 #
 # Configuration file for the Sphinx documentation builder.
 
-import os
 import sys
-import pydata_sphinx_theme
 import onnxscript
 
 

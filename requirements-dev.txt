@@ -1,5 +1,7 @@
+flake8
 onnx
 onnxruntime
 sphinx
+pydata_sphinx_theme
 pytest
 pytest-azurepipelines

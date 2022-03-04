@@ -1,12 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+
 from typing import Any
-import onnxruntime as ort
 
 # TODO: enable invocation of ORT kernels
 
 
 class Model:
     def __init__(self, onnxfile) -> None:
-        self.session = ort.InferenceSession(onnxfile)
+        # delayed import to avoid having a strong dependency on onnxruntime
+        from onnxruntime import InferenceSession
+        self.session = InferenceSession(onnxfile)
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         inputs = self.session.get_inputs()

@@ -31,3 +31,7 @@ steps:
 - script: |
     pytest -v onnxscript
   displayName: 'pytest'
+
+- script: |
+    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py"
+  displayName: 'flake8'

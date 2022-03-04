@@ -1,6 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+
 import onnx
 import onnx.helper as helper
-import type_annotation as ta
+from . import type_annotation as ta
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -50,7 +52,8 @@ class Attr:
     def __str__(self):
         if (self.attr_proto.HasField("ref_attr_name")):
             return self.attr_proto.name + " = @" + self.attr_proto.ref_attr_name
-        return helper.printable_attribute(self.attr_proto)  # self.name + " = " + self.value
+        # self.name + " = " + self.value
+        return helper.printable_attribute(self.attr_proto)
 
 
 class Stmt:
@@ -72,7 +75,7 @@ class Stmt:
         args = format(self.args, "(", ", ", ")")
         module = str(self.module)
         callee = module + "." + self.opname if (module != '') else self.opname
-        return (lhs + " = " + callee + " " + attrs + args)
+        return lhs + " = " + callee + " " + attrs + args
 
     def print(self):
         print(str(self))
@@ -112,8 +115,7 @@ class Function:
         return helper.make_graph([s.to_node_proto() for s in self.stmts],
                                  self.name,
                                  [x.to_value_info() for x in self.inputs],
-                                 [y.to_value_info() for y in self.outputs]
-                                 )
+                                 [y.to_value_info() for y in self.outputs])
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
