@@ -1,0 +1,9 @@
+# include
+include *.rst
+include LICENSE
+include README.md
+include MANIFEST.in
+include requirements.txt
+
+# exclude from sdist
+exclude *.onnx
