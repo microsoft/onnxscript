@@ -19,10 +19,10 @@ def local_defs(lhs):
     def get_id(e):
         assert isinstance(e, ast.Name), "Only simple assignments supported."
         return e.id
+
     if (isinstance(lhs, ast.Tuple)):
         return set([get_id(x) for x in lhs.elts])
-    else:
-        return set([get_id(lhs)])
+    return set([get_id(lhs)])
 
 
 def defs(stmt):
@@ -37,14 +37,13 @@ def defs(stmt):
         return result
     if (isinstance(stmt, ast.Assign)):
         return local_defs(stmt.targets[0])
-    elif (isinstance(stmt, ast.Return)):
+    if (isinstance(stmt, ast.Return)):
         return set()
-    elif (isinstance(stmt, ast.If)):
+    if (isinstance(stmt, ast.If)):
         return block_defs(stmt.body) | block_defs(stmt.orelse)
-    elif isinstance(stmt, list):
+    if isinstance(stmt, list):
         return block_defs(stmt)
-    else:
-        raise ValueError("Unsupported statement type: " + type(stmt).__name__)
+    raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
 
 
 def do_liveness_analysis(fun):
@@ -58,20 +57,20 @@ def do_liveness_analysis(fun):
             for s in reversed(block):
                 live_out = visit(s, live_out)
             return live_out
+
         if (isinstance(stmt, ast.Assign)):
             return (live_out.difference(local_defs(
                 stmt.targets[0]))) | used_vars(stmt.value)
-        elif (isinstance(stmt, ast.Return)):
+        if (isinstance(stmt, ast.Return)):
             return used_vars(stmt.value)
-        elif (isinstance(stmt, ast.If)):
+        if (isinstance(stmt, ast.If)):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
-        elif isinstance(stmt, ast.For):
+        if isinstance(stmt, ast.For):
             return live_out  # TODO
-        else:
-            raise ValueError("Unsupported statement type: " +
-                             type(stmt).__name__)
+        raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+
     assert isinstance(fun, ast.FunctionDef)
     live = set()
     for s in reversed(fun.body):
@@ -95,14 +94,12 @@ def exposed_uses(stmts):
         if (isinstance(stmt, ast.Assign)):
             return (live_out.difference(local_defs(
                 stmt.targets[0]))) | used_vars(stmt.value)
-        elif (isinstance(stmt, ast.Return)):
+        if (isinstance(stmt, ast.Return)):
             return used_vars(stmt.value)
-        elif (isinstance(stmt, ast.If)):
+        if (isinstance(stmt, ast.If)):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
-        else:
-            raise ValueError("Unsupported statement type: " +
-                             type(stmt).__name__)
+        raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
 
     return visitBlock(stmts, set())

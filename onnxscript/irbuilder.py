@@ -75,7 +75,7 @@ class Stmt:
         args = format(self.args, "(", ", ", ")")
         module = str(self.module)
         callee = module + "." + self.opname if (module != '') else self.opname
-        return (lhs + " = " + callee + " " + attrs + args)
+        return lhs + " = " + callee + " " + attrs + args
 
     def print(self):
         print(str(self))
@@ -115,8 +115,7 @@ class Function:
         return helper.make_graph([s.to_node_proto() for s in self.stmts],
                                  self.name,
                                  [x.to_value_info() for x in self.inputs],
-                                 [y.to_value_info() for y in self.outputs]
-                                 )
+                                 [y.to_value_info() for y in self.outputs])
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
