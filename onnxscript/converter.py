@@ -573,7 +573,7 @@ class Converter:
 
     def convert(self, f):
         if isinstance(f, str):
-            if os.path.exists(f):
+            if '\n' not in f and os.path.exists(f):
                 return self.convert_file(f)
             return self.convert_source(f)
         if inspect.isfunction(f):
