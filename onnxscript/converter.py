@@ -3,18 +3,19 @@
 import os
 import inspect
 import ast
+import logging
 import onnx
 import onnx.helper as helper
-import onnxscript
-import onnxscript.onnx_types as types
-from onnxscript.irbuilder import IRBuilder
-import onnxscript.analysis as analysis
-import onnxscript.type_annotation as ta
-import onnxscript.values as values
-from onnxscript.values import ConstValue, AttrRef, Dynamic, Op
+from . import onnx_types as types
+from .irbuilder import IRBuilder
+from . import analysis as analysis
+from . import type_annotation as ta
+from . import values as values
+from .values import ConstValue, AttrRef, Dynamic, Op
 
 
-print_flag = True
+logger = logging.getLogger("onnx-script")
+
 
 # Python-to-IR converter:
 
@@ -29,7 +30,7 @@ class TranslationError(Exception):
 
 
 def warn(msg):
-    print(f"Warning: {msg}.")
+    logger.warning(msg)
 
 
 def fail(msg):
@@ -76,12 +77,20 @@ primop_map = {
 }
 
 
+def _known_modules():
+    import onnxscript
+    import onnxscript.onnx_types
+    return {
+        'onnxscript': onnxscript,
+        'onnxscript.onnx_types': onnxscript.onnx_types,
+        'onnx.opset15': values.opset15
+    }
+
+
 class Converter:
     def __init__(self, ir_builder=IRBuilder()):
         self.ir_builder = ir_builder
-        self.known_modules = {'onnxscript': onnxscript,
-                              'onnxscript.onnx_types': onnxscript.onnx_types,
-                              'onnx.opset15': values.opset15}
+        self.known_modules = _known_modules()
         self.globals = {"int": int, "float": float,
                         "str": str, "onnx": values.opset15,
                         "Onnx": values.opset15,
@@ -314,7 +323,7 @@ class Converter:
             module = self.translate_opset_expr(node.value)
             opname = node.attr
             if (opname not in module):
-                warn(f"{opname} is not a known op in {str(module)}")
+                warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
             try:
@@ -395,7 +404,6 @@ class Converter:
 
     def translate_if_stmt(self, stmt: ast.If):
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
-        # print(live_defs)
         test = self.translate_expr(stmt.test, "cond")
         thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
@@ -528,8 +536,7 @@ class Converter:
         return self.current_fn
 
     def do_import(self, alias):
-        if print_flag:
-            print(f"Importing {alias.name} as {alias.asname}")
+        logger.debug("Importing %r as %r.", alias.name, alias.asname)
         fail_if(alias.name not in self.known_modules,
                 f"Import: unsupported module {alias.name}")
         asname = alias.asname if alias.asname else alias.name
@@ -540,10 +547,7 @@ class Converter:
             self.init_function_translation()
             analysis.do_liveness_analysis(stmt)
             fn_ir = self.translate_function_def(stmt)
-            if print_flag:
-                print("============== OUTPUT =============")
-                fn_ir.print()
-                print()
+            fn_ir.debug_print()
             return fn_ir
 
         if isinstance(stmt, ast.Import):
@@ -568,7 +572,8 @@ class Converter:
         return [x for x in converted if x is not None]
 
     def convert_file(self, filename):
-        src = open(filename).read()
+        with open(filename) as f:
+            src = f.read()
         return self.convert_source(src)
 
     def convert(self, f):
