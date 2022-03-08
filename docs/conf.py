@@ -66,16 +66,8 @@ intersphinx_mapping = {
 }
 
 sphinx_gallery_conf = {
-    'examples_dirs': ['examples', 'tutorial'],
-    'gallery_dirs': ['auto_examples', 'auto_tutorial'],
+    'examples_dirs': ['examples'],
+    'gallery_dirs': ['auto_examples'],
     'capture_repr': ('_repr_html_', '__repr__'),
     'ignore_repr_types': r'matplotlib.text|matplotlib.axes',
-    'binder': {
-        'org': 'onnx',
-        'repo': 'onnx.ai/onnxscript/',
-        'notebooks_dir': 'auto_examples',
-        'binderhub_url': 'https://mybinder.org',
-        'branch': 'master',
-        'dependencies': './requirements.txt'
-    },
 }
