@@ -4,6 +4,7 @@
 # -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.
+# To run the documentation: python -m sphinx docs dist/html
 
 import sys
 import onnxscript

@@ -22,3 +22,4 @@ docs/_build/
 .ipynb_checkpoints
 
 onnxscript/test/models/testoutputs/*
+docs/auto_examples/*

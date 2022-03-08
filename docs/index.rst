@@ -4,6 +4,9 @@
 onnxscript: authoring onnx scripts
 ==================================
 
+.. toctree::
+
+    auto_examples/index
 
 **License**
 
