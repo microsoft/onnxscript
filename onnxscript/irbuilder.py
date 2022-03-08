@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
+from io import StringIO
 import onnx
 import onnx.helper as helper
 from . import type_annotation as ta
 
 # A simple IR (Function, Stmt, Attr, Var):
+
+logger = logging.getLogger("onnx-script")
 
 
 def format(list, prefix, sep, suffix):
@@ -66,7 +70,8 @@ class Stmt:
 
     def __str__(self):
         if (isinstance(self.result, str)):
-            print('Ooops')
+            logger.debug("unexpected str type for self.result where type(self)=%r",
+                         type(self))
         lhs = ", ".join(self.result)
         attrs = ""
         if (self.attrs):
@@ -77,8 +82,9 @@ class Stmt:
         callee = module + "." + self.opname if (module != '') else self.opname
         return lhs + " = " + callee + " " + attrs + args
 
-    def print(self):
-        print(str(self))
+    def debug_print(self):
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("%s: %s", type(self), str(self))
 
     def to_node_proto(self):
         n = helper.make_node(self.opname,
@@ -104,12 +110,15 @@ class Function:
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
 
-    def print(self):
-        print(str(self))
-        for s in self.stmts:
-            for attr in s.attrs:
-                if attr.attr_proto.HasField("g"):
-                    print(helper.printable_graph(attr.attr_proto.g))
+    def debug_print(self):
+        if logger.isEnabledFor(logging.DEBUG):
+            st = StringIO()
+            for s in self.stmts:
+                for attr in s.attrs:
+                    if attr.attr_proto.HasField("g"):
+                        st.write(helper.printable_graph(attr.attr_proto.g))
+                        st.write("\n")
+            logger.debug("%s: %s", type(self), st.getvalue())
 
     def to_graph_proto(self):
         return helper.make_graph([s.to_node_proto() for s in self.stmts],

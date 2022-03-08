@@ -77,8 +77,6 @@ def do_liveness_analysis(fun):
         s.live_out = live
         live = visit(s, live)
         s.live_in = live
-        # print(ast.dump(s))
-        # print("Live-In = ", live)
 
 
 def exposed_uses(stmts):
