@@ -160,8 +160,8 @@ class Converter:
             return val.value
         fail("Cannot convert to onnx variable")
 
-    def py_var_to_onnx_var(self, py_var): return self.to_onnx_var(
-        self.lookup(py_var))
+    def py_var_to_onnx_var(self, py_var):
+        return self.to_onnx_var(self.lookup(py_var))
 
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(

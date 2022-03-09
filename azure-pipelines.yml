@@ -35,3 +35,7 @@ steps:
 - script: |
     python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py"
   displayName: 'flake8'
+
+- script: |
+    python -m sphinx docs dist/html
+  displayName: 'documentation'

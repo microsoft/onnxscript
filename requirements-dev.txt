@@ -1,7 +1,9 @@
 flake8
+matplotlib
 onnx
 onnxruntime
 sphinx
+sphinx-gallery
 pydata_sphinx_theme
 pytest
 pytest-azurepipelines
