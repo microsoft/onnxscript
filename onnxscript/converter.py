@@ -7,11 +7,11 @@ import logging
 import onnx
 import onnx.helper as helper
 from . import onnx_types as types
-from .irbuilder import IRBuilder
+from .irbuilder import IRBuilder, Result
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import ConstValue, AttrRef, Dynamic, Op
+from .values import ConstValue, AttrRef, Dynamic, DynamicKind, Op
 
 
 logger = logging.getLogger("onnx-script")
@@ -100,28 +100,38 @@ class Converter:
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
+        logger.debug('Converter.init_function_translation')
         self.outer = []
         self.current_fn = None
         self.nextvar = 0
         self.used_vars = set()
         self.locals = [{}]
+        self.results = [{}]
 
     def enter_scope(self, name):
+        logger.debug('Converter.enter_scope(%r)', name)
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
+        self.results.insert(0, {})
 
     def exit_scope(self):
         graph = self.current_fn
+        logger.debug('Converter.exit_scope - %r', self.current_fn.name)
         self.current_fn = self.outer[0]
         self.outer.pop(0)
-        self.locals.pop(0)
+        self.locals.pop(0)  # Stores variables in the script
+        self.results.pop(0)  # Results, one for every variable and intermediate result
         return graph
 
     def current_scope(self):
         return self.locals[0]
 
+    def current_results(self):
+        return self.results[0]
+
     def bind(self, name, val):
+        logger.debug('Converter.bind(%r, %r)', name, val)
         self.locals[0][name] = val
 
     def lookup(self, name):
@@ -132,6 +142,16 @@ class Converter:
             return self.globals[name]
         raise ValueError(f"Unbound name: {name}.")
 
+    def lookup_result(self, name):
+        if not isinstance(name, str):
+            raise TypeError("name must be a string not %r." % type(name))
+        for results in self.results:
+            if name in results:
+                return results[name]
+        for i, results in enumerate(self.results):
+            logger.error("lookup_result:%d:%r", i, results)
+        raise KeyError("Key %r cannot be found." % name)
+
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
         while r in self.used_vars:
@@ -141,7 +161,7 @@ class Converter:
         return r
 
     def to_onnx_attr_ref(self, val: AttrRef):
-        pytype = val.type
+        pytype = val.typeinfo
         attrname = "value_float" if (pytype is float) else (
             "value_int" if (pytype is int) else "value_string")
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
@@ -149,19 +169,32 @@ class Converter:
     def to_onnx_var(self, val, target=None):
         if isinstance(val, AttrRef):
             # promote attribute to value
-            result = self.generate_unique_name(target if target else "tmp")
+            name = self.generate_unique_name(target if target else "tmp")
             attr = self.to_onnx_attr_ref(val)
+            result = self.emit_result(name, val, attr)
             self.emit([result], Op("", "Constant"), [], [attr])
             return result
-        if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
+        if isinstance(val, ConstValue) and isinstance(val.value, (float, int)):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
             return self.emit_const(val.value, result)
         if isinstance(val, Dynamic):
-            return val.value
+            return self.lookup_result(str(val.value))
         fail("Cannot convert to onnx variable")
 
     def py_var_to_onnx_var(self, py_var):
         return self.to_onnx_var(self.lookup(py_var))
+
+    def emit_result(self, name, typeinfo=None, value=None):
+        if not isinstance(name, str):
+            raise TypeError("name must be a string not %r." % type(name))
+        res = Result(name, type, value)
+        results = self.current_results()
+        if name in results:
+            logger.error("current_results:%r", results)
+            raise KeyError("Key %r is already taken." % name)
+        results[name] = res
+        logger.debug("Convert.emit_result:%r", res)
+        return res
 
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(
@@ -170,7 +203,7 @@ class Converter:
     def emit2(self, outputs, callee, inputs, attrs):
         def rename(x):
             r = self.generate_unique_name(x)
-            self.bind(x, Dynamic(r))
+            self.bind(x, Dynamic(r, DynamicKind.Unknown))
             return r
 
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
@@ -182,8 +215,9 @@ class Converter:
         ovar = self.generate_unique_name(suggested_name)
         tensor = pyvalue_to_tensor(ovar, pyvalue)
         attr = self.ir_builder.attr("value", tensor)
-        self.emit([ovar], Op("", "Constant"), [], [attr])
-        return ovar
+        res = self.emit_result(ovar, None, pyvalue)
+        self.emit([res], Op("", "Constant"), [], [attr])
+        return res
 
     def is_pure_module(self, m):
         return (m in self.pure_modules)
@@ -251,15 +285,18 @@ class Converter:
             raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         if isinstance(r, tuple):
             if isinstance(target, str):
-                result = self.generate_unique_name(target)
+                name = self.generate_unique_name(target)
                 callee, args, attrs = r
+                result = self.emit_result(name, node)
                 self.emit([result], callee, args, attrs)
                 return result
             assert isinstance(target, list)
-            results = [self.generate_unique_name(x) for x in target]
+            results = [self.emit_result(self.generate_unique_name(x), node) for x in target]
             callee, args, attrs = r
             self.emit(results, callee, args, attrs)
             return results
+        if not isinstance(r, Result):
+            raise TypeError("Unexpected type %r (node=%r)." % (type(r), node))
         return r
 
     def translate_call_expr(self, node):
@@ -358,7 +395,7 @@ class Converter:
                     self.bind(lhs, ConstValue(self.eval_constant_expr(rhs)))
                 else:
                     t = self.translate_expr(rhs, lhs)
-                    self.bind(lhs, Dynamic(t))
+                    self.bind(lhs, Dynamic(t, DynamicKind.Intermediate))
             elif isinstance(lhs, ast.Tuple):
                 def id(x):
                     assert isinstance(x, ast.Name)
@@ -366,7 +403,7 @@ class Converter:
                 ids = [id(x) for x in lhs.elts]
                 onnxids = self.translate_expr(rhs, ids)
                 for x, y in zip(ids, onnxids):
-                    self.bind(x, Dynamic(y))
+                    self.bind(x, Dynamic(y, DynamicKind.Intermediate))
             else:
                 fail("Unsupported construct in LHS of assignment.")
 
@@ -385,12 +422,15 @@ class Converter:
     def translate_return_stmt(self, stmt: ast.Return):
         def ret(exp, suffix=""):
             ovar = self.translate_expr(exp, "return_val" + suffix)
+            if not isinstance(ovar, Result):
+                raise TypeError("Unexpected type %r, exp=%r." % (type(ovar), exp))
             # if hasattr(self, returntype) and self.num_outputs <
             # len(self.returntype):
             try:
                 t = self.returntype[self.num_outputs]
             except Exception:
                 t = self.default_type
+            logger.debug('Converter.translate_return_stmt:%s:%s:%r', ovar, t, self.current_fn)
             self.ir_builder.add_output(self.current_fn, ovar, t)
             self.num_outputs += 1
             return ovar
@@ -403,6 +443,7 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
+        logger.debug('Converter.translate_if_stmt')
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         test = self.translate_expr(stmt.test, "cond")
         thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
@@ -412,14 +453,15 @@ class Converter:
 
         def rename(x):
             r = self.generate_unique_name(x)
-            self.bind(x, Dynamic(r))
+            self.bind(x, Dynamic(r, DynamicKind.Unknown))
             return r
 
-        renamed = [rename(x) for x in live_defs]
+        renamed = [self.emit_result(rename(x)) for x in live_defs]
         self.emit(renamed, Op("", "If"), [test], [thenAttr, elseAttr])
 
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
+        logger.debug('Converter.translate_for_stmt')
         assert isinstance(for_stmt.target, ast.Name), \
                "For loop target must be a single variable."
         p_loop_var = for_stmt.target.id
@@ -437,7 +479,7 @@ class Converter:
         loop_state_vars = vars_def_in_loop.intersection(
             exposed_uses | for_stmt.live_out)
         scan_outputs = set()  # TODO
-        outputs = list(loop_state_vars | scan_outputs)
+        outputs_name = list(loop_state_vars | scan_outputs)
 
         # loop-condition:
         o_true = self.emit_const(True, "true")
@@ -445,18 +487,24 @@ class Converter:
 
         # build loop_body
         self.enter_scope("loop_body")
-        o_loop_var = self.generate_unique_name(p_loop_var)
+        o_loop_var_name = self.generate_unique_name(p_loop_var)
+        o_loop_var = self.emit_result(o_loop_var_name)
         self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64)
-        self.bind(p_loop_var, Dynamic(o_loop_var))
-        o_cond_var = self.generate_unique_name("cond_in")
+        self.bind(p_loop_var, Dynamic(o_loop_var, DynamicKind.Input | DynamicKind.Loop))
+        o_cond_var_name = self.generate_unique_name("cond_in")
+        o_cond_var = self.emit_result(o_cond_var_name)
         self.ir_builder.add_input(self.current_fn, o_cond_var, types.BOOL)
         for pv in loop_state_vars:
-            ov = self.generate_unique_name(pv)
+            ov_name = self.generate_unique_name(pv)
+            ov = self.emit_result(ov_name)
             self.ir_builder.add_input(self.current_fn, ov, self.default_type)
-            self.bind(pv, Dynamic(ov))
+            self.bind(pv, Dynamic(ov, DynamicKind.Intermediate | DynamicKind.Loop))
+        logger.debug("Converter.translate_for_stmt:body-begin")
         for s in for_stmt.body:
             self.translate_stmt(s)
-        o_cond_out = self.generate_unique_name("cond_out")
+        logger.debug("Converter.translate_for_stmt:body-end")
+        o_cond_out_name = self.generate_unique_name("cond_out")
+        o_cond_out = self.emit_result(o_cond_out_name)
         self.emit([o_cond_out], Op("", "Identity"), [o_cond_var], [])
         self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL)
         for pv in loop_state_vars:
@@ -468,10 +516,12 @@ class Converter:
         inputs = [o_loop_bound, o_true] + \
                  [self.py_var_to_onnx_var(pv) for pv in loop_state_vars]
         attrs = [self.ir_builder.attr("body", body.to_graph_proto())]
+        outputs = [self.lookup_result(o) for o in outputs_name]
         self.emit2(outputs, "Loop", inputs, attrs)
 
     # Translation of a statement-block to GraphProto attribute
     def translate_block(self, stmts, name, live_defs):
+        logger.debug('Converter.translate_block:%s', name)
         self.enter_scope(name)
         for s in stmts:
             self.translate_stmt(s)
@@ -492,13 +542,15 @@ class Converter:
                          f"branch, known variables: {list(sorted(self.locals))}.")
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
-                self.emit([ovar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
+                rvar = self.emit_result(ovar)
+                self.emit([rvar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
                 # TODO: need type!
-                self.ir_builder.add_output(self.current_fn, ovar, self.default_type)
+                self.ir_builder.add_output(self.current_fn, rvar, self.default_type)
         graph = self.exit_scope()
         return graph.to_graph_proto()
 
     def translate_function_def(self, fn: ast.FunctionDef):
+        logger.debug('Converter.translate_function_def(%r)', fn)
         args = fn.args
         if args.defaults:
             warn(f"{fn.name}: Default values not yet implemented.")
@@ -511,12 +563,13 @@ class Converter:
             else:
                 typeinfo = self.default_type
             assert ta.is_valid(typeinfo)
+            rx = self.emit_result(x.arg, typeinfo)
             if ta.is_attr(typeinfo):
-                self.ir_builder.add_attr(self.current_fn, x.arg, typeinfo)
+                self.ir_builder.add_attr(self.current_fn, rx, typeinfo)
                 self.bind(x.arg, AttrRef(x.arg, typeinfo))
             else:
-                self.ir_builder.add_input(self.current_fn, x.arg, typeinfo)
-                self.bind(x.arg, Dynamic(x.arg))
+                self.ir_builder.add_input(self.current_fn, rx, typeinfo)
+                self.bind(x.arg, Dynamic(x.arg, DynamicKind.Input))
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)
             if isinstance(returntype, tuple):
@@ -543,6 +596,7 @@ class Converter:
         self.globals[asname] = self.known_modules[alias.name]
 
     def top_level_stmt(self, stmt):
+        logger.debug('Converter.top_level_stmt(%r)', stmt)
         if isinstance(stmt, ast.FunctionDef):
             self.init_function_translation()
             analysis.do_liveness_analysis(stmt)
@@ -566,12 +620,14 @@ class Converter:
             raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
 
     def convert_source(self, src):
+        logger.debug('Converter.convert_source(...)')
         module = ast.parse(src)
         assert type(module) == ast.Module
         converted = [self.top_level_stmt(d) for d in module.body]
         return [x for x in converted if x is not None]
 
     def convert_file(self, filename):
+        logger.debug('Converter.convert_file(%r)', filename)
         with open(filename) as f:
             src = f.read()
         return self.convert_source(src)

@@ -11,8 +11,8 @@ from . import type_annotation as ta
 logger = logging.getLogger("onnx-script")
 
 
-def format(list, prefix, sep, suffix):
-    return prefix + sep.join([str(x) for x in list]) + suffix
+def format(args, prefix, sep, suffix):
+    return prefix + sep.join([str(x) for x in args]) + suffix
 
 
 class Type:
@@ -30,23 +30,51 @@ class Type:
         return "SomeType"
 
 
-class Var:
-    def __init__(self, varname, type=None) -> None:
-        self.name = varname
-        self.type = type
+class Result:
+    """
+    A Result refers to an onnx object, whether it is an input,
+    an output, an intermediate result.
+    """
+    def __init__(self, name, typeinfo=None, value=None):
+        if not isinstance(name, str):
+            raise TypeError("name must be a string not %r." % type(name))
+        self.name = name
+        self.typeinfo = typeinfo
+        self.value = value
 
     def __str__(self):
         return self.name
 
+    def __repr__(self):
+        if self.is_python_constant():
+            return 'C(%r)' % self.name
+        return 'R(%r)' % self.name
+
+    def is_python_constant(self):
+        if self.value is None:
+            return False
+        return isinstance(self.value, (int, float))
+
+
+class Var:
+    def __init__(self, result, typeinfo=None) -> None:
+        if not isinstance(result, Result):
+            raise TypeError("Unexpected type %r." % type(result))
+        self.name = result
+        self.typeinfo = typeinfo
+
+    def __str__(self):
+        return str(self.name)
+
     def typed_str(self):
-        return self.name + " : " + str(self.type)
+        return str(self.name) + " : " + str(self.typeinfo)
 
     def to_value_info(self):
-        tp = self.type.to_type_proto()
+        tp = self.typeinfo.to_type_proto()
         # if (not tp.tensor_type.HasField('shape')):
         #     # TODO: temporary patch to export a function as a graph
         #     tp = helper.make_tensor_type_proto(tp.tensor_type.elem_type, [10])
-        return helper.make_value_info(self.name, tp)
+        return helper.make_value_info(str(self.name), tp)
 
 
 class Attr:
@@ -62,6 +90,12 @@ class Attr:
 
 class Stmt:
     def __init__(self, result, module, opname, args, attrs) -> None:
+        if any(map(lambda r: not isinstance(r, Result), args)):
+            logger.error('Stmt:args:%r%r', args, list(map(type, args)))
+            raise TypeError("args must be a list of Result.")
+        if any(map(lambda r: not isinstance(r, Result), result)):
+            logger.error('Stmt:result:%r:%r', result, list(map(type, result)))
+            raise TypeError("result must be a list of Result.")
         self.result = result
         self.module = module
         self.opname = opname
@@ -72,7 +106,7 @@ class Stmt:
         if (isinstance(self.result, str)):
             logger.debug("unexpected str type for self.result where type(self)=%r",
                          type(self))
-        lhs = ", ".join(self.result)
+        lhs = ", ".join(map(str, self.result))
         attrs = ""
         if (self.attrs):
             attrs = format(self.attrs, "<", ", ", ">")
@@ -84,15 +118,33 @@ class Stmt:
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("%s: %s", type(self), str(self))
+            logger.debug("Stmt: %s: %s", type(self), str(self))
 
     def to_node_proto(self):
+        # check one input is a constant
+        args = self.args
+        cast_like = None
+        if (self.opname in {'Add', 'Sub', 'Div', 'Mul', 'Mod'} and
+                len(args) == 2 and (
+                args[0].is_python_constant() != args[1].is_python_constant())):
+            index = 0 if self.args[0].is_python_constant() else 1
+            new_name = '%s_CASTLIKE' % args[0]  # choose a unique name
+            logger.debug("Stmt.to_node_proto:CastLike(%s, %s) -> %s",
+                         args[index], args[1 - index], new_name)
+            cast_like = helper.make_node('CastLike',
+                                         [str(args[index]), str(args[1 - index])],
+                                         [new_name])
+            args = list(args)
+            args[index] = new_name
+
         n = helper.make_node(self.opname,
-                             [str(x) for x in self.args],
+                             [str(x) for x in args],
                              [str(x) for x in self.result])
         for a in self.attrs:
             n.attribute.append(a.attr_proto)
-        return n
+        if cast_like is None:
+            return [n]
+        return [cast_like, n]
 
 
 class Function:
@@ -110,6 +162,19 @@ class Function:
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
 
+    def append_stmt(self, stmt):
+        logger.debug('F(%s):stmt:%s', self.name, stmt)
+        self.stmts.append(stmt)
+
+    def append_input(self, name):
+        self.inputs.append(name)
+
+    def append_output(self, name):
+        self.outputs.append(name)
+
+    def append_attr(self, attr):
+        self.attrs.append(attr)
+
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
             st = StringIO()
@@ -118,13 +183,18 @@ class Function:
                     if attr.attr_proto.HasField("g"):
                         st.write(helper.printable_graph(attr.attr_proto.g))
                         st.write("\n")
-            logger.debug("%s: %s", type(self), st.getvalue())
+            logger.debug("Function %r: %s: %s", self.name, type(self), st.getvalue())
 
     def to_graph_proto(self):
-        return helper.make_graph([s.to_node_proto() for s in self.stmts],
-                                 self.name,
+        nodes = []
+        for s in self.stmts:
+            nodes.extend(s.to_node_proto())
+        return helper.make_graph(nodes, self.name,
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
+
+    def __repr__(self):
+        return 'Function(%r)' % self.name
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
@@ -135,19 +205,19 @@ class IRBuilder:
 
     def add_stmt(self, fn, results, module, opname, args, attrs):
         s = Stmt(results, module, opname, args, attrs)
-        fn.stmts.append(s)
+        fn.append_stmt(s)
 
-    def add_input(self, fn, varname, type):
-        v = Var(varname, type)
-        fn.inputs.append(v)
+    def add_input(self, fn, varname, typeinfo):
+        v = Var(varname, typeinfo)
+        fn.append_input(v)
 
-    def add_attr(self, fn, varname, type):
-        v = Var(varname, type)
-        fn.attrs.append(v)
+    def add_attr(self, fn, varname, typeinfo):
+        v = Var(varname, typeinfo)
+        fn.append_attr(v)
 
-    def add_output(self, fn, varname, type):
-        v = Var(varname, type)
-        fn.outputs.append(v)
+    def add_output(self, fn, varname, typeinfo):
+        v = Var(varname, typeinfo)
+        fn.append_output(v)
 
     def attr(self, attrname, attrval):
         if (isinstance(attrval, Function)):
