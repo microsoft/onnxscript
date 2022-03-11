@@ -3,7 +3,9 @@
 import unittest
 import os
 import textwrap
+import numpy as np
 import onnx
+import onnxruntime
 from onnxscript.converter import Converter
 
 CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -12,7 +14,7 @@ CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 class TestConverter(unittest.TestCase):
     def _convert(self, script):
         converter = Converter()
-        converter.convert(script)
+        return converter.convert(script)
 
     def _convert_and_save(self, script):
         converter = Converter()
@@ -34,7 +36,24 @@ class TestConverter(unittest.TestCase):
             def square(x):
                 return onnx.Mul(x, x)
             """)
-        self._convert(script)
+        res = self._convert(script)
+        self.assertEqual(len(res), 1)
+
+    def test_source_input_ort(self):
+        script = textwrap.dedent("""
+            def square(x):
+                return onnx.Mul(x, x)
+            """)
+        res = self._convert(script)
+        self.assertEqual(len(res), 1)
+        proto = res[0].to_graph_proto()
+        model = onnx.helper.make_model(
+            proto, producer_name='p2o',
+            opset_imports=[onnx.helper.make_opsetid("", 15)])
+        sess = onnxruntime.InferenceSession(model.SerializeToString())
+        x = np.array([5, 6], dtype=np.float32)
+        got = sess.run(None, {'x': x})
+        self.assertEqual((x * x).tolist(), got[0].tolist())
 
     def test_msdomain(self):
         # Temporary patch to use com.microsoft domain
