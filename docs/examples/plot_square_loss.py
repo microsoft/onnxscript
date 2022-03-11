@@ -19,7 +19,7 @@ from onnxscript.onnx_types import FLOAT
 
 def square_loss(X: FLOAT["N", 1], Y: FLOAT["N", 1]) -> FLOAT[1, 1]:
     diff = X - Y
-    return onnx.ReduceSum(diff * diff, keepdims=1)
+    return oxs.ReduceSum(diff * diff, keepdims=1)
 """
 
 #%%

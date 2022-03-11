@@ -34,7 +34,7 @@ class TestConverter(unittest.TestCase):
     def test_source_input(self):
         script = textwrap.dedent("""
             def square(x):
-                return onnx.Mul(x, x)
+                return oxs.Mul(x, x)
             """)
         res = self._convert(script)
         self.assertEqual(len(res), 1)
@@ -42,7 +42,7 @@ class TestConverter(unittest.TestCase):
     def test_source_input_ort(self):
         script = textwrap.dedent("""
             def square(x):
-                return onnx.Mul(x, x)
+                return oxs.Mul(x, x)
             """)
         res = self._convert(script)
         self.assertEqual(len(res), 1)

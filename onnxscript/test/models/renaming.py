@@ -6,15 +6,15 @@ from onnxscript.onnx_types import FLOAT
 
 
 def renaming(A: FLOAT["N"]) -> FLOAT["N"]:
-    T = onnx.Abs(A)
-    T = onnx.Neg(A)
+    T = oxs.Abs(A)
+    T = oxs.Neg(A)
     return T
 
 # clash between generated-name and pre-existing name
 
 
 def renaming2(A: FLOAT["N"]) -> FLOAT["N"]:
-    T_0 = onnx.Relu(A)
-    T = onnx.Abs(A)
-    T = onnx.Neg(A)
+    T_0 = oxs.Relu(A)
+    T = oxs.Abs(A)
+    T = oxs.Neg(A)
     return T
