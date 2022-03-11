@@ -46,11 +46,11 @@ class Result:
         return self.name
 
     def __repr__(self):
-        if self.is_python_constant():
+        if self.is_py_const():
             return 'C(%r)' % self.name
         return 'R(%r)' % self.name
 
-    def is_python_constant(self):
+    def is_py_const(self):
         if self.value is None:
             return False
         return isinstance(self.value, (int, float))
@@ -124,18 +124,17 @@ class Stmt:
         # check one input is a constant
         args = self.args
         cast_like = None
-        if (self.opname in {'Add', 'Sub', 'Div', 'Mul', 'Mod'} and
-                len(args) == 2 and (
-                args[0].is_python_constant() != args[1].is_python_constant())):
-            index = 0 if self.args[0].is_python_constant() else 1
-            new_name = '%s_CASTLIKE' % args[0]  # choose a unique name
-            logger.debug("Stmt.to_node_proto:CastLike(%s, %s) -> %s",
-                         args[index], args[1 - index], new_name)
-            cast_like = helper.make_node('CastLike',
-                                         [str(args[index]), str(args[1 - index])],
-                                         [new_name])
-            args = list(args)
-            args[index] = new_name
+        if self.opname in {'Add', 'Sub', 'Div', 'Mul', 'Mod'}:
+            if len(args) == 2 and args[0].is_py_const() != args[1].is_py_const():
+                index = 0 if self.args[0].is_py_const() else 1
+                new_name = '%s_CASTLIKE' % args[0]  # choose a unique name
+                logger.debug("Stmt.to_node_proto:CastLike(%s, %s) -> %s",
+                             args[index], args[1 - index], new_name)
+                cast_like = helper.make_node('CastLike',
+                                             [str(args[index]), str(args[1 - index])],
+                                             [new_name])
+                args = list(args)
+                args[index] = new_name
 
         n = helper.make_node(self.opname,
                              [str(x) for x in args],

@@ -197,19 +197,19 @@ class Converter:
         return res
 
     def emit(self, outputs, callee, inputs, attrs):
-        self.ir_builder.add_stmt(
+        return self.ir_builder.add_stmt(
             self.current_fn, outputs, callee.opset, callee.opname, inputs, attrs)
 
-    def emit2(self, outputs, callee, inputs, attrs):
+    def emit_loop(self, outputs, callee, inputs, attrs):
         def rename(x):
             r = self.generate_unique_name(x)
             self.bind(x, Dynamic(r, DynamicKind.Unknown))
-            return r
+            return self.emit_result(r)
 
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
-        self.emit(onnx_outputs, Op("", callee), onnx_inputs, attrs)
+        return self.emit(onnx_outputs, Op("", callee), onnx_inputs, attrs)
 
     def emit_const(self, pyvalue, suggested_name):
         ovar = self.generate_unique_name(suggested_name)
@@ -263,10 +263,10 @@ class Converter:
                 fail("Unimplemented attribute construct")
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
-    # Expression-translation generates "IR statements/nodes" that compute the value of
-    # the expression into a target-variable, and returns the variable that is
-    # assigned this value.
     def translate_expr(self, node, target="tmp"):
+        # Expression-translation generates "IR statements/nodes" that compute the value of
+        # the expression into a target-variable, and returns the variable that is
+        # assigned this value.
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
         elif isinstance(node, ast.BinOp):
@@ -372,10 +372,9 @@ class Converter:
                 return Op(default_opset, node.id)
         fail("Invalid callee")
 
-    # Statement translation: A single Python statement is mapped into a
-    # sequence of IR statements.
-
     def translate_stmt(self, node):
+        # Statement translation: A single Python statement is mapped into a
+        # sequence of IR statements.
         if isinstance(node, ast.Assign):
             self.translate_assign_stmt(node)
         elif isinstance(node, ast.Return):
@@ -516,11 +515,10 @@ class Converter:
         inputs = [o_loop_bound, o_true] + \
                  [self.py_var_to_onnx_var(pv) for pv in loop_state_vars]
         attrs = [self.ir_builder.attr("body", body.to_graph_proto())]
-        outputs = [self.lookup_result(o) for o in outputs_name]
-        self.emit2(outputs, "Loop", inputs, attrs)
+        return self.emit_loop(outputs_name, "Loop", inputs, attrs)
 
-    # Translation of a statement-block to GraphProto attribute
     def translate_block(self, stmts, name, live_defs):
+        # Translation of a statement-block to GraphProto attribute
         logger.debug('Converter.translate_block:%s', name)
         self.enter_scope(name)
         for s in stmts:

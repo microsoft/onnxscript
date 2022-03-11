@@ -5,6 +5,7 @@ import os
 import textwrap
 import numpy as np
 import onnx
+from onnx import helper
 import onnxruntime
 from onnxscript.converter import Converter
 
@@ -24,6 +25,9 @@ class TestConverter(unittest.TestCase):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
             graph = f.to_graph_proto()
+            text = helper.printable_graph(graph)
+            with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), "w") as f:
+                f.write(text)
             model = onnx.helper.make_model(
                 graph, producer_name='p2o',
                 opset_imports=[onnx.helper.make_opsetid("", 15)])
@@ -95,9 +99,8 @@ class TestConverter(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    import logging
-    log = logging.getLogger('onnx-script')
-    log.setLevel(logging.DEBUG)
-    logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_loop_models()
+    # import logging
+    # log = logging.getLogger('onnx-script')
+    # log.setLevel(logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
     unittest.main()
