@@ -6,8 +6,8 @@ from onnxscript.onnx_types import FLOAT, INT64
 
 
 def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
-    sum = onnx.Identity(x)
-    prod = onnx.Identity(x)
+    sum = oxs.Identity(x)
+    prod = oxs.Identity(x)
     for i in range(N):
         sum = sum + x
         prod = prod * x
@@ -17,8 +17,8 @@ def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
 
 
 def sumprod2(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
-    sum = onnx.Identity(x)
-    prod = onnx.Identity(x)
+    sum = oxs.Identity(x)
+    prod = oxs.Identity(x)
     for i in range(2 * N + 1):
         sum = sum + x
         prod = prod * x

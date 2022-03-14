@@ -83,7 +83,7 @@ def _known_modules():
     return {
         'onnxscript': onnxscript,
         'onnxscript.onnx_types': onnxscript.onnx_types,
-        'onnx.opset15': values.opset15
+        'onnxscript.onnx.opset15': values.opset15
     }
 
 
@@ -92,8 +92,7 @@ class Converter:
         self.ir_builder = ir_builder
         self.known_modules = _known_modules()
         self.globals = {"int": int, "float": float,
-                        "str": str, "onnx": values.opset15,
-                        "Onnx": values.opset15,
+                        "str": str, "oxs": values.opset15,
                         "msdomain": values.msdomain1}  # 'os' : onnxscript
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
