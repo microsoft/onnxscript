@@ -96,6 +96,23 @@ class TestConverter(unittest.TestCase):
         got = sess.run(None, {'x': x})
         self.assertEqual((x + 3).tolist(), got[0].tolist())
 
+    def test_constants2(self):
+        script = textwrap.dedent("""
+            def square(x):
+                y = x + (1 + 2)
+                return y
+            """)
+        res = self._convert(script)
+        self.assertEqual(len(res), 1)
+        proto = res[0].to_graph_proto()
+        model = onnx.helper.make_model(
+            proto, producer_name='p2o',
+            opset_imports=[onnx.helper.make_opsetid("", 15)])
+        sess = onnxruntime.InferenceSession(model.SerializeToString())
+        x = np.array([5, 6], dtype=np.float32)
+        got = sess.run(None, {'x': x})
+        self.assertEqual((x + 3).tolist(), got[0].tolist())
+
     def test_msdomain(self):
         # Temporary patch to use com.microsoft domain
         script = textwrap.dedent("""
@@ -122,4 +139,5 @@ if __name__ == '__main__':
     # log = logging.getLogger('onnx-script')
     # log.setLevel(logging.DEBUG)
     # logging.basicConfig(level=logging.DEBUG)
+    # TestConverter().test_constants2()
     unittest.main()

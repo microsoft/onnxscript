@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ast
+import logging
+
+logger = logging.getLogger('onnx-script')
 
 
 def used_vars(expr):
@@ -71,12 +74,14 @@ def do_liveness_analysis(fun):
             return live_out  # TODO
         raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
 
+    logger.debug("do_liveness_analysis:%s:begin", fun.name)
     assert isinstance(fun, ast.FunctionDef)
     live = set()
     for s in reversed(fun.body):
         s.live_out = live
         live = visit(s, live)
         s.live_in = live
+    logger.debug("do_liveness_analysis:%s:end", fun.name)
 
 
 def exposed_uses(stmts):

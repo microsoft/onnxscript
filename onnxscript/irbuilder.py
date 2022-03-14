@@ -41,6 +41,7 @@ class Result:
         self.name = name
         self.typeinfo = typeinfo
         self.value = value
+        self.is_py_const_ = value is not None and isinstance(self.value, (int, float))
 
     def __str__(self):
         return self.name
@@ -51,9 +52,7 @@ class Result:
         return 'R(%r)' % self.name
 
     def is_py_const(self):
-        if self.value is None:
-            return False
-        return isinstance(self.value, (int, float))
+        return self.is_py_const_
 
 
 class Var:
@@ -122,19 +121,21 @@ class Stmt:
 
     def to_node_proto(self):
         # check one input is a constant
+        logger.debug("Stmt.to_node_proto:op_type=%r len(args)=%d", self.opname, len(self.args))
         args = self.args
         cast_like = None
         if self.opname in {'Add', 'Sub', 'Div', 'Mul', 'Mod'}:
-            if len(args) == 2 and args[0].is_py_const() != args[1].is_py_const():
-                index = 0 if self.args[0].is_py_const() else 1
-                new_name = '%s_CASTLIKE' % args[0]  # choose a unique name
-                logger.debug("Stmt.to_node_proto:CastLike(%s, %s) -> %s",
-                             args[index], args[1 - index], new_name)
-                cast_like = helper.make_node('CastLike',
-                                             [str(args[index]), str(args[1 - index])],
-                                             [new_name])
-                args = list(args)
-                args[index] = new_name
+            if len(args) == 2:
+                if args[0].is_py_const() != args[1].is_py_const():
+                    index = 0 if self.args[0].is_py_const() else 1
+                    new_name = '%s_CASTLIKE' % args[0]  # choose a unique name
+                    logger.debug("Stmt.to_node_proto:CastLike(%s, %s) -> %s",
+                                 args[index], args[1 - index], new_name)
+                    cast_like = helper.make_node('CastLike',
+                                                 [str(args[index]), str(args[1 - index])],
+                                                 [new_name])
+                    args = list(args)
+                    args[index] = new_name
 
         n = helper.make_node(self.opname,
                              [str(x) for x in args],
@@ -185,6 +186,7 @@ class Function:
             logger.debug("Function %r: %s: %s", self.name, type(self), st.getvalue())
 
     def to_graph_proto(self):
+        logger.debug("Function.to_graph_proto:name=%r len(stmts)=%d", self.name, len(self.stmts))
         nodes = []
         for s in self.stmts:
             nodes.extend(s.to_node_proto())
