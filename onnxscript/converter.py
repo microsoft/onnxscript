@@ -93,7 +93,6 @@ class Converter:
         self.known_modules = _known_modules()
         self.globals = {"int": int, "float": float,
                         "str": str, "oxs": values.opset15,
-                        "Onnx": values.opset15,
                         "msdomain": values.msdomain1}  # 'os' : onnxscript
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
