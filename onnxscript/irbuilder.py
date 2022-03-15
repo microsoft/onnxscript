@@ -128,14 +128,14 @@ class Function:
 
     def to_function_proto(self):
         return helper.make_function(
-            "", # TODO: generate appropriate domain name.
+            "",  # TODO: generate appropriate domain name.
             self.name,
-            inputs = [x.name for x in self.inputs],
-            outputs = [y.name for y in self.outputs],
-            nodes = [s.to_node_proto() for s in self.stmts],
-            opset_imports = [], # TODO
-            attributes = [a.name for a in self.attrs]
-            )
+            inputs=[x.name for x in self.inputs],
+            outputs=[y.name for y in self.outputs],
+            nodes=[s.to_node_proto() for s in self.stmts],
+            opset_imports=[],  # TODO
+            attributes=[a.name for a in self.attrs]
+        )
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
