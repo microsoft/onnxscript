@@ -13,7 +13,7 @@ def convert_file(script):
     return converter.convert_file(script)
 
 
-def to_single_model_proto(input_py_file: str, output_onnx_file: Optional[str] = None):
+def to_single_model_proto(args, input_py_file: str, output_onnx_file: Optional[str] = None):
     if (not output_onnx_file):
         prefix, ext = os.path.splitext(input_py_file)
         output_onnx_file = prefix + ".onnx"
@@ -25,11 +25,18 @@ def to_single_model_proto(input_py_file: str, output_onnx_file: Optional[str] = 
     if (not fnlist):
         print("No functions in input.")
         return
-    main = fnlist.pop(-1)
+
+    if args.model:
+        # treat last function as main graph for model
+        main = fnlist.pop(-1)
+        graph = main.to_graph_proto()
+    else:
+        # For now, we use a ModelProto with an empty graph to represent a library
+        graph = onnx.GraphProto()
 
     # For now, hard-code opset imports.
     # TODO: extract opset imports from translated IR
-    graph = main.to_graph_proto()
+
     model = onnx.helper.make_model(
         graph,
         functions=[f.to_function_proto() for f in fnlist],
@@ -52,12 +59,15 @@ def to_text(input_py_file: str):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         '-m', '--model', help='Translate input to a single ModelProto', action='store_true')
+    group.add_argument('-l', '--lib', help='Translate input to a LibProto',
+                       action='store_true')
     parser.add_argument('rest', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     for input_file in args.rest:
-        if args.model:
-            to_single_model_proto(input_file)
+        if args.model or args.lib:
+            to_single_model_proto(args, input_file)
         else:
             to_text(input_file)
