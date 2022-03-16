@@ -588,4 +588,4 @@ class Converter:
 
 def convert(script):
     converter = Converter()
-    converter.convert(script)
+    return converter.convert(script)
