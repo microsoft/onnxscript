@@ -2,10 +2,15 @@
 
 from typing import Optional
 import os
-from .converter import convert
+from .converter import Converter
 import onnx
 
 # command-line utility to invoke converter on a python file
+
+
+def convert_file(script):
+    converter = Converter()
+    return converter.convert_file(script)
 
 
 def to_single_model_proto(input_py_file: str, output_onnx_file: Optional[str] = None):
@@ -13,7 +18,7 @@ def to_single_model_proto(input_py_file: str, output_onnx_file: Optional[str] = 
         prefix, ext = os.path.splitext(input_py_file)
         output_onnx_file = prefix + ".onnx"
 
-    fnlist = convert(input_py_file)
+    fnlist = convert_file(input_py_file)
 
     # for now, treat the last function in input-file as the "main graph"
     # TODO: let user specify main function via an option
@@ -38,6 +43,12 @@ def to_single_model_proto(input_py_file: str, output_onnx_file: Optional[str] = 
     onnx.save(model, output_onnx_file)
 
 
+def to_text(input_py_file: str):
+    fnlist = convert_file(input_py_file)
+    for f in fnlist:
+        print(str(f))
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -49,4 +60,4 @@ if __name__ == '__main__':
         if args.model:
             to_single_model_proto(input_file)
         else:
-            convert(input_file)
+            to_text(input_file)
