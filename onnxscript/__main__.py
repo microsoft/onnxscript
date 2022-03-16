@@ -20,8 +20,6 @@ def to_single_model_proto(args, input_py_file: str, output_onnx_file: Optional[s
 
     fnlist = convert_file(input_py_file)
 
-    # for now, treat the last function in input-file as the "main graph"
-    # TODO: let user specify main function via an option
     if (not fnlist):
         print("No functions in input.")
         return
