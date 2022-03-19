@@ -15,7 +15,7 @@ def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
 # Test inference of inputs/outputs for then/else blocks:
 
 
-def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
+def maxsum2(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = oxs.ReduceSum(A)
     sum2 = oxs.ReduceSum(B)
     if (sum1 < sum2):
@@ -29,7 +29,7 @@ def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
 # test variables assigned only in one branch
 
 
-def maxsum2(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
+def maxsum3(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = oxs.ReduceSum(A)
     sum2 = oxs.ReduceSum(B)
     result = oxs.Identity(A)
