@@ -75,6 +75,9 @@ class TestConverter(unittest.TestCase):
     def test_onnxfns(self):
         self._convert(os.path.join(CURRENT_DIR, "onnxfns.py"))
 
+    def test_onnxfns_with_cast(self):
+        self._convert(os.path.join(CURRENT_DIR, "onnxfns_with_cast.py"))
+
     def test_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
 
