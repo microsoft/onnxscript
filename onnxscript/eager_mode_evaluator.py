@@ -1,7 +1,7 @@
 import numpy as np
 import onnx
 from onnxruntime import InferenceSession
-from onnx import ValueInfoProto
+from onnx import ValueInfoProto, TensorProto
 from onnx import numpy_helper
 from onnx import AttributeProto
 import onnx.shape_inference
@@ -42,10 +42,20 @@ def call(opname, domain, version, *args, **vargs):
     # input_value_infos = [numpy_helper.from_array(input) for input in args]
     input_value_infos = []
     for input, arr in zip(inputs, args):
+        elem_type: TensorProto.DataType
+        shape: tuple
+        if isinstance(arr, np.ndarray):
+            elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
+            shape = arr.shape
+        else:
+            # FIXME(liqunfu): use schema to get the currect element type
+            elem_type = TensorProto.FLOAT
+            shape = (1,)
+
         value_info = onnx.helper.make_tensor_value_info(
             name=input,
-            elem_type=onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype],
-            shape=arr.shape)
+            elem_type=elem_type,
+            shape=shape)
         input_value_infos.append(value_info)
     
     def make_value_info(i):
@@ -57,20 +67,14 @@ def call(opname, domain, version, *args, **vargs):
     graph_temp = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
     model_temp = onnx.helper.make_model(graph_temp)
     model = onnx.shape_inference.infer_shapes(model_temp, check_type=True, strict_mode=True)
-
-    # output_value_infos_inferred = []
-    # for output in outputs:
-    #     for value_info in model.graph.value_info:
-    #         if value_info.name == output:
-    #             output_value_infos_inferred.append(value_info)
-    
-    # graph_inferred = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos_inferred)
-    # model = onnx.helper.make_model(graph_inferred)
     sess = InferenceSession(model.SerializeToString())
 
     session_run_input = {}
     for input, arg in zip(inputs, args):
-        session_run_input[input] = arg
+        if isinstance(arg, np.ndarray):
+            session_run_input[input] = arg
+        else:
+            session_run_input[input] = np.array([arg], dtype=np.float32)
     
     got = sess.run(None, session_run_input)
     return got[0] if len(got) == 1 else got

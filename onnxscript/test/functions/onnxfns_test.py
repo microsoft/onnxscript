@@ -1,22 +1,22 @@
-import numpy as np
+# import numpy as np
+from ast import Assert
 import unittest
 import test_lib
 from onnxscript.test.models import onnxfns
-import onnx.backend.test.case.node as node_test
 
-n = 4096
-a = np.random.rand(n).astype('float32').T
-b = np.random.rand(n).astype('float32').T
+# eager_test_only = False
+# converter_test_only = False
+# relu_onnx_test_case = test_lib.create_test_case(onnxfns.Relu, None, eager_test_only, converter_test_only)
 
-def create_test_case(function):
-    io = []
-    for case in node_test.collect_testcases_by_operator(function.__name__):
-        io.extend([test_lib.Params(ds[0], ds[1]) for ds in case.data_sets])
-    return test_lib.create_test_case(function, io)
+# selu_onnx_test_case = test_lib.create_test_case(
+#     onnxfns.Selu,
+#     [
+#         {'alpha': 2.0, 'gamma': 3.0},
+#         {'alpha': 2.0, 'gamma': 3.0},
+#         {'alpha': 2.0, 'gamma': 3.0},
+#     ],
+#     eager_test_only, converter_test_only)
 
-relu_onnx_test_case = create_test_case(onnxfns.Relu)
-
-# MaxsumTestCase = test_lib.create_test_case(onnxfns.Selu, cases)
 # MaxsumTestCase = test_lib.create_test_case(onnxfns.Elu, cases)
 # MaxsumTestCase = test_lib.create_test_case(onnxfns.ThresholdedRelu, cases)
 # MaxsumTestCase = test_lib.create_test_case(onnxfns.LeakyRelu, cases)
@@ -26,6 +26,10 @@ relu_onnx_test_case = create_test_case(onnxfns.Relu)
 # MaxsumTestCase = test_lib.create_test_case(onnxfns.Softplus, cases)
 # MaxsumTestCase = test_lib.create_test_case(onnxfns.Softsign, cases)
 # MaxsumTestCase = test_lib.create_test_case(onnxfns.Clip, cases)
+
+class TestOnnxFns(unittest.TestCase):
+    def test_onnxfns(self):
+        test_lib.run_onnx_test(onnxfns.Relu, None)
 
 if __name__ == '__main__':
     unittest.main()

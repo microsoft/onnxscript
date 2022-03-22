@@ -126,6 +126,15 @@ class Function:
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
 
+    def to_function_proto(self, domain, fname, func_opset_imports):
+        return helper.make_function(domain,
+                                    fname,
+                                    [x.name for x in self.inputs],
+                                    [y.name for y in self.outputs],
+                                    [s.to_node_proto() for s in self.stmts],
+                                    func_opset_imports,
+                                    [a.name for a in self.attrs])
+
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
 
