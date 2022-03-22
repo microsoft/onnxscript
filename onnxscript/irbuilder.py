@@ -31,18 +31,21 @@ class Type:
 
 
 class Var:
-    def __init__(self, varname, type=None) -> None:
+    def __init__(self, varname, typeinfo=None) -> None:
         self.name = varname
-        self.type = type
+        self.typeinfo = typeinfo
 
     def __str__(self):
         return self.name
+
+    def __repr__(self):
+        return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.typeinfo)
 
     def typed_str(self):
         return self.name + " : " + str(self.type)
 
     def to_value_info(self):
-        tp = self.type.to_type_proto()
+        tp = self.typeinfo.to_type_proto()
         # if (not tp.tensor_type.HasField('shape')):
         #     # TODO: temporary patch to export a function as a graph
         #     tp = helper.make_tensor_type_proto(tp.tensor_type.elem_type, [10])
@@ -110,6 +113,18 @@ class Function:
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
 
+    def append_stmt(self, stmt):
+        self.stmts.append(stmt)
+
+    def append_input(self, name):
+        self.inputs.append(name)
+
+    def append_output(self, name):
+        self.outputs.append(name)
+
+    def append_attr(self, attr):
+        self.attrs.append(attr)
+
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
             st = StringIO()
@@ -118,7 +133,6 @@ class Function:
                     if attr.attr_proto.HasField("g"):
                         st.write(helper.printable_graph(attr.attr_proto.g))
                         st.write("\n")
-            logger.debug("%s: %s", type(self), st.getvalue())
 
     def to_graph_proto(self):
         return helper.make_graph([s.to_node_proto() for s in self.stmts],
@@ -146,19 +160,19 @@ class IRBuilder:
 
     def add_stmt(self, fn, results, module, opname, args, attrs):
         s = Stmt(results, module, opname, args, attrs)
-        fn.stmts.append(s)
+        fn.append_stmt(s)
 
     def add_input(self, fn, varname, type):
         v = Var(varname, type)
-        fn.inputs.append(v)
+        fn.append_input(v)
 
     def add_attr(self, fn, varname, type):
         v = Var(varname, type)
-        fn.attrs.append(v)
+        fn.append_attr(v)
 
     def add_output(self, fn, varname, type):
         v = Var(varname, type)
-        fn.outputs.append(v)
+        fn.append_output(v)
 
     def attr(self, attrname, attrval):
         if (isinstance(attrval, Function)):
