@@ -5,6 +5,7 @@ from onnx import ValueInfoProto, TensorProto
 from onnx import numpy_helper
 from onnx import AttributeProto
 import onnx.shape_inference
+from onnxscript.utils import convert_data_to_value_infos
 import numbers
 import functools
 import typing
@@ -12,6 +13,7 @@ import typing
 version = 15
 # domain = "onnx.ai"
 domain = ""
+
 
 def convert_to_tensor(v):
     if isinstance(v, np.ndarray):
@@ -23,47 +25,31 @@ def convert_to_tensor(v):
     elif not isinstance(v, onnx.TensorProto):
         raise ValueError("attribute {attribute_name} must be convertable to TensorProto, got {type}", k, type(v))
 
+
 def convert_attributes_to_tensors_with_schema(attribute_dict, schema_attribute_dict):
     for k, v in attribute_dict.items():
         attribute_type = schema_attribute_dict[k].type
         if attribute_type == AttributeProto.TENSOR:
             attribute_dict[k] = convert_to_tensor(v)
 
+
 def call(opname, domain, version, *args, **vargs):
     schema = onnx.defs.get_schema(opname, version, domain)
     convert_attributes_to_tensors_with_schema(vargs, schema.attributes)
 
     num_inputs = len(args)
-    # TODO: compute number of outputs
     num_outputs = len(schema.outputs)
     inputs = ["input" + str(i) for i in range(num_inputs)]
     outputs = ["output" + str(i) for i in range(num_outputs)]
     node = onnx.helper.make_node(opname, inputs, outputs, **vargs)
-    # input_value_infos = [numpy_helper.from_array(input) for input in args]
-    input_value_infos = []
-    for input, arr in zip(inputs, args):
-        elem_type: TensorProto.DataType
-        shape: tuple
-        if isinstance(arr, np.ndarray):
-            elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
-            shape = arr.shape
-        else:
-            # FIXME(liqunfu): use schema to get the currect element type
-            elem_type = TensorProto.FLOAT
-            shape = (1,)
+    input_value_infos = convert_data_to_value_infos(inputs, list(args))
 
-        value_info = onnx.helper.make_tensor_value_info(
-            name=input,
-            elem_type=elem_type,
-            shape=shape)
-        input_value_infos.append(value_info)
-    
-    def make_value_info(i):
+    def make_value_info(name):
         vi = ValueInfoProto()
-        vi.name = "output" + str(i)
+        vi.name = name
         return vi
 
-    output_value_infos = [make_value_info(i) for i in range(num_outputs)]
+    output_value_infos = [make_value_info(name) for name in outputs]
     graph_temp = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
     model_temp = onnx.helper.make_model(graph_temp)
     model = onnx.shape_inference.infer_shapes(model_temp, check_type=True, strict_mode=True)
@@ -78,6 +64,7 @@ def call(opname, domain, version, *args, **vargs):
     
     got = sess.run(None, session_run_input)
     return got[0] if len(got) == 1 else got
+
 
 def __getattr__(attr: str) -> typing.Any:
     return globals().get(attr, functools.partial(call, attr, domain, version))
