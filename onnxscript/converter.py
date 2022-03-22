@@ -63,17 +63,20 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
 # map from python operators to ONNX ops
 primop_map = {
     ast.Add: "Add",
-    ast.Sub: "Sub",
-    ast.Mult: "Mul",
+    ast.And: "And",
     ast.Div: "Div",
-    ast.USub: "Neg",
-    ast.Lt: "Less",
+    ast.Eq: "Equal",
     ast.Gt: "Greater",
-    ast.LtE: "LessOrEqual",
     ast.GtE: "GreaterOrEqual",
+    ast.Lt: "Less",
+    ast.LtE: "LessOrEqual",
     ast.MatMult: "MatMul",
     ast.Mod: "Mod",
-    ast.Pow: "Pow"
+    ast.Mult: "Mul",
+    ast.Or: "Or",
+    ast.Pow: "Pow",
+    ast.Sub: "Sub",
+    ast.USub: "Neg",
 }
 
 
@@ -246,8 +249,11 @@ class Converter:
             r = self.emit_const(node.n, target)
         elif isinstance(node, ast.NameConstant):
             r = self.emit_const(node.value, target)
+        elif isinstance(node, ast.BoolOp):
+            r = self.translate_bool_op_expr(node)
         else:
-            raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
+            raise ValueError(DebugInfo(node).msg(
+                f"Unsupported expression type: {type(node).__name__}."))
         if isinstance(r, tuple):
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
@@ -277,6 +283,18 @@ class Converter:
         right = self.translate_expr(node.right)
         return Op("", opname), [left, right], []
 
+    def translate_bool_op_expr(self, node):
+        op = type(node.op)
+        assert op in primop_map
+        opname = primop_map[op]
+        if len(node.values) != 2:
+            raise SyntaxError(DebugInfo(node).msg(
+                "Boolean operator must have two operands not %d." % len(node.values)))
+        left, right = node.values
+        left = self.translate_expr(left)
+        right = self.translate_expr(right)
+        return Op("", opname), [left, right], []
+
     def translate_unary_op_expr(self, node):
         op = type(node.op)
         assert op in primop_map
@@ -289,7 +307,8 @@ class Converter:
         assert len(node.ops) == 1
         assert len(node.comparators) == 1
         op = type(node.ops[0])
-        assert op in primop_map
+        if op not in primop_map:
+            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
@@ -403,7 +422,10 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
-        live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        if hasattr(stmt, 'live_out'):
+            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        else:
+            live_defs = []
         test = self.translate_expr(stmt.test, "cond")
         thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
@@ -488,8 +510,9 @@ class Converter:
                         pv_val = scope[pvar]
                         break
                 if pv_val is None:
-                    fail(f"Variable {pvar} is not assigned a value along a conditional "
-                         f"branch, known variables: {list(sorted(self.locals))}.")
+                    fail(DebugInfo(stmts[0]).msg(
+                        f"Variable {pvar} is not assigned a value along a conditional "
+                        f"branch, known variables: {list(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
                 self.emit([ovar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
@@ -563,7 +586,8 @@ class Converter:
                 asname = alias.asname if alias.asname else alias.name
                 self.globals[asname] = getattr(module, alias.name)
         else:
-            raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
+            raise ValueError(DebugInfo(stmt).msg(
+                f"Unsupported top-level statement type: {type(stmt).__name__}."))
 
     def convert_source(self, src):
         module = ast.parse(src)

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+# docstring is not support here.
 from onnxscript.onnx_types import FLOAT, INT64
 
 
@@ -8,6 +9,25 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     # Returns the matrix
     # :math:`\\left(\\exp\\left(\\frac{-2i\\pi nk}{K}\\right)\\right)_{nk}`.
     # """
+    # numpy code
+    # 
+    # def dft(N, fft_length):
+    #     """
+    #     Returns the matrix
+    #     :math:`\\left(\\exp\\left(\\frac{-2i\\pi nk}{K}\\right)\\right)_{nk}`.
+    #     """
+    #     dtype = numpy.float64
+    #     zero = numpy.array([0], dtype=numpy.int64)
+    #     n = arange(zero, N).astype(dtype).reshape((-1, 1))
+    #     k = arange(zero, fft_length).astype(dtype).reshape((1, -1))
+    #     p = (k / fft_length.astype(dtype=dtype) *
+    #          numpy.array([-numpy.pi * 2], dtype=dtype)) * n
+    #     cos_p = cos(p)
+    #     sin_p = sin(p)
+    #     two = numpy.array([2], dtype=numpy.int64)
+    #     new_shape = concat(two, cos_p.shape)
+    #     return concat(cos_p, sin_p).reshape(new_shape)
+
     one = oxs.Constant(value_float=1)
     zeroi = oxs.Constant(value_int64=0)
     onei = oxs.Constant(value_int64=1)
@@ -44,42 +64,45 @@ def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]
     zero = oxs.Constant(value_int64=0)
     one = oxs.Constant(value_int64=1)
     dim = oxs.Size(oxs.Shape(x)) - oxs.Constant(value_int64=1)  # x.shape.size - 1 or len(x.shape) - 1
-    if axis == dim or dim == zero:  # ValueError: Unsupported expression type: BoolOp. (difficult to understand)
-        return x
+    if axis == dim or dim == zero:
+        result = x
     else:
-        if dim == one:
+        if dim == one:  # Error: Variable result is not assigned a value along a conditional branch
             if axis == zero:
-                return oxs.Transpose(x, perm=[1, 0])
+                result3 = oxs.Transpose(x, perm=[1, 0])
             else:  # can we skip else?
-                return x  # it is covered by the first case
+                result3 = x  # it is covered by the first case
         else:
             two = oxs.Constant(value_int64=2)
             if dim == two:
                 if axis == zero:
-                    return oxs.Transpose(x, perm=[2, 1, 0])
+                    result = oxs.Transpose(x, perm=[2, 1, 0])
                 else:
-                    return x
+                    result = x
                 if axis == one:
-                    return oxs.Transpose(x, perm=[0, 2, 1])
+                    result = oxs.Transpose(x, perm=[0, 2, 1])
                 else:
-                    return x
+                    result = x
             else:
                 three = oxs.Constant(value_int64=3)
                 if dim == three:
                     if axis == zero:
-                        return oxs.Transpose(x, perm=[2, 1, 0])
+                        result = oxs.Transpose(x, perm=[2, 1, 0])
                     else:
-                        return x
+                        result = x
                     if axis == one:
-                        return oxs.Transpose(x, perm=[0, 2, 1])
+                        result = oxs.Transpose(x, perm=[0, 2, 1])
                     else:
-                        return x
+                        result = x
+                else:
+                    result = x
+    return result
 
 
 def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     # Similar to numpy.fft
     # one dimension.
-    cst = dft(new_x.shape[axis], length)
+    cst = dft(new_x.shape[axis], length)  # dft is unknown, subfunction are not allowed
     cst_cast = oxs.CastLike(cst, x)
     xt = dynamic_switch_with_last_axis(x, axis)
 
