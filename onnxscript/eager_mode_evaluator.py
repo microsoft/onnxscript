@@ -40,15 +40,15 @@ def convert_attributes_to_tensors_with_schema(
             attribute_dict[k] = convert_to_tensor(v, k)
 
 
-def call(opname, domain, version, *args, **vargs):
+def call(opname, domain, version, *args, **kwargs):
     schema = onnx.defs.get_schema(opname, version, domain)
-    convert_attributes_to_tensors_with_schema(vargs, schema.attributes)
+    convert_attributes_to_tensors_with_schema(kwargs, schema.attributes)
 
     num_inputs = len(args)
     num_outputs = len(schema.outputs)
     inputs = ["input" + str(i) for i in range(num_inputs)]
     outputs = ["output" + str(i) for i in range(num_outputs)]
-    node = onnx.helper.make_node(opname, inputs, outputs, **vargs)
+    node = onnx.helper.make_node(opname, inputs, outputs, **kwargs)
     input_value_infos = convert_data_to_value_infos(inputs, list(args))
 
     def make_value_info(name):
