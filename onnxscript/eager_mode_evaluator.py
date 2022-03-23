@@ -57,7 +57,8 @@ def call(opname, domain, version, *args, **kwargs):
     output_value_infos = [make_value_info(name) for name in outputs]
     graph_temp = onnx.helper.make_graph(
         [node], "node_graph", input_value_infos, output_value_infos)
-    model_temp = onnx.helper.make_model(graph_temp)
+    opset_id = onnx.helper.make_opsetid(domain, version)
+    model_temp = onnx.helper.make_model(graph_temp, opset_imports=[opset_id])
     model = onnx.shape_inference.infer_shapes(
         model_temp, check_type=True, strict_mode=True)
     sess = InferenceSession(model.SerializeToString())
