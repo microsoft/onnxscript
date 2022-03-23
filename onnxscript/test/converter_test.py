@@ -85,7 +85,10 @@ class TestConverter(unittest.TestCase):
         self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
 
     def test_docstring(self):
-        self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
+        res = self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
+        self.assertEqual(len(res), 1)
+        proto = res[0].to_function_proto()
+        self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
 
 
 if __name__ == '__main__':
