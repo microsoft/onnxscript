@@ -81,6 +81,9 @@ class TestConverter(unittest.TestCase):
     def test_if_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "if.py"))
 
+    def test_nested_if_models(self):
+        self._convert_and_save(os.path.join(CURRENT_DIR, "if_nested.py"))
+
     def test_loop_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
 

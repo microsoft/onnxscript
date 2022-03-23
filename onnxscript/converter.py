@@ -4,6 +4,7 @@ import os
 import inspect
 import ast
 import logging
+import pprint
 import onnx
 import onnx.helper as helper
 from . import onnx_types as types
@@ -403,7 +404,10 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
-        live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        if hasattr(stmt, 'live_out'):
+            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        else:
+            live_defs = []
         test = self.translate_expr(stmt.test, "cond")
         thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
@@ -488,8 +492,9 @@ class Converter:
                         pv_val = scope[pvar]
                         break
                 if pv_val is None:
-                    fail(f"Variable {pvar} is not assigned a value along a conditional "
-                         f"branch, known variables: {list(sorted(self.locals))}.")
+                    fail(DebugInfo(stmts[0]).msg(
+                        f"Variable {pvar} is not assigned a value along a conditional "
+                        f"branch, known variables: {pprint.pformat(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
                 self.emit([ovar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
