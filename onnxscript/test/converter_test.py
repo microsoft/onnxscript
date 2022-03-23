@@ -75,6 +75,9 @@ class TestConverter(unittest.TestCase):
     def test_loop_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
 
+    def test_docstring(self):
+        self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
+
 
 if __name__ == '__main__':
     unittest.main()

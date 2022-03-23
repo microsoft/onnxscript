@@ -69,7 +69,8 @@ def do_liveness_analysis(fun):
             return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
             return live_out  # TODO
-        raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+        raise ValueError(DebugInfo(stmt).msg(
+            f"Unsupported statement type: {type(stmt).__name__}."))
 
     assert isinstance(fun, ast.FunctionDef)
     live = set()
