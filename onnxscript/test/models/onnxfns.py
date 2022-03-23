@@ -2,7 +2,7 @@
 
 
 def Relu(X):
-    return oxs.Max(X, 0.0)
+    return oxs.Max(X, 0)
 
 # TODO: default-values of attributes
 
@@ -11,7 +11,7 @@ def Selu(X, alpha: float = 1.67326319217681884765625,
          gamma: float = 1.05070102214813232421875):
     neg = gamma * (alpha * oxs.Exp(X) - alpha)
     pos = gamma * X
-    return oxs.Where(X <= oxs.CastLike(0, X), neg, pos)
+    return oxs.Where(X <= 0, neg, pos)
 
 
 def Elu(X, alpha: float = 1.0):

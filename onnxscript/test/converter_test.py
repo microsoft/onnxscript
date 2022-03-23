@@ -79,7 +79,7 @@ class TestConverter(unittest.TestCase):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
 
     def test_if_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "if_statement.py"))
+        self._convert_and_save(os.path.join(CURRENT_DIR, "if.py"))
 
     def test_loop_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
