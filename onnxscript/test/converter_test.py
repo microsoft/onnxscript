@@ -33,8 +33,6 @@ class TestConverter(unittest.TestCase):
                 onnx.checker.check_model(model)
             except ValidationError as e:
                 onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
-                from mlprodict.plotting.text_plot import onnx_simple_text_plot
-                print(onnx_simple_text_plot(model, recursive=True))
                 raise AssertionError(
                     "Verification of model failed.") from e
             onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
