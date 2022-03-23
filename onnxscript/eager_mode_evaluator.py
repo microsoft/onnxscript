@@ -1,14 +1,12 @@
-import numbers
 import functools
+import numbers
 import numpy as np
 import typing
 
 import onnx
+from onnx import ValueInfoProto, numpy_helper, AttributeProto
 from onnxruntime import InferenceSession
-from onnx import ValueInfoProto
-from onnx import numpy_helper
-from onnx import AttributeProto
-import onnx.shape_inference
+
 from onnxscript.utils import convert_data_to_value_infos
 
 version = 15
