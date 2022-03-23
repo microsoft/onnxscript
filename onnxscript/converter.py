@@ -11,7 +11,7 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import ConstValue, AttrRef, Dynamic, Op
+from .values import ConstValue, AttrRef, Dynamic, Op, DynamicKind, DebugInfo
 
 
 logger = logging.getLogger("onnx-script")
@@ -123,13 +123,13 @@ class Converter:
     def bind(self, name, val):
         self.locals[0][name] = val
 
-    def lookup(self, name):
+    def lookup(self, name, info):
         for scope in self.locals:
             if name in scope:
                 return scope[name]
         if name in self.globals:
             return self.globals[name]
-        raise ValueError(f"Unbound name: {name}.")
+        raise ValueError(info.msg(f"Unbound name: {name}."))
 
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
@@ -140,7 +140,7 @@ class Converter:
         return r
 
     def to_onnx_attr_ref(self, val: AttrRef):
-        pytype = val.type
+        pytype = val.typeinfo
         attrname = "value_float" if (pytype is float) else (
             "value_int" if (pytype is int) else "value_string")
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
@@ -159,17 +159,17 @@ class Converter:
             return val.value
         fail("Cannot convert to onnx variable")
 
-    def py_var_to_onnx_var(self, py_var):
-        return self.to_onnx_var(self.lookup(py_var))
+    def py_var_to_onnx_var(self, py_var, info):
+        return self.to_onnx_var(self.lookup(py_var, info))
 
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(
             self.current_fn, outputs, callee.opset, callee.opname, inputs, attrs)
 
-    def emit2(self, outputs, callee, inputs, attrs):
+    def emit_loop(self, outputs, callee, inputs, attrs, info):
         def rename(x):
             r = self.generate_unique_name(x)
-            self.bind(x, Dynamic(r))
+            self.bind(x, Dynamic(r, DynamicKind.Output, info))
             return r
 
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
@@ -189,7 +189,7 @@ class Converter:
 
     def is_constant_expr(self, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id)
+            val = self.lookup(node.id, DebugInfo(node))
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute)):
@@ -296,13 +296,13 @@ class Converter:
         return Op("", opname), [left, right], []
 
     def translate_name_expr(self, node):
-        return self.py_var_to_onnx_var(node.id)
+        return self.py_var_to_onnx_var(node.id, DebugInfo(node))
 
     def translate_opset_expr(self, node) -> values.Opset:
         """Return an Opset"""
         if isinstance(node, ast.Name):
             try:
-                val = self.lookup(node.id)
+                val = self.lookup(node.id, DebugInfo(node))
                 if isinstance(val, ConstValue):  # TODO
                     val = val.value
                 if isinstance(val, values.Opset):
@@ -351,13 +351,14 @@ class Converter:
 
     def translate_assign_stmt(self, stmt: ast.Assign):
         def assign(lhs, rhs):
+            info = DebugInfo(lhs)
             if isinstance(lhs, ast.Name):
                 lhs = lhs.id
                 if self.is_constant_expr(rhs):
-                    self.bind(lhs, ConstValue(self.eval_constant_expr(rhs)))
+                    self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
                 else:
                     t = self.translate_expr(rhs, lhs)
-                    self.bind(lhs, Dynamic(t))
+                    self.bind(lhs, Dynamic(t, DynamicKind.Intermediate, info))
             elif isinstance(lhs, ast.Tuple):
                 def id(x):
                     assert isinstance(x, ast.Name)
@@ -365,7 +366,7 @@ class Converter:
                 ids = [id(x) for x in lhs.elts]
                 onnxids = self.translate_expr(rhs, ids)
                 for x, y in zip(ids, onnxids):
-                    self.bind(x, Dynamic(y))
+                    self.bind(x, Dynamic(y, DynamicKind.Intermediate))
             else:
                 fail("Unsupported construct in LHS of assignment.")
 
@@ -411,7 +412,7 @@ class Converter:
 
         def rename(x):
             r = self.generate_unique_name(x)
-            self.bind(x, Dynamic(r))
+            self.bind(x, Dynamic(r, DynamicKind.Intermediate, DebugInfo(stmt)))
             return r
 
         renamed = [rename(x) for x in live_defs]
@@ -446,28 +447,28 @@ class Converter:
         self.enter_scope("loop_body")
         o_loop_var = self.generate_unique_name(p_loop_var)
         self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64)
-        self.bind(p_loop_var, Dynamic(o_loop_var))
+        self.bind(p_loop_var, Dynamic(o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt)))
         o_cond_var = self.generate_unique_name("cond_in")
         self.ir_builder.add_input(self.current_fn, o_cond_var, types.BOOL)
         for pv in loop_state_vars:
             ov = self.generate_unique_name(pv)
             self.ir_builder.add_input(self.current_fn, ov, self.default_type)
-            self.bind(pv, Dynamic(ov))
+            self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(for_stmt)))
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
         self.emit([o_cond_out], Op("", "Identity"), [o_cond_var], [])
         self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL)
         for pv in loop_state_vars:
-            ov = self.py_var_to_onnx_var(pv)
+            ov = self.py_var_to_onnx_var(pv, DebugInfo(for_stmt))
             self.ir_builder.add_output(
                 self.current_fn, ov, self.default_type)  # TODO: type
         body = self.exit_scope()
 
         inputs = [o_loop_bound, o_true] + \
-                 [self.py_var_to_onnx_var(pv) for pv in loop_state_vars]
+                 [self.py_var_to_onnx_var(pv, DebugInfo(for_stmt)) for pv in loop_state_vars]
         attrs = [self.ir_builder.attr("body", body.to_graph_proto())]
-        self.emit2(outputs, "Loop", inputs, attrs)
+        return self.emit_loop(outputs, "Loop", inputs, attrs, DebugInfo(for_stmt))
 
     # Translation of a statement-block to GraphProto attribute
     def translate_block(self, stmts, name, live_defs):
@@ -512,10 +513,10 @@ class Converter:
             assert ta.is_valid(typeinfo)
             if ta.is_attr(typeinfo):
                 self.ir_builder.add_attr(self.current_fn, x.arg, typeinfo)
-                self.bind(x.arg, AttrRef(x.arg, typeinfo))
+                self.bind(x.arg, AttrRef(x.arg, typeinfo, DebugInfo(x)))
             else:
                 self.ir_builder.add_input(self.current_fn, x.arg, typeinfo)
-                self.bind(x.arg, Dynamic(x.arg))
+                self.bind(x.arg, Dynamic(x.arg, DynamicKind.Input, DebugInfo(x)))
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)
             if isinstance(returntype, tuple):
@@ -588,4 +589,4 @@ class Converter:
 
 def convert(script):
     converter = Converter()
-    converter.convert(script)
+    return converter.convert(script)
