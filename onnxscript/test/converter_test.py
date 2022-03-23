@@ -39,6 +39,15 @@ class TestConverter(unittest.TestCase):
         res = self._convert(script)
         self.assertEqual(len(res), 1)
 
+    def test_source_input_error_undefined(self):
+        script = textwrap.dedent("""
+            def square(x):
+                return oxs.Mul(undefined, x)
+            """)
+        with self.assertRaises(ValueError) as e:
+            self._convert(script)
+        self.assertIn("string:3", str(e.exception))
+
     def test_source_input_ort(self):
         script = textwrap.dedent("""
             def square(x):
