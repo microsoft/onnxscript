@@ -2,6 +2,8 @@
 
 import onnxscript.onnx.opset15 as op
 
+# These function definitions include explicit CastLike ops for constants/attributes.
+
 def Relu(X):
     zero = op.CastLike(0, X)
     return op.Max(X, zero)
