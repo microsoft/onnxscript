@@ -29,7 +29,7 @@ def convert_to_tensor(v, k):
 
 
 def convert_attributes_to_tensors_with_schema(
-    attribute_dict, schema_attribute_dict):
+        attribute_dict, schema_attribute_dict):
     # Constant and ConstantLike are the 2 ops in onnx
     # that take a tensor as attribute value.
     # onnx-script tends to use a literal number for attribute.
