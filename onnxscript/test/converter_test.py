@@ -5,6 +5,7 @@ import os
 import textwrap
 import numpy as np
 import onnx
+from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
 
@@ -28,7 +29,14 @@ class TestConverter(unittest.TestCase):
                 graph, producer_name='p2o',
                 opset_imports=[onnx.helper.make_opsetid("", 15)])
             model = onnx.shape_inference.infer_shapes(model)
-            onnx.checker.check_model(model)
+            try:
+                onnx.checker.check_model(model)
+            except ValidationError as e:
+                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
+                from mlprodict.plotting.text_plot import onnx_simple_text_plot
+                print(onnx_simple_text_plot(model, recursive=True))
+                raise AssertionError(
+                    "Verification of model failed.") from e
             onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
     def test_source_input(self):
