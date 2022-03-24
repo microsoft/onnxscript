@@ -1,6 +1,7 @@
 import onnx
 from onnxscript.converter import convert
 
+import onnxscript.onnx.opset15 as op
 
 def isomorphic(f1: onnx.FunctionProto, f2: onnx.FunctionProto):
     ...
