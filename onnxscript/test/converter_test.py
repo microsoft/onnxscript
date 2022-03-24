@@ -5,6 +5,7 @@ import os
 import textwrap
 import numpy as np
 import onnx
+from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
 
@@ -23,12 +24,14 @@ class TestConverter(unittest.TestCase):
         if not os.path.exists(TEST_OUTPUT_DIR):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
-            graph = f.to_graph_proto()
-            model = onnx.helper.make_model(
-                graph, producer_name='p2o',
-                opset_imports=[onnx.helper.make_opsetid("", 15)])
+            model = f.to_model_proto(producer_name='p2o')
             model = onnx.shape_inference.infer_shapes(model)
-            onnx.checker.check_model(model)
+            try:
+                onnx.checker.check_model(model)
+            except ValidationError as e:
+                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
+                raise AssertionError(
+                    "Verification of model failed.") from e
             onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
     def test_source_input(self):
@@ -77,6 +80,9 @@ class TestConverter(unittest.TestCase):
 
     def test_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
+
+    def test_subfunction(self):
+        self._convert_and_save(os.path.join(CURRENT_DIR, "subfunction.py"))
 
     def test_if_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "if.py"))
