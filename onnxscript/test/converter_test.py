@@ -84,6 +84,12 @@ class TestConverter(unittest.TestCase):
     def test_loop_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
 
+    def test_docstring(self):
+        res = self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
+        self.assertEqual(len(res), 1)
+        proto = res[0].to_function_proto()
+        self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ast
+from .values import DebugInfo
 
 
 def used_vars(expr):
@@ -69,7 +70,12 @@ def do_liveness_analysis(fun):
             return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
             return live_out  # TODO
-        raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+        if (isinstance(stmt, ast.Expr) and hasattr(stmt, 'value') and hasattr(
+                stmt.value, 'value') and isinstance(stmt.value.value, str)):
+            # docstring
+            return live_out
+        raise ValueError(DebugInfo(stmt).msg(
+            f"Unsupported statement type: {type(stmt).__name__}."))
 
     assert isinstance(fun, ast.FunctionDef)
     live = set()
