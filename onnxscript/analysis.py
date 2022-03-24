@@ -54,10 +54,10 @@ def do_liveness_analysis(fun):
     analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
     and `s.live_out`.
     '''
-    def visit(stmt_index, stmt, live_out):
+    def visit(stmt, live_out):
         def visitBlock(block, live_out):
             for s in reversed(block):
-                live_out = visit(None, s, live_out)
+                live_out = visit(s, live_out)
             return live_out
 
         if isinstance(stmt, ast.Assign):
@@ -70,8 +70,8 @@ def do_liveness_analysis(fun):
             return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
             return live_out  # TODO
-        if (isinstance(stmt, ast.Expr) and stmt_index == 0 and hasattr(
-                stmt, 'value') and isinstance(stmt.value.value, str)):
+        if (isinstance(stmt, ast.Expr) and hasattr(stmt, 'value') and hasattr(
+                stmt.value, 'value') and isinstance(stmt.value.value, str)):
             # docstring
             return live_out
         raise ValueError(DebugInfo(stmt).msg(
@@ -79,9 +79,9 @@ def do_liveness_analysis(fun):
 
     assert isinstance(fun, ast.FunctionDef)
     live = set()
-    for i, s in reversed(list(enumerate(fun.body))):
+    for s in reversed(fun.body):
         s.live_out = live
-        live = visit(i, s, live)
+        live = visit(s, live)
         s.live_in = live
 
 
