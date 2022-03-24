@@ -1,0 +1,26 @@
+
+import onnxscript.onnx.opset15 as op
+
+def DepthToSpace():
+    ...
+
+def SpaceToDepth():
+    ...
+
+def Hardmax():
+    ...
+
+def ReduceSumSquare():
+    ...
+
+def ReduceLogSum():
+    ...
+
+def ReduceLogSumExp():
+    ...
+
+def ReduceL1():
+    ...
+
+def ReduceL2():
+    ...
