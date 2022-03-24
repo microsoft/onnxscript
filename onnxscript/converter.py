@@ -343,7 +343,7 @@ class Converter:
     # Statement translation: A single Python statement is mapped into a
     # sequence of IR statements.
 
-    def translate_stmt(self, node):
+    def translate_stmt(self, node, index_of_stmt=None):
         if isinstance(node, ast.Assign):
             return self.translate_assign_stmt(node)
         if isinstance(node, ast.Return):
@@ -353,7 +353,7 @@ class Converter:
         if isinstance(node, ast.For):
             return self.translate_for_stmt(node)
         if isinstance(node, ast.Expr):
-            if (hasattr(node, 'value') and hasattr(node.value, 'value') and isinstance(
+            if (index_of_stmt == 0 and hasattr(node, 'value') and isinstance(
                     node.value.value, str)):
                 return self.translate_docstring(node)
         raise ValueError(DebugInfo(node).msg(
@@ -539,7 +539,7 @@ class Converter:
             self.returntype = None
         self.num_outputs = 0
         for i, s in enumerate(fn.body):
-            self.translate_stmt(s)
+            self.translate_stmt(s, index_of_stmt=i)
         if self.returntype is not None:
             assert self.num_outputs == len(self.returntype), \
                    "Mismatch in number of return values and types"
