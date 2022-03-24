@@ -22,6 +22,7 @@ def gemmgelu(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"] ) -> FLOAT
     one = oxs.Constant(value_float=1.0)
     P1 = oxs.MatMul(A, W)
     X = oxs.Add(P1, Bias)
+    print("X: ", X)
     T1 = oxs.Mul(X, X)
     T2 = oxs.Mul(c, T1)
     T3 = oxs.Add(b, T2)
