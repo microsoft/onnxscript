@@ -7,10 +7,13 @@ import onnx
 from onnx import ValueInfoProto, numpy_helper, AttributeProto
 from onnxruntime import InferenceSession
 
-from onnxscript.utils import convert_data_to_value_infos
+from .utils import convert_arrays_to_value_infos
+from .converter import Converter
 
-version = 15
-domain = ""
+# for version and domain, use what the Converter will use for now.
+converter = Converter()
+version = converter.globals["oxs"].version
+domain = converter.globals["oxs"].domain
 
 
 def convert_to_tensor(v, k):
@@ -47,7 +50,7 @@ def call(opname, domain, version, *args, **kwargs):
     inputs = ["input" + str(i) for i in range(num_inputs)]
     outputs = ["output" + str(i) for i in range(num_outputs)]
     node = onnx.helper.make_node(opname, inputs, outputs, **kwargs)
-    input_value_infos = convert_data_to_value_infos(inputs, list(args))
+    input_value_infos = convert_arrays_to_value_infos(inputs, list(args))
 
     def make_value_info(name):
         vi = ValueInfoProto()
@@ -63,12 +66,7 @@ def call(opname, domain, version, *args, **kwargs):
         model_temp, check_type=True, strict_mode=True)
     sess = InferenceSession(model.SerializeToString())
 
-    session_run_input = {}
-    for input, arg in zip(inputs, args):
-        if isinstance(arg, np.ndarray):
-            session_run_input[input] = arg
-        else:
-            session_run_input[input] = np.array([arg], dtype=np.float32)
+    session_run_input = {input: arg for input, arg in zip(inputs, args)}
 
     got = sess.run(None, session_run_input)
     return got[0] if len(got) == 1 else got

@@ -33,6 +33,7 @@ def gemmgelu(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"] ) -> FLOAT
     return Y
 
 
+np.random.seed(0)
 m = 2048
 k = 16
 n = 4096

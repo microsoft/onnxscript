@@ -35,28 +35,16 @@ def call_ort(opname, *args, **kwds):
     return model(ort_args)
 
 
-def convert_data_to_value_infos(names, data_list):
-    def map_scalar_to_tensor_type(scalar):
-        if isinstance(scalar, float):
-            return TensorProto.FLOAT
-        elif isinstance(scalar, int):
-            return TensorProto.INT32
-        elif isinstance(scalar, bool):
-            return TensorProto.BOOL
-        else:
-            raise ValueError(f"Unsupported python scaler type: {type(scalar)}")
-
+def convert_arrays_to_value_infos(names, arr_list):
     value_infos = []
-    for name, data in zip(names, data_list):
+    for name, arr in zip(names, arr_list):
         elem_type: TensorProto.DataType
         shape: tuple
-        if isinstance(data, np.ndarray):
-            elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[data.dtype]
-            shape = data.shape
+        if isinstance(arr, np.ndarray):
+            elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
+            shape = arr.shape
         else:
-            # FIXME(liqunfu): use schema to get the currect element type
-            elem_type = map_scalar_to_tensor_type(data)
-            shape = (1,)
+            raise ValueError(f"cannot covert a {type(arr)} to value_info")
 
         value_info = onnx.helper.make_tensor_value_info(
             name=name,
