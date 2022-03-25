@@ -5,6 +5,7 @@ import os
 import textwrap
 import numpy as np
 import onnx
+from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
 
@@ -28,7 +29,12 @@ class TestConverter(unittest.TestCase):
                 graph, producer_name='p2o',
                 opset_imports=[onnx.helper.make_opsetid("", 15)])
             model = onnx.shape_inference.infer_shapes(model)
-            onnx.checker.check_model(model)
+            try:
+                onnx.checker.check_model(model)
+            except ValidationError as e:
+                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
+                raise AssertionError(
+                    "Verification of model failed.") from e
             onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
     def test_source_input(self):
@@ -86,6 +92,9 @@ class TestConverter(unittest.TestCase):
 
     def test_if_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "if.py"))
+
+    def test_nested_if_models(self):
+        self._convert_and_save(os.path.join(CURRENT_DIR, "if_nested.py"))
 
     def test_loop_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))

@@ -4,6 +4,7 @@ import os
 import inspect
 import ast
 import logging
+import pprint
 import onnx
 import onnx.helper as helper
 from . import onnx_types as types
@@ -49,7 +50,7 @@ def ignore(cond, msg):
 # Utility to convert a python value to TensorProto:
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, info):
     if isinstance(pyvalue, bool):
         return helper.make_tensor(tensor_name, onnx.TensorProto.BOOL, [], [int(pyvalue)])
     if isinstance(pyvalue, int):
@@ -57,7 +58,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
     if isinstance(pyvalue, float):
         return helper.make_tensor(tensor_name, onnx.TensorProto.FLOAT, [], [pyvalue])
     # TODO: str, sequences of values
-    fail("Unimplemented")
+    fail(info.msg("pyvalue_to_tensor is not implemented for type %r." % type(pyvalue)))
 
 
 # map from python operators to ONNX ops
@@ -90,6 +91,23 @@ def _known_modules():
     }
 
 
+class Scope:
+
+    def __init__(self, name, node):
+        self.name = name
+        self.node = node
+        self.vars = {}
+
+    def __contains__(self, name):
+        return name in self.vars
+
+    def __getitem__(self, name):
+        return self.vars[name]
+
+    def add(self, name, val):
+        self.vars[name] = val
+
+
 class Converter:
     def __init__(self, ir_builder=IRBuilder()):
         self.ir_builder = ir_builder
@@ -106,12 +124,12 @@ class Converter:
         self.current_fn = None
         self.nextvar = 0
         self.used_vars = set()
-        self.locals = [{}]
+        self.locals = [Scope(None, None)]
 
-    def enter_scope(self, name):
+    def enter_scope(self, name, node):
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
-        self.locals.insert(0, {})
+        self.locals.insert(0, Scope(name, node))
 
     def exit_scope(self):
         graph = self.current_fn
@@ -120,11 +138,22 @@ class Converter:
         self.locals.pop(0)
         return graph
 
-    def current_scope(self):
-        return self.locals[0]
+    def current_scope_variables(self):
+        def iter_scope():
+            yield self.locals[0]
+            if isinstance(self.locals[0], ast.If):
+                for i in range(1, len(self.locals)):
+                    if not isinstance(self.locals[i].node, ast.If):
+                        break
+                    yield self.locals[i]
+        vars = dict()
+        scopes = list(iter_scope())
+        for scope in reversed(scopes):
+            vars.update(scope.vars)
+        return vars
 
     def bind(self, name, val):
-        self.locals[0][name] = val
+        self.locals[0].add(name, val)
 
     def lookup(self, name, info):
         for scope in self.locals:
@@ -148,7 +177,7 @@ class Converter:
             "value_int" if (pytype is int) else "value_string")
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
-    def to_onnx_var(self, val, target=None):
+    def to_onnx_var(self, val, target=None, info=None):
         if isinstance(val, AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
@@ -157,13 +186,13 @@ class Converter:
             return result
         if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
-            return self.emit_const(val.value, result)
+            return self.emit_const(val.value, result, info=info)
         if isinstance(val, Dynamic):
             return val.value
         fail("Cannot convert to onnx variable")
 
     def py_var_to_onnx_var(self, py_var, info):
-        return self.to_onnx_var(self.lookup(py_var, info))
+        return self.to_onnx_var(self.lookup(py_var, info=info), info=info)
 
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self.current_fn, docstring)
@@ -178,14 +207,13 @@ class Converter:
             self.bind(x, Dynamic(r, DynamicKind.Output, info))
             return r
 
-        # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
         self.emit(onnx_outputs, Op("", callee), onnx_inputs, attrs)
 
-    def emit_const(self, pyvalue, suggested_name):
+    def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue)
+        tensor = pyvalue_to_tensor(ovar, pyvalue, info)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op("", "Constant"), [], [attr])
         return ovar
@@ -252,9 +280,9 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif isinstance(node, ast.Num):
-            r = self.emit_const(node.n, target)
+            r = self.emit_const(node.n, target, DebugInfo(node))
         elif isinstance(node, ast.NameConstant):
-            r = self.emit_const(node.value, target)
+            r = self.emit_const(node.value, target, DebugInfo(node))
         elif isinstance(node, ast.BoolOp):
             r = self.translate_bool_op_expr(node)
         else:
@@ -320,7 +348,7 @@ class Converter:
         return Op("", opname), [left, right], []
 
     def translate_name_expr(self, node):
-        return self.py_var_to_onnx_var(node.id, DebugInfo(node))
+        return self.py_var_to_onnx_var(node.id, info=DebugInfo(node))
 
     def translate_opset_expr(self, node) -> values.Opset:
         """Return an Opset"""
@@ -434,11 +462,13 @@ class Converter:
         if hasattr(stmt, 'live_out'):
             live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         else:
-            live_defs = []
+            live_defs = list(analysis.defs(stmt))
         test = self.translate_expr(stmt.test, "cond")
-        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
+        if len(stmt.body) == 0:
+            fail(DebugInfo(stmt).msg("Branch then cannot be empty."))
+        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs, stmt, 'body')
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
-        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs)
+        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs, stmt, 'orelse')
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
@@ -471,11 +501,11 @@ class Converter:
         outputs = list(loop_state_vars | scan_outputs)
 
         # loop-condition:
-        o_true = self.emit_const(True, "true")
+        o_true = self.emit_const(True, "true", DebugInfo(for_stmt))
         # o_loop_bound = self.emit_const(3, "loop_bound")
 
         # build loop_body
-        self.enter_scope("loop_body")
+        self.enter_scope("loop_body", for_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
         self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64)
         self.bind(p_loop_var, Dynamic(o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt)))
@@ -491,27 +521,31 @@ class Converter:
         self.emit([o_cond_out], Op("", "Identity"), [o_cond_var], [])
         self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL)
         for pv in loop_state_vars:
-            ov = self.py_var_to_onnx_var(pv, DebugInfo(for_stmt))
+            ov = self.py_var_to_onnx_var(pv, info=DebugInfo(for_stmt))
             self.ir_builder.add_output(
                 self.current_fn, ov, self.default_type)  # TODO: type
         body = self.exit_scope()
 
         inputs = [o_loop_bound, o_true] + \
-                 [self.py_var_to_onnx_var(pv, DebugInfo(for_stmt)) for pv in loop_state_vars]
+                 [self.py_var_to_onnx_var(pv, info=DebugInfo(for_stmt))
+                  for pv in loop_state_vars]
         attrs = [self.ir_builder.attr("body", body.to_graph_proto())]
         return self.emit_loop(outputs, "Loop", inputs, attrs, DebugInfo(for_stmt))
 
     # Translation of a statement-block to GraphProto attribute
-    def translate_block(self, stmts, name, live_defs):
-        self.enter_scope(name)
+    def translate_block(self, stmts, name, live_defs, parent_stmt, attribute_name):
+        self.enter_scope(name, parent_stmt)
         for s in stmts:
             self.translate_stmt(s)
+        n_outputs = 0
+        current_vars = self.current_scope_variables()
         for pvar in live_defs:
-            if pvar in self.current_scope():
-                pv_val = self.current_scope()[pvar]
-                output = self.to_onnx_var(pv_val, pvar)
+            if pvar in current_vars:
+                pv_val = current_vars[pvar]
+                output = self.to_onnx_var(pv_val, pvar, info=DebugInfo(parent_stmt))
                 self.ir_builder.add_output(
                     self.current_fn, output, self.default_type)  # TODO: need type!
+                n_outputs += 1
             else:
                 pv_val = None
                 for scope in self.locals:  # TODO: skip current_scope
@@ -521,12 +555,20 @@ class Converter:
                 if pv_val is None:
                     fail(DebugInfo(stmts[0]).msg(
                         f"Variable {pvar} is not assigned a value along a conditional "
-                        f"branch, known variables: {list(self.locals)}."))
+                        f"branch, known variables: {pprint.pformat(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
-                self.emit([ovar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
+                self.emit([ovar], Op("", "Identity"),
+                          [self.to_onnx_var(pv_val, pvar, info=DebugInfo(parent_stmt))], [])
                 # TODO: need type!
                 self.ir_builder.add_output(self.current_fn, ovar, self.default_type)
+                n_outputs += 1
+        if n_outputs == 0 and isinstance(parent_stmt, ast.If):
+            fail(DebugInfo(parent_stmt).msg(
+                "No output was detected in branch %r of if statement, "
+                "live_defs=%r, scoped variables=%r, live_out=%r." % (
+                    attribute_name, live_defs, list(sorted(current_vars)),
+                    getattr(parent_stmt, 'live_out', []))))
         graph = self.exit_scope()
         return graph.to_graph_proto()
 
@@ -623,3 +665,4 @@ class Converter:
 def convert(script):
     converter = Converter()
     return converter.convert(script)
+
