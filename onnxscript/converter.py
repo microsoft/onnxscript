@@ -107,6 +107,9 @@ class Scope:
     def add(self, name, val):
         self.vars[name] = val
 
+    def __repr__(self):
+        return ", ".join(self.vars)
+
 
 class Converter:
     def __init__(self, ir_builder=IRBuilder()):
@@ -156,13 +159,15 @@ class Converter:
     def bind(self, name, val):
         self.locals[0].add(name, val)
 
-    def lookup(self, name, info):
+    def lookup(self, name, info, raise_exc=True):
         for scope in self.locals:
             if name in scope:
                 return scope[name]
         if name in self.globals:
             return self.globals[name]
-        raise ValueError(info.msg(f"Unbound name: {name}."))
+        if raise_exc:
+            raise ValueError(info.msg(f"Unbound name: {name}."))
+        return None
 
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
@@ -225,7 +230,7 @@ class Converter:
 
     def is_constant_expr(self, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node))
+            val = self.lookup(node.id, DebugInfo(node), False)
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute)):
@@ -251,7 +256,8 @@ class Converter:
             return [self.eval_attr(x) for x in node.elts]
         if isinstance(node, (ast.Call, ast.Attribute)):
             return self.eval_constant_expr(node)
-        raise ValueError(f"Unsupported attribute type: {type(node).__name__}.")
+        raise ValueError(DebugInfo(node).msg(
+            f"Unsupported attribute type: {type(node).__name__}."))
 
     def translate_attr(self, attr_name, node):
         if isinstance(node, ast.Name):
@@ -288,7 +294,8 @@ class Converter:
         elif isinstance(node, ast.BoolOp):
             r = self.translate_bool_op_expr(node)
         else:
-            raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
+            raise ValueError(DebugInfo(node).msg(
+                f"Unsupported expression type: {type(node).__name__}."))
         if isinstance(r, tuple):
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
@@ -467,10 +474,7 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
-        if hasattr(stmt, 'live_out'):
-            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
-        else:
-            live_defs = list(analysis.defs(stmt))
+        live_defs = list(analysis.defs(stmt))
         test = self.translate_expr(stmt.test, "cond")
         if len(stmt.body) == 0:
             fail(DebugInfo(stmt).msg("Branch then cannot be empty."))
@@ -562,7 +566,7 @@ class Converter:
                         break
                 if pv_val is None:
                     fail(DebugInfo(stmts[0]).msg(
-                        f"Variable {pvar} is not assigned a value along a conditional "
+                        f"Variable '{pvar}' is not assigned a value along a conditional "
                         f"branch, known variables: {pprint.pformat(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
@@ -676,4 +680,3 @@ class Converter:
 def convert(script):
     converter = Converter()
     return converter.convert(script)
-
