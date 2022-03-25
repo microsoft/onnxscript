@@ -105,6 +105,7 @@ class Function:
         self.outputs = []
         self.stmts = []
         self.attrs = []
+        self.docstring = ""
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
@@ -112,6 +113,9 @@ class Function:
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
+
+    def append_docstring(self, docstring):
+        self.docstring += docstring
 
     def append_stmt(self, stmt):
         self.stmts.append(stmt)
@@ -148,7 +152,8 @@ class Function:
             outputs=[y.name for y in self.outputs],
             nodes=[s.to_node_proto() for s in self.stmts],
             opset_imports=[],  # TODO
-            attributes=[a.name for a in self.attrs]
+            attributes=[a.name for a in self.attrs],
+            doc_string=self.docstring
         )
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
@@ -157,6 +162,9 @@ class Function:
 class IRBuilder:
     def new_function(self, name):
         return Function(name)
+
+    def add_docstring(self, fn, docstring):
+        fn.append_docstring(docstring)
 
     def add_stmt(self, fn, results, module, opname, args, attrs):
         s = Stmt(results, module, opname, args, attrs)
