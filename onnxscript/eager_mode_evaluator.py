@@ -73,4 +73,6 @@ def call(opname, domain, version, *args, **kwargs):
 
 
 def __getattr__(attr: str) -> typing.Any:
-    return globals().get(attr, functools.partial(call, attr, current_opset.domain, current_opset.version))
+    return globals().get(
+        attr, 
+        functools.partial(call, attr, current_opset.domain, current_opset.version))
