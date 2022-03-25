@@ -9,7 +9,6 @@ from onnxruntime import InferenceSession
 
 from .utils import convert_arrays_to_value_infos
 from .converter import Converter
-from .values import Opset
 
 # for version and domain, use what the Converter will use for now.
 converter = Converter()
@@ -74,5 +73,5 @@ def call(opname, domain, version, *args, **kwargs):
 
 def __getattr__(attr: str) -> typing.Any:
     return globals().get(
-        attr, 
+        attr,
         functools.partial(call, attr, current_opset.domain, current_opset.version))
