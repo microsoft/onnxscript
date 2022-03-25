@@ -50,7 +50,7 @@ def to_single_model_proto(args, input_py_file: str, output_onnx_file: Optional[s
 
 
 def to_text(input_py_file: str):
-    def print_ir_function (f):
+    def print_ir_function(f):
         print(str(f))
         for s in f.stmts:
             for attr in s.attrs:

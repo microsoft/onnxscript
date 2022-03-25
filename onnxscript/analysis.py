@@ -89,7 +89,6 @@ def do_liveness_analysis(fun):
         live = visit(s, live)
 
 
-
 def exposed_uses(stmts):
     '''
     Return the set of variables that are used before being defined by given block.
