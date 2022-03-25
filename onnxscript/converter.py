@@ -12,7 +12,7 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import ConstValue, AttrRef, Dynamic, Op, DynamicKind, DebugInfo
+from .values import ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind, DebugInfo
 
 
 logger = logging.getLogger("onnx-script")
@@ -117,6 +117,7 @@ class Converter:
                         "msdomain": values.msdomain1}  # 'os' : onnxscript
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
+        self.this_module = {}
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -199,7 +200,8 @@ class Converter:
 
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(
-            self.current_fn, outputs, callee.opset, callee.opname, inputs, attrs)
+            self.current_fn, outputs, callee.opset, callee.domain,
+            callee.opname, inputs, attrs)
 
     def emit_loop(self, outputs, callee, inputs, attrs, info):
         def rename(x):
@@ -253,7 +255,7 @@ class Converter:
 
     def translate_attr(self, attr_name, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id)
+            val = self.lookup(node.id, DebugInfo(node))
             if (isinstance(val, AttrRef)):
                 return self.to_onnx_attr_ref(val)
             else:
@@ -373,8 +375,14 @@ class Converter:
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             opname = node.attr
-            if (opname not in module):
-                warn(f"'{opname}' is not a known op in '{str(module)}'")
+            if opname in self.this_module:
+                # Calls a function within this module.
+                opf = OpFunction(self.this_module, node.attr, 'this')
+                self.current_fn.append_function(opf)
+                return opf
+            if opname in module:
+                return Op(module, node.attr)
+            warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
             try:
@@ -578,6 +586,8 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
+        if fn.name in self.this_module:
+            warn(f"{fn.name}: Already defined.")
         self.current_fn = self.ir_builder.new_function(fn.name)
         for x in args.args:
             if x.annotation:
@@ -622,6 +632,7 @@ class Converter:
             analysis.do_liveness_analysis(stmt)
             fn_ir = self.translate_function_def(stmt)
             fn_ir.debug_print()
+            self.this_module[stmt.name] = fn_ir
             return fn_ir
 
         if isinstance(stmt, ast.Import):

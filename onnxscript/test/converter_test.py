@@ -24,10 +24,7 @@ class TestConverter(unittest.TestCase):
         if not os.path.exists(TEST_OUTPUT_DIR):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
-            graph = f.to_graph_proto()
-            model = onnx.helper.make_model(
-                graph, producer_name='p2o',
-                opset_imports=[onnx.helper.make_opsetid("", 15)])
+            model = f.to_model_proto(producer_name='p2o')
             model = onnx.shape_inference.infer_shapes(model)
             try:
                 onnx.checker.check_model(model)
@@ -89,6 +86,9 @@ class TestConverter(unittest.TestCase):
 
     def test_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
+
+    def test_subfunction(self):
+        self._convert_and_save(os.path.join(CURRENT_DIR, "subfunction.py"))
 
     def test_if_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "if.py"))
