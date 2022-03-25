@@ -636,3 +636,4 @@ class Converter:
 def convert(script):
     converter = Converter()
     return converter.convert(script)
+
