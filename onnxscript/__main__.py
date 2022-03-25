@@ -4,6 +4,7 @@ from typing import Optional
 import os
 from .converter import Converter
 import onnx
+import onnx.helper as helper
 
 # command-line utility to invoke converter on a python file
 
@@ -49,9 +50,16 @@ def to_single_model_proto(args, input_py_file: str, output_onnx_file: Optional[s
 
 
 def to_text(input_py_file: str):
+    def print_ir_function(f):
+        print(str(f))
+        for s in f.stmts:
+            for attr in s.attrs:
+                if attr.attr_proto.HasField("g"):
+                    print(helper.printable_graph(attr.attr_proto.g))
+
     fnlist = convert_file(input_py_file)
     for f in fnlist:
-        print(str(f))
+        print_ir_function(f)
 
 
 if __name__ == '__main__':
