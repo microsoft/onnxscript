@@ -4,7 +4,6 @@ import numpy as np
 import onnx
 from onnx.backend.test.case.node import _extract_value_info
 from onnxscript.converter import Converter
-from onnxscript import eager_mode_evaluator
 from onnxscript.utils import convert_arrays_to_value_infos
 from onnxruntime import InferenceSession
 import inspect
@@ -44,7 +43,8 @@ class OnnxScriptTestCase(unittest.TestCase):
         inputs = ["input_" + str(i) for i in range(len(param.input))]
         outputs = ["output_" + str(i) for i in range(len(param.output))]
         input_value_infos = convert_arrays_to_value_infos(inputs, param.input)
-        output_value_infos = convert_arrays_to_value_infos(outputs, param.output)
+        output_value_infos = convert_arrays_to_value_infos(
+            outputs, param.output)
 
         node = None
         if param.attrs:
