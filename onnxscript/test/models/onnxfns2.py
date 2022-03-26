@@ -81,9 +81,18 @@ def DepthToSpace(input, blocksize: int, mode: str):
         reshaped = op.Reshape(input, tmpshape)
         transposed = op.Transpose(reshaped, perm=[0, 1, 4, 2, 5, 3])
     finalshape = op.Concat(b, c / (size*size), h * size, w * size, axis=0)
-    y = onnx.Reshape(transposed, finalshape)
+    y = op.Reshape(transposed, finalshape)
     return y
 
 
-def SpaceToDepth():
-    ...
+def SpaceToDepth(input, blocksize: int):
+    # Inverse of DepthToSpace (mode 'DCR')
+    b, C, H, W = op.Split(op.Shape(input), [1, 1, 1, 1])
+    size = op.Constant(value_ints=[blocksize])
+    # Reshape to [b, C, H/size, size, W/size, size]
+    tmpshape = op.Concat(b, C, H/size, size, W/size, size)
+    reshaped = op.Reshape(input, tmpshape)
+    transposed = op.Transpose(reshaped, perm=[0, 3, 5, 1, 2, 4])
+    finalshape = op.Concat(b, C * size * size, H/size, W/size)
+    y = op.Reshape(transposed, finalshape)
+    return y
