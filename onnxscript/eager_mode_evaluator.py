@@ -1,6 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+
 import functools
 import numbers
-from tokenize import Number
 import numpy as np
 import typing
 
@@ -15,7 +16,6 @@ from .values import opset15
 class EagerModeEvaluator:
     current_opset = opset15
 
-
     def convert_to_tensor(v, k):
         if isinstance(v, np.ndarray):
             return numpy_helper.from_array(v)
@@ -27,7 +27,6 @@ class EagerModeEvaluator:
             return v
         else:
             raise ValueError("attribute {attribute_name} must be convertable to TensorProto, got {type}", k, type(v)) # noqa E501
-
 
     def convert_attributes_to_tensors_with_schema(
             attribute_dict, schema_attribute_dict):
@@ -43,7 +42,8 @@ class EagerModeEvaluator:
     @staticmethod
     def call(opname, domain, version, *args, **kwargs):
         schema = onnx.defs.get_schema(opname, version, domain)
-        EagerModeEvaluator.convert_attributes_to_tensors_with_schema(kwargs, schema.attributes)
+        EagerModeEvaluator.convert_attributes_to_tensors_with_schema(
+            kwargs, schema.attributes)
 
         num_inputs = len(args)
         num_outputs = len(schema.outputs)
@@ -61,18 +61,18 @@ class EagerModeEvaluator:
         graph_temp = onnx.helper.make_graph(
             [node], "node_graph", input_value_infos, output_value_infos)
         opset_id = onnx.helper.make_opsetid(domain, version)
-        model_temp = onnx.helper.make_model(graph_temp, opset_imports=[opset_id])
+        model_temp = onnx.helper.make_model(
+            graph_temp, opset_imports=[opset_id])
         model = onnx.shape_inference.infer_shapes(
             model_temp, check_type=True, strict_mode=True)
         sess = InferenceSession(model.SerializeToString())
 
         session_run_input = {
-            input: arg if isinstance(arg, np.ndarray) else [arg] \
-                for input, arg in zip(inputs, args)}
+            input: arg if isinstance(arg, np.ndarray) else [arg]
+            for input, arg in zip(inputs, args)}
 
         got = sess.run(None, session_run_input)
         return got[0] if len(got) == 1 else got
-
 
     def __getattr__(self, attr: str) -> typing.Any:
         return globals().get(
