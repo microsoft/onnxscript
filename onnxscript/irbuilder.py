@@ -42,7 +42,7 @@ class Var:
         return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.typeinfo)
 
     def typed_str(self):
-        return self.name + " : " + str(self.type)
+        return self.name + " : " + str(self.typeinfo)
 
     def to_value_info(self):
         tp = self.typeinfo.to_type_proto()
@@ -105,6 +105,7 @@ class Function:
         self.outputs = []
         self.stmts = []
         self.attrs = []
+        self.docstring = ""
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
@@ -112,6 +113,9 @@ class Function:
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
+
+    def append_docstring(self, docstring):
+        self.docstring += docstring
 
     def append_stmt(self, stmt):
         self.stmts.append(stmt)
@@ -140,14 +144,15 @@ class Function:
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
 
-    def to_function_proto(self, domain, fname, func_opset_imports):
+    def to_function_proto(self, domain="", func_opset_imports=[]):
         return helper.make_function(domain,
-                                    fname,
+                                    self.name,
                                     inputs=[x.name for x in self.inputs],
                                     outputs=[y.name for y in self.outputs],
                                     nodes=[s.to_node_proto() for s in self.stmts],
                                     opset_imports=func_opset_imports,
-                                    attributes=[a.name for a in self.attrs])
+                                    attributes=[a.name for a in self.attrs],
+                                    doc_string=self.docstring)
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
@@ -155,6 +160,9 @@ class Function:
 class IRBuilder:
     def new_function(self, name):
         return Function(name)
+
+    def add_docstring(self, fn, docstring):
+        fn.append_docstring(docstring)
 
     def add_stmt(self, fn, results, module, opname, args, attrs):
         s = Stmt(results, module, opname, args, attrs)

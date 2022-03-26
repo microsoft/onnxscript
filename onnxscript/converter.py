@@ -79,9 +79,11 @@ primop_map = {
 
 def _known_modules():
     import onnxscript
+    import onnxscript.onnx
     import onnxscript.onnx_types
     return {
         'onnxscript': onnxscript,
+        'onnxscript.onnx': onnxscript.onnx,
         'onnxscript.onnx_types': onnxscript.onnx_types,
         'onnxscript.onnx.opset15': values.opset15
     }
@@ -162,6 +164,9 @@ class Converter:
     def py_var_to_onnx_var(self, py_var, info):
         return self.to_onnx_var(self.lookup(py_var, info))
 
+    def emit_docstring(self, docstring):
+        self.ir_builder.add_docstring(self.current_fn, docstring)
+
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(
             self.current_fn, outputs, callee.opset, callee.opname, inputs, attrs)
@@ -227,6 +232,9 @@ class Converter:
                 # constant; etc.
                 fail("Unimplemented attribute construct")
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
+
+    def translate_docstring(self, node):
+        return self.emit_docstring(node.value.value)
 
     # Expression-translation generates "IR statements/nodes" that compute the value of
     # the expression into a target-variable, and returns the variable that is
@@ -337,17 +345,21 @@ class Converter:
     # Statement translation: A single Python statement is mapped into a
     # sequence of IR statements.
 
-    def translate_stmt(self, node):
+    def translate_stmt(self, node, index_of_stmt=None):
         if isinstance(node, ast.Assign):
-            self.translate_assign_stmt(node)
-        elif isinstance(node, ast.Return):
-            self.translate_return_stmt(node)
-        elif isinstance(node, ast.If):
-            self.translate_if_stmt(node)
-        elif isinstance(node, ast.For):
-            self.translate_for_stmt(node)
-        else:
-            raise ValueError(f"Unsupported statement type: {type(node).__name__}.")
+            return self.translate_assign_stmt(node)
+        if isinstance(node, ast.Return):
+            return self.translate_return_stmt(node)
+        if isinstance(node, ast.If):
+            return self.translate_if_stmt(node)
+        if isinstance(node, ast.For):
+            return self.translate_for_stmt(node)
+        if isinstance(node, ast.Expr):
+            if (index_of_stmt == 0 and hasattr(node, 'value') and isinstance(
+                    node.value.value, str)):
+                return self.translate_docstring(node)
+        raise ValueError(DebugInfo(node).msg(
+            f"Unsupported statement type: {type(node).__name__}."))
 
     def translate_assign_stmt(self, stmt: ast.Assign):
         def assign(lhs, rhs):
@@ -528,8 +540,8 @@ class Converter:
         else:
             self.returntype = None
         self.num_outputs = 0
-        for s in fn.body:
-            self.translate_stmt(s)
+        for i, s in enumerate(fn.body):
+            self.translate_stmt(s, index_of_stmt=i)
         if self.returntype is not None:
             assert self.num_outputs == len(self.returntype), \
                    "Mismatch in number of return values and types"

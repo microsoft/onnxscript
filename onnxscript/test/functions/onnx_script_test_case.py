@@ -5,7 +5,7 @@ import onnx
 from onnx.backend.test.case.node import _extract_value_info
 from onnxscript.converter import Converter
 from onnxscript import eager_mode_evaluator
-from onnxscript.utils import convert_data_to_value_infos
+from onnxscript.utils import convert_arrays_to_value_infos
 from onnxruntime import InferenceSession
 import inspect
 import onnx.backend.test.case.node as node_test
@@ -39,23 +39,22 @@ class OnnxScriptTestCase(unittest.TestCase):
 
         local_function_proto = ir_functions[0].to_function_proto(
             OnnxScriptTestCase.local_function_domain,
-            OnnxScriptTestCase.local_function_name,
             [OnnxScriptTestCase.onnx_opset_import])
 
         inputs = ["input_" + str(i) for i in range(len(param.input))]
         outputs = ["output_" + str(i) for i in range(len(param.output))]
-        input_value_infos = convert_data_to_value_infos(inputs, param.input)
-        output_value_infos = convert_data_to_value_infos(outputs, param.output)
+        input_value_infos = convert_arrays_to_value_infos(inputs, param.input)
+        output_value_infos = convert_arrays_to_value_infos(outputs, param.output)
 
         node = None
         if param.attrs:
             node = onnx.helper.make_node(
-                OnnxScriptTestCase.local_function_name, inputs, outputs,
+                local_function_proto.name, inputs, outputs,
                 domain=OnnxScriptTestCase.local_function_domain,
                 **param.attrs)
         else:
             node = onnx.helper.make_node(
-                OnnxScriptTestCase.local_function_name, inputs, outputs,
+                local_function_proto.name, inputs, outputs,
                 domain=OnnxScriptTestCase.local_function_domain)
         graph = onnx.helper.make_graph(
             [node], "node_graph",
@@ -84,8 +83,6 @@ class OnnxScriptTestCase(unittest.TestCase):
         np.testing.assert_equal(actual, param.output)
 
     def run_eager_test(self, param):
-        module = importlib.import_module(param.function.__module__)
-        setattr(module, 'oxs', eager_mode_evaluator)
         actual = []
         if param.attrs:
             actual = param.function(*param.input, **param.attrs)
@@ -96,6 +93,13 @@ class OnnxScriptTestCase(unittest.TestCase):
             else [actual], param.output, rtol=1e-05)
 
     def run_onnx_test(self, function, list_attrs):
+        params = self.get_onnx_test_cases(function, list_attrs)
+
+        for param in params:
+            self.run_converter_test(param)
+            self.run_eager_test(param)
+
+    def get_onnx_test_cases(self, function, list_attrs):
         params = []
         cases = node_test.collect_testcases_by_operator(function.__name__)
         for i, case in enumerate(cases):
@@ -107,6 +111,4 @@ class OnnxScriptTestCase(unittest.TestCase):
                     FunctionTestParams(function, ds[0], ds[1], attrs=list_attrs[i]) # noqa E501
                     for ds in case.data_sets])
 
-        for param in params:
-            self.run_converter_test(param)
-            self.run_eager_test(param)
+        return params
