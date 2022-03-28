@@ -50,11 +50,7 @@ def ignore(cond, msg):
 # Utility to convert a python value to TensorProto:
 
 
-<<<<<<< HEAD
 def pyvalue_to_tensor(tensor_name: str, pyvalue, info):
-=======
-def pyvalue_to_tensor(tensor_name: str, pyvalue):
->>>>>>> 558beba712c08d8c075679e5e3e8fbfad212048c
     if isinstance(pyvalue, bool):
         return helper.make_tensor(tensor_name, onnx.TensorProto.BOOL, [], [int(pyvalue)])
     if isinstance(pyvalue, int):
@@ -62,11 +58,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
     if isinstance(pyvalue, float):
         return helper.make_tensor(tensor_name, onnx.TensorProto.FLOAT, [], [pyvalue])
     # TODO: str, sequences of values
-<<<<<<< HEAD
     fail(info.msg("pyvalue_to_tensor is not implemented for type %r." % type(pyvalue)))
-=======
-    fail("Unimplemented")
->>>>>>> 558beba712c08d8c075679e5e3e8fbfad212048c
 
 
 # map from python operators to ONNX ops
