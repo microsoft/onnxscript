@@ -8,6 +8,7 @@ import onnx
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
+from onnxscript.values import Opset
 
 CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 
@@ -96,9 +97,10 @@ class TestConverter(unittest.TestCase):
     def test_docstring(self):
         res = self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
         self.assertEqual(len(res), 1)
-        proto = res[0].to_function_proto()
+        proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
 
 
 if __name__ == '__main__':
+    TestConverter().test_subfunction()
     unittest.main()

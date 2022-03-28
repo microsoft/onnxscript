@@ -11,7 +11,9 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind, DebugInfo
+from .values import (
+    ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind,
+    DebugInfo, opset15 as default_opset, CustomOpset)
 
 
 logger = logging.getLogger("onnx-script")
@@ -96,7 +98,7 @@ class Converter:
                         "msdomain": values.msdomain1}  # 'os' : onnxscript
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
-        self.this_module = {}
+        self.this_module = CustomOpset('this', 1)
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -151,7 +153,7 @@ class Converter:
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
             attr = self.to_onnx_attr_ref(val)
-            self.emit([result], Op("", "Constant"), [], [attr])
+            self.emit([result], Op(default_opset, "Constant"), [], [attr])
             return result
         if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
@@ -168,7 +170,7 @@ class Converter:
 
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(
-            self.current_fn, outputs, callee.opset, callee.domain,
+            self.current_fn, outputs, callee.opset,
             callee.opname, inputs, attrs)
 
     def emit_loop(self, outputs, callee, inputs, attrs, info):
@@ -180,13 +182,13 @@ class Converter:
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
-        self.emit(onnx_outputs, Op("", callee), onnx_inputs, attrs)
+        self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs)
 
     def emit_const(self, pyvalue, suggested_name):
         ovar = self.generate_unique_name(suggested_name)
         tensor = pyvalue_to_tensor(ovar, pyvalue)
         attr = self.ir_builder.attr("value", tensor)
-        self.emit([ovar], Op("", "Constant"), [], [attr])
+        self.emit([ovar], Op(default_opset, "Constant"), [], [attr])
         return ovar
 
     def is_pure_module(self, m):
@@ -283,14 +285,14 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
-        return Op("", opname), [left, right], []
+        return Op(default_opset, opname), [left, right], []
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
         assert op in primop_map
         opname = primop_map[op]
         operand = self.translate_expr(node.operand)
-        return Op("", opname), [operand], []
+        return Op(default_opset, opname), [operand], []
 
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
@@ -301,7 +303,7 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
-        return Op("", opname), [left, right], []
+        return Op(default_opset, opname), [left, right], []
 
     def translate_name_expr(self, node):
         return self.py_var_to_onnx_var(node.id, DebugInfo(node))
@@ -331,7 +333,7 @@ class Converter:
             opname = node.attr
             if opname in self.this_module:
                 # Calls a function within this module.
-                opf = OpFunction(self.this_module, node.attr, 'this')
+                opf = OpFunction(self.this_module, node.attr)
                 self.current_fn.append_function(opf)
                 return opf
             if opname in module:
@@ -434,7 +436,7 @@ class Converter:
             return r
 
         renamed = [rename(x) for x in live_defs]
-        self.emit(renamed, Op("", "If"), [test], [thenAttr, elseAttr])
+        self.emit(renamed, Op(default_opset, "If"), [test], [thenAttr, elseAttr])
 
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
@@ -475,7 +477,7 @@ class Converter:
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
-        self.emit([o_cond_out], Op("", "Identity"), [o_cond_var], [])
+        self.emit([o_cond_out], Op(default_opset, "Identity"), [o_cond_var], [])
         self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL)
         for pv in loop_state_vars:
             ov = self.py_var_to_onnx_var(pv, DebugInfo(for_stmt))
@@ -510,7 +512,8 @@ class Converter:
                          f"branch, known variables: {list(sorted(self.locals))}.")
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
-                self.emit([ovar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
+                self.emit([ovar], Op(default_opset, "Identity"),
+                          [self.to_onnx_var(pv_val, pvar)], [])
                 # TODO: need type!
                 self.ir_builder.add_output(self.current_fn, ovar, self.default_type)
         graph = self.exit_scope()

@@ -5,6 +5,7 @@ from io import StringIO
 import onnx
 import onnx.helper as helper
 from . import type_annotation as ta
+from .values import Opset
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -64,10 +65,11 @@ class Attr:
 
 
 class Stmt:
-    def __init__(self, result, module, domain, opname, args, attrs) -> None:
+    def __init__(self, result, module, opname, args, attrs) -> None:
+        if not isinstance(module, Opset):
+            raise TypeError(f"Unexpected type {type(module)} for module.")
         self.result = result
         self.module = module
-        self.domain = domain
         self.opname = opname
         self.args = args
         self.attrs = attrs
@@ -91,10 +93,12 @@ class Stmt:
             logger.debug("%s: %s", type(self), str(self))
 
     def to_node_proto(self):
+        if not isinstance(self.module.domain, str):
+            raise TypeError("Unexpected type %r for self.module." % type(self.module))
         n = helper.make_node(self.opname,
                              [str(x) for x in self.args],
                              [str(x) for x in self.result],
-                             domain=self.domain)
+                             domain=self.module.domain)
         for a in self.attrs:
             n.attribute.append(a.attr_proto)
         return n
@@ -164,8 +168,8 @@ class Function:
         else:
             opsets = opsets.copy()
         for n in self.stmts:
-            if n.domain not in opsets:
-                opsets[n.domain] = 1
+            if n.module.domain not in opsets:
+                opsets[n.module.domain] = n.module.version
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
         graph = self.to_graph_proto()
@@ -180,20 +184,20 @@ class Function:
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
 
-    def to_function_proto(self, domain=""):
+    def to_function_proto(self, domain):
         opsets = {'': 15}
         if domain != '':
-            opsets[domain] = 1
+            opsets[domain.domain] = domain.version
         else:
             opsets = opsets.copy()
         nodes = [s.to_node_proto() for s in self.stmts]
         for n in nodes:
             if n.domain not in opsets:
-                opsets[n.domain] = 1
+                opsets[n.domain] = n.version
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
         return helper.make_function(
-            domain,  # TODO: generate appropriate domain name.
+            domain.domain,  # TODO: generate appropriate domain name.
             self.name,
             inputs=[x.name for x in self.inputs],
             outputs=[y.name for y in self.outputs],
@@ -213,8 +217,8 @@ class IRBuilder:
     def add_docstring(self, fn, docstring):
         fn.append_docstring(docstring)
 
-    def add_stmt(self, fn, results, module, domain, opname, args, attrs):
-        s = Stmt(results, module, domain, opname, args, attrs)
+    def add_stmt(self, fn, results, module, opname, args, attrs):
+        s = Stmt(results, module, opname, args, attrs)
         fn.append_stmt(s)
 
     def add_input(self, fn, varname, type):
