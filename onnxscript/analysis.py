@@ -55,6 +55,12 @@ def do_liveness_analysis(fun):
     and `s.live_out`.
     '''
     def visit(stmt, live_out):
+        stmt.live_out = live_out
+        live = do_visit(stmt, live_out)
+        stmt.live_in = live
+        return live
+
+    def do_visit(stmt, live_out):
         def visitBlock(block, live_out):
             for s in reversed(block):
                 live_out = visit(s, live_out)
@@ -80,9 +86,7 @@ def do_liveness_analysis(fun):
     assert isinstance(fun, ast.FunctionDef)
     live = set()
     for s in reversed(fun.body):
-        s.live_out = live
         live = visit(s, live)
-        s.live_in = live
 
 
 def exposed_uses(stmts):
