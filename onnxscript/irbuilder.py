@@ -42,7 +42,7 @@ class Var:
         return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.typeinfo)
 
     def typed_str(self):
-        return self.name + " : " + str(self.type)
+        return self.name + " : " + str(self.typeinfo)
 
     def to_value_info(self):
         tp = self.typeinfo.to_type_proto()
