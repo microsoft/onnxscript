@@ -88,12 +88,15 @@ def _known_modules():
 
 
 class Converter:
-    def __init__(self, ir_builder=IRBuilder()):
+    def __init__(self, ir_builder=IRBuilder(), global_names = None):
         self.ir_builder = ir_builder
         self.known_modules = _known_modules()
-        self.globals = {"int": int, "float": float,
+        if (global_names is None):
+            self.globals = {"int": int, "float": float,
                         "str": str, "oxs": values.opset15,
                         "msdomain": values.msdomain1}  # 'os' : onnxscript
+        else:
+            self.globals = global_names
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
 
