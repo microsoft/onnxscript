@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import onnx
 from onnx.backend.test.case.node import _extract_value_info
-from onnxscript import utils    
+from onnxscript import utils
 from onnxruntime import InferenceSession
 import onnx.backend.test.case.node as node_test
 from typing import Callable
