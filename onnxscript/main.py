@@ -2,7 +2,8 @@ import ast
 import inspect
 from .converter import Converter
 
-def script_check (f : ast.FunctionDef, globalvars):
+
+def script_check(f: ast.FunctionDef, globalvars):
     '''
     Check that a function falls into the ONNXScript subset of Python.
     '''
@@ -13,17 +14,8 @@ def script_check (f : ast.FunctionDef, globalvars):
     converter.top_level_stmt(f)
     return True
 
-def script_src_transform (f : ast.AST):
-    '''
-    Source-level (python-to-python) transformations for ONNXScript.
-    These are convenience (syntactic-sugar) transformations shared by
-    both the ONNXScript translator and the eager-mode evaluator.
-    '''
-    # TODO: no transformations yet
-    script_check(f)
-    return f
 
-def script_decorator(is_model = False):
+def script_decorator(is_model=False):
     def transform(f):
         if inspect.isfunction(f):
             src = inspect.getsource(f)
@@ -39,6 +31,7 @@ def script_decorator(is_model = False):
         raise RuntimeError("Expecting a function.")
     return transform
 
-func = script_decorator(is_model = False)
 
-model = script_decorator(is_model = True)
+func = script_decorator(is_model=False)
+
+model = script_decorator(is_model=True)

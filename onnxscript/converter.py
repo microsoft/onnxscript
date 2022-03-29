@@ -88,13 +88,14 @@ def _known_modules():
 
 
 class Converter:
-    def __init__(self, ir_builder=IRBuilder(), global_names = None):
+    def __init__(self, ir_builder=IRBuilder(), global_names=None):
         self.ir_builder = ir_builder
         self.known_modules = _known_modules()
         if (global_names is None):
+            # TODO: Cleanup: This should be eventually removed.
             self.globals = {"int": int, "float": float,
-                        "str": str, "oxs": values.opset15,
-                        "msdomain": values.msdomain1}  # 'os' : onnxscript
+                            "str": str, "oxs": values.opset15,
+                            "msdomain": values.msdomain1}
         else:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
@@ -389,7 +390,7 @@ class Converter:
         if isinstance(rhs, ast.Tuple):
             assert isinstance(lhs, ast.Tuple)
             assert len(lhs.elts) == len(rhs.elts), \
-                   "Expected same number of elements on lhs and rhs of assignments."
+                "Expected same number of elements on lhs and rhs of assignments."
             for p, r in zip(lhs.elts, rhs.elts):
                 assign(p, r)
         else:
@@ -434,7 +435,7 @@ class Converter:
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
         assert isinstance(for_stmt.target, ast.Name), \
-               "For loop target must be a single variable."
+            "For loop target must be a single variable."
         p_loop_var = for_stmt.target.id
         # iter
         iter = for_stmt.iter
@@ -545,7 +546,7 @@ class Converter:
             self.translate_stmt(s, index_of_stmt=i)
         if self.returntype is not None:
             assert self.num_outputs == len(self.returntype), \
-                   "Mismatch in number of return values and types"
+                "Mismatch in number of return values and types"
         return self.current_fn
 
     def do_import(self, alias):
