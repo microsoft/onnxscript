@@ -6,7 +6,7 @@ import numpy as np
 import typing
 
 import onnx
-from onnx import ValueInfoProto, numpy_helper, AttributeProto
+from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
 
 from .utils import convert_arrays_to_value_infos
@@ -52,19 +52,13 @@ class EagerModeEvaluator:
         node = onnx.helper.make_node(opname, inputs, outputs, **kwargs)
         input_value_infos = convert_arrays_to_value_infos(inputs, list(args))
 
-        def make_value_info(name):
-            vi = ValueInfoProto()
-            vi.name = name
-            return vi
-
-        output_value_infos = [make_value_info(name) for name in outputs]
+        output_value_infos = [
+            onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
         graph_temp = onnx.helper.make_graph(
             [node], "node_graph", input_value_infos, output_value_infos)
         opset_id = onnx.helper.make_opsetid(domain, version)
-        model_temp = onnx.helper.make_model(
+        model = onnx.helper.make_model(
             graph_temp, opset_imports=[opset_id])
-        model = onnx.shape_inference.infer_shapes(
-            model_temp, check_type=True, strict_mode=True)
         sess = InferenceSession(model.SerializeToString())
 
         session_run_input = {

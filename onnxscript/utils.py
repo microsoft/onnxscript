@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import importlib
+import inspect
 import numbers
 import numpy as np
 from typing import Any
 import onnx
 from onnx import TensorProto
+from .converter import Converter
 
 # TODO: enable invocation of ORT kernels
 
@@ -57,3 +60,41 @@ def convert_arrays_to_value_infos(names, arr_list):
             shape=shape)
         value_infos.append(value_info)
     return value_infos
+
+
+def convert_python_function_to_function_proto(function, domain, opset_imports):
+    converter = Converter()
+    module = importlib.import_module(function.__module__)
+
+    ir_functions = converter.convert(inspect.getsource(module))
+    ir_functions = [
+        x for x in ir_functions if x.name == function.__name__]
+    if len(ir_functions) != 1:
+        raise ValueError(f"Cannot find signle function of \
+            '{function.__name__}' from module '{module.__name__}.py'")
+
+    return ir_functions[0].to_function_proto(domain, opset_imports)
+
+
+def make_model_from_function_proto(function_proto,
+                                   input_value_infos,
+                                   output_value_infos,
+                                   domain,
+                                   onnx_opset_import,
+                                   local_opset_import,
+                                   **attrs):
+    input_names = [vi.name for vi in input_value_infos]
+    output_names = [vi.name for vi in output_value_infos]
+    node = onnx.helper.make_node(
+        function_proto.name, input_names, output_names,
+        domain=domain,
+        **(attrs or {}))
+    graph = onnx.helper.make_graph(
+        [node], "node_graph",
+        input_value_infos, output_value_infos)
+    model = onnx.helper.make_model(
+        graph,
+        functions=[function_proto],
+        producer_name='onnx-script',
+        opset_imports=[onnx_opset_import, local_opset_import])
+    return model

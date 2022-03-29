@@ -4,15 +4,14 @@ import numpy as np
 import onnx
 from onnx.backend.test.case.node import _extract_value_info
 from onnxscript.converter import Converter
-from onnxscript.utils import convert_arrays_to_value_infos
+from onnxscript import utils
+    
 from onnxruntime import InferenceSession
-import inspect
 import onnx.backend.test.case.node as node_test
-import importlib
 from typing import Callable
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
     function: Callable
     input: list
@@ -27,46 +26,26 @@ class OnnxScriptTestCase(unittest.TestCase):
     local_function_name = "local_function"
 
     def _create_model_from_param(param):
-        converter = Converter()
-        module = importlib.import_module(param.function.__module__)
-
-        ir_functions = converter.convert(inspect.getsource(module))
-        ir_functions = [
-            x for x in ir_functions if x.name == param.function.__name__]
-        if len(ir_functions) != 1:
-            raise ValueError(f"Cannot find signle function of '{param.function.__name__}' from module '{module.__name__}.py'") # noqa E501
-
-        local_function_proto = ir_functions[0].to_function_proto(
+        local_function_proto = utils.convert_python_function_to_function_proto(
+            param.function,
             OnnxScriptTestCase.local_function_domain,
             [OnnxScriptTestCase.onnx_opset_import])
 
-        inputs = ["input_" + str(i) for i in range(len(param.input))]
-        outputs = ["output_" + str(i) for i in range(len(param.output))]
-        input_value_infos = convert_arrays_to_value_infos(inputs, param.input)
-        output_value_infos = convert_arrays_to_value_infos(
-            outputs, param.output)
+        input_names = ["input_" + str(i) for i in range(len(param.input))]
+        output_names = ["output_" + str(i) for i in range(len(param.output))]
+        input_value_infos = utils.convert_arrays_to_value_infos(
+            input_names, param.input)
+        output_value_infos = utils.convert_arrays_to_value_infos(
+            output_names, param.output)
 
-        node = None
-        if param.attrs:
-            node = onnx.helper.make_node(
-                local_function_proto.name, inputs, outputs,
-                domain=OnnxScriptTestCase.local_function_domain,
-                **param.attrs)
-        else:
-            node = onnx.helper.make_node(
-                local_function_proto.name, inputs, outputs,
-                domain=OnnxScriptTestCase.local_function_domain)
-        graph = onnx.helper.make_graph(
-            [node], "node_graph",
-            input_value_infos, output_value_infos)
-        model = onnx.helper.make_model(
-            graph,
-            functions=[local_function_proto],
-            producer_name='onnx-script',
-            opset_imports=[
-                OnnxScriptTestCase.onnx_opset_import,
-                OnnxScriptTestCase.local_opset_import])
-        return model
+        return utils.make_model_from_function_proto(
+            local_function_proto, 
+            input_value_infos,
+            output_value_infos,
+            OnnxScriptTestCase.local_function_domain,
+            OnnxScriptTestCase.onnx_opset_import,
+            OnnxScriptTestCase.local_opset_import,
+            **(param.attrs or {}))
 
     def run_converter_test(self, param):
         model = OnnxScriptTestCase._create_model_from_param(param)
@@ -83,32 +62,24 @@ class OnnxScriptTestCase(unittest.TestCase):
         np.testing.assert_equal(actual, param.output)
 
     def run_eager_test(self, param):
-        actual = []
-        if param.attrs:
-            actual = param.function(*param.input, **param.attrs)
-        else:
-            actual = param.function(*param.input)
+        actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
             actual if isinstance(actual, list)
             else [actual], param.output, rtol=1e-05)
 
-    def run_onnx_test(self, function, list_attrs):
-        params = self.get_onnx_test_cases(function, list_attrs)
+    def run_onnx_test(self, function, **attrs):
+        params = self.get_onnx_test_cases(function, **attrs)
 
         for param in params:
             self.run_converter_test(param)
             self.run_eager_test(param)
 
-    def get_onnx_test_cases(self, function, list_attrs):
+    def get_onnx_test_cases(self, function, **attrs):
         params = []
         cases = node_test.collect_testcases_by_operator(function.__name__)
         for i, case in enumerate(cases):
-            if not list_attrs:
-                params.extend([
-                    FunctionTestParams(function, ds[0], ds[1]) for ds in case.data_sets]) # noqa E501
-            else:
-                params.extend([
-                    FunctionTestParams(function, ds[0], ds[1], attrs=list_attrs[i]) # noqa E501
-                    for ds in case.data_sets])
+            params.extend([
+                FunctionTestParams(function, ds[0], ds[1], attrs=attrs) # noqa E501
+                for ds in case.data_sets])
 
         return params

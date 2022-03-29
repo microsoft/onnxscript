@@ -6,8 +6,8 @@ This example demonstrates a way to debug an *onnx-script* function
 with eager_mode_evaluator. Users can step into
 the gemmgelu function and step over each onnx op call.
 Intermediate variables are available for troubleshooting.
-eager_mode_evaluator uses onnxruntime 
-as the backend to compute onnx ops. 
+eager_mode_evaluator uses onnxruntime
+as the backend to compute onnx ops.
 """
 import numpy as np
 from onnxscript.onnx import opset15 as op

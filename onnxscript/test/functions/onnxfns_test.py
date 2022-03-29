@@ -5,7 +5,7 @@ from onnxscript.test.models import onnxfns1
 
 class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns(self):
-        self.run_onnx_test(onnxfns1.Relu, None)
+        self.run_onnx_test(onnxfns1.Relu)
 
 
 if __name__ == '__main__':
