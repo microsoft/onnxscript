@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from .eager_mode_evaluator import EagerModeEvaluator
+from .values import Opset
 
-opset15 = EagerModeEvaluator()
+opset15 = Opset("", 15)

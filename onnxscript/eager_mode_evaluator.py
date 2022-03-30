@@ -10,7 +10,7 @@ from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
 
 from .utils import convert_arrays_to_value_infos
-from .values import opset15
+from .onnx import opset15
 
 
 class EagerModeEvaluator:

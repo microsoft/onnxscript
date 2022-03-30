@@ -11,6 +11,7 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
+from .onnx import opset15
 from .values import ConstValue, AttrRef, Dynamic, Op, DynamicKind, DebugInfo
 
 
@@ -79,13 +80,13 @@ primop_map = {
 
 def _known_modules():
     import onnxscript
-    import onnxscript.onnx
     import onnxscript.onnx_types
+    import onnxscript.onnx
     return {
         'onnxscript': onnxscript,
         'onnxscript.onnx': onnxscript.onnx,
         'onnxscript.onnx_types': onnxscript.onnx_types,
-        'onnxscript.onnx.opset15': values.opset15
+        'onnxscript.onnx.opset15': onnxscript.onnx.opset15
     }
 
 
@@ -94,7 +95,7 @@ class Converter:
         self.ir_builder = ir_builder
         self.known_modules = _known_modules()
         self.globals = {"int": int, "float": float,
-                        "str": str, "oxs": values.opset15,
+                        "str": str, "oxs": opset15,
                         "msdomain": values.msdomain1}  # 'os' : onnxscript
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
@@ -336,7 +337,7 @@ class Converter:
             try:
                 self.lookup(node.id)
             except BaseException:
-                default_opset = values.opset15
+                default_opset = opset15
                 if (node.id not in default_opset):
                     warn(f"Unknown function name {node.id}.")
                 return Op(default_opset, node.id)

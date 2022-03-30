@@ -2,6 +2,8 @@ import numpy as np
 import unittest
 from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
 from onnxscript.test.models import if_statement
+from onnxscript.eager_mode_evaluator import EagerModeEvaluator
+if_statement.op = EagerModeEvaluator()
 
 
 class TestOnnxIf(OnnxScriptTestCase):

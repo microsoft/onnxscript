@@ -1,7 +1,9 @@
 import numpy as np
 import unittest
 from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
-from gemmgelu import gemmgelu
+import gemmgelu
+from onnxscript.eager_mode_evaluator import EagerModeEvaluator
+gemmgelu.op = EagerModeEvaluator()
 
 
 class TestGemmGelu(OnnxScriptTestCase):
@@ -22,7 +24,7 @@ class TestGemmGelu(OnnxScriptTestCase):
             [2.2128997, 1.3670988, 2.4269097, 2.1586964,
                 1.9926084, 2.0960782, 1.2971772, 2.0846245]], dtype=np.float32)
 
-        cases = [FunctionTestParams(gemmgelu, [a, w, b], [expected])]
+        cases = [FunctionTestParams(gemmgelu.gemmgelu, [a, w, b], [expected])]
         for case in cases:
             self.run_converter_test(case)
             self.run_eager_test(case)

@@ -47,8 +47,6 @@ class Opset:
         return self.domain
 
 
-opset15 = Opset("", 15)
-
 msdomain1 = Opset("com.microsoft", 1)
 
 # ONNX ops
