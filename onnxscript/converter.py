@@ -90,8 +90,32 @@ def _known_modules():
 
 
 class Converter:
-    def __init__(self, ir_builder=IRBuilder()):
-        self.ir_builder = ir_builder
+    """
+    Main class to translate python code into ONNX operators.
+
+    :param ir_builder: convert AST node into ONNX structures,
+        if None, class :class:`onnxscript.irbuilder.IRBuilder` is used
+
+    The class uses logger `onnx-script`. Logging can be enabled with the following code:
+
+    ::
+
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+
+    Or if you need to enable only the logger used by this module:
+
+    ::
+
+        import logging
+        logger = logging.getLogger('onnx-script')
+        logger.setLevel(logging.DEBUG)
+        console = logging.StreamHandler()
+        logger.addHandler(console)
+    """
+
+    def __init__(self, ir_builder=None):
+        self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         self.globals = {"int": int, "float": float,
                         "str": str, "oxs": values.opset15,
@@ -112,8 +136,10 @@ class Converter:
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
+        logger.debug("Converter:enter_scope:%d", len(self.locals))
 
     def exit_scope(self):
+        logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
         self.current_fn = self.outer[0]
         self.outer.pop(0)
@@ -124,6 +150,7 @@ class Converter:
         return self.locals[0]
 
     def bind(self, name, val):
+        logger.debug("Converter:bind:%s", name)
         self.locals[0][name] = val
 
     def lookup(self, name, info, raise_exception=True):
@@ -528,6 +555,7 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
+        logger.debug("Converter:translate_function_def:%s", fn.name)
         if fn.name in self.this_module:
             warn(f"{fn.name}: Already defined.")
         self.current_fn = self.ir_builder.new_function(fn.name)
