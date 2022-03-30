@@ -126,13 +126,15 @@ class Converter:
     def bind(self, name, val):
         self.locals[0][name] = val
 
-    def lookup(self, name, info):
+    def lookup(self, name, info, raise_exception=True):
         for scope in self.locals:
             if name in scope:
                 return scope[name]
         if name in self.globals:
             return self.globals[name]
-        raise ValueError(info.msg(f"Unbound name: {name}."))
+        if raise_exception:
+            raise ValueError(info.msg(f"Unbound name: {name}."))
+        return None
 
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
@@ -331,22 +333,23 @@ class Converter:
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             opname = node.attr
-            if opname in self.this_module:
-                # Calls a function within this module.
-                opf = OpFunction(self.this_module, node.attr)
-                self.current_fn.append_function(opf)
-                return opf
             if opname in module:
                 return Op(module, node.attr)
             warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
-            try:
-                self.lookup(node.id)
-            except BaseException:
+            function_name = node.id
+            if function_name in self.this_module:
+                # Calls a function within this module.
+                opf = OpFunction(self.this_module, function_name)
+                self.current_fn.append_function(opf)
+                return opf
+            found = self.lookup(node.id, DebugInfo(node), raise_exception=False)
+            if not found:
                 default_opset = values.opset15
-                if (node.id not in default_opset):
-                    warn(f"Unknown function name {node.id}.")
+                if node.id not in default_opset:
+                    # local function
+                    warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(default_opset, node.id)
         fail("Invalid callee")
 
