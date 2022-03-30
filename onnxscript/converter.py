@@ -94,7 +94,7 @@ class Converter:
         if (global_names is None):
             # TODO: Cleanup: This should be eventually removed.
             self.globals = {"int": int, "float": float,
-                            "str": str, "op": values.opset15,
+                            "str": str, "oxs": values.opset15,
                             "msdomain": values.msdomain1}
         else:
             self.globals = global_names
