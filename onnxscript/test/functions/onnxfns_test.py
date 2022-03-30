@@ -7,6 +7,10 @@ assign_eager_mode_evaluator_to_module(onnxfns1, "", 15)
 
 
 class TestOnnxFns(OnnxScriptTestCase):
+    def setUp(self):
+        super().setUp()
+        self.rtol = 1e-05
+
     def test_onnxfns(self):
         self.run_onnx_test(onnxfns1.Relu)
 

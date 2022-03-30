@@ -193,7 +193,7 @@ class Function:
                                     opset_imports=func_opset_imports,
                                     attributes=[a.name for a in self.attrs],
                                     doc_string=self.docstring)
-    
+
     def to_function_proto(self, domain):
         opsets = {'': 15}
         if domain != '':

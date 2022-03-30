@@ -59,7 +59,8 @@ class EagerModeEvaluator(Opset):
         opset_id = onnx.helper.make_opsetid(self.domain, self.version)
         model = onnx.helper.make_model(
             graph_temp, opset_imports=[opset_id])
-        sess = InferenceSession(model.SerializeToString())
+        sess = InferenceSession(
+            model.SerializeToString(), providers=['CPUExecutionProvider'])
 
         session_run_input = {
             input: arg if isinstance(arg, np.ndarray) else [arg]

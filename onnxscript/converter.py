@@ -376,7 +376,6 @@ class Converter:
                 return opf
             found = self.lookup(node.id, DebugInfo(node), raise_exception=False)
             if not found:
-                default_opset = default_opset
                 if node.id not in default_opset:
                     # local function
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")

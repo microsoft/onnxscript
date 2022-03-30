@@ -24,7 +24,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         self.local_opset_import = onnx.helper.make_opsetid("local", 1)
         self.local_function_domain = "local"
         self.local_function_name = "local_function"
-        self.rtol = 1e-05
+        self.rtol = 1e-7
 
     def _create_model_from_param(self, param, opset_imports):
         opset_imports = opset_imports if opset_imports\
@@ -60,7 +60,8 @@ class OnnxScriptTestCase(unittest.TestCase):
             model.graph.input.append(vi)
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
-        sess = InferenceSession(model.SerializeToString())
+        sess = InferenceSession(
+            model.SerializeToString(), providers=['CPUExecutionProvider'])
         actual = sess.run(None, input)
         np.testing.assert_equal(actual, param.output)
 
@@ -76,7 +77,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
             actual if isinstance(actual, list)
-            else [actual], param.output, rtol=1e-05)
+            else [actual], param.output, rtol=self.rtol)
 
     def run_onnx_test(self, function, **attrs):
         cases = node_test.collect_testcases_by_operator(function.__name__)
