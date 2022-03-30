@@ -5,6 +5,7 @@ from io import StringIO
 import onnx
 import onnx.helper as helper
 from . import type_annotation as ta
+from .values import Opset
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -65,6 +66,8 @@ class Attr:
 
 class Stmt:
     def __init__(self, result, module, opname, args, attrs) -> None:
+        if not isinstance(module, Opset):
+            raise TypeError(f"Unexpected type {type(module)} for module.")
         self.result = result
         self.module = module
         self.opname = opname
@@ -90,9 +93,12 @@ class Stmt:
             logger.debug("%s: %s", type(self), str(self))
 
     def to_node_proto(self):
+        if not isinstance(self.module.domain, str):
+            raise TypeError("Unexpected type %r for self.module." % type(self.module))
         n = helper.make_node(self.opname,
                              [str(x) for x in self.args],
-                             [str(x) for x in self.result])
+                             [str(x) for x in self.result],
+                             domain=self.module.domain)
         for a in self.attrs:
             n.attribute.append(a.attr_proto)
         return n
@@ -105,6 +111,7 @@ class Function:
         self.outputs = []
         self.stmts = []
         self.attrs = []
+        self.functions = {}
         self.docstring = ""
 
     def __str__(self):
@@ -138,20 +145,64 @@ class Function:
                         st.write(helper.printable_graph(attr.attr_proto.g))
                         st.write("\n")
 
+    def append_function(self, opf):
+        name = opf.name
+        if name in self.functions:
+            # Already added.
+            return
+        proto = opf.to_function_proto()
+        self.functions[name] = proto
+
+    def model_functions(self):
+        """
+        The ONNX implementation may rely on additional functions
+        stored in `self.functions`. This method returns it.
+        """
+        return self.functions
+
+    def to_model_proto(self, opsets=None, functions=None, **kwargs):
+        if opsets is None:
+            opsets = {'': 15}
+        elif isinstance(opsets, int):
+            opsets = {'': opsets}
+        else:
+            opsets = opsets.copy()
+        for n in self.stmts:
+            if n.module.domain not in opsets:
+                opsets[n.module.domain] = n.module.version
+        opset_imports = [onnx.helper.make_opsetid(domain, version)
+                         for domain, version in opsets.items()]
+        graph = self.to_graph_proto()
+        functions = [] if functions is None else list(functions)
+        functions.extend(self.functions.values())
+        return helper.make_model(graph, opset_imports=opset_imports,
+                                 functions=functions, **kwargs)
+
     def to_graph_proto(self):
         return helper.make_graph([s.to_node_proto() for s in self.stmts],
                                  self.name,
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
 
-    def to_function_proto(self):
+    def to_function_proto(self, domain):
+        opsets = {'': 15}
+        if domain != '':
+            opsets[domain.domain] = domain.version
+        else:
+            opsets = opsets.copy()
+        nodes = [s.to_node_proto() for s in self.stmts]
+        for n in nodes:
+            if n.domain not in opsets:
+                opsets[n.domain] = n.version
+        opset_imports = [onnx.helper.make_opsetid(domain, version)
+                         for domain, version in opsets.items()]
         return helper.make_function(
-            "",  # TODO: generate appropriate domain name.
+            domain.domain,  # TODO: generate appropriate domain name.
             self.name,
             inputs=[x.name for x in self.inputs],
             outputs=[y.name for y in self.outputs],
-            nodes=[s.to_node_proto() for s in self.stmts],
-            opset_imports=[],  # TODO
+            nodes=nodes,
+            opset_imports=opset_imports,  # TODO
             attributes=[a.name for a in self.attrs],
             doc_string=self.docstring
         )
