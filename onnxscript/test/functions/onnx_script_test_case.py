@@ -1,6 +1,7 @@
 import dataclasses
 import unittest
 import numpy as np
+import importlib
 import onnx
 from onnx.backend.test.case.node import _extract_value_info
 from onnxscript import utils
@@ -18,16 +19,20 @@ class FunctionTestParams:
 
 
 class OnnxScriptTestCase(unittest.TestCase):
-    onnx_opset_import = onnx.helper.make_opsetid("", 15)
-    local_opset_import = onnx.helper.make_opsetid("local", 1)
-    local_function_domain = "local"
-    local_function_name = "local_function"
+    def setUp(self):
+        self.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
+        self.local_opset_import = onnx.helper.make_opsetid("local", 1)
+        self.local_function_domain = "local"
+        self.local_function_name = "local_function"
+        self.rtol = 1e-05
 
-    def _create_model_from_param(param):
+    def _create_model_from_param(self, param, opset_imports):
+        opset_imports = opset_imports if opset_imports\
+            else self.default_opset_imports
         local_function_proto = utils.convert_python_function_to_function_proto(
             param.function,
-            OnnxScriptTestCase.local_function_domain,
-            [OnnxScriptTestCase.onnx_opset_import])
+            self.local_function_domain,
+            opset_imports)
 
         input_names = ["input_" + str(i) for i in range(len(param.input))]
         output_names = ["output_" + str(i) for i in range(len(param.output))]
@@ -40,13 +45,13 @@ class OnnxScriptTestCase(unittest.TestCase):
             local_function_proto,
             input_value_infos,
             output_value_infos,
-            OnnxScriptTestCase.local_function_domain,
-            OnnxScriptTestCase.onnx_opset_import,
-            OnnxScriptTestCase.local_opset_import,
+            self.local_function_domain,
+            opset_imports,
+            self.local_opset_import,
             **(param.attrs or {}))
 
-    def run_converter_test(self, param):
-        model = OnnxScriptTestCase._create_model_from_param(param)
+    def run_converter_test(self, param, opset_import=None):
+        model = self._create_model_from_param(param, opset_import)
         input = {vi.name: t for vi, t in zip(model.graph.input, param.input)}
         while len(model.graph.input) > 0:
             model.graph.input.remove(model.graph.input[0])
@@ -59,25 +64,24 @@ class OnnxScriptTestCase(unittest.TestCase):
         actual = sess.run(None, input)
         np.testing.assert_equal(actual, param.output)
 
-    def run_eager_test(self, param):
+    def run_eager_test(self, param, opset_imports=None):
+        if opset_imports:
+            module = importlib.import_module(param.function.__module__)
+            if not module.op or\
+                module.op.domain != opset_imports[0].domain or\
+                    module.op.version != opset_imports[0].version:
+                utils.assign_eager_mode_evaluator_to_module(
+                    module, opset_imports[0].domain, opset_imports[0].version)
+
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
             actual if isinstance(actual, list)
             else [actual], param.output, rtol=1e-05)
 
     def run_onnx_test(self, function, **attrs):
-        params = self.get_onnx_test_cases(function, **attrs)
-
-        for param in params:
-            self.run_converter_test(param)
-            self.run_eager_test(param)
-
-    def get_onnx_test_cases(self, function, **attrs):
-        params = []
         cases = node_test.collect_testcases_by_operator(function.__name__)
         for i, case in enumerate(cases):
-            params.extend([
-                FunctionTestParams(function, ds[0], ds[1], attrs=attrs) # noqa E501
-                for ds in case.data_sets])
-
-        return params
+            for ds in case.data_sets:
+                param = FunctionTestParams(function, ds[0], ds[1], attrs=attrs)
+                self.run_converter_test(param, case.model.opset_import)
+                self.run_eager_test(param, case.model.opset_import)

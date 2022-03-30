@@ -80,7 +80,7 @@ def make_model_from_function_proto(function_proto,
                                    input_value_infos,
                                    output_value_infos,
                                    domain,
-                                   onnx_opset_import,
+                                   onnx_opset_imports,
                                    local_opset_import,
                                    **attrs):
     input_names = [vi.name for vi in input_value_infos]
@@ -96,5 +96,10 @@ def make_model_from_function_proto(function_proto,
         graph,
         functions=[function_proto],
         producer_name='onnx-script',
-        opset_imports=[onnx_opset_import, local_opset_import])
+        opset_imports=[*onnx_opset_imports, local_opset_import])
     return model
+
+
+def assign_eager_mode_evaluator_to_module(module, domain, version):
+    from onnxscript.eager_mode_evaluator import EagerModeEvaluator
+    module.op = EagerModeEvaluator(domain, version)

@@ -1,9 +1,11 @@
 import numpy as np
 import unittest
 from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
+from onnxscript.utils import assign_eager_mode_evaluator_to_module
 import gemmgelu
-from onnxscript.eager_mode_evaluator import EagerModeEvaluator
-gemmgelu.op = EagerModeEvaluator()
+
+
+assign_eager_mode_evaluator_to_module(gemmgelu, "", 15)
 
 
 class TestGemmGelu(OnnxScriptTestCase):
