@@ -94,7 +94,7 @@ class Converter:
         if (global_names is None):
             # TODO: Cleanup: This should be eventually removed.
             self.globals = {"int": int, "float": float,
-                            "str": str, "oxs": values.opset15,
+                            "str": str, "op": values.opset15,
                             "msdomain": values.msdomain1}
         else:
             self.globals = global_names
@@ -226,7 +226,7 @@ class Converter:
 
     def translate_attr(self, attr_name, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id)
+            val = self.lookup(node.id, DebugInfo(node))
             if (isinstance(val, AttrRef)):
                 return self.to_onnx_attr_ref(val)
             else:
@@ -336,7 +336,13 @@ class Converter:
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
             try:
-                self.lookup(node.id)
+                v = self.lookup(node.id, DebugInfo(node))
+                if isinstance(v, Op):
+                    return v
+                if hasattr(v, "function_ir"):
+                    fir = v.function_ir
+                    return Op(fir.domain, fir.name)
+                fail(f"{node.id} is invalid as call-target.")
             except BaseException:
                 default_opset = values.opset15
                 if (node.id not in default_opset):
@@ -518,7 +524,8 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        self.current_fn = self.ir_builder.new_function(fn.name)
+        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else ""
+        self.current_fn = self.ir_builder.new_function(fn.name, domain)
         for x in args.args:
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)

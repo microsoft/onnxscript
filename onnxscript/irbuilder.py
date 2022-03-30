@@ -99,7 +99,8 @@ class Stmt:
 
 
 class Function:
-    def __init__(self, name) -> None:
+    def __init__(self, name, domain="") -> None:
+        self.domain = domain
         self.name = name
         self.inputs = []
         self.outputs = []
@@ -146,7 +147,7 @@ class Function:
 
     def to_function_proto(self):
         return helper.make_function(
-            "",  # TODO: generate appropriate domain name.
+            self.domain,
             self.name,
             inputs=[x.name for x in self.inputs],
             outputs=[y.name for y in self.outputs],
@@ -160,8 +161,8 @@ class Function:
 
 
 class IRBuilder:
-    def new_function(self, name):
-        return Function(name)
+    def new_function(self, name, domain=""):
+        return Function(name, domain)
 
     def add_docstring(self, fn, docstring):
         fn.append_docstring(docstring)

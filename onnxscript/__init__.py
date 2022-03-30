@@ -2,6 +2,6 @@
 
 __version__ = '0.1'
 
-from .main import func, model
+from .main import func, model, export_onnx_lib
 
-__all__ = [func, model]
+__all__ = [func, model, export_onnx_lib]
