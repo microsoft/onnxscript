@@ -47,6 +47,22 @@ class Opset:
         return self.domain
 
 
+class CustomOpset(Opset):
+
+    def __init__(self, domain, version):
+        super().__init__(domain, version)
+        self.ops = {}
+
+    def __getitem__(self, opname):
+        return self.ops[opname]
+
+    def __contains__(self, opname):
+        return opname in self.ops
+
+    def __setitem__(self, opname, value):
+        self.ops[opname] = value
+
+
 msdomain1 = Opset("com.microsoft", 1)
 
 # ONNX ops
@@ -58,10 +74,29 @@ class Op:
         self.opname = opname
 
     def get_schema(self):
+        if self.opset != '':
+            raise NotImplementedError(
+                f"Other domain than '' are not supported yet f{self.opset}.")
         return self.opset[self.opname]
 
     def has_schema(self):
+        if self.opset != '':
+            raise NotImplementedError(
+                f"Other domain than '' are not supported yet f{self.opset}.")
         return (self.opname in self.opset)
+
+
+class OpFunction(Op):
+    def __init__(self, opset, opname):
+        super().__init__(opset, opname)
+
+    @property
+    def name(self):
+        return self.opset[self.opname].name
+
+    def to_function_proto(self):
+        return self.opset[self.opname].to_function_proto(domain=self.opset)
+
 
 # Values fall into the following categories:
 # ConstValue: values known at translation-time, mapped to ONNX attributes

@@ -73,7 +73,8 @@ def convert_python_function_to_function_proto(function, domain, opset_imports):
         raise ValueError(f"Cannot find signle function of \
             '{function.__name__}' from module '{module.__name__}.py'")
 
-    return ir_functions[0].to_function_proto(domain, opset_imports)
+    return ir_functions[0].to_function_proto_with_opset_imports(
+        domain, opset_imports)
 
 
 def make_model_from_function_proto(function_proto,
