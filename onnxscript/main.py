@@ -1,3 +1,4 @@
+from types import ModuleType
 import ast
 import inspect
 from .converter import Converter
@@ -49,7 +50,7 @@ func = script_decorator(is_model=False)
 model = script_decorator(is_model=True)
 
 
-def export_onnx_lib(module, filename):
+def export_onnx_lib(module: ModuleType, filename: str) -> None:
     funs = set([v for k, v in module.__dict__.items() if is_converted_fun(v)])
 
     # Since we don't yet have LibProto defined, we use a ModelProto as a temporary
