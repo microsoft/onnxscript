@@ -11,3 +11,15 @@ def MySelu(X: FLOAT[None], alpha: FLOAT[1], gamma: FLOAT[1]) -> FLOAT[None]:
 def MyElu(X: FLOAT[None], beta: FLOAT[1]) -> FLOAT[None]:
     alpha = oxs.Constant(value_float=1.)
     return MySelu(X, alpha, beta)
+
+
+def MyEluB(X: FLOAT[None], beta: FLOAT[1]) -> FLOAT[None]:
+    alpha = oxs.Constant(value_float=1.)
+    res = MySelu(X, alpha, beta)
+    return res
+
+
+def MyEluC(X: FLOAT[None], beta: FLOAT[1]) -> FLOAT[None]:
+    alpha = oxs.Constant(value_float=1.)
+    res = oxs.Identity(MySelu(X, alpha, beta))
+    return res
