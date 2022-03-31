@@ -114,7 +114,7 @@ class Converter:
         logger.addHandler(console)
     """
 
-    def __init__(self, ir_builder=None, global_names=None):
+    def __init__(self, ir_builder=None, opset=None, global_names=None):
         self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         if (global_names is None):
@@ -126,7 +126,7 @@ class Converter:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
-        self.this_module = CustomOpset('this', 1)
+        self.this_module = opset or CustomOpset('this', 1)
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""

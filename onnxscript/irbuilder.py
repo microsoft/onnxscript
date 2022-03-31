@@ -175,6 +175,7 @@ class Function:
                          for domain, version in opsets.items()]
         graph = self.to_graph_proto()
         functions = [] if functions is None else list(functions)
+        # TODO: the following is incomplete. we need to do this iteratively.
         functions.extend(self.functions.values())
         return helper.make_model(graph, opset_imports=opset_imports,
                                  functions=functions, **kwargs)

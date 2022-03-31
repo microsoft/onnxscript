@@ -3,9 +3,6 @@ from typing import Any
 from enum import IntFlag
 import onnx
 
-# ONNX opsets (correspond to python modules in reference-mode)
-# Have a domain-name, version, and a list of ops
-
 
 class DebugInfo:
 
@@ -29,6 +26,12 @@ class DebugInfo:
 
 
 class Opset:
+    '''
+    Represents an ONNX Opset, which consists of a domain name, a version.
+    It also contains a set of operations. The base-class Opset represents
+    an Opset defined in the ONNX schema registry and the operations are
+    retrieved from the ONNX schema registry.
+    '''
     def __init__(self, domain, version) -> None:
         self.domain = domain
         self.version = version
@@ -48,6 +51,9 @@ class Opset:
 
 
 class CustomOpset(Opset):
+    '''
+    An extension of Opset used for Opsets that are not registered in the ONNX schema registry.
+    '''
 
     def __init__(self, domain, version):
         super().__init__(domain, version)
@@ -71,6 +77,10 @@ msdomain1 = Opset("com.microsoft", 1)
 
 
 class Op:
+    '''
+    Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
+    It belongs to a particular Opset and has a name.
+    '''
     def __init__(self, opset, opname) -> None:
         self.opset = opset
         self.opname = opname
@@ -89,6 +99,11 @@ class Op:
 
 
 class OpFunction(Op):
+    '''
+    Represents an ONNX op for which a function-body has been defined in onnxscript.
+    TODO: Logically, this should be used also for function definitions that pre-exist
+    in the ONNX schema registry, but we don't need them at this point. 
+    '''
     def __init__(self, opset, opname):
         super().__init__(opset, opname)
 

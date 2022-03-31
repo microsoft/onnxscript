@@ -5,18 +5,18 @@ from .converter import Converter
 import onnx.helper
 from . import values
 
-def script_check(f: ast.FunctionDef, globalvars):
+def script_check(f: ast.FunctionDef, opset, global_names):
     '''
     Check that a function falls into the ONNXScript subset of Python.
     '''
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    converter = Converter(global_names=globalvars)
+    converter = Converter(opset=opset, global_names=global_names)
     return converter.top_level_stmt(f)
 
 
-def script_decorator(is_model=False):
+def script(opset=None, is_model=False):
     def transform(f):
         if inspect.isfunction(f):
             src = inspect.getsource(f)
@@ -26,7 +26,7 @@ def script_decorator(is_model=False):
             assert len(top_level_ast.body) == 1
             f_ast = top_level_ast.body[0]
             assert type(f_ast) == ast.FunctionDef
-            result = script_check(f_ast, module.__dict__.copy())
+            result = script_check(f_ast, opset, module.__dict__.copy())
             # For now, we simply store the result of conversion as an attribute.
             # TODO: we should produce a new type of function-like object instead.
             f.function_ir = result
@@ -45,9 +45,9 @@ def is_converted_fun(f):
     return inspect.isfunction(f) and hasattr(f, "function_ir")
 
 
-func = script_decorator(is_model=False)
+func = script(is_model=False)
 
-model = script_decorator(is_model=True)
+model = script(is_model=True)
 
 
 def export_onnx_lib(module: ModuleType, filename: str) -> None:
