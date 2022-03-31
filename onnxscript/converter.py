@@ -583,12 +583,12 @@ class Converter:
                 # TODO: need type!
                 self.ir_builder.add_output(self.current_fn, ovar, self.default_type)
                 n_outputs += 1
-        if n_outputs == 0 and isinstance(parent_stmt, ast.If):
-            fail(DebugInfo(parent_stmt).msg(
-                "No output was detected in branch %r of if statement, "
-                "live_defs=%r, scoped variables=%r, live_out=%r." % (
-                    attribute_name, live_defs, list(sorted(current_vars)),
-                    getattr(parent_stmt, 'live_out', []))))
+        #if n_outputs == 0 and isinstance(parent_stmt, ast.If):
+        #    fail(DebugInfo(parent_stmt).msg(
+        #        "No output was detected in branch %r of if statement, "
+        #        "live_defs=%r, scoped variables=%r, live_out=%r." % (
+        #            attribute_name, live_defs, list(sorted(current_vars)),
+        #            getattr(parent_stmt, 'live_out', []))))
         graph = self.exit_scope()
         return graph.to_graph_proto()
 
