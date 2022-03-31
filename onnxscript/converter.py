@@ -370,6 +370,11 @@ class Converter:
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
             function_name = node.id
+            if function_name in self.this_module:
+                # Calls a function within this module.
+                opf = OpFunction(self.this_module, function_name)
+                self.current_fn.append_function(opf)
+                return opf
             found = self.lookup(function_name, DebugInfo(node), raise_exception=False)
             if isinstance(found, Op):
                 return found
