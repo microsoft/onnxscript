@@ -136,11 +136,11 @@ class Converter:
         self.used_vars = set()
         self.locals = [{}]
 
-    def enter_scope(self, name):
+    def enter_scope(self, name, parent_node):
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
-        logger.debug("Converter:enter_scope:%d", len(self.locals))
+        logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
         logger.debug("Converter:exit_scope:%d", len(self.locals))
@@ -294,9 +294,11 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif isinstance(node, ast.Num):
-            r = self.emit_const(node.n, target)
+            r = self.emit_const(node.n, target, info=DebugInfo(node))
         elif isinstance(node, ast.NameConstant):
             r = self.emit_const(node.value, target)
+        elif isinstance(node, ast.BoolOp):
+            r = self.translate_bool_op_expr(node)
         else:
             raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         if isinstance(r, tuple):
@@ -326,6 +328,18 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
+        return Op(default_opset, opname), [left, right], []
+
+    def translate_bool_op_expr(self, node):
+        op = type(node.op)
+        assert op in primop_map
+        opname = primop_map[op]
+        if len(node.values) != 2:
+            raise SyntaxError(DebugInfo(node).msg(
+                "Boolean operator must have two operands not %d." % len(node.values)))
+        left, right = node.values
+        left = self.translate_expr(left)
+        right = self.translate_expr(right)
         return Op(default_opset, opname), [left, right], []
 
     def translate_unary_op_expr(self, node):
@@ -472,9 +486,9 @@ class Converter:
     def translate_if_stmt(self, stmt: ast.If):
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         test = self.translate_expr(stmt.test, "cond")
-        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
+        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs, stmt, "body")
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
-        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs)
+        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs, stmt, "orelse")
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
@@ -544,7 +558,7 @@ class Converter:
         for s in stmts:
             self.translate_stmt(s)
         n_outputs = 0
-        current_vars = self.current_scope_variables()
+        current_vars = self.current_scope()
         for pvar in live_defs:
             if pvar in current_vars:
                 pv_val = current_vars[pvar]
@@ -564,7 +578,7 @@ class Converter:
                         f"branch, known variables: {pprint.pformat(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
-                self.emit([ovar], Op("", "Identity"),
+                self.emit([ovar], Op(default_opset, "Identity"),
                           [self.to_onnx_var(pv_val, pvar, info=DebugInfo(parent_stmt))], [])
                 # TODO: need type!
                 self.ir_builder.add_output(self.current_fn, ovar, self.default_type)

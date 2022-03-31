@@ -95,15 +95,12 @@ class TestConverter(unittest.TestCase):
     def test_onnxfns1(self):
         self._convert(os.path.join(CURRENT_DIR, "onnxfns1.py"))
 
+    def test_onnxfns1A(self):
+        self._convert(os.path.join(CURRENT_DIR, "onnxfns1A.py"))
+
     def test_onnxfft(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxfft.py"),
                                save_text=True, check_ort=True)
-
-    def test_onnxfns_with_cast(self):
-        self._convert(os.path.join(CURRENT_DIR, "onnxfns_with_cast.py"))
-
-    def test_onnxfns1A(self):
-        self._convert(os.path.join(CURRENT_DIR, "onnxfns1A.py"))
 
     def test_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
@@ -130,4 +127,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
+    TestConverter().test_onnxfft()
     unittest.main()
