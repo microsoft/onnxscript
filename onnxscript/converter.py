@@ -12,7 +12,9 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind, DebugInfo
+from .values import (
+    ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind,
+    DebugInfo, opset15 as default_opset, CustomOpset)
 
 
 logger = logging.getLogger("onnx-script")
@@ -91,36 +93,40 @@ def _known_modules():
     }
 
 
-class Scope:
-
-    def __init__(self, name, node):
-        self.name = name
-        self.node = node
-        self.vars = {}
-
-    def __contains__(self, name):
-        return name in self.vars
-
-    def __getitem__(self, name):
-        return self.vars[name]
-
-    def add(self, name, val):
-        self.vars[name] = val
-
-    def __repr__(self):
-        return ", ".join(self.vars)
-
-
 class Converter:
-    def __init__(self, ir_builder=IRBuilder()):
-        self.ir_builder = ir_builder
+    """
+    Main class to translate python code into ONNX operators.
+
+    :param ir_builder: convert AST node into ONNX structures,
+        if None, class :class:`onnxscript.irbuilder.IRBuilder` is used
+
+    The class uses logger `onnx-script`. Logging can be enabled with the following code:
+
+    ::
+
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+
+    Or if you need to enable only the logger used by this module:
+
+    ::
+
+        import logging
+        logger = logging.getLogger('onnx-script')
+        logger.setLevel(logging.DEBUG)
+        console = logging.StreamHandler()
+        logger.addHandler(console)
+    """
+
+    def __init__(self, ir_builder=None):
+        self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         self.globals = {"int": int, "float": float,
                         "str": str, "oxs": values.opset15,
                         "msdomain": values.msdomain1}  # 'os' : onnxscript
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
-        self.this_module = {}
+        self.this_module = CustomOpset('this', 1)
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -128,44 +134,36 @@ class Converter:
         self.current_fn = None
         self.nextvar = 0
         self.used_vars = set()
-        self.locals = [Scope(None, None)]
+        self.locals = [{}]
 
-    def enter_scope(self, name, node):
+    def enter_scope(self, name):
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
-        self.locals.insert(0, Scope(name, node))
+        self.locals.insert(0, {})
+        logger.debug("Converter:enter_scope:%d", len(self.locals))
 
     def exit_scope(self):
+        logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
         self.current_fn = self.outer[0]
         self.outer.pop(0)
         self.locals.pop(0)
         return graph
 
-    def current_scope_variables(self):
-        def iter_scope():
-            yield self.locals[0]
-            if isinstance(self.locals[0], ast.If):
-                for i in range(1, len(self.locals)):
-                    if not isinstance(self.locals[i].node, ast.If):
-                        break
-                    yield self.locals[i]
-        vars = dict()
-        scopes = list(iter_scope())
-        for scope in reversed(scopes):
-            vars.update(scope.vars)
-        return vars
+    def current_scope(self):
+        return self.locals[0]
 
     def bind(self, name, val):
-        self.locals[0].add(name, val)
+        logger.debug("Converter:bind:%s", name)
+        self.locals[0][name] = val
 
-    def lookup(self, name, info, raise_exc=True):
+    def lookup(self, name, info, raise_exception=True):
         for scope in self.locals:
             if name in scope:
                 return scope[name]
         if name in self.globals:
             return self.globals[name]
-        if raise_exc:
+        if raise_exception:
             raise ValueError(info.msg(f"Unbound name: {name}."))
         return None
 
@@ -188,7 +186,7 @@ class Converter:
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
             attr = self.to_onnx_attr_ref(val)
-            self.emit([result], Op("", "Constant"), [], [attr])
+            self.emit([result], Op(default_opset, "Constant"), [], [attr])
             return result
         if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
@@ -205,7 +203,7 @@ class Converter:
 
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(
-            self.current_fn, outputs, callee.opset, callee.domain,
+            self.current_fn, outputs, callee.opset,
             callee.opname, inputs, attrs)
 
     def emit_loop(self, outputs, callee, inputs, attrs, info):
@@ -214,15 +212,16 @@ class Converter:
             self.bind(x, Dynamic(r, DynamicKind.Output, info))
             return r
 
+        # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
-        self.emit(onnx_outputs, Op("", callee), onnx_inputs, attrs)
+        self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs)
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
         tensor = pyvalue_to_tensor(ovar, pyvalue, info)
         attr = self.ir_builder.attr("value", tensor)
-        self.emit([ovar], Op("", "Constant"), [], [attr])
+        self.emit([ovar], Op(default_opset, "Constant"), [], [attr])
         return ovar
 
     def is_pure_module(self, m):
@@ -230,7 +229,7 @@ class Converter:
 
     def is_constant_expr(self, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node), False)
+            val = self.lookup(node.id, DebugInfo(node))
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute)):
@@ -271,7 +270,14 @@ class Converter:
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
     def translate_docstring(self, node):
-        return self.emit_docstring(node.value.value)
+        if hasattr(node.value, 'value'):
+            # python 3.8+
+            return self.emit_docstring(node.value.value)
+        if hasattr(node.value, 's'):
+            # python 3.7
+            return self.emit_docstring(node.value.s)
+        raise TypeError("Unexpected type %r for node. "
+                        "Unsupoorted version of python." % type(node))
 
     # Expression-translation generates "IR statements/nodes" that compute the value of
     # the expression into a target-variable, and returns the variable that is
@@ -288,14 +294,11 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif isinstance(node, ast.Num):
-            r = self.emit_const(node.n, target, DebugInfo(node))
+            r = self.emit_const(node.n, target)
         elif isinstance(node, ast.NameConstant):
-            r = self.emit_const(node.value, target, DebugInfo(node))
-        elif isinstance(node, ast.BoolOp):
-            r = self.translate_bool_op_expr(node)
+            r = self.emit_const(node.value, target)
         else:
-            raise ValueError(DebugInfo(node).msg(
-                f"Unsupported expression type: {type(node).__name__}."))
+            raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         if isinstance(r, tuple):
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
@@ -323,26 +326,14 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
-        return Op("", opname), [left, right], []
-
-    def translate_bool_op_expr(self, node):
-        op = type(node.op)
-        assert op in primop_map
-        opname = primop_map[op]
-        if len(node.values) != 2:
-            raise SyntaxError(DebugInfo(node).msg(
-                "Boolean operator must have two operands not %d." % len(node.values)))
-        left, right = node.values
-        left = self.translate_expr(left)
-        right = self.translate_expr(right)
-        return Op("", opname), [left, right], []
+        return Op(default_opset, opname), [left, right], []
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
         assert op in primop_map
         opname = primop_map[op]
         operand = self.translate_expr(node.operand)
-        return Op("", opname), [operand], []
+        return Op(default_opset, opname), [operand], []
 
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
@@ -354,7 +345,7 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
-        return Op("", opname), [left, right], []
+        return Op(default_opset, opname), [left, right], []
 
     def translate_name_expr(self, node):
         return self.py_var_to_onnx_var(node.id, info=DebugInfo(node))
@@ -382,22 +373,23 @@ class Converter:
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             opname = node.attr
-            if opname in self.this_module:
-                # Calls a function within this module.
-                opf = OpFunction(self.this_module, node.attr, 'this')
-                self.current_fn.append_function(opf)
-                return opf
             if opname in module:
                 return Op(module, node.attr)
             warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
-            try:
-                self.lookup(node.id)
-            except BaseException:
+            function_name = node.id
+            if function_name in self.this_module:
+                # Calls a function within this module.
+                opf = OpFunction(self.this_module, function_name)
+                self.current_fn.append_function(opf)
+                return opf
+            found = self.lookup(node.id, DebugInfo(node), raise_exception=False)
+            if not found:
                 default_opset = values.opset15
-                if (node.id not in default_opset):
-                    warn(f"Unknown function name {node.id}.")
+                if node.id not in default_opset:
+                    # local function
+                    warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(default_opset, node.id)
         fail("Invalid callee")
 
@@ -414,9 +406,13 @@ class Converter:
         if isinstance(node, ast.For):
             return self.translate_for_stmt(node)
         if isinstance(node, ast.Expr):
-            if (index_of_stmt == 0 and hasattr(node, 'value') and isinstance(
-                    node.value.value, str)):
-                return self.translate_docstring(node)
+            if index_of_stmt == 0 and hasattr(node, 'value'):
+                if hasattr(node.value, 'value') and isinstance(node.value.value, str):
+                    # python 3.8+
+                    return self.translate_docstring(node)
+                if hasattr(node.value, 's') and isinstance(node.value.s, str):
+                    # python 3.7
+                    return self.translate_docstring(node)
         raise ValueError(DebugInfo(node).msg(
             f"Unsupported statement type: {type(node).__name__}."))
 
@@ -474,13 +470,11 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
-        live_defs = list(analysis.defs(stmt))
+        live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         test = self.translate_expr(stmt.test, "cond")
-        if len(stmt.body) == 0:
-            fail(DebugInfo(stmt).msg("Branch then cannot be empty."))
-        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs, stmt, 'body')
+        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
-        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs, stmt, 'orelse')
+        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs)
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
@@ -489,7 +483,7 @@ class Converter:
             return r
 
         renamed = [rename(x) for x in live_defs]
-        self.emit(renamed, Op("", "If"), [test], [thenAttr, elseAttr])
+        self.emit(renamed, Op(default_opset, "If"), [test], [thenAttr, elseAttr])
 
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
@@ -530,10 +524,10 @@ class Converter:
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
-        self.emit([o_cond_out], Op("", "Identity"), [o_cond_var], [])
+        self.emit([o_cond_out], Op(default_opset, "Identity"), [o_cond_var], [])
         self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL)
         for pv in loop_state_vars:
-            ov = self.py_var_to_onnx_var(pv, info=DebugInfo(for_stmt))
+            ov = self.py_var_to_onnx_var(pv, DebugInfo(for_stmt))
             self.ir_builder.add_output(
                 self.current_fn, ov, self.default_type)  # TODO: type
         body = self.exit_scope()
@@ -590,6 +584,7 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
+        logger.debug("Converter:translate_function_def:%s", fn.name)
         if fn.name in self.this_module:
             warn(f"{fn.name}: Already defined.")
         self.current_fn = self.ir_builder.new_function(fn.name)

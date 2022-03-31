@@ -9,6 +9,7 @@ from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
+from onnxscript.values import Opset
 
 CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 
@@ -91,8 +92,8 @@ class TestConverter(unittest.TestCase):
             """)
         self._convert(script)
 
-    def test_onnxfns(self):
-        self._convert(os.path.join(CURRENT_DIR, "onnxfns.py"))
+    def test_onnxfns1(self):
+        self._convert(os.path.join(CURRENT_DIR, "onnxfns1.py"))
 
     def test_onnxfft(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxfft.py"),
@@ -100,6 +101,9 @@ class TestConverter(unittest.TestCase):
 
     def test_onnxfns_with_cast(self):
         self._convert(os.path.join(CURRENT_DIR, "onnxfns_with_cast.py"))
+
+    def test_onnxfns1A(self):
+        self._convert(os.path.join(CURRENT_DIR, "onnxfns1A.py"))
 
     def test_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
@@ -119,9 +123,11 @@ class TestConverter(unittest.TestCase):
     def test_docstring(self):
         res = self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
         self.assertEqual(len(res), 1)
-        proto = res[0].to_function_proto()
+        proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
 
 
 if __name__ == '__main__':
+    # import logging
+    # logging.basicConfig(level=logging.DEBUG)
     unittest.main()
