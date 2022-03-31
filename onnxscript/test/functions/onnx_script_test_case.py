@@ -23,7 +23,6 @@ class OnnxScriptTestCase(unittest.TestCase):
         self.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
         self.local_opset_import = onnx.helper.make_opsetid("local", 1)
         self.local_function_domain = "local"
-        self.local_function_name = "local_function"
         self.rtol = 1e-7
 
     def _create_model_from_param(self, param, opset_imports):
@@ -53,13 +52,6 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_converter_test(self, param, opset_import=None):
         model = self._create_model_from_param(param, opset_import)
         input = {vi.name: t for vi, t in zip(model.graph.input, param.input)}
-        while len(model.graph.input) > 0:
-            model.graph.input.remove(model.graph.input[0])
-        for name, value, in input.items():
-            vi = _extract_value_info(value, name)
-            model.graph.input.append(vi)
-        model = onnx.shape_inference.infer_shapes(model)
-        onnx.checker.check_model(model)
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
         actual = sess.run(None, input)
@@ -71,6 +63,8 @@ class OnnxScriptTestCase(unittest.TestCase):
             if not module.op or\
                 module.op.domain != opset_imports[0].domain or\
                     module.op.version != opset_imports[0].version:
+                # we want to run eager mode executor with the same domain
+                # and version as requested.
                 utils.assign_eager_mode_evaluator_to_module(
                     module, opset_imports[0].domain, opset_imports[0].version)
 

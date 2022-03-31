@@ -27,7 +27,8 @@ class EagerModeEvaluator(Opset):
         elif isinstance(v, onnx.TensorProto):
             return v
         else:
-            raise ValueError("attribute {attribute_name} must be convertable to TensorProto, got {type}", k, type(v)) # noqa E501
+            raise ValueError("attribute {attribute_name} \
+                must be convertable to TensorProto, got {type}", k, type(v))
 
     def convert_attributes_to_tensors_with_schema(
             attribute_dict, schema_attribute_dict):
@@ -45,20 +46,17 @@ class EagerModeEvaluator(Opset):
         EagerModeEvaluator.convert_attributes_to_tensors_with_schema(
             kwargs, schema.attributes)
 
-        num_inputs = len(args)
-        num_outputs = len(schema.outputs)
-        inputs = ["input" + str(i) for i in range(num_inputs)]
-        outputs = ["output" + str(i) for i in range(num_outputs)]
+        inputs = ["input" + str(i) for i in range(len(args))]
+        outputs = ["output" + str(i) for i in range(len(schema.outputs))]
         node = onnx.helper.make_node(opname, inputs, outputs, **kwargs)
         input_value_infos = convert_arrays_to_value_infos(inputs, list(args))
-
         output_value_infos = [
             onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
-        graph_temp = onnx.helper.make_graph(
+
+        graph = onnx.helper.make_graph(
             [node], "node_graph", input_value_infos, output_value_infos)
         opset_id = onnx.helper.make_opsetid(self.domain, self.version)
-        model = onnx.helper.make_model(
-            graph_temp, opset_imports=[opset_id])
+        model = onnx.helper.make_model(graph, opset_imports=[opset_id])
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
 
@@ -70,8 +68,4 @@ class EagerModeEvaluator(Opset):
         return got[0] if len(got) == 1 else got
 
     def __getattr__(self, attr: str) -> typing.Any:
-        return globals().get(
-            attr,
-            functools.partial(
-                self.call,
-                attr))
+        return globals().get(attr, functools.partial(self.call, attr))

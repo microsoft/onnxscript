@@ -1,6 +1,6 @@
-# flake8: noqa
 from onnxscript.onnx_types import FLOAT
 from onnxscript.onnx import opset15 as op
+
 
 def gemmgelu(
         A: FLOAT[2048, 16],
