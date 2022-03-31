@@ -3,7 +3,7 @@ import ast
 import inspect
 from .converter import Converter
 import onnx.helper
-
+from . import values
 
 def script_check(f: ast.FunctionDef, globalvars):
     '''
@@ -58,7 +58,7 @@ def export_onnx_lib(module: ModuleType, filename: str) -> None:
     # and dummy opset_imports.
     model = onnx.helper.make_model(
         onnx.GraphProto(),
-        functions=[f.function_ir.to_function_proto() for f in funs],
+        functions=[f.function_ir.to_function_proto(values.Opset(f.function_ir.domain, 1)) for f in funs],
         producer_name='p2o',
         opset_imports=[onnx.helper.make_opsetid("", 15)])
 

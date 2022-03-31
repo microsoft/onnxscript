@@ -380,8 +380,8 @@ class Converter:
                 return found
             if hasattr(found, "function_ir"):
                 fir = found.function_ir
-                opf = OpFunction(fir.domain, fir.name)
-                self.current_fn.append_function(opf)
+                opf = Op(values.Opset(fir.domain, 1), fir.name)
+                # self.current_fn.append_function(opf)
                 return opf
 
             if not found:
