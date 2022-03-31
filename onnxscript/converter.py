@@ -11,7 +11,9 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import ConstValue, AttrRef, Dynamic, Op, DynamicKind, DebugInfo
+from .values import (
+    ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind,
+    DebugInfo, opset15 as default_opset, CustomOpset)
 
 
 logger = logging.getLogger("onnx-script")
@@ -88,8 +90,32 @@ def _known_modules():
 
 
 class Converter:
-    def __init__(self, ir_builder=IRBuilder(), global_names=None):
-        self.ir_builder = ir_builder
+    """
+    Main class to translate python code into ONNX operators.
+
+    :param ir_builder: convert AST node into ONNX structures,
+        if None, class :class:`onnxscript.irbuilder.IRBuilder` is used
+
+    The class uses logger `onnx-script`. Logging can be enabled with the following code:
+
+    ::
+
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+
+    Or if you need to enable only the logger used by this module:
+
+    ::
+
+        import logging
+        logger = logging.getLogger('onnx-script')
+        logger.setLevel(logging.DEBUG)
+        console = logging.StreamHandler()
+        logger.addHandler(console)
+    """
+
+    def __init__(self, ir_builder=None, global_names=None):
+        self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         if (global_names is None):
             # TODO: Cleanup: This should be eventually removed.
@@ -100,6 +126,7 @@ class Converter:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
+        self.this_module = CustomOpset('this', 1)
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -113,8 +140,10 @@ class Converter:
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
+        logger.debug("Converter:enter_scope:%d", len(self.locals))
 
     def exit_scope(self):
+        logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
         self.current_fn = self.outer[0]
         self.outer.pop(0)
@@ -125,15 +154,18 @@ class Converter:
         return self.locals[0]
 
     def bind(self, name, val):
+        logger.debug("Converter:bind:%s", name)
         self.locals[0][name] = val
 
-    def lookup(self, name, info):
+    def lookup(self, name, info, raise_exception=True):
         for scope in self.locals:
             if name in scope:
                 return scope[name]
         if name in self.globals:
             return self.globals[name]
-        raise ValueError(info.msg(f"Unbound name: {name}."))
+        if raise_exception:
+            raise ValueError(info.msg(f"Unbound name: {name}."))
+        return None
 
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
@@ -154,7 +186,7 @@ class Converter:
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
             attr = self.to_onnx_attr_ref(val)
-            self.emit([result], Op("", "Constant"), [], [attr])
+            self.emit([result], Op(default_opset, "Constant"), [], [attr])
             return result
         if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
@@ -171,7 +203,8 @@ class Converter:
 
     def emit(self, outputs, callee, inputs, attrs):
         self.ir_builder.add_stmt(
-            self.current_fn, outputs, callee.opset, callee.opname, inputs, attrs)
+            self.current_fn, outputs, callee.opset,
+            callee.opname, inputs, attrs)
 
     def emit_loop(self, outputs, callee, inputs, attrs, info):
         def rename(x):
@@ -182,13 +215,13 @@ class Converter:
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
-        self.emit(onnx_outputs, Op("", callee), onnx_inputs, attrs)
+        self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs)
 
     def emit_const(self, pyvalue, suggested_name):
         ovar = self.generate_unique_name(suggested_name)
         tensor = pyvalue_to_tensor(ovar, pyvalue)
         attr = self.ir_builder.attr("value", tensor)
-        self.emit([ovar], Op("", "Constant"), [], [attr])
+        self.emit([ovar], Op(default_opset, "Constant"), [], [attr])
         return ovar
 
     def is_pure_module(self, m):
@@ -285,14 +318,14 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
-        return Op("", opname), [left, right], []
+        return Op(default_opset, opname), [left, right], []
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
         assert op in primop_map
         opname = primop_map[op]
         operand = self.translate_expr(node.operand)
-        return Op("", opname), [operand], []
+        return Op(default_opset, opname), [operand], []
 
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
@@ -303,7 +336,7 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
-        return Op("", opname), [left, right], []
+        return Op(default_opset, opname), [left, right], []
 
     def translate_name_expr(self, node):
         return self.py_var_to_onnx_var(node.id, DebugInfo(node))
@@ -331,22 +364,26 @@ class Converter:
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             opname = node.attr
-            if (opname not in module):
-                warn(f"'{opname}' is not a known op in '{str(module)}'")
+            if opname in module:
+                return Op(module, node.attr)
+            warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
-            try:
-                v = self.lookup(node.id, DebugInfo(node))
-                if isinstance(v, Op):
-                    return v
-                if hasattr(v, "function_ir"):
-                    fir = v.function_ir
-                    return Op(fir.domain, fir.name)
-                fail(f"{node.id} is invalid as call-target.")
-            except BaseException:
+            function_name = node.id
+            found = self.lookup(function_name, DebugInfo(node), raise_exception=False)
+            if isinstance(found, Op):
+                return found
+            if hasattr(found, "function_ir"):
+                fir = found.function_ir
+                opf = OpFunction(fir.domain, fir.name)
+                self.current_fn.append_function(opf)
+                return opf
+
+            if not found:
                 default_opset = values.opset15
-                if (node.id not in default_opset):
-                    warn(f"Unknown function name {node.id}.")
+                if function_name not in default_opset:
+                    # local function
+                    warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(default_opset, node.id)
         fail("Invalid callee")
 
@@ -436,7 +473,7 @@ class Converter:
             return r
 
         renamed = [rename(x) for x in live_defs]
-        self.emit(renamed, Op("", "If"), [test], [thenAttr, elseAttr])
+        self.emit(renamed, Op(default_opset, "If"), [test], [thenAttr, elseAttr])
 
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
@@ -477,7 +514,7 @@ class Converter:
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
-        self.emit([o_cond_out], Op("", "Identity"), [o_cond_var], [])
+        self.emit([o_cond_out], Op(default_opset, "Identity"), [o_cond_var], [])
         self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL)
         for pv in loop_state_vars:
             ov = self.py_var_to_onnx_var(pv, DebugInfo(for_stmt))
@@ -512,13 +549,17 @@ class Converter:
                          f"branch, known variables: {list(sorted(self.locals))}.")
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
-                self.emit([ovar], Op("", "Identity"), [self.to_onnx_var(pv_val, pvar)], [])
+                self.emit([ovar], Op(default_opset, "Identity"),
+                          [self.to_onnx_var(pv_val, pvar)], [])
                 # TODO: need type!
                 self.ir_builder.add_output(self.current_fn, ovar, self.default_type)
         graph = self.exit_scope()
         return graph.to_graph_proto()
 
     def translate_function_def(self, fn: ast.FunctionDef):
+        logger.debug("Converter:translate_function_def:%s", fn.name)
+        if fn.name in self.this_module:
+            warn(f"{fn.name}: Already defined.")
         args = fn.args
         if args.defaults:
             warn(f"{fn.name}: Default values not yet implemented.")
@@ -569,6 +610,7 @@ class Converter:
             analysis.do_liveness_analysis(stmt)
             fn_ir = self.translate_function_def(stmt)
             fn_ir.debug_print()
+            self.this_module[stmt.name] = fn_ir
             return fn_ir
 
         if isinstance(stmt, ast.Import):
