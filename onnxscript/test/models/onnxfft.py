@@ -29,9 +29,9 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     #     new_shape = concat(two, cos_p.shape)
     #     return concat(cos_p, sin_p).reshape(new_shape)
 
-    one = oxs.Constant(value_float=1)
-    zeroi = oxs.Constant(value_int64=0)
-    onei = oxs.Constant(value_int64=1)
+    one = oxs.Constant(value_floats=[1])
+    zeroi = oxs.Constant(value_ints=[0])
+    onei = oxs.Constant(value_ints=[1])
     minusi = oxs.Neg(onei)  # oxs.Constant(value_int64=-1) fails
     shape1 = oxs.Concat(minusi, onei, axis=0)  # oxs.Constant(value_floats=[-1, 1])  fails
     shape2 = oxs.Concat(onei, minusi, axis=0)
@@ -44,12 +44,12 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     k0 = oxs.Cast(kar, to=1)
     k = oxs.Reshape(k0, shape2)
     
-    cst_2pi = oxs.Neg(oxs.Constant(value_float=6.28318530718)) #  -2pi
+    cst_2pi = oxs.Neg(oxs.Constant(value_floats=[6.28318530718])) #  -2pi
     fft_length_float = oxs.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
     cos_p = oxs.Cos(p)
     sin_p = oxs.Sin(p)
-    two = oxs.Constant(value_int64=2)
+    two = oxs.Constant(value_ints=[2])
     new_shape = oxs.Concat(two, oxs.Shape(cos_p), axis=0)  # unsupported
     cplx = oxs.Concat(cos_p, sin_p, axis=0)
     return oxs.Reshape(cplx, new_shape)
@@ -58,11 +58,11 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
 def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
     # transpose with the permutation as an attribute does not
     # work here, we need a permutation depending on the input data
-    zero = oxs.Constant(value_int64=0)
-    one = oxs.Constant(value_int64=1)
-    two = oxs.Constant(value_int64=2)
-    three = oxs.Constant(value_int64=3)
-    dim = oxs.Size(oxs.Shape(x)) - oxs.Constant(value_int64=1)  # x.shape.size - 1 or len(x.shape) - 1
+    zero = oxs.Constant(value_ints=[0])
+    one = oxs.Constant(value_ints=[1])
+    two = oxs.Constant(value_ints=[2])
+    three = oxs.Constant(value_ints=[3])
+    dim = oxs.Size(oxs.Shape(x)) - oxs.Constant(value_ints=[1])  # x.shape.size - 1 or len(x.shape) - 1
     if axis == dim or dim == zero:
         result = x
     else:
@@ -103,12 +103,12 @@ def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     # Simpler to write with [axis].
     # cst = dft(x.shape[axis], length)  # dft is unknown, subfunction are not allowed
     x_shape = oxs.Shape(x)
-    dim = oxs.Slice(x_shape, axis, axis + oxs.Constant(value_int64=1))
+    dim = oxs.Slice(x_shape, axis, axis + oxs.Constant(value_ints=[1]))
     cst = dft(dim, fft_length)
     cst_cast = oxs.CastLike(cst, x)
-    step = oxs.Constant(value_int64=1)
-    last = oxs.Neg(oxs.Constant(value_int64=1))  # value_int64=-1 calls UnaryOp
-    zero_i = oxs.Constant(value_int64=0)
+    step = oxs.Constant(value_ints=[1])
+    last = oxs.Neg(oxs.Constant(value_ints=[1]))  # value_int64=-1 calls UnaryOp
+    zero_i = oxs.Constant(value_ints=[0])
     xt = dynamic_switch_with_last_axis(x, axis)
 
     # Cannot create variable inside a branch of a test

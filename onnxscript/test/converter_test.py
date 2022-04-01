@@ -8,6 +8,7 @@ import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
 
@@ -35,7 +36,11 @@ class TestConverter(unittest.TestCase):
                             f.write("\n-------------------------\n")
                             f.write(printable_graph(fct))
                 if check_ort:
-                    onnxruntime.InferenceSession(model.SerializeToString())
+                    try:
+                        onnxruntime.InferenceSession(model.SerializeToString())
+                    except Fail as e:
+                        onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
+                        raise AssertionError("onnxruntime failed.") from e                        
                 model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
                     with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as f:
@@ -43,13 +48,12 @@ class TestConverter(unittest.TestCase):
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
                             f.write(printable_graph(fct))
+                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
                 try:
                     onnx.checker.check_model(model)
                 except ValidationError as e:
                     onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
-                    raise AssertionError(
-                        "Verification of model failed.") from e
-                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
+                    raise AssertionError("Verification of model failed.") from e
 
     def test_source_input(self):
         script = textwrap.dedent("""
