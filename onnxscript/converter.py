@@ -229,7 +229,10 @@ class Converter:
 
     def is_constant_expr(self, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node))
+            val = self.lookup(node.id, DebugInfo(node), raise_exception=False)
+            if val is None:
+                # A function...
+                return False
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute)):
