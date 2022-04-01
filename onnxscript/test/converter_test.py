@@ -116,8 +116,12 @@ class TestConverter(unittest.TestCase):
         proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
 
+    def test_dummy_tensor(self):
+        self._convert_and_save(os.path.join(CURRENT_DIR, "dummy_tensor.py"))
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
+    # TestConverter().test_dummy_tensor()
     unittest.main()
