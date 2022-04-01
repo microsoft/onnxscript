@@ -32,6 +32,7 @@ class Opset:
     an Opset defined in the ONNX schema registry and the operations are
     retrieved from the ONNX schema registry.
     '''
+
     def __init__(self, domain, version) -> None:
         self.domain = domain
         self.version = version
@@ -81,6 +82,7 @@ class Op:
     Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
     '''
+
     def __init__(self, opset, opname) -> None:
         self.opset = opset
         self.opname = opname
@@ -104,6 +106,7 @@ class OpFunction(Op):
     TODO: Logically, this should be used also for function definitions that pre-exist
     in the ONNX schema registry, but we don't need them at this point. 
     '''
+
     def __init__(self, opset, opname):
         super().__init__(opset, opname)
 
@@ -129,6 +132,7 @@ class Value:
     AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes
     Dynamic: values computed at runtime (of tensor type, for now) mapped to NodeArgs.
     """
+
     def __init__(self, val: Any, info: DebugInfo) -> None:
         if not isinstance(info, DebugInfo):
             raise TypeError("info must be of DebugInfo not %r." % type(info))
