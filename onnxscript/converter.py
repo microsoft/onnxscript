@@ -4,6 +4,7 @@ import os
 import inspect
 import ast
 import logging
+import numpy
 import onnx
 import onnx.helper as helper
 from . import onnx_types as types
@@ -632,6 +633,11 @@ class Converter:
                 asname = alias.asname if alias.asname else alias.name
                 self.globals[asname] = getattr(module, alias.name)
         else:
+            try:
+                if stmt.test.left.id == '__name__':
+                    return None
+            except AttributeError:
+                pass
             raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
 
     def convert_source(self, src):
