@@ -87,7 +87,7 @@ class TestConverter(unittest.TestCase):
 
     def test_subfunction(self):
         from .models import subfunction
-        model = subfunction.MyElu.ir_function.to_model_proto(producer_name='p2o')
+        model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
 
