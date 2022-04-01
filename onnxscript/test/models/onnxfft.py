@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # docstring is not support here.
+import numpy as np
 from onnxscript.onnx_types import FLOAT, INT64
+from onnxscript import eager_mode_evaluator as oxs
 
 
 # infer_shapes: RuntimeError: Input 1 is out of bounds. (no clue about what is wrong)
@@ -29,14 +31,15 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     #     new_shape = concat(two, cos_p.shape)
     #     return concat(cos_p, sin_p).reshape(new_shape)
 
-    one = oxs.Constant(value_floats=[1])
+    one = oxs.Constant(value_floats=[1.])
     zeroi = oxs.Constant(value_ints=[0])
     onei = oxs.Constant(value_ints=[1])
     minusi = oxs.Neg(onei)  # oxs.Constant(value_int64=-1) fails
+    print([minusi, onei])
     shape1 = oxs.Concat(minusi, onei, axis=0)  # oxs.Constant(value_floats=[-1, 1])  fails
     shape2 = oxs.Concat(onei, minusi, axis=0)
 
-    nar = oxs.Range(zeroi, N, one)  
+    nar = oxs.Range(zeroi, N, one)
     n0 = oxs.Cast(nar, to=1)
     n = oxs.Reshape(n0, shape1)
     
@@ -53,6 +56,10 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     new_shape = oxs.Concat(two, oxs.Shape(cos_p), axis=0)  # unsupported
     cplx = oxs.Concat(cos_p, sin_p, axis=0)
     return oxs.Reshape(cplx, new_shape)
+
+
+n = np.array([3], dtype=np.int64)
+print(dft(n, n))
 
 
 def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
