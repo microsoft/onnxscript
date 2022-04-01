@@ -4,7 +4,6 @@ import os
 import inspect
 import ast
 import logging
-import numpy
 import onnx
 import onnx.helper as helper
 from . import onnx_types as types
