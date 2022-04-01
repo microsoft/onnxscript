@@ -104,7 +104,7 @@ class OpFunction(Op):
     '''
     Represents an ONNX op for which a function-body has been defined in onnxscript.
     TODO: Logically, this should be used also for function definitions that pre-exist
-    in the ONNX schema registry, but we don't need them at this point. 
+    in the ONNX schema registry, but we don't need them at this point.
     '''
 
     def __init__(self, opset, opname):
