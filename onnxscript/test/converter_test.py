@@ -59,7 +59,8 @@ class TestConverter(unittest.TestCase):
                     try:
                         sess = onnxruntime.InferenceSession(model.SerializeToString())
                     except Fail as e:
-                        onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
+                        onnx.save(model, os.path.join(
+                            TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
                         raise AssertionError("Loading model failed.") from e
                     got = sess.run(None, test['inputs'])
                     self.assertEqual(len(test['expected']), len(got))
