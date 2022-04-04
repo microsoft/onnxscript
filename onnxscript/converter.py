@@ -87,6 +87,8 @@ def _known_modules():
     import onnxscript
     import onnxscript.onnx_types
     return {
+        'onnx': onnx,
+        'onnx.helper': onnx.helper,
         'onnxscript': onnxscript,
         'onnxscript.onnx_types': onnxscript.onnx_types,
         'onnxscript.onnx.opset15': values.opset15
@@ -655,17 +657,23 @@ class Converter:
             for alias in stmt.names:
                 self.do_import(alias)
         elif isinstance(stmt, ast.ImportFrom):
-            fail_if(stmt.module is None, "Import: module unspecified.")
-            fail_if(stmt.module not in self.known_modules,
+            if stmt.module is None:
+                fail(DebugInfo(stmt).msg("Import: module unspecified."))
+            if stmt.module not in self.known_modules:
+                fail(DebugInfo(stmt).msg(
                     f"Import: unsupported module '{stmt.module}' in "
-                    f"{list(sorted(self.known_modules))}")
+                    f"{list(sorted(self.known_modules))}."))
             module = self.known_modules[stmt.module]
             for alias in stmt.names:
                 asname = alias.asname if alias.asname else alias.name
                 self.globals[asname] = getattr(module, alias.name)
         else:
-            raise ValueError(DebugInfo(stmt).msg(
-                f"Unsupported top-level statement type: {type(stmt).__name__}."))
+            try:
+                if stmt.test.left.id == '__name__':
+                    return None
+            except AttributeError:
+                pass
+            raise ValueError(DebugInfo(stmt).msg(f"Unsupported top-level statement type: {type(stmt).__name__}."))
 
     def convert_source(self, src):
         module = ast.parse(src)

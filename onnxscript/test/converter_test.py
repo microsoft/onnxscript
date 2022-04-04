@@ -4,6 +4,7 @@ import unittest
 import os
 import textwrap
 import numpy as np
+from numpy.testing import assert_almost_equal
 import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
@@ -20,7 +21,8 @@ class TestConverter(unittest.TestCase):
         converter = Converter()
         return converter.convert(script)
 
-    def _convert_and_save(self, script, save_text=False, check_ort=False):
+    def _convert_and_save(self, script, save_text=False, check_ort=False,
+                          tests=None, decimal=5):
         converter = Converter()
         fnlist = converter.convert(script)
         TEST_OUTPUT_DIR = os.path.join(CURRENT_DIR, "testoutputs")
@@ -54,6 +56,21 @@ class TestConverter(unittest.TestCase):
                 except ValidationError as e:
                     onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
                     raise AssertionError("Verification of model failed.") from e
+                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
+
+                # checking inputs and expected outputs with onnxruntime
+                if tests is not None and f.name in tests:
+                    test = tests[f.name]
+                    try:
+                        sess = onnxruntime.InferenceSession(model.SerializeToString())
+                    except Fail as e:
+                        onnx.save(model, os.path.join(
+                            TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
+                        raise AssertionError("Loading model failed.") from e
+                    got = sess.run(None, test['inputs'])
+                    self.assertEqual(len(test['expected']), len(got))
+                    for e, r in zip(test['expected'], got):
+                        assert_almost_equal(e, r, decimal=decimal)
 
     def test_source_input(self):
         script = textwrap.dedent("""
@@ -126,6 +143,13 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(len(res), 1)
         proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
+
+    def test_dummy_tensor(self):
+        self._convert_and_save(
+            os.path.join(CURRENT_DIR, "dummy_tensor.py"),
+            tests={'dummy_tensor': dict(
+                inputs={'N': np.array([3], dtype=np.int64)},
+                expected=[np.array([[0, 0, 0], [0, 1, 2], [0, 2, 4]], dtype=np.float32)])})
 
 
 if __name__ == '__main__':
