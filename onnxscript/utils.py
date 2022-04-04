@@ -4,9 +4,10 @@ import importlib
 import inspect
 import numbers
 import numpy as np
-from typing import Any
+from typing import Any, Sequence, Text
 import onnx
-from onnx import TensorProto
+from onnx import TensorProto, ValueInfoProto, \
+    ModelProto, OperatorSetIdProto, FunctionProto
 from .converter import Converter
 
 # TODO: enable invocation of ORT kernels
@@ -77,13 +78,31 @@ def convert_python_function_to_function_proto(function, domain, opset_imports):
         domain, opset_imports)
 
 
-def make_model_from_function_proto(function_proto,
-                                   input_value_infos,
-                                   output_value_infos,
-                                   domain,
-                                   onnx_opset_imports,
-                                   local_opset_import,
-                                   **attrs):
+def make_model_from_function_proto(
+        function_proto: FunctionProto,
+        input_value_infos: Sequence[ValueInfoProto],
+        output_value_infos: Sequence[ValueInfoProto],
+        domain: Text,
+        onnx_opset_imports: Sequence[OperatorSetIdProto],
+        local_opset_import: OperatorSetIdProto,
+        **attrs: Any
+        ) -> ModelProto:
+    """Creates a model containing a single call to a given
+        function with input and output value_infos, etc.
+
+    Arguments:
+        FunctionProto (FunctionProto): function proto
+            representing a single call
+        input_value_infos (list of ValueInfoProto): function's input
+        output_value_infos (list of ValueInfoProto): function's output
+        domain (string): domain of the node for the function
+        onnx_opset_imports (string, default None): opsets that are used by the function
+        local_opset_import (string, default None): opset of the function
+        **attrs (dict): the attributes of the node for the function
+    Returns:
+        ModelProto
+    """
+
     input_names = [vi.name for vi in input_value_infos]
     output_names = [vi.name for vi in output_value_infos]
     node = onnx.helper.make_node(

@@ -3,10 +3,11 @@ import unittest
 import numpy as np
 import importlib
 import onnx
+from onnx import ModelProto, OperatorSetIdProto
 from onnxscript import utils
 from onnxruntime import InferenceSession
 import onnx.backend.test.case.node as node_test
-from typing import Callable
+from typing import Any, Callable, Sequence
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -24,7 +25,11 @@ class OnnxScriptTestCase(unittest.TestCase):
         self.local_function_domain = "local"
         self.rtol = 1e-7
 
-    def _create_model_from_param(self, param, opset_imports):
+    def _create_model_from_param(
+        self,
+        param: FunctionTestParams,
+        opset_imports: Sequence[OperatorSetIdProto]
+        ) -> ModelProto:
         opset_imports = opset_imports if opset_imports\
             else self.default_opset_imports
         local_function_proto = utils.convert_python_function_to_function_proto(
@@ -48,7 +53,10 @@ class OnnxScriptTestCase(unittest.TestCase):
             self.local_opset_import,
             **(param.attrs or {}))
 
-    def run_converter_test(self, param, opset_import=None):
+    def run_converter_test(
+        self,
+        param: FunctionTestParams,
+        opset_import: OperatorSetIdProto=None):
         model = self._create_model_from_param(param, opset_import)
         input = {vi.name: t for vi, t in zip(model.graph.input, param.input)}
         sess = InferenceSession(
@@ -56,7 +64,10 @@ class OnnxScriptTestCase(unittest.TestCase):
         actual = sess.run(None, input)
         np.testing.assert_equal(actual, param.output)
 
-    def run_eager_test(self, param, opset_imports=None):
+    def run_eager_test(
+        self,
+        param: FunctionTestParams,
+        opset_imports: Sequence[OperatorSetIdProto]=None):
         if opset_imports:
             module = importlib.import_module(param.function.__module__)
             if not module.op or\
@@ -72,7 +83,10 @@ class OnnxScriptTestCase(unittest.TestCase):
             actual if isinstance(actual, list)
             else [actual], param.output, rtol=self.rtol)
 
-    def run_onnx_test(self, function, **attrs):
+    def run_onnx_test(
+        self,
+        function: Callable,
+        **attrs: Any):
         cases = node_test.collect_testcases_by_operator(function.__name__)
         for i, case in enumerate(cases):
             for ds in case.data_sets:

@@ -185,6 +185,8 @@ class Function:
                                  [y.to_value_info() for y in self.outputs])
 
     def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=[]):
+        # TODO: Ideally, in the long term, we should infer func_opset_imports 
+        # from the set of calls within the function itself.
         return helper.make_function(domain,
                                     self.name,
                                     inputs=[x.name for x in self.inputs],
