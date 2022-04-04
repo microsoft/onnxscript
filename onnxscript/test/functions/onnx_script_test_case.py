@@ -26,10 +26,10 @@ class OnnxScriptTestCase(unittest.TestCase):
         self.rtol = 1e-7
 
     def _create_model_from_param(
-        self,
-        param: FunctionTestParams,
-        opset_imports: Sequence[OperatorSetIdProto]
-        ) -> ModelProto:
+            self,
+            param: FunctionTestParams,
+            opset_imports: Sequence[OperatorSetIdProto]
+            ) -> ModelProto:
         opset_imports = opset_imports if opset_imports\
             else self.default_opset_imports
         local_function_proto = utils.convert_python_function_to_function_proto(
@@ -54,9 +54,9 @@ class OnnxScriptTestCase(unittest.TestCase):
             **(param.attrs or {}))
 
     def run_converter_test(
-        self,
-        param: FunctionTestParams,
-        opset_import: OperatorSetIdProto=None):
+            self,
+            param: FunctionTestParams,
+            opset_import: OperatorSetIdProto = None):
         model = self._create_model_from_param(param, opset_import)
         input = {vi.name: t for vi, t in zip(model.graph.input, param.input)}
         sess = InferenceSession(
@@ -65,9 +65,9 @@ class OnnxScriptTestCase(unittest.TestCase):
         np.testing.assert_equal(actual, param.output)
 
     def run_eager_test(
-        self,
-        param: FunctionTestParams,
-        opset_imports: Sequence[OperatorSetIdProto]=None):
+            self,
+            param: FunctionTestParams,
+            opset_imports: Sequence[OperatorSetIdProto] = None):
         if opset_imports:
             module = importlib.import_module(param.function.__module__)
             if not module.op or\
@@ -84,9 +84,9 @@ class OnnxScriptTestCase(unittest.TestCase):
             else [actual], param.output, rtol=self.rtol)
 
     def run_onnx_test(
-        self,
-        function: Callable,
-        **attrs: Any):
+            self,
+            function: Callable,
+            **attrs: Any):
         cases = node_test.collect_testcases_by_operator(function.__name__)
         for i, case in enumerate(cases):
             for ds in case.data_sets:
