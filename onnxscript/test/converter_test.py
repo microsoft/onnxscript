@@ -9,7 +9,7 @@ import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidArgument, InvalidGraph
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
 
@@ -40,8 +40,10 @@ class TestConverter(unittest.TestCase):
                 if check_ort:
                     try:
                         onnxruntime.InferenceSession(model.SerializeToString())
-                    except Fail as e:
+                    except (Fail, InvalidArgument, InvalidGraph) as e:
                         onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
+                        with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.txt"), 'w') as f:
+                            f.write(str(model))
                         raise AssertionError("onnxruntime failed.") from e                        
                 model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
@@ -121,7 +123,7 @@ class TestConverter(unittest.TestCase):
 
     def test_onnxfft(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxfft.py"),
-                               save_text=True, check_ort=True)
+                               save_text=False, check_ort=True)
 
     def test_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))

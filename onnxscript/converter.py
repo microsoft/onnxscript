@@ -637,10 +637,10 @@ class Converter:
                    "Mismatch in number of return values and types"
         return self.current_fn
 
-    def do_import(self, alias):
+    def do_import(self, alias, node):
         logger.debug("Importing %r as %r.", alias.name, alias.asname)
-        fail_if(alias.name not in self.known_modules,
-                f"Import: unsupported module {alias.name}")
+        if alias.name not in self.known_modules:
+            fail(DebugInfo(node).msg(f"Import: unsupported module {alias.name}"))
         asname = alias.asname if alias.asname else alias.name
         self.globals[asname] = self.known_modules[alias.name]
 
@@ -655,7 +655,7 @@ class Converter:
 
         if isinstance(stmt, ast.Import):
             for alias in stmt.names:
-                self.do_import(alias)
+                self.do_import(alias, stmt)
         elif isinstance(stmt, ast.ImportFrom):
             if stmt.module is None:
                 fail(DebugInfo(stmt).msg("Import: module unspecified."))
@@ -666,6 +666,8 @@ class Converter:
             module = self.known_modules[stmt.module]
             for alias in stmt.names:
                 asname = alias.asname if alias.asname else alias.name
+                if not hasattr(module, alias.name):
+                    fail(DebugInfo(stmt).msg(f"Alias '{alias.name}' not info in globals."))
                 self.globals[asname] = getattr(module, alias.name)
         else:
             try:

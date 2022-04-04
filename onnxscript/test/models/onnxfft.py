@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # docstring is not support here.
-import numpy as np
+from onnx import TensorProto
+from onnx.helper import make_tensor
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript import eager_mode_evaluator as oxs
 
 
 # infer_shapes: RuntimeError: Input 1 is out of bounds. (no clue about what is wrong)
@@ -31,13 +31,11 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     #     new_shape = concat(two, cos_p.shape)
     #     return concat(cos_p, sin_p).reshape(new_shape)
 
-    one = oxs.Constant(value_floats=[1.])
-    zeroi = oxs.Constant(value_ints=[0])
-    onei = oxs.Constant(value_ints=[1])
-    minusi = oxs.Neg(onei)  # oxs.Constant(value_int64=-1) fails
-    print([minusi, onei])
-    shape1 = oxs.Concat(minusi, onei, axis=0)  # oxs.Constant(value_floats=[-1, 1])  fails
-    shape2 = oxs.Concat(onei, minusi, axis=0)
+    zeroi = oxs.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = oxs.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    two = oxs.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    shape1 = oxs.Constant(value=make_tensor('shape1', TensorProto.INT64, [2], [-1, 1]))
+    shape2 = oxs.Constant(value=make_tensor('shape2', TensorProto.INT64, [2], [1, -1]))
 
     nar = oxs.Range(zeroi, N, one)
     n0 = oxs.Cast(nar, to=1)
@@ -47,60 +45,56 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     k0 = oxs.Cast(kar, to=1)
     k = oxs.Reshape(k0, shape2)
     
-    cst_2pi = oxs.Neg(oxs.Constant(value_floats=[6.28318530718])) #  -2pi
+    cst_2pi = oxs.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
     fft_length_float = oxs.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
     cos_p = oxs.Cos(p)
     sin_p = oxs.Sin(p)
-    two = oxs.Constant(value_ints=[2])
-    new_shape = oxs.Concat(two, oxs.Shape(cos_p), axis=0)  # unsupported
+    shape = oxs.Shape(cos_p)
+    new_shape = oxs.Concat(two, shape, axis=0)  # unsupported
     cplx = oxs.Concat(cos_p, sin_p, axis=0)
     return oxs.Reshape(cplx, new_shape)
-
-
-n = np.array([3], dtype=np.int64)
-print(dft(n, n))
 
 
 def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
     # transpose with the permutation as an attribute does not
     # work here, we need a permutation depending on the input data
-    zero = oxs.Constant(value_ints=[0])
-    one = oxs.Constant(value_ints=[1])
-    two = oxs.Constant(value_ints=[2])
-    three = oxs.Constant(value_ints=[3])
-    dim = oxs.Size(oxs.Shape(x)) - oxs.Constant(value_ints=[1])  # x.shape.size - 1 or len(x.shape) - 1
+    zero = oxs.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = oxs.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    two = oxs.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    three = oxs.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
+    dim = oxs.Size(oxs.Shape(x)) - one  # x.shape.size - 1 or len(x.shape) - 1
     if axis == dim or dim == zero:
-        result = x
+        result = oxs.Identity(x)  # result = x does not work yet
     else:
         if dim == one:  # Error: Variable result is not assigned a value along a conditional branch
             if axis == zero:
                 result = oxs.Transpose(x, perm=[1, 0])
             else:  # can we skip else?
-                result = x  # it is covered by the first case
+                result = oxs.Identity(x)  # result = x does not work yet
         else:
             if dim == two:
                 if axis == zero:
                     result = oxs.Transpose(x, perm=[2, 1, 0])
                 else:
-                    result = x
+                    result = oxs.Identity(x)  # result = x does not work yet
                 if axis == one:
                     result = oxs.Transpose(x, perm=[0, 2, 1])
                 else:
-                    result = x
+                    result = oxs.Identity(x)  # result = x does not work yet
             else:
                 # three = oxs.Constant(value_int64=3)  # cannot declare local variables
                 if dim == three:
                     if axis == zero:
                         result = oxs.Transpose(x, perm=[2, 1, 0])
                     else:
-                        result = x
+                        result = oxs.Identity(x)  # result = x does not work yet
                     if axis == one:
                         result = oxs.Transpose(x, perm=[0, 2, 1])
                     else:
-                        result = x
+                        result = oxs.Identity(x)  # result = x does not work yet
                 else:
-                    result = x
+                    result = oxs.Identity(x)  # result = x does not work yet
     return result
 
 
@@ -109,13 +103,14 @@ def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     # one dimension.
     # Simpler to write with [axis].
     # cst = dft(x.shape[axis], length)  # dft is unknown, subfunction are not allowed
+    step = oxs.Constant(value=make_tensor('step', TensorProto.INT64, [1], [1]))
+    last = oxs.Constant(value=make_tensor('last', TensorProto.INT64, [1], [-1]))
+    zero_i = oxs.Constant(value=make_tensor('last', TensorProto.INT64, [1], [0]))
+
     x_shape = oxs.Shape(x)
-    dim = oxs.Slice(x_shape, axis, axis + oxs.Constant(value_ints=[1]))
+    dim = oxs.Slice(x_shape, axis, axis + step)
     cst = dft(dim, fft_length)
     cst_cast = oxs.CastLike(cst, x)
-    step = oxs.Constant(value_ints=[1])
-    last = oxs.Neg(oxs.Constant(value_ints=[1]))  # value_int64=-1 calls UnaryOp
-    zero_i = oxs.Constant(value_ints=[0])
     xt = dynamic_switch_with_last_axis(x, axis)
 
     # Cannot create variable inside a branch of a test
@@ -134,3 +129,16 @@ def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     result = oxs.MatMul(xt, cst_cast)
     final = dynamic_switch_with_last_axis(xt, axis)
     return final
+
+
+if __name__ == "__main__":
+    import numpy as np
+    from numpy.testing import assert_almost_equal
+    from onnxscript import eager_mode_evaluator as oxs
+
+    x = np.array([[0, 1], [2, 3]], dtype=np.float32)
+    result = dynamic_switch_with_last_axis(x, np.array([0], dtype=np.int64))
+    expected = x.T
+    assert_almost_equal(expected, result)
+    print('done')
+    
