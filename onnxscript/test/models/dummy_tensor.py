@@ -1,3 +1,5 @@
+from onnx import TensorProto
+from onnx.helper import make_tensor
 from onnxscript.onnx_types import FLOAT, INT64
 
 
@@ -19,12 +21,22 @@ def dummy_tensor(N: INT64[1]) -> FLOAT["N", "N"]:
     return p
 
 
+def dummy_make_tensor() -> FLOAT["N", "N"]:
+    cst = oxs.Constant(value=make_tensor('cst', TensorProto.FLOAT, [2, 2], [0, 1, 2, 3]))
+    return cst
+
+
 if __name__ == '__main__':
     import numpy as np
     from numpy.testing import assert_almost_equal
     from onnxscript import eager_mode_evaluator as oxs
+
     n = np.array([3], dtype=np.int64)
     result = dummy_tensor(n)
     expected = np.array([[0, 0, 0], [0, 1, 2], [0, 2, 4]], dtype=np.float32)
     assert_almost_equal(expected, result)
+
+    result = dummy_make_tensor()
+    assert_almost_equal(np.array([[0, 1], [2, 3]], dtype=np.float32), result)
+    
     print("done")
