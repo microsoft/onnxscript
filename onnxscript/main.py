@@ -45,6 +45,7 @@ def is_converted_fun(f):
     '''
     return inspect.isfunction(f) and hasattr(f, "function_ir")
 
+
 def export_onnx_lib(module: ModuleType, filename: str) -> None:
     funs = set([v for k, v in module.__dict__.items() if is_converted_fun(v)])
 
