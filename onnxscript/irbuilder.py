@@ -195,7 +195,7 @@ class Function:
         nodes = [s.to_node_proto() for s in self.stmts]
         for n in nodes:
             if n.domain not in opsets:
-                opsets[n.domain] = n.version
+                opsets[n.domain] = 1 # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
         return helper.make_function(
