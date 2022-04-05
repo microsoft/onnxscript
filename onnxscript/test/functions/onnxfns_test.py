@@ -11,8 +11,8 @@ class TestOnnxFns(OnnxScriptTestCase):
         super().setUp()
         self.rtol = 1e-05
 
-    # def test_onnxfns_relu(self):
-    #     self.run_onnx_test(onnxfns1.Relu)
+    def test_onnxfns_relu(self):
+        self.run_onnx_test(onnxfns1.Relu)
 
     # FAIL : Fatal error: Selu is not a registered function/op
     # def test_onnxfns_selu(self):
@@ -29,7 +29,10 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_relu(self):
         self.run_onnx_test(onnxfns1.Relu)
 
-    # #  onnxruntime.capi.onnxruntime_pybind11_state.Fail: [ONNXRuntimeError] : 1 : FAIL : Type Error: Type (tensor(float)) of output arg (output_0) of node () does not match expected type (tensor(bool)).
+    # #  onnxruntime.capi.onnxruntime_pybind11_state.Fail:
+    # [ONNXRuntimeError] : 1 : FAIL : Type Error: Type (tensor(float))
+    # of output arg (output_0) of node () does not match
+    # expected type (tensor(bool)).
     # def test_onnxfns_prelu(self):
     #     self.run_onnx_test(onnxfns1.PRelu)
 
@@ -49,9 +52,11 @@ class TestOnnxFns(OnnxScriptTestCase):
     # def test_onnxfns_hard_softsign(self):
     #     self.run_onnx_test(onnxfns1.Softsign)
 
-    # FAIL : Type Error: Type (tensor(float)) of output arg (output_0) of node () does not match expected type (tensor(bool)).
+    # FAIL : Type Error: Type (tensor(float)) of output arg (output_0)
+    # of node () does not match expected type (tensor(bool)).
     # def test_onnxfns_hard_clip(self):
     #     self.run_onnx_test(onnxfns1.Clip)
+
 
 if __name__ == '__main__':
     unittest.main()
