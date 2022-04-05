@@ -62,7 +62,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
         actual = sess.run(None, input)
-        np.testing.assert_equal(actual, param.output)
+        np.testing.assert_allclose(actual, param.output, rtol=self.rtol)
 
     def run_eager_test(
             self,
