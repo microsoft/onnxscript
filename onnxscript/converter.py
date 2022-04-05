@@ -117,15 +117,19 @@ class Converter:
         logger.addHandler(console)
     """
 
-    def __init__(self, ir_builder=None):
+    def __init__(self, ir_builder=None, opset=None, global_names=None):
         self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
-        self.globals = {"int": int, "float": float,
-                        "str": str, "oxs": default_opset,
-                        "msdomain": values.msdomain1}  # 'os' : onnxscript
+        if (global_names is None):
+            # TODO: Cleanup: This should be eventually removed.
+            self.globals = {"int": int, "float": float,
+                            "str": str, "oxs": default_opset,
+                            "msdomain": values.msdomain1}
+        else:
+            self.globals = global_names
         self.pure_modules = ["onnxscript"]
         self.default_type = types.FLOAT[...]
-        self.this_module = CustomOpset('this', 1)
+        self.this_module = opset or CustomOpset('this', 1)
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -228,7 +232,10 @@ class Converter:
 
     def is_constant_expr(self, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node))
+            val = self.lookup(node.id, DebugInfo(node), raise_exception=False)
+            if val is None:
+                # A function...
+                return False
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute)):
@@ -268,7 +275,14 @@ class Converter:
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
     def translate_docstring(self, node):
-        return self.emit_docstring(node.value.value)
+        if hasattr(node.value, 'value'):
+            # python 3.8+
+            return self.emit_docstring(node.value.value)
+        if hasattr(node.value, 's'):
+            # python 3.7
+            return self.emit_docstring(node.value.s)
+        raise TypeError("Unexpected type %r for node. "
+                        "Unsupoorted version of python." % type(node))
 
     # Expression-translation generates "IR statements/nodes" that compute the value of
     # the expression into a target-variable, and returns the variable that is
@@ -374,9 +388,18 @@ class Converter:
                 opf = OpFunction(self.this_module, function_name)
                 self.current_fn.append_function(opf)
                 return opf
-            found = self.lookup(node.id, DebugInfo(node), raise_exception=False)
+            found = self.lookup(function_name, DebugInfo(node), raise_exception=False)
+            if isinstance(found, Op):
+                return found
+            if hasattr(found, "function_ir"):
+                fir = found.function_ir
+                opf = Op(values.Opset(fir.domain, 1), fir.name)
+                # self.current_fn.append_function(opf)
+                return opf
+
             if not found:
-                if node.id not in default_opset:
+                default_opset = values.opset15
+                if function_name not in default_opset:
                     # local function
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(default_opset, node.id)
@@ -395,9 +418,13 @@ class Converter:
         if isinstance(node, ast.For):
             return self.translate_for_stmt(node)
         if isinstance(node, ast.Expr):
-            if (index_of_stmt == 0 and hasattr(node, 'value') and isinstance(
-                    node.value.value, str)):
-                return self.translate_docstring(node)
+            if index_of_stmt == 0 and hasattr(node, 'value'):
+                if hasattr(node.value, 'value') and isinstance(node.value.value, str):
+                    # python 3.8+
+                    return self.translate_docstring(node)
+                if hasattr(node.value, 's') and isinstance(node.value.s, str):
+                    # python 3.7
+                    return self.translate_docstring(node)
         raise ValueError(DebugInfo(node).msg(
             f"Unsupported statement type: {type(node).__name__}."))
 
@@ -428,7 +455,7 @@ class Converter:
         if isinstance(rhs, ast.Tuple):
             assert isinstance(lhs, ast.Tuple)
             assert len(lhs.elts) == len(rhs.elts), \
-                   "Expected same number of elements on lhs and rhs of assignments."
+                "Expected same number of elements on lhs and rhs of assignments."
             for p, r in zip(lhs.elts, rhs.elts):
                 assign(p, r)
         else:
@@ -473,7 +500,7 @@ class Converter:
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
         assert isinstance(for_stmt.target, ast.Name), \
-               "For loop target must be a single variable."
+            "For loop target must be a single variable."
         p_loop_var = for_stmt.target.id
         # iter
         iter = for_stmt.iter
@@ -552,15 +579,16 @@ class Converter:
         return graph.to_graph_proto()
 
     def translate_function_def(self, fn: ast.FunctionDef):
+        logger.debug("Converter:translate_function_def:%s", fn.name)
+        if fn.name in self.this_module:
+            warn(f"{fn.name}: Already defined.")
         args = fn.args
         if args.defaults:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        logger.debug("Converter:translate_function_def:%s", fn.name)
-        if fn.name in self.this_module:
-            warn(f"{fn.name}: Already defined.")
-        self.current_fn = self.ir_builder.new_function(fn.name)
+        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else ""
+        self.current_fn = self.ir_builder.new_function(fn.name, domain)
         for x in args.args:
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
@@ -588,7 +616,7 @@ class Converter:
             self.translate_stmt(s, index_of_stmt=i)
         if self.returntype is not None:
             assert self.num_outputs == len(self.returntype), \
-                   "Mismatch in number of return values and types"
+                "Mismatch in number of return values and types"
         return self.current_fn
 
     def do_import(self, alias):

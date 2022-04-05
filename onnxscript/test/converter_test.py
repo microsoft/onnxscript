@@ -5,12 +5,14 @@ import os
 import textwrap
 import numpy as np
 import onnx
+from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
 
-CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 
 
 class TestConverter(unittest.TestCase):
@@ -18,22 +20,36 @@ class TestConverter(unittest.TestCase):
         converter = Converter()
         return converter.convert(script)
 
-    def _convert_and_save(self, script):
+    def _convert_and_save(self, script, save_text=False, check_ort=False):
         converter = Converter()
         fnlist = converter.convert(script)
-        TEST_OUTPUT_DIR = os.path.join(CURRENT_DIR, "testoutputs")
         if not os.path.exists(TEST_OUTPUT_DIR):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
-            model = f.to_model_proto(producer_name='p2o')
-            model = onnx.shape_inference.infer_shapes(model)
-            try:
-                onnx.checker.check_model(model)
-            except ValidationError as e:
-                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
-                raise AssertionError(
-                    "Verification of model failed.") from e
-            onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
+            with self.subTest(f=f.name):
+                model = f.to_model_proto(producer_name='p2o')
+                if save_text:
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as f:
+                        f.write(printable_graph(model.graph))
+                        for fct in model.functions:
+                            f.write("\n-------------------------\n")
+                            f.write(printable_graph(fct))
+                if check_ort:
+                    onnxruntime.InferenceSession(model.SerializeToString())
+                model = onnx.shape_inference.infer_shapes(model)
+                if save_text:
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as f:
+                        f.write(printable_graph(model.graph))
+                        for fct in model.functions:
+                            f.write("\n-------------------------\n")
+                            f.write(printable_graph(fct))
+                try:
+                    onnx.checker.check_model(model)
+                except ValidationError as e:
+                    onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
+                    raise AssertionError(
+                        "Verification of model failed.") from e
+                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
     def test_source_input(self):
         script = textwrap.dedent("""
@@ -77,25 +93,28 @@ class TestConverter(unittest.TestCase):
         self._convert(script)
 
     def test_onnxfns1(self):
-        self._convert(os.path.join(CURRENT_DIR, "onnxfns1.py"))
+        self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1.py"))
 
     def test_onnxfns1A(self):
-        self._convert(os.path.join(CURRENT_DIR, "onnxfns1A.py"))
+        self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1A.py"))
 
     def test_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxmodels.py"))
 
     def test_subfunction(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "subfunction.py"))
+        from .models import subfunction
+        model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
+        model = onnx.shape_inference.infer_shapes(model)
+        onnx.checker.check_model(model)
 
     def test_if_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "if_statement.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_statement.py"))
 
     def test_loop_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "loop.py"))
 
     def test_docstring(self):
-        res = self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
+        res = self._convert(os.path.join(TEST_INPUT_DIR, "docstring.py"))
         self.assertEqual(len(res), 1)
         proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
