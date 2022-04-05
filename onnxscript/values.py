@@ -70,8 +70,6 @@ class CustomOpset(Opset):
         self.ops[opname] = value
 
 
-opset15 = Opset("", 15)
-
 msdomain1 = Opset("com.microsoft", 1)
 
 # ONNX ops

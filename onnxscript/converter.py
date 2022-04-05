@@ -11,9 +11,10 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
+from .onnx import opset15 as default_opset
 from .values import (
     ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind,
-    DebugInfo, opset15 as default_opset, CustomOpset)
+    DebugInfo, CustomOpset)
 
 
 logger = logging.getLogger("onnx-script")
@@ -82,10 +83,12 @@ primop_map = {
 def _known_modules():
     import onnxscript
     import onnxscript.onnx_types
+    import onnxscript.onnx
     return {
         'onnxscript': onnxscript,
+        'onnxscript.onnx': onnxscript.onnx,
         'onnxscript.onnx_types': onnxscript.onnx_types,
-        'onnxscript.onnx.opset15': values.opset15
+        'onnxscript.onnx.opset15': onnxscript.onnx.opset15
     }
 
 
@@ -120,7 +123,7 @@ class Converter:
         if (global_names is None):
             # TODO: Cleanup: This should be eventually removed.
             self.globals = {"int": int, "float": float,
-                            "str": str, "oxs": values.opset15,
+                            "str": str, "oxs": default_opset,
                             "msdomain": values.msdomain1}
         else:
             self.globals = global_names
