@@ -229,7 +229,10 @@ class Converter:
 
     def is_constant_expr(self, node):
         if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node))
+            val = self.lookup(node.id, DebugInfo(node), raise_exception=False)
+            if val is None:
+                # A function...
+                return False
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute)):
@@ -269,7 +272,14 @@ class Converter:
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
     def translate_docstring(self, node):
-        return self.emit_docstring(node.value.value)
+        if hasattr(node.value, 'value'):
+            # python 3.8+
+            return self.emit_docstring(node.value.value)
+        if hasattr(node.value, 's'):
+            # python 3.7
+            return self.emit_docstring(node.value.s)
+        raise TypeError("Unexpected type %r for node. "
+                        "Unsupoorted version of python." % type(node))
 
     # Expression-translation generates "IR statements/nodes" that compute the value of
     # the expression into a target-variable, and returns the variable that is
@@ -405,9 +415,13 @@ class Converter:
         if isinstance(node, ast.For):
             return self.translate_for_stmt(node)
         if isinstance(node, ast.Expr):
-            if (index_of_stmt == 0 and hasattr(node, 'value') and isinstance(
-                    node.value.value, str)):
-                return self.translate_docstring(node)
+            if index_of_stmt == 0 and hasattr(node, 'value'):
+                if hasattr(node.value, 'value') and isinstance(node.value.value, str):
+                    # python 3.8+
+                    return self.translate_docstring(node)
+                if hasattr(node.value, 's') and isinstance(node.value.s, str):
+                    # python 3.7
+                    return self.translate_docstring(node)
         raise ValueError(DebugInfo(node).msg(
             f"Unsupported statement type: {type(node).__name__}."))
 

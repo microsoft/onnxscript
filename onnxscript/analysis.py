@@ -76,10 +76,14 @@ def do_liveness_analysis(fun):
             return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
             return live_out  # TODO
-        if (isinstance(stmt, ast.Expr) and hasattr(stmt, 'value') and hasattr(
-                stmt.value, 'value') and isinstance(stmt.value.value, str)):
+        if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):
             # docstring
-            return live_out
+            if hasattr(stmt.value, 'value') and isinstance(stmt.value.value, str):
+                # python 3.8+
+                return live_out
+            if hasattr(stmt.value, 's') and isinstance(stmt.value.s, str):
+                # python 3.7
+                return live_out
         raise ValueError(DebugInfo(stmt).msg(
             f"Unsupported statement type: {type(stmt).__name__}."))
 
