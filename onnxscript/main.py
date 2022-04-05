@@ -17,7 +17,7 @@ def script_check(f: ast.FunctionDef, opset, global_names):
     return converter.top_level_stmt(f)
 
 
-def script(opset=None, is_model=False):
+def script(opset=None):
     def transform(f):
         if inspect.isfunction(f):
             src = inspect.getsource(f)
@@ -44,12 +44,6 @@ def is_converted_fun(f):
     for such functions, and this will become 'isinstance(f, ScriptFunction)'
     '''
     return inspect.isfunction(f) and hasattr(f, "function_ir")
-
-
-func = script(is_model=False)
-
-model = script(is_model=True)
-
 
 def export_onnx_lib(module: ModuleType, filename: str) -> None:
     funs = set([v for k, v in module.__dict__.items() if is_converted_fun(v)])

@@ -7,7 +7,7 @@ of multiple functions.
 See exportlib.py for how to export an ONNX library proto file.
 """
 
-import onnxscript
+from onnxscript import script
 from onnxscript.onnx import opset15 as op
 
 # The domain/version of the library functions defined below
