@@ -17,43 +17,43 @@ def script_check(f: ast.FunctionDef, opset, global_names):
     return converter.top_level_stmt(f)
 
 
+class OnnxFunction:
+    def __init__(self, f, opset):
+        if inspect.isfunction(f):
+            src = inspect.getsource(f)
+            module = inspect.getmodule(f)
+            top_level_ast = ast.parse(src)
+            assert type(top_level_ast) == ast.Module
+            assert len(top_level_ast.body) == 1
+            f_ast = top_level_ast.body[0]
+            assert type(f_ast) == ast.FunctionDef
+            result = script_check(f_ast, opset, module.__dict__.copy())
+
+            self.function = f
+            self.function_ir = result
+            # TODO: add transformations.
+        else:
+            raise TypeError(
+                "The ONNXScript decorator should be applied to functions only.")
+
+    def __call__(self, *args, **kwargs):
+        return self.function(*args, **kwargs)
+
+    def to_function_proto(self):
+        return self.function_ir.to_function_proto(values.Opset(self.function_ir.domain, 1))
+
+
 def script(opset=None):
-    class OnnxFunction:
-        def __init__(self, f):
-            if inspect.isfunction(f):
-                src = inspect.getsource(f)
-                module = inspect.getmodule(f)
-                top_level_ast = ast.parse(src)
-                assert type(top_level_ast) == ast.Module
-                assert len(top_level_ast.body) == 1
-                f_ast = top_level_ast.body[0]
-                assert type(f_ast) == ast.FunctionDef
-                result = script_check(f_ast, opset, module.__dict__.copy())
-                # For now, we simply store the result of conversion as an attribute.
-                # TODO: we should produce a new type of function-like object instead.
-                self.function = f
-                self.function_ir = result
-                # TODO: add transformations.
-            else:
-                raise TypeError(
-                    "The ONNXScript decorator should be applied to functions only.")
-
-        def __call__(self, *args, **kwargs):
-            return self.function(*args, **kwargs)
-
-        def to_function_proto(self):
-            return self.function_ir.to_function_proto(values.Opset(self.function_ir.domain, 1))
-
-    return OnnxFunction
+    def transform(f):
+        return OnnxFunction(f, opset)
+    return transform
 
 
 def is_converted_fun(f):
     '''
     Return True if f is a function converted by onnx-script decorator.
-    A simple temporary check for now. Ideally, we should use our own type
-    for such functions, and this will become 'isinstance(f, ScriptFunction)'
     '''
-    return hasattr(f, "function_ir")
+    return isinstance(f, OnnxFunction)
 
 
 def export_onnx_lib(module: ModuleType, filename: str) -> None:
