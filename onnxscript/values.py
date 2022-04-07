@@ -3,7 +3,6 @@ from typing import Any
 from enum import IntFlag
 import onnx
 
-
 class DebugInfo:
 
     def __init__(self, lineno, source="string"):
@@ -49,6 +48,14 @@ class Opset:
 
     def __str__(self) -> str:
         return self.domain
+    
+    def __getattr__(self, attr: str):
+        try:
+            schema = onnx.defs.get_schema(attr, self.version, self.domain)
+            return Op(self, attr, schema)
+        except BaseException:
+            raise AttributeError(f"Attribute {attr} not found.")
+
 
 
 class CustomOpset(Opset):
@@ -81,21 +88,21 @@ class Op:
     It belongs to a particular Opset and has a name.
     '''
 
-    def __init__(self, opset, opname) -> None:
+    def __init__(self, opset, opname, opschema) -> None:
+        from . import eager_mode_evaluator
         self.opset = opset
         self.opname = opname
+        self.opschema = opschema
+        self.evaluator = eager_mode_evaluator.call_ort
 
     def get_schema(self):
-        if self.opset != '':
-            raise NotImplementedError(
-                f"Other domain than '' are not supported yet f{self.opset}.")
-        return self.opset[self.opname]
+        return self.opschema
 
     def has_schema(self):
-        if self.opset != '':
-            raise NotImplementedError(
-                f"Other domain than '' are not supported yet f{self.opset}.")
-        return (self.opname in self.opset)
+        return (self.opschema is not None)
+
+    def __call__(self, *args, **kwargs):
+        return self.evaluator(self.opschema, *args, **kwargs)
 
 
 class OpFunction(Op):
