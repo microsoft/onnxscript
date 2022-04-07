@@ -29,7 +29,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             param: FunctionTestParams,
             opset_imports: Sequence[OperatorSetIdProto]
-            ) -> ModelProto:
+    ) -> ModelProto:
         opset_imports = opset_imports if opset_imports\
             else self.default_opset_imports
         local_function_proto = utils.convert_python_function_to_function_proto(
@@ -68,15 +68,15 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             param: FunctionTestParams,
             opset_imports: Sequence[OperatorSetIdProto] = None):
-        if opset_imports:
-            module = importlib.import_module(param.function.__module__)
-            if not module.op or\
-                module.op.domain != opset_imports[0].domain or\
-                    module.op.version != opset_imports[0].version:
-                # we want to run eager mode executor with the same domain
-                # and version as requested.
-                utils.assign_eager_mode_evaluator_to_module(
-                    module, opset_imports[0].domain, opset_imports[0].version)
+        # if opset_imports:
+        #     module = importlib.import_module(param.function.__module__)
+        #     if not module.op or\
+        #         module.op.domain != opset_imports[0].domain or\
+        #             module.op.version != opset_imports[0].version:
+        #         # we want to run eager mode executor with the same domain
+        #         # and version as requested.
+        #         utils.assign_eager_mode_evaluator_to_module(
+        #             module, opset_imports[0].domain, opset_imports[0].version)
 
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(

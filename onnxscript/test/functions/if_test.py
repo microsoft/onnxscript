@@ -1,10 +1,7 @@
 import numpy as np
 import unittest
 from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
-from onnxscript.utils import assign_eager_mode_evaluator_to_module
 from onnxscript.test.models import if_statement
-
-assign_eager_mode_evaluator_to_module(if_statement, "", 15)
 
 
 class TestOnnxIf(OnnxScriptTestCase):

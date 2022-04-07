@@ -57,7 +57,7 @@ def make_model_from_function_proto(
         onnx_opset_imports: Sequence[OperatorSetIdProto],
         local_opset_import: OperatorSetIdProto,
         **attrs: Any
-        ) -> ModelProto:
+) -> ModelProto:
     """Creates a model containing a single call to a given
         function with input and output value_infos, etc.
 
@@ -89,8 +89,3 @@ def make_model_from_function_proto(
         producer_name='onnx-script',
         opset_imports=[*onnx_opset_imports, local_opset_import])
     return model
-
-
-def assign_eager_mode_evaluator_to_module(module, domain, version):
-    from onnxscript.eager_mode_evaluator import EagerModeEvaluator
-    module.op = EagerModeEvaluator(domain, version)
