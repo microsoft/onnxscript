@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import functools
 import numbers
 import numpy as np
-import typing
 
 import onnx
 from onnx import numpy_helper, AttributeProto, TypeProto
