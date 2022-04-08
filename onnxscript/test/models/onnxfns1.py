@@ -12,7 +12,7 @@
 # No default-values for inputs yet.
 # Element-type annotation for tensors
 
-import onnxscript.onnx.opset15 as op
+from onnxscript.onnx import opset15 as op
 
 def Relu(X):
     zero = op.CastLike(0, X)

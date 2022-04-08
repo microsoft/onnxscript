@@ -1,6 +1,6 @@
-# onnx-script
+# ONNXScript
 
-Authoring ONNX functions in Python.
+ONNXScript is a subset of Python that can be used to author ONNX functions (as well as ONNX models).
 
 ## Contributing
 
