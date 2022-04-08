@@ -3,15 +3,15 @@
 onnx-script is being actively developed. Next section recalls the main milestones
 when they are approximatively expected.
 
-- **2022-04-06**: First public release, support standard onnx operators, one opset,
+- **2022-04-06**: support standard onnx operators, one opset,
   a converter, eager evaluation, unit tests.
 - **2022-04-20**: decorator ``@onnscript`` to detect as soon as possible
   wrong syntax, discrepancies between converter and eager evaluation
-- **2022-05-03**: nested if, multiple opsets, implementation of many onnx operators with onnx primitives
+- **2022-05-03**: documentation and tutorial, nested if, multiple opsets, implementation of many onnx operators with onnx primitives
 - **2022-05-17**: implementation of FFT functions, unidimensional and multidimensional
-- **2022-05-31**: documentation and tutorial
+- **2022-05-31**: robustness, get feedback from other member of the team and fix bugs
 - **2022-06-14**: first version of a library of ONNX functions`1`
-- **2022-06-28**: first release on PyPi
+- **2022-06-28**: first public release on PyPi
 
 Notes:
 
