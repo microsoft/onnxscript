@@ -11,6 +11,7 @@ from onnxruntime import InferenceSession
 
 from .utils import convert_arrays_to_value_infos
 
+
 def convert_to_tensor(v, k):
     if isinstance(v, np.ndarray):
         return numpy_helper.from_array(v)
@@ -24,6 +25,7 @@ def convert_to_tensor(v, k):
         raise ValueError("attribute {attribute_name} \
             must be convertable to TensorProto, got {type}", k, type(v))
 
+
 def convert_attributes_to_tensors_with_schema(
         attribute_dict, schema_attribute_dict):
     # Constant and ConstantLike are the 2 ops in onnx
@@ -34,6 +36,7 @@ def convert_attributes_to_tensors_with_schema(
         attribute_type = schema_attribute_dict[k].type
         if attribute_type == AttributeProto.TENSOR:
             attribute_dict[k] = convert_to_tensor(v, k)
+
 
 def call_ort(schema, *args, **kwargs):
     convert_attributes_to_tensors_with_schema(
