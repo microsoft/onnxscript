@@ -1,5 +1,6 @@
 import dataclasses
 import unittest
+import numbers
 import numpy as np
 import importlib
 import onnx
@@ -7,7 +8,7 @@ from onnx import ModelProto, OperatorSetIdProto
 from onnxscript import utils
 from onnxruntime import InferenceSession
 import onnx.backend.test.case.node as node_test
-from typing import Any, Callable, Sequence
+from typing import Callable, Sequence
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -24,6 +25,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         self.local_opset_import = onnx.helper.make_opsetid("local", 1)
         self.local_function_domain = "local"
         self.rtol = 1e-7
+        self.all_test_cases = node_test.collect_testcases()
 
     def _create_model_from_param(
             self,
@@ -53,12 +55,22 @@ class OnnxScriptTestCase(unittest.TestCase):
             self.local_opset_import,
             **(param.attrs or {}))
 
+    def _filter_test_case_by_op_type(self, op_type):
+        test_cases = [
+            case for case in self.all_test_cases
+            if case.kind == 'node' and len(case.model.graph.node) == 1
+            and case.model.graph.node[0].op_type == op_type]
+        return test_cases
+
     def run_converter_test(
             self,
             param: FunctionTestParams,
             opset_import: OperatorSetIdProto = None):
         model = self._create_model_from_param(param, opset_import)
-        input = {vi.name: t for vi, t in zip(model.graph.input, param.input)}
+        # onnx.checker.check_model(model)
+        input = {
+            vi.name: [t] if isinstance(t, numbers.Number) else t
+            for vi, t in zip(model.graph.input, param.input)}
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
         actual = sess.run(None, input)
@@ -86,9 +98,16 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_onnx_test(
             self,
             function: Callable,
-            **attrs: Any):
-        cases = node_test.collect_testcases_by_operator(function.__name__)
+            **kwargs):
+        cases = self._filter_test_case_by_op_type(function.__name__)
         for i, case in enumerate(cases):
+            if len(case.model.graph.node) != 1:
+                raise ValueError("run_onnx_test only \
+                    tests models with one operator node.")
+
+            attrs = {a.name: a.f for a in case.model.graph.node[0].attribute}
+            attrs = {**kwargs, **attrs}
+
             for ds in case.data_sets:
                 param = FunctionTestParams(function, ds[0], ds[1], attrs=attrs)
                 self.run_converter_test(param, case.model.opset_import)

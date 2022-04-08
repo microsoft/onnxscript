@@ -14,46 +14,55 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_relu(self):
         self.run_onnx_test(onnxfns1.Relu)
 
-    # FAIL : Fatal error: Selu is not a registered function/op
-    # def test_onnxfns_selu(self):
-    #     self.run_onnx_test(onnxfns1.Selu)
+    def test_onnxfns_selu(self):
+        default_alpha = 1.67326319217681884765625
+        default_gamma = 1.05070102214813232421875
 
-    # FAIL : Fatal error: Elu is not a registered function/op
-    # def test_onnxfns_elu(self):
-    #     self.run_onnx_test(onnxfns1.Elu)
+        self.run_onnx_test(
+            onnxfns1.Selu,
+            alpha=default_alpha,
+            gamma=default_gamma)
 
-    # FAIL : Fatal error: ThresholdedRelu is not a registered function/op
-    # def test_onnxfns_thresholded_relu(self):
-    #     self.run_onnx_test(onnxfns1.ThresholdedRelu)
+    def test_onnxfns_elu(self):
+        default_alpha = 1.0
+        self.run_onnx_test(onnxfns1.Elu, alpha=default_alpha)
 
-    def test_onnxfns_relu(self):
-        self.run_onnx_test(onnxfns1.Relu)
+    def test_onnxfns_thresholded_relu(self):
+        default_alpha = 1.0
+        self.run_onnx_test(onnxfns1.ThresholdedRelu, alpha=default_alpha)
 
-    # #  onnxruntime.capi.onnxruntime_pybind11_state.Fail:
-    # [ONNXRuntimeError] : 1 : FAIL : Type Error: Type (tensor(float))
-    # of output arg (output_0) of node () does not match
-    # expected type (tensor(bool)).
-    # def test_onnxfns_prelu(self):
-    #     self.run_onnx_test(onnxfns1.PRelu)
+    def test_onnxfns_leaky_relu(self):
+        default_alpha = 0.01
+        self.run_onnx_test(onnxfns1.LeakyRelu, alpha=default_alpha)
 
-    # FAIL : Fatal error: HardSigmoid is not a registered function/op
-    # def test_onnxfns_hard_sigmoid(self):
-    #     self.run_onnx_test(onnxfns1.HardSigmoid)
+    def test_onnxfns_prelu(self):
+        self.run_onnx_test(onnxfns1.PRelu)
 
-    # Fatal error: Shrink is not a registered function/op
-    # def test_onnxfns_hard_shrink(self):
-    #     self.run_onnx_test(onnxfns1.Shrink)
+    def test_onnxfns_hard_sigmoid(self):
+        default_alpha = 0.2
+        default_beta = 0.5
+        self.run_onnx_test(
+            onnxfns1.HardSigmoid,
+            alpha=default_alpha,
+            beta=default_beta)
 
-    # np.testing.assert_allclose failed
-    # def test_onnxfns_hard_softplus(self):
-    #     self.run_onnx_test(onnxfns1.Softplus)
+    def test_onnxfns_hard_shrink(self):
+        default_bias = 0.0
+        default_lambd = 0.5
+        self.run_onnx_test(
+            onnxfns1.Shrink,
+            bias=default_bias,
+            lambd=default_lambd)
 
-    # np.testing.assert_allclose failed
-    # def test_onnxfns_hard_softsign(self):
-    #     self.run_onnx_test(onnxfns1.Softsign)
+    def test_onnxfns_hard_softplus(self):
+        self.run_onnx_test(onnxfns1.Softplus)
 
-    # FAIL : Type Error: Type (tensor(float)) of output arg (output_0)
-    # of node () does not match expected type (tensor(bool)).
+    def test_onnxfns_hard_softsign(self):
+        self.run_onnx_test(onnxfns1.Softsign)
+
+    # TODO: Clip has optional input min and max.
+    # need to find out how to pass default min and max
+    # to the test case executor.
     # def test_onnxfns_hard_clip(self):
     #     self.run_onnx_test(onnxfns1.Clip)
 
