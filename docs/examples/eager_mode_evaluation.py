@@ -12,11 +12,10 @@ as the backend to compute onnx ops.
 import numpy as np
 from onnxscript.onnx_types import FLOAT
 
-from onnxscript.eager_mode_evaluator import EagerModeEvaluator
-op = EagerModeEvaluator("", 15)
+from onnxscript.onnx import opset15 as op
 
 
-def gemmgelu(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"] ) -> FLOAT["N", "M"]: # noqa F821
+def gemmgelu(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]) -> FLOAT["N", "M"]:  # noqa F821
 
     a = op.Constant(value_float=0.5)
     b = op.Constant(value_float=0.797885)
