@@ -7,7 +7,7 @@ from onnxscript import utils
 from onnxruntime import InferenceSession
 from onnxscript.main import OnnxFunction
 import onnx.backend.test.case.node as node_test
-from typing import Any, Callable, Sequence
+from typing import Any, Sequence
 
 
 @dataclasses.dataclass(repr=False, eq=False)
