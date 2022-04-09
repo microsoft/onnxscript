@@ -1,7 +1,8 @@
+from onnxscript import script
 from onnxscript.onnx_types import FLOAT
 from onnxscript.onnx import opset15 as op
 
-
+@script()
 def gemmgelu(
         A: FLOAT[2048, 16],
         W: FLOAT[16, 4096],

@@ -5,13 +5,14 @@ import onnx
 from onnx import ModelProto, OperatorSetIdProto
 from onnxscript import utils
 from onnxruntime import InferenceSession
+from onnxscript.main import OnnxFunction
 import onnx.backend.test.case.node as node_test
 from typing import Any, Callable, Sequence
 
 
 @dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
-    function: Callable
+    function: OnnxFunction
     input: list
     output: list
     attrs: dict = None
@@ -31,10 +32,9 @@ class OnnxScriptTestCase(unittest.TestCase):
     ) -> ModelProto:
         opset_imports = opset_imports if opset_imports\
             else self.default_opset_imports
-        local_function_proto = utils.convert_python_function_to_function_proto(
-            param.function,
-            self.local_function_domain,
-            opset_imports)
+        ir = param.function.function_ir
+        local_function_proto = ir.to_function_proto_with_opset_imports(
+            self.local_function_domain, opset_imports)
 
         input_names = ["input_" + str(i) for i in range(len(param.input))]
         output_names = ["output_" + str(i) for i in range(len(param.output))]
@@ -75,9 +75,9 @@ class OnnxScriptTestCase(unittest.TestCase):
 
     def run_onnx_test(
             self,
-            function: Callable,
+            function: OnnxFunction,
             **attrs: Any):
-        cases = node_test.collect_testcases_by_operator(function.__name__)
+        cases = node_test.collect_testcases_by_operator(function.function_ir.name)
         for i, case in enumerate(cases):
             for ds in case.data_sets:
                 param = FunctionTestParams(function, ds[0], ds[1], attrs=attrs)
