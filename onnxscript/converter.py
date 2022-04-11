@@ -87,6 +87,7 @@ def _known_modules():
     return {
         'onnxscript': onnxscript,
         'onnxscript.onnx': onnxscript.onnx,
+        'onnxscript.values': onnxscript.values,
         'onnxscript.onnx_types': onnxscript.onnx_types,
         'onnxscript.onnx.opset15': onnxscript.onnx.opset15
     }
@@ -587,7 +588,7 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else ""
+        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else "this"
         self.current_fn = self.ir_builder.new_function(fn.name, domain)
         for x in args.args:
             if x.annotation:

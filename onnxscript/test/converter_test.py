@@ -8,6 +8,7 @@ import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
 
@@ -29,23 +30,26 @@ class TestConverter(unittest.TestCase):
             with self.subTest(f=f.name):
                 model = f.to_model_proto(producer_name='p2o')
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as f:
-                        f.write(printable_graph(model.graph))
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as fi:
+                        fi.write(printable_graph(model.graph))
                         for fct in model.functions:
-                            f.write("\n-------------------------\n")
-                            f.write(printable_graph(fct))
+                            fi.write("\n-------------------------\n")
+                            fi.write(printable_graph(fct))
                 if check_ort:
-                    onnxruntime.InferenceSession(model.SerializeToString())
+                    try:
+                        onnxruntime.InferenceSession(model.SerializeToString())
+                    except Fail as e:
+                        raise AssertionError(f"onnxruntime cannot load function {f.name}\n{str(model)}") from e
                 model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as f:
-                        f.write(printable_graph(model.graph))
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as fi:
+                        fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
                             f.write(printable_graph(fct))
                 try:
                     onnx.checker.check_model(model)
-                except ValidationError as e:
+                except (ValidationError, AssertionError) as e:
                     onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
                     raise AssertionError(
                         "Verification of model failed.") from e
@@ -101,11 +105,14 @@ class TestConverter(unittest.TestCase):
     def test_models(self):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxmodels.py"))
 
-    def test_subfunction(self):
-        from .models import subfunction
+    def test_subfunction_check_model(self):
+        from onnxscript.test.models import subfunction
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
+
+    def test_subfunction(self):
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "subfunction.py"), check_ort=True)
 
     def test_if_models(self):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_statement.py"))
@@ -123,4 +130,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
+    TestConverter().test_subfunction()
     unittest.main()
