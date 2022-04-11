@@ -3,6 +3,7 @@
 from onnx import TensorProto
 from onnx.helper import make_tensor
 from onnxscript.onnx_types import FLOAT, INT64
+from onnxscript.onnx import opset15 as op
 
 
 # infer_shapes: RuntimeError: Input 1 is out of bounds. (no clue about what is wrong)
@@ -31,70 +32,88 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     #     new_shape = concat(two, cos_p.shape)
     #     return concat(cos_p, sin_p).reshape(new_shape)
 
-    zeroi = oxs.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = oxs.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    two = oxs.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    shape1 = oxs.Constant(value=make_tensor('shape1', TensorProto.INT64, [2], [-1, 1]))
-    shape2 = oxs.Constant(value=make_tensor('shape2', TensorProto.INT64, [2], [1, -1]))
+    zeroi = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    shape1 = op.Constant(value=make_tensor('shape1', TensorProto.INT64, [2], [-1, 1]))
+    shape2 = op.Constant(value=make_tensor('shape2', TensorProto.INT64, [2], [1, -1]))
 
-    nar = oxs.Range(zeroi, N, one)
-    n0 = oxs.Cast(nar, to=1)
-    n = oxs.Reshape(n0, shape1)
+    nar = op.Range(zeroi, N, one)
+    n0 = op.Cast(nar, to=1)
+    n = op.Reshape(n0, shape1)
     
-    kar = oxs.Range(zeroi, fft_length, one)
-    k0 = oxs.Cast(kar, to=1)
-    k = oxs.Reshape(k0, shape2)
+    kar = op.Range(zeroi, fft_length, one)
+    k0 = op.Cast(kar, to=1)
+    k = op.Reshape(k0, shape2)
     
-    cst_2pi = oxs.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
-    fft_length_float = oxs.Cast(fft_length, to=1)
+    cst_2pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
+    fft_length_float = op.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
-    cos_p = oxs.Cos(p)
-    sin_p = oxs.Sin(p)
-    shape = oxs.Shape(cos_p)
-    new_shape = oxs.Concat(two, shape, axis=0)  # unsupported
-    cplx = oxs.Concat(cos_p, sin_p, axis=0)
-    return oxs.Reshape(cplx, new_shape)
+    cos_p = op.Cos(p)
+    sin_p = op.Sin(p)
+    shape = op.Shape(cos_p)
+    new_shape = op.Concat(two, shape, axis=0)  # unsupported
+    cplx = op.Concat(cos_p, sin_p, axis=0)
+    return op.Reshape(cplx, new_shape)
+
+
+def dynamic_switch_with_last_axis_2d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    if axis == zero:
+        result = op.Transpose(x, perm=[1, 0])
+    else:  # can we skip else?
+        result = op.Identity(x)  # result = x does not work yet
+    return result
+
+
+def dynamic_switch_with_last_axis_3d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    if axis == zero:
+        result = op.Transpose(x, perm=[2, 1, 0])
+    else:
+        if axis == one:
+            result = op.Transpose(x, perm=[0, 2, 1])
+        else:
+            result = op.Identity(x)  # result = x does not work yet
+    return result
+
+
+def dynamic_switch_with_last_axis_4d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    if axis == zero:
+        result = op.Transpose(x, perm=[3, 1, 2, 0])
+    else:
+        if axis == one:
+            result = op.Transpose(x, perm=[0, 3, 2, 1])
+        else:
+            if axis == two:
+                result = op.Transpose(x, perm=[0, 1, 3, 2])
+            else:
+                result = op.Identity(x)  # result = x does not work yet
+    return result
 
 
 def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
     # transpose with the permutation as an attribute does not
     # work here, we need a permutation depending on the input data
-    zero = oxs.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = oxs.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    two = oxs.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    three = oxs.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
-    dim = oxs.Size(oxs.Shape(x)) - one  # x.shape.size - 1 or len(x.shape) - 1
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    three = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
+    dim = op.Size(op.Shape(x)) - one  # x.shape.size - 1 or len(x.shape) - 1
     if axis == dim or dim == zero:
-        result = oxs.Identity(x)  # result = x does not work yet
+        result = op.Identity(x)  # result = x does not work yet
     else:
         if dim == one:  # Error: Variable result is not assigned a value along a conditional branch
-            if axis == zero:
-                result = oxs.Transpose(x, perm=[1, 0])
-            else:  # can we skip else?
-                result = oxs.Identity(x)  # result = x does not work yet
+            result = dynamic_switch_with_last_axis_2d(x, axis)
         else:
             if dim == two:
-                if axis == zero:
-                    result = oxs.Transpose(x, perm=[2, 1, 0])
-                else:
-                    result = oxs.Identity(x)  # result = x does not work yet
-                if axis == one:
-                    result = oxs.Transpose(x, perm=[0, 2, 1])
-                else:
-                    result = oxs.Identity(x)  # result = x does not work yet
+                result = dynamic_switch_with_last_axis_3d(x, axis)
             else:
-                # three = oxs.Constant(value_int64=3)  # cannot declare local variables
-                if dim == three:
-                    if axis == zero:
-                        result = oxs.Transpose(x, perm=[2, 1, 0])
-                    else:
-                        result = oxs.Identity(x)  # result = x does not work yet
-                    if axis == one:
-                        result = oxs.Transpose(x, perm=[0, 2, 1])
-                    else:
-                        result = oxs.Identity(x)  # result = x does not work yet
-                else:
-                    result = oxs.Identity(x)  # result = x does not work yet
+                result = dynamic_switch_with_last_axis_4d(x, axis)
     return result
 
 
@@ -103,30 +122,30 @@ def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     # one dimension.
     # Simpler to write with [axis].
     # cst = dft(x.shape[axis], length)  # dft is unknown, subfunction are not allowed
-    step = oxs.Constant(value=make_tensor('step', TensorProto.INT64, [1], [1]))
-    last = oxs.Constant(value=make_tensor('last', TensorProto.INT64, [1], [-1]))
-    zero_i = oxs.Constant(value=make_tensor('last', TensorProto.INT64, [1], [0]))
+    step = op.Constant(value=make_tensor('step', TensorProto.INT64, [1], [1]))
+    last = op.Constant(value=make_tensor('last', TensorProto.INT64, [1], [-1]))
+    zero_i = op.Constant(value=make_tensor('last', TensorProto.INT64, [1], [0]))
 
-    x_shape = oxs.Shape(x)
-    dim = oxs.Slice(x_shape, axis, axis + step)
+    x_shape = op.Shape(x)
+    dim = op.Slice(x_shape, axis, axis + step)
     cst = dft(dim, fft_length)
-    cst_cast = oxs.CastLike(cst, x)
+    cst_cast = op.CastLike(cst, x)
     xt = dynamic_switch_with_last_axis(x, axis)
 
     # Cannot create variable inside a branch of a test
-    xt_shape_but_last = oxs.Slice(oxs.Shape(xt), zero_i, last, zero_i, step)
-    new_shape = oxs.Concat(xt_shape_but_last, fft_length - dim)
+    xt_shape_but_last = op.Slice(op.Shape(xt), zero_i, last, zero_i, step)
+    new_shape = op.Concat(xt_shape_but_last, fft_length - dim)
 
     if dim >= fft_length:
-        new_xt = oxs.Slice(xt, zero_i, fft_length, last, step)
+        new_xt = op.Slice(xt, zero_i, fft_length, last, step)
     else:
         if dim == fft_length:  # not sure about elif
             new_xt = xt
         else:
             # other, the matrix is completed with zeros
-            new_xt = oxs.Concat(xt, oxs.ConstantOfShape(new_shape, value=0))
+            new_xt = op.Concat(xt, op.ConstantOfShape(new_shape, value=0))
 
-    result = oxs.MatMul(xt, cst_cast)
+    result = op.MatMul(xt, cst_cast)
     final = dynamic_switch_with_last_axis(xt, axis)
     return final
 

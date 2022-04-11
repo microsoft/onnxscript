@@ -122,7 +122,7 @@ class TestConverter(unittest.TestCase):
         self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1A.py"))
 
     def test_onnxfft(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "onnxfft.py"),
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxfft.py"),
                                save_text=False, check_ort=True)
 
     def test_models(self):
