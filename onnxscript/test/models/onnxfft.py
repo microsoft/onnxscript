@@ -57,16 +57,16 @@ def dft(N: INT64[1], fft_length: INT64[1]) -> FLOAT["I", "J"]:
     return op.Reshape(cplx, new_shape)
 
 
-def dynamic_switch_with_last_axis_2d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
+def dynamic_switch_with_last_axis_2d(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis == zero:
         result = op.Transpose(x, perm=[1, 0])
     else:  # can we skip else?
-        result = op.Identity(x)  # result = x does not work yet
+        result = op.Identity(x)
     return result
 
 
-def dynamic_switch_with_last_axis_3d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
+def dynamic_switch_with_last_axis_3d(x: FLOAT[None, None, None], axis: INT64[1]) -> FLOAT[None, None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
     if axis == zero:
@@ -75,11 +75,11 @@ def dynamic_switch_with_last_axis_3d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[No
         if axis == one:
             result = op.Transpose(x, perm=[0, 2, 1])
         else:
-            result = op.Identity(x)  # result = x does not work yet
+            result = op.Identity(x)
     return result
 
 
-def dynamic_switch_with_last_axis_4d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
+def dynamic_switch_with_last_axis_4d(x: FLOAT[None, None, None, None], axis: INT64[1]) -> FLOAT[None, None, None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
@@ -92,11 +92,21 @@ def dynamic_switch_with_last_axis_4d(x: FLOAT[None], axis: INT64[1]) -> FLOAT[No
             if axis == two:
                 result = op.Transpose(x, perm=[0, 1, 3, 2])
             else:
-                result = op.Identity(x)  # result = x does not work yet
+                result = op.Identity(x)
     return result
 
 
-def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]:
+def dynamic_switch_with_last_axis_3d_4d(x: FLOAT[...], axis: INT64[1]) -> FLOAT[...]:
+    dim = op.Size(op.Shape(x))
+    three = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [3]))
+    if dim == three:
+        result = dynamic_switch_with_last_axis_3d(x, axis)
+    else:
+        result = dynamic_switch_with_last_axis_4d(x, axis)
+    return result
+
+
+def dynamic_switch_with_last_axis(x: FLOAT[...], axis: INT64[1]) -> FLOAT[...]:
     # transpose with the permutation as an attribute does not
     # work here, we need a permutation depending on the input data
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
@@ -104,9 +114,7 @@ def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
     three = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
     dim = op.Size(op.Shape(x)) - one  # x.shape.size - 1 or len(x.shape) - 1
-    if axis == dim or dim == zero:
-        result = op.Identity(x)  # result = x does not work yet
-    else:
+    if not(axis == dim) and dim > zero:
         if dim == one:  # Error: Variable result is not assigned a value along a conditional branch
             result = dynamic_switch_with_last_axis_2d(x, axis)
         else:
@@ -114,6 +122,8 @@ def dynamic_switch_with_last_axis(x: FLOAT[None], axis: INT64[1]) -> FLOAT[None]
                 result = dynamic_switch_with_last_axis_3d(x, axis)
             else:
                 result = dynamic_switch_with_last_axis_4d(x, axis)
+    else:
+        result = op.Identity(x)
     return result
 
 

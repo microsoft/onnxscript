@@ -73,6 +73,7 @@ class Stmt:
         self.opname = opname
         self.args = args
         self.attrs = attrs
+        self.domain = self.module.domain
 
     def __str__(self):
         if (isinstance(self.result, str)):
@@ -98,7 +99,7 @@ class Stmt:
         n = helper.make_node(self.opname,
                              [str(x) for x in self.args],
                              [str(x) for x in self.result],
-                             domain=self.module.domain)
+                             domain=self.domain)
         for a in self.attrs:
             n.attribute.append(a.attr_proto)
         return n
@@ -161,6 +162,20 @@ class Function:
         """
         return self.functions
 
+    @staticmethod
+    def retrieve_all_opsets(graph):
+        domains = set()
+        for node in graph.node:
+            domains.add(node.domain)
+            if len(node.attribute) == 0:
+                continue
+            for at in node.attribute:
+                if at.name not in {'then_branch', 'else_branch', 'body'}:
+                    continue
+                sub_domains = Function.retrieve_all_opsets(at.g)
+                domains |= sub_domains
+        return domains
+
     def to_model_proto(self, opsets=None, functions=None, **kwargs):
         if opsets is None:
             opsets = {'': 15}
@@ -171,9 +186,15 @@ class Function:
         for n in self.stmts:
             if n.module.domain not in opsets:
                 opsets[n.module.domain] = n.module.version
+        graph = self.to_graph_proto()
+
+        all_opsets = Function.retrieve_all_opsets(graph)
+        for op in all_opsets:
+            if op not in opsets:
+                opsets[op] = 1
+
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
-        graph = self.to_graph_proto()
         functions = [] if functions is None else list(functions)
         # TODO: the following is incomplete. we need to do this iteratively.
         functions.extend(self.functions.values())

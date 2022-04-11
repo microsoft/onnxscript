@@ -32,8 +32,8 @@ class TestConverter(unittest.TestCase):
             with self.subTest(f=f.name):
                 model = f.to_model_proto(producer_name='p2o')
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as f:
-                        f.write(printable_graph(model.graph))
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as fi:
+                        fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
                             f.write(printable_graph(fct))
@@ -42,13 +42,13 @@ class TestConverter(unittest.TestCase):
                         onnxruntime.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidArgument, InvalidGraph) as e:
                         onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
-                        with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.txt"), 'w') as f:
-                            f.write(str(model))
-                        raise AssertionError("onnxruntime failed.") from e                        
+                        with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.txt"), 'w') as fi:
+                            fi.write(str(model))
+                        raise AssertionError(f"onnxruntime failed with function '{f.name}'.") from e                        
                 model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as f:
-                        f.write(printable_graph(model.graph))
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as fi:
+                        fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
                             f.write(printable_graph(fct))

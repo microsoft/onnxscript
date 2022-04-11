@@ -77,6 +77,7 @@ primop_map = {
     ast.MatMult: "MatMul",
     ast.Mod: "Mod",
     ast.Mult: "Mul",
+    ast.Not: "Not",
     ast.Or: "Or",
     ast.Pow: "Pow",
     ast.Sub: "Sub",
@@ -356,7 +357,8 @@ class Converter:
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
-        assert op in primop_map
+        if op not in primop_map:
+            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
         operand = self.translate_expr(node.operand)
         return Op(default_opset, opname), [operand], []
