@@ -102,13 +102,13 @@ class TestConverter(unittest.TestCase):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxmodels.py"))
 
     def test_subfunction(self):
-        from .models import subfunction
+        from onnxscript.test.models import subfunction
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
 
     def test_if_models(self):
-        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_statement.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_statement.py"), check_ort=True)
 
     def test_loop_models(self):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "loop.py"))

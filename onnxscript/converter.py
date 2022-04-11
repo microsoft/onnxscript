@@ -66,17 +66,18 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
 # map from python operators to ONNX ops
 primop_map = {
     ast.Add: "Add",
-    ast.Sub: "Sub",
-    ast.Mult: "Mul",
     ast.Div: "Div",
-    ast.USub: "Neg",
-    ast.Lt: "Less",
+    ast.Eq: "Equal",
     ast.Gt: "Greater",
-    ast.LtE: "LessOrEqual",
     ast.GtE: "GreaterOrEqual",
+    ast.Lt: "Less",
+    ast.LtE: "LessOrEqual",
     ast.MatMult: "MatMul",
     ast.Mod: "Mod",
-    ast.Pow: "Pow"
+    ast.Mult: "Mul",
+    ast.Pow: "Pow",
+    ast.Sub: "Sub",
+    ast.USub: "Neg",
 }
 
 
@@ -85,6 +86,8 @@ def _known_modules():
     import onnxscript.onnx_types
     import onnxscript.onnx
     return {
+        'onnx': onnx,
+        'onnx.helper': onnx.helper,
         'onnxscript': onnxscript,
         'onnxscript.onnx': onnxscript.onnx,
         'onnxscript.onnx_types': onnxscript.onnx_types,
@@ -139,11 +142,11 @@ class Converter:
         self.used_vars = set()
         self.locals = [{}]
 
-    def enter_scope(self, name):
+    def enter_scope(self, name, parent_node):
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
-        logger.debug("Converter:enter_scope:%d", len(self.locals))
+        logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
         logger.debug("Converter:exit_scope:%d", len(self.locals))
@@ -327,7 +330,8 @@ class Converter:
 
     def translate_bin_op_expr(self, node):
         op = type(node.op)
-        assert op in primop_map
+        if op not in primop_map:
+            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
@@ -335,17 +339,32 @@ class Converter:
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
-        assert op in primop_map
+        if op not in primop_map:
+            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
         operand = self.translate_expr(node.operand)
         return Op(default_opset, opname), [operand], []
+
+    def translate_bool_op_expr(self, node):
+        op = type(node.op)
+        if op not in primop_map:
+            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
+        opname = primop_map[op]
+        if len(node.values) != 2:
+            raise SyntaxError(DebugInfo(node).msg(
+                "Boolean operator must have two operands not %d." % len(node.values)))
+        left, right = node.values
+        left = self.translate_expr(left)
+        right = self.translate_expr(right)
+        return Op(default_opset, opname), [left, right], []
 
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
         assert len(node.ops) == 1
         assert len(node.comparators) == 1
         op = type(node.ops[0])
-        assert op in primop_map
+        if op not in primop_map:
+            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
@@ -523,7 +542,7 @@ class Converter:
         # o_loop_bound = self.emit_const(3, "loop_bound")
 
         # build loop_body
-        self.enter_scope("loop_body")
+        self.enter_scope("loop_body", for_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
         self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64)
         self.bind(p_loop_var, Dynamic(o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt)))
@@ -551,7 +570,7 @@ class Converter:
 
     # Translation of a statement-block to GraphProto attribute
     def translate_block(self, stmts, name, live_defs):
-        self.enter_scope(name)
+        self.enter_scope(name, None)
         for s in stmts:
             self.translate_stmt(s)
         for pvar in live_defs:
