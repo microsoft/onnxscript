@@ -1,7 +1,7 @@
 flake8
 matplotlib
 onnx
---index-url https://test.pypi.org/simple/
+--extra-index-url https://test.pypi.org/simple/
 ort-nightly
 sphinx
 sphinx-gallery
