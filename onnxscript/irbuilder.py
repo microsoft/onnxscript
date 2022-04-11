@@ -105,7 +105,8 @@ class Stmt:
 
 
 class Function:
-    def __init__(self, name) -> None:
+    def __init__(self, name, domain="") -> None:
+        self.domain = domain
         self.name = name
         self.inputs = []
         self.outputs = []
@@ -174,6 +175,7 @@ class Function:
                          for domain, version in opsets.items()]
         graph = self.to_graph_proto()
         functions = [] if functions is None else list(functions)
+        # TODO: the following is incomplete. we need to do this iteratively.
         functions.extend(self.functions.values())
         return helper.make_model(graph, opset_imports=opset_imports,
                                  functions=functions, **kwargs)
@@ -184,6 +186,18 @@ class Function:
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
 
+    def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=[]):
+        # TODO: Ideally, in the long term, we should infer func_opset_imports
+        # from the set of calls within the function itself.
+        return helper.make_function(domain,
+                                    self.name,
+                                    inputs=[x.name for x in self.inputs],
+                                    outputs=[y.name for y in self.outputs],
+                                    nodes=[s.to_node_proto() for s in self.stmts],
+                                    opset_imports=func_opset_imports,
+                                    attributes=[a.name for a in self.attrs],
+                                    doc_string=self.docstring)
+
     def to_function_proto(self, domain):
         opsets = {'': 15}
         if domain != '':
@@ -193,11 +207,11 @@ class Function:
         nodes = [s.to_node_proto() for s in self.stmts]
         for n in nodes:
             if n.domain not in opsets:
-                opsets[n.domain] = n.version
+                opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
         return helper.make_function(
-            domain.domain,  # TODO: generate appropriate domain name.
+            self.domain,
             self.name,
             inputs=[x.name for x in self.inputs],
             outputs=[y.name for y in self.outputs],
@@ -211,8 +225,8 @@ class Function:
 
 
 class IRBuilder:
-    def new_function(self, name):
-        return Function(name)
+    def new_function(self, name, domain=""):
+        return Function(name, domain)
 
     def add_docstring(self, fn, docstring):
         fn.append_docstring(docstring)

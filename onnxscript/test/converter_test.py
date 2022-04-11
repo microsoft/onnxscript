@@ -13,7 +13,8 @@ from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidArgument, I
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
 
-CURRENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 
 
 class TestConverter(unittest.TestCase):
@@ -25,7 +26,6 @@ class TestConverter(unittest.TestCase):
                           tests=None, decimal=5):
         converter = Converter()
         fnlist = converter.convert(script)
-        TEST_OUTPUT_DIR = os.path.join(CURRENT_DIR, "testoutputs")
         if not os.path.exists(TEST_OUTPUT_DIR):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
@@ -116,32 +116,35 @@ class TestConverter(unittest.TestCase):
         self._convert(script)
 
     def test_onnxfns1(self):
-        self._convert(os.path.join(CURRENT_DIR, "onnxfns1.py"))
+        self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1.py"))
 
     def test_onnxfns1A(self):
-        self._convert(os.path.join(CURRENT_DIR, "onnxfns1A.py"))
+        self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1A.py"))
 
     def test_onnxfft(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "onnxfft.py"),
                                save_text=False, check_ort=True)
 
     def test_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "onnxmodels.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxmodels.py"))
 
     def test_subfunction(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "subfunction.py"))
+        from .models import subfunction
+        model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
+        model = onnx.shape_inference.infer_shapes(model)
+        onnx.checker.check_model(model)
 
     def test_if_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "if.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_statement.py"))
 
     def test_nested_if_models(self):
         self._convert_and_save(os.path.join(CURRENT_DIR, "if_nested.py"))
 
     def test_loop_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "loop.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "loop.py"))
 
     def test_docstring(self):
-        res = self._convert(os.path.join(CURRENT_DIR, "docstring.py"))
+        res = self._convert(os.path.join(TEST_INPUT_DIR, "docstring.py"))
         self.assertEqual(len(res), 1)
         proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
