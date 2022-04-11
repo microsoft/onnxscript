@@ -62,7 +62,7 @@ from onnxscript.opset15 as op
 
 
 # The function must have annotation to specify the type of inputs and outputs.
-@script
+@script()
 def Hardmax(X: FLOAT[], axis=0) -> FLOAT[]:
     # op gives access to ONNX operators for opset 15
     argmax = op.ArgMax(X, axis=axis, keepdims=False)
