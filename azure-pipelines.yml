@@ -37,8 +37,8 @@ steps:
   displayName: 'pytest'
 
 - script: |
-    python .\docs\examples\eager_mode_evaluation.py
-    python .\docs\examples\plot_square_loss.py
+    python ./docs/examples/eager_mode_evaluation.py
+    python ./docs/examples/plot_square_loss.py
   displayName: 'test docs examples'
 
 - script: |
