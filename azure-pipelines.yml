@@ -37,6 +37,11 @@ steps:
   displayName: 'pytest'
 
 - script: |
+    python .\docs\examples\eager_mode_evaluation.py
+    python .\docs\examples\plot_square_loss.py
+  displayName: 'test docs examples'
+
+- script: |
     python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py"
   displayName: 'flake8'
 
