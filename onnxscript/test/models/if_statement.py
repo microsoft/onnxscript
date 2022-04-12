@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
+from onnxscript import script
 from onnxscript.onnx_types import FLOAT
 from onnxscript.onnx import opset15 as op
 
-
+@script()
 def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = op.ReduceSum(A)
     sum2 = op.ReduceSum(B)
@@ -15,7 +16,7 @@ def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
 
 # Test inference of inputs/outputs for then/else blocks:
 
-
+@script()
 def maxsum2(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = op.ReduceSum(A)
     sum2 = op.ReduceSum(B)
@@ -29,7 +30,7 @@ def maxsum2(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
 
 # test variables assigned only in one branch
 
-
+@script()
 def maxsum3(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = op.ReduceSum(A)
     sum2 = op.ReduceSum(B)

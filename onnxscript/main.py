@@ -44,6 +44,10 @@ class OnnxFunction:
 
 
 def script(opset=None):
+    if (opset is not None) and (not isinstance(opset, values.Opset)):
+        raise TypeError(
+            "Script parameter must be an opset. Did you use @script instead of @script()?")
+
     def transform(f):
         return OnnxFunction(f, opset)
     return transform
