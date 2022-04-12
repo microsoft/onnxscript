@@ -10,9 +10,6 @@ from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
-from onnxscript import script
-from onnxscript.onnx import opset15 as op
-from .checker import isomorphic
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
@@ -54,14 +51,6 @@ class TestConverter(unittest.TestCase):
                         "Verification of model failed.") from e
                 onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
-    def test_source_input(self):
-        script = textwrap.dedent("""
-            def square(x):
-                return oxs.Mul(x, x)
-            """)
-        res = self._convert(script)
-        self.assertEqual(len(res), 1)
-
     def test_source_input_error_undefined(self):
         script = textwrap.dedent("""
             def square(x):
@@ -86,14 +75,6 @@ class TestConverter(unittest.TestCase):
         x = np.array([5, 6], dtype=np.float32)
         got = sess.run(None, {'x': x})
         self.assertEqual((x * x).tolist(), got[0].tolist())
-
-    def test_msdomain(self):
-        # Temporary patch to use com.microsoft domain
-        script = textwrap.dedent("""
-            def foo(x):
-                return msdomain.bar(x, x)
-            """)
-        self._convert(script)
 
     def test_onnxfns1(self):
         self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1.py"))

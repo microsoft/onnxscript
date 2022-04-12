@@ -1,25 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
+from .testutils import TestBase
 from onnx import FunctionProto
 from onnxscript import OnnxFunction, script
 from .checker import isomorphic
 from onnxscript.onnx import opset15 as op
 
 
-def function_proto(f):
-    if isinstance(f, FunctionProto):
-        return f
-    if isinstance(f, OnnxFunction):
-        return f.to_function_proto()
-    raise TypeError(f"Cannot convert {type(f)} to FunctionProto")
-
-
-class TestConverter(unittest.TestCase):
-    def assertSame(self, fn1, fn2):
-        self.assertTrue(isomorphic(function_proto(fn1), function_proto(fn1)))
+class TestConverter(TestBase):
 
     def test_plus_op(self):
+        '''Test that + is translated to Add op.'''
         # TODO: pass default opset as parameter to @script
         @script()
         def plus1(x, y):
