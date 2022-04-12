@@ -89,16 +89,18 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             function: OnnxFunction,
             **attrs: Any):
-        cases = self._filter_test_case_by_op_type(function.__name__)
+        cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for i, case in enumerate(cases):
             if len(case.model.graph.node) != 1:
                 raise ValueError("run_onnx_test only \
                     tests models with one operator node.")
 
-            test_case_attrs = {a.name: a.f for a in case.model.graph.node[0].attribute}
+            test_case_attrs = {
+                a.name: a.f for a in case.model.graph.node[0].attribute}
             test_case_attrs = {**attrs, **test_case_attrs}
 
             for ds in case.data_sets:
-                param = FunctionTestParams(function, ds[0], ds[1], attrs=test_case_attrs)
+                param = FunctionTestParams(
+                    function, ds[0], ds[1], attrs=test_case_attrs)
                 self.run_converter_test(param, case.model.opset_import)
                 self.run_eager_test(param, case.model.opset_import)
