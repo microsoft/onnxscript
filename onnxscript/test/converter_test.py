@@ -122,18 +122,6 @@ class TestConverter(unittest.TestCase):
         proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
 
-    def test_plus_op(self):
-
-        @script()
-        def plus1(x, y):
-            return x + y
-
-        @script()
-        def plus2(x, y):
-            return op.Add(x,y)
-            
-        self.assertTrue(isomorphic(plus1.to_function_proto(), plus2.to_function_proto()))
-
 
 if __name__ == '__main__':
     # import logging
