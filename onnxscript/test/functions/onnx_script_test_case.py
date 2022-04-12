@@ -20,12 +20,13 @@ class FunctionTestParams:
 
 
 class OnnxScriptTestCase(unittest.TestCase):
-    def setUp(self):
-        self.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
-        self.local_opset_import = onnx.helper.make_opsetid("local", 1)
-        self.local_function_domain = "local"
-        self.rtol = 1e-7
-        self.all_test_cases = node_test.collect_testcases()
+    @classmethod
+    def setUpClass(cls):
+        cls.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
+        cls.local_opset_import = onnx.helper.make_opsetid("local", 1)
+        cls.local_function_domain = "local"
+        cls.rtol = 1e-7
+        cls.all_test_cases = node_test.collect_testcases()
 
     def _create_model_from_param(
             self,

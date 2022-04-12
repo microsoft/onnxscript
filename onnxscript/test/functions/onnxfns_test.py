@@ -4,9 +4,10 @@ from onnxscript.test.models import onnxfns1
 
 
 class TestOnnxFns(OnnxScriptTestCase):
-    def setUp(self):
-        super().setUp()
-        self.rtol = 1e-05
+    @classmethod
+    def setUpClass(cls):
+        super(TestOnnxFns, cls).setUpClass()
+        cls.rtol = 1e-05
 
     def test_onnxfns_relu(self):
         self.run_onnx_test(onnxfns1.Relu)
