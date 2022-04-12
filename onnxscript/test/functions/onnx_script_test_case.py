@@ -2,18 +2,18 @@ import dataclasses
 import unittest
 import numbers
 import numpy as np
-import importlib
 import onnx
 from onnx import ModelProto, OperatorSetIdProto
 from onnxscript import utils
 from onnxruntime import InferenceSession
+from onnxscript.main import OnnxFunction
 import onnx.backend.test.case.node as node_test
-from typing import Callable, Sequence
+from typing import Any, Sequence
 
 
 @dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
-    function: Callable
+    function: OnnxFunction
     input: list
     output: list
     attrs: dict = None
@@ -31,13 +31,12 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             param: FunctionTestParams,
             opset_imports: Sequence[OperatorSetIdProto]
-            ) -> ModelProto:
+    ) -> ModelProto:
         opset_imports = opset_imports if opset_imports\
             else self.default_opset_imports
-        local_function_proto = utils.convert_python_function_to_function_proto(
-            param.function,
-            self.local_function_domain,
-            opset_imports)
+        ir = param.function.function_ir
+        local_function_proto = ir.to_function_proto_with_opset_imports(
+            self.local_function_domain, opset_imports)
 
         input_names = ["input_" + str(i) for i in range(len(param.input))]
         output_names = ["output_" + str(i) for i in range(len(param.output))]
@@ -80,15 +79,6 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             param: FunctionTestParams,
             opset_imports: Sequence[OperatorSetIdProto] = None):
-        if opset_imports:
-            module = importlib.import_module(param.function.__module__)
-            if not module.op or\
-                module.op.domain != opset_imports[0].domain or\
-                    module.op.version != opset_imports[0].version:
-                # we want to run eager mode executor with the same domain
-                # and version as requested.
-                utils.assign_eager_mode_evaluator_to_module(
-                    module, opset_imports[0].domain, opset_imports[0].version)
 
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
@@ -97,18 +87,18 @@ class OnnxScriptTestCase(unittest.TestCase):
 
     def run_onnx_test(
             self,
-            function: Callable,
-            **kwargs):
+            function: OnnxFunction,
+            **attrs: Any):
         cases = self._filter_test_case_by_op_type(function.__name__)
         for i, case in enumerate(cases):
             if len(case.model.graph.node) != 1:
                 raise ValueError("run_onnx_test only \
                     tests models with one operator node.")
 
-            attrs = {a.name: a.f for a in case.model.graph.node[0].attribute}
-            attrs = {**kwargs, **attrs}
+            test_case_attrs = {a.name: a.f for a in case.model.graph.node[0].attribute}
+            test_case_attrs = {**attrs, **test_case_attrs}
 
             for ds in case.data_sets:
-                param = FunctionTestParams(function, ds[0], ds[1], attrs=attrs)
+                param = FunctionTestParams(function, ds[0], ds[1], attrs=test_case_attrs)
                 self.run_converter_test(param, case.model.opset_import)
                 self.run_eager_test(param, case.model.opset_import)

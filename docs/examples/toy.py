@@ -16,7 +16,7 @@ from onnxscript.onnx_types import FLOAT
 # Define an ONNXScript function.
 
 
-@script
+@script()
 def Selu(X, alpha: float, gamma: float):
     alphaX = op.CastLike(alpha, X)
     gammaX = op.CastLike(gamma, X)
