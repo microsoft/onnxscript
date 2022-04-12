@@ -10,6 +10,9 @@ from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
+from onnxscript import script
+from onnxscript.onnx import opset15 as op
+from .checker import isomorphic
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
@@ -118,6 +121,18 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(len(res), 1)
         proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
+
+    def test_plus_op(self):
+
+        @script()
+        def plus1(x, y):
+            return x + y
+
+        @script()
+        def plus2(x, y):
+            return op.Add(x,y)
+            
+        self.assertTrue(isomorphic(plus1.to_function_proto(), plus2.to_function_proto()))
 
 
 if __name__ == '__main__':

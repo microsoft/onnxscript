@@ -4,6 +4,7 @@ import inspect
 from .converter import Converter
 import onnx.helper
 from . import values
+import textwrap
 
 
 def script_check(f: ast.FunctionDef, opset, global_names):
@@ -21,6 +22,7 @@ class OnnxFunction:
     def __init__(self, f, opset):
         if inspect.isfunction(f):
             src = inspect.getsource(f)
+            src = textwrap.dedent(src)
             module = inspect.getmodule(f)
             top_level_ast = ast.parse(src)
             assert type(top_level_ast) == ast.Module
