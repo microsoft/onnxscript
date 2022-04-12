@@ -67,7 +67,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             param: FunctionTestParams,
             opset_import: OperatorSetIdProto = None):
         model = self._create_model_from_param(param, opset_import)
-        # onnx.checker.check_model(model)
+        onnx.checker.check_model(model)
         input = {
             vi.name: [t] if isinstance(t, numbers.Number) else t
             for vi, t in zip(model.graph.input, param.input)}
