@@ -219,7 +219,7 @@ class Converter:
             # The python operator is converted into multiple operators through a function.
             irb = IRBuilder()
             conv = Converter(irb, global_names=self.globals)
-            converted = conv.convert(callee.opname)
+            conv.convert(callee.opname)
             self.ir_builder.add_stmt(
                 self.current_fn, outputs, self.this_module,
                 callee.opname.__name__, inputs, attrs)
@@ -607,7 +607,8 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else "this"
+        domain = (self.globals["__opset_domain__"]
+                  if "__opset_domain__" in self.globals else "this")
         self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
         for x in args.args:
             if x.annotation:
