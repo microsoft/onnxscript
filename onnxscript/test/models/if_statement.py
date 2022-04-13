@@ -47,8 +47,8 @@ def check_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis == zero:
         result = op.Transpose(x, perm=[1, 0])
-    else:  # can we skip else?
-        result = op.Identity(x)  # result = x does not work yet
+    else:
+        result = op.Identity(x)
     return result
 
 
@@ -56,8 +56,8 @@ def check_less_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, Non
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis <= zero:
         result = op.Transpose(x, perm=[1, 0])
-    else:  # can we skip else?
-        result = op.Identity(x)  # result = x does not work yet
+    else:
+        result = op.Identity(x)
     return result
 
 
@@ -65,8 +65,8 @@ def check_greater(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis > zero:
         result = op.Transpose(x, perm=[1, 0])
-    else:  # can we skip else?
-        result = op.Identity(x)  # result = x does not work yet
+    else:
+        result = op.Identity(x)
     return result
 
 
@@ -74,8 +74,8 @@ def check_greater_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, 
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis >= zero:
         result = op.Transpose(x, perm=[1, 0])
-    else:  # can we skip else?
-        result = op.Identity(x)  # result = x does not work yet
+    else:
+        result = op.Identity(x)
     return result
 
 
@@ -83,8 +83,8 @@ def check_not(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if not(axis >= zero):
         result = op.Transpose(x, perm=[1, 0])
-    else:  # can we skip else?
-        result = op.Identity(x)  # result = x does not work yet
+    else:
+        result = op.Identity(x)
     return result
 
 
@@ -92,6 +92,6 @@ def check_different(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis != zero:
         result = op.Transpose(x, perm=[1, 0])
-    else:  # can we skip else?
-        result = op.Identity(x)  # result = x does not work yet
+    else:
+        result = op.Identity(x)
     return result
