@@ -95,6 +95,9 @@ class Op:
         self.opschema = opschema
         self.evaluator = eager_mode_evaluator.call_ort
 
+    def is_single_op(self):
+        return isinstance(self.opname, str)
+
     def get_schema(self):
         return self.opschema
 
@@ -119,8 +122,8 @@ class OpFunction(Op):
     def name(self):
         return self.opset[self.opname].name
 
-    def to_function_proto(self):
-        return self.opset[self.opname].to_function_proto(domain=self.opset)
+    def to_function_proto(self, domain=None):
+        return self.opset[self.opname].to_function_proto(domain=domain or self.opset)
 
 
 # Values fall into the following categories:

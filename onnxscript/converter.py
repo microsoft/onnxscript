@@ -15,6 +15,7 @@ from .onnx import opset15 as default_opset
 from .values import (
     ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind,
     DebugInfo, CustomOpset)
+from .libfunctions import NotEqual
 
 
 logger = logging.getLogger("onnx-script")
@@ -75,6 +76,8 @@ primop_map = {
     ast.MatMult: "MatMul",
     ast.Mod: "Mod",
     ast.Mult: "Mul",
+    ast.Not: "Not",
+    ast.NotEq: NotEqual,
     ast.Pow: "Pow",
     ast.Sub: "Sub",
     ast.USub: "Neg",
@@ -208,9 +211,20 @@ class Converter:
         self.ir_builder.add_docstring(self.current_fn, docstring)
 
     def emit(self, outputs, callee, inputs, attrs):
-        self.ir_builder.add_stmt(
-            self.current_fn, outputs, callee.opset,
-            callee.opname, inputs, attrs)
+        if callee.is_single_op():
+            self.ir_builder.add_stmt(
+                self.current_fn, outputs, callee.opset,
+                callee.opname, inputs, attrs)
+        else:
+            # The python operator is converted into multiple operators through a function.
+            irb = IRBuilder()
+            conv = Converter(irb, global_names=self.globals)
+            converted = conv.convert(callee.opname)
+            self.ir_builder.add_stmt(
+                self.current_fn, outputs, self.this_module,
+                callee.opname.__name__, inputs, attrs)
+            for v in irb.functions.values():
+                self.current_fn.append_function(v, self.this_module)
 
     def emit_loop(self, outputs, callee, inputs, attrs, info):
         def rename(x):
@@ -345,19 +359,6 @@ class Converter:
         operand = self.translate_expr(node.operand)
         return Op(default_opset, opname), [operand], []
 
-    def translate_bool_op_expr(self, node):
-        op = type(node.op)
-        if op not in primop_map:
-            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
-        opname = primop_map[op]
-        if len(node.values) != 2:
-            raise SyntaxError(DebugInfo(node).msg(
-                "Boolean operator must have two operands not %d." % len(node.values)))
-        left, right = node.values
-        left = self.translate_expr(left)
-        right = self.translate_expr(right)
-        return Op(default_opset, opname), [left, right], []
-
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
         assert len(node.ops) == 1
@@ -405,7 +406,7 @@ class Converter:
             if function_name in self.this_module:
                 # Calls a function within this module.
                 opf = OpFunction(self.this_module, function_name)
-                self.current_fn.append_function(opf)
+                self.current_fn.append_function(opf, self.this_module)
                 return opf
             found = self.lookup(function_name, DebugInfo(node), raise_exception=False)
             if isinstance(found, Op):
@@ -606,8 +607,8 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else ""
-        self.current_fn = self.ir_builder.new_function(fn.name, domain)
+        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else "this"
+        self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
         for x in args.args:
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
