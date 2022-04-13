@@ -61,7 +61,7 @@ from onnxscript.onnx_types import INT64, FLOAT
 from onnxscript.opset15 as op
 
 
-# The function must have annotation to specify the type of inputs and outputs.
+# If the function is a model to export, it must have annotations to specify the type of inputs and outputs.
 @script()
 def Hardmax(X: FLOAT[], axis=0) -> FLOAT[]:
     # op gives access to ONNX operators for opset 15
@@ -85,10 +85,10 @@ the error was detected. If it succeeds, the intermediate can be converted into
 one ONNX structure of type FunctionProto (a subpart of a model) or ModelProto
 (a whole model any runtime can predict with).
 
-- ``Hardmax.to_function_proto(axis=0)` returns a FunctionProto,
+- `Hardmax.to_function_proto(axis=0)` returns a `FunctionProto`,
   annotations are not used as FunctionProto does not requires any information about
   shapes or types.
-- ``Hardmax.to_model_proto(axis=0)` returns a ModelProto,
+- `Hardmax.to_model_proto(axis=0)` returns a `ModelProto`,
   annotations are mandatory to specify input and output shapes and types of the model.
 
 **Eager mode**
@@ -99,8 +99,6 @@ are expected.
 ```python
 import numpy as np
 
-onnx_fct.oxs = oxs
-
 v = np.array([[0, 1], [2, 3]], dtype=np.float32)
 result = Hardmax(v)
 ```
@@ -110,4 +108,4 @@ More examples can be found in folder [docs/examples](docs/examples).
 ## Contributing
 
 Every change impacting the converter or the eager evaluation must be unit tested with
-class `???` to ensure both systems do return the same results with the same inputs.
+class `OnnxScriptTestCase` to ensure both systems do return the same results with the same inputs.
