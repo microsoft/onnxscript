@@ -1,5 +1,6 @@
 import onnx
 
+
 def same_optional(field, obj1, obj2):
     '''
     Check two proto object have same value for optional field.
@@ -9,6 +10,32 @@ def same_optional(field, obj1, obj2):
         return obj2.HasField(field) and (getattr(obj1, field) == getattr(obj2, field))
     else:
         return not obj2.HasField(field)
+
+
+def same_attr(attr1, attr2, graph_equality):
+    # no name check; names used to match attributes already.
+    for field in ["type", "ref_attr_name", "f", "i", "s", "floats", "ints", "strings"]:
+        if not same_optional(field, attr1, attr2):
+            return False
+    for field in ["t", "g", "sparse_tensor", "tp", "tensors", "graphs", "sparse_tensors", "type_protos"]:
+        # TODO: check for more complex fields
+        if attr1.HasField(field) or attr2.HasField(field):
+            return False
+    return True
+
+
+def same_attrs(attrs1, attrs2, graph_equality):
+    if len(attrs1) != len(attrs2):
+        return False
+    attrs1map = {a.name: a for a in attrs1}
+    for attr2 in attrs2:
+        if attr2.name not in attrs1map:
+            return False
+        attr1 = attrs1map[attr2.name]
+        if not same_attr(attr1, attr2, graph_equality):
+            return False
+    return True
+
 
 def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
     '''
@@ -40,7 +67,8 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
     # the topological-sort order requirement. The two may use different names
     # for intermediate-values, as long as the computation is the same.
 
-    if len(fn1.node) != len(fn2.node): return False
+    if len(fn1.node) != len(fn2.node):
+        return False
 
     def defmap(f):
         return {x: (ni, xi) for ni, n in enumerate(f.node)
@@ -79,22 +107,16 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
         if node1.domain != node2.domain:
             return False
         # check attrs
-        if len(node1.attribute) != len(node2.attribute): return False
-        attrs1 = { a.name : a for a in node1.attribute }
-        for attr2 in node1.attribute:
-            if attr2.name not in attrs1: return False
-            attr1 = attrs1[attr2.name]
-
-            for field in ["type", "ref_attr_name", "f", "i", "s", "floats", "ints", "strings"]:
-                if not same_optional(field, attr1, attr2): return False
-            # TODO: for graph/tensor/other fields
+        if not same_attrs(node1.attribute, node2.attribute, None):
+            return False
 
         # Nodes represent same computation. Cache the comparison result.
         node_mapping[n1] = n2
         return True
 
     # Check that both functions compute the same value for all outputs:
-    if len(fn1.output) != len(fn2.output): return False
+    if len(fn1.output) != len(fn2.output):
+        return False
     # For now, we allow the function outputs to have different names.
     for x, y in zip(fn1.output, fn2.output):
         if not same_value(x, y):
@@ -102,7 +124,9 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
 
     # We do not allow for unused values in the function, which are
     # hard to handle in an isomorphism check.
-    if len(node_mapping) != len (fn1.node): return False
-    if len(set(node_mapping.values())) != len (fn2.node): return False
+    if len(node_mapping) != len(fn1.node):
+        return False
+    if len(set(node_mapping.values())) != len(fn2.node):
+        return False
 
     return True
