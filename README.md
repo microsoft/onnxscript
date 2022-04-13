@@ -85,7 +85,7 @@ the error was detected. If it succeeds, the intermediate can be converted into
 one ONNX structure of type FunctionProto (a subpart of a model) or ModelProto
 (a whole model any runtime can predict with).
 
-- `Hardmax.to_function_proto(axis=0)` returns a `FunctionProto`,
+- `Hardmax.to_function_proto()` returns a `FunctionProto`,
   annotations are not used as FunctionProto does not requires any information about
   shapes or types.
 - `Hardmax.to_model_proto(axis=0)` returns a `ModelProto`,
