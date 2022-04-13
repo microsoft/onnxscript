@@ -2,9 +2,7 @@
 
 import unittest
 from .testutils import TestBase
-from onnx import FunctionProto
-from onnxscript import OnnxFunction, script
-from .checker import isomorphic
+from onnxscript import script
 from onnxscript.onnx import opset15 as op
 
 
