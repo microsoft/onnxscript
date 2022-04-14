@@ -17,7 +17,8 @@ def same_attr(attr1, attr2, graph_equality):
     for field in ["type", "ref_attr_name", "f", "i", "s", "floats", "ints", "strings"]:
         if not same_optional(field, attr1, attr2):
             return False
-    for field in ["t", "g", "sparse_tensor", "tp", "tensors", "graphs", "sparse_tensors", "type_protos"]:
+    for field in ["t", "g", "sparse_tensor", "tp", "tensors", "graphs", "sparse_tensors",
+                 "type_protos"]:
         # TODO: check for more complex fields
         if attr1.HasField(field) or attr2.HasField(field):
             return False
