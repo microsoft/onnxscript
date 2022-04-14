@@ -123,6 +123,29 @@ class OpFunction(Op):
         return self.opset[self.opname].to_function_proto(domain=self.opset)
 
 
+class OnnxFunction(Op):
+    def __init__(self, opset, pyfun, irfun):
+        opset = opset or Opset(irfun.domain, 1)
+        super().__init__(opset, irfun.name)
+        self.function = pyfun
+        self.function_ir = irfun
+
+    @property
+    def name(self):
+        return self.opname
+
+    def __call__(self, *args, **kwargs):
+        return self.function(*args, **kwargs)
+
+    def to_function_proto(self):
+        return self.function_ir.to_function_proto(self.opset)
+
+    def to_model_proto(self, **kwargs):
+        if kwargs:
+            raise ValueError()
+        else:
+            return self.function_ir.to_model_proto()
+
 # Values fall into the following categories:
 # ConstValue: values known at translation-time, mapped to ONNX attributes
 # AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes

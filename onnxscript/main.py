@@ -4,6 +4,7 @@ import inspect
 from .converter import Converter
 import onnx.helper
 from . import values
+from .values import OnnxFunction
 
 
 def script_check(f: ast.FunctionDef, opset, global_names):
@@ -17,8 +18,12 @@ def script_check(f: ast.FunctionDef, opset, global_names):
     return converter.top_level_stmt(f)
 
 
-class OnnxFunction:
-    def __init__(self, f, opset):
+def script(opset=None):
+    if (opset is not None) and (not isinstance(opset, values.Opset)):
+        raise TypeError(
+            "Script parameter must be an opset. Did you use @script instead of @script()?")
+
+    def transform(f):
         if inspect.isfunction(f):
             src = inspect.getsource(f)
             module = inspect.getmodule(f)
@@ -28,28 +33,12 @@ class OnnxFunction:
             f_ast = top_level_ast.body[0]
             assert type(f_ast) == ast.FunctionDef
             result = script_check(f_ast, opset, module.__dict__.copy())
-
-            self.function = f
-            self.function_ir = result
             # TODO: add transformations.
+            return OnnxFunction(opset, f, result)
         else:
             raise TypeError(
                 "The ONNXScript decorator should be applied to functions only.")
 
-    def __call__(self, *args, **kwargs):
-        return self.function(*args, **kwargs)
-
-    def to_function_proto(self):
-        return self.function_ir.to_function_proto(values.Opset(self.function_ir.domain, 1))
-
-
-def script(opset=None):
-    if (opset is not None) and (not isinstance(opset, values.Opset)):
-        raise TypeError(
-            "Script parameter must be an opset. Did you use @script instead of @script()?")
-
-    def transform(f):
-        return OnnxFunction(f, opset)
     return transform
 
 
