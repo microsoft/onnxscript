@@ -42,16 +42,35 @@ pytest onnxscript/test
 
 *onnxscript* implements two main functionalities:
 
-- a converter which translate a python function into ONNX, the converter analyzes the python
-  code through the python abstract syntactic tree and converts that tree into an ONNX graph
+- a converter which translates a python function into ONNX; the converter analyzes the python
+  code using its abstract syntax tree and converts that tree into an ONNX graph
   equivalent to the function.
-- a runtime returning an eager evaluation of this function, this runtime relies on
-  *onnxruntime* for every operation described in
+- a runtime that allows such functions to be executed (in an "eager mode"); this runtime relies on
+  *onnxruntime* for executing every operation described in
   [ONNX Operators](https://github.com/onnx/onnx/blob/main/docs/Operators.md).
+
+The runtime is intended to help understand and debug function-definitions, and performance
+is not a goal for this mode.
 
 ## Example
 
 Let's write a function in file **onnx_fct.py**. The script may contain multiple functions.
+Python functions can be used to define both ONNX functions as well as ONNX models.
+However, there are some differences between ONNX functions and ONNX models.
+Notably,
+* The inputs and outputs of ONNX models are required to be typed. In particular,
+they are required to have a single fixed type (e.g., an int64 tensor).
+* Functions, like ONNX operators, can be polymorphic, allowing inputs of different
+types.
+* Functions, like ONNX operators, have two kinds of parameters, usually referred
+to as _attributes_ and _inputs_. The key distinction is that _attributes_ represent
+values known statically in a model, while _inputs_ represent runtime-values
+usually not known statically.
+* Models, on the other hand, do not have _attribute_ parameters, they have only
+_inputs_.
+
+When defining ONNX functions in Python, we use the _type_ of the function parameters
+to distinguish attribute parameters from input parameters, as shown in the example below.
 
 ```python
 from onnx import TensorProto
@@ -63,7 +82,11 @@ from onnxscript.opset15 as op
 
 # If the function is a model to export, it must have annotations to specify the type of inputs and outputs.
 @script()
-def Hardmax(X: FLOAT[], axis=0) -> FLOAT[]:
+def Hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
+    '''
+    The type of X indicates it is an input parameter, while the type of axis
+    indicates that it is an attribute parameter.
+    '''
     # op gives access to ONNX operators for opset 15
     argmax = op.ArgMax(X, axis=axis, keepdims=False)
     # The parser makes the distinction between inputs (unnamed arguments) and attributes (named parameters).
@@ -80,21 +103,27 @@ def Hardmax(X: FLOAT[], axis=0) -> FLOAT[]:
 ```
 
 The decorator parses the code of the function and converts it into an intermediate
-structure. If it fails, it produces an error message indicating the line where
-the error was detected. If it succeeds, the intermediate can be converted into
-one ONNX structure of type FunctionProto (a subpart of a model) or ModelProto
-(a whole model any runtime can predict with).
+representation. If it fails, it produces an error message indicating the line where
+the error was detected. If it succeeds, the intermediate representation
+can be converted into an ONNX structure of type FunctionProto as shown below.
 
 - `Hardmax.to_function_proto()` returns a `FunctionProto`,
   annotations are not used as FunctionProto does not requires any information about
   shapes or types.
+
+*TODO* (Note that the following feature is not yet implemented.)
+It can also be converted into a ModelProto (a whole model any runtime can predict with),
+as shown below, provided it satisfies the limitations of models mentioned above.
+For example, the python function should have no attributes or any attribute parameter
+must be bound to a specific value, to convert it into a ModelProto.
+
 - `Hardmax.to_model_proto(axis=0)` returns a `ModelProto`,
   annotations are mandatory to specify input and output shapes and types of the model.
 
 **Eager mode**
 
 Eager evaluation mode is mostly use to debug and check intermediate results
-are expected.
+are as expected.
 
 ```python
 import numpy as np
