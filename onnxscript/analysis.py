@@ -4,6 +4,7 @@ import ast
 import logging
 
 logger = logging.getLogger('onnx-script')
+from .values import DebugInfo
 
 
 def used_vars(expr):
@@ -57,6 +58,12 @@ def do_liveness_analysis(fun):
     and `s.live_out`.
     '''
     def visit(stmt, live_out):
+        stmt.live_out = live_out
+        live = do_visit(stmt, live_out)
+        stmt.live_in = live
+        return live
+
+    def do_visit(stmt, live_out):
         def visitBlock(block, live_out):
             for s in reversed(block):
                 live_out = visit(s, live_out)
@@ -72,13 +79,21 @@ def do_liveness_analysis(fun):
             return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
             return live_out  # TODO
-        raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+        if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):
+            # docstring
+            if hasattr(stmt.value, 'value') and isinstance(stmt.value.value, str):
+                # python 3.8+
+                return live_out
+            if hasattr(stmt.value, 's') and isinstance(stmt.value.s, str):
+                # python 3.7
+                return live_out
+        raise ValueError(DebugInfo(stmt).msg(
+            f"Unsupported statement type: {type(stmt).__name__}."))
 
     logger.debug("do_liveness_analysis:%s:begin", fun.name)
     assert isinstance(fun, ast.FunctionDef)
     live = set()
     for s in reversed(fun.body):
-        s.live_out = live
         live = visit(s, live)
         s.live_in = live
     logger.debug("do_liveness_analysis:%s:end", fun.name)

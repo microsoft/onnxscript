@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+from onnxscript.onnx import opset15 as op
 from onnxscript.onnx_types import FLOAT
 
 # tensor inputs can have ONNX-like type annotations
@@ -7,7 +8,7 @@ from onnxscript.onnx_types import FLOAT
 
 def gemm(A: FLOAT[2048, 124], W: FLOAT[124, 4096],
          Bias: FLOAT[4096]) -> FLOAT[2048, 4096]:
-    return onnx.MatMul(A, W) + Bias
+    return op.MatMul(A, W) + Bias
 
 # tensors and attributes distinguished by their types
 
@@ -27,13 +28,13 @@ def prodsum(A: FLOAT['N'], B: FLOAT['N']) -> (FLOAT['N'], FLOAT['N']):
 
 
 def dropout_eg(A: FLOAT[...]) -> FLOAT[...]:
-    output, mask = onnx.Dropout(A, 0.7, True, seed=1729)
+    output, mask = op.Dropout(A, 0.7, True, seed=1729)
     return output
 
 # will rename variable assigned multiple times
 
 
 def renaming(A: FLOAT["N"]) -> FLOAT["N"]:
-    T = onnx.Abs(A)
-    T = onnx.Neg(T)
+    T = op.Abs(A)
+    T = op.Neg(T)
     return T

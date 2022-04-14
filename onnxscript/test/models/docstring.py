@@ -7,20 +7,12 @@ from onnxscript.onnx_types import FLOAT, INT64
 
 
 def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
+    """
+    Combines ReduceSum, ReduceProd.
+    """
     sum = op.Identity(x)
     prod = op.Identity(x)
     for i in range(N):
-        sum = sum + x
-        prod = prod * x
-    return sum, prod
-
-# loop: loop-bound as an expression
-
-
-def sumprod2(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
-    sum = op.Identity(x)
-    prod = op.Identity(x)
-    for i in range(2 * N + 1):
         sum = sum + x
         prod = prod * x
     return sum, prod
