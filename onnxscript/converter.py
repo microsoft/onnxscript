@@ -13,7 +13,7 @@ from . import type_annotation as ta
 from . import values as values
 from .onnx import opset15 as default_opset
 from .values import (
-    ConstValue, AttrRef, Dynamic, OnnxFunction, Op, OpFunction, DynamicKind,
+    ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo, CustomOpset)
 
 
