@@ -44,15 +44,6 @@ class TestConverter(unittest.TestCase):
                         onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
                         with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.txt"), 'w') as fi:
                             fi.write(str(model))
-                        from mlprodict.plotting.text_plot import onnx_simple_text_plot
-                        print(onnx_simple_text_plot(model))
-                        from mlprodict.onnxrt import OnnxInference
-                        oinf = OnnxInference(model)
-                        import numpy
-                        x = numpy.random.randn(4, 4, 4, 4).astype(numpy.float32)
-                        l = numpy.array([4], dtype=numpy.int64)
-                        a = numpy.array([3], dtype=numpy.int64)
-                        print(oinf.run({'x': x, 'fft_length': l, 'axis': a}, verbose=1, fLOG=print))
                         raise AssertionError(f"onnxruntime failed with function '{f.name}'.") from e                        
                 model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
@@ -138,7 +129,7 @@ class TestConverter(unittest.TestCase):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxmodels.py"))
 
     def test_subfunction(self):
-        from .models import subfunction
+        from onnxscript.test.models import subfunction
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
@@ -147,7 +138,7 @@ class TestConverter(unittest.TestCase):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_statement.py"))
 
     def test_nested_if_models(self):
-        self._convert_and_save(os.path.join(CURRENT_DIR, "if_nested.py"))
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_nested.py"))
 
     def test_loop_models(self):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "loop.py"))
@@ -160,7 +151,7 @@ class TestConverter(unittest.TestCase):
 
     def test_dummy_tensor(self):
         self._convert_and_save(
-            os.path.join(CURRENT_DIR, "dummy_tensor.py"),
+            os.path.join(TEST_INPUT_DIR, "dummy_tensor.py"),
             tests={'dummy_tensor': dict(
                 inputs={'N': np.array([3], dtype=np.int64)},
                 expected=[np.array([[0, 0, 0], [0, 1, 2], [0, 2, 4]], dtype=np.float32)])})
@@ -169,5 +160,4 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_onnxfft()
     unittest.main()

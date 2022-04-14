@@ -117,14 +117,16 @@ def dynamic_switch_with_last_axis_4d(x: FLOAT[None, None, None, None], axis: INT
 #     return result
 
 
-def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
+def rfft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     # Similar to numpy.fft
     # one dimension.
     # Simpler to write with [axis].
     # cst = dft(x.shape[axis], length)  # dft is unknown, subfunction are not allowed
     step = op.Constant(value=make_tensor('step', TensorProto.INT64, [1], [1]))
     last = op.Constant(value=make_tensor('last', TensorProto.INT64, [1], [-1]))
-    zero_i = op.Constant(value=make_tensor('last', TensorProto.INT64, [1], [0]))
+    zero_i = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one_i = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    two_i = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
 
     x_shape = op.Shape(x)
     dim = op.Slice(x_shape, axis, axis + step)
@@ -138,22 +140,21 @@ def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     new_shape = op.Concat(xt_shape_but_last, fft_length - dim, axis=0)
 
     if dim >= fft_length:
-        print("A", dim, fft_length, zero_i, fft_length, last, step)
-        print("xt", xt.shape)
         new_xt = op.Slice(xt, zero_i, fft_length, last, step)
     else:
-        print("B")
         if dim == fft_length:  # not sure about elif
-            print("C")
             new_xt = op.Identity(xt)
         else:
             # other, the matrix is completed with zeros
-            print("D")
             new_xt = op.Concat(xt, op.ConstantOfShape(new_shape, value=0))
 
-    print("D", new_xt.shape, cst_cast.shape)
-    result = op.MatMul(new_xt, cst_cast)
-    # final = dynamic_switch_with_last_axis(xt, axis)
+    real_cst = op.Squeeze(op.Slice(cst_cast, zero_i, one_i, zero_i, step), zero_i)
+    imag_cst = op.Squeeze(op.Slice(cst_cast, one_i, two_i, zero_i, step), zero_i)
+    result_real = op.Unsqueeze(op.MatMul(new_xt, real_cst), zero_i)
+    result_imag = op.Unsqueeze(op.MatMul(new_xt, imag_cst), zero_i)
+    
+    result = op.Concat(result_real, result_imag, axis=0)
+
     final = dynamic_switch_with_last_axis_4d(result, axis)
     return final
 
@@ -165,7 +166,7 @@ if __name__ == "__main__":
     x = np.random.randn(4, 4, 4, 4).astype(np.float32)
     l = np.array([4], dtype=np.int64)
     a = np.array([3], dtype=np.int64)
-    result = fft(x, l, a)
+    result = rfft(x, l, a)
     print(result)
     print('done')
     
