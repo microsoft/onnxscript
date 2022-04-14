@@ -12,12 +12,15 @@
 # No default-values for inputs yet.
 # Element-type annotation for tensors
 
-import onnxscript.onnx.opset15 as op
+from onnxscript import script
+from onnxscript.onnx import opset15 as op
 
+@script()
 def Relu(X):
     zero = op.CastLike(0, X)
     return op.Max(X, zero)
 
+@script()
 def Selu(X, alpha: float, gamma: float):
     alphaX = op.CastLike(alpha, X)
     gammaX = op.CastLike(gamma, X)
@@ -26,26 +29,31 @@ def Selu(X, alpha: float, gamma: float):
     zero = op.CastLike(0, X)
     return op.Where(X <= zero, neg, pos)
 
+@script()
 def Elu(X, alpha: float):
     alphaX = op.CastLike(alpha, X)
     zero = op.CastLike(0, X)
     one = op.CastLike(1, X)
     return op.Where(X < zero, alphaX * (op.Exp(X) - one), X)
 
+@script()
 def ThresholdedRelu(X, alpha: float):
     zero = op.CastLike(0, X)
     alphaX = op.CastLike(alpha, X)
     return op.Where(X > alphaX, X, zero)
 
+@script()
 def LeakyRelu(X, alpha: float):
     zero = op.CastLike(0, X)
     alphaX = op.CastLike(alpha, X)
     return op.Where(X < zero, alphaX * X, X)
 
+@script()
 def PRelu(X, slope):
     zero = op.CastLike(0, X)
     return op.Where(X < zero, slope * X, X)
 
+@script()
 def HardSigmoid(X, alpha: float, beta: float):
     zero = op.CastLike(0, X)
     one = op.CastLike(1, X)
@@ -53,17 +61,21 @@ def HardSigmoid(X, alpha: float, beta: float):
     betaX = op.CastLike(beta, X)
     return op.Max(zero, op.Min(one, alphaX * X +  betaX))
 
+@script()
 def Shrink(x, bias: float, lambd: float):
     zero = op.CastLike(0, x)
     return op.Where(x < -lambd, x + bias, op.Where(x > lambd, x - bias, zero))
 
+@script()
 def Softplus(X):
     one = op.CastLike(1, X)
     return op.Log(op.Exp(X) + one)
 
+@script()
 def Softsign(X):
     one = op.CastLike(1, X)
     return X / (one + op.Abs(X))
 
+@script()
 def Clip(input, min, max):
     return op.Where(input < min, min, op.Where(input > max, max, input))
