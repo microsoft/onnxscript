@@ -18,7 +18,7 @@ def same_attr(attr1, attr2, graph_equality):
         if not same_optional(field, attr1, attr2):
             return False
     for field in ["t", "g", "sparse_tensor", "tp", "tensors", "graphs", "sparse_tensors",
-                 "type_protos"]:
+                  "type_protos"]:
         # TODO: check for more complex fields
         if attr1.HasField(field) or attr2.HasField(field):
             return False
