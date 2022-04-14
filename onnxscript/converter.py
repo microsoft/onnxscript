@@ -148,7 +148,7 @@ class Converter:
 
     def enter_scope(self, name, parent_node):
         self.outer.insert(0, self.current_fn)
-        self.current_fn = self.ir_builder.new_function(name)
+        self.current_fn = self.ir_builder.new_function(name, "SCOPE")
         self.locals.insert(0, {})
         logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
@@ -310,8 +310,6 @@ class Converter:
             r = self.emit_const(node.n, target, info=DebugInfo(node))
         elif isinstance(node, ast.NameConstant):
             r = self.emit_const(node.value, target)
-        elif isinstance(node, ast.BoolOp):
-            r = self.translate_bool_op_expr(node)
         else:
             raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         if isinstance(r, tuple):
@@ -341,18 +339,6 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
-        return Op(default_opset, opname), [left, right], []
-
-    def translate_bool_op_expr(self, node):
-        op = type(node.op)
-        assert op in primop_map
-        opname = primop_map[op]
-        if len(node.values) != 2:
-            raise SyntaxError(DebugInfo(node).msg(
-                "Boolean operator must have two operands not %d." % len(node.values)))
-        left, right = node.values
-        left = self.translate_expr(left)
-        right = self.translate_expr(right)
         return Op(default_opset, opname), [left, right], []
 
     def translate_unary_op_expr(self, node):
@@ -422,7 +408,6 @@ class Converter:
                 return opf
 
             if not found:
-                default_opset = values.opset15
                 if function_name not in default_opset:
                     # local function
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
@@ -623,7 +608,7 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else ""
+        domain = self.this_module.domain
         self.current_fn = self.ir_builder.new_function(fn.name, domain)
         for x in args.args:
             if x.annotation:

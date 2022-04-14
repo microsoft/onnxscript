@@ -96,35 +96,25 @@ def dynamic_switch_with_last_axis_4d(x: FLOAT[None, None, None, None], axis: INT
     return result
 
 
-def dynamic_switch_with_last_axis_3d_4d(x: FLOAT[...], axis: INT64[1]) -> FLOAT[...]:
-    dim = op.Size(op.Shape(x))
-    three = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [3]))
-    if dim == three:
-        result = dynamic_switch_with_last_axis_3d(x, axis)
-    else:
-        result = dynamic_switch_with_last_axis_4d(x, axis)
-    return result
-
-
-def dynamic_switch_with_last_axis(x: FLOAT[...], axis: INT64[1]) -> FLOAT[...]:
-    # transpose with the permutation as an attribute does not
-    # work here, we need a permutation depending on the input data
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    three = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
-    dim = op.Size(op.Shape(x)) - one  # x.shape.size - 1 or len(x.shape) - 1
-    if not(axis == dim) and dim > zero:
-        if dim == one:  # Error: Variable result is not assigned a value along a conditional branch
-            result = dynamic_switch_with_last_axis_2d(x, axis)
-        else:
-            if dim == two:
-                result = dynamic_switch_with_last_axis_3d(x, axis)
-            else:
-                result = dynamic_switch_with_last_axis_4d(x, axis)
-    else:
-        result = op.Identity(x)
-    return result
+# def dynamic_switch_with_last_axis(x: FLOAT[...], axis: INT64[1]) -> FLOAT[...]:
+#     # transpose with the permutation as an attribute does not
+#     # work here, we need a permutation depending on the input data
+#     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+#     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+#     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+#     three = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
+#     dim = op.Size(op.Shape(x)) - one  # x.shape.size - 1 or len(x.shape) - 1
+#     if not(axis == dim) and dim > zero:
+#         if dim == one:  # Error: Variable result is not assigned a value along a conditional branch
+#             result = dynamic_switch_with_last_axis_2d(x, axis)
+#         else:
+#             if dim == two:
+#                 result = dynamic_switch_with_last_axis_3d(x, axis)
+#             else:
+#                 result = dynamic_switch_with_last_axis_4d(x, axis)
+#     else:
+#         result = op.Identity(x)
+#     return result
 
 
 def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
@@ -140,34 +130,42 @@ def fft(x: FLOAT[None], fft_length: INT64, axis: INT64) -> FLOAT[None]:
     dim = op.Slice(x_shape, axis, axis + step)
     cst = dft(dim, fft_length)
     cst_cast = op.CastLike(cst, x)
-    xt = dynamic_switch_with_last_axis(x, axis)
-
+    # xt = dynamic_switch_with_last_axis(x, axis)
+    xt = dynamic_switch_with_last_axis_4d(x, axis)
+    
     # Cannot create variable inside a branch of a test
     xt_shape_but_last = op.Slice(op.Shape(xt), zero_i, last, zero_i, step)
-    new_shape = op.Concat(xt_shape_but_last, fft_length - dim)
+    new_shape = op.Concat(xt_shape_but_last, fft_length - dim, axis=0)
 
     if dim >= fft_length:
+        print("A", dim, fft_length, zero_i, fft_length, last, step)
+        print("xt", xt.shape)
         new_xt = op.Slice(xt, zero_i, fft_length, last, step)
     else:
+        print("B")
         if dim == fft_length:  # not sure about elif
-            new_xt = xt
+            print("C")
+            new_xt = op.Identity(xt)
         else:
             # other, the matrix is completed with zeros
+            print("D")
             new_xt = op.Concat(xt, op.ConstantOfShape(new_shape, value=0))
 
-    result = op.MatMul(xt, cst_cast)
-    final = dynamic_switch_with_last_axis(xt, axis)
+    print("D", new_xt.shape, cst_cast.shape)
+    result = op.MatMul(new_xt, cst_cast)
+    # final = dynamic_switch_with_last_axis(xt, axis)
+    final = dynamic_switch_with_last_axis_4d(result, axis)
     return final
 
 
 if __name__ == "__main__":
     import numpy as np
     from numpy.testing import assert_almost_equal
-    from onnxscript import eager_mode_evaluator as oxs
 
-    x = np.array([[0, 1], [2, 3]], dtype=np.float32)
-    result = dynamic_switch_with_last_axis(x, np.array([0], dtype=np.int64))
-    expected = x.T
-    assert_almost_equal(expected, result)
+    x = np.random.randn(4, 4, 4, 4).astype(np.float32)
+    l = np.array([4], dtype=np.int64)
+    a = np.array([3], dtype=np.int64)
+    result = fft(x, l, a)
+    print(result)
     print('done')
     

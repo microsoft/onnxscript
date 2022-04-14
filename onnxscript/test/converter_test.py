@@ -44,6 +44,15 @@ class TestConverter(unittest.TestCase):
                         onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.onnx"))
                         with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".error.ort.txt"), 'w') as fi:
                             fi.write(str(model))
+                        from mlprodict.plotting.text_plot import onnx_simple_text_plot
+                        print(onnx_simple_text_plot(model))
+                        from mlprodict.onnxrt import OnnxInference
+                        oinf = OnnxInference(model)
+                        import numpy
+                        x = numpy.random.randn(4, 4, 4, 4).astype(numpy.float32)
+                        l = numpy.array([4], dtype=numpy.int64)
+                        a = numpy.array([3], dtype=numpy.int64)
+                        print(oinf.run({'x': x, 'fft_length': l, 'axis': a}, verbose=1, fLOG=print))
                         raise AssertionError(f"onnxruntime failed with function '{f.name}'.") from e                        
                 model = onnx.shape_inference.infer_shapes(model)
                 if save_text:

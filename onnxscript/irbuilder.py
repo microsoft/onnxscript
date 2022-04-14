@@ -107,6 +107,8 @@ class Stmt:
 
 class Function:
     def __init__(self, name, domain="") -> None:
+        if domain == "":
+            raise ValueError("Domain cannot be null.")
         self.domain = domain
         self.name = name
         self.inputs = []
