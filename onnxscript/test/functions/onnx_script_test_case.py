@@ -1,6 +1,5 @@
 import dataclasses
 import unittest
-import numbers
 import numpy as np
 import onnx
 from onnx import ModelProto, OperatorSetIdProto
