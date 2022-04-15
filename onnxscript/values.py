@@ -128,11 +128,6 @@ class OnnxFunction(Op):
     def to_function_proto(self):
         return self.function_ir.to_function_proto(self.opset)
 
-    def to_model_proto(self, **kwargs):
-        if kwargs:
-            raise ValueError()
-        else:
-            return self.function_ir.to_model_proto()
 
 # Values fall into the following categories:
 # ConstValue: values known at translation-time, mapped to ONNX attributes
