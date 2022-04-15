@@ -77,7 +77,7 @@ primop_map = {
     ast.Mod: "Mod",
     ast.Mult: "Mul",
     ast.Not: "Not",
-    ast.NotEq: NotEqual,
+    ast.NotEq: 'NotEqual',
     ast.Pow: "Pow",
     ast.Sub: "Sub",
     ast.USub: "Neg",
@@ -211,20 +211,19 @@ class Converter:
         self.ir_builder.add_docstring(self.current_fn, docstring)
 
     def emit(self, outputs, callee, inputs, attrs):
-        if callee.is_single_op():
+        if callee.opname == 'NotEqual':
+            if len(attrs) != 0:
+                raise RuntimeError(
+                    "Operator %r does not support attributes." % callee.opname)
+            tmp = self.generate_unique_name()
+            self.ir_builder.add_stmt(
+                self.current_fn, [tmp], callee.opset, "Equal", inputs, attrs)
+            self.ir_builder.add_stmt(
+                self.current_fn, outputs, callee.opset, "Not", [tmp], attrs)
+        else:
             self.ir_builder.add_stmt(
                 self.current_fn, outputs, callee.opset,
                 callee.opname, inputs, attrs)
-        else:
-            # The python operator is converted into multiple operators through a function.
-            irb = IRBuilder()
-            conv = Converter(irb, global_names=self.globals)
-            conv.convert(callee.opname)
-            self.ir_builder.add_stmt(
-                self.current_fn, outputs, self.this_module,
-                callee.opname.__name__, inputs, attrs)
-            for v in irb.functions.values():
-                self.current_fn.append_function(v, self.this_module)
 
     def emit_loop(self, outputs, callee, inputs, attrs, info):
         def rename(x):
