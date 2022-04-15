@@ -42,12 +42,15 @@ pytest onnxscript/test
 
 *onnxscript* implements two main functionalities:
 
-- a converter which translate a python function into ONNX, the converter analyzes the python
-  code through the python abstract syntactic tree and converts that tree into an ONNX graph
+- a converter which translates a python function into ONNX; the converter analyzes the python
+  code using its abstract syntax tree and converts that tree into an ONNX graph
   equivalent to the function.
-- a runtime returning an eager evaluation of this function, this runtime relies on
-  *onnxruntime* for every operation described in
+- a runtime that allows such functions to be executed (in an "eager mode"); this runtime relies on
+  *onnxruntime* for executing every operation described in
   [ONNX Operators](https://github.com/onnx/onnx/blob/main/docs/Operators.md).
+
+The runtime is intended to help understand and debug function-definitions, and performance
+is not a goal for this mode.
 
 ## Example
 
@@ -58,17 +61,23 @@ from onnx import TensorProto
 from onnx.helper import make_tensor
 from onnxscript import script
 from onnxscript.onnx_types import INT64, FLOAT
+
+# We use ONNX opset 15 to define the function below.
 from onnxscript.opset15 as op
 
-
-# If the function is a model to export, it must have annotations to specify the type of inputs and outputs.
+# We use the script decorator to indicate that this is meant to be translated to ONNX.
 @script()
-def Hardmax(X: FLOAT[], axis=0) -> FLOAT[]:
-    # op gives access to ONNX operators for opset 15
+def Hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
+    # The type annotation on X indicates that it is a float tensor of unknown rank.
+    # The type annotation on axis indicates that it will be treated as an int attribute in ONNX.
+
+    # Invoke ONNX opset 15 op ArgMax
+    # Use unnamed arguments for ONNX input parameters, and named arguments for ONNX
+    # attribute parameters.
     argmax = op.ArgMax(X, axis=axis, keepdims=False)
-    # The parser makes the distinction between inputs (unnamed arguments) and attributes (named parameters).
+
     xshape = op.Shape(X, start=axis)
-    # Constant must be declared with operator Constant.
+    # use the Constant operator to create constant tensors
     zero = op.Constant(value_ints=[0])
     depth = op.GatherElements(xshape, zero)
     empty_shape = op.Constant(value_ints=[])
@@ -80,21 +89,17 @@ def Hardmax(X: FLOAT[], axis=0) -> FLOAT[]:
 ```
 
 The decorator parses the code of the function and converts it into an intermediate
-structure. If it fails, it produces an error message indicating the line where
-the error was detected. If it succeeds, the intermediate can be converted into
-one ONNX structure of type FunctionProto (a subpart of a model) or ModelProto
-(a whole model any runtime can predict with).
+representation. If it fails, it produces an error message indicating the line where
+the error was detected. If it succeeds, the intermediate representation
+can be converted into an ONNX structure of type FunctionProto as shown below.
 
-- `Hardmax.to_function_proto(axis=0)` returns a `FunctionProto`,
-  annotations are not used as FunctionProto does not requires any information about
-  shapes or types.
-- `Hardmax.to_model_proto(axis=0)` returns a `ModelProto`,
-  annotations are mandatory to specify input and output shapes and types of the model.
+- `Hardmax.to_function_proto()` returns a `FunctionProto`,
 
 **Eager mode**
 
 Eager evaluation mode is mostly use to debug and check intermediate results
-are expected.
+are as expected. The function defined above can be called as below, and this
+executes in an eager-evaluation mode.
 
 ```python
 import numpy as np

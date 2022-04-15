@@ -5,7 +5,7 @@ when they are approximatively expected.
 
 - **2022-04-06**: support standard onnx operators, one opset,
   a converter, eager evaluation, unit tests.
-- **2022-04-20**: decorator ``@onnscript`` to detect as soon as possible
+- **2022-04-20**: onnxscript decorator to detect as soon as possible
   wrong syntax, discrepancies between converter and eager evaluation
 - **2022-05-03**: documentation and tutorial, nested if, multiple opsets, implementation of many onnx operators with onnx primitives
 - **2022-05-17**: implementation of FFT functions, unidimensional and multidimensional
