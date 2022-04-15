@@ -69,7 +69,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         model = self._create_model_from_param(param, opset_import)
         onnx.checker.check_model(model)
         input = {
-            vi.name: [t] if isinstance(t, numbers.Number) else t
+            vi.name: t
             for vi, t in zip(model.graph.input, param.input)}
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
