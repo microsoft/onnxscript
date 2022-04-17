@@ -13,7 +13,7 @@ from . import type_annotation as ta
 from . import values as values
 from .onnx import opset15 as default_opset
 from .values import (
-    ConstValue, AttrRef, Dynamic, Op, OpFunction, DynamicKind,
+    ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo, CustomOpset)
 
 
@@ -383,24 +383,15 @@ class Converter:
             return Op(module, node.attr)
         if isinstance(node, ast.Name):
             function_name = node.id
-            if function_name in self.this_module:
-                # Calls a function within this module.
-                opf = OpFunction(self.this_module, function_name)
-                self.current_fn.append_function(opf)
-                return opf
             found = self.lookup(function_name, DebugInfo(node), raise_exception=False)
+            if isinstance(found, OnnxFunction):
+                self.current_fn.append_function(found)
+                return found
             if isinstance(found, Op):
                 return found
-            if hasattr(found, "function_ir"):
-                fir = found.function_ir
-                opf = Op(values.Opset(fir.domain, 1), fir.name)
-                # self.current_fn.append_function(opf)
-                return opf
-
             if not found:
                 default_opset = values.opset15
                 if function_name not in default_opset:
-                    # local function
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(default_opset, node.id)
         fail("Invalid callee")

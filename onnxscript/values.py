@@ -105,22 +105,26 @@ class Op:
         return self.evaluator(self.opschema, *args, **kwargs)
 
 
-class OpFunction(Op):
+class OnnxFunction(Op):
     '''
     Represents an ONNX op for which a function-body has been defined in onnxscript.
-    TODO: Logically, this should be used also for function definitions that pre-exist
-    in the ONNX schema registry, but we don't need them at this point.
     '''
 
-    def __init__(self, opset, opname):
-        super().__init__(opset, opname)
+    def __init__(self, opset, pyfun, irfun):
+        opset = opset or Opset(irfun.domain, 1)
+        super().__init__(opset, irfun.name)
+        self.function = pyfun
+        self.function_ir = irfun
 
     @property
     def name(self):
-        return self.opset[self.opname].name
+        return self.opname
+
+    def __call__(self, *args, **kwargs):
+        return self.function(*args, **kwargs)
 
     def to_function_proto(self):
-        return self.opset[self.opname].to_function_proto(domain=self.opset)
+        return self.function_ir.to_function_proto(self.opset)
 
 
 # Values fall into the following categories:
