@@ -5,6 +5,7 @@ from .converter import Converter
 import onnx.helper
 from . import values
 from .values import OnnxFunction
+import textwrap
 
 
 def script_check(f: ast.FunctionDef, opset, global_names):
@@ -26,6 +27,7 @@ def script(opset=None):
     def transform(f):
         if inspect.isfunction(f):
             src = inspect.getsource(f)
+            src = textwrap.dedent(src)
             module = inspect.getmodule(f)
             top_level_ast = ast.parse(src)
             assert type(top_level_ast) == ast.Module

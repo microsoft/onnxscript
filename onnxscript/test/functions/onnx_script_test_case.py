@@ -19,11 +19,13 @@ class FunctionTestParams:
 
 
 class OnnxScriptTestCase(unittest.TestCase):
-    def setUp(self):
-        self.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
-        self.local_opset_import = onnx.helper.make_opsetid("local", 1)
-        self.local_function_domain = "local"
-        self.rtol = 1e-7
+    @classmethod
+    def setUpClass(cls):
+        cls.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
+        cls.local_opset_import = onnx.helper.make_opsetid("local", 1)
+        cls.local_function_domain = "local"
+        cls.rtol = 1e-7
+        cls.all_test_cases = node_test.collect_testcases()
 
     def _create_model_from_param(
             self,
@@ -52,16 +54,26 @@ class OnnxScriptTestCase(unittest.TestCase):
             self.local_opset_import,
             **(param.attrs or {}))
 
+    def _filter_test_case_by_op_type(self, op_type):
+        test_cases = [
+            case for case in self.all_test_cases
+            if case.kind == 'node' and len(case.model.graph.node) == 1
+            and case.model.graph.node[0].op_type == op_type]
+        return test_cases
+
     def run_converter_test(
             self,
             param: FunctionTestParams,
             opset_import: OperatorSetIdProto = None):
         model = self._create_model_from_param(param, opset_import)
-        input = {vi.name: t for vi, t in zip(model.graph.input, param.input)}
+        onnx.checker.check_model(model)
+        input = {
+            vi.name: t
+            for vi, t in zip(model.graph.input, param.input)}
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
         actual = sess.run(None, input)
-        np.testing.assert_equal(actual, param.output)
+        np.testing.assert_allclose(actual, param.output, rtol=self.rtol)
 
     def run_eager_test(
             self,
@@ -77,9 +89,18 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             function: OnnxFunction,
             **attrs: Any):
-        cases = node_test.collect_testcases_by_operator(function.function_ir.name)
+        cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for i, case in enumerate(cases):
+            if len(case.model.graph.node) != 1:
+                raise ValueError("run_onnx_test only \
+                    tests models with one operator node.")
+
+            test_case_attrs = {
+                a.name: a.f for a in case.model.graph.node[0].attribute}
+            test_case_attrs = {**attrs, **test_case_attrs}
+
             for ds in case.data_sets:
-                param = FunctionTestParams(function, ds[0], ds[1], attrs=attrs)
+                param = FunctionTestParams(
+                    function, ds[0], ds[1], attrs=test_case_attrs)
                 self.run_converter_test(param, case.model.opset_import)
                 self.run_eager_test(param, case.model.opset_import)

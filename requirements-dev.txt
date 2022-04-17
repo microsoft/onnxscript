@@ -1,7 +1,8 @@
 flake8
 matplotlib
 onnx
-onnxruntime
+--extra-index-url https://test.pypi.org/simple/
+ort-nightly
 sphinx
 sphinx-gallery
 pydata_sphinx_theme
