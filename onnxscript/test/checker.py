@@ -1,24 +1,33 @@
 import onnx
 
 
-def same_optional(field, obj1, obj2):
+def same_optional(field, obj1, obj2, equals=None):
     '''
     Check two proto object have same value for optional field.
     This is restricted to simple field types where == comparison is sufficient.
     '''
+    if (equals is None):
+        equals = lambda v1, v2: v1 == v2
     if (obj1.HasField(field)):
-        return obj2.HasField(field) and (getattr(obj1, field) == getattr(obj2, field))
+        return obj2.HasField(field) and equals(getattr(obj1, field), getattr(obj2, field))
     else:
         return not obj2.HasField(field)
-
+    
 
 def same_attr(attr1, attr2, graph_equality):
     # no name check; names used to match attributes already.
     for field in ["type", "ref_attr_name", "f", "i", "s", "floats", "ints", "strings"]:
         if not same_optional(field, attr1, attr2):
             return False
-    for field in ["t", "g", "sparse_tensor", "tp", "tensors", "graphs", "sparse_tensors",
-                  "type_protos"]:
+
+    if not same_optional("g", attr1, attr2, graph_equality):
+        return False
+
+    for (g1, g2) in zip (attr1.graphs, attr2.graphs):
+        if not graph_equality(g1, g2):
+            return False
+
+    for field in ["t", "sparse_tensor", "tp", "tensors", "sparse_tensors", "type_protos"]:
         # TODO: check for more complex fields
         if attr1.HasField(field) or attr2.HasField(field):
             return False
@@ -114,6 +123,9 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
         # Nodes represent same computation. Cache the comparison result.
         node_mapping[n1] = n2
         return True
+
+    def same_sub_graph(g1, g2):
+        raise NotImplemented("Sub graph comparison")
 
     # Check that both functions compute the same value for all outputs:
     if len(fn1.output) != len(fn2.output):
