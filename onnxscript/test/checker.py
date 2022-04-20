@@ -17,8 +17,12 @@ def same_optional(field, obj1, obj2, equals=None):
 
 def same_attr(attr1, attr2, graph_equality):
     # no name check; names used to match attributes already.
-    for field in ["type", "ref_attr_name", "f", "i", "s", "floats", "ints", "strings"]:
+    for field in ["type", "ref_attr_name", "f", "i", "s"]:
         if not same_optional(field, attr1, attr2):
+            return False
+
+    for field in ["floats", "ints", "strings"]:
+        if getattr(attr1, field) != getattr(attr2, field):
             return False
 
     if not same_optional("g", attr1, attr2, graph_equality):
@@ -28,7 +32,8 @@ def same_attr(attr1, attr2, graph_equality):
         if not graph_equality(g1, g2):
             return False
 
-    for field in ["t", "sparse_tensor", "tp", "tensors", "sparse_tensors", "type_protos"]:
+    # for field in ["t", "sparse_tensor", "tp", "tensors", "sparse_tensors", "type_protos"]:
+    for field in ["t", "sparse_tensor", "tp"]:
         # TODO: check for more complex fields
         if attr1.HasField(field) or attr2.HasField(field):
             return False
@@ -95,6 +100,8 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
     outer_scopes = []
     fn1map = defmap(fn1)
     fn2map = defmap(fn2)
+    nodelist1 = fn1.node
+    nodelist2 = fn2.node
     node_mapping = {}
     delayed_checks = []
 
@@ -104,7 +111,7 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
             # Both variables must be in same scope:
             if (var1 in fn1map) or (var2 in fn2map) or (not outer_scopes): return False
             # For variables in outer-scopes, delay check until later
-            delayed_checks.append(var1, var2)
+            delayed_checks.append((var1, var2))
             return True
         (node1, index1) = fn1map[var1]
         (node2, index2) = fn2map[var2]
@@ -116,12 +123,13 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
         nonlocal node_mapping
         if (n1 in node_mapping):
             return node_mapping[n1] == n2
-        node1 = fn1.node[n1]
-        node2 = fn2.node[n2]
+        node1 = nodelist1[n1]
+        node2 = nodelist2[n2]
         if node1.op_type != node2.op_type: return False
         if node1.domain != node2.domain: return False
         # check attrs
         if not same_attrs(node1.attribute, node2.attribute, same_sub_graph): return False
+        if not same_outputs(node1.input, node2.input): return False # TODO: fix name 'same_outputs'
 
         # Nodes represent same computation. Cache the comparison result.
         node_mapping[n1] = n2
@@ -130,34 +138,40 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
     def same_sub_graph(g1, g2):
         if len(g1.input) != len(g2.input): return False
         # TODO: check types
-        if g1.HasField("initializer") or g2.HasField("initializer"): return False # TODO
-        if g1.HasField("sparse_initializer") or g2.HasField("sparse_initializer"): return False # TODO
+        if g1.initializer or g2.initializer: return False # TODO
+        if g1.sparse_initializer or g2.sparse_initializer: return False # TODO
+
         # Save information about outer scope TODO: delayed_checks?
-        nonlocal fn1map, fn2map, node_mapping
-        outer_scopes.insert(0, (fn1map, fn2map, node_mapping))
+        nonlocal fn1map, fn2map, nodelist1, nodelist2, node_mapping, delayed_checks
+        outer_scopes.insert(0, (fn1map, fn2map, nodelist1, nodelist2, node_mapping, delayed_checks))
         fn1map = defmap(g1)
+        nodelist1 = g1.node
         fn2map = defmap(g2)
+        nodelist2 = g2.node
         node_mapping = {}
+        delayed_checks = []
 
         if not same_outputs(g1.output, g2.output): return False
         # TODO completeness tests!
      
         # Restore information about outer scope
-        fn1map, fn2map, node_mapping = outer_scopes.pop(0)
         temp = delayed_checks
-        delayed_checks = []
+        fn1map, fn2map, nodelist1, nodelist2, node_mapping, delayed_checks = outer_scopes.pop(0)
+
         for (v1, v2) in temp:
             if not same_value(v1, v2): return False
         return True
     
     def same_outputs(list1, list2):
         # Check that both functions compute the same value for all outputs:
-        if len(fn1.output) != len(fn2.output): return False
+        if len(list1) != len(list2): return False
 
         # For now, we allow the function outputs to have different names.
-        for x, y in zip(fn1.output, fn2.output):
+        for x, y in zip(list1, list2):
             if not same_value(ioname(x), ioname(y)):
                 return False
+        
+        return True
 
     if not same_outputs(fn1.output, fn2.output): return False
 
