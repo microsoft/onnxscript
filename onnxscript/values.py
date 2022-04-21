@@ -125,6 +125,12 @@ class OnnxFunction(Op):
 
     def to_function_proto(self):
         return self.function_ir.to_function_proto(self.opset)
+    
+    def to_model_proto(self):
+        # TODO: validate that this function satisfies the preconditions for exporting as model:
+        # 1. It must have no attribute parameter.
+        # 2. It must have input/output types specified.
+        return self.function_ir.to_model_proto()
 
 
 # Values fall into the following categories:
