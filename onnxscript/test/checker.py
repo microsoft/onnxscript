@@ -79,8 +79,8 @@ class Matcher:
 
         self.defmap1 = defmap(fg1)
         self.defmap2 = defmap(fg2)
-        self.nodelist1 = fg1.node
-        self.nodelist2 = fg2.node
+        self.fg1 = fg1
+        self.fg2 = fg2
         self.node_mapping = {}
         self.outer_scope_checks = []
         self.outer_scope = outer_scope
@@ -103,8 +103,8 @@ class Matcher:
         if (n1 == -1) or (n2 == -1): return False # Only one is input
         if (n1 in self.node_mapping):
             return self.node_mapping[n1] == n2
-        node1 = self.nodelist1[n1]
-        node2 = self.nodelist2[n2]
+        node1 = self.fg1.node[n1]
+        node2 = self.fg2.node[n2]
         if node1.op_type != node2.op_type: return False
         if node1.domain != node2.domain: return False
         # check attrs
@@ -115,7 +115,16 @@ class Matcher:
         self.node_mapping[n1] = n2
         return True
 
+    def same_value_list(self, list1, list2):
+        '''Match two lists of variables (either a string or ValueInfoProto)'''
+        if len(list1) != len(list2): return False
+        for x, y in zip(list1, list2):
+            if not self.same_value(ioname(x), ioname(y)):
+                return False
+        return True
+
     def same_sub_graph(self, g1, g2):
+        '''Match two sub-graphs.'''
         if len(g1.input) != len(g2.input): return False
         # TODO: check types
         if g1.initializer or g2.initializer: return False # TODO
@@ -129,16 +138,40 @@ class Matcher:
         for (v1, v2) in sub_graph_matcher.outer_scope_checks:
             if not self.same_value(v1, v2): return False
         return True
-    
-    def same_value_list(self, list1, list2):
-        '''Match two lists of variables (either a string or ValueInfoProto)'''
-        if len(list1) != len(list2): return False
-        for x, y in zip(list1, list2):
-            if not self.same_value(ioname(x), ioname(y)):
-                return False
-        
+
+    def same_function(self):
+        '''Match (top-level) two functions.'''
+
+        # Ok for function names/domain to be different.
+
+        # Attribute parameters and inputs must be same for both:
+        if (self.fg1.input != self.fg2.input): return False
+        if (self.fg1.attribute != self.fg2.attribute): return False
+
+        # Opset imports must be same (but possibly in different order):
+        # Convert opset-imports into a dictionary
+        def imports(f):
+            # TODO: assuming each domain has only one entry in a valid FunctionProto
+            return {entry.domain: entry.version for entry in f.opset_import}
+
+        if (imports(self.fg1) != imports(self.fg2)): return False
+
+        # Now do a specific form of isomorphism check: Both must compute the same
+        # set of operations, possibly in different order as long as they respect
+        # the topological-sort order requirement. The two may use different names
+        # for intermediate-values, as long as the computation is the same.
+
+        if len(self.fg1.node) != len(self.fg2.node): return False
+
+        if not self.same_value_list(self.fg1.output, self.fg2.output): return False
+
+        # We do not allow for unused values in the function, which are
+        # hard to handle in an isomorphism check.
+        if len(self.node_mapping) != len(self.fg1.node): return False
+        if len(set(self.node_mapping.values())) != len(self.fg2.node): return False
+
         return True
-        
+
 def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
     '''
     Checks that two function bodies are isomorphic.
@@ -146,34 +179,7 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
     Use a separate check to verify that the inputs satisfy
     FunctionProto requirements (like no duplicate attributes).
     '''
-    # Ok for function names/domain to be different.
-
-    # Attribute parameters and inputs must be same for both:
-    if (fn1.input != fn2.input): return False
-    if (fn1.attribute != fn2.attribute): return False
-
-    # Opset imports must be same (but possibly in different order):
-
-    # Convert opset-imports into a dictionary
-    def imports(f):
-        # TODO: assuming each domain has only one entry in a valid FunctionProto
-        return {entry.domain: entry.version for entry in f.opset_import}
-
-    if (imports(fn1) != imports(fn2)): return False
-
-    # Now do a specific form of isomorphism check: Both must compute the same
-    # set of operations, possibly in different order as long as they respect
-    # the topological-sort order requirement. The two may use different names
-    # for intermediate-values, as long as the computation is the same.
-
-    if len(fn1.node) != len(fn2.node): return False
-
     matcher = Matcher(fn1, fn2, None)
-    if not matcher.same_value_list(fn1.output, fn2.output): return False
+    return matcher.same_function()
 
-    # We do not allow for unused values in the function, which are
-    # hard to handle in an isomorphism check.
-    if len(matcher.node_mapping) != len(fn1.node): return False
-    if len(set(matcher.node_mapping.values())) != len(fn2.node): return False
 
-    return True
