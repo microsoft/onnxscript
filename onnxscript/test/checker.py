@@ -97,34 +97,37 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
                 result[x] = (ni, xi) 
         return result
 
-    outer_scopes = []
-    fn1map = defmap(fn1)
-    fn2map = defmap(fn2)
-    nodelist1 = fn1.node
-    nodelist2 = fn2.node
-    node_mapping = {}
-    delayed_checks = []
+    class Scope:
+        def __init__(self, fg1, fg2, outer_scope) -> None:
+            self.fn1map = defmap(fg1)
+            self.fn2map = defmap(fg2)
+            self.nodelist1 = fg1.node
+            self.nodelist2 = fg2.node
+            self.node_mapping = {}
+            self.delayed_checks = []
+            self.outer_scope = outer_scope
+
+    scope = Scope(fn1, fn2, None)
 
     # Check that fn1 computes the same value for var1 as fn2 computes for var2:
     def same_value(var1, var2):
-        if (var1 not in fn1map or var2 not in fn2map):
-            # Both variables must be in same scope:
-            if (var1 in fn1map) or (var2 in fn2map) or (not outer_scopes): return False
+        if (var1 not in scope.fn1map or var2 not in scope.fn2map):
+            # If one of the variables is in current scope, or if there is no outer scope, fail
+            if (var1 in scope.fn1map) or (var2 in scope.fn2map) or (scope.outer_scope is None): return False
             # For variables in outer-scopes, delay check until later
-            delayed_checks.append((var1, var2))
+            scope.delayed_checks.append((var1, var2))
             return True
-        (node1, index1) = fn1map[var1]
-        (node2, index2) = fn2map[var2]
+        (node1, index1) = scope.fn1map[var1]
+        (node2, index2) = scope.fn2map[var2]
         return (index1 == index2) and same_node(node1, node2)
 
     def same_node(n1, n2):
         if (n1 == -1) and (n2 == -1): return True # Both are inputs
         if (n1 == -1) or (n2 == -1): return False # Only one is input
-        nonlocal node_mapping
-        if (n1 in node_mapping):
-            return node_mapping[n1] == n2
-        node1 = nodelist1[n1]
-        node2 = nodelist2[n2]
+        if (n1 in scope.node_mapping):
+            return scope.node_mapping[n1] == n2
+        node1 = scope.nodelist1[n1]
+        node2 = scope.nodelist2[n2]
         if node1.op_type != node2.op_type: return False
         if node1.domain != node2.domain: return False
         # check attrs
@@ -132,7 +135,7 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
         if not same_outputs(node1.input, node2.input): return False # TODO: fix name 'same_outputs'
 
         # Nodes represent same computation. Cache the comparison result.
-        node_mapping[n1] = n2
+        scope.node_mapping[n1] = n2
         return True
 
     def same_sub_graph(g1, g2):
@@ -142,23 +145,17 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
         if g1.sparse_initializer or g2.sparse_initializer: return False # TODO
 
         # Save information about outer scope TODO: delayed_checks?
-        nonlocal fn1map, fn2map, nodelist1, nodelist2, node_mapping, delayed_checks
-        outer_scopes.insert(0, (fn1map, fn2map, nodelist1, nodelist2, node_mapping, delayed_checks))
-        fn1map = defmap(g1)
-        nodelist1 = g1.node
-        fn2map = defmap(g2)
-        nodelist2 = g2.node
-        node_mapping = {}
-        delayed_checks = []
+        nonlocal scope
+        scope = Scope(g1, g2, scope)
 
         if not same_outputs(g1.output, g2.output): return False
         # TODO completeness tests!
      
         # Restore information about outer scope
-        temp = delayed_checks
-        fn1map, fn2map, nodelist1, nodelist2, node_mapping, delayed_checks = outer_scopes.pop(0)
+        outer_scope_checks = scope.delayed_checks
+        scope = scope.outer_scope
 
-        for (v1, v2) in temp:
+        for (v1, v2) in outer_scope_checks:
             if not same_value(v1, v2): return False
         return True
     
@@ -177,7 +174,7 @@ def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
 
     # We do not allow for unused values in the function, which are
     # hard to handle in an isomorphism check.
-    if len(node_mapping) != len(fn1.node): return False
-    if len(set(node_mapping.values())) != len(fn2.node): return False
+    if len(scope.node_mapping) != len(fn1.node): return False
+    if len(set(scope.node_mapping.values())) != len(fn2.node): return False
 
     return True
