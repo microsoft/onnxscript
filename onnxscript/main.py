@@ -51,15 +51,13 @@ def is_converted_fun(f):
     return isinstance(f, OnnxFunction)
 
 
-def export_onnx_lib(module: ModuleType, filename: str) -> None:
-    funs = set([v for k, v in module.__dict__.items() if is_converted_fun(v)])
-
+def export_onnx_lib(functions, filename: str) -> None:
     # Since we don't yet have LibProto defined, we use a ModelProto as a temporary
     # container for the list of functions exported as a library, with an empty graph
     # and dummy opset_imports.
     model = onnx.helper.make_model(
         onnx.GraphProto(),
-        functions=[f.to_function_proto() for f in funs],
+        functions=[f.to_function_proto() for f in functions],
         producer_name='p2o',
         opset_imports=[onnx.helper.make_opsetid("", 15)])
 
