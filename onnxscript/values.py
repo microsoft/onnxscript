@@ -125,11 +125,14 @@ class OnnxFunction(Op):
 
     def to_function_proto(self):
         return self.function_ir.to_function_proto(self.opset)
-    
+
     def to_model_proto(self):
-        # TODO: validate that this function satisfies the preconditions for exporting as model:
-        # 1. It must have no attribute parameter.
-        # 2. It must have input/output types specified.
+        if self.function_ir.attrs:
+            raise ValueError("A function with attributes cannot be exported as a model.")
+        # Note: The function must also have monomorphic type annotation for inputs/outputs
+        # to be converted into a valid model. Otherwise, we can still produce an ONNX
+        # model, but it will not pass the ONNX model checker. We do not report an error
+        # at this stage.
         return self.function_ir.to_model_proto()
 
 
