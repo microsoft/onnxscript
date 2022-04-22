@@ -91,8 +91,7 @@ class Matcher:
             # If one of the variables is in current scope, or if there is no outer scope, fail
             if (var1 in self.defmap1) or (var2 in self.defmap2) or (self.outer_scope is None): return False
             # Both variables are in outer-scopes. Delay check until later
-            self.outer_scope_checks.append((var1, var2))
-            return True
+            return self.outer_scope.same_value(var1, var2)
         (node1, index1) = self.defmap1[var1]
         (node2, index2) = self.defmap2[var2]
         return (index1 == index2) and self.same_node(node1, node2)
@@ -125,18 +124,19 @@ class Matcher:
 
     def same_sub_graph(self, g1, g2):
         '''Match two sub-graphs.'''
+        sub_graph_matcher = Matcher(g1, g2, self)
+        return sub_graph_matcher.same_graph()
+
+    def same_graph(self):
+        '''Match two sub-graphs.'''
+        g1 = self.fg1
+        g2 = self.fg2
         if len(g1.input) != len(g2.input): return False
         # TODO: check types
         if g1.initializer or g2.initializer: return False # TODO
         if g1.sparse_initializer or g2.sparse_initializer: return False # TODO
-
-        sub_graph_matcher = Matcher(g1, g2, self)
-
-        if not sub_graph_matcher.same_value_list(g1.output, g2.output): return False
+        if not self.same_value_list(g1.output, g2.output): return False
         # TODO completeness tests!
-     
-        for (v1, v2) in sub_graph_matcher.outer_scope_checks:
-            if not self.same_value(v1, v2): return False
         return True
 
     def same_function(self):
@@ -144,14 +144,13 @@ class Matcher:
 
         # Ok for function names/domain to be different.
 
-        # Attribute parameters and inputs must be same for both:
-        if (self.fg1.input != self.fg2.input): return False
-        if (self.fg1.attribute != self.fg2.attribute): return False
+        if len(self.fg1.input) != len(self.fg2.input): return False
+        if set(self.fg1.attribute) != set(self.fg2.attribute): return False
 
         # Opset imports must be same (but possibly in different order):
         # Convert opset-imports into a dictionary
         def imports(f):
-            # TODO: assuming each domain has only one entry in a valid FunctionProto
+            # Assumes each domain has only one entry in a valid FunctionProto
             return {entry.domain: entry.version for entry in f.opset_import}
 
         if (imports(self.fg1) != imports(self.fg2)): return False
