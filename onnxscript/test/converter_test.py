@@ -51,14 +51,6 @@ class TestConverter(unittest.TestCase):
                         "Verification of model failed.") from e
                 onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
-    def test_source_input(self):
-        script = textwrap.dedent("""
-            def square(x):
-                return oxs.Mul(x, x)
-            """)
-        res = self._convert(script)
-        self.assertEqual(len(res), 1)
-
     def test_source_input_error_undefined(self):
         script = textwrap.dedent("""
             def square(x):
@@ -83,14 +75,6 @@ class TestConverter(unittest.TestCase):
         x = np.array([5, 6], dtype=np.float32)
         got = sess.run(None, {'x': x})
         self.assertEqual((x * x).tolist(), got[0].tolist())
-
-    def test_msdomain(self):
-        # Temporary patch to use com.microsoft domain
-        script = textwrap.dedent("""
-            def foo(x):
-                return msdomain.bar(x, x)
-            """)
-        self._convert(script)
 
     def test_onnxfns1(self):
         self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1.py"))
