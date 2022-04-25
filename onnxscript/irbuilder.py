@@ -148,14 +148,14 @@ class Function:
                         st.write(helper.printable_graph(attr.attr_proto.g))
                         st.write("\n")
 
-    def append_function(self, opf, domain):
+    def append_function(self, opf):
         name = opf.name
         if name in self.functions:
             # Already added.
             return
         try:
-            proto = opf.to_function_proto(domain)
-        except TypeError as e:
+            proto = opf.to_function_proto(opf.opset)
+        except (TypeError, AttributeError) as e:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[name] = proto
 
