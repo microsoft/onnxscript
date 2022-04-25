@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
-from .testutils import TestBase
+from onnxscript.test.testutils import TestBase
 from onnxscript import script
 from onnxscript.onnx import opset15 as op
 

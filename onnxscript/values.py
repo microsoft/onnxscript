@@ -127,7 +127,7 @@ class OnnxFunction(Op):
         return self.function(*args, **kwargs)
 
     def to_function_proto(self, domain=None):
-        return self.opset[self.opname].to_function_proto(domain=domain or self.opset)
+        return self.function_ir.to_function_proto(domain or self.opset)
 
 
 # Values fall into the following categories:
