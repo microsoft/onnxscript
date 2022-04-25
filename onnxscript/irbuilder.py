@@ -68,6 +68,8 @@ class Stmt:
     def __init__(self, result, module, opname, args, attrs) -> None:
         if not isinstance(module, Opset):
             raise TypeError(f"Unexpected type {type(module)} for module.")
+        if not isinstance(opname, str):
+            raise TypeError(f"Unexpected type {type(opname)} for opname.")
         self.result = result
         self.module = module
         self.opname = opname
@@ -151,7 +153,10 @@ class Function:
         if name in self.functions:
             # Already added.
             return
-        proto = opf.to_function_proto()
+        try:
+            proto = opf.to_function_proto(opf.opset)
+        except (TypeError, AttributeError) as e:
+            raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[name] = proto
 
     def model_functions(self):
@@ -225,8 +230,17 @@ class Function:
 
 
 class IRBuilder:
-    def new_function(self, name, domain=""):
-        return Function(name, domain)
+
+    def __init__(self):
+        self.functions = {}
+
+    def new_function(self, name, domain="", register=False):
+        if register and (domain, name) in self.functions:
+            raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
+        fct = Function(name, domain)
+        if register:
+            self.functions[domain, name] = fct
+        return fct
 
     def add_docstring(self, fn, docstring):
         fn.append_docstring(docstring)

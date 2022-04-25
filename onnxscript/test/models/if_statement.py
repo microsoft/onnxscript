@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
+from onnx import TensorProto
+from onnx.helper import make_tensor
+from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript import script
-from onnxscript.onnx_types import FLOAT
 from onnxscript.onnx import opset15 as op
+
 
 @script()
 def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
@@ -37,4 +40,58 @@ def maxsum3(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     result = op.Identity(A)
     if (sum1 < sum2):
         result = op.Identity(B)
+    return result
+
+
+def check_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    if axis == zero:
+        result = op.Transpose(x, perm=[1, 0])
+    else:
+        result = op.Identity(x)
+    return result
+
+
+def check_less_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    if axis <= zero:
+        result = op.Transpose(x, perm=[1, 0])
+    else:
+        result = op.Identity(x)
+    return result
+
+
+def check_greater(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    if axis > zero:
+        result = op.Transpose(x, perm=[1, 0])
+    else:
+        result = op.Identity(x)
+    return result
+
+
+def check_greater_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    if axis >= zero:
+        result = op.Transpose(x, perm=[1, 0])
+    else:
+        result = op.Identity(x)
+    return result
+
+
+def check_not(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    if not(axis >= zero):
+        result = op.Transpose(x, perm=[1, 0])
+    else:
+        result = op.Identity(x)
+    return result
+
+
+def check_different(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    if axis != zero:
+        result = op.Transpose(x, perm=[1, 0])
+    else:
+        result = op.Identity(x)
     return result
