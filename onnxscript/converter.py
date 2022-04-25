@@ -15,7 +15,6 @@ from .onnx import opset15 as default_opset
 from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo, CustomOpset)
-from .libfunctions import NotEqual
 
 
 logger = logging.getLogger("onnx-script")
