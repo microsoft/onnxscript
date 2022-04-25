@@ -1,4 +1,3 @@
-from types import ModuleType
 import ast
 import inspect
 from .converter import Converter
