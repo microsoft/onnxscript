@@ -4,7 +4,7 @@ import unittest
 from onnx import FunctionProto
 from onnxscript import OnnxFunction
 from .checker import isomorphic
-import onnx.helper
+
 
 def function_proto(f):
     if isinstance(f, FunctionProto):

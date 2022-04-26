@@ -4,6 +4,7 @@ from .testutils import TestBase
 from onnxscript import script
 from onnxscript.onnx import opset15 as op
 
+
 class IfOpTester(TestBase):
 
     def test_no_else(self):
