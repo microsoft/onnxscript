@@ -85,6 +85,9 @@ class TestConverter(unittest.TestCase):
     def test_models(self):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxmodels.py"))
 
+    def test_unary_op(self):
+        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "m1.py"))
+
     def test_subfunction(self):
         from onnxscript.test.models import subfunction
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
@@ -107,4 +110,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
+    TestConverter().test_unary_op()
     unittest.main()

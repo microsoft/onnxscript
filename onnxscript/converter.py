@@ -274,7 +274,7 @@ class Converter:
             return 1 if node.value else 0
         if isinstance(node, ast.List):
             return [self.eval_attr(x) for x in node.elts]
-        if isinstance(node, (ast.Call, ast.Attribute)):
+        if isinstance(node, (ast.Call, ast.Attribute, ast.UnaryOp)):
             return self.eval_constant_expr(node)
         raise ValueError(f"Unsupported attribute type: {type(node).__name__}.")
 
