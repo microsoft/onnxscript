@@ -103,6 +103,9 @@ class TestConverter(unittest.TestCase):
         proto = res[0].to_function_proto(Opset('custom_domain', 1))
         self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
 
+    def test_signal(self):
+        self._convert(os.path.join(TEST_INPUT_DIR, "signal_dft.py"))
+
 
 if __name__ == '__main__':
     # import logging

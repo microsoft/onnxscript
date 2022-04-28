@@ -52,7 +52,7 @@ def ignore(cond, msg):
 # Utility to convert a python value to TensorProto:
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, info):
     if isinstance(pyvalue, bool):
         return helper.make_tensor(tensor_name, onnx.TensorProto.BOOL, [], [int(pyvalue)])
     if isinstance(pyvalue, int):
@@ -60,7 +60,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
     if isinstance(pyvalue, float):
         return helper.make_tensor(tensor_name, onnx.TensorProto.FLOAT, [], [pyvalue])
     # TODO: str, sequences of values
-    fail("Unimplemented")
+    fail(info.msg("pyvalue_to_tensor is not implemented for type %r." % type(pyvalue)))
 
 
 # map from python operators to ONNX ops
@@ -189,7 +189,7 @@ class Converter:
             "value_int" if (pytype is int) else "value_string")
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
-    def to_onnx_var(self, val, target=None):
+    def to_onnx_var(self, val, target=None, info=None):
         if isinstance(val, AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
@@ -198,13 +198,13 @@ class Converter:
             return result
         if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
-            return self.emit_const(val.value, result)
+            return self.emit_const(val.value, result, info)
         if isinstance(val, Dynamic):
             return val.value
         fail("Cannot convert to onnx variable")
 
     def py_var_to_onnx_var(self, py_var, info):
-        return self.to_onnx_var(self.lookup(py_var, info))
+        return self.to_onnx_var(self.lookup(py_var, info), info=info)
 
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self.current_fn, docstring)
@@ -235,9 +235,9 @@ class Converter:
         onnx_outputs = [rename(x) for x in outputs]
         self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs)
 
-    def emit_const(self, pyvalue, suggested_name):
+    def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue)
+        tensor = pyvalue_to_tensor(ovar, pyvalue, info)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(default_opset, "Constant"), [], [attr])
         return ovar
@@ -314,9 +314,9 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif isinstance(node, ast.Num):
-            r = self.emit_const(node.n, target)
+            r = self.emit_const(node.n, target, DebugInfo(node))
         elif isinstance(node, ast.NameConstant):
-            r = self.emit_const(node.value, target)
+            r = self.emit_const(node.value, target, DebugInfo(node))
         else:
             raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         if isinstance(r, tuple):
@@ -434,6 +434,12 @@ class Converter:
                 if hasattr(node.value, 's') and isinstance(node.value.s, str):
                     # python 3.7
                     return self.translate_docstring(node)
+        try:
+            if node.value.func.id == 'print':
+                # Any call to print function are ignored.
+                return None
+        except (TypeError, AttributeError):
+            pass
         raise ValueError(DebugInfo(node).msg(
             f"Unsupported statement type: {type(node).__name__}."))
 
@@ -528,7 +534,7 @@ class Converter:
         outputs = list(loop_state_vars | scan_outputs)
 
         # loop-condition:
-        o_true = self.emit_const(True, "true")
+        o_true = self.emit_const(True, "true", DebugInfo(for_stmt))
         # o_loop_bound = self.emit_const(3, "loop_bound")
 
         # build loop_body

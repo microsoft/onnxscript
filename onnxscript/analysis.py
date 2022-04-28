@@ -34,7 +34,10 @@ def defs(stmt):
     def block_defs(block):
         result = set()
         for s in block:
-            result = result | defs(s)
+            d = defs(s)
+            if d is None:
+                continue
+            result = result | d
         return result
 
     if isinstance(stmt, ast.Assign):
@@ -45,6 +48,12 @@ def defs(stmt):
         return block_defs(stmt.body) | block_defs(stmt.orelse)
     if isinstance(stmt, list):
         return block_defs(stmt)
+    try:
+        if stmt.value.func.id == 'print':
+            # Any call to print function are ignored.
+            return None
+    except (TypeError, AttributeError):
+        pass
     raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
 
 
@@ -63,7 +72,11 @@ def do_liveness_analysis(fun):
     def do_visit(stmt, live_out):
         def visitBlock(block, live_out):
             for s in reversed(block):
-                live_out = visit(s, live_out)
+                lo = visit(s, live_out)
+                if lo is None:
+                    # ignore the statement
+                    continue
+                live_out = lo
             return live_out
 
         if isinstance(stmt, ast.Assign):
@@ -84,6 +97,12 @@ def do_liveness_analysis(fun):
             if hasattr(stmt.value, 's') and isinstance(stmt.value.s, str):
                 # python 3.7
                 return live_out
+        try:
+            if stmt.value.func.id == 'print':
+                # Any call to print function are ignored.
+                return None
+        except (TypeError, AttributeError):
+            pass
         raise ValueError(DebugInfo(stmt).msg(
             f"Unsupported statement type: {type(stmt).__name__}."))
 
