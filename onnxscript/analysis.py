@@ -109,7 +109,10 @@ def do_liveness_analysis(fun):
     assert isinstance(fun, ast.FunctionDef)
     live = set()
     for s in reversed(fun.body):
-        live = visit(s, live)
+        live_ = visit(s, live)
+        if live_ is None:
+            continue
+        live = live_
 
 
 def exposed_uses(stmts):

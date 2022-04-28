@@ -78,16 +78,21 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_eager_test(
             self,
             param: FunctionTestParams,
-            opset_imports: Sequence[OperatorSetIdProto] = None):
+            opset_imports: Sequence[OperatorSetIdProto] = None,
+            rtol: float=None,
+            atol: float=None):
 
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
             actual if isinstance(actual, list)
-            else [actual], param.output, rtol=self.rtol)
+            else [actual], param.output,
+            rtol=rtol or self.rtol, atol=atol or self.atol)
 
     def run_onnx_test(
             self,
             function: OnnxFunction,
+            rtol: float=None,
+            atol: float=None,
             **attrs: Any):
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for i, case in enumerate(cases):
@@ -103,4 +108,4 @@ class OnnxScriptTestCase(unittest.TestCase):
                 param = FunctionTestParams(
                     function, ds[0], ds[1], attrs=test_case_attrs)
                 self.run_converter_test(param, case.model.opset_import)
-                self.run_eager_test(param, case.model.opset_import)
+                self.run_eager_test(param, case.model.opset_import, rtol=rtol, atol=atol)

@@ -10,35 +10,33 @@ from onnxscript.onnx_types import FLOAT, INT64
 def dft(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[...]:
     """
     See PR https://github.com/onnx/onnx/pull/3741/.
-    
+
     *Part 1*
-    
+
     Computes the matrix:
     :math:`\\left(\\exp\\left(\\frac{-2i\\pi nk}{K}\\right)\\right)_{nk}`
     and builds two matrices, real part and imaginary part.
 
     *Part 2*
-    
+
     Matrix multiplication. The fft axis is the last one.
     It builds two matrices, real and imaginary parts for DFT.
 
     *Part 3*
-    
+
     Part 2 merges the real and imaginary parts into one single matrix
     where the last axis indicates whether it is the real or the imaginary part.
     """
-    
+
     # Part 1
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    three = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [3]))
+    three = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
+    four = op.Constant(value=make_tensor('four', TensorProto.INT64, [1], [4]))
     last = op.Constant(value=make_tensor('last', TensorProto.INT64, [1], [-1]))
     shape1 = op.Constant(value=make_tensor('shape1', TensorProto.INT64, [2], [-1, 1]))
     shape2 = op.Constant(value=make_tensor('shape2', TensorProto.INT64, [2], [1, -1]))
-    x_shape = op.Shape(x)
-    axis = op.Size(x_shape) - one
-    dim = op.Slice(x_shape, axis, axis + one)
 
     nar = op.Range(zero, fft_length, one)  #fft_length or dim
     n0 = op.Cast(nar, to=1)
@@ -57,52 +55,94 @@ def dft(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[...]:
     # Part 2
     if onesided:
         # rfft: x is a float tensor
-        
+        x_shape = op.Shape(x)
+        axis = op.Size(x_shape) - one
+        dim = op.Slice(x_shape, axis, axis + one)
+
         if dim >= fft_length:
+            # fft_length is shorter, x is trimmed to that size
             pad_x = op.Slice(x, zero, fft_length, last, one)
         else:
-            if dim == fft_length:  # not sure about elif
+            if dim == fft_length:
+                # no padding
                 pad_x = op.Identity(x)
             else:
-                # other, the matrix is completed with zeros
+                # the matrix is completed with zeros
+                # operator Pad could be used too.
                 x_shape_but_last = op.Slice(op.Shape(x), zero, last, zero, one)
                 new_shape = op.Concat(x_shape_but_last, fft_length - dim, axis=0)
-                print(x.shape, new_shape)
-                
-                # The current parser does not support
-                # unary operator and `-1` is interpreted as `-(1)`.
-                # It produces the error `ValueError: Unsupported attribute type: UnaryOp`.
-                pad_x = op.Concat(x, op.ConstantOfShape(new_shape, value=0), axis=-1)
+                cst = op.ConstantOfShape(new_shape, value=0)
+                pad_x = op.Concat(x, op.Cast(cst, to=1), axis=-1)
 
         result_real = op.Unsqueeze(op.MatMul(pad_x, cos_win), zero)
         result_imag = op.Unsqueeze(op.MatMul(pad_x, sin_win), zero)
 
     else:
-        # not implemented yet
-        result_real = op.Identity(x)
-        result_imag = op.Identity(x)
-        
+        # fft: x is a complex tensor in a float tensor
+        # last dimension is the complex one
+        x_shape_c = op.Shape(x)
+        x_shape = op.Slice(x_shape_c, zero, last, last)
+        axis = op.Size(x_shape) - one
+        dim = op.Slice(x_shape, axis, axis + one)
+
+        real_x = op.Squeeze(op.Slice(x, zero, one, last), last)
+        imag_x = op.Squeeze(op.Slice(x, one, two, last), last)
+
+        if dim >= fft_length:
+            # fft_length is shorter, x is trimmed to that size
+            pad_r = op.Slice(real_x, zero, fft_length, last, one)
+            pad_i = op.Slice(imag_x, zero, fft_length, last, one)
+        else:
+            if dim == fft_length:
+                # no padding
+                pad_r = op.Identity(real_x)
+                pad_i = op.Identity(imag_x)
+            else:
+                # the matrix is completed with zeros
+                # operator Pad could be used too.
+                x_shape_but_last = op.Slice(op.Shape(real_x), zero, last, zero, one)
+                new_shape = op.Concat(x_shape_but_last, fft_length - dim, axis=0)
+                cst = op.ConstantOfShape(new_shape, value=0)
+                pad_r = op.Concat(real_x, op.Cast(cst, to=1), axis=-1)
+                pad_i = op.Concat(imag_x, op.Cast(cst, to=1), axis=-1)
+
+        result_real = op.Unsqueeze(op.Sub(op.MatMul(pad_r, cos_win), op.MatMul(pad_i, sin_win)), zero)
+        result_imag = op.Unsqueeze(op.Add(op.MatMul(pad_r, sin_win), op.MatMul(pad_i, cos_win)), zero)
+
     # final step, needs to move to first axis into the last position.
     result = op.Concat(result_real, result_imag, axis=0)
-    if dim == one:
+    n_dims = op.Size(op.Shape(result))
+
+    if n_dims == one:
+        # This should not happen.
         final = op.Identity(result)
     else:
-        if dim == two:
+        if n_dims == two:
             final = op.Transpose(result, perm=[1, 0])
         else:
-            if dim == three:
+            if n_dims == three:
                 final = op.Transpose(result, perm=[1, 2, 0])
             else:
-                # It does not work for more than 4 dimensions.
-                # The runtime fails here in that case due to an inconcistency
-                # between result dimension and permutation size.
-                final = op.Transpose(result, perm=[1, 2, 0])
+                if n_dims == four:
+                    final = op.Transpose(result, perm=[1, 2, 3, 0])
+                else:
+                    # It does not work for more than 4 dimensions.
+                    # The runtime fails here in that case due to an inconcistency
+                    # between result dimension and permutation size.
+                    final = op.Transpose(result, perm=[1, 2, 3, 4, 0])
 
     return final
 
 
-if __name__ == "__main__":
-    import numpy as np
-    x = np.arange(5).astype(np.float32).reshape((1, -1))
-    le = np.array([6], dtype=np.int64)
-    print(dft(x, le))
+# if __name__ == "__main__":
+#     import numpy as np
+#     x = np.array([[0.0, 0.0],
+#                   [1.0, 0.10000000149011612],
+#                   [2.0, 0.20000000298023224],
+#                   [3.0, 0.30000001192092896],
+#                   [4.0, 0.4000000059604645]],
+#                  dtype=np.float32)
+#     le = np.array([4], dtype=np.int64)
+#     r = dft(x, le, False)
+#     print(r.shape)
+#     print(r)

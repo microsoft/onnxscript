@@ -274,7 +274,7 @@ class Converter:
             return 1 if node.value else 0
         if isinstance(node, ast.List):
             return [self.eval_attr(x) for x in node.elts]
-        if isinstance(node, (ast.Call, ast.Attribute)):
+        if isinstance(node, (ast.Call, ast.Attribute, ast.UnaryOp)):
             return self.eval_constant_expr(node)
         raise ValueError(f"Unsupported attribute type: {type(node).__name__}.")
 
@@ -499,9 +499,10 @@ class Converter:
     def translate_if_stmt(self, stmt: ast.If):
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         test = self.translate_expr(stmt.test, "cond")
-        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
+        lineno = DebugInfo(stmt).lineno
+        thenGraph = self.translate_block(stmt.body, "thenGraph_%d" % lineno, live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
-        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs)
+        elseGraph = self.translate_block(stmt.orelse, "elseGraph_%d" % lineno, live_defs)
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
@@ -662,6 +663,9 @@ class Converter:
             for alias in stmt.names:
                 asname = alias.asname if alias.asname else alias.name
                 self.globals[asname] = getattr(module, alias.name)
+        elif isinstance(stmt, ast.If):
+            # Skips it.
+            return None
         else:
             raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
 
