@@ -205,7 +205,6 @@ class TestOnnxSignal(OnnxScriptTestCase):
                         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
 
-
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
