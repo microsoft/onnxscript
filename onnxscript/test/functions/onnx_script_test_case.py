@@ -80,8 +80,8 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             param: FunctionTestParams,
             opset_imports: Sequence[OperatorSetIdProto] = None,
-            rtol: float=None,
-            atol: float=None):
+            rtol: float = None,
+            atol: float = None):
 
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
@@ -92,8 +92,8 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_onnx_test(
             self,
             function: OnnxFunction,
-            rtol: float=None,
-            atol: float=None,
+            rtol: float = None,
+            atol: float = None,
             **attrs: Any):
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for i, case in enumerate(cases):
