@@ -34,10 +34,7 @@ def defs(stmt):
     def block_defs(block):
         result = set()
         for s in block:
-            d = defs(s)
-            if d is None:
-                continue
-            result = result | d
+            result = result | defs(s)
         return result
 
     if isinstance(stmt, ast.Assign):
@@ -51,7 +48,7 @@ def defs(stmt):
     try:
         if stmt.value.func.id == 'print':
             # Any call to print function are ignored.
-            return None
+            return set()
     except (TypeError, AttributeError):
         pass
     raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
@@ -72,11 +69,7 @@ def do_liveness_analysis(fun):
     def do_visit(stmt, live_out):
         def visitBlock(block, live_out):
             for s in reversed(block):
-                lo = visit(s, live_out)
-                if lo is None:
-                    # ignore the statement
-                    continue
-                live_out = lo
+                live_out = visit(s, live_out)
             return live_out
 
         if isinstance(stmt, ast.Assign):
@@ -100,7 +93,7 @@ def do_liveness_analysis(fun):
         try:
             if stmt.value.func.id == 'print':
                 # Any call to print function are ignored.
-                return None
+                return live_out
         except (TypeError, AttributeError):
             pass
         raise ValueError(DebugInfo(stmt).msg(
@@ -109,10 +102,7 @@ def do_liveness_analysis(fun):
     assert isinstance(fun, ast.FunctionDef)
     live = set()
     for s in reversed(fun.body):
-        live_ = visit(s, live)
-        if live_ is None:
-            continue
-        live = live_
+        live = visit(s, live)
 
 
 def exposed_uses(stmts):
