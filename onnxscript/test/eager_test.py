@@ -3,7 +3,6 @@
 import unittest
 import numpy as np
 from numpy.testing import assert_almost_equal
-import onnx
 from onnxscript.test.models import signal_dft
 from onnxscript.test.functions.onnx_script_test_case import (
     OnnxScriptTestCase, FunctionTestParams)
@@ -57,8 +56,10 @@ class TestOnnxSignal(OnnxScriptTestCase):
             for s in [4, 5, 6]:
                 le = np.array([s], dtype=np.int64)
                 expected = self._fft(x, le)
-                with self.subTest(x_shape=x.shape, le=list(le), expected_shape=expected.shape):
-                    case = FunctionTestParams(signal_dft.dft_last_axis, [x, le], [expected])
+                with self.subTest(x_shape=x.shape, le=list(le),
+                                  expected_shape=expected.shape):
+                    case = FunctionTestParams(
+                        signal_dft.dft_last_axis, [x, le], [expected])
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_cfft_last_axis(self):
@@ -80,7 +81,8 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 expected1 = self._fft(c, le)
                 expected2 = self._cfft(x, le)
                 assert_almost_equal(expected1, expected2)
-                with self.subTest(c_shape=c.shape, le=list(le), expected_shape=expected1.shape):
+                with self.subTest(c_shape=c.shape, le=list(le),
+                                  expected_shape=expected1.shape):
                     case = FunctionTestParams(
                         signal_dft.dft_last_axis, [x, le, False], [expected1])
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
@@ -100,7 +102,8 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     nax = np.array([ax], dtype=np.int64)
                     with self.subTest(x_shape=x.shape, le=list(le), ax=ax,
                                       expected_shape=expected.shape):
-                        case = FunctionTestParams(signal_dft.dft, [x, le, nax], [expected])
+                        case = FunctionTestParams(
+                            signal_dft.dft, [x, le, nax], [expected])
                         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_cfft(self):

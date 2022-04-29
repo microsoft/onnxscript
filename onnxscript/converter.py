@@ -632,7 +632,7 @@ class Converter:
             self.translate_stmt(s, index_of_stmt=i)
         if self.returntype is not None:
             if self.num_outputs != len(self.returntype):
-                raise SyntaxError(DebugInfo(node).msg(
+                raise SyntaxError(DebugInfo(fn).msg(
                     "Mismatch in number of return values and types."))
         return self.current_fn
 
