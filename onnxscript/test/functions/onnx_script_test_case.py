@@ -24,6 +24,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         cls.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
         cls.local_opset_import = onnx.helper.make_opsetid("local", 1)
         cls.local_function_domain = "local"
+        cls.atol = 1e-7
         cls.rtol = 1e-7
         cls.all_test_cases = node_test.collect_testcases()
 

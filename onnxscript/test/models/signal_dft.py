@@ -7,7 +7,7 @@ from onnxscript.onnx_types import FLOAT, INT64
 
 
 @script()
-def dft(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[...]:
+def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[...]:
     """
     See PR https://github.com/onnx/onnx/pull/3741/.
 
@@ -117,32 +117,100 @@ def dft(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[...]:
         # This should not happen.
         final = op.Identity(result)
     else:
-        if n_dims == two:
-            final = op.Transpose(result, perm=[1, 0])
-        else:
-            if n_dims == three:
-                final = op.Transpose(result, perm=[1, 2, 0])
-            else:
-                if n_dims == four:
-                    final = op.Transpose(result, perm=[1, 2, 3, 0])
-                else:
-                    # It does not work for more than 4 dimensions.
-                    # The runtime fails here in that case due to an inconcistency
-                    # between result dimension and permutation size.
-                    final = op.Transpose(result, perm=[1, 2, 3, 4, 0])
+        result_shape = op.Shape(result)
+        shape_cpl = op.Constant(value=make_tensor('shape_cpl', TensorProto.INT64, [2], [2, -1]))
+        reshaped_result = op.Reshape(result, shape_cpl)
+        transposed = op.Transpose(reshaped_result, perm=[1, 0])
+        other_dimensions = op.Slice(result_shape, one, op.Shape(result_shape), zero)
+        final_shape = op.Concat(other_dimensions, two, axis=0)
+        final = op.Reshape(transposed, final_shape)
 
+    return final
+
+
+@script()
+def switch_axes(x, axis1, axis2):
+    """
+    Switches two axis. The function assumes `axis1 < axis2`.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    shape = op.Shape(x)
+    n_dims = op.Shape(shape)
+    axis2_1 = op.Sub(axis2, one)
+    n_dims_1 = op.Sub(n_dims, one)
+    
+    # First into a 5D dimension tensor.
+    dims1_final = op.Slice(shape, zero, axis1, zero)
+    if axis1 == zero:
+        dims1 = one
+    else:
+        dims1 = dims1_final
+
+    dims2_final = op.Slice(shape, op.Add(axis1, one), axis2, zero)
+    if axis1 == axis2_1:
+        dims2 = one
+    else:
+        dims2 = dims2_final
+
+    dims3_final = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
+    if axis2 == n_dims_1:
+        dims3 = one
+    else:
+        dims3 = dims3_final
+
+    dim1 = op.Slice(shape, axis1, op.Add(axis1, one), zero)
+    dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
+
+    new_shape = op.Concat(op.ReduceProd(dims1),
+                          dim1,
+                          op.ReduceProd(dims2),
+                          dim2,
+                          op.ReduceProd(dims3),
+                          axis=0)
+    reshaped = op.Reshape(x, new_shape)
+
+    # Transpose
+    transposed = op.Transpose(reshaped, perm=[0, 3, 2, 1, 4])
+
+    # Reshape into its final shape.
+    final_shape = op.Concat(dims1_final, dim2, dims2_final, dim1, dims3_final, axis=0)
+    return op.Reshape(transposed, final_shape)
+
+
+@script()
+def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> FLOAT[...]:
+    """
+    Applies one dimension FFT.
+    The function moves the considered axis to the last position
+    calls dft_last_axis, and moves the axis to its original position.
+    """
+    shape = op.Shape(x)
+    n_dims = op.Shape(shape)
+
+    if onesided:
+        one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+        last_dim = op.Sub(n_dims, one)
+    else:
+        two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+        last_dim = op.Sub(n_dims, two)
+
+    if axis == last_dim:
+        final = dft_last_axis(x, fft_length, onesided)
+    else:
+        xt = switch_axes(x, axis, last_dim)
+        fft = dft_last_axis(xt, fft_length, onesided)
+        final = switch_axes(fft, axis, last_dim)
     return final
 
 
 # if __name__ == "__main__":
 #     import numpy as np
-#     x = np.array([[0.0, 0.0],
-#                   [1.0, 0.10000000149011612],
-#                   [2.0, 0.20000000298023224],
-#                   [3.0, 0.30000001192092896],
-#                   [4.0, 0.4000000059604645]],
+#     x = np.array([[0, 1, 2, 3, 4],
+#                   [5, 6, 7, 8, 9]],
 #                  dtype=np.float32)
+#     ax1 = np.array([0], dtype=np.int64)
 #     le = np.array([4], dtype=np.int64)
-#     r = dft(x, le, False)
+#     r = dft(x, le, ax1, True)
 #     print(r.shape)
 #     print(r)

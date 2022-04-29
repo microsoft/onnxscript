@@ -286,7 +286,7 @@ class Converter:
             else:
                 # TODO: lookup value; if func.def., compile it to Graph; if a
                 # constant; etc.
-                fail("Unimplemented attribute construct")
+                fail(DebugInfo(node).msg("Unimplemented attribute construct."))
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
     def translate_docstring(self, node):
@@ -408,7 +408,6 @@ class Converter:
             if isinstance(found, Op):
                 return found
             if not found:
-                default_opset = values.opset15
                 if function_name not in default_opset:
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(default_opset, node.id)
@@ -583,8 +582,9 @@ class Converter:
                         pv_val = scope[pvar]
                         break
                 if pv_val is None:
-                    fail(f"Variable {pvar} is not assigned a value along a conditional "
-                         f"branch, known variables: {list(sorted(self.locals))}.")
+                    fail(DebugInfo(stmts[0]).msg(
+                        f"Variable {pvar} is not assigned a value along a conditional "
+                        f"branch, known variables: {list(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
                 self.emit([ovar], Op(default_opset, "Identity"),
@@ -631,8 +631,9 @@ class Converter:
         for i, s in enumerate(fn.body):
             self.translate_stmt(s, index_of_stmt=i)
         if self.returntype is not None:
-            assert self.num_outputs == len(self.returntype), \
-                "Mismatch in number of return values and types"
+            if self.num_outputs != len(self.returntype):
+                raise SyntaxError(DebugInfo(node).msg(
+                    "Mismatch in number of return values and types."))
         return self.current_fn
 
     def do_import(self, alias):
