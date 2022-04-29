@@ -7,7 +7,7 @@ from onnxscript.onnx_types import FLOAT, INT64
 
 
 @script()
-def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[...]:
+def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True, inverse=False) -> FLOAT[...]:
     """
     See PR https://github.com/onnx/onnx/pull/3741/.
 
@@ -46,7 +46,12 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[.
     k0 = op.Cast(kar, to=1)
     k = op.Reshape(k0, shape2)
 
-    cst_2pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
+    if inverse:
+        cst_2pi = op.Constant(
+            value=make_tensor('pi', TensorProto.FLOAT, [1], [6.28318530718])) #  2pi
+    else:
+        cst_2pi = op.Constant(
+            value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
     fft_length_float = op.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
     cos_win = op.Cos(p)
@@ -125,7 +130,11 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True) -> FLOAT[.
         final_shape = op.Concat(other_dimensions, two, axis=0)
         final = op.Reshape(transposed, final_shape)
 
-    return final
+    if inverse:
+        norm = op.Div(final, fft_length_float)
+    else:
+        norm = op.Identity(final)
+    return norm
 
 
 @script()
@@ -179,7 +188,8 @@ def switch_axes(x, axis1, axis2):
 
 
 @script()
-def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> FLOAT[...]:
+def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
+            onesided=True, inverse=False) -> FLOAT[...]:
     """
     Applies one dimension FFT.
     The function moves the considered axis to the last position
@@ -196,21 +206,29 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> F
         last_dim = op.Sub(n_dims, two)
 
     if axis == last_dim:
-        final = dft_last_axis(x, fft_length, onesided)
+        final = dft_last_axis(x, fft_length, onesided, inverse)
     else:
         xt = switch_axes(x, axis, last_dim)
-        fft = dft_last_axis(xt, fft_length, onesided)
+        fft = dft_last_axis(xt, fft_length, onesided, inverse)
         final = switch_axes(fft, axis, last_dim)
     return final
 
 
-# if __name__ == "__main__":
-#     import numpy as np
-#     x = np.array([[0, 1, 2, 3, 4],
-#                   [5, 6, 7, 8, 9]],
-#                  dtype=np.float32)
-#     ax1 = np.array([0], dtype=np.int64)
-#     le = np.array([4], dtype=np.int64)
-#     r = dft(x, le, ax1, True)
-#     print(r.shape)
-#     print(r)
+@script()
+def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> FLOAT[...]:
+    """
+    Applies one dimensional FFT.
+    The function moves the considered axis to the last position
+    calls dft_last_axis, and moves the axis to its original position.
+    """
+    return dft_inv(x, fft_length, axis, onesided, False)
+
+
+@script()
+def idft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> FLOAT[...]:
+    """
+    Applies one dimensional IFFT.
+    The function moves the considered axis to the last position
+    calls dft_last_axis, and moves the axis to its original position.
+    """
+    return dft_inv(x, fft_length, axis, onesided, True)
