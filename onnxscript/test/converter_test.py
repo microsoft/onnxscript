@@ -29,7 +29,7 @@ class TestConverter(unittest.TestCase):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
             with self.subTest(f=f.name):
-                model = f.to_function_proto()
+                f.to_function_proto()
 
     def validate_save(self, script, save_text=False, check_ort=False):
         if isinstance(script, types.ModuleType):
@@ -70,7 +70,7 @@ class TestConverter(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             @script()
             def square(x):
-                return op.Mul(undefined, x)
+                return op.Mul(undefined, x)  # noqa: F821
         self.assertIn("string:3", str(e.exception))
 
     def test_run_ort(self):
@@ -111,7 +111,7 @@ class TestConverter(unittest.TestCase):
 
     def test_docstring(self):
         @script()
-        def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
+        def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):   # noqa: F821
             """
             Combines ReduceSum, ReduceProd.
             """

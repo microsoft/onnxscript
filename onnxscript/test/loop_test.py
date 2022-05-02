@@ -9,7 +9,7 @@ class LoopOpTester(TestBase):
     def test_loop(self):
         '''Basic loop test.'''
         @script()
-        def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
+        def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):   # noqa: F821
             sum = op.Identity(x)
             prod = op.Identity(x)
             for i in range(N):
@@ -21,7 +21,7 @@ class LoopOpTester(TestBase):
     def test_loop_bound(self):
         '''Test with an expression for loop bound.'''
         @script()
-        def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):
+        def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):   # noqa: F821
             sum = op.Identity(x)
             prod = op.Identity(x)
             for i in range(2 * N + 1):
