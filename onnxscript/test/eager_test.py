@@ -85,7 +85,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     expected = self._fft(x_, le)
                     if onesided:
                         slices = [slice(0, a) for a in expected.shape]
-                        slices[-2] = slice(0, (expected.shape[-2] + 1) // 2)
+                        slices[-2] = slice(0, expected.shape[-2] // 2 + expected.shape[-2] % 2)
                         expected = expected[slices]
                     with self.subTest(x_shape=x.shape, le=list(le),
                                       expected_shape=expected.shape,

@@ -136,7 +136,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=F
     
 
     if onesided:
-        half = op.Div(op.Add(fft_length, one), two)
+        half = op.Div(fft_length, two) + op.Mod(fft_length, two)
         n_r_dims_1 = op.Sub(op.Shape(op.Shape(x)), one)
         truncated = op.Slice(result, zero, half, n_r_dims_1)
     else:
