@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import inspect
 import ast
 import logging
 import onnx
