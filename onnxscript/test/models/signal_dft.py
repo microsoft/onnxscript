@@ -8,7 +8,8 @@ from onnxscript.onnx_types import FLOAT, INT64
 
 
 @script()
-def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=False) -> FLOAT[...]:
+def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
+                  onesided=False, inverse=False, normalize=False) -> FLOAT[...]:
     """
     See PR https://github.com/onnx/onnx/pull/3741/.
 
@@ -32,8 +33,11 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=F
         if has 1 or 2 elements, 1 if the tensor is real and does not
         have any imaginary part, 2 if the tensor is complex
     :param fft_length: length of the FFT
+    :param weights: same size as FFT length, to implementent STFT,
+        otherwise it is one.
     :param onesided: if True, returns a truncated result `[:fft_length//2]`
     :param inverse: returns FFT or the inverse of FFT
+    :param normalize: normalizes the result
     :return: tensor
     """
 
@@ -47,7 +51,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=F
     shape1 = op.Constant(value=make_tensor('shape1', TensorProto.INT64, [2], [-1, 1]))
     shape2 = op.Constant(value=make_tensor('shape2', TensorProto.INT64, [2], [1, -1]))
 
-    nar = op.Range(zero, fft_length, one)  #fft_length or dim
+    nar = op.Range(zero, fft_length, one)  # fft_length or dim
     n0 = op.Cast(nar, to=1)
     n = op.Reshape(n0, shape1)
 
@@ -63,8 +67,13 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=F
             value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
     fft_length_float = op.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
-    cos_win = op.Cos(p)
-    sin_win = op.Sin(p)
+    cos_win_u = op.Cos(p)
+    sin_win_u = op.Sin(p)
+
+    # weights
+    reshaped_weights = op.Reshape(weights, shape1)
+    cos_win = op.Mul(cos_win_u, reshaped_weights)
+    sin_win = op.Mul(sin_win_u, reshaped_weights)
 
     # real or complex
     full_shape = op.Shape(x)
@@ -154,7 +163,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=F
         final_shape = op.Concat(other_dimensions, two, axis=0)
         final = op.Reshape(transposed, final_shape)
 
-    if inverse:
+    if normalize:
         norm = op.Div(final, fft_length_float)
     else:
         norm = op.Identity(final)
@@ -213,7 +222,8 @@ def switch_axes(x, axis1, axis2):
 
 @script()
 def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
-            onesided=False, inverse=False) -> FLOAT[...]:
+            weights: FLOAT['N'], onesided=False, inverse=False,
+            normalize=False) -> FLOAT[...]:
     """
     Applies one dimension FFT.
     The function moves the considered axis to the last position
@@ -225,10 +235,10 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     last_dim = op.Sub(n_dims, two)
 
     if axis == last_dim:
-        final = dft_last_axis(x, fft_length, onesided, inverse)
+        final = dft_last_axis(x, fft_length, weights, onesided, inverse, normalize)
     else:
         xt = switch_axes(x, axis, last_dim)
-        fft = dft_last_axis(xt, fft_length, onesided, inverse)
+        fft = dft_last_axis(xt, fft_length, weights, onesided, inverse, normalize)
         final = switch_axes(fft, axis, last_dim)
     return final
 
@@ -240,7 +250,9 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) -> 
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
-    return dft_inv(x, fft_length, axis, onesided, False)
+    weights = op.ConstantOfShape(
+        fft_length, value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
+    return dft_inv(x, fft_length, axis, weights, onesided, False, False)
 
 
 @script()
@@ -250,9 +262,12 @@ def idft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) ->
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
-    return dft_inv(x, fft_length, axis, onesided, True)
+    weights = op.ConstantOfShape(
+        fft_length, value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
+    return dft_inv(x, fft_length, axis, weights, onesided, True, True)
 
 
+@script()
 def hann_window(window_length):
     """
     Returns
@@ -270,6 +285,7 @@ def hann_window(window_length):
     return op.Mul(sin, sin)
 
 
+@script()
 def hamming_window(window_length, alpha, beta):
     """
     Returns
@@ -289,6 +305,7 @@ def hamming_window(window_length, alpha, beta):
     return op.Sub(alpha, op.Mul(cos, beta))
 
 
+@script()
 def blackman_window(window_length):
     """
     Returns
@@ -311,9 +328,38 @@ def blackman_window(window_length):
     return op.Add(op.Sub(t042, op.Mul(cos2, t05)), op.Mul(cos4, t008))
 
 
+@script()
+def stft(x: FLOAT[...], fft_length: INT64[1], frame_step: INT64[1],
+         window: FLOAT['N'], axis: INT64[1], onesided=False) -> FLOAT[...]:
+    """
+    Applies one dimensional FFT with window weights.
+    """
+    return dft_inv(x, fft_length, axis, window, onesided, False, False)
+
+
 if __name__ == "__main__":
     import numpy as np
-    le = np.array([6], dtype=np.int64)
-    ft = blackman_window(le)
+    import torch
+    _ = torch.from_numpy
+    x = np.arange(5).astype(np.float32)
+    axis = np.array([0], dtype=np.int64)
+    le = np.array([5], dtype=np.int64)
+    
+    print(dft(x[..., np.newaxis], le, axis))
+    print(np.fft.fft(x))
+    sop
+    
+    
+    one = np.array([1], dtype=np.int64)
+    win = blackman_window(le[0])
+    #win[:] = 0
+    #win[1] = 10
+    ft = stft(x[..., np.newaxis], le, one, win, axis)
+    
+    tft1 = torch.stft(_(x), n_fft=le[0], win_length=le[0], window=_(win), center=False, onesided=False)
+    print('--------------------------')
+    print("win=", win)
     print(ft)
+    print('*')
+    print(tft1.numpy()[:, 0, :])
     

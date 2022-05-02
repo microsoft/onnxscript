@@ -82,6 +82,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 x = x_[..., np.newaxis]
                 for s in [4, 5, 6]:
                     le = np.array([s], dtype=np.int64)
+                    we = np.array([1] * le[0], dtype=np.float32)
                     expected = self._fft(x_, le)
                     if onesided:
                         slices = [slice(0, a) for a in expected.shape]
@@ -89,13 +90,13 @@ class TestOnnxSignal(OnnxScriptTestCase):
                         expected = expected[slices]
                     with self.subTest(x_shape=x.shape, le=list(le),
                                       expected_shape=expected.shape,
-                                      onesided=onesided):
+                                      onesided=onesided, weights=we):
                         if onesided:
                             case = FunctionTestParams(
-                                signal_dft.dft_last_axis, [x, le, True], [expected])
+                                signal_dft.dft_last_axis, [x, le, we, True], [expected])
                         else:
                             case = FunctionTestParams(
-                                signal_dft.dft_last_axis, [x, le], [expected])
+                                signal_dft.dft_last_axis, [x, le, we], [expected])
                         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_cfft_last_axis(self):
@@ -114,13 +115,15 @@ class TestOnnxSignal(OnnxScriptTestCase):
             x = self._complex2float(c)
             for s in [4, 5, 6]:
                 le = np.array([s], dtype=np.int64)
+                we = np.array([1] * le[0], dtype=np.float32)
                 expected1 = self._fft(c, le)
                 expected2 = self._cfft(x, le)
                 assert_almost_equal(expected1, expected2)
                 with self.subTest(c_shape=c.shape, le=list(le),
-                                  expected_shape=expected1.shape):
+                                  expected_shape=expected1.shape,
+                                  weights=we):
                     case = FunctionTestParams(
-                        signal_dft.dft_last_axis, [x, le, False], [expected1])
+                        signal_dft.dft_last_axis, [x, le, we, False], [expected1])
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_rfft(self):
