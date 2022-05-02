@@ -4,6 +4,7 @@ import os
 import inspect
 import ast
 import logging
+import numpy
 import onnx
 import onnx.helper as helper
 from . import onnx_types as types
@@ -88,6 +89,8 @@ def _known_modules():
     import onnxscript.onnx_types
     import onnxscript.onnx
     return {
+        'numpy': numpy,
+        'np': numpy,
         'onnx': onnx,
         'onnx.helper': onnx.helper,
         'onnxscript': onnxscript,

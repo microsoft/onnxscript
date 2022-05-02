@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+import numpy as np
 from onnx import TensorProto
 from onnx.helper import make_tensor
 from onnxscript import script
@@ -252,9 +253,26 @@ def idft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) ->
     return dft_inv(x, fft_length, axis, onesided, True)
 
 
+def hann_window(window_length):
+    """
+    Returns
+    :math:`\\omega_n = \\sin^2\\left( \\frac{\\pi n}{N-1} \\right)`
+    where *N* is the window length.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi]))
+    N_1 = op.Sub(window_length, one)
+    
+    ni = op.Cast(op.Range(zero, window_length, one), to=1)
+    pin = op.Div(op.Mul(ni, pi), op.Cast(N_1, to=1))
+    sin = op.Sin(pin)
+    return op.Mul(sin, sin)
+
+
 if __name__ == "__main__":
     import numpy as np
-    x = np.arange(5).astype(np.float32)[..., np.newaxis]
     le = np.array([6], dtype=np.int64)
-    ft = dft(x, le, axis=0)
+    ft = hann_window(le)
+    print(ft)
     
