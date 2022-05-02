@@ -77,15 +77,26 @@ class TestOnnxSignal(OnnxScriptTestCase):
               np.arange(30).astype(np.float32).reshape((2, 3, -1)),
               np.arange(60).astype(np.float32).reshape((2, 3, 2, -1))]
 
-        for x in xs:
-            for s in [4, 5, 6]:
-                le = np.array([s], dtype=np.int64)
-                expected = self._fft(x, le)
-                with self.subTest(x_shape=x.shape, le=list(le),
-                                  expected_shape=expected.shape):
-                    case = FunctionTestParams(
-                        signal_dft.dft_last_axis, [x, le], [expected])
-                    self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+        for onesided in [False, True]:
+            for x_ in xs:
+                x = x_[..., np.newaxis]
+                for s in [4, 5, 6]:
+                    le = np.array([s], dtype=np.int64)
+                    expected = self._fft(x_, le)
+                    if onesided:
+                        slices = [slice(0, a) for a in expected.shape]
+                        slices[-2] = slice(0, (expected.shape[-2] + 1) // 2)
+                        expected = expected[slices]
+                    with self.subTest(x_shape=x.shape, le=list(le),
+                                      expected_shape=expected.shape,
+                                      onesided=onesided):
+                        if onesided:
+                            case = FunctionTestParams(
+                                signal_dft.dft_last_axis, [x, le, True], [expected])
+                        else:
+                            case = FunctionTestParams(
+                                signal_dft.dft_last_axis, [x, le], [expected])
+                        self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_cfft_last_axis(self):
 
@@ -119,11 +130,12 @@ class TestOnnxSignal(OnnxScriptTestCase):
               np.arange(30).astype(np.float32).reshape((2, 3, -1)),
               np.arange(60).astype(np.float32).reshape((2, 3, 2, -1))]
 
-        for x in xs:
+        for x_ in xs:
+            x = x_[..., np.newaxis]
             for s in [4, 5, 6]:
                 le = np.array([s], dtype=np.int64)
-                for ax in range(len(x.shape)):
-                    expected = self._fft(x, le, axis=ax)
+                for ax in range(len(x_.shape)):
+                    expected = self._fft(x_, le, axis=ax)
                     nax = np.array([ax], dtype=np.int64)
                     with self.subTest(x_shape=x.shape, le=list(le), ax=ax,
                                       expected_shape=expected.shape):
@@ -165,11 +177,12 @@ class TestOnnxSignal(OnnxScriptTestCase):
               np.arange(30).astype(np.float32).reshape((2, 3, -1)),
               np.arange(60).astype(np.float32).reshape((2, 3, 2, -1))]
 
-        for x in xs:
+        for x_ in xs:
+            x = x_[..., np.newaxis]
             for s in [4, 5, 6]:
                 le = np.array([s], dtype=np.int64)
-                for ax in range(len(x.shape)):
-                    expected = self._ifft(x, le, axis=ax)
+                for ax in range(len(x_.shape)):
+                    expected = self._ifft(x_, le, axis=ax)
                     nax = np.array([ax], dtype=np.int64)
                     with self.subTest(x_shape=x.shape, le=list(le), ax=ax,
                                       expected_shape=expected.shape):
@@ -208,4 +221,5 @@ class TestOnnxSignal(OnnxScriptTestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
+    # TestOnnxSignal().test_dft_rfft()
     unittest.main()

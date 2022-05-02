@@ -7,7 +7,7 @@ from onnxscript.onnx_types import FLOAT, INT64
 
 
 @script()
-def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True, inverse=False) -> FLOAT[...]:
+def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=False) -> FLOAT[...]:
     """
     See PR https://github.com/onnx/onnx/pull/3741/.
 
@@ -26,6 +26,14 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True, inverse=Fa
 
     Part 2 merges the real and imaginary parts into one single matrix
     where the last axis indicates whether it is the real or the imaginary part.
+
+    :param x: float tensor, the last dimension is the complex one,
+        if has 1 or 2 elements, 1 if the tensor is real and does not
+        have any imaginary part, 2 if the tensor is complex
+    :param fft_length: length of the FFT
+    :param onesided: if True, returns a truncated result `[:fft_length//2]`
+    :param inverse: returns FFT or the inverse of FFT
+    :return: tensor
     """
 
     # Part 1
@@ -57,27 +65,34 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True, inverse=Fa
     cos_win = op.Cos(p)
     sin_win = op.Sin(p)
 
+    # real or complex
+    full_shape = op.Shape(x)
+    n_dims = op.Shape(full_shape)
+    n_dims_1 = op.Sub(n_dims, one)
+    last_dim = op.Slice(full_shape, n_dims_1, n_dims, zero)
+
     # Part 2
-    if onesided:
-        # rfft: x is a float tensor
-        x_shape = op.Shape(x)
+    if last_dim == one:
+        # rfft: x is a float tensor        
+        real_x = op.Squeeze(op.Slice(x, zero, one, last), last)
+        x_shape = op.Shape(real_x)
         axis = op.Size(x_shape) - one
         dim = op.Slice(x_shape, axis, axis + one)
 
         if dim >= fft_length:
             # fft_length is shorter, x is trimmed to that size
-            pad_x = op.Slice(x, zero, fft_length, last, one)
+            pad_x = op.Slice(real_x, zero, fft_length, last, one)
         else:
             if dim == fft_length:
                 # no padding
-                pad_x = op.Identity(x)
+                pad_x = op.Identity(real_x)
             else:
                 # the matrix is completed with zeros
                 # operator Pad could be used too.
-                x_shape_but_last = op.Slice(op.Shape(x), zero, last, zero, one)
+                x_shape_but_last = op.Slice(op.Shape(real_x), zero, last, zero, one)
                 new_shape = op.Concat(x_shape_but_last, fft_length - dim, axis=0)
                 cst = op.ConstantOfShape(new_shape, value=0)
-                pad_x = op.Concat(x, op.Cast(cst, to=1), axis=-1)
+                pad_x = op.Concat(real_x, op.Cast(cst, to=1), axis=-1)
 
         result_real = op.Unsqueeze(op.MatMul(pad_x, cos_win), zero)
         result_imag = op.Unsqueeze(op.MatMul(pad_x, sin_win), zero)
@@ -117,14 +132,22 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], onesided=True, inverse=Fa
     # final step, needs to move to first axis into the last position.
     result = op.Concat(result_real, result_imag, axis=0)
     n_dims = op.Size(op.Shape(result))
+    
+
+    if onesided:
+        half = op.Div(op.Add(fft_length, one), two)
+        n_r_dims_1 = op.Sub(op.Shape(op.Shape(x)), one)
+        truncated = op.Slice(result, zero, half, n_r_dims_1)
+    else:
+        truncated = op.Identity(result)
 
     if n_dims == one:
         # This should not happen.
-        final = op.Identity(result)
+        final = op.Identity(truncated)
     else:
-        result_shape = op.Shape(result)
+        result_shape = op.Shape(truncated)
         shape_cpl = op.Constant(value=make_tensor('shape_cpl', TensorProto.INT64, [2], [2, -1]))
-        reshaped_result = op.Reshape(result, shape_cpl)
+        reshaped_result = op.Reshape(truncated, shape_cpl)
         transposed = op.Transpose(reshaped_result, perm=[1, 0])
         other_dimensions = op.Slice(result_shape, one, op.Shape(result_shape), zero)
         final_shape = op.Concat(other_dimensions, two, axis=0)
@@ -189,7 +212,7 @@ def switch_axes(x, axis1, axis2):
 
 @script()
 def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
-            onesided=True, inverse=False) -> FLOAT[...]:
+            onesided=False, inverse=False) -> FLOAT[...]:
     """
     Applies one dimension FFT.
     The function moves the considered axis to the last position
@@ -197,13 +220,8 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     """
     shape = op.Shape(x)
     n_dims = op.Shape(shape)
-
-    if onesided:
-        one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-        last_dim = op.Sub(n_dims, one)
-    else:
-        two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-        last_dim = op.Sub(n_dims, two)
+    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    last_dim = op.Sub(n_dims, two)
 
     if axis == last_dim:
         final = dft_last_axis(x, fft_length, onesided, inverse)
@@ -215,7 +233,7 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
 
 
 @script()
-def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> FLOAT[...]:
+def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) -> FLOAT[...]:
     """
     Applies one dimensional FFT.
     The function moves the considered axis to the last position
@@ -225,10 +243,18 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> F
 
 
 @script()
-def idft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=True) -> FLOAT[...]:
+def idft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) -> FLOAT[...]:
     """
     Applies one dimensional IFFT.
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
     return dft_inv(x, fft_length, axis, onesided, True)
+
+
+if __name__ == "__main__":
+    import numpy as np
+    x = np.arange(5).astype(np.float32)[..., np.newaxis]
+    le = np.array([6], dtype=np.int64)
+    ft = dft(x, le, axis=0)
+    
