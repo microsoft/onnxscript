@@ -223,9 +223,15 @@ class TestOnnxSignal(OnnxScriptTestCase):
         case = FunctionTestParams(signal_dft.hann_window, [le], [expected])
         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
+    def test_hamming_window(self):
+        le = np.array([5], dtype=np.int64)
+        expected = np.array([0.54]) - np.cos(np.arange(5) * np.pi / 4) * 0.46
+        case = FunctionTestParams(signal_dft.hamming_window, [le], [expected])
+        self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestOnnxSignal().test_hann_window()
+    TestOnnxSignal().test_hamming_window()
     unittest.main()

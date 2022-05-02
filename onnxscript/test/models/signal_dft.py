@@ -270,9 +270,28 @@ def hann_window(window_length):
     return op.Mul(sin, sin)
 
 
+def hamming_window(window_length, alpha=0.54, beta=0.46):
+    """
+    Returns
+    :math:`\\omega_n = \\alpha - \\beta \\cos \\left( \\frac{\\pi n}{N-1} \\right)`
+    where *N* is the window length.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi]))
+    N_1 = op.Sub(window_length, one)
+    t_alpha = op.Constant(value=make_tensor('alpha', TensorProto.FLOAT, [1], [alpha]))
+    t_beta = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [beta]))
+
+    ni = op.Cast(op.Range(zero, window_length, one), to=1)
+    pin = op.Div(op.Mul(ni, pi), op.Cast(N_1, to=1))
+    cos = op.Cos(pin)
+    return op.Sub(t_alpha, op.Mul(cos, t_beta))
+
+
 if __name__ == "__main__":
     import numpy as np
     le = np.array([6], dtype=np.int64)
-    ft = hann_window(le)
+    ft = hamming_window(le)
     print(ft)
     
