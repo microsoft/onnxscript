@@ -270,28 +270,50 @@ def hann_window(window_length):
     return op.Mul(sin, sin)
 
 
-def hamming_window(window_length, alpha=0.54, beta=0.46):
+def hamming_window(window_length, alpha, beta):
     """
     Returns
     :math:`\\omega_n = \\alpha - \\beta \\cos \\left( \\frac{\\pi n}{N-1} \\right)`
     where *N* is the window length.
+
+    Default values for torch: `alpha=0.54, beta=0.46`.
     """
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi]))
+    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
     N_1 = op.Sub(window_length, one)
-    t_alpha = op.Constant(value=make_tensor('alpha', TensorProto.FLOAT, [1], [alpha]))
-    t_beta = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [beta]))
 
     ni = op.Cast(op.Range(zero, window_length, one), to=1)
-    pin = op.Div(op.Mul(ni, pi), op.Cast(N_1, to=1))
+    pin = op.Div(op.Mul(ni, pi2), op.Cast(N_1, to=1))
     cos = op.Cos(pin)
-    return op.Sub(t_alpha, op.Mul(cos, t_beta))
+    return op.Sub(alpha, op.Mul(cos, beta))
+
+
+def blackman_window(window_length):
+    """
+    Returns
+    :math:`\\omega_n = 0.42 - 0.5 \\cos \\left( \\frac{2\\pi n}{N-1} \\right) +
+    0.8 \\cos \\left( \\frac{4\\pi n}{N-1} \\right)`
+    where *N* is the window length.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
+    pi4 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 4]))
+    N_1 = op.Cast(op.Sub(window_length, one), to=1)
+    t042 = op.Constant(value=make_tensor('alpha', TensorProto.FLOAT, [1], [0.42]))
+    t05 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.5]))
+    t008 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.08]))
+
+    ni = op.Cast(op.Range(zero, window_length, one), to=1)
+    cos2 = op.Cos(op.Div(op.Mul(ni, pi2), N_1))
+    cos4 = op.Cos(op.Div(op.Mul(ni, pi4), N_1))
+    return op.Add(op.Sub(t042, op.Mul(cos2, t05)), op.Mul(cos4, t008))
 
 
 if __name__ == "__main__":
     import numpy as np
     le = np.array([6], dtype=np.int64)
-    ft = hamming_window(le)
+    ft = blackman_window(le)
     print(ft)
     

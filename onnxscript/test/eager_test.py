@@ -225,13 +225,23 @@ class TestOnnxSignal(OnnxScriptTestCase):
 
     def test_hamming_window(self):
         le = np.array([5], dtype=np.int64)
-        expected = np.array([0.54]) - np.cos(np.arange(5) * np.pi / 4) * 0.46
-        case = FunctionTestParams(signal_dft.hamming_window, [le], [expected])
+        alpha = np.array([0.54], dtype=np.float32)
+        beta = np.array([0.46], dtype=np.float32)
+        expected = alpha - np.cos(np.arange(5) * np.pi * 2 / 4) * beta
+        case = FunctionTestParams(signal_dft.hamming_window, [le, alpha, beta], [expected])
+        self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+
+    def test_blackman_window(self):
+        le = np.array([5], dtype=np.int64)
+        expected = (
+            np.array([0.42]) - np.cos(np.arange(5) * np.pi * 2 / 4) * 0.5 +
+            np.cos(np.arange(5) * np.pi * 4 / 4) * 0.08)
+        case = FunctionTestParams(signal_dft.blackman_window, [le], [expected])
         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestOnnxSignal().test_hamming_window()
+    # TestOnnxSignal().test_blackman_window()
     unittest.main()

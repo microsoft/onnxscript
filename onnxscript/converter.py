@@ -278,7 +278,12 @@ class Converter:
         if isinstance(node, ast.List):
             return [self.eval_attr(x) for x in node.elts]
         if isinstance(node, (ast.Call, ast.Attribute, ast.UnaryOp)):
-            return self.eval_constant_expr(node)
+            try:
+                return self.eval_constant_expr(node)
+            except NameError as e:
+                raise NameError(DebugInfo(node).msg(
+                        "Unable to evaluate a constant in node type %r "
+                        "due to %r." % (type(node), str(e))))
         raise ValueError(f"Unsupported attribute type: {type(node).__name__}.")
 
     def translate_attr(self, attr_name, node):
