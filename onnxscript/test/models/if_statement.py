@@ -19,6 +19,7 @@ def maxsum(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
 
 # Test inference of inputs/outputs for then/else blocks:
 
+
 @script()
 def maxsum2(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = op.ReduceSum(A)
@@ -33,6 +34,7 @@ def maxsum2(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
 
 # test variables assigned only in one branch
 
+
 @script()
 def maxsum3(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     sum1 = op.ReduceSum(A)
@@ -43,6 +45,7 @@ def maxsum3(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
     return result
 
 
+@script()
 def check_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis == zero:
@@ -52,6 +55,7 @@ def check_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     return result
 
 
+@script()
 def check_less_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis <= zero:
@@ -61,6 +65,7 @@ def check_less_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, Non
     return result
 
 
+@script()
 def check_greater(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis > zero:
@@ -70,6 +75,7 @@ def check_greater(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     return result
 
 
+@script()
 def check_greater_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis >= zero:
@@ -79,6 +85,7 @@ def check_greater_or_equal(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, 
     return result
 
 
+@script()
 def check_not(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if not(axis >= zero):
@@ -88,6 +95,7 @@ def check_not(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     return result
 
 
+@script()
 def check_different(x: FLOAT[None, None], axis: INT64[1]) -> FLOAT[None, None]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     if axis != zero:

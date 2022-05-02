@@ -659,27 +659,6 @@ class Converter:
         else:
             raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
 
-    def convert_source(self, src):
-        module = ast.parse(src)
-        assert type(module) == ast.Module
-        converted = [self.top_level_stmt(d) for d in module.body]
-        return [x for x in converted if x is not None]
-
-    def convert_file(self, filename):
-        with open(filename) as f:
-            src = f.read()
-        return self.convert_source(src)
-
-    def convert(self, f):
-        if isinstance(f, str):
-            if '\n' not in f and os.path.exists(f):
-                return self.convert_file(f)
-            return self.convert_source(f)
-        if inspect.isfunction(f):
-            src = inspect.getsource(f)
-            return self.convert_source(src)
-        fail("Unknown type of input to converter.")
-
 
 def convert(script):
     converter = Converter()
