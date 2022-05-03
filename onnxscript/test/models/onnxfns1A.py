@@ -2,11 +2,14 @@
 
 # Same functions as in onnxfns1.py, using autocast and default-attribute-values
 
-import onnxscript.onnx.opset15 as op
+from onnxscript import script
+from onnxscript.onnx import opset15 as op
 
+@script()
 def Relu(X):
     return op.Max(X, 0)
 
+@script()
 def Selu(X, alpha: float = 1.67326319217681884765625,
          gamma: float = 1.05070102214813232421875):
     neg = gamma * (alpha * op.Exp(X) - alpha)
