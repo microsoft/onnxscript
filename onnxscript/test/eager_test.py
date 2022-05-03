@@ -242,9 +242,53 @@ class TestOnnxSignal(OnnxScriptTestCase):
         case = FunctionTestParams(signal_dft.blackman_window, [le], [expected])
         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
+    @staticmethod
+    def _stft(x, fft_length, window, axis=-1, center=False, onesided=False, hop_length=None):
+        try:
+            import torch
+        except ImportError as e:
+            raise ImportError("torch is not installed.") from e
+        _ = torch.from_numpy
+        ft = torch.stft(_(x), n_fft=fft_length, hop_length=hop_length,
+                        win_length=fft_length, window=_(window),
+                        center=center, onesided=onesided, return_complex=True)
+        r = np.real(ft)
+        i = np.imag(ft)
+        merged = np.vstack([r[np.newaxis, ...], i[np.newaxis, ...]])
+        perm = np.arange(len(merged.shape))
+        perm[:-1] = perm[1:]
+        perm[-1] = 0
+        tr = np.transpose(merged, list(perm))
+        if tr.shape[-1] != 2:
+            raise AssertionError(f"Unexpected shape {tr.shape}, x.shape={x.shape} "
+                                 f"fft_length={fft_length}, window={window}.")
+        return tr
+
+    def test_dft_rstft(self):
+
+        xs = [(np.arange(5).astype(np.float32), 1, 1),
+              (np.arange(10).astype(np.float32).reshape((2, -1)), 1, 1),
+              (np.arange(30).astype(np.float32).reshape((6, -1)), 1, 1),
+              (np.arange(60).astype(np.float32).reshape((6, -1)), 6, 1)]
+
+        for s in [5, 4, 6]:
+            for x_, fs, hp in xs:
+                x = x_[..., np.newaxis]
+                le = np.array([s], dtype=np.int64)
+                fsv = np.array([fs], dtype=np.int64)
+                hpv = np.array([hp], dtype=np.int64)
+                window = signal_dft.blackman_window(le)
+                expected = self._stft(x_, le[0], window=window)
+                with self.subTest(x_shape=x.shape, le=list(le), hp=hp, fs=fs,
+                                  expected_shape=expected.shape):
+                    # x, fft_length, hop_length, n_frames, window, onesided=False
+                    case = FunctionTestParams(
+                        signal_dft.stft, [x, le, hpv, fsv, window], [expected])
+                    self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestOnnxSignal().test_blackman_window()
+    # TestOnnxSignal().test_dft_rstft()
     unittest.main()

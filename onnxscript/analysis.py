@@ -123,6 +123,12 @@ def exposed_uses(stmts):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
-        raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+        if (isinstance(stmt, ast.Expr) and hasattr(stmt, 'value') and
+                isinstance(stmt.value, ast.Call)):
+            f = stmt.value.func
+            if f.id == 'print':
+                return live_out
+        raise ValueError(DebugInfo(stmt).msg(
+            f"Unsupported statement type: {type(stmt).__name__}."))
 
     return visitBlock(stmts, set())

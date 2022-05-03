@@ -76,10 +76,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
     sin_win = op.Mul(sin_win_u, reshaped_weights)
 
     # real or complex
-    full_shape = op.Shape(x)
-    n_dims = op.Shape(full_shape)
-    n_dims_1 = op.Sub(n_dims, one)
-    last_dim = op.Slice(full_shape, n_dims_1, n_dims, zero)
+    last_dim = op.Shape(x, start=-1)
 
     # Part 2
     if last_dim == one:
@@ -233,13 +230,14 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     n_dims = op.Shape(shape)
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
     last_dim = op.Sub(n_dims, two)
+    positive_axis = op.Where (axis < 0, axis + n_dims, axis)
 
-    if axis == last_dim:
+    if positive_axis == last_dim:
         final = dft_last_axis(x, fft_length, weights, onesided, inverse, normalize)
     else:
-        xt = switch_axes(x, axis, last_dim)
+        xt = switch_axes(x, positive_axis, last_dim)
         fft = dft_last_axis(xt, fft_length, weights, onesided, inverse, normalize)
-        final = switch_axes(fft, axis, last_dim)
+        final = switch_axes(fft, positive_axis, last_dim)
     return final
 
 
@@ -329,37 +327,78 @@ def blackman_window(window_length):
 
 
 @script()
-def stft(x: FLOAT[...], fft_length: INT64[1], frame_step: INT64[1],
-         window: FLOAT['N'], axis: INT64[1], onesided=False) -> FLOAT[...]:
+def stft(x: FLOAT[...], fft_length: INT64[1],
+         hop_length: INT64[1], n_frames: INT64[1],
+         window: FLOAT['N'], onesided=False) -> FLOAT[...]:
     """
     Applies one dimensional FFT with window weights.
+    torch defines the number of frames as:
+    `n_frames = 1 + (len - n_fft) / hop_length`.
     """
-    return dft_inv(x, fft_length, axis, window, onesided, False, False)
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    last_axis = op.Sub(op.Shape(op.Shape(x)), one)
+    axis = op.Constant(value=make_tensor('axis', TensorProto.INT64, [1], [-2]))
+    axis2 = op.Constant(value=make_tensor('axis2', TensorProto.INT64, [1], [-3]))
+    window_size = op.Shape(window)
+
+    # building frames
+    seq = op.SequenceEmpty()
+    nf = op.Squeeze(n_frames, zero)
+    for fs in range(nf):
+        fs64 = op.Cast(fs, to=7)
+        begin = op.Mul(fs64, hop_length)
+        end = op.Add(begin, window_size)
+        sliced_x = op.Slice(x, begin, end, axis)
+
+        # sliced_x may be smaller
+        new_dim = op.Shape(sliced_x, start=-2, end=-1)
+        missing = op.Sub(window_size, new_dim)
+        new_shape = op.Concat(
+            op.Shape(sliced_x, start=0, end=-2),
+            missing,
+            op.Shape(sliced_x, start=-1),
+            axis=0)
+        cst = op.ConstantOfShape(new_shape, value=0)
+        pad_sliced_x = op.Concat(sliced_x, op.Cast(cst, to=1), axis=-2)
+
+        # same size
+        un_sliced_x = op.Unsqueeze(pad_sliced_x, axis2)
+        seq = op.SequenceInsert(seq, un_sliced_x)
+
+    # concatenation
+    new_x = op.ConcatFromSequence(seq, axis=-3, new_axis=0)
+
+    # calling weighted dft
+    result = dft_inv(new_x, fft_length, last_axis, window, onesided, False, False)
+
+    # final transpose -3, -2
+    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    three  = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
+    dim = op.Shape(op.Shape(result))
+    ax1 = op.Sub(dim, three)
+    ax2 = op.Sub(dim, two)
+    return switch_axes(result, ax1, ax2)
 
 
 if __name__ == "__main__":
+    # positive_axis = op.Where ( axis < 0, axis + n_dims, axis)
     import numpy as np
     import torch
     _ = torch.from_numpy
-    x = np.arange(5).astype(np.float32)
-    axis = np.array([0], dtype=np.int64)
+    x = np.arange(10).astype(np.float32).reshape((-1, 5))
     le = np.array([5], dtype=np.int64)
-    
-    print(dft(x[..., np.newaxis], le, axis))
-    print(np.fft.fft(x))
-    sop
-    
-    
     one = np.array([1], dtype=np.int64)
+    two = np.array([2], dtype=np.int64)
     win = blackman_window(le[0])
     #win[:] = 0
     #win[1] = 10
-    ft = stft(x[..., np.newaxis], le, one, win, axis)
+    ft = stft(x[..., np.newaxis], le, one, two, win)
     
     tft1 = torch.stft(_(x), n_fft=le[0], win_length=le[0], window=_(win), center=False, onesided=False)
     print('--------------------------')
     print("win=", win)
-    print(ft)
+    print(ft.shape, ft)
     print('*')
-    print(tft1.numpy()[:, 0, :])
+    print(tft1.numpy().shape, tft1.numpy())
     

@@ -8,3 +8,6 @@ sphinx-gallery
 pydata_sphinx_theme
 pytest!=7.1.0
 pytest-azurepipelines
+torch
+torchvision
+torchaudio

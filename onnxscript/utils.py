@@ -16,7 +16,14 @@ def convert_arrays_to_value_infos(names, arr_list):
     for name, arr in zip(names, arr_list):
         elem_type: TensorProto.DataType
         shape: tuple
-        if isinstance(arr, np.ndarray):
+        if isinstance(arr, list):
+            # sequence, assuming it is a float sequence
+            # list should be replace by another container retaining the type information
+            info = onnx.helper.make_sequence_value_info(
+                name=name, elem_type=TensorProto.FLOAT, shape=None)
+            value_infos.append(info)
+            continue
+        elif isinstance(arr, np.ndarray):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
         elif isinstance(arr, numbers.Number):
@@ -24,7 +31,7 @@ def convert_arrays_to_value_infos(names, arr_list):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
             shape = nparray.shape
         else:
-            raise ValueError(f"cannot covert a {type(arr)} to value_info")
+            raise ValueError(f"cannot convert a {type(arr)} to value_info")
 
         value_info = onnx.helper.make_tensor_value_info(
             name=name,

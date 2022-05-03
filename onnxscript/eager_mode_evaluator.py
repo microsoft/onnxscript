@@ -55,7 +55,7 @@ def call_ort(schema, *args, **kwargs):
         model.SerializeToString(), providers=['CPUExecutionProvider'])
 
     session_run_input = {
-        input: arg if isinstance(arg, np.ndarray) else [arg]
+        input: arg if isinstance(arg, (np.ndarray, list)) else [arg]
         for input, arg in zip(inputs, args)}
 
     got = sess.run(None, session_run_input)

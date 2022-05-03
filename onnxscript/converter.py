@@ -294,7 +294,9 @@ class Converter:
             else:
                 # TODO: lookup value; if func.def., compile it to Graph; if a
                 # constant; etc.
-                fail(DebugInfo(node).msg("Unimplemented attribute construct."))
+                fail(DebugInfo(node).msg(
+                    f"Unimplemented attribute construct "
+                    f"{attr_name} for node type {type(node)}."))
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
     def translate_docstring(self, node):
