@@ -1,4 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 from onnxscript.onnx import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
