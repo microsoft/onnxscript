@@ -1,3 +1,8 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
+
 import numpy as np
 import unittest
 from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
