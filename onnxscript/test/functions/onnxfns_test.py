@@ -1,3 +1,8 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
+
 import unittest
 from onnxscript.test.functions.onnx_script_test_case import OnnxScriptTestCase
 from onnxscript.test.models import onnxfns1
