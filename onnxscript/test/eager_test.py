@@ -262,33 +262,92 @@ class TestOnnxSignal(OnnxScriptTestCase):
         if tr.shape[-1] != 2:
             raise AssertionError(f"Unexpected shape {tr.shape}, x.shape={x.shape} "
                                  f"fft_length={fft_length}, window={window}.")
-        return tr
+        return tr.astype(np.float32)
 
     def test_dft_rstft(self):
 
-        xs = [(np.arange(5).astype(np.float32), 1, 1),
-              (np.arange(10).astype(np.float32).reshape((2, -1)), 1, 1),
-              (np.arange(30).astype(np.float32).reshape((6, -1)), 1, 1),
-              (np.arange(60).astype(np.float32).reshape((6, -1)), 6, 1)]
+        xs = [
+            ("A0", np.arange(5).astype(np.float32), 5, 1, 1),
+            ("A1", np.arange(5).astype(np.float32), 4, 2, 1),
+            ("A2", np.arange(5).astype(np.float32), 6, 1, 1),
+            ("B0", np.arange(10).astype(np.float32).reshape((2, -1)), 5, 1, 1),
+            ("B1", np.arange(10).astype(np.float32).reshape((2, -1)), 4, 2, 1),
+            ("B2", np.arange(10).astype(np.float32).reshape((2, -1)), 6, 1, 1),
+            ("C0", np.arange(30).astype(np.float32).reshape((6, -1)), 5, 1, 1),
+            ("C1", np.arange(30).astype(np.float32).reshape((6, -1)), 4, 2, 1),
+            ("C2", np.arange(30).astype(np.float32).reshape((6, -1)), 6, 1, 1),
+            ("D0", np.arange(60).astype(np.float32).reshape((6, -1)), 5, 6, 1),
+            ("D1", np.arange(60).astype(np.float32).reshape((6, -1)), 4, 7, 1),
+            ("D2", np.arange(60).astype(np.float32).reshape((6, -1)), 6, 5, 1),
+        ]
 
-        for s in [5, 4, 6]:
-            for x_, fs, hp in xs:
-                x = x_[..., np.newaxis]
-                le = np.array([s], dtype=np.int64)
-                fsv = np.array([fs], dtype=np.int64)
-                hpv = np.array([hp], dtype=np.int64)
-                window = signal_dft.blackman_window(le)
+        for name, x_, s, fs, hp in xs:
+            x = x_[..., np.newaxis]
+            le = np.array([s], dtype=np.int64)
+            fsv = np.array([fs], dtype=np.int64)
+            hpv = np.array([hp], dtype=np.int64)
+            window = signal_dft.blackman_window(le)
+            try:
                 expected = self._stft(x_, le[0], window=window)
-                with self.subTest(x_shape=x.shape, le=list(le), hp=hp, fs=fs,
-                                  expected_shape=expected.shape):
-                    # x, fft_length, hop_length, n_frames, window, onesided=False
-                    case = FunctionTestParams(
-                        signal_dft.stft, [x, le, hpv, fsv, window], [expected])
+            except RuntimeError:
+                # unable to validate with torch
+                continue
+            info = dict(name=name, x_shape=x.shape, le=list(le), hp=hp, fs=fs,
+                        expected_shape=expected.shape, window_shape=window.shape)
+            with self.subTest(**info):
+                # x, fft_length, hop_length, n_frames, window, onesided=False
+                case = FunctionTestParams(
+                    signal_dft.stft, [x, le, hpv, fsv, window], [expected])
+                try:
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+                except AssertionError as e:
+                    raise AssertionError("Issue with %r." % info) from e
+
+    def test_dft_cstft(self):
+
+        xs = [
+            ("A0", np.arange(5).astype(np.float32), 5, 1, 1),
+            ("A1", np.arange(5).astype(np.float32), 4, 2, 1),
+            ("A2", np.arange(5).astype(np.float32), 6, 1, 1),
+            ("B0", np.arange(10).astype(np.float32).reshape((2, -1)), 5, 1, 1),
+            ("B1", np.arange(10).astype(np.float32).reshape((2, -1)), 4, 2, 1),
+            ("B2", np.arange(10).astype(np.float32).reshape((2, -1)), 6, 1, 1),
+            ("C0", np.arange(30).astype(np.float32).reshape((6, -1)), 5, 1, 1),
+            ("C1", np.arange(30).astype(np.float32).reshape((6, -1)), 4, 2, 1),
+            ("C2", np.arange(30).astype(np.float32).reshape((6, -1)), 6, 1, 1),
+            ("D0", np.arange(60).astype(np.float32).reshape((6, -1)), 5, 6, 1),
+            ("D1", np.arange(60).astype(np.float32).reshape((6, -1)), 4, 7, 1),
+            ("D2", np.arange(60).astype(np.float32).reshape((6, -1)), 6, 5, 1),
+        ]
+
+        for name, xy_, s, fs, hp in xs:
+            r_ = xy_
+            i_ = xy_ / 10
+            c_ = r_ + 1j * i_
+            x = self._complex2float(c_)
+            le = np.array([s], dtype=np.int64)
+            fsv = np.array([fs], dtype=np.int64)
+            hpv = np.array([hp], dtype=np.int64)
+            window = signal_dft.blackman_window(le)
+            try:
+                expected = self._stft(c_, le[0], window=window)
+            except RuntimeError:
+                # unable to validate with torch
+                continue
+            info = dict(name=name, x_shape=x.shape, le=list(le), hp=hp, fs=fs,
+                        expected_shape=expected.shape, window_shape=window.shape)
+            with self.subTest(**info):
+                # x, fft_length, hop_length, n_frames, window, onesided=False
+                case = FunctionTestParams(
+                    signal_dft.stft, [x, le, hpv, fsv, window], [expected])
+                try:
+                    self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+                except AssertionError as e:
+                    raise AssertionError("Issue with %r." % info) from e
 
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestOnnxSignal().test_dft_rstft()
+    # TestOnnxSignal().test_dft_cstft()
     unittest.main()
