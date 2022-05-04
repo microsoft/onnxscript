@@ -3,8 +3,6 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import os
-import inspect
 import ast
 import logging
 import onnx
@@ -646,42 +644,8 @@ class Converter:
             fn_ir.debug_print()
             self.this_module[stmt.name] = fn_ir
             return fn_ir
-
-        if isinstance(stmt, ast.Import):
-            for alias in stmt.names:
-                self.do_import(alias)
-        elif isinstance(stmt, ast.ImportFrom):
-            fail_if(stmt.module is None, "Import: module unspecified.")
-            fail_if(stmt.module not in self.known_modules,
-                    f"Import: unsupported module '{stmt.module}' in "
-                    f"{list(sorted(self.known_modules))}")
-            module = self.known_modules[stmt.module]
-            for alias in stmt.names:
-                asname = alias.asname if alias.asname else alias.name
-                self.globals[asname] = getattr(module, alias.name)
         else:
             raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
-
-    def convert_source(self, src):
-        module = ast.parse(src)
-        assert type(module) == ast.Module
-        converted = [self.top_level_stmt(d) for d in module.body]
-        return [x for x in converted if x is not None]
-
-    def convert_file(self, filename):
-        with open(filename) as f:
-            src = f.read()
-        return self.convert_source(src)
-
-    def convert(self, f):
-        if isinstance(f, str):
-            if '\n' not in f and os.path.exists(f):
-                return self.convert_file(f)
-            return self.convert_source(f)
-        if inspect.isfunction(f):
-            src = inspect.getsource(f)
-            return self.convert_source(src)
-        fail("Unknown type of input to converter.")
 
 
 def convert(script):
