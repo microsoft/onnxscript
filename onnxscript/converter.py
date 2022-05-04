@@ -284,7 +284,7 @@ class Converter:
                 raise NameError(DebugInfo(node).msg(
                         "Unable to evaluate a constant in node type %r "
                         "due to %r." % (type(node), str(e))))
-        raise ValueError(f"Unsupported attribute type: {type(node).__name__}.")
+        raise ValueError(f"Unsupported attribute type '{type(node).__name__}'.")
 
     def translate_attr(self, attr_name, node):
         if isinstance(node, ast.Name):
@@ -296,7 +296,7 @@ class Converter:
                 # constant; etc.
                 fail(DebugInfo(node).msg(
                     f"Unimplemented attribute construct "
-                    f"{attr_name} for node type {type(node)}."))
+                    f"'{attr_name}' for node type '{type(node).__name__}'."))
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
     def translate_docstring(self, node):

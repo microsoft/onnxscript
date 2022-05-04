@@ -262,9 +262,21 @@ class TestOnnxSignal(OnnxScriptTestCase):
         if tr.shape[-1] != 2:
             raise AssertionError(f"Unexpected shape {tr.shape}, x.shape={x.shape} "
                                  f"fft_length={fft_length}, window={window}.")
-        return tr.astype(np.float32)
+        return ft.numpy(), tr.astype(np.float32)
 
-    def test_dft_rstft(self):
+    @staticmethod
+    def _istft(y, fft_length, window, axis=-1, center=False, onesided=False, hop_length=None):
+        try:
+            import torch
+        except ImportError as e:
+            raise ImportError("torch is not installed.") from e
+        _ = torch.from_numpy
+        ft = torch.istft(_(y), n_fft=fft_length, hop_length=hop_length,
+                        win_length=fft_length, window=_(window),
+                        center=center, onesided=onesided, return_complex=True)
+        return ft.numpy().astype(np.float32)
+
+    def test_dft_rstft_istft(self):
 
         xs = [
             ("A0", np.arange(5).astype(np.float32), 5, 1, 1),
@@ -287,14 +299,18 @@ class TestOnnxSignal(OnnxScriptTestCase):
             fsv = np.array([fs], dtype=np.int64)
             hpv = np.array([hp], dtype=np.int64)
             window = signal_dft.blackman_window(le)
+            window[:] = (np.arange(window.shape[0]) + 1).astype(window.dtype)
             try:
-                expected = self._stft(x_, le[0], window=window)
+                c_expected, expected = self._stft(x_, le[0], window=window)
             except RuntimeError:
                 # unable to validate with torch
                 continue
+            i_expected = self._istft(c_expected, le[0], window=window)
             info = dict(name=name, x_shape=x.shape, le=list(le), hp=hp, fs=fs,
                         expected_shape=expected.shape, window_shape=window.shape)
-            with self.subTest(**info):
+
+            # stft
+            with self.subTest(F="STFT", **info):
                 # x, fft_length, hop_length, n_frames, window, onesided=False
                 case = FunctionTestParams(
                     signal_dft.stft, [x, le, hpv, fsv, window], [expected])
@@ -303,7 +319,32 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 except AssertionError as e:
                     raise AssertionError("Issue with %r." % info) from e
 
-    def test_dft_cstft(self):
+            # istft
+            ix = self._complex2float(c_expected)
+            if len(x.shape) == 1:
+                assert_almost_equal(x[:-1], i_expected)
+                expected = x
+            elif len(x.shape) == 2:
+                if x.shape[1] == 1:
+                    assert_almost_equal(x.ravel()[:-1], i_expected.ravel())
+                    expected = x.T
+                else:
+                    assert_almost_equal(x[:, :-1], i_expected)
+                    expected = x
+            info["expected"] = expected
+            info["expected_shape"] = expected.shape
+            with self.subTest(F="ISTFT", **info):
+                import pprint
+                pprint.pprint(info)
+                # x, fft_length, hop_length, n_frames, window, onesided=False
+                case = FunctionTestParams(
+                    signal_dft.istft, [ix, le, hpv, window], expected)
+                try:
+                    self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+                except AssertionError as e:
+                    raise AssertionError("Issue with %r." % info) from e
+
+    def test_dft_cstft_istft(self):
 
         xs = [
             ("A0", np.arange(5).astype(np.float32), 5, 1, 1),
@@ -330,12 +371,16 @@ class TestOnnxSignal(OnnxScriptTestCase):
             hpv = np.array([hp], dtype=np.int64)
             window = signal_dft.blackman_window(le)
             try:
-                expected = self._stft(c_, le[0], window=window)
+                c_expected, expected = self._stft(c_, le[0], window=window)
             except RuntimeError:
                 # unable to validate with torch
                 continue
+
+            i_expected = self._istft(c_expected, le[0], window=window)
             info = dict(name=name, x_shape=x.shape, le=list(le), hp=hp, fs=fs,
                         expected_shape=expected.shape, window_shape=window.shape)
+
+            # stft
             with self.subTest(**info):
                 # x, fft_length, hop_length, n_frames, window, onesided=False
                 case = FunctionTestParams(
@@ -345,9 +390,12 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 except AssertionError as e:
                     raise AssertionError("Issue with %r." % info) from e
 
+            # istft
+            ix = self._complex2float(c_expected)
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestOnnxSignal().test_dft_cstft()
+    TestOnnxSignal().test_dft_rstft_istft()
     unittest.main()

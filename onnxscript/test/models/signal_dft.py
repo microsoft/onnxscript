@@ -381,24 +381,143 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     return switch_axes(result, ax1, ax2)
 
 
+@script()
+def istft(x: FLOAT[...], fft_length: INT64[1],
+          hop_length: INT64[1], window: FLOAT['N'], onesided=False) -> FLOAT[...]:
+    """
+    Reverses of `stft`.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    mone = op.Constant(value=make_tensor('mone', TensorProto.INT64, [1], [-1]))
+    wone = op.Cast(op.ConstantOfShape(op.Shape(window), value=1), to=1)
+    
+    axisf = op.Constant(value=make_tensor('axis3', TensorProto.INT64, [1], [-2]))
+    n_frames = op.Shape(x, start=-2, end=-1)
+
+    expected_signal_len = op.Add(fft_length, op.Mul(hop_length, op.Sub(n_frames, one)))
+
+    # building frames
+    seq = op.SequenceEmpty()
+    seqc = op.SequenceEmpty()
+    nf = op.Squeeze(n_frames, zero)
+    for fs in range(nf):
+        fs64 = op.Cast(fs, to=7)
+        begin = fs64
+        end = op.Add(fs64, one)
+        frame_x = op.Squeeze(op.Slice(x, begin, end, axisf), axisf)
+
+        # ifft
+        ift = dft_last_axis(frame_x, fft_length, wone, onesided, True, True)
+        n_dims = op.Shape(op.Shape(ift))
+        n_dims_1 = op.Sub(n_dims, one)
+        ytmp = op.Squeeze(op.Slice(ift, zero, one, n_dims_1), n_dims_1)
+        ctmp = op.Mul(op.Cast(op.ConstantOfShape(op.Shape(ytmp), value=1), to=1), window)
+
+        shape_begin = op.Shape(ytmp, end=-1)
+        n_left = op.Mul(fs64, hop_length)
+        size = op.Shape(ytmp, start=-1)
+        n_right = op.Sub(expected_signal_len, op.Add(n_left, size))
+
+        left_shape = op.Concat(shape_begin, n_left, axis=0)
+        right_shape = op.Concat(shape_begin, n_right, axis=0)
+        right = op.Cast(op.ConstantOfShape(right_shape, value=0), to=1)
+        left = op.Cast(op.ConstantOfShape(left_shape, value=0), to=1)
+        
+        y = op.Concat(left, ytmp, right, axis=-1)
+        yc = op.Concat(left, ctmp, right, axis=-1)
+        
+        unsqy = op.Unsqueeze(y, mone)
+        seq = op.SequenceInsert(seq, unsqy)
+
+        unsqyc = op.Unsqueeze(yc, mone)
+        seqc = op.SequenceInsert(seqc, unsqyc)
+
+    # concatenation
+    red = op.ConcatFromSequence(seq, axis=-1, new_axis=0)
+    redc = op.ConcatFromSequence(seqc, axis=-1, new_axis=0)
+
+    # calling weighted dft
+    res = op.ReduceSum(red, mone, keepdims=0)
+    resc = op.ReduceSum(redc, mone, keepdims=0)
+    return op.Div(res, resc)
+
+
 if __name__ == "__main__":
+    import scipy
+    
+    def _complex2float(c):
+        real = np.real(c)
+        imag = np.imag(c)
+        x = np.vstack([real[np.newaxis, ...], imag[np.newaxis, ...]])
+        perm = list(range(len(x.shape)))
+        perm[:-1] = perm[1:]
+        perm[-1] = 0
+        return np.transpose(x, perm)
+    
+    def custom_stft(x, n_frames, framesamp, hopsamp, weights):
+        a = []
+        for i in range(0, n_frames, hopsamp):
+            nx = x[:, i:i+framesamp]
+            if nx.shape[-1] < framesamp:
+                nx = np.hstack([nx, np.zeros((nx.shape[0], framesamp - nx.shape[1]), dtype=nx.dtype)])
+            ft = np.fft.fft(weights.reshape((1, -1))*nx)
+            a.append(ft[np.newaxis, ...])
+        X = np.vstack(a)
+        return np.transpose(X, (1, 2, 0))
+
+    def custom_istft(X, fft_length, framesamp, hopsamp, weights):
+        n_frames = X.shape[-1]
+        expected_signal_len = fft_length + hopsamp * (n_frames - 1)
+        c = np.zeros((X.shape[0], expected_signal_len), dtype=np.float32)
+        x = np.zeros((X.shape[0], expected_signal_len), dtype=np.float32)
+        for n,i in enumerate(range(0, n_frames, hopsamp)):
+            mx = X[:, :, n]
+            ift = np.fft.ifft(mx)
+            r = np.real(ift)
+            x[:, i:i+ift.shape[-1]] += r
+            c[:, i:i+ift.shape[-1]] += weights
+        return x / c
+        
     # positive_axis = op.Where ( axis < 0, axis + n_dims, axis)
     import numpy as np
     import torch
     _ = torch.from_numpy
-    x = np.arange(10).astype(np.float32).reshape((-1, 5))
+    x = np.arange(24).astype(np.float32).reshape((-1, 8))
     le = np.array([5], dtype=np.int64)
     one = np.array([1], dtype=np.int64)
     two = np.array([2], dtype=np.int64)
-    win = blackman_window(le[0])
-    #win[:] = 0
-    #win[1] = 10
-    ft = stft(x[..., np.newaxis], le, one, two, win)
-    
-    tft1 = torch.stft(_(x), n_fft=le[0], win_length=le[0], window=_(win), center=False, onesided=False)
+    win = hann_window(le[0])
+    win[:] = ((np.arange(le[0]) + 1) / 10).astype(np.float32)
+    # win[:] = 1
+    y = torch.stft(_(x), n_fft=le[0], win_length=le[0], window=_(win),
+                   center=False, onesided=False, return_complex=True).numpy()
+    # print("**** TORCH", x.shape, "-->", y.shape)
+    # print(y)
+    cy = custom_stft(x, 4, 5, 1, win)
+    diff = np.abs(y - cy).max()
+    print("DIFF", diff)
+    if diff > 1e-5:
+        print("**** CUSTOM STFT", x.shape, "-->", cy.shape)
+        print(cy)
+    tft1 = torch.istft(_(y), n_fft=le[0], win_length=le[0], window=_(win), center=False, onesided=False)
+    print('################ TORCH ISTFT', tft1.shape)
+    print(tft1)
+    # print("**** CUSTOM ISTFT", y.shape)
+    # print(custom_istft(y, le[0], 1, 1, win))
+    print('################')
+
+    yf = _complex2float(y)
+    print("**** SHAPES", y.shape, yf.shape, win.shape, win.dtype)
+
+    ft = istft(yf, le, one, win)
+
     print('--------------------------')
     print("win=", win)
-    print(ft.shape, ft)
+    print("shape input", yf.shape, y.shape)
+    print("shape istft", ft.shape, tft1.numpy().shape)
     print('*')
-    print(tft1.numpy().shape, tft1.numpy())
-    
+    print(ft.ravel())
+    print('----')
+    print(ft)
+    print(tft1.numpy())
