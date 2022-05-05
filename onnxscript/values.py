@@ -1,4 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 import typing
 from typing import Any, List
 from enum import IntFlag
