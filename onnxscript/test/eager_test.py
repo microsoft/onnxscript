@@ -315,7 +315,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 case = FunctionTestParams(
                     signal_dft.stft, [x, le, hpv, fsv, window], [expected])
                 try:
-                    self.run_eager_test(case, rtol=1e-4, atol=1e-4)
+                    self.run_eager_test(case, rtol=1e-3, atol=1e-3)
                 except AssertionError as e:
                     raise AssertionError("Issue with %r." % info) from e
 

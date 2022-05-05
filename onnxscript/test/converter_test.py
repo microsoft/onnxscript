@@ -94,19 +94,19 @@ class TestConverter(unittest.TestCase):
         self.assertEqual((x * x).tolist(), got[0].tolist())
 
     def test_onnxfns1(self):
-        from .models import onnxfns1
+        from onnxscript.test.models import onnxfns1
         self.validate(onnxfns1)
 
     def test_onnxfns1A(self):
-        from .models import onnxfns1A
+        from onnxscript.test.models import onnxfns1A
         self.validate(onnxfns1A)
 
     def test_models(self):
-        from .models import onnxmodels
+        from onnxscript.test.models import onnxmodels
         self.validate_save(onnxmodels)
 
     def test_unary_op(self):
-        from .models import m1
+        from onnxscript.test.models import m1
         self.validate_save(m1)
 
     def test_subfunction(self):
@@ -116,7 +116,7 @@ class TestConverter(unittest.TestCase):
         onnx.checker.check_model(model)
 
     def test_if_models(self):
-        from .models import if_statement
+        from onnxscript.test.models import if_statement
         self.validate_save(if_statement)
 
     def test_docstring(self):
@@ -135,11 +135,11 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(proto.doc_string.strip(), "Combines ReduceSum, ReduceProd.")
 
     def test_signal(self):
-        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "signal_dft.py"), save_text=True)
+        from onnxscript.test.models import signal_dft
+        self.validate_save(signal_dft)
 
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_unary_op()
     unittest.main()

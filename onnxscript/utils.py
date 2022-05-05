@@ -22,7 +22,7 @@ def convert_arrays_to_value_infos(names, arr_list):
         if isinstance(arr, list):
             # sequence, assuming it is a float sequence
             # list should be replace by another container retaining the type information
-            info = onnx.helper.make_sequence_value_info(
+            info = onnx.helper.make_tensor_sequence_value_info(
                 name=name, elem_type=TensorProto.FLOAT, shape=None)
             value_infos.append(info)
             continue
