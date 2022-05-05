@@ -55,8 +55,10 @@ class Var:
         #     tp = helper.make_tensor_type_proto(tp.tensor_type.elem_type, [10])
         return helper.make_value_info(self.name, tp)
 
+
 def opt_var_to_str(x):
     return "" if x is None else str(x)
+
 
 class Attr:
     def __init__(self, attrproto) -> None:

@@ -132,9 +132,10 @@ class TestConverter(unittest.TestCase):
         Test that use of None as an actual parameter is accepted.
         '''
         @script()
-        def clipmax (x: FLOAT['N'], max: FLOAT):
+        def clipmax(x: FLOAT['N'], max: FLOAT):  # noqa: F821
             return op.Clip(x, None, max)
         self.validate_save(clipmax)
+
 
 if __name__ == '__main__':
     # import logging
