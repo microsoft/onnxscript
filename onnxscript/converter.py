@@ -67,7 +67,8 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
         if isinstance(pyvalue[0], int):
             if not all([isinstance(e, int) for e in pyvalue]):
                 fail("Cannot convert an list with elements of different types to tensor")
-            return helper.make_tensor(tensor_name, onnx.TensorProto.INT64, [len(pyvalue)], pyvalue)
+            return helper.make_tensor(
+                tensor_name, onnx.TensorProto.INT64, [len(pyvalue)], pyvalue)
         else:
             fail("Can only convert a list of int elements to tensor")
     if isinstance(pyvalue, str):
@@ -201,9 +202,9 @@ class Converter:
         pytype = val.typeinfo
         attrname = None
         if pytype is float:
-            attrname  = "value_float"
+            attrname = "value_float"
         elif pytype is int:
-            attrname  = "value_int"
+            attrname = "value_int"
         elif pytype is str:
             attrname = "value_string"
         elif pytype is typing.List[int]:

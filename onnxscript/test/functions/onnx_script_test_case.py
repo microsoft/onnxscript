@@ -7,12 +7,12 @@ import dataclasses
 import unittest
 import numpy as np
 import onnx
-from onnx import ModelProto, OperatorSetIdProto, AttributeProto
+from onnx import ModelProto, OperatorSetIdProto
 from onnxscript import utils
 from onnxruntime import InferenceSession
 from onnxscript.main import OnnxFunction
 import onnx.backend.test.case.node as node_test
-from typing import Any, Dict, Sequence
+from typing import Any, Sequence
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -101,8 +101,6 @@ class OnnxScriptTestCase(unittest.TestCase):
         skip_eager_test: bool = False
         if 'skip_eager_test' in attrs:
             skip_eager_test = attrs.pop('skip_eager_test', False)
-
-
 
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for i, case in enumerate(cases):

@@ -15,16 +15,14 @@ from .converter import Converter
 
 
 def match_type(types, dtype):
-    if dtype=='int32':
+    if dtype == 'int32':
         if 'tensor(int32)' not in types and 'tensor(int64)' in types:
             return np.dtype('int64')
     return dtype
 
 
-def convert_arrays_to_value_infos(
-    names,
-    arr_list,
-    op_schema_formal_parameter=[]):
+def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=[]):
+
     value_infos = []
     for i, (name, arr) in enumerate(zip(names, arr_list)):
         elem_type: TensorProto.DataType
