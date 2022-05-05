@@ -6,6 +6,7 @@ import ast
 import logging
 import onnx
 import onnx.helper as helper
+import typing
 from . import onnx_types as types
 from .irbuilder import IRBuilder
 from . import analysis as analysis
@@ -69,7 +70,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
         else:
             fail("Can only convert a list of int elements to tensor")
     if isinstance(pyvalue, str):
-        string_list = list(s.encode('utf-8') for s in [pyvalue])
+        string_list = [pyvalue.encode('utf-8')]
         return helper.make_tensor(tensor_name, onnx.TensorProto.STRING, [], vals=string_list)
     # TODO: str, sequences of values
     fail("Unimplemented")
@@ -204,8 +205,10 @@ class Converter:
             attrname  = "value_int"
         elif pytype is str:
             attrname = "value_string"
-        else:
+        elif pytype is typing.List[int]:
             attrname = "value_ints"
+        else:
+            fail("Unsupported attribute type: {}".format(pytype))
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None):
@@ -302,9 +305,6 @@ class Converter:
             val = self.lookup(node.id, DebugInfo(node))
             if (isinstance(val, AttrRef)):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
-            elif (isinstance(val, Dynamic)):
-                return None
-                # return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
             else:
                 # TODO: lookup value; if func.def., compile it to Graph; if a
                 # constant; etc.
