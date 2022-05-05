@@ -333,11 +333,18 @@ class Converter:
             return results
         return r
 
+    # Translation of an expression where "None" is permitted (eg., for an optional argument)
+    def translate_opt_expr(self, node, target="tmp"):
+        # None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
+            return None
+        return self.translate_expr(node, target)
+
     def translate_call_expr(self, node):
         # TODO: for now, we map named arguments to attributes, and positional
         # arguments to inputs.
         callee = self.translate_callee_expr(node.func)
-        args = [self.translate_expr(x) for x in node.args]
+        args = [self.translate_opt_expr(x) for x in node.args]
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         return callee, args, attrs
 

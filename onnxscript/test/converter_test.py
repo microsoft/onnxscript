@@ -127,6 +127,14 @@ class TestConverter(unittest.TestCase):
         proto = sumprod.to_function_proto()
         self.assertEqual(proto.doc_string.strip(), "Combines ReduceSum, ReduceProd.")
 
+    def test_none_as_input(self):
+        '''
+        Test that use of None as an actual parameter is accepted.
+        '''
+        @script()
+        def clipmax (x: FLOAT['N'], max: FLOAT):
+            return op.Clip(x, None, max)
+        self.validate_save(clipmax)
 
 if __name__ == '__main__':
     # import logging
