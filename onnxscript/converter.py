@@ -59,6 +59,18 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
         return helper.make_tensor(tensor_name, onnx.TensorProto.INT64, [], [pyvalue])
     if isinstance(pyvalue, float):
         return helper.make_tensor(tensor_name, onnx.TensorProto.FLOAT, [], [pyvalue])
+    if isinstance(pyvalue, list):
+        if len(pyvalue) == 0:
+            fail("Cannot convert an empty list to tensor")
+        if isinstance(pyvalue[0], int):
+            if not all([isinstance(e, int) for e in pyvalue]):
+                fail("Cannot convert an list with elements of different types to tensor")
+            return helper.make_tensor(tensor_name, onnx.TensorProto.INT64, [len(pyvalue)], pyvalue)
+        else:
+            fail("Can only convert a list of int elements to tensor")
+    if isinstance(pyvalue, str):
+        string_list = list(s.encode('utf-8') for s in [pyvalue])
+        return helper.make_tensor(tensor_name, onnx.TensorProto.STRING, [], vals=string_list)
     # TODO: str, sequences of values
     fail("Unimplemented")
 
@@ -185,8 +197,15 @@ class Converter:
 
     def to_onnx_attr_ref(self, val: AttrRef):
         pytype = val.typeinfo
-        attrname = "value_float" if (pytype is float) else (
-            "value_int" if (pytype is int) else "value_string")
+        attrname = None
+        if pytype is float:
+            attrname  = "value_float"
+        elif pytype is int:
+            attrname  = "value_int"
+        elif pytype is str:
+            attrname = "value_string"
+        else:
+            attrname = "value_ints"
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None):
@@ -253,7 +272,7 @@ class Converter:
                 return False
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
-                             ast.Num, ast.Str, ast.Attribute)):
+                             ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load)):
             return all([self.is_constant_expr(c) for c in ast.iter_child_nodes(node)])
         return False
 
@@ -282,7 +301,10 @@ class Converter:
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, DebugInfo(node))
             if (isinstance(val, AttrRef)):
-                return self.to_onnx_attr_ref(val)
+                return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
+            elif (isinstance(val, Dynamic)):
+                return None
+                # return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
             else:
                 # TODO: lookup value; if func.def., compile it to Graph; if a
                 # constant; etc.
@@ -317,6 +339,13 @@ class Converter:
             r = self.emit_const(node.n, target)
         elif isinstance(node, ast.NameConstant):
             r = self.emit_const(node.value, target)
+        elif isinstance(node, ast.List):
+            if self.is_constant_expr(node):
+                r = self.emit_const(self.eval_constant_expr(node), target)
+            else:
+                raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
+        elif isinstance(node, ast.Constant):
+            r = self.emit_const(self.eval_constant_expr(node), target)
         else:
             raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         if isinstance(r, tuple):
@@ -454,7 +483,7 @@ class Converter:
                 ids = [id(x) for x in lhs.elts]
                 onnxids = self.translate_expr(rhs, ids)
                 for x, y in zip(ids, onnxids):
-                    self.bind(x, Dynamic(y, DynamicKind.Intermediate))
+                    self.bind(x, Dynamic(y, DynamicKind.Intermediate, info))
             else:
                 fail("Unsupported construct in LHS of assignment.")
 

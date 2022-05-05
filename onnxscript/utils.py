@@ -11,14 +11,32 @@ from onnx import TensorProto, ValueInfoProto, \
 from .converter import Converter
 
 
-def convert_arrays_to_value_infos(names, arr_list):
+def match_type(types, dtype):
+    if dtype=='int32':
+        if 'tensor(int32)' not in types and 'tensor(int64)' in types:
+            return np.dtype('int64')
+    return dtype
+
+
+def convert_arrays_to_value_infos(
+    names,
+    arr_list,
+    op_schema_formal_parameter=[]):
     value_infos = []
-    for name, arr in zip(names, arr_list):
+    for i, (name, arr) in enumerate(zip(names, arr_list)):
         elem_type: TensorProto.DataType
         shape: tuple
         if isinstance(arr, np.ndarray):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
+        elif isinstance(arr, list):
+            nparray = np.asarray(arr)
+            if op_schema_formal_parameter and len(op_schema_formal_parameter) > i:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[
+                    match_type(op_schema_formal_parameter[i].types, nparray.dtype)]
+            else:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
+            shape = nparray.shape
         elif isinstance(arr, numbers.Number):
             nparray = np.array(arr)
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]

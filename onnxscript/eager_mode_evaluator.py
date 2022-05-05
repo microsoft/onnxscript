@@ -43,7 +43,8 @@ def call_ort(schema, *args, **kwargs):
     inputs = ["input" + str(i) for i in range(len(args))]
     outputs = ["output" + str(i) for i in range(len(schema.outputs))]
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
-    input_value_infos = convert_arrays_to_value_infos(inputs, list(args))
+    input_value_infos = convert_arrays_to_value_infos(
+        inputs, list(args), schema.inputs)
     output_value_infos = [
         onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
 
@@ -55,7 +56,7 @@ def call_ort(schema, *args, **kwargs):
         model.SerializeToString(), providers=['CPUExecutionProvider'])
 
     session_run_input = {
-        input: arg if isinstance(arg, np.ndarray) else [arg]
+        input: arg if isinstance(arg, np.ndarray) or isinstance(arg, list) else [arg]
         for input, arg in zip(inputs, args)}
 
     got = sess.run(None, session_run_input)

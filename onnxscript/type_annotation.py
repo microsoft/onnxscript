@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import onnx
-
+import typing
+from typing import List
 
 pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
+    typing.List[int]: onnx.AttributeProto.INTS
 }
 
 
 def is_attr(typeinfo):
-    return typeinfo in {float, int, str}
+    return typeinfo in {float, int, str, List[int]}
     # (typeinfo is float) or (typeinfo is str) or (typeinfo is int)
 
 

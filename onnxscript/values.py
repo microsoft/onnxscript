@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-from typing import Any
+import typing
+from typing import Any, List
 from enum import IntFlag
 import onnx
 
@@ -173,10 +174,10 @@ class ConstValue(Value):
 
 
 class AttrRef(Value):
-    def __init__(self, name: str, typeinfo: type, info: DebugInfo) -> None:
+    def __init__(self, name: str, typeinfo: type or List[int], info: DebugInfo) -> None:
         super().__init__(name, info)
         self.typeinfo = typeinfo
-        if not isinstance(typeinfo, type):
+        if not isinstance(typeinfo, type) and not isinstance(typeinfo, typing._GenericAlias):
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 
