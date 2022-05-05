@@ -272,8 +272,8 @@ class TestOnnxSignal(OnnxScriptTestCase):
             raise ImportError("torch is not installed.") from e
         _ = torch.from_numpy
         ft = torch.istft(_(y), n_fft=fft_length, hop_length=hop_length,
-                        win_length=fft_length, window=_(window),
-                        center=center, onesided=onesided, return_complex=True)
+                         win_length=fft_length, window=_(window),
+                         center=center, onesided=onesided, return_complex=True)
         return ft.numpy()
 
     def test_dft_rstft_istft(self):

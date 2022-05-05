@@ -5,7 +5,6 @@
 
 import unittest
 import os
-import textwrap
 import warnings
 import types
 import numpy as np
