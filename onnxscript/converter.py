@@ -348,6 +348,11 @@ class Converter:
                 raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         elif isinstance(node, ast.Constant):
             r = self.emit_const(self.eval_constant_expr(node), target)
+        elif isinstance(node, ast.Str):
+            # a constant string is treated as ast.Str in python 3.7.
+            # in other python versions, a constant string
+            # is treated as ast.Constant.
+            r = self.emit_const(self.eval_constant_expr(node), target)
         else:
             raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
         if isinstance(r, tuple):
