@@ -3,10 +3,8 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import onnxscript
 from onnxscript import script
 from onnxscript.onnx import opset15 as op
-from onnxscript.onnx_types import INT64
 from typing import List
 
 # TODO: Need to verify definitions below.
@@ -71,7 +69,7 @@ def Hardmax(X, axis: int):
 #     Unfortunately, this is hard to encode in ONNX because Hardmax has a single
 #     axis attribute, while ReduceMax has a list of axes as attribute.
 #     ONNX has no mechanism to transform the axis parameter to axes,
-#     thas is, to translate the `axes=[axis]` code below.
+#     that is, to translate the `axes=[axis]` code below.
 #     '''
 #     # axes=[axis] is not working yet
 #     maxval = op.ReduceMax(X, axes=[axis], keepdims=True)

@@ -51,31 +51,41 @@ def ignore(cond, msg):
     if cond:
         warn(msg)
 
+
 # Utility to convert a python value to TensorProto:
+def py_type_to_onnx_type(pytype: type):
+    if pytype is bool:
+        return onnx.TensorProto.BOOL
+    if pytype is int:
+        return onnx.TensorProto.INT64
+    if pytype is float:
+        return onnx.TensorProto.FLOAT
+    if pytype is str:
+        return onnx.TensorProto.STRING
+    fail(DebugInfo(pytype).msg(
+        f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
 def pyvalue_to_tensor(tensor_name: str, pyvalue):
-    if isinstance(pyvalue, bool):
-        return helper.make_tensor(tensor_name, onnx.TensorProto.BOOL, [], [int(pyvalue)])
-    if isinstance(pyvalue, int):
-        return helper.make_tensor(tensor_name, onnx.TensorProto.INT64, [], [pyvalue])
-    if isinstance(pyvalue, float):
-        return helper.make_tensor(tensor_name, onnx.TensorProto.FLOAT, [], [pyvalue])
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
-            fail("Cannot convert an empty list to tensor")
-        if isinstance(pyvalue[0], int):
-            if not all([isinstance(e, int) for e in pyvalue]):
-                fail("Cannot convert an list with elements of different types to tensor")
-            return helper.make_tensor(
-                tensor_name, onnx.TensorProto.INT64, [len(pyvalue)], pyvalue)
-        else:
-            fail("Can only convert a list of int elements to tensor")
-    if isinstance(pyvalue, str):
-        string_list = [pyvalue.encode('utf-8')]
-        return helper.make_tensor(tensor_name, onnx.TensorProto.STRING, [], vals=string_list)
-    # TODO: str, sequences of values
-    fail("Unimplemented")
+            fail(DebugInfo(pyvalue).msg("Cannot convert an empty list to tensor"))
+        pytype = type(pyvalue[0])
+        if not all([isinstance(e, pytype) for e in pyvalue]):
+            fail(DebugInfo(pyvalue).msg(
+                "Cannot convert an list with elements of different types to tensor"))
+        return helper.make_tensor(
+            tensor_name, py_type_to_onnx_type(pytype), [len(pyvalue)], pyvalue)
+
+    onnx_type = py_type_to_onnx_type(type(pyvalue))
+    if onnx_type is onnx.TensorProto.BOOL:
+        return helper.make_tensor(
+            tensor_name, onnx_type, [], [int(pyvalue)])
+    if onnx_type is onnx.TensorProto.STRING:
+        return helper.make_tensor(
+            tensor_name, onnx_type, [], vals=[pyvalue.encode('utf-8')])
+
+    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
 
 # map from python operators to ONNX ops
@@ -210,7 +220,7 @@ class Converter:
         elif pytype is typing.List[int]:
             attrname = "value_ints"
         else:
-            fail("Unsupported attribute type: {}".format(pytype))
+            fail(DebugInfo(val).msg(f"Unsupported attribute type: {pytype}"))
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None):
@@ -345,7 +355,8 @@ class Converter:
             if self.is_constant_expr(node):
                 r = self.emit_const(self.eval_constant_expr(node), target)
             else:
-                raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
+                raise ValueError(DebugInfo(node).msg(
+                    f"Unsupported expression type: {type(node).__name__}."))
         elif isinstance(node, ast.Constant):
             r = self.emit_const(self.eval_constant_expr(node), target)
         elif isinstance(node, ast.Str):
@@ -354,7 +365,8 @@ class Converter:
             # is treated as ast.Constant.
             r = self.emit_const(self.eval_constant_expr(node), target)
         else:
-            raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
+            raise ValueError(DebugInfo(node).msg(
+                f"Unsupported expression type: {type(node).__name__}."))
         if isinstance(r, tuple):
             if isinstance(target, str):
                 result = self.generate_unique_name(target)

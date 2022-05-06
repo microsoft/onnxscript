@@ -180,7 +180,7 @@ class AttrRef(Value):
     def __init__(self, name: str, typeinfo: type or List[int], info: DebugInfo) -> None:
         super().__init__(name, info)
         self.typeinfo = typeinfo
-        if not isinstance(typeinfo, type) and not isinstance(typeinfo, typing._GenericAlias):
+        if not isinstance(typeinfo, (type, typing._GenericAlias)):
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 

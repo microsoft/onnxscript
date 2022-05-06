@@ -12,7 +12,7 @@ from onnxscript import utils
 from onnxruntime import InferenceSession
 from onnxscript.main import OnnxFunction
 import onnx.backend.test.case.node as node_test
-from typing import Any, Sequence
+from typing import Any, Sequence, List
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -93,14 +93,22 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_onnx_test(
             self,
             function: OnnxFunction,
+            skip_eager_test: bool = False,
+            skip_test_names: List[str] = [],
             **attrs: Any):
-        skip_test_names: list(str) = []
-        if 'skip_test_names' in attrs:
-            skip_test_names = attrs.pop('skip_test_names', [])
+        '''
+        Run ONNX test cases with an OnnxFunction.
+        The function shall have test cases in ONNX repo.
+        For example: in onnx/test/case/node.
+        Test case models and data are used to do converter and eager mode test.
 
-        skip_eager_test: bool = False
-        if 'skip_eager_test' in attrs:
-            skip_eager_test = attrs.pop('skip_eager_test', False)
+        Arguments:
+            function (OnnxFunction): the function to be tested.
+            skip_eager_test (bool): not to run eager test if Ture.
+            skip_test_names (List[str]): to skip these tests.
+            attrs (Any): default attributes of the function node.
+
+        '''
 
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for i, case in enumerate(cases):
