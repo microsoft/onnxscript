@@ -16,8 +16,7 @@ pytype_to_attrtype_map = {
 
 
 def is_attr(typeinfo):
-    return typeinfo in {float, int, str, List[int]}
-    # (typeinfo is float) or (typeinfo is str) or (typeinfo is int)
+    return typeinfo in {float, int, str, List[float], List[int], List[str]}
 
 
 def is_tensor(typeinfo):
