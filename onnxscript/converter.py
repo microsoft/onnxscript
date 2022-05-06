@@ -287,7 +287,8 @@ class Converter:
                 return False
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
-                             ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load)):
+                             ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load,
+                             ast.NameConstant, ast.Constant, ast.Str)):
             return all([self.is_constant_expr(c) for c in ast.iter_child_nodes(node)])
         return False
 
@@ -347,22 +348,7 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
-        elif isinstance(node, ast.Num):
-            r = self.emit_const(node.n, target)
-        elif isinstance(node, ast.NameConstant):
-            r = self.emit_const(node.value, target)
-        elif isinstance(node, ast.List):
-            if self.is_constant_expr(node):
-                r = self.emit_const(self.eval_constant_expr(node), target)
-            else:
-                raise ValueError(DebugInfo(node).msg(
-                    f"Unsupported expression type: {type(node).__name__}."))
-        elif isinstance(node, ast.Constant):
-            r = self.emit_const(self.eval_constant_expr(node), target)
-        elif isinstance(node, ast.Str):
-            # a constant string is treated as ast.Str in python 3.7.
-            # in other python versions, a constant string
-            # is treated as ast.Constant.
+        elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target)
         else:
             raise ValueError(DebugInfo(node).msg(
