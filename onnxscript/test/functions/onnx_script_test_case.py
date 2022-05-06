@@ -95,7 +95,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             function: OnnxFunction,
             skip_eager_test: bool = False,
             skip_test_names: List[str] = [],
-            **attrs: Any):
+            **attrs: Any) -> None:
         '''
         Run ONNX test cases with an OnnxFunction.
         The function shall have test cases in ONNX repo.

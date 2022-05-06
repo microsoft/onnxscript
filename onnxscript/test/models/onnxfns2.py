@@ -70,6 +70,12 @@ def Hardmax(X, axis: int):
 #     axis attribute, while ReduceMax has a list of axes as attribute.
 #     ONNX has no mechanism to transform the axis parameter to axes,
 #     that is, to translate the `axes=[axis]` code below.
+#
+#     Code review comment from xadupre:
+#         One way to do it is to reshape/transpose X to get two dimensions
+#         (prod(non reduced axes), prod(reduced axes)), to apply ReduceMax
+#         and then to Reshape to the shape containing only the non reduced axes.
+#         That way ReduceMax is applied the same argument [1].
 #     '''
 #     # axes=[axis] is not working yet
 #     maxval = op.ReduceMax(X, axes=[axis], keepdims=True)
