@@ -12,7 +12,7 @@ from onnxscript import utils
 from onnxruntime import InferenceSession
 from onnxscript.main import OnnxFunction
 import onnx.backend.test.case.node as node_test
-from typing import Any, Sequence
+from typing import Any, Sequence, List
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -93,19 +93,38 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_onnx_test(
             self,
             function: OnnxFunction,
-            **attrs: Any):
+            skip_eager_test: bool = False,
+            skip_test_names: List[str] = [],
+            **attrs: Any) -> None:
+        '''
+        Run ONNX test cases with an OnnxFunction.
+        The function shall have test cases in ONNX repo.
+        For example: in onnx/test/case/node.
+        Test case models and data are used to do converter and eager mode test.
+
+        Arguments:
+            function (OnnxFunction): the function to be tested.
+            skip_eager_test (bool): not to run eager test if Ture.
+            skip_test_names (List[str]): to skip these tests.
+            attrs (Any): default attributes of the function node.
+
+        '''
+
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for i, case in enumerate(cases):
             if len(case.model.graph.node) != 1:
                 raise ValueError("run_onnx_test only \
                     tests models with one operator node.")
 
-            test_case_attrs = {
-                a.name: a.f for a in case.model.graph.node[0].attribute}
-            test_case_attrs = {**attrs, **test_case_attrs}
+            if case.name not in skip_test_names:
+                test_case_attrs = {
+                    a.name: onnx.helper.get_attribute_value(a)
+                    for a in case.model.graph.node[0].attribute}
+                test_case_attrs = {**attrs, **test_case_attrs}
 
-            for ds in case.data_sets:
-                param = FunctionTestParams(
-                    function, ds[0], ds[1], attrs=test_case_attrs)
-                self.run_converter_test(param, case.model.opset_import)
-                self.run_eager_test(param, case.model.opset_import)
+                for ds in case.data_sets:
+                    param = FunctionTestParams(
+                        function, ds[0], ds[1], attrs=test_case_attrs)
+                    self.run_converter_test(param, case.model.opset_import)
+                    if not skip_eager_test:
+                        self.run_eager_test(param, case.model.opset_import)

@@ -2,8 +2,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-
-from typing import Any
+import typing
+from typing import Any, List
 from enum import IntFlag
 import onnx
 
@@ -177,10 +177,22 @@ class ConstValue(Value):
 
 
 class AttrRef(Value):
-    def __init__(self, name: str, typeinfo: type, info: DebugInfo) -> None:
+    def __init__(
+            self,
+            name: str,
+            typeinfo: type or List,
+            info: DebugInfo) -> None:
+        '''
+        Arguments:
+            name: name of the attribute
+            typeinfo: type annotation of the attribute.
+                op's attributes in ONNX are usually single type or list of single type.
+            info: for debugging use.
+        '''
         super().__init__(name, info)
         self.typeinfo = typeinfo
-        if not isinstance(typeinfo, type):
+        if not isinstance(typeinfo, (type, typing._GenericAlias)):
+            # typing._GenericAlias for List[int] and List[str], etc.
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 
