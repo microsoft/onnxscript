@@ -40,7 +40,9 @@ def MeanDiffCaller(x):
 # BatchNorm can still be defined as a function, as in use-case 1, by computing
 # the extra outputs even in the case where it is unused. This can lead to inefficiency
 # due to redundant computation, but that can be eliminated by optimization subsequent
-# to inlining.
+# to inlining. However, the optimization may not be feasible if the entire
+# computation graph is unavailable: eg., if we extract subgraphs (from a Pytorch
+# program) and execute it subgraph at-a-time.
 
 # However, the question here is whether it is useful to support examples such as
 # the one below:
