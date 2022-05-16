@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 from onnxscript import script
+from onnxscript.onnx_types import INT64
 from onnxscript.onnx import opset15 as op
 from typing import List
 
@@ -13,18 +14,18 @@ from typing import List
 
 
 @script()
-def ReduceSumSquare(data, axes: List[int],  keepdims: int):
+def ReduceSumSquare(data, axes: INT64['D']=None, keepdims: int=0):
     # Note: attribute input is promoted to input when calling ReduceSum
     return op.ReduceSum(data * data, axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL1(data, axes: List[int],  keepdims: int):
+def ReduceL1(data, axes: INT64['D']=None,  keepdims: int=0):
     return op.ReduceSum(op.Abs(data), axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL2(data, axes: List[int],  keepdims: int):
+def ReduceL2(data, axes: INT64['D']=None, keepdims: int=0):
     # TODO: ONNX spec is unclear about behavior for integral types!
     sum_square = op.ReduceSum(data * data, axes, keepdims=keepdims)
     # TODO: must cast for integral types
@@ -32,12 +33,12 @@ def ReduceL2(data, axes: List[int],  keepdims: int):
 
 
 @script()
-def ReduceLogSum(data, axes: List[int],  keepdims: int):
+def ReduceLogSum(data, axes: INT64['D']=None, keepdims: int=0):
     return op.Log(op.ReduceSum(data, axes, keepdims=keepdims))
 
 
 @script()
-def ReduceLogSumExp(data, axes: List[int],  keepdims: int):
+def ReduceLogSumExp(data, axes: INT64['D']=None, keepdims: int=0):
     return op.Log(op.ReduceSum(op.Exp(data), axes, keepdims=keepdims))
 
 

@@ -59,7 +59,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
     k0 = op.Cast(kar, to=1)
     k = op.Reshape(k0, shape2)
 
-    if inverse:
+    if op.Cast(inverse, to=TensorProto.BOOL):
         cst_2pi = op.Constant(
             value=make_tensor('pi', TensorProto.FLOAT, [1], [6.28318530718])) #  2pi
     else:
@@ -141,7 +141,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
     n_dims = op.Size(op.Shape(result))
     
 
-    if onesided:
+    if op.Cast(onesided, to=TensorProto.BOOL):
         half = op.Div(fft_length, two) + op.Mod(fft_length, two)
         n_r_dims_1 = op.Sub(op.Shape(op.Shape(x)), one)
         truncated = op.Slice(result, zero, half, n_r_dims_1)

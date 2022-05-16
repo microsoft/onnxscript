@@ -5,14 +5,15 @@
 
 import dataclasses
 import unittest
+from typing import Any, Sequence, List
 import numpy as np
 import onnx
 from onnx import ModelProto, OperatorSetIdProto
+import onnx.backend.test.case.node as node_test
 from onnxscript import utils
 from onnxruntime import InferenceSession
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail
 from onnxscript.main import OnnxFunction
-import onnx.backend.test.case.node as node_test
-from typing import Any, Sequence, List
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -76,8 +77,12 @@ class OnnxScriptTestCase(unittest.TestCase):
         input = {
             vi.name: t
             for vi, t in zip(model.graph.input, param.input)}
-        sess = InferenceSession(
-            model.SerializeToString(), providers=['CPUExecutionProvider'])
+        try:
+            sess = InferenceSession(
+                model.SerializeToString(), providers=['CPUExecutionProvider'])
+        except Fail as e:
+            raise AssertionError(
+                "Unable to load model\n%s" % str(model)) from e
         actual = sess.run(None, input)
         np.testing.assert_allclose(actual, param.output, rtol=self.rtol)
 
