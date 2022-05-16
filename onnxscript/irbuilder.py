@@ -15,8 +15,8 @@ from .values import Opset
 logger = logging.getLogger("onnx-script")
 
 
-def format(list, prefix, sep, suffix):
-    return prefix + sep.join([str(x) for x in list]) + suffix
+def format(list, prefix, sep, suffix, formatter=str):
+    return prefix + sep.join([formatter(x) for x in list]) + suffix
 
 
 class Type:
@@ -56,6 +56,10 @@ class Var:
         return helper.make_value_info(self.name, tp)
 
 
+def opt_var_to_str(x):
+    return "" if x is None else str(x)
+
+
 class Attr:
     def __init__(self, attrproto) -> None:
         self.attr_proto = attrproto
@@ -88,7 +92,7 @@ class Stmt:
         if (self.attrs):
             attrs = format(self.attrs, "<", ", ", ">")
 
-        args = format(self.args, "(", ", ", ")")
+        args = format(self.args, "(", ", ", ")", opt_var_to_str)
         module = str(self.module)
         callee = module + "." + self.opname if (module != '') else self.opname
         return lhs + " = " + callee + " " + attrs + args
@@ -101,7 +105,7 @@ class Stmt:
         if not isinstance(self.module.domain, str):
             raise TypeError("Unexpected type %r for self.module." % type(self.module))
         n = helper.make_node(self.opname,
-                             [str(x) for x in self.args],
+                             [opt_var_to_str(x) for x in self.args],
                              [str(x) for x in self.result],
                              domain=self.module.domain)
         for a in self.attrs:

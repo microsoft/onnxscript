@@ -14,9 +14,21 @@ from onnx import TensorProto, ValueInfoProto, \
 from .converter import Converter
 
 
-def convert_arrays_to_value_infos(names, arr_list):
+def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):
+    # ONNX TensorProto data type is a supper set of python dtype.
+    # When a dtype is not allowed by ONNX schema, we need to find a closest
+    # dtype allowed by the schema.
+    if dtype == 'int32':
+        if 'tensor(int32)' not in onnx_schema_types and\
+                'tensor(int64)' in onnx_schema_types:
+            return np.dtype('int64')
+    return dtype
+
+
+def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=[]):
+
     value_infos = []
-    for name, arr in zip(names, arr_list):
+    for i, (name, arr) in enumerate(zip(names, arr_list)):
         elem_type: TensorProto.DataType
         shape: tuple
         if isinstance(arr, list):
@@ -29,6 +41,15 @@ def convert_arrays_to_value_infos(names, arr_list):
         elif isinstance(arr, np.ndarray):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
+        elif isinstance(arr, list):
+            nparray = np.asarray(arr)
+            if op_schema_formal_parameter and len(op_schema_formal_parameter) > i:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[
+                    map_pytype_to_schema_allowed_dtype(
+                        op_schema_formal_parameter[i].types, nparray.dtype)]
+            else:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
+            shape = nparray.shape
         elif isinstance(arr, numbers.Number):
             nparray = np.array(arr)
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]

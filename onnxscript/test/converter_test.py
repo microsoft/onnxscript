@@ -139,6 +139,15 @@ class TestConverter(unittest.TestCase):
         # shape_inference crashes on stft.
         self.validate_save(signal_dft, shape_inference=False)
 
+    def test_none_as_input(self):
+        '''
+        Test that use of None as an actual parameter is accepted.
+        '''
+        @script()
+        def clipmax(x: FLOAT['N'], max: FLOAT):  # noqa: F821
+            return op.Clip(x, None, max)
+        self.validate_save(clipmax)
+
 
 if __name__ == '__main__':
     # import logging
