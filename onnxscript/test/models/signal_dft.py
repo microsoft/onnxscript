@@ -168,7 +168,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
 
 
 @script()
-def switch_axes(x, axis1, axis2):
+def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     """
     Switches two axis. The function assumes `axis1 < axis2`.
     """

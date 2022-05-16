@@ -274,7 +274,7 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, info)
+        tensor = pyvalue_to_tensor(ovar, pyvalue)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(default_opset, "Constant"), [], [attr])
         return ovar
@@ -359,7 +359,7 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif self.is_constant_expr(node):
-            r = self.emit_const(self.eval_constant_expr(node), target)
+            r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node))
         else:
             raise ValueError(DebugInfo(node).msg(
                 f"Unsupported expression type: {type(node).__name__}."))
