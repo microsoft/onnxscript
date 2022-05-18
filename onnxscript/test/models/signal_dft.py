@@ -160,7 +160,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
         final_shape = op.Concat(other_dimensions, two, axis=0)
         final = op.Reshape(transposed, final_shape)
 
-    if normalize:
+    if op.Cast(normalize, to=TensorProto.BOOL):
         norm = op.Div(final, fft_length_float)
     else:
         norm = op.Identity(final)
@@ -182,21 +182,21 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     # First into a 5D dimension tensor.
     dims1_final = op.Slice(shape, zero, axis1, zero)
     if axis1 == zero:
-        dims1 = one
+        dims1 = op.Identity(one)
     else:
-        dims1 = dims1_final
+        dims1 = op.Identity(dims1_final)
 
     dims2_final = op.Slice(shape, op.Add(axis1, one), axis2, zero)
     if axis1 == axis2_1:
-        dims2 = one
+        dims2 = op.Identity(one)
     else:
-        dims2 = dims2_final
+        dims2 = op.Identity(dims2_final)
 
     dims3_final = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
     if axis2 == n_dims_1:
-        dims3 = one
+        dims3 = op.Identity(one)
     else:
-        dims3 = dims3_final
+        dims3 = op.Identity(dims3_final)
 
     dim1 = op.Slice(shape, axis1, op.Add(axis1, one), zero)
     dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
@@ -242,7 +242,8 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
 
 
 @script()
-def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) -> FLOAT[...]:
+def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
+        inverse=False, onesided=False) -> FLOAT[...]:
     """
     Applies one dimensional FFT.
     The function moves the considered axis to the last position
@@ -250,19 +251,7 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) -> 
     """
     weights = op.ConstantOfShape(
         fft_length, value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
-    return dft_inv(x, fft_length, axis, weights, onesided, False, False)
-
-
-@script()
-def idft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], onesided=False) -> FLOAT[...]:
-    """
-    Applies one dimensional IFFT.
-    The function moves the considered axis to the last position
-    calls dft_last_axis, and moves the axis to its original position.
-    """
-    weights = op.ConstantOfShape(
-        fft_length, value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
-    return dft_inv(x, fft_length, axis, weights, onesided, True, True)
+    return dft_inv(x, fft_length, axis, weights, onesided, inverse, inverse)
 
 
 @script()

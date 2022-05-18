@@ -190,7 +190,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     with self.subTest(x_shape=x.shape, le=list(le), ax=ax,
                                       expected_shape=expected.shape):
                         case = FunctionTestParams(
-                            signal_dft.idft, [x, le, nax], [expected])
+                            signal_dft.dft, [x, le, nax, True], [expected])
                         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_cifft(self):
@@ -400,5 +400,5 @@ class TestOnnxSignal(OnnxScriptTestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestOnnxSignal().test_dft_rstft_istft()
+    TestOnnxSignal().test_dft_rifft()
     unittest.main()
