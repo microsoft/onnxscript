@@ -25,7 +25,9 @@ def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):
     return dtype
 
 
-def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=[]):
+def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=None):
+    if op_schema_formal_parameter is None:
+        op_schema_formal_parameter = []
 
     value_infos = []
     for i, (name, arr) in enumerate(zip(names, arr_list)):
@@ -35,6 +37,8 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=[]
             # sequence, assuming it is a float sequence
             # list should be replace by another container retaining the type information
             nparray = np.asarray(arr)
+            if len(arr) == 0:
+                nparray = nparray.astype(np.float32)
             if op_schema_formal_parameter and len(op_schema_formal_parameter) > i:
                 elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[
                         map_pytype_to_schema_allowed_dtype(

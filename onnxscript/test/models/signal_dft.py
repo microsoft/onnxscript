@@ -332,7 +332,7 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     window_size = op.Shape(window)
 
     # building frames
-    seq = op.SequenceEmpty()
+    seq = op.SequenceEmpty(dtype=TensorProto.FLOAT)
     nf = op.Squeeze(n_frames, zero)
     for fs in range(nf):
         fs64 = op.Cast(fs, to=7)

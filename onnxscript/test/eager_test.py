@@ -279,6 +279,8 @@ class TestOnnxSignal(OnnxScriptTestCase):
     def test_dft_rstft_istft(self):
 
         xs = [
+            ("hp2", np.arange(24).astype(np.float32).reshape((3, 8)), 6, 2, 2),
+            ("bug", np.arange(24).astype(np.float32).reshape((3, 8)), 6, 3, 1),
             ("A0", np.arange(5).astype(np.float32), 5, 1, 1),
             ("A1", np.arange(5).astype(np.float32), 4, 2, 1),
             ("A2", np.arange(5).astype(np.float32), 6, 1, 1),
@@ -301,11 +303,11 @@ class TestOnnxSignal(OnnxScriptTestCase):
             window = signal_dft.blackman_window(le)
             window[:] = (np.arange(window.shape[0]) + 1).astype(window.dtype)
             try:
-                c_expected, expected = self._stft(x_, le[0], window=window)
+                c_expected, expected = self._stft(x_, le[0], window=window, hop_length=hpv[0])
             except RuntimeError:
                 # unable to validate with torch
                 continue
-            i_expected = self._istft(c_expected, le[0], window=window)
+            i_expected = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
             info = dict(name=name, x_shape=x.shape, le=list(le), hp=hp, fs=fs,
                         expected_shape=expected.shape, window_shape=window.shape)
 
@@ -322,6 +324,14 @@ class TestOnnxSignal(OnnxScriptTestCase):
             # istft (imaginary part is null but still returned by istft)
             ix = self._complex2float(c_expected)
             expected = np.concatenate((x, np.zeros(x.shape, dtype=x.dtype)), axis=-1)
+            t_istft = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
+            if len(x_.shape) == 2:
+                assert_almost_equal(x_[:, :-1], t_istft, decimal=4)
+            elif len(x_.shape) == 1:
+                assert_almost_equal(x_[:-1], t_istft, decimal=4)
+            else:
+                print(x_.shape, t_istft.shape)
+                stop
             info["expected"] = expected
             info["expected_shape"] = expected.shape
             info["i_expected_shape"] = i_expected.shape
@@ -400,5 +410,5 @@ class TestOnnxSignal(OnnxScriptTestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestOnnxSignal().test_dft_rifft()
+    TestOnnxSignal().test_dft_rstft_istft()
     unittest.main()
