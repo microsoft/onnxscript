@@ -7,6 +7,66 @@ from onnxscript.onnx import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 
 
+@script()
+def hann_window(window_length):
+    """
+    Returns
+    :math:`\\omega_n = \\sin^2\\left( \\frac{\\pi n}{N-1} \\right)`
+    where *N* is the window length.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi]))
+    N_1 = op.Sub(window_length, one)
+    
+    ni = op.Cast(op.Range(zero, window_length, one), to=1)
+    pin = op.Div(op.Mul(ni, pi), op.Cast(N_1, to=1))
+    sin = op.Sin(pin)
+    return op.Mul(sin, sin)
+
+
+@script()
+def hamming_window(window_length, alpha, beta):
+    """
+    Returns
+    :math:`\\omega_n = \\alpha - \\beta \\cos \\left( \\frac{\\pi n}{N-1} \\right)`
+    where *N* is the window length.
+
+    Default values for torch: `alpha=0.54, beta=0.46`.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
+    N_1 = op.Sub(window_length, one)
+
+    ni = op.Cast(op.Range(zero, window_length, one), to=1)
+    pin = op.Div(op.Mul(ni, pi2), op.Cast(N_1, to=1))
+    cos = op.Cos(pin)
+    return op.Sub(alpha, op.Mul(cos, beta))
+
+
+@script()
+def blackman_window(window_length):
+    """
+    Returns
+    :math:`\\omega_n = 0.42 - 0.5 \\cos \\left( \\frac{2\\pi n}{N-1} \\right) +
+    0.8 \\cos \\left( \\frac{4\\pi n}{N-1} \\right)`
+    where *N* is the window length.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
+    pi4 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 4]))
+    N_1 = op.Cast(op.Sub(window_length, one), to=1)
+    t042 = op.Constant(value=make_tensor('alpha', TensorProto.FLOAT, [1], [0.42]))
+    t05 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.5]))
+    t008 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.08]))
+
+    ni = op.Cast(op.Range(zero, window_length, one), to=1)
+    cos2 = op.Cos(op.Div(op.Mul(ni, pi2), N_1))
+    cos4 = op.Cos(op.Div(op.Mul(ni, pi4), N_1))
+    return op.Add(op.Sub(t042, op.Mul(cos2, t05)), op.Mul(cos4, t008))
+
 
 @script()
 def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
@@ -209,6 +269,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
         final_shape = op.Concat(other_dimensions, two, axis=0)
         final = op.Reshape(transposed, final_shape)
 
+    # normalization is needed for idft.
     if op.Cast(normalize, to=TensorProto.BOOL):
         norm = op.Div(final, fft_length_float)
     else:
@@ -229,7 +290,7 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     n_dims = op.Shape(shape)
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
     last_dim = op.Sub(n_dims, two)
-    positive_axis = op.Where (axis < 0, axis + n_dims, axis)
+    positive_axis = op.Where (axis < 0, axis + last_dim, axis)
 
     if positive_axis == last_dim:
         final = dft_last_axis(x, fft_length, onesided, inverse, normalize)
@@ -248,70 +309,7 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
-    weights = op.ConstantOfShape(
-        fft_length, value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
     return dft_inv(x, fft_length, axis, onesided, inverse, inverse)
-
-
-@script()
-def hann_window(window_length):
-    """
-    Returns
-    :math:`\\omega_n = \\sin^2\\left( \\frac{\\pi n}{N-1} \\right)`
-    where *N* is the window length.
-    """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi]))
-    N_1 = op.Sub(window_length, one)
-    
-    ni = op.Cast(op.Range(zero, window_length, one), to=1)
-    pin = op.Div(op.Mul(ni, pi), op.Cast(N_1, to=1))
-    sin = op.Sin(pin)
-    return op.Mul(sin, sin)
-
-
-@script()
-def hamming_window(window_length, alpha, beta):
-    """
-    Returns
-    :math:`\\omega_n = \\alpha - \\beta \\cos \\left( \\frac{\\pi n}{N-1} \\right)`
-    where *N* is the window length.
-
-    Default values for torch: `alpha=0.54, beta=0.46`.
-    """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
-    N_1 = op.Sub(window_length, one)
-
-    ni = op.Cast(op.Range(zero, window_length, one), to=1)
-    pin = op.Div(op.Mul(ni, pi2), op.Cast(N_1, to=1))
-    cos = op.Cos(pin)
-    return op.Sub(alpha, op.Mul(cos, beta))
-
-
-@script()
-def blackman_window(window_length):
-    """
-    Returns
-    :math:`\\omega_n = 0.42 - 0.5 \\cos \\left( \\frac{2\\pi n}{N-1} \\right) +
-    0.8 \\cos \\left( \\frac{4\\pi n}{N-1} \\right)`
-    where *N* is the window length.
-    """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
-    pi4 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 4]))
-    N_1 = op.Cast(op.Sub(window_length, one), to=1)
-    t042 = op.Constant(value=make_tensor('alpha', TensorProto.FLOAT, [1], [0.42]))
-    t05 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.5]))
-    t008 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.08]))
-
-    ni = op.Cast(op.Range(zero, window_length, one), to=1)
-    cos2 = op.Cos(op.Div(op.Mul(ni, pi2), N_1))
-    cos4 = op.Cos(op.Div(op.Mul(ni, pi4), N_1))
-    return op.Add(op.Sub(t042, op.Mul(cos2, t05)), op.Mul(cos4, t008))
 
 
 @script()
@@ -324,6 +322,7 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     `n_frames = 1 + (len - n_fft) / hop_length`.
     """
     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    mtwo = op.Constant(value=make_tensor('mtwo', TensorProto.INT64, [1], [-2]))
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     last_axis = op.Sub(op.Shape(op.Shape(x)), one)
     axis = op.Constant(value=make_tensor('axis', TensorProto.INT64, [1], [-2]))
@@ -357,8 +356,15 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     # concatenation
     new_x = op.ConcatFromSequence(seq, axis=-3, new_axis=0)
 
-    # calling weighted dft
-    result = dft_inv(new_x, fft_length, last_axis, window, onesided, False, False)
+    # calling weighted dft with weights=window
+    shape_x = op.Shape(new_x)
+    shape_x_short = op.Slice(shape_x, zero, mtwo, zero)
+    shape_x_short_one = op.Add(op.Mul(shape_x_short, zero), one)
+    window_shape = op.Concat(shape_x_short_one, window_size, one, axis=0)
+    weights = op.Reshape(window, window_shape)
+    weighted_new_x = op.Mul(new_x, weights)
+
+    result = dft(weighted_new_x, fft_length, last_axis, onesided, False)
 
     # final transpose -3, -2
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
@@ -396,8 +402,9 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
         frame_x = op.Squeeze(op.Slice(x, begin, end, axisf), axisf)
 
         # ifft
-        ift = dft_last_axis(frame_x, fft_length, wone, onesided, True, True)
+        ift = dft(frame_x, fft_length, mone, onesided, True)
         n_dims = op.Shape(op.Shape(ift))
+        print(frame_x.shape, mone, ift.shape, n_dims, onesided)
 
         # real part
         n_dims_1 = op.Sub(n_dims, one)
