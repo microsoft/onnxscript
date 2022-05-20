@@ -7,8 +7,59 @@ from onnxscript.onnx import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 
 
+
 @script()
-def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
+def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
+    """
+    Switches two axis. The function assumes `axis1 < axis2`.
+    """
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    shape = op.Shape(x)
+    n_dims = op.Shape(shape)
+    axis2_1 = op.Sub(axis2, one)
+    n_dims_1 = op.Sub(n_dims, one)
+    
+    # First into a 5D dimension tensor.
+    dims1_final = op.Slice(shape, zero, axis1, zero)
+    if axis1 == zero:
+        dims1 = op.Identity(one)
+    else:
+        dims1 = op.Identity(dims1_final)
+
+    dims2_final = op.Slice(shape, op.Add(axis1, one), axis2, zero)
+    if axis1 == axis2_1:
+        dims2 = op.Identity(one)
+    else:
+        dims2 = op.Identity(dims2_final)
+
+    dims3_final = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
+    if axis2 == n_dims_1:
+        dims3 = op.Identity(one)
+    else:
+        dims3 = op.Identity(dims3_final)
+
+    dim1 = op.Slice(shape, axis1, op.Add(axis1, one), zero)
+    dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
+
+    new_shape = op.Concat(op.ReduceProd(dims1),
+                          dim1,
+                          op.ReduceProd(dims2),
+                          dim2,
+                          op.ReduceProd(dims3),
+                          axis=0)
+    reshaped = op.Reshape(x, new_shape)
+
+    # Transpose
+    transposed = op.Transpose(reshaped, perm=[0, 3, 2, 1, 4])
+
+    # Reshape into its final shape.
+    final_shape = op.Concat(dims1_final, dim2, dims2_final, dim1, dims3_final, axis=0)
+    return op.Reshape(transposed, final_shape)
+
+
+@script()
+def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
                   onesided=False, inverse=False, normalize=False) -> FLOAT[...]:
     """
     See PR https://github.com/onnx/onnx/pull/3741/.
@@ -33,8 +84,6 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
         if has 1 or 2 elements, 1 if the tensor is real and does not
         have any imaginary part, 2 if the tensor is complex
     :param fft_length: length of the FFT
-    :param weights: same size as FFT length, to implementent STFT,
-        otherwise it is one.
     :param onesided: if True, returns a truncated result `[:fft_length//2]`
     :param inverse: returns FFT or the inverse of FFT
     :param normalize: normalizes the result
@@ -67,13 +116,13 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
             value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
     fft_length_float = op.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
-    cos_win_u = op.Cos(p)
-    sin_win_u = op.Sin(p)
+    cos_win = op.Cos(p)
+    sin_win = op.Sin(p)
 
     # weights
-    reshaped_weights = op.Reshape(weights, shape1)
-    cos_win = op.Mul(cos_win_u, reshaped_weights)
-    sin_win = op.Mul(sin_win_u, reshaped_weights)
+    # reshaped_weights = op.Reshape(weights, shape1)
+    # cos_win = op.Mul(cos_win_u, reshaped_weights)
+    # sin_win = op.Mul(sin_win_u, reshaped_weights)
 
     # real or complex
     last_dim = op.Shape(x, start=-1)
@@ -165,56 +214,6 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1], weights: FLOAT['N'],
     else:
         norm = op.Identity(final)
     return norm
-
-
-@script()
-def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
-    """
-    Switches two axis. The function assumes `axis1 < axis2`.
-    """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    shape = op.Shape(x)
-    n_dims = op.Shape(shape)
-    axis2_1 = op.Sub(axis2, one)
-    n_dims_1 = op.Sub(n_dims, one)
-    
-    # First into a 5D dimension tensor.
-    dims1_final = op.Slice(shape, zero, axis1, zero)
-    if axis1 == zero:
-        dims1 = op.Identity(one)
-    else:
-        dims1 = op.Identity(dims1_final)
-
-    dims2_final = op.Slice(shape, op.Add(axis1, one), axis2, zero)
-    if axis1 == axis2_1:
-        dims2 = op.Identity(one)
-    else:
-        dims2 = op.Identity(dims2_final)
-
-    dims3_final = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
-    if axis2 == n_dims_1:
-        dims3 = op.Identity(one)
-    else:
-        dims3 = op.Identity(dims3_final)
-
-    dim1 = op.Slice(shape, axis1, op.Add(axis1, one), zero)
-    dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
-
-    new_shape = op.Concat(op.ReduceProd(dims1),
-                          dim1,
-                          op.ReduceProd(dims2),
-                          dim2,
-                          op.ReduceProd(dims3),
-                          axis=0)
-    reshaped = op.Reshape(x, new_shape)
-
-    # Transpose
-    transposed = op.Transpose(reshaped, perm=[0, 3, 2, 1, 4])
-
-    # Reshape into its final shape.
-    final_shape = op.Concat(dims1_final, dim2, dims2_final, dim1, dims3_final, axis=0)
-    return op.Reshape(transposed, final_shape)
 
 
 @script()
