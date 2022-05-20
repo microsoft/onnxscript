@@ -410,5 +410,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
+    TestOnnxSignal().test_dft_cfft()
+    stop
     TestOnnxSignal().test_dft_rstft_istft()
     unittest.main()

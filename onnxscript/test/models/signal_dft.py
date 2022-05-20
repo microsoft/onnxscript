@@ -218,7 +218,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
 
 @script()
 def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
-            weights: FLOAT['N'], onesided=False, inverse=False,
+            onesided=False, inverse=False,
             normalize=False) -> FLOAT[...]:
     """
     Applies one dimension FFT.
@@ -232,10 +232,10 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     positive_axis = op.Where (axis < 0, axis + n_dims, axis)
 
     if positive_axis == last_dim:
-        final = dft_last_axis(x, fft_length, weights, onesided, inverse, normalize)
+        final = dft_last_axis(x, fft_length, onesided, inverse, normalize)
     else:
         xt = switch_axes(x, positive_axis, last_dim)
-        fft = dft_last_axis(xt, fft_length, weights, onesided, inverse, normalize)
+        fft = dft_last_axis(xt, fft_length, onesided, inverse, normalize)
         final = switch_axes(fft, positive_axis, last_dim)
     return final
 
@@ -250,7 +250,7 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     """
     weights = op.ConstantOfShape(
         fft_length, value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
-    return dft_inv(x, fft_length, axis, weights, onesided, inverse, inverse)
+    return dft_inv(x, fft_length, axis, onesided, inverse, inverse)
 
 
 @script()
