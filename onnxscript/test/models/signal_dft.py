@@ -207,7 +207,9 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
                 # operator Pad could be used too.
                 x_shape_but_last = op.Slice(op.Shape(real_x), zero, last, zero, one)
                 new_shape = op.Concat(x_shape_but_last, fft_length - dim, axis=0)
-                cst = op.ConstantOfShape(new_shape, value=0)
+                cst = op.ConstantOfShape(
+                    new_shape,
+                    value=make_tensor('zerof', TensorProto.FLOAT, [1], [0]))
                 pad_x = op.Concat(real_x, op.Cast(cst, to=1), axis=-1)
 
         result_real = op.Unsqueeze(op.MatMul(pad_x, cos_win), zero)
@@ -238,7 +240,9 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
                 # operator Pad could be used too.
                 x_shape_but_last = op.Slice(op.Shape(real_x), zero, last, zero, one)
                 new_shape = op.Concat(x_shape_but_last, fft_length - dim, axis=0)
-                cst = op.ConstantOfShape(new_shape, value=0)
+                cst = op.ConstantOfShape(
+                    new_shape,
+                    value=make_tensor('zerof', TensorProto.FLOAT, [1], [0]))
                 pad_r = op.Concat(real_x, op.Cast(cst, to=1), axis=-1)
                 pad_i = op.Concat(imag_x, op.Cast(cst, to=1), axis=-1)
 
@@ -289,8 +293,9 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     shape = op.Shape(x)
     n_dims = op.Shape(shape)
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     last_dim = op.Sub(n_dims, two)
-    positive_axis = op.Where (axis < 0, axis + last_dim, axis)
+    positive_axis = op.Where(axis < zero, axis + last_dim, axis)
 
     if positive_axis == last_dim:
         final = dft_last_axis(x, fft_length, onesided, inverse, normalize)
@@ -346,7 +351,8 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
             missing,
             op.Shape(sliced_x, start=-1),
             axis=0)
-        cst = op.ConstantOfShape(new_shape, value=0)
+        cst = op.ConstantOfShape(
+            new_shape, value=make_tensor('zerof', TensorProto.FLOAT, [1], [0]))
         pad_sliced_x = op.Concat(sliced_x, op.Cast(cst, to=1), axis=-2)
 
         # same size
@@ -385,7 +391,9 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
     mone = op.Constant(value=make_tensor('mone', TensorProto.INT64, [1], [-1]))
-    wone = op.Cast(op.ConstantOfShape(op.Shape(window), value=1), to=1)    
+    wone = op.Cast(op.ConstantOfShape(
+        op.Shape(window),
+        value=make_tensor('onef', TensorProto.FLOAT, [1], [1])), to=1)    
     axisf = op.Constant(value=make_tensor('axis3', TensorProto.INT64, [1], [-2]))
     n_frames = op.Shape(x, start=-2, end=-1)
     expected_signal_len = op.Add(fft_length, op.Mul(hop_length, op.Sub(n_frames, one)))
@@ -409,7 +417,11 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
         # real part
         n_dims_1 = op.Sub(n_dims, one)
         ytmp = op.Squeeze(op.Slice(ift, zero, one, n_dims_1), n_dims_1)
-        ctmp = op.Mul(op.Cast(op.ConstantOfShape(op.Shape(ytmp), value=1), to=1), window)
+        ctmp = op.Mul(op.Cast(
+            op.ConstantOfShape(
+                op.Shape(ytmp),
+                value=make_tensor('onef', TensorProto.FLOAT, [1], [1])),
+            to=1), window)
 
         shape_begin = op.Shape(ytmp, end=-1)
         n_left = op.Mul(fs64, hop_length)
@@ -418,8 +430,16 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
 
         left_shape = op.Concat(shape_begin, n_left, axis=0)
         right_shape = op.Concat(shape_begin, n_right, axis=0)
-        right = op.Cast(op.ConstantOfShape(right_shape, value=0), to=1)
-        left = op.Cast(op.ConstantOfShape(left_shape, value=0), to=1)
+        right = op.Cast(
+            op.ConstantOfShape(
+                right_shape,
+                value=make_tensor('zerof', TensorProto.FLOAT, [1], [0])),
+            to=1)
+        left = op.Cast(
+            op.ConstantOfShape(
+                left_shape,
+                value=make_tensor('zerof', TensorProto.FLOAT, [1], [0])),
+            to=1)
 
         y = op.Concat(left, ytmp, right, axis=-1)
         yc = op.Concat(left, ctmp, right, axis=-1)
