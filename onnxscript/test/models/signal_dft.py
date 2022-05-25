@@ -154,8 +154,6 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
     zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    three = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
-    four = op.Constant(value=make_tensor('four', TensorProto.INT64, [1], [4]))
     last = op.Constant(value=make_tensor('last', TensorProto.INT64, [1], [-1]))
     shape1 = op.Constant(value=make_tensor('shape1', TensorProto.INT64, [2], [-1, 1]))
     shape2 = op.Constant(value=make_tensor('shape2', TensorProto.INT64, [2], [1, -1]))
