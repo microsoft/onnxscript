@@ -1,1 +1,2 @@
+protobuf<4
 onnx
