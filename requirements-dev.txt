@@ -3,6 +3,7 @@ matplotlib
 onnx
 --extra-index-url https://test.pypi.org/simple/
 ort-nightly
+protobuf<4
 sphinx
 sphinx-gallery
 pydata_sphinx_theme
