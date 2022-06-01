@@ -15,42 +15,29 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_selu(self):
         self.run_onnx_test(onnxfns1A.Selu)
 
-    # def test_onnxfns_elu(self):
-    #     default_alpha = 1.0
-    #     self.run_onnx_test(onnxfns1A.Elu, alpha=default_alpha)
+    def test_onnxfns_elu(self):
+        self.run_onnx_test(onnxfns1A.Elu)
 
-    # def test_onnxfns_thresholded_relu(self):
-    #     default_alpha = 1.0
-    #     self.run_onnx_test(onnxfns1A.ThresholdedRelu, alpha=default_alpha)
+    def test_onnxfns_thresholded_relu(self):
+        self.run_onnx_test(onnxfns1A.ThresholdedRelu)
 
-    # def test_onnxfns_leaky_relu(self):
-    #     default_alpha = 0.01
-    #     self.run_onnx_test(onnxfns1A.LeakyRelu, alpha=default_alpha)
+    def test_onnxfns_leaky_relu(self):
+        self.run_onnx_test(onnxfns1A.LeakyRelu)
 
-    # def test_onnxfns_prelu(self):
-    #     self.run_onnx_test(onnxfns1A.PRelu)
+    def test_onnxfns_prelu(self):
+        self.run_onnx_test(onnxfns1A.PRelu)
 
-    # def test_onnxfns_hard_sigmoid(self):
-    #     default_alpha = 0.2
-    #     default_beta = 0.5
-    #     self.run_onnx_test(
-    #         onnxfns1A.HardSigmoid,
-    #         alpha=default_alpha,
-    #         beta=default_beta)
+    def test_onnxfns_hard_sigmoid(self):
+        self.run_onnx_test(onnxfns1A.HardSigmoid)
 
-    # def test_onnxfns_hard_shrink(self):
-    #     default_bias = 0.0
-    #     default_lambd = 0.5
-    #     self.run_onnx_test(
-    #         onnxfns1A.Shrink,
-    #         bias=default_bias,
-    #         lambd=default_lambd)
+    def test_onnxfns_hard_shrink(self):
+        self.run_onnx_test(onnxfns1A.Shrink)
 
-    # def test_onnxfns_hard_softplus(self):
-    #     self.run_onnx_test(onnxfns1A.Softplus)
+    def test_onnxfns_hard_softplus(self):
+        self.run_onnx_test(onnxfns1A.Softplus)
 
-    # def test_onnxfns_hard_softsign(self):
-    #     self.run_onnx_test(onnxfns1A.Softsign)
+    def test_onnxfns_hard_softsign(self):
+        self.run_onnx_test(onnxfns1A.Softsign)
 
     # TODO: Clip has optional input min and max.
     # need to find out how to pass default min and max

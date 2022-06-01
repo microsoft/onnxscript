@@ -1,4 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 import logging
 from io import StringIO
@@ -12,8 +15,8 @@ from .values import Opset
 logger = logging.getLogger("onnx-script")
 
 
-def format(list, prefix, sep, suffix):
-    return prefix + sep.join([str(x) for x in list]) + suffix
+def format(list, prefix, sep, suffix, formatter=str):
+    return prefix + sep.join([formatter(x) for x in list]) + suffix
 
 
 class Type:
@@ -53,6 +56,10 @@ class Var:
         return helper.make_value_info(self.name, tp)
 
 
+def opt_var_to_str(x):
+    return "" if x is None else str(x)
+
+
 class Attr:
     def __init__(self, attrproto) -> None:
         self.attr_proto = attrproto
@@ -85,7 +92,7 @@ class Stmt:
         if (self.attrs):
             attrs = format(self.attrs, "<", ", ", ">")
 
-        args = format(self.args, "(", ", ", ")")
+        args = format(self.args, "(", ", ", ")", opt_var_to_str)
         module = str(self.module)
         callee = module + "." + self.opname if (module != '') else self.opname
         return lhs + " = " + callee + " " + attrs + args
@@ -98,7 +105,7 @@ class Stmt:
         if not isinstance(self.module.domain, str):
             raise TypeError("Unexpected type %r for self.module." % type(self.module))
         n = helper.make_node(self.opname,
-                             [str(x) for x in self.args],
+                             [opt_var_to_str(x) for x in self.args],
                              [str(x) for x in self.result],
                              domain=self.module.domain)
         for a in self.attrs:
@@ -114,15 +121,17 @@ class Function:
         self.outputs = []
         self.stmts = []
         self.attrs = []
+        self.attr_protos = []
         self.functions = {}
         self.docstring = ""
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
+        attr_protos = format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
         inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
+        return (self.name + " " + attrs + attr_protos + inputs + " => " + outputs + stmts)
 
     def append_docstring(self, docstring):
         self.docstring += docstring
@@ -138,6 +147,9 @@ class Function:
 
     def append_attr(self, attr):
         self.attrs.append(attr)
+
+    def append_attr_proto(self, attr):
+        self.attr_protos.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -194,7 +206,7 @@ class Function:
     def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=[]):
         # TODO: Ideally, in the long term, we should infer func_opset_imports
         # from the set of calls within the function itself.
-        return helper.make_function(domain,
+        f = helper.make_function(domain,
                                     self.name,
                                     inputs=[x.name for x in self.inputs],
                                     outputs=[y.name for y in self.outputs],
@@ -202,6 +214,8 @@ class Function:
                                     opset_imports=func_opset_imports,
                                     attributes=[a.name for a in self.attrs],
                                     doc_string=self.docstring)
+        f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+        return f
 
     def to_function_proto(self, domain):
         opsets = {'': 15}
@@ -253,9 +267,13 @@ class IRBuilder:
         v = Var(varname, type)
         fn.append_input(v)
 
-    def add_attr(self, fn, varname, type):
-        v = Var(varname, type)
-        fn.append_attr(v)
+    def add_attr(self, fn, varname, type, default_value=None):
+        if default_value != None:
+            a = Attr(helper.make_attribute(varname, default_value))
+            fn.append_attr_proto(a)
+        else:
+            v = Var(varname, type)
+            fn.append_attr(v)
 
     def add_output(self, fn, varname, type):
         v = Var(varname, type)

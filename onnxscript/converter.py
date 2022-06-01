@@ -1,11 +1,13 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
-import os
-import inspect
 import ast
 import logging
 import onnx
 import onnx.helper as helper
+import typing
 from . import onnx_types as types
 from .irbuilder import IRBuilder
 from . import analysis as analysis
@@ -49,18 +51,41 @@ def ignore(cond, msg):
     if cond:
         warn(msg)
 
+
 # Utility to convert a python value to TensorProto:
+def py_type_to_onnx_type(pytype: type):
+    if pytype is bool:
+        return onnx.TensorProto.BOOL
+    if pytype is int:
+        return onnx.TensorProto.INT64
+    if pytype is float:
+        return onnx.TensorProto.FLOAT
+    if pytype is str:
+        return onnx.TensorProto.STRING
+    fail(DebugInfo(pytype).msg(
+        f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
 def pyvalue_to_tensor(tensor_name: str, pyvalue):
-    if isinstance(pyvalue, bool):
-        return helper.make_tensor(tensor_name, onnx.TensorProto.BOOL, [], [int(pyvalue)])
-    if isinstance(pyvalue, int):
-        return helper.make_tensor(tensor_name, onnx.TensorProto.INT64, [], [pyvalue])
-    if isinstance(pyvalue, float):
-        return helper.make_tensor(tensor_name, onnx.TensorProto.FLOAT, [], [pyvalue])
-    # TODO: str, sequences of values
-    fail("Unimplemented")
+    if isinstance(pyvalue, list):
+        if len(pyvalue) == 0:
+            fail(DebugInfo(pyvalue).msg("Cannot convert an empty list to tensor"))
+        pytype = type(pyvalue[0])
+        if not all([isinstance(e, pytype) for e in pyvalue]):
+            fail(DebugInfo(pyvalue).msg(
+                "Cannot convert an list with elements of different types to tensor"))
+        return helper.make_tensor(
+            tensor_name, py_type_to_onnx_type(pytype), [len(pyvalue)], pyvalue)
+
+    onnx_type = py_type_to_onnx_type(type(pyvalue))
+    if onnx_type is onnx.TensorProto.BOOL:
+        return helper.make_tensor(
+            tensor_name, onnx_type, [], [int(pyvalue)])
+    if onnx_type is onnx.TensorProto.STRING:
+        return helper.make_tensor(
+            tensor_name, onnx_type, [], vals=[pyvalue.encode('utf-8')])
+
+    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
 
 # map from python operators to ONNX ops
@@ -185,8 +210,17 @@ class Converter:
 
     def to_onnx_attr_ref(self, val: AttrRef):
         pytype = val.typeinfo
-        attrname = "value_float" if (pytype is float) else (
-            "value_int" if (pytype is int) else "value_string")
+        attrname = None
+        if pytype is float:
+            attrname = "value_float"
+        elif pytype is int:
+            attrname = "value_int"
+        elif pytype is str:
+            attrname = "value_string"
+        elif pytype is typing.List[int]:
+            attrname = "value_ints"
+        else:
+            fail(DebugInfo(val).msg(f"Unsupported attribute type: {pytype}"))
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None):
@@ -253,7 +287,8 @@ class Converter:
                 return False
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
-                             ast.Num, ast.Str, ast.Attribute)):
+                             ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load,
+                             ast.NameConstant, ast.Constant, ast.Str)):
             return all([self.is_constant_expr(c) for c in ast.iter_child_nodes(node)])
         return False
 
@@ -282,7 +317,7 @@ class Converter:
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, DebugInfo(node))
             if (isinstance(val, AttrRef)):
-                return self.to_onnx_attr_ref(val)
+                return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
             else:
                 # TODO: lookup value; if func.def., compile it to Graph; if a
                 # constant; etc.
@@ -313,12 +348,11 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
-        elif isinstance(node, ast.Num):
-            r = self.emit_const(node.n, target)
-        elif isinstance(node, ast.NameConstant):
-            r = self.emit_const(node.value, target)
+        elif self.is_constant_expr(node):
+            r = self.emit_const(self.eval_constant_expr(node), target)
         else:
-            raise ValueError(f"Unsupported expression type: {type(node).__name__}.")
+            raise ValueError(DebugInfo(node).msg(
+                f"Unsupported expression type: {type(node).__name__}."))
         if isinstance(r, tuple):
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
@@ -332,11 +366,18 @@ class Converter:
             return results
         return r
 
+    # Translation of an expression where "None" is permitted (eg., for an optional argument)
+    def translate_opt_expr(self, node, target="tmp"):
+        # None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
+            return None
+        return self.translate_expr(node, target)
+
     def translate_call_expr(self, node):
         # TODO: for now, we map named arguments to attributes, and positional
         # arguments to inputs.
         callee = self.translate_callee_expr(node.func)
-        args = [self.translate_expr(x) for x in node.args]
+        args = [self.translate_opt_expr(x) for x in node.args]
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         return callee, args, attrs
 
@@ -454,7 +495,7 @@ class Converter:
                 ids = [id(x) for x in lhs.elts]
                 onnxids = self.translate_expr(rhs, ids)
                 for x, y in zip(ids, onnxids):
-                    self.bind(x, Dynamic(y, DynamicKind.Intermediate))
+                    self.bind(x, Dynamic(y, DynamicKind.Intermediate, info))
             else:
                 fail("Unsupported construct in LHS of assignment.")
 
@@ -592,20 +633,21 @@ class Converter:
         if fn.name in self.this_module:
             warn(f"{fn.name}: Already defined.")
         args = fn.args
-        if args.defaults:
-            warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
         domain = self.this_module.domain
         self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
-        for x in args.args:
+        for i, x in enumerate(args.args):
+            arg_with_default_start_index = len(args.args) - len(args.defaults)
+            default_value = args.defaults[i - arg_with_default_start_index].value\
+                if args.defaults and i >= arg_with_default_start_index else None
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
             else:
                 typeinfo = self.default_type
             assert ta.is_valid(typeinfo)
             if ta.is_attr(typeinfo):
-                self.ir_builder.add_attr(self.current_fn, x.arg, typeinfo)
+                self.ir_builder.add_attr(self.current_fn, x.arg, typeinfo, default_value)
                 self.bind(x.arg, AttrRef(x.arg, typeinfo, DebugInfo(x)))
             else:
                 self.ir_builder.add_input(self.current_fn, x.arg, typeinfo)
@@ -643,42 +685,8 @@ class Converter:
             fn_ir.debug_print()
             self.this_module[stmt.name] = fn_ir
             return fn_ir
-
-        if isinstance(stmt, ast.Import):
-            for alias in stmt.names:
-                self.do_import(alias)
-        elif isinstance(stmt, ast.ImportFrom):
-            fail_if(stmt.module is None, "Import: module unspecified.")
-            fail_if(stmt.module not in self.known_modules,
-                    f"Import: unsupported module '{stmt.module}' in "
-                    f"{list(sorted(self.known_modules))}")
-            module = self.known_modules[stmt.module]
-            for alias in stmt.names:
-                asname = alias.asname if alias.asname else alias.name
-                self.globals[asname] = getattr(module, alias.name)
         else:
             raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
-
-    def convert_source(self, src):
-        module = ast.parse(src)
-        assert type(module) == ast.Module
-        converted = [self.top_level_stmt(d) for d in module.body]
-        return [x for x in converted if x is not None]
-
-    def convert_file(self, filename):
-        with open(filename) as f:
-            src = f.read()
-        return self.convert_source(src)
-
-    def convert(self, f):
-        if isinstance(f, str):
-            if '\n' not in f and os.path.exists(f):
-                return self.convert_file(f)
-            return self.convert_source(f)
-        if inspect.isfunction(f):
-            src = inspect.getsource(f)
-            return self.convert_source(src)
-        fail("Unknown type of input to converter.")
 
 
 def convert(script):
