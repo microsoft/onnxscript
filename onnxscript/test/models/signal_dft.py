@@ -250,8 +250,8 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
     # final step, needs to move to first axis into the last position.
     result = op.Concat(result_real, result_imag, axis=0)
     n_dims = op.Size(op.Shape(result))
-    
 
+    # eager mode fails here: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()
     if op.Cast(onesided, to=TensorProto.BOOL):
         half = op.Div(fft_length, two) + op.Mod(fft_length, two)
         n_r_dims_1 = op.Sub(op.Shape(op.Shape(x)), one)
@@ -410,7 +410,6 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
         # ifft
         ift = dft(frame_x, fft_length, mone, onesided, True)
         n_dims = op.Shape(op.Shape(ift))
-        print(frame_x.shape, mone, ift.shape, n_dims, onesided)
 
         # real part
         n_dims_1 = op.Sub(n_dims, one)
