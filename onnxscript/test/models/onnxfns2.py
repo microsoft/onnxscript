@@ -14,32 +14,37 @@ from typing import List
 
 
 @script()
-def ReduceSumSquare(data, axes: INT64['D']=None, keepdims: int=0):
+def ReduceSumSquare(data, axes: List[int], keepdims: int=0):
     # Note: attribute input is promoted to input when calling ReduceSum
-    return op.ReduceSum(data * data, axes, keepdims=keepdims)
+    t_axes = op.Constant(value_ints=axes)
+    return op.ReduceSum(data * data, t_axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL1(data, axes: INT64['D']=None,  keepdims: int=0):
-    return op.ReduceSum(op.Abs(data), axes, keepdims=keepdims)
+def ReduceL1(data, axes: List[int], keepdims: int=0):
+    t_axes = op.Constant(value_ints=axes)
+    return op.ReduceSum(op.Abs(data), t_axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL2(data, axes: INT64['D']=None, keepdims: int=0):
+def ReduceL2(data, axes: List[int], keepdims: int=0):
     # TODO: ONNX spec is unclear about behavior for integral types!
-    sum_square = op.ReduceSum(data * data, axes, keepdims=keepdims)
+    t_axes = op.Constant(value_ints=axes)
+    sum_square = op.ReduceSum(data * data, t_axes, keepdims=keepdims)
     # TODO: must cast for integral types
     return op.Sqrt(sum_square)
 
 
 @script()
-def ReduceLogSum(data, axes: INT64['D']=None, keepdims: int=0):
-    return op.Log(op.ReduceSum(data, axes, keepdims=keepdims))
+def ReduceLogSum(data, axes: List[int], keepdims: int=0):
+    t_axes = op.Constant(value_ints=axes)
+    return op.Log(op.ReduceSum(data, t_axes, keepdims=keepdims))
 
 
 @script()
-def ReduceLogSumExp(data, axes: INT64['D']=None, keepdims: int=0):
-    return op.Log(op.ReduceSum(op.Exp(data), axes, keepdims=keepdims))
+def ReduceLogSumExp(data, axes: List[int], keepdims: int=0):
+    t_axes = op.Constant(value_ints=axes)
+    return op.Log(op.ReduceSum(op.Exp(data), t_axes, keepdims=keepdims))
 
 
 @script()

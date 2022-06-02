@@ -354,7 +354,9 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
                 except (AssertionError, RuntimeException) as e:
                     # Not fully implemented.
-                    warnings.warn("Issue with %r due to %r." % (info, e))
+                    warnings.warn("Issue with %s due to %s." % (
+                        str(info).split('\n', maxsplit=1),
+                        str(e).split('\n', maxsplit=1)[0]))
 
     def test_dft_cstft_istft(self):
 
@@ -417,7 +419,9 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
                 except (AssertionError, RuntimeException) as e:
                     # Not fully implemented.
-                    warnings.warn("Issue with %r due to %r." % (info, e))
+                    warnings.warn("Issue with %r due to %s." % (
+                        str(info).split('\n', maxsplit=1),
+                        str(e).split('\n', maxsplit=1)[0]))
 
 
 if __name__ == '__main__':

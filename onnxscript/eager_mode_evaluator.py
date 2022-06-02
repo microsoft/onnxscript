@@ -9,7 +9,7 @@ import numpy as np
 import onnx
 from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph
 
 from .utils import convert_arrays_to_value_infos
 
@@ -59,7 +59,7 @@ def call_ort(schema, *args, **kwargs):
     try:
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
-    except Fail as e:
+    except (Fail, InvalidGraph) as e:
         raise RuntimeError(
             "Unable to create onnxruntime InferenceSession with onnx "
             "model\n%s" % str(model)) from e
