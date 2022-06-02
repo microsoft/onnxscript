@@ -25,30 +25,40 @@ def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):
     return dtype
 
 
-def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=[]):
+def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=None):
+    if op_schema_formal_parameter is None:
+        op_schema_formal_parameter = []
 
     value_infos = []
     for i, (name, arr) in enumerate(zip(names, arr_list)):
         elem_type: TensorProto.DataType
         shape: tuple
+        if isinstance(arr, list):
+            # sequence, assuming it is a float sequence
+            # list should be replace by another container retaining the type information
+            nparray = np.asarray(arr)
+            if len(arr) == 0:
+                nparray = nparray.astype(np.float32)
+            if op_schema_formal_parameter and len(op_schema_formal_parameter) > i:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[
+                        map_pytype_to_schema_allowed_dtype(
+                            op_schema_formal_parameter[i].types, nparray.dtype)]
+            else:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
+            info = onnx.helper.make_tensor_sequence_value_info(
+                name=name, elem_type=elem_type, shape=None)
+            value_infos.append(info)
+            continue
+
         if isinstance(arr, np.ndarray):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
-        elif isinstance(arr, list):
-            nparray = np.asarray(arr)
-            if op_schema_formal_parameter and len(op_schema_formal_parameter) > i:
-                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[
-                    map_pytype_to_schema_allowed_dtype(
-                        op_schema_formal_parameter[i].types, nparray.dtype)]
-            else:
-                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
-            shape = nparray.shape
         elif isinstance(arr, numbers.Number):
             nparray = np.array(arr)
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
             shape = nparray.shape
         else:
-            raise ValueError(f"cannot covert a {type(arr)} to value_info")
+            raise ValueError(f"cannot convert a {type(arr)} to value_info")
 
         value_info = onnx.helper.make_tensor_value_info(
             name=name,
