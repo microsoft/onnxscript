@@ -72,7 +72,7 @@ class Attr:
 
 
 class Stmt:
-    def __init__(self, result, module, opname, args, attrs) -> None:
+    def __init__(self, result, module, opname, args, attrs, sub_functions=None) -> None:
         if not isinstance(module, Opset):
             raise TypeError(f"Unexpected type {type(module)} for module.")
         if not isinstance(opname, str):
@@ -82,6 +82,7 @@ class Stmt:
         self.opname = opname
         self.args = args
         self.attrs = attrs
+        self.functions = sub_functions or {}
 
     def __str__(self):
         if (isinstance(self.result, str)):
@@ -156,22 +157,18 @@ class Function:
                         st.write("\n")
 
     def append_function(self, opf):
-        name = opf.name
-        if name in self.functions:
+        for name, fct in opf.function_ir.functions.items():
+            if name in self.functions:
+                continue
+            self.functions[name] = fct
+        if opf.name in self.functions:
             # Already added.
             return
         try:
             proto = opf.to_function_proto(opf.opset)
         except (TypeError, AttributeError) as e:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
-        self.functions[name] = proto
-
-    def model_functions(self):
-        """
-        The ONNX implementation may rely on additional functions
-        stored in `self.functions`. This method returns it.
-        """
-        return self.functions
+        self.functions[opf.name] = proto
 
     def to_model_proto(self, opsets=None, functions=None, **kwargs):
         if opsets is None:
@@ -185,18 +182,23 @@ class Function:
                 opsets[n.module.domain] = n.module.version
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
-        graph = self.to_graph_proto()
+        graph, sub_functions = self.to_graph_proto()
         functions = [] if functions is None else list(functions)
         # TODO: the following is incomplete. we need to do this iteratively.
-        functions.extend(self.functions.values())
+        functions.extend(sub_functions.values())
         return helper.make_model(graph, opset_imports=opset_imports,
                                  functions=functions, **kwargs)
 
     def to_graph_proto(self):
-        return helper.make_graph([s.to_node_proto() for s in self.stmts],
-                                 self.name,
-                                 [x.to_value_info() for x in self.inputs],
-                                 [y.to_value_info() for y in self.outputs])
+        sub_functions = {}
+        for s in self.stmts:
+            sub_functions.update(s.functions)
+        sub_functions.update(self.functions)
+        graph = helper.make_graph([s.to_node_proto() for s in self.stmts],
+                                  self.name,
+                                  [x.to_value_info() for x in self.inputs],
+                                  [y.to_value_info() for y in self.outputs])
+        return graph, sub_functions
 
     def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=[]):
         # TODO: Ideally, in the long term, we should infer func_opset_imports
@@ -230,8 +232,7 @@ class Function:
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
             attributes=[a.name for a in self.attrs],
-            doc_string=self.docstring
-        )
+            doc_string=self.docstring)
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
@@ -252,8 +253,8 @@ class IRBuilder:
     def add_docstring(self, fn, docstring):
         fn.append_docstring(docstring)
 
-    def add_stmt(self, fn, results, module, opname, args, attrs):
-        s = Stmt(results, module, opname, args, attrs)
+    def add_stmt(self, fn, results, module, opname, args, attrs, sub_functions=None):
+        s = Stmt(results, module, opname, args, attrs, sub_functions=sub_functions)
         fn.append_stmt(s)
 
     def add_input(self, fn, varname, type):

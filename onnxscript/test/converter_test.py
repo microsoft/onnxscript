@@ -12,7 +12,7 @@ import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
 from onnxscript import script
@@ -38,7 +38,8 @@ class TestConverter(unittest.TestCase):
             with self.subTest(f=f.name):
                 f.to_function_proto()
 
-    def validate_save(self, script, save_text=False, check_ort=False, shape_inference=True):
+    def validate_save(self, script, save_text=False, check_ort=False,
+                      shape_inference=True, opsets=None):
         if isinstance(script, types.ModuleType):
             fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
         elif isinstance(script, OnnxFunction):
@@ -49,7 +50,7 @@ class TestConverter(unittest.TestCase):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
             with self.subTest(f=f.name):
-                model = f.to_model_proto()
+                model = f.to_model_proto(opsets=opsets)
                 if save_text:
                     with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as fi:
                         fi.write(printable_graph(model.graph))
@@ -59,7 +60,7 @@ class TestConverter(unittest.TestCase):
                 if check_ort:
                     try:
                         onnxruntime.InferenceSession(model.SerializeToString())
-                    except Fail as e:
+                    except (Fail, InvalidGraph) as e:
                         raise AssertionError(f"onnxruntime cannot load function {f.name}\n{str(model)}") from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
@@ -122,7 +123,8 @@ class TestConverter(unittest.TestCase):
         onnx.checker.check_model(model)
 
     def test_subfunction(self):
-        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "subfunction.py"), check_ort=True)
+        from onnxscript.test.models import subfunction
+        self.validate_save(subfunction, check_ort=True, opsets={'': 15, 'this': 1})
 
     def test_if_models(self):
         from onnxscript.test.models import if_statement
@@ -161,5 +163,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_subfunction()
+    # TestConverter().test_subfunction()
     unittest.main()
