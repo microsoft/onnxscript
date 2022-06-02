@@ -341,8 +341,8 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 assert_almost_equal(x_[:-1], t_istft, decimal=4)
             else:
                 raise NotImplementedError(
-                    "Not implemented when shape is %r." % (x_shape, ))
-                    
+                    "Not implemented when shape is %r." % (x_.shape, ))
+
             info["expected"] = expected
             info["expected_shape"] = expected.shape
             info["i_expected_shape"] = i_expected.shape

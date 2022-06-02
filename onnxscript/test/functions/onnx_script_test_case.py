@@ -138,4 +138,5 @@ class OnnxScriptTestCase(unittest.TestCase):
                         function, ds[0], ds[1], attrs=test_case_attrs)
                     self.run_converter_test(param, case.model.opset_import)
                     if not skip_eager_test:
-                        self.run_eager_test(param, case.model.opset_import, rtol=rtol, atol=atol)
+                        self.run_eager_test(
+                            param, case.model.opset_import, rtol=rtol, atol=atol)
