@@ -1,4 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 import logging
 from io import StringIO
@@ -12,8 +15,8 @@ from .values import Opset
 logger = logging.getLogger("onnx-script")
 
 
-def format(list, prefix, sep, suffix):
-    return prefix + sep.join([str(x) for x in list]) + suffix
+def format(list, prefix, sep, suffix, formatter=str):
+    return prefix + sep.join([formatter(x) for x in list]) + suffix
 
 
 class Type:
@@ -53,6 +56,10 @@ class Var:
         return helper.make_value_info(self.name, tp)
 
 
+def opt_var_to_str(x):
+    return "" if x is None else str(x)
+
+
 class Attr:
     def __init__(self, attrproto) -> None:
         self.attr_proto = attrproto
@@ -68,6 +75,8 @@ class Stmt:
     def __init__(self, result, module, opname, args, attrs) -> None:
         if not isinstance(module, Opset):
             raise TypeError(f"Unexpected type {type(module)} for module.")
+        if not isinstance(opname, str):
+            raise TypeError(f"Unexpected type {type(opname)} for opname.")
         self.result = result
         self.module = module
         self.opname = opname
@@ -83,7 +92,7 @@ class Stmt:
         if (self.attrs):
             attrs = format(self.attrs, "<", ", ", ">")
 
-        args = format(self.args, "(", ", ", ")")
+        args = format(self.args, "(", ", ", ")", opt_var_to_str)
         module = str(self.module)
         callee = module + "." + self.opname if (module != '') else self.opname
         return lhs + " = " + callee + " " + attrs + args
@@ -96,7 +105,7 @@ class Stmt:
         if not isinstance(self.module.domain, str):
             raise TypeError("Unexpected type %r for self.module." % type(self.module))
         n = helper.make_node(self.opname,
-                             [str(x) for x in self.args],
+                             [opt_var_to_str(x) for x in self.args],
                              [str(x) for x in self.result],
                              domain=self.module.domain)
         for a in self.attrs:
@@ -151,7 +160,10 @@ class Function:
         if name in self.functions:
             # Already added.
             return
-        proto = opf.to_function_proto()
+        try:
+            proto = opf.to_function_proto(opf.opset)
+        except (TypeError, AttributeError) as e:
+            raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[name] = proto
 
     def model_functions(self):
@@ -225,8 +237,17 @@ class Function:
 
 
 class IRBuilder:
-    def new_function(self, name, domain=""):
-        return Function(name, domain)
+
+    def __init__(self):
+        self.functions = {}
+
+    def new_function(self, name, domain="", register=False):
+        if register and (domain, name) in self.functions:
+            raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
+        fct = Function(name, domain)
+        if register:
+            self.functions[domain, name] = fct
+        return fct
 
     def add_docstring(self, fn, docstring):
         fn.append_docstring(docstring)

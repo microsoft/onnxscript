@@ -1,4 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 import importlib
 import inspect
@@ -11,11 +14,42 @@ from onnx import TensorProto, ValueInfoProto, \
 from .converter import Converter
 
 
-def convert_arrays_to_value_infos(names, arr_list):
+def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):
+    # ONNX TensorProto data type is a supper set of python dtype.
+    # When a dtype is not allowed by ONNX schema, we need to find a closest
+    # dtype allowed by the schema.
+    if dtype == 'int32':
+        if 'tensor(int32)' not in onnx_schema_types and\
+                'tensor(int64)' in onnx_schema_types:
+            return np.dtype('int64')
+    return dtype
+
+
+def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=None):
+    if op_schema_formal_parameter is None:
+        op_schema_formal_parameter = []
+
     value_infos = []
-    for name, arr in zip(names, arr_list):
+    for i, (name, arr) in enumerate(zip(names, arr_list)):
         elem_type: TensorProto.DataType
         shape: tuple
+        if isinstance(arr, list):
+            # sequence, assuming it is a float sequence
+            # list should be replace by another container retaining the type information
+            nparray = np.asarray(arr)
+            if len(arr) == 0:
+                nparray = nparray.astype(np.float32)
+            if op_schema_formal_parameter and len(op_schema_formal_parameter) > i:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[
+                        map_pytype_to_schema_allowed_dtype(
+                            op_schema_formal_parameter[i].types, nparray.dtype)]
+            else:
+                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
+            info = onnx.helper.make_tensor_sequence_value_info(
+                name=name, elem_type=elem_type, shape=None)
+            value_infos.append(info)
+            continue
+
         if isinstance(arr, np.ndarray):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
@@ -24,7 +58,7 @@ def convert_arrays_to_value_infos(names, arr_list):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
             shape = nparray.shape
         else:
-            raise ValueError(f"cannot covert a {type(arr)} to value_info")
+            raise ValueError(f"cannot convert a {type(arr)} to value_info")
 
         value_info = onnx.helper.make_tensor_value_info(
             name=name,

@@ -1,13 +1,12 @@
 """
-Define an onnx-script library consisting of multiple functions.
+Define an onnx-script library consisting of multiple functions,
+and export it to ONNX proto format.
 ==============================================================
 The examples below show how we can define a library consisting
 of multiple functions.
-
-See exportlib.py for how to export an ONNX library proto file.
 """
 
-from onnxscript import script
+from onnxscript import script, export_onnx_lib
 from onnxscript.onnx import opset15 as op
 from onnxscript.values import CustomOpset
 
@@ -23,3 +22,6 @@ def l2norm(X):
 @script(opset)
 def square_loss(X, Y):
     return l2norm(X - Y)
+
+# Export the functions as an ONNX library.
+export_onnx_lib([l2norm, square_loss], "mylib.onnxlib")

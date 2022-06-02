@@ -1,8 +1,12 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 import unittest
 import os
-import textwrap
+import warnings
+import types
 import numpy as np
 import onnx
 from onnx.helper import printable_graph
@@ -11,24 +15,41 @@ import onnxruntime
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail
 from onnxscript.converter import Converter
 from onnxscript.values import Opset
+from onnxscript import script
+from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_types import FLOAT, INT64
+from onnxscript.values import OnnxFunction
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 
 
 class TestConverter(unittest.TestCase):
-    def _convert(self, script):
-        converter = Converter()
-        return converter.convert(script)
-
-    def _convert_and_save(self, script, save_text=False, check_ort=False):
-        converter = Converter()
-        fnlist = converter.convert(script)
+    def validate(self, script):
+        if isinstance(script, types.ModuleType):
+            fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
+        elif isinstance(script, OnnxFunction):
+            fnlist = [script]
+        else:
+            fnlist = script
         if not os.path.exists(TEST_OUTPUT_DIR):
             os.makedirs(TEST_OUTPUT_DIR)
         for f in fnlist:
             with self.subTest(f=f.name):
-                model = f.to_model_proto(producer_name='p2o')
+                f.to_function_proto()
+
+    def validate_save(self, script, save_text=False, check_ort=False, shape_inference=True):
+        if isinstance(script, types.ModuleType):
+            fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
+        elif isinstance(script, OnnxFunction):
+            fnlist = [script]
+        else:
+            fnlist = script
+        if not os.path.exists(TEST_OUTPUT_DIR):
+            os.makedirs(TEST_OUTPUT_DIR)
+        for f in fnlist:
+            with self.subTest(f=f.name):
+                model = f.to_model_proto()
                 if save_text:
                     with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as fi:
                         fi.write(printable_graph(model.graph))
@@ -40,7 +61,8 @@ class TestConverter(unittest.TestCase):
                         onnxruntime.InferenceSession(model.SerializeToString())
                     except Fail as e:
                         raise AssertionError(f"onnxruntime cannot load function {f.name}\n{str(model)}") from e
-                model = onnx.shape_inference.infer_shapes(model)
+                if shape_inference:
+                    model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
                     with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as fi:
                         fi.write(printable_graph(model.graph))
@@ -50,60 +72,48 @@ class TestConverter(unittest.TestCase):
                 try:
                     onnx.checker.check_model(model)
                 except (ValidationError, AssertionError) as e:
-                    onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
-                    raise AssertionError(
-                        "Verification of model failed.") from e
+                    if "Field 'shape' of type is required but missing" in str(e):
+                        # input or output shapes are missing because the function
+                        # was defined with FLOAT[...].
+                        warnings.warn(str(e))
+                    else:
+                        onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
+                        raise AssertionError(
+                            "Verification of model failed.") from e
                 onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
 
-    def test_source_input(self):
-        script = textwrap.dedent("""
-            def square(x):
-                return oxs.Mul(x, x)
-            """)
-        res = self._convert(script)
-        self.assertEqual(len(res), 1)
-
-    def test_source_input_error_undefined(self):
-        script = textwrap.dedent("""
-            def square(x):
-                return oxs.Mul(undefined, x)
-            """)
+    def test_error_undefined(self):
         with self.assertRaises(ValueError) as e:
-            self._convert(script)
+            @script()
+            def square(x):
+                return op.Mul(undefined, x)  # noqa: F821
         self.assertIn("string:3", str(e.exception))
 
-    def test_source_input_ort(self):
-        script = textwrap.dedent("""
-            def square(x):
-                return oxs.Mul(x, x)
-            """)
-        res = self._convert(script)
-        self.assertEqual(len(res), 1)
-        proto = res[0].to_graph_proto()
-        model = onnx.helper.make_model(
-            proto, producer_name='p2o',
-            opset_imports=[onnx.helper.make_opsetid("", 15)])
+    def test_run_ort(self):
+        @script()
+        def square(x):
+            return op.Mul(x, x)
+        model = square.to_model_proto()
         sess = onnxruntime.InferenceSession(model.SerializeToString())
         x = np.array([5, 6], dtype=np.float32)
         got = sess.run(None, {'x': x})
         self.assertEqual((x * x).tolist(), got[0].tolist())
 
-    def test_msdomain(self):
-        # Temporary patch to use com.microsoft domain
-        script = textwrap.dedent("""
-            def foo(x):
-                return msdomain.bar(x, x)
-            """)
-        self._convert(script)
-
     def test_onnxfns1(self):
-        self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1.py"))
+        from onnxscript.test.models import onnxfns1
+        self.validate(onnxfns1)
 
     def test_onnxfns1A(self):
-        self._convert(os.path.join(TEST_INPUT_DIR, "onnxfns1A.py"))
+        from onnxscript.test.models import onnxfns1A
+        self.validate(onnxfns1A)
 
     def test_models(self):
-        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "onnxmodels.py"))
+        from onnxscript.test.models import onnxmodels
+        self.validate_save(onnxmodels)
+
+    def test_unary_op(self):
+        from onnxscript.test.models import m1
+        self.validate_save(m1)
 
     def test_subfunction_check_model(self):
         from onnxscript.test.models import subfunction
@@ -115,16 +125,37 @@ class TestConverter(unittest.TestCase):
         self._convert_and_save(os.path.join(TEST_INPUT_DIR, "subfunction.py"), check_ort=True)
 
     def test_if_models(self):
-        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "if_statement.py"))
-
-    def test_loop_models(self):
-        self._convert_and_save(os.path.join(TEST_INPUT_DIR, "loop.py"))
+        from onnxscript.test.models import if_statement
+        self.validate_save(if_statement)
 
     def test_docstring(self):
-        res = self._convert(os.path.join(TEST_INPUT_DIR, "docstring.py"))
-        self.assertEqual(len(res), 1)
-        proto = res[0].to_function_proto(Opset('custom_domain', 1))
-        self.assertEqual(proto.doc_string, "\n    Combines ReduceSum, ReduceProd.\n    ")
+        @script()
+        def sumprod(x: FLOAT['N'], N: INT64) -> (FLOAT['N'], FLOAT['N']):   # noqa: F821
+            """
+            Combines ReduceSum, ReduceProd.
+            """
+            sum = op.Identity(x)
+            prod = op.Identity(x)
+            for i in range(N):
+                sum = sum + x
+                prod = prod * x
+            return sum, prod
+        proto = sumprod.to_function_proto()
+        self.assertEqual(proto.doc_string.strip(), "Combines ReduceSum, ReduceProd.")
+
+    def test_signal(self):
+        from onnxscript.test.models import signal_dft
+        # shape_inference crashes on stft.
+        self.validate_save(signal_dft, shape_inference=False)
+
+    def test_none_as_input(self):
+        '''
+        Test that use of None as an actual parameter is accepted.
+        '''
+        @script()
+        def clipmax(x: FLOAT['N'], max: FLOAT):  # noqa: F821
+            return op.Clip(x, None, max)
+        self.validate_save(clipmax)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,9 @@
-# SPDX-License-Identifier: Apache-2.0
-from typing import Any
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
+import typing
+from typing import Any, List
 from enum import IntFlag
 import onnx
 
@@ -95,6 +99,9 @@ class Op:
         self.opschema = opschema
         self.evaluator = eager_mode_evaluator.call_ort
 
+    def is_single_op(self):
+        return isinstance(self.opname, str)
+
     def get_schema(self):
         return self.opschema
 
@@ -105,22 +112,35 @@ class Op:
         return self.evaluator(self.opschema, *args, **kwargs)
 
 
-class OpFunction(Op):
+class OnnxFunction(Op):
     '''
     Represents an ONNX op for which a function-body has been defined in onnxscript.
-    TODO: Logically, this should be used also for function definitions that pre-exist
-    in the ONNX schema registry, but we don't need them at this point.
     '''
 
-    def __init__(self, opset, opname):
-        super().__init__(opset, opname)
+    def __init__(self, opset, pyfun, irfun):
+        opset = opset or Opset(irfun.domain, 1)
+        super().__init__(opset, irfun.name)
+        self.function = pyfun
+        self.function_ir = irfun
 
     @property
     def name(self):
-        return self.opset[self.opname].name
+        return self.opname
 
-    def to_function_proto(self):
-        return self.opset[self.opname].to_function_proto(domain=self.opset)
+    def __call__(self, *args, **kwargs):
+        return self.function(*args, **kwargs)
+
+    def to_function_proto(self, domain=None):
+        return self.function_ir.to_function_proto(domain or self.opset)
+
+    def to_model_proto(self):
+        if self.function_ir.attrs:
+            raise ValueError("A function with attributes cannot be exported as a model.")
+        # Note: The function must also have monomorphic type annotation for inputs/outputs
+        # to be converted into a valid model. Otherwise, we can still produce an ONNX
+        # model, but it will not pass the ONNX model checker. We do not report an error
+        # at this stage.
+        return self.function_ir.to_model_proto()
 
 
 # Values fall into the following categories:
@@ -157,10 +177,22 @@ class ConstValue(Value):
 
 
 class AttrRef(Value):
-    def __init__(self, name: str, typeinfo: type, info: DebugInfo) -> None:
+    def __init__(
+            self,
+            name: str,
+            typeinfo: type or List,
+            info: DebugInfo) -> None:
+        '''
+        Arguments:
+            name: name of the attribute
+            typeinfo: type annotation of the attribute.
+                op's attributes in ONNX are usually single type or list of single type.
+            info: for debugging use.
+        '''
         super().__init__(name, info)
         self.typeinfo = typeinfo
-        if not isinstance(typeinfo, type):
+        if not isinstance(typeinfo, (type, typing._GenericAlias)):
+            # typing._GenericAlias for List[int] and List[str], etc.
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 

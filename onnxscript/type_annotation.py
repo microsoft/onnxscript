@@ -1,18 +1,22 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 import onnx
-
+import typing
+from typing import List
 
 pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
+    typing.List[int]: onnx.AttributeProto.INTS
 }
 
 
 def is_attr(typeinfo):
-    return typeinfo in {float, int, str}
-    # (typeinfo is float) or (typeinfo is str) or (typeinfo is int)
+    return typeinfo in {float, int, str, List[float], List[int], List[str]}
 
 
 def is_tensor(typeinfo):

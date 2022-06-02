@@ -1,9 +1,15 @@
-from types import ModuleType
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
+
 import ast
 import inspect
 from .converter import Converter
 import onnx.helper
 from . import values
+from .values import OnnxFunction
+import textwrap
 
 
 def script_check(f: ast.FunctionDef, opset, global_names):
@@ -17,10 +23,15 @@ def script_check(f: ast.FunctionDef, opset, global_names):
     return converter.top_level_stmt(f)
 
 
-class OnnxFunction:
-    def __init__(self, f, opset):
+def script(opset=None):
+    if (opset is not None) and (not isinstance(opset, values.Opset)):
+        raise TypeError(
+            "Script parameter must be an opset. Did you use @script instead of @script()?")
+
+    def transform(f):
         if inspect.isfunction(f):
             src = inspect.getsource(f)
+            src = textwrap.dedent(src)
             module = inspect.getmodule(f)
             top_level_ast = ast.parse(src)
             assert type(top_level_ast) == ast.Module
@@ -28,28 +39,12 @@ class OnnxFunction:
             f_ast = top_level_ast.body[0]
             assert type(f_ast) == ast.FunctionDef
             result = script_check(f_ast, opset, module.__dict__.copy())
-
-            self.function = f
-            self.function_ir = result
             # TODO: add transformations.
+            return OnnxFunction(opset, f, result)
         else:
             raise TypeError(
                 "The ONNXScript decorator should be applied to functions only.")
 
-    def __call__(self, *args, **kwargs):
-        return self.function(*args, **kwargs)
-
-    def to_function_proto(self):
-        return self.function_ir.to_function_proto(values.Opset(self.function_ir.domain, 1))
-
-
-def script(opset=None):
-    if (opset is not None) and (not isinstance(opset, values.Opset)):
-        raise TypeError(
-            "Script parameter must be an opset. Did you use @script instead of @script()?")
-
-    def transform(f):
-        return OnnxFunction(f, opset)
     return transform
 
 
@@ -60,15 +55,13 @@ def is_converted_fun(f):
     return isinstance(f, OnnxFunction)
 
 
-def export_onnx_lib(module: ModuleType, filename: str) -> None:
-    funs = set([v for k, v in module.__dict__.items() if is_converted_fun(v)])
-
+def export_onnx_lib(functions, filename: str) -> None:
     # Since we don't yet have LibProto defined, we use a ModelProto as a temporary
     # container for the list of functions exported as a library, with an empty graph
     # and dummy opset_imports.
     model = onnx.helper.make_model(
         onnx.GraphProto(),
-        functions=[f.to_function_proto() for f in funs],
+        functions=[f.to_function_proto() for f in functions],
         producer_name='p2o',
         opset_imports=[onnx.helper.make_opsetid("", 15)])
 

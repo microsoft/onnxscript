@@ -10,11 +10,11 @@ eager_mode_evaluator uses onnxruntime
 as the backend to compute onnx ops.
 """
 import numpy as np
+from onnxscript import script
 from onnxscript.onnx_types import FLOAT
-
 from onnxscript.onnx import opset15 as op
 
-
+@script()
 def gemmgelu(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]) -> FLOAT["N", "M"]:  # noqa F821
 
     a = op.Constant(value_float=0.5)
@@ -23,7 +23,6 @@ def gemmgelu(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]) -> FLOAT[
     one = op.Constant(value_float=1.0)
     P1 = op.MatMul(A, W)
     X = op.Add(P1, Bias)
-    print("X: ", X)
     T1 = op.Mul(X, X)
     T2 = op.Mul(c, T1)
     T3 = op.Add(b, T2)

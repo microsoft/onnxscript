@@ -1,4 +1,7 @@
-# SPDX-License-Identifier: Apache-2.0
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 import numbers
 import numpy as np
@@ -6,6 +9,7 @@ import numpy as np
 import onnx
 from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph
 
 from .utils import convert_arrays_to_value_infos
 
@@ -43,7 +47,8 @@ def call_ort(schema, *args, **kwargs):
     inputs = ["input" + str(i) for i in range(len(args))]
     outputs = ["output" + str(i) for i in range(len(schema.outputs))]
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
-    input_value_infos = convert_arrays_to_value_infos(inputs, list(args))
+    input_value_infos = convert_arrays_to_value_infos(
+        inputs, list(args), schema.inputs)
     output_value_infos = [
         onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
 
@@ -51,11 +56,16 @@ def call_ort(schema, *args, **kwargs):
         [node], "node_graph", input_value_infos, output_value_infos)
     opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
     model = onnx.helper.make_model(graph, opset_imports=[opset_id])
-    sess = InferenceSession(
-        model.SerializeToString(), providers=['CPUExecutionProvider'])
+    try:
+        sess = InferenceSession(
+            model.SerializeToString(), providers=['CPUExecutionProvider'])
+    except (Fail, InvalidGraph) as e:
+        raise RuntimeError(
+            "Unable to create onnxruntime InferenceSession with onnx "
+            "model\n%s" % str(model)) from e
 
     session_run_input = {
-        input: arg if isinstance(arg, np.ndarray) else [arg]
+        input: arg if isinstance(arg, (np.ndarray, list)) else [arg]
         for input, arg in zip(inputs, args)}
 
     got = sess.run(None, session_run_input)
