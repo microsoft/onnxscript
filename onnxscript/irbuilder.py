@@ -268,7 +268,7 @@ class IRBuilder:
         fn.append_input(v)
 
     def add_attr(self, fn, varname, type, default_value=None):
-        if default_value != None:
+        if default_value is not None:
             a = Attr(helper.make_attribute(varname, default_value))
             fn.append_attr_proto(a)
         else:
