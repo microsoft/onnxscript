@@ -5,6 +5,7 @@
 
 import ast
 import logging
+import numpy
 import onnx
 import onnx.helper as helper
 import typing
@@ -113,6 +114,8 @@ def _known_modules():
     import onnxscript.onnx_types
     import onnxscript.onnx
     return {
+        'numpy': numpy,
+        'np': numpy,
         'onnx': onnx,
         'onnx.helper': onnx.helper,
         'onnxscript': onnxscript,
@@ -223,7 +226,7 @@ class Converter:
             fail(DebugInfo(val).msg(f"Unsupported attribute type: {pytype}"))
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
-    def to_onnx_var(self, val, target=None):
+    def to_onnx_var(self, val, target=None, info=None):
         if isinstance(val, AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
@@ -232,13 +235,13 @@ class Converter:
             return result
         if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
-            return self.emit_const(val.value, result)
+            return self.emit_const(val.value, result, info)
         if isinstance(val, Dynamic):
             return val.value
         fail("Cannot convert to onnx variable")
 
     def py_var_to_onnx_var(self, py_var, info):
-        return self.to_onnx_var(self.lookup(py_var, info))
+        return self.to_onnx_var(self.lookup(py_var, info), info=info)
 
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self.current_fn, docstring)
@@ -269,7 +272,7 @@ class Converter:
         onnx_outputs = [rename(x) for x in outputs]
         self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs)
 
-    def emit_const(self, pyvalue, suggested_name):
+    def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
         tensor = pyvalue_to_tensor(ovar, pyvalue)
         attr = self.ir_builder.attr("value", tensor)
@@ -310,8 +313,13 @@ class Converter:
         if isinstance(node, ast.List):
             return [self.eval_attr(x) for x in node.elts]
         if isinstance(node, (ast.Call, ast.Attribute, ast.UnaryOp)):
-            return self.eval_constant_expr(node)
-        raise ValueError(f"Unsupported attribute type: {type(node).__name__}.")
+            try:
+                return self.eval_constant_expr(node)
+            except NameError as e:
+                raise NameError(DebugInfo(node).msg(
+                        "Unable to evaluate a constant in node type %r "
+                        "due to %r." % (type(node), str(e))))
+        raise ValueError(f"Unsupported attribute type '{type(node).__name__}'.")
 
     def translate_attr(self, attr_name, node):
         if isinstance(node, ast.Name):
@@ -321,7 +329,9 @@ class Converter:
             else:
                 # TODO: lookup value; if func.def., compile it to Graph; if a
                 # constant; etc.
-                fail("Unimplemented attribute construct")
+                fail(DebugInfo(node).msg(
+                    f"Unimplemented attribute construct "
+                    f"'{attr_name}' for node type '{type(node).__name__}'."))
         return self.ir_builder.attr(attr_name, self.eval_attr(node))
 
     def translate_docstring(self, node):
@@ -349,7 +359,7 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif self.is_constant_expr(node):
-            r = self.emit_const(self.eval_constant_expr(node), target)
+            r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node))
         else:
             raise ValueError(DebugInfo(node).msg(
                 f"Unsupported expression type: {type(node).__name__}."))
@@ -449,7 +459,6 @@ class Converter:
             if isinstance(found, Op):
                 return found
             if not found:
-                default_opset = values.opset15
                 if function_name not in default_opset:
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(default_opset, node.id)
@@ -475,6 +484,12 @@ class Converter:
                 if hasattr(node.value, 's') and isinstance(node.value.s, str):
                     # python 3.7
                     return self.translate_docstring(node)
+        try:
+            if node.value.func.id == 'print':
+                # Any call to print function are ignored.
+                return None
+        except (TypeError, AttributeError):
+            pass
         raise ValueError(DebugInfo(node).msg(
             f"Unsupported statement type: {type(node).__name__}."))
 
@@ -534,9 +549,10 @@ class Converter:
     def translate_if_stmt(self, stmt: ast.If):
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         test = self.translate_expr(stmt.test, "cond")
-        thenGraph = self.translate_block(stmt.body, "thenGraph", live_defs)
+        lineno = DebugInfo(stmt).lineno
+        thenGraph = self.translate_block(stmt.body, "thenGraph_%d" % lineno, live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
-        elseGraph = self.translate_block(stmt.orelse, "elseGraph", live_defs)
+        elseGraph = self.translate_block(stmt.orelse, "elseGraph_%d" % lineno, live_defs)
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
@@ -569,7 +585,7 @@ class Converter:
         outputs = list(loop_state_vars | scan_outputs)
 
         # loop-condition:
-        o_true = self.emit_const(True, "true")
+        o_true = self.emit_const(True, "true", DebugInfo(for_stmt))
         # o_loop_bound = self.emit_const(3, "loop_bound")
 
         # build loop_body
@@ -617,8 +633,9 @@ class Converter:
                         pv_val = scope[pvar]
                         break
                 if pv_val is None:
-                    fail(f"Variable {pvar} is not assigned a value along a conditional "
-                         f"branch, known variables: {list(sorted(self.locals))}.")
+                    fail(DebugInfo(stmts[0]).msg(
+                        f"Variable {pvar} is not assigned a value along a conditional "
+                        f"branch, known variables: {list(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
                 self.emit([ovar], Op(default_opset, "Identity"),
@@ -666,8 +683,9 @@ class Converter:
         for i, s in enumerate(fn.body):
             self.translate_stmt(s, index_of_stmt=i)
         if self.returntype is not None:
-            assert self.num_outputs == len(self.returntype), \
-                "Mismatch in number of return values and types"
+            if self.num_outputs != len(self.returntype):
+                raise SyntaxError(DebugInfo(fn).msg(
+                    "Mismatch in number of return values and types."))
         return self.current_fn
 
     def do_import(self, alias):
@@ -685,8 +703,10 @@ class Converter:
             fn_ir.debug_print()
             self.this_module[stmt.name] = fn_ir
             return fn_ir
-        else:
-            raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
+        if isinstance(stmt, ast.If):
+            # Skips it.
+            return None
+        raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
 
 
 def convert(script):

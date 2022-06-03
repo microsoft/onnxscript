@@ -9,6 +9,7 @@ import numpy as np
 import onnx
 from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph
 
 from .utils import convert_arrays_to_value_infos
 
@@ -55,8 +56,13 @@ def call_ort(schema, *args, **kwargs):
         [node], "node_graph", input_value_infos, output_value_infos)
     opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
     model = onnx.helper.make_model(graph, opset_imports=[opset_id])
-    sess = InferenceSession(
-        model.SerializeToString(), providers=['CPUExecutionProvider'])
+    try:
+        sess = InferenceSession(
+            model.SerializeToString(), providers=['CPUExecutionProvider'])
+    except (Fail, InvalidGraph) as e:
+        raise RuntimeError(
+            "Unable to create onnxruntime InferenceSession with onnx "
+            "model\n%s" % str(model)) from e
 
     session_run_input = {
         input: arg if isinstance(arg, (np.ndarray, list)) else [arg]

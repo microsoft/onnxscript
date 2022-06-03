@@ -5,14 +5,15 @@
 
 import dataclasses
 import unittest
+from typing import Any, Sequence, List
 import numpy as np
 import onnx
 from onnx import ModelProto, OperatorSetIdProto
+import onnx.backend.test.case.node as node_test
 from onnxscript import utils
 from onnxruntime import InferenceSession
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail
 from onnxscript.main import OnnxFunction
-import onnx.backend.test.case.node as node_test
-from typing import Any, Sequence, List
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -29,6 +30,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         cls.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
         cls.local_opset_import = onnx.helper.make_opsetid("local", 1)
         cls.local_function_domain = "local"
+        cls.atol = 1e-7
         cls.rtol = 1e-7
         cls.all_test_cases = node_test.collect_testcases(None)
 
@@ -86,24 +88,33 @@ class OnnxScriptTestCase(unittest.TestCase):
         input = {
             vi.name: t
             for vi, t in zip(model.graph.input, param.input)}
-        sess = InferenceSession(
-            model.SerializeToString(), providers=['CPUExecutionProvider'])
+        try:
+            sess = InferenceSession(
+                model.SerializeToString(), providers=['CPUExecutionProvider'])
+        except Fail as e:
+            raise AssertionError(
+                "Unable to load model\n%s" % str(model)) from e
         actual = sess.run(None, input)
         np.testing.assert_allclose(actual, param.output, rtol=self.rtol)
 
     def run_eager_test(
             self,
             param: FunctionTestParams,
-            opset_imports: Sequence[OperatorSetIdProto] = None):
+            opset_imports: Sequence[OperatorSetIdProto] = None,
+            rtol: float = None,
+            atol: float = None):
 
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
             actual if isinstance(actual, list)
-            else [actual], param.output, rtol=self.rtol)
+            else [actual], param.output,
+            rtol=rtol or self.rtol, atol=atol or self.atol)
 
     def run_onnx_test(
             self,
             function: OnnxFunction,
+            rtol: float = None,
+            atol: float = None,
             skip_eager_test: bool = False,
             skip_test_names: List[str] = [],
             **attrs: Any) -> None:
@@ -138,4 +149,5 @@ class OnnxScriptTestCase(unittest.TestCase):
                         function, ds[0], ds[1], attrs=test_case_attrs)
                     self.run_converter_test(param, case.model.opset_import)
                     if not skip_eager_test:
-                        self.run_eager_test(param, case.model.opset_import)
+                        self.run_eager_test(
+                            param, case.model.opset_import, rtol=rtol, atol=atol)

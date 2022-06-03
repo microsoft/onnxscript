@@ -4,8 +4,11 @@ matplotlib
 onnx-function-experiment
 --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html
 ort-function-experiment-nightly
+protobuf<4
 sphinx
 sphinx-gallery
 pydata_sphinx_theme
 pytest!=7.1.0
 pytest-azurepipelines
+torch
+
