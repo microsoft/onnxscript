@@ -665,7 +665,7 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        domain = self.this_module.domain  # self.globals.get("__opset_domain__", "this")
+        domain = self.this_module.domain
         self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
         for x in args.args:
             if x.annotation:
