@@ -30,7 +30,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         cls.local_opset_import = onnx.helper.make_opsetid("local", 1)
         cls.local_function_domain = "local"
         cls.rtol = 1e-7
-        cls.all_test_cases = node_test.collect_testcases()
+        cls.all_test_cases = node_test.collect_testcases(None)
 
     def _create_model_from_param(
             self,
@@ -70,7 +70,18 @@ class OnnxScriptTestCase(unittest.TestCase):
             self,
             param: FunctionTestParams,
             opset_import: OperatorSetIdProto = None):
-        model = self._create_model_from_param(param, opset_import)
+        # we need the latest version in onnx.ai domain
+        # to build a function
+        opset_import_copy = []
+        if opset_import:
+            for opset in opset_import:
+                if opset.domain == "":
+                    opset_import_copy.append(
+                        OperatorSetIdProto(domain="", version=16))
+                else:
+                    opset_import_copy.append(opset)
+
+        model = self._create_model_from_param(param, opset_import_copy)
         onnx.checker.check_model(model)
         input = {
             vi.name: t
