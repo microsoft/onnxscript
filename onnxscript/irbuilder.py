@@ -206,14 +206,15 @@ class Function:
     def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=[]):
         # TODO: Ideally, in the long term, we should infer func_opset_imports
         # from the set of calls within the function itself.
-        f = helper.make_function(domain,
-                                    self.name,
-                                    inputs=[x.name for x in self.inputs],
-                                    outputs=[y.name for y in self.outputs],
-                                    nodes=[s.to_node_proto() for s in self.stmts],
-                                    opset_imports=func_opset_imports,
-                                    attributes=[a.name for a in self.attrs],
-                                    doc_string=self.docstring)
+        f = helper.make_function(
+            domain,
+            self.name,
+            inputs=[x.name for x in self.inputs],
+            outputs=[y.name for y in self.outputs],
+            nodes=[s.to_node_proto() for s in self.stmts],
+            opset_imports=func_opset_imports,
+            attributes=[a.name for a in self.attrs],
+            doc_string=self.docstring)
         f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
         return f
 
