@@ -60,7 +60,7 @@ class TestConverter(unittest.TestCase):
                     except (Fail, InvalidGraph) as e:
                         raise AssertionError(
                             f"onnxruntime cannot load function "
-                            "{f.name}\n{str(model)}") from e
+                            f"{f.name}\n{str(model)}") from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
