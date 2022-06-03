@@ -552,9 +552,11 @@ class Converter:
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         test = self.translate_expr(stmt.test, "cond")
         lineno = DebugInfo(stmt).lineno
-        thenGraph, sub_fct_then = self.translate_block(stmt.body, "thenGraph_%d" % lineno, live_defs)
+        thenGraph, sub_fct_then = self.translate_block(
+            stmt.body, "thenGraph_%d" % lineno, live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
-        elseGraph, sub_fct_else = self.translate_block(stmt.orelse, "elseGraph_%d" % lineno, live_defs)
+        elseGraph, sub_fct_else = self.translate_block(
+            stmt.orelse, "elseGraph_%d" % lineno, live_defs)
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
@@ -663,7 +665,7 @@ class Converter:
             warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
-        domain = self.globals["__opset_domain__"] if "__opset_domain__" in self.globals else "this"
+        domain = self.this_module.domain  # self.globals.get("__opset_domain__", "this")
         self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
         for x in args.args:
             if x.annotation:

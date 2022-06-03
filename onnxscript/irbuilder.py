@@ -7,6 +7,7 @@ import logging
 from io import StringIO
 import onnx
 import onnx.helper as helper
+from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
 from .values import Opset
 
@@ -170,22 +171,26 @@ class Function:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[opf.name] = proto
 
-    def to_model_proto(self, opsets=None, functions=None, **kwargs):
-        if opsets is None:
-            opsets = {'': 15}
-        elif isinstance(opsets, int):
-            opsets = {'': opsets}
-        else:
-            opsets = opsets.copy()
+    def to_model_proto(self, functions=None, **kwargs):
+        graph, sub_functions = self.to_graph_proto()
+        functions = [] if functions is None else list(functions)
+        functions.extend(sub_functions.values())
+
+        opsets = {}
         for n in self.stmts:
             if n.module.domain not in opsets:
                 opsets[n.module.domain] = n.module.version
+        if '' not in opsets:
+            # No operator is using the standard opset.
+            # A default value is given.
+            opsets[''] = onnx_opset_version()
+        for proto in functions:
+            if proto.domain not in opsets:
+                opsets[proto.domain] = 1
+
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
-        graph, sub_functions = self.to_graph_proto()
-        functions = [] if functions is None else list(functions)
-        # TODO: the following is incomplete. we need to do this iteratively.
-        functions.extend(sub_functions.values())
+
         return helper.make_model(graph, opset_imports=opset_imports,
                                  functions=functions, **kwargs)
 
@@ -200,7 +205,9 @@ class Function:
                                   [y.to_value_info() for y in self.outputs])
         return graph, sub_functions
 
-    def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=[]):
+    def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=None):
+        if func_opset_imports is None:
+            func_opset_imports = []
         # TODO: Ideally, in the long term, we should infer func_opset_imports
         # from the set of calls within the function itself.
         return helper.make_function(domain,
