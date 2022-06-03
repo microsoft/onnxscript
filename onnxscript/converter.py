@@ -656,8 +656,16 @@ class Converter:
         self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
         for i, x in enumerate(args.args):
             arg_with_default_start_index = len(args.args) - len(args.defaults)
-            default_value = args.defaults[i - arg_with_default_start_index].value\
-                if args.defaults and i >= arg_with_default_start_index else None
+            if args.defaults and i >= arg_with_default_start_index:
+                # ast.Num does not have 'value' property in python 3.7
+                if hasattr(args.defaults[i - arg_with_default_start_index], 'value'):
+                    default_value = args.defaults[i - arg_with_default_start_index].value
+                elif hasattr(args.defaults[i - arg_with_default_start_index], 'n'):
+                    default_value = args.defaults[i - arg_with_default_start_index].n
+                else:
+                    default_value = None
+            else:
+                default_value = None
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
             else:
