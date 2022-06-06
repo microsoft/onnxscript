@@ -215,7 +215,6 @@ class Function:
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
 
-
     def to_function_proto_with_opset_imports(self, domain=""):
         # infer function opset imports from calls within the function.
         func_opset_imports = self.get_opset_import()
