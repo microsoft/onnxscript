@@ -5,10 +5,10 @@
 
 import dataclasses
 import unittest
-from typing import Any, Sequence, List
+from typing import Any, List
 import numpy as np
 import onnx
-from onnx import ModelProto, OperatorSetIdProto
+from onnx import ModelProto
 import onnx.backend.test.case.node as node_test
 from onnxscript import utils
 from onnxruntime import InferenceSession
@@ -27,7 +27,6 @@ class FunctionTestParams:
 class OnnxScriptTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.default_opset_imports = [onnx.helper.make_opsetid("", 15)]
         cls.local_opset_import = onnx.helper.make_opsetid("local", 1)
         cls.local_function_domain = "local"
         cls.atol = 1e-7
@@ -36,14 +35,11 @@ class OnnxScriptTestCase(unittest.TestCase):
 
     def _create_model_from_param(
             self,
-            param: FunctionTestParams,
-            opset_imports: Sequence[OperatorSetIdProto]
+            param: FunctionTestParams
     ) -> ModelProto:
-        opset_imports = opset_imports if opset_imports\
-            else self.default_opset_imports
         ir = param.function.function_ir
         local_function_proto = ir.to_function_proto_with_opset_imports(
-            self.local_function_domain, opset_imports)
+            self.local_function_domain)
 
         input_names = ["input_" + str(i) for i in range(len(param.input))]
         output_names = ["output_" + str(i) for i in range(len(param.output))]
@@ -57,7 +53,6 @@ class OnnxScriptTestCase(unittest.TestCase):
             input_value_infos,
             output_value_infos,
             self.local_function_domain,
-            opset_imports,
             self.local_opset_import,
             **(param.attrs or {}))
 
@@ -68,22 +63,10 @@ class OnnxScriptTestCase(unittest.TestCase):
             and case.model.graph.node[0].op_type == op_type]
         return test_cases
 
-    def run_converter_test(
-            self,
-            param: FunctionTestParams,
-            opset_import: OperatorSetIdProto = None):
+    def run_converter_test(self, param: FunctionTestParams):
         # we need the latest version in onnx.ai domain
         # to build a function
-        opset_import_copy = []
-        if opset_import:
-            for opset in opset_import:
-                if opset.domain == "":
-                    opset_import_copy.append(
-                        OperatorSetIdProto(domain="", version=16))
-                else:
-                    opset_import_copy.append(opset)
-
-        model = self._create_model_from_param(param, opset_import_copy)
+        model = self._create_model_from_param(param)
         onnx.checker.check_model(model)
         input = {
             vi.name: t
@@ -100,7 +83,6 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_eager_test(
             self,
             param: FunctionTestParams,
-            opset_imports: Sequence[OperatorSetIdProto] = None,
             rtol: float = None,
             atol: float = None):
 
@@ -147,7 +129,6 @@ class OnnxScriptTestCase(unittest.TestCase):
                 for ds in case.data_sets:
                     param = FunctionTestParams(
                         function, ds[0], ds[1], attrs=test_case_attrs)
-                    self.run_converter_test(param, case.model.opset_import)
+                    self.run_converter_test(param)
                     if not skip_eager_test:
-                        self.run_eager_test(
-                            param, case.model.opset_import, rtol=rtol, atol=atol)
+                        self.run_eager_test(param, rtol=rtol, atol=atol)

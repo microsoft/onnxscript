@@ -88,7 +88,6 @@ def make_model_from_function_proto(
         input_value_infos: Sequence[ValueInfoProto],
         output_value_infos: Sequence[ValueInfoProto],
         domain: Text,
-        onnx_opset_imports: Sequence[OperatorSetIdProto],
         local_opset_import: OperatorSetIdProto,
         **attrs: Any
 ) -> ModelProto:
@@ -101,7 +100,6 @@ def make_model_from_function_proto(
         input_value_infos (list of ValueInfoProto): function's input
         output_value_infos (list of ValueInfoProto): function's output
         domain (string): domain of the node for the function
-        onnx_opset_imports (string, default None): opsets that are used by the function
         local_opset_import (string, default None): opset of the function
         **attrs (dict): the attributes of the node for the function
     Returns:
@@ -121,5 +119,5 @@ def make_model_from_function_proto(
         graph,
         functions=[function_proto],
         producer_name='onnx-script',
-        opset_imports=[*onnx_opset_imports, local_opset_import])
+        opset_imports=[*function_proto.opset_import, local_opset_import])
     return model

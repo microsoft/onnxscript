@@ -6,6 +6,7 @@
 import logging
 from io import StringIO
 import onnx
+from onnx import OperatorSetIdProto
 import onnx.helper as helper
 from . import type_annotation as ta
 from .values import Opset
@@ -151,6 +152,17 @@ class Function:
     def append_attr_proto(self, attr):
         self.attr_protos.append(attr)
 
+    def get_opset_import(self):
+        def opset_exist(opset_imports, domain, version):
+            return any(domain == o.domain and version == o.version for o in opset_imports)
+
+        func_opset_imports = []
+        for s in self.stmts:
+            if not opset_exist(func_opset_imports, s.module.domain, s.module.version):
+                func_opset_imports.append(
+                    OperatorSetIdProto(domain=s.module.domain, version=s.module.version))
+        return func_opset_imports
+
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
             st = StringIO()
@@ -203,9 +215,11 @@ class Function:
                                  [x.to_value_info() for x in self.inputs],
                                  [y.to_value_info() for y in self.outputs])
 
-    def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=[]):
-        # TODO: Ideally, in the long term, we should infer func_opset_imports
-        # from the set of calls within the function itself.
+
+    def to_function_proto_with_opset_imports(self, domain=""):
+        # infer function opset imports from calls within the function.
+        func_opset_imports = self.get_opset_import()
+
         f = helper.make_function(
             domain,
             self.name,
