@@ -12,6 +12,7 @@ import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph
 from onnxscript import script
 from onnxscript.onnx import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
@@ -48,24 +49,29 @@ class TestConverter(unittest.TestCase):
             with self.subTest(f=f.name):
                 model = f.to_model_proto()
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as f:
-                        f.write(printable_graph(model.graph))
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as fi:
+                        fi.write(printable_graph(model.graph))
                         for fct in model.functions:
-                            f.write("\n-------------------------\n")
-                            f.write(printable_graph(fct))
+                            fi.write("\n-------------------------\n")
+                            fi.write(printable_graph(fct))
                 if check_ort:
-                    onnxruntime.InferenceSession(model.SerializeToString())
+                    try:
+                        onnxruntime.InferenceSession(model.SerializeToString())
+                    except (Fail, InvalidGraph) as e:
+                        raise AssertionError(
+                            f"onnxruntime cannot load function "
+                            f"{f.name}\n{str(model)}") from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as f:
-                        f.write(printable_graph(model.graph))
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), 'w') as fi:
+                        fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
                             f.write(printable_graph(fct))
                 try:
                     onnx.checker.check_model(model)
-                except ValidationError as e:
+                except (ValidationError, AssertionError) as e:
                     if "Field 'shape' of type is required but missing" in str(e):
                         # input or output shapes are missing because the function
                         # was defined with FLOAT[...].
@@ -109,11 +115,15 @@ class TestConverter(unittest.TestCase):
         from onnxscript.test.models import m1
         self.validate_save(m1)
 
-    def test_subfunction(self):
+    def test_subfunction_check_model(self):
         from onnxscript.test.models import subfunction
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name='p2o')
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
+
+    def test_subfunction(self):
+        from onnxscript.test.models import subfunction
+        self.validate_save(subfunction, check_ort=True)
 
     def test_if_models(self):
         from onnxscript.test.models import if_statement
@@ -152,5 +162,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_signal()
+    # TestConverter().test_subfunction()
     unittest.main()
