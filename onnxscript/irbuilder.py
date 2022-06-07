@@ -6,7 +6,6 @@
 import logging
 from io import StringIO
 import onnx
-from onnx import OperatorSetIdProto
 import onnx.helper as helper
 from . import type_annotation as ta
 from .values import Opset
@@ -216,7 +215,7 @@ class Function:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
-        return helper.make_function(
+        f = helper.make_function(
             self.domain,
             self.name,
             inputs=[x.name for x in self.inputs],
@@ -226,6 +225,8 @@ class Function:
             attributes=[a.name for a in self.attrs],
             doc_string=self.docstring
         )
+        f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+        return f
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
