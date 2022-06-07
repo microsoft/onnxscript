@@ -3,15 +3,11 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import importlib
-import inspect
 import numbers
 import numpy as np
-from typing import Any, Sequence, Text
+from typing import Any, Sequence
 import onnx
-from onnx import TensorProto, ValueInfoProto, \
-    ModelProto, OperatorSetIdProto, FunctionProto
-from .converter import Converter
+from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
 
 
 def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):

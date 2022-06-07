@@ -209,7 +209,7 @@ class Function:
                                   [x.to_value_info() for x in self.inputs],
                                   [y.to_value_info() for y in self.outputs])
         return graph, sub_functions
-        
+
     def to_function_proto(self, domain):
         opsets = {'': 15}
         if domain != '':
