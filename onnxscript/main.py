@@ -23,7 +23,9 @@ def script_check(f: ast.FunctionDef, opset, global_names):
     return converter.top_level_stmt(f)
 
 
-def script(opset=values.Opset('this', 1)):
+def script(opset=None):
+    if (opset is None):
+        opset = values.Opset('this', 1)
     if not isinstance(opset, values.Opset):
         raise TypeError(
             "Script parameter must be an opset. Did you use @script instead of @script()?")

@@ -32,9 +32,12 @@ class DebugInfo:
 class Opset:
     '''
     Represents an ONNX Opset, which consists of a domain name, a version.
-    It also contains a set of operations. The base-class Opset represents
-    an Opset defined in the ONNX schema registry and the operations are
-    retrieved from the ONNX schema registry.
+    It also contains a set of operations. This represents an Opset defined
+    in the ONNX schema registry and the operations are retrieved from the
+    ONNX schema registry. It also stores function definitions created for
+    ops in the corresponding Opset.
+
+    Only a single instance of Opset is created for a given (domain, version) pair.
     '''
     cache = {}
 
@@ -43,13 +46,16 @@ class Opset:
         existing = cls.cache.get(key)
         if existing:
             return existing
-        return super(Opset, cls).__new__(cls)
+        instance = super(Opset, cls).__new__(cls)
+        instance.domain = domain
+        instance.version = version
+        instance.function_defs = {}
+        cls.cache[key] = instance
+        return instance
 
     def __init__(self, domain, version) -> None:
-        self.domain = domain
-        self.version = version
-        self.function_defs = {}
-        self.cache[(domain, version)] = self
+        # Nothing to do. Object is initialized by __new__
+        pass
 
     def __getitem__(self, opname):
         return onnx.defs.get_schema(opname, self.version, self.domain)
@@ -74,7 +80,6 @@ class Opset:
     def add_function_def(self, fun):
         self.function_defs[fun.name] = fun
 
-msdomain1 = Opset("com.microsoft", 1)
 
 # ONNX ops
 

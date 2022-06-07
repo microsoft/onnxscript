@@ -155,9 +155,7 @@ class Converter:
         self.known_modules = _known_modules()
         if (global_names is None):
             # TODO: Cleanup: This should be eventually removed.
-            self.globals = {"int": int, "float": float,
-                            "str": str, "oxs": default_opset,
-                            "msdomain": values.msdomain1}
+            self.globals = {"int": int, "float": float, "str": str}
         else:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
