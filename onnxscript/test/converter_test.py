@@ -101,10 +101,6 @@ class TestConverter(unittest.TestCase):
         from onnxscript.test.models import onnxfns1A
         self.validate(onnxfns1A)
 
-    def test_models(self):
-        from onnxscript.test.models import onnxmodels
-        self.validate_save(onnxmodels)
-
     def test_unary_op(self):
         from onnxscript.test.models import m1
         self.validate_save(m1)
