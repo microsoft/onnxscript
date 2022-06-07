@@ -32,12 +32,12 @@ def MyEluC(X: FLOAT[None], beta: FLOAT[1]) -> FLOAT[None]:
     res = op.Identity(MySelu(X, alpha, beta))
     return res
 
-@script(CustomOpset('this', 1))
+@script()
 def MyEluD(X: FLOAT[None], beta: FLOAT[1]) -> FLOAT[None]:
     res = op.Identity(MyEluC(X, beta))
     return res
 
-@script(CustomOpset('this', 1))
+@script()
 def IfMyEluD(X: FLOAT[None], beta: FLOAT[1]) -> FLOAT[None]:
     zero = op.Constant(value_float=1.)
     if beta > zero:
