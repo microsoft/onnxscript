@@ -68,39 +68,22 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=No
     return value_infos
 
 
-def convert_python_function_to_function_proto(function, domain, opset_imports):
-    converter = Converter()
-    module = importlib.import_module(function.__module__)
-
-    ir_functions = converter.convert(inspect.getsource(module))
-    ir_functions = [
-        x for x in ir_functions if x.name == function.__name__]
-    if len(ir_functions) != 1:
-        raise ValueError(f"Cannot find signle function of \
-            '{function.__name__}' from module '{module.__name__}.py'")
-
-    return ir_functions[0].to_function_proto_with_opset_imports(
-        domain, opset_imports)
-
-
 def make_model_from_function_proto(
         function_proto: FunctionProto,
+        function_opset_version: int,
         input_value_infos: Sequence[ValueInfoProto],
         output_value_infos: Sequence[ValueInfoProto],
-        domain: Text,
-        local_opset_import: OperatorSetIdProto,
         **attrs: Any
 ) -> ModelProto:
     """Creates a model containing a single call to a given
         function with input and output value_infos, etc.
 
     Arguments:
-        FunctionProto (FunctionProto): function proto
+        function_proto (FunctionProto): function proto
             representing a single call
+        function_opset_version (int):  function_proto's version
         input_value_infos (list of ValueInfoProto): function's input
         output_value_infos (list of ValueInfoProto): function's output
-        domain (string): domain of the node for the function
-        local_opset_import (string, default None): opset of the function
         **attrs (dict): the attributes of the node for the function
     Returns:
         ModelProto
@@ -110,7 +93,7 @@ def make_model_from_function_proto(
     output_names = [vi.name for vi in output_value_infos]
     node = onnx.helper.make_node(
         function_proto.name, input_names, output_names,
-        domain=domain,
+        domain=function_proto.domain,
         **(attrs or {}))
     graph = onnx.helper.make_graph(
         [node], "node_graph",
@@ -119,5 +102,7 @@ def make_model_from_function_proto(
         graph,
         functions=[function_proto],
         producer_name='onnx-script',
-        opset_imports=[*function_proto.opset_import, local_opset_import])
+        opset_imports=[
+            *function_proto.opset_import,
+            onnx.helper.make_opsetid(function_proto.domain, function_opset_version)])
     return model

@@ -27,8 +27,14 @@ class FunctionTestParams:
 class OnnxScriptTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.local_opset_import = onnx.helper.make_opsetid("local", 1)
-        cls.local_function_domain = "local"
+        # A function (and node) in a model tells its domain, not version.
+        # When building a model that consumes functions and nodes, model opset_imports
+        # indicate domains and versions of nodes and functions that are used.
+        # Function version number is needed for a runtime to run it without inlining.
+        # Before ONNX IR (or FunctionIR) being updated
+        # for FunctionProto to have version number we
+        # need to put a default version number here to workaround the problem.
+        cls.local_function_opset_version = 1
         cls.atol = 1e-7
         cls.rtol = 1e-7
         cls.all_test_cases = node_test.collect_testcases(None)
@@ -38,8 +44,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             param: FunctionTestParams
     ) -> ModelProto:
         ir = param.function.function_ir
-        local_function_proto = ir.to_function_proto_with_opset_imports(
-            self.local_function_domain)
+        local_function_proto = ir.to_function_proto("")
 
         input_names = ["input_" + str(i) for i in range(len(param.input))]
         output_names = ["output_" + str(i) for i in range(len(param.output))]
@@ -50,10 +55,9 @@ class OnnxScriptTestCase(unittest.TestCase):
 
         return utils.make_model_from_function_proto(
             local_function_proto,
+            self.local_function_opset_version,
             input_value_infos,
             output_value_infos,
-            self.local_function_domain,
-            self.local_opset_import,
             **(param.attrs or {}))
 
     def _filter_test_case_by_op_type(self, op_type):
