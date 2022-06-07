@@ -120,6 +120,7 @@ def _known_modules():
         'onnx.helper': onnx.helper,
         'onnxscript': onnxscript,
         'onnxscript.onnx': onnxscript.onnx,
+        'onnxscript.values': onnxscript.values,
         'onnxscript.onnx_types': onnxscript.onnx_types,
         'onnxscript.onnx.opset15': onnxscript.onnx.opset15
     }
@@ -246,7 +247,7 @@ class Converter:
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self.current_fn, docstring)
 
-    def emit(self, outputs, callee, inputs, attrs):
+    def emit(self, outputs, callee, inputs, attrs, sub_functions=None):
         if callee.opname == 'NotEqual':
             if len(attrs) != 0:
                 raise RuntimeError(
@@ -259,9 +260,9 @@ class Converter:
         else:
             self.ir_builder.add_stmt(
                 self.current_fn, outputs, callee.opset,
-                callee.opname, inputs, attrs)
+                callee.opname, inputs, attrs, sub_functions)
 
-    def emit_loop(self, outputs, callee, inputs, attrs, info):
+    def emit_loop(self, outputs, callee, inputs, attrs, info, sub_functions=None):
         def rename(x):
             r = self.generate_unique_name(x)
             self.bind(x, Dynamic(r, DynamicKind.Output, info))
@@ -270,7 +271,8 @@ class Converter:
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
-        self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs)
+        self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs,
+                  sub_functions=sub_functions)
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
@@ -550,9 +552,11 @@ class Converter:
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         test = self.translate_expr(stmt.test, "cond")
         lineno = DebugInfo(stmt).lineno
-        thenGraph = self.translate_block(stmt.body, "thenGraph_%d" % lineno, live_defs)
+        thenGraph, sub_fct_then = self.translate_block(
+            stmt.body, "thenGraph_%d" % lineno, live_defs)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
-        elseGraph = self.translate_block(stmt.orelse, "elseGraph_%d" % lineno, live_defs)
+        elseGraph, sub_fct_else = self.translate_block(
+            stmt.orelse, "elseGraph_%d" % lineno, live_defs)
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
@@ -561,7 +565,11 @@ class Converter:
             return r
 
         renamed = [rename(x) for x in live_defs]
-        self.emit(renamed, Op(default_opset, "If"), [test], [thenAttr, elseAttr])
+        sub_functions = {}
+        sub_functions.update(sub_fct_then)
+        sub_functions.update(sub_fct_else)
+        self.emit(renamed, Op(default_opset, "If"), [test], [thenAttr, elseAttr],
+                  sub_functions=sub_functions)
 
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
@@ -612,8 +620,11 @@ class Converter:
 
         inputs = [o_loop_bound, o_true] + \
                  [self.py_var_to_onnx_var(pv, DebugInfo(for_stmt)) for pv in loop_state_vars]
-        attrs = [self.ir_builder.attr("body", body.to_graph_proto())]
-        return self.emit_loop(outputs, "Loop", inputs, attrs, DebugInfo(for_stmt))
+        graph, sub_functions = body.to_graph_proto()
+        attrs = [self.ir_builder.attr("body", graph)]
+        return self.emit_loop(outputs, "Loop", inputs, attrs,
+                              sub_functions=sub_functions,
+                              info=DebugInfo(for_stmt))
 
     # Translation of a statement-block to GraphProto attribute
     def translate_block(self, stmts, name, live_defs):
