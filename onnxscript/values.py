@@ -36,10 +36,20 @@ class Opset:
     an Opset defined in the ONNX schema registry and the operations are
     retrieved from the ONNX schema registry.
     '''
+    cache = {}
+
+    def __new__(cls, domain, version):
+        key = (domain, version)
+        existing = cls.cache.get(key)
+        if existing:
+            return existing
+        return super(Opset, cls).__new__(cls)
 
     def __init__(self, domain, version) -> None:
         self.domain = domain
         self.version = version
+        self.function_defs = {}
+        self.cache[(domain, version)] = self
 
     def __getitem__(self, opname):
         return onnx.defs.get_schema(opname, self.version, self.domain)
@@ -61,25 +71,8 @@ class Opset:
         except BaseException:
             raise AttributeError(f"Attribute {attr} not found.")
 
-
-class CustomOpset(Opset):
-    '''
-    An extension of Opset used for Opsets that are not registered in the ONNX schema registry.
-    '''
-
-    def __init__(self, domain, version):
-        super().__init__(domain, version)
-        self.ops = {}
-
-    def __getitem__(self, opname):
-        return self.ops[opname]
-
-    def __contains__(self, opname):
-        return opname in self.ops
-
-    def __setitem__(self, opname, value):
-        self.ops[opname] = value
-
+    def add_function_def(self, fun):
+        self.function_defs[fun.name] = fun
 
 msdomain1 = Opset("com.microsoft", 1)
 
