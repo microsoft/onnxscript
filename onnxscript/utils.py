@@ -94,11 +94,14 @@ def make_model_from_function_proto(
     graph = onnx.helper.make_graph(
         [node], "node_graph",
         input_value_infos, output_value_infos)
+    model_proto_opset = function_proto.opset_import
+    if all(o.domain != function_proto.domain for o in model_proto_opset):
+        model_proto_opset = [
+            *model_proto_opset,
+            onnx.helper.make_opsetid(function_proto.domain, function_opset_version)]
     model = onnx.helper.make_model(
         graph,
         functions=[function_proto],
         producer_name='onnx-script',
-        opset_imports=[
-            *function_proto.opset_import,
-            onnx.helper.make_opsetid(function_proto.domain, function_opset_version)])
+        opset_imports=model_proto_opset)
     return model
