@@ -162,7 +162,6 @@ class Converter:
         else:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
-        self.default_type = types.FLOAT[...]
         self.this_module = opset or CustomOpset('this', 1)
 
     def init_function_translation(self):
@@ -472,6 +471,8 @@ class Converter:
     def translate_stmt(self, node, index_of_stmt=None):
         if isinstance(node, ast.Assign):
             return self.translate_assign_stmt(node)
+        if isinstance(node, ast.AnnAssign):
+            return self.translate_assign_stmt(node)
         if isinstance(node, ast.Return):
             return self.translate_return_stmt(node)
         if isinstance(node, ast.If):
@@ -495,7 +496,7 @@ class Converter:
         raise ValueError(DebugInfo(node).msg(
             f"Unsupported statement type: {type(node).__name__}."))
 
-    def translate_assign_stmt(self, stmt: ast.Assign):
+    def translate_assign_stmt(self, stmt: typing.Union[ast.Assign, ast.AnnAssign]):
         def assign(lhs, rhs):
             info = DebugInfo(lhs)
             if isinstance(lhs, ast.Name):
@@ -504,7 +505,12 @@ class Converter:
                     self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
                 else:
                     t = self.translate_expr(rhs, lhs)
-                    self.bind(lhs, Dynamic(t, DynamicKind.Intermediate, info))
+                    if isinstance(stmt, ast.AnnAssign):
+                        var = Dynamic(t, DynamicKind.Intermediate, info,
+                                      typeinfo=self.eval_constant_expr(stmt.annotation))
+                    else:
+                        var = Dynamic(t, DynamicKind.Intermediate, info)
+                    self.bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
                 def id(x):
                     assert isinstance(x, ast.Name)
@@ -516,8 +522,12 @@ class Converter:
             else:
                 fail("Unsupported construct in LHS of assignment.")
 
-        assert len(stmt.targets) == 1, "Multi-assignment not supported."
-        lhs = stmt.targets[0]
+        if isinstance(stmt, ast.Assign):
+            targets = stmt.targets
+        else:
+            targets = [stmt.target]
+        assert len(targets) == 1, "Multi-assignment not supported."
+        lhs = targets[0]
         rhs = stmt.value
         if isinstance(rhs, ast.Tuple):
             assert isinstance(lhs, ast.Tuple)
@@ -531,13 +541,10 @@ class Converter:
     def translate_return_stmt(self, stmt: ast.Return):
         def ret(exp, suffix=""):
             ovar = self.translate_expr(exp, "return_val" + suffix)
-            # if hasattr(self, returntype) and self.num_outputs <
-            # len(self.returntype):
-            try:
-                t = self.returntype[self.num_outputs]
-            except Exception:
-                t = self.default_type
-            self.ir_builder.add_output(self.current_fn, ovar, t)
+            if self.returntype is None:
+                raise RuntimeError(DebugInfo(stmt).msg("Return type is missing."))
+            t = self.returntype[self.num_outputs]
+            self.ir_builder.add_output(self.current_fn, ovar, t, DebugInfo(stmt))
             self.num_outputs += 1
             return ovar
 
@@ -599,14 +606,15 @@ class Converter:
         # build loop_body
         self.enter_scope("loop_body", for_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
-        self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64)
+        self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64, DebugInfo(for_stmt))
         self.bind(p_loop_var, Dynamic(o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt)))
         o_cond_var = self.generate_unique_name("cond_in")
-        self.ir_builder.add_input(self.current_fn, o_cond_var, types.BOOL)
+        self.ir_builder.add_input(self.current_fn, o_cond_var, types.BOOL, DebugInfo(for_stmt))
         for pv in loop_state_vars:
             ov = self.generate_unique_name(pv)
-            self.ir_builder.add_input(self.current_fn, ov, self.default_type)
-            self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(for_stmt)))
+            typeinfo = self.eval_constant_expr(pv.annotation)
+            self.ir_builder.add_input(self.current_fn, ov, pv.annotation, DebugInfo(pv))
+            self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(pv)))
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
@@ -636,7 +644,7 @@ class Converter:
                 pv_val = self.current_scope()[pvar]
                 output = self.to_onnx_var(pv_val, pvar)
                 self.ir_builder.add_output(
-                    self.current_fn, output, self.default_type)  # TODO: need type!
+                    self.current_fn, output, pv_val.typeinfo, DebugInfo(stmts[0]))  # TODO: need type!
             else:
                 pv_val = None
                 for scope in self.locals:  # TODO: skip current_scope
@@ -671,13 +679,13 @@ class Converter:
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
             else:
-                typeinfo = self.default_type
+                raise TypeError(DebugInfo(x).msg("Variable %r is missing an annotation." % x.arg))
             assert ta.is_valid(typeinfo)
             if ta.is_attr(typeinfo):
                 self.ir_builder.add_attr(self.current_fn, x.arg, typeinfo)
                 self.bind(x.arg, AttrRef(x.arg, typeinfo, DebugInfo(x)))
             else:
-                self.ir_builder.add_input(self.current_fn, x.arg, typeinfo)
+                self.ir_builder.add_input(self.current_fn, x.arg, typeinfo, DebugInfo(x))
                 self.bind(x.arg, Dynamic(x.arg, DynamicKind.Input, DebugInfo(x)))
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)
@@ -695,7 +703,10 @@ class Converter:
         if self.returntype is not None:
             if self.num_outputs != len(self.returntype):
                 raise SyntaxError(DebugInfo(fn).msg(
-                    "Mismatch in number of return values and types."))
+                    "Mismatch in number of return values and types. "
+                    "Keyword 'return' cannot be used in a subgraph (test, loop). "
+                    " returntype is %r, self.num_outputs=%r." % (
+                        returntype, self.num_outputs)))
         return self.current_fn
 
     def do_import(self, alias):

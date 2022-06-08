@@ -36,8 +36,9 @@ class Type:
 
 
 class Var:
-    def __init__(self, varname, typeinfo=None) -> None:
+    def __init__(self, varname, typeinfo, info) -> None:
         self.name = varname
+        self.info = info
         self.typeinfo = typeinfo
 
     def __str__(self):
@@ -50,6 +51,8 @@ class Var:
         return self.name + " : " + str(self.typeinfo)
 
     def to_value_info(self):
+        if self.typeinfo is None:
+            raise TypeError(self.info.msg("Variable %r is missing an annotation." % self.name))
         tp = self.typeinfo.to_type_proto()
         # if (not tp.tensor_type.HasField('shape')):
         #     # TODO: temporary patch to export a function as a graph
@@ -264,16 +267,16 @@ class IRBuilder:
         s = Stmt(results, module, opname, args, attrs, sub_functions=sub_functions)
         fn.append_stmt(s)
 
-    def add_input(self, fn, varname, type):
-        v = Var(varname, type)
+    def add_input(self, fn, varname, type, info):
+        v = Var(varname, type, info)
         fn.append_input(v)
 
-    def add_attr(self, fn, varname, type):
-        v = Var(varname, type)
+    def add_attr(self, fn, varname, type, info):
+        v = Var(varname, type, info)
         fn.append_attr(v)
 
-    def add_output(self, fn, varname, type):
-        v = Var(varname, type)
+    def add_output(self, fn, varname, type, info):
+        v = Var(varname, type, info)
         fn.append_output(v)
 
     def attr(self, attrname, attrval):

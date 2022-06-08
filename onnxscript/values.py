@@ -209,10 +209,14 @@ class DynamicKind(IntFlag):
 
 
 class Dynamic(Value):
-    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo) -> None:
+    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None) -> None:
         super().__init__(val, info)
         assert isinstance(kind, DynamicKind)
         self.kind = kind
+        self.typeinfo = typeinfo
 
     def __repr__(self):
-        return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.kind)
+        if self.typeinfo is None:
+            return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.kind)
+        return '%s(%r, %r, typeinfo=%r)' % (
+            self.__class__.__name__, self.value, self.kind, self.typeinfo)

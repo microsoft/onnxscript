@@ -12,7 +12,7 @@ import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from onnxscript import script
 from onnxscript.onnx import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
@@ -45,6 +45,7 @@ class TestConverter(unittest.TestCase):
             fnlist = script
         if not os.path.exists(TEST_OUTPUT_DIR):
             os.makedirs(TEST_OUTPUT_DIR)
+        fcts = {}
         for f in fnlist:
             with self.subTest(f=f.name):
                 model = f.to_model_proto()
@@ -57,7 +58,7 @@ class TestConverter(unittest.TestCase):
                 if check_ort:
                     try:
                         onnxruntime.InferenceSession(model.SerializeToString())
-                    except (Fail, InvalidGraph) as e:
+                    except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
                             f"onnxruntime cannot load function "
                             f"{f.name}\n{str(model)}") from e
@@ -81,6 +82,8 @@ class TestConverter(unittest.TestCase):
                         raise AssertionError(
                             "Verification of model failed.") from e
                 onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
+                fcts[f.name] = model
+        return fcts
 
     def test_error_undefined(self):
         with self.assertRaises(ValueError) as e:
@@ -158,9 +161,27 @@ class TestConverter(unittest.TestCase):
             return op.Clip(x, None, max)
         self.validate_save(clipmax)
 
+    def test_type_double(self):
+        from onnxscript.test.models import type_double
+        fcts = self.validate_save(type_double, check_ort=False)
+        f = fcts['double_abs']
+        self.assertEqual(f.graph.input[0].type.tensor_type.elem_type, 11)
+        self.assertEqual(f.graph.output[0].type.tensor_type.elem_type, 11)
+        f = fcts['double_cast']
+        self.assertEqual(f.graph.input[0].type.tensor_type.elem_type, 7)
+        self.assertEqual(f.graph.output[0].type.tensor_type.elem_type, 11)
+        f = fcts['double_abs_subgraph']
+        self.assertEqual(f.graph.input[0].type.tensor_type.elem_type, 11)
+        self.assertEqual(f.graph.output[0].type.tensor_type.elem_type, 11)
+        g = f.graph.node[3].attribute[0].g
+        self.assertEqual(g.output[0].type.tensor_type.elem_type, 11)
+        g = f.graph.node[3].attribute[1].g
+        self.assertEqual(g.output[0].type.tensor_type.elem_type, 11)
+        self.validate_save(type_double, check_ort=True)
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_subfunction()
+    # TestConverter().test_type_double()
     unittest.main()
