@@ -73,8 +73,8 @@ class Var:
             if enforce_typed:
                 if default_type is None:
                     raise TypeError(self.info.msg(
-                        "Variable %r is missing an annotation and default_type is not specified."
-                        "" % self.name))
+                        "Variable %r is missing an annotation and default_type "
+                        "is not specified." % self.name))
                 return helper.make_value_info(self.name, default_type.to_type_proto())
             return helper.make_value_info(self.name, Type().to_type_proto())
         tp = self.typeinfo.to_type_proto()

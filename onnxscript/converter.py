@@ -70,7 +70,8 @@ def py_type_to_onnx_type(pytype: type, converter):
 def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
-            fail(DebugInfo(pyvalue, converter).msg("Cannot convert an empty list to tensor"))
+            fail(DebugInfo(pyvalue, converter).msg(
+                "Cannot convert an empty list to tensor"))
         pytype = type(pyvalue[0])
         if not all([isinstance(e, pytype) for e in pyvalue]):
             fail(DebugInfo(pyvalue, converter).msg(
@@ -608,31 +609,38 @@ class Converter:
         # build loop_body
         self.enter_scope("loop_body", for_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
-        self.ir_builder.add_input(self.current_fn, o_loop_var, types.INT64, DebugInfo(for_stmt, self))
-        self.bind(p_loop_var, Dynamic(o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt, self)))
+        self.ir_builder.add_input(
+            self.current_fn, o_loop_var, types.INT64, DebugInfo(for_stmt, self))
+        self.bind(p_loop_var, Dynamic(
+            o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt, self)))
         o_cond_var = self.generate_unique_name("cond_in")
-        self.ir_builder.add_input(self.current_fn, o_cond_var, types.BOOL, DebugInfo(for_stmt, self))
+        self.ir_builder.add_input(
+            self.current_fn, o_cond_var, types.BOOL, DebugInfo(for_stmt, self))
         for pv in loop_state_vars:
             ov = self.generate_unique_name(pv)
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self.eval_constant_expr(pv.annotation)
             typeinfo = None
-            self.ir_builder.add_input(self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
+            self.ir_builder.add_input(
+                self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
             self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(for_stmt, self)))
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
         self.emit([o_cond_out], Op(default_opset, "Identity"), [o_cond_var], [])
-        self.ir_builder.add_output(self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))
+        self.ir_builder.add_output(
+            self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))
         for pv in loop_state_vars:
             ov = self.py_var_to_onnx_var(pv, DebugInfo(for_stmt, self))
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
-            self.ir_builder.add_output(self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
+            self.ir_builder.add_output(
+                self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
         body = self.exit_scope()
 
         inputs = [o_loop_bound, o_true] + \
-                 [self.py_var_to_onnx_var(pv, DebugInfo(for_stmt, self)) for pv in loop_state_vars]
+                 [self.py_var_to_onnx_var(
+                    pv, DebugInfo(for_stmt, self)) for pv in loop_state_vars]
         graph, sub_functions = body.to_graph_proto()
         attrs = [self.ir_builder.attr("body", graph)]
         return self.emit_loop(outputs, "Loop", inputs, attrs,
