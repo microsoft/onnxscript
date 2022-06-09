@@ -6,6 +6,7 @@ ONNXScript is a subset of Python that can be used to author ONNX functions (as w
 .. toctree::
     :maxdepth: 1
 
+    tutorial/index
     api/index
     auto_examples/index
 

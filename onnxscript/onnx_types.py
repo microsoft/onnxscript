@@ -31,6 +31,9 @@ class Tensor:
 
 
 class ParametricTensor:
+    """
+    Defines a dense tensor of any shape.
+    """
     def __init__(self, dtype) -> None:
         self.dtype = dtype
 
@@ -55,7 +58,7 @@ class ParametricTensor:
     def to_type_proto(self):
         return onnx.helper.make_tensor_type_proto(self.dtype, ())
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return onnx.TensorProto.DataType.Name(self.dtype)
 
 

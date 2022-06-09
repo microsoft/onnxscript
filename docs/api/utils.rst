@@ -1,4 +1,5 @@
-Utils
+utils
 =====
 
 .. automodule:: onnxscript.utils
+    :members:
