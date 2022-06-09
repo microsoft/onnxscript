@@ -12,14 +12,14 @@ from .values import OnnxFunction
 import textwrap
 
 
-def script_check(f: ast.FunctionDef, opset, global_names):
+def script_check(f: ast.FunctionDef, opset, global_names, source):
     '''
     Check that a function falls into the ONNXScript subset of Python.
     '''
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    converter = Converter(opset=opset, global_names=global_names)
+    converter = Converter(opset=opset, global_names=global_names, source=source)
     return converter.top_level_stmt(f)
 
 
@@ -38,9 +38,9 @@ def script(opset=None):
             assert len(top_level_ast.body) == 1
             f_ast = top_level_ast.body[0]
             assert type(f_ast) == ast.FunctionDef
-            result = script_check(f_ast, opset, module.__dict__.copy())
+            result = script_check(f_ast, opset, module.__dict__.copy(), src)
             # TODO: add transformations.
-            return OnnxFunction(opset, f, result)
+            return OnnxFunction(opset, f, result, src)
         else:
             raise TypeError(
                 "The ONNXScript decorator should be applied to functions only.")

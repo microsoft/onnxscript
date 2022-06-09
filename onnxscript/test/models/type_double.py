@@ -11,6 +11,16 @@ from onnxscript.onnx import opset15 as op
 
 
 @script()
+def notype_abs_subgraph(A):
+    zero = op.Constant(value=make_tensor('zero', TensorProto.FLOAT, [1], [0]))
+    if op.Cast(op.ReduceSum(A), to=1) > zero:
+        B = op.Identity(A)
+    else:
+        B = op.Neg(A)
+    return B
+
+
+@script()
 def double_abs_subgraph(A: DOUBLE["N"]) -> DOUBLE["N"]:
     zero = op.Constant(value=make_tensor('zero', TensorProto.DOUBLE, [1], [0]))
     if op.ReduceSum(A) > zero:

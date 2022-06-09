@@ -48,7 +48,7 @@ class TestConverter(unittest.TestCase):
         fcts = {}
         for f in fnlist:
             with self.subTest(f=f.name):
-                model = f.to_model_proto()
+                model = f.to_model_proto(io_types=FLOAT)
                 if save_text:
                     with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), 'w') as fi:
                         fi.write(printable_graph(model.graph))
@@ -90,13 +90,18 @@ class TestConverter(unittest.TestCase):
             @script()
             def square(x):
                 return op.Mul(undefined, x)  # noqa: F821
-        self.assertIn("string:3", str(e.exception))
+        self.assertIn("square:3", str(e.exception))
 
     def test_run_ort(self):
         @script()
         def square(x):
             return op.Mul(x, x)
-        model = square.to_model_proto()
+        with self.assertRaises(TypeError) as cm:
+            # checking that the function raises an exception when types are not defined.
+            square.to_model_proto()
+        self.assertIn('square:2', str(cm.exception))
+        self.assertIn("Variable 'x' is missing", str(cm.exception))
+        model = square.to_model_proto(io_types=FLOAT)
         sess = onnxruntime.InferenceSession(model.SerializeToString())
         x = np.array([5, 6], dtype=np.float32)
         got = sess.run(None, {'x': x})
@@ -157,7 +162,7 @@ class TestConverter(unittest.TestCase):
         Test that use of None as an actual parameter is accepted.
         '''
         @script()
-        def clipmax(x: FLOAT['N'], max: FLOAT):  # noqa: F821
+        def clipmax(x: FLOAT, max: FLOAT):  # noqa: F821
             return op.Clip(x, None, max)
         self.validate_save(clipmax)
 
@@ -183,5 +188,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_type_double()
+    # TestConverter().test_none_as_input()
     unittest.main()
