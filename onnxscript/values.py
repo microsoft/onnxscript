@@ -116,7 +116,7 @@ class OnnxFunction(Op):
     '''
     Represents an ONNX op for which a function-body has been defined in onnxscript.
 
-    :param opset: opset used to write the function
+    :param opset: opset the function belongs to
     :param pyfun: python function
     :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
     '''

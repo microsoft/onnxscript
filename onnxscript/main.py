@@ -27,9 +27,7 @@ def script(opset=None):
     """
     Main decorator. Declares a function as an onnx function.
 
-    :param opset: opset used to write the function. Every opset may define
-        different signatures for the same operators. If not specified,
-        the code must be valid for the last opset, see :ref:`l-api-opsets`.
+    :param opset: opset the function belongs to (see :ref:`l-api-opsets`)
     :return: an instance of :class:`onnxscript.values.OnnxFunction`
 
     Example:
