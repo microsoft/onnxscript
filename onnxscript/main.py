@@ -50,7 +50,9 @@ def script(opset=None):
             one = op.Constant(value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
             return op.Div(op.Log(x), op.CastLike(op.Log(cst), x))
     """
-    if (opset is not None) and (not isinstance(opset, values.Opset)):
+    if (opset is None):
+        opset = values.Opset('this', 1)
+    if not isinstance(opset, values.Opset):
         raise TypeError(
             "Script parameter must be an opset. Did you use @script instead of @script()?")
 

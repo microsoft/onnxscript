@@ -17,7 +17,7 @@ from . import values as values
 from .onnx import opset15 as default_opset
 from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
-    DebugInfo, CustomOpset)
+    DebugInfo)
 
 
 logger = logging.getLogger("onnx-script")
@@ -158,13 +158,11 @@ class Converter:
         self.source = source
         if (global_names is None):
             # TODO: Cleanup: This should be eventually removed.
-            self.globals = {"int": int, "float": float,
-                            "str": str, "oxs": default_opset,
-                            "msdomain": values.msdomain1}
+            self.globals = {"int": int, "float": float, "str": str}
         else:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
-        self.this_module = opset or CustomOpset('this', 1)
+        self.this_module = opset
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -682,7 +680,7 @@ class Converter:
 
     def translate_function_def(self, fn: ast.FunctionDef):
         logger.debug("Converter:translate_function_def:%s", fn.name)
-        if fn.name in self.this_module:
+        if fn.name in self.this_module.function_defs:
             warn(f"{fn.name}: Already defined.")
         args = fn.args
         if args.defaults:
@@ -738,7 +736,7 @@ class Converter:
             analysis.do_liveness_analysis(stmt)
             fn_ir = self.translate_function_def(stmt)
             fn_ir.debug_print()
-            self.this_module[stmt.name] = fn_ir
+            self.this_module.add_function_def(fn_ir)
             return fn_ir
         if isinstance(stmt, ast.If):
             # Skips it.
