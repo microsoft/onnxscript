@@ -42,6 +42,8 @@ def defs(stmt):
 
     if isinstance(stmt, ast.Assign):
         return local_defs(stmt.targets[0])
+    if isinstance(stmt, ast.AnnAssign):
+        return local_defs(stmt.target)
     if isinstance(stmt, ast.Return):
         return set()
     if isinstance(stmt, ast.If):
@@ -77,6 +79,8 @@ def do_liveness_analysis(fun):
 
         if isinstance(stmt, ast.Assign):
             return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+        if isinstance(stmt, ast.AnnAssign):
+            return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
             return used_vars(stmt.value)
         if isinstance(stmt, ast.If):

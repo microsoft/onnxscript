@@ -1,7 +1,7 @@
 """
-Define an onnx-script library consisting of multiple functions,
-and export it to ONNX proto format.
-==============================================================
+Define an onnx-script library of multiple functions
+===================================================
+
 The examples below show how we can define a library consisting
 of multiple functions.
 """

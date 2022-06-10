@@ -1,8 +1,3 @@
-# SPDX-License-Identifier: Apache-2.0
-
-
-# -*- coding: utf-8 -*-
-#
 # Configuration file for the Sphinx documentation builder.
 # To run the documentation: python -m sphinx docs dist/html
 
@@ -30,6 +25,7 @@ extensions = [
     "sphinx_gallery.gen_gallery",
     'sphinx.ext.autodoc',
     'sphinx.ext.graphviz',
+    'sphinx.ext.napoleon',
 ]
 
 templates_path = ['_templates']
@@ -45,7 +41,7 @@ pygments_style = 'default'
 html_static_path = ['_static']
 html_theme = "pydata_sphinx_theme"
 html_theme_path = ['_static']
-html_logo = "logo_main.png"
+html_logo = "_static/logo_main.png"
 
 # -- Options for graphviz ----------------------------------------------------
 

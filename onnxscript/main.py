@@ -5,25 +5,51 @@
 
 import ast
 import inspect
-from .converter import Converter
+import textwrap
 import onnx.helper
+from .converter import Converter
 from . import values
 from .values import OnnxFunction
-import textwrap
 
 
-def script_check(f: ast.FunctionDef, opset, global_names):
+def script_check(f: ast.FunctionDef, opset, global_names, source):
     '''
     Check that a function falls into the ONNXScript subset of Python.
     '''
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    converter = Converter(opset=opset, global_names=global_names)
+    converter = Converter(opset=opset, global_names=global_names, source=source)
     return converter.top_level_stmt(f)
 
 
 def script(opset=None):
+    """
+    Main decorator. Declares a function as an onnx function.
+
+    :param opset: opset the function belongs to (see :ref:`l-api-opsets`)
+    :return: an instance of :class:`onnxscript.values.OnnxFunction`
+
+    Example:
+
+    ::
+
+        @script()
+        def log2(x):
+            one = op.Constant(value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
+            return op.Div(op.Log(x), op.CastLike(op.Log(cst), x))
+
+    Or:
+
+    ::
+
+        from onnxscript.onnx import opset16
+
+        @script(opset16)
+        def log2(x):
+            one = op.Constant(value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
+            return op.Div(op.Log(x), op.CastLike(op.Log(cst), x))
+    """
     if (opset is None):
         opset = values.Opset('this', 1)
     if not isinstance(opset, values.Opset):
@@ -40,9 +66,9 @@ def script(opset=None):
             assert len(top_level_ast.body) == 1
             f_ast = top_level_ast.body[0]
             assert type(f_ast) == ast.FunctionDef
-            result = script_check(f_ast, opset, module.__dict__.copy())
+            result = script_check(f_ast, opset, module.__dict__.copy(), src)
             # TODO: add transformations.
-            return OnnxFunction(opset, f, result)
+            return OnnxFunction(opset, f, result, src)
         else:
             raise TypeError(
                 "The ONNXScript decorator should be applied to functions only.")
