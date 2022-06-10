@@ -7,6 +7,7 @@ import unittest
 from onnxscript.test.testutils import TestBase
 from onnxscript import script
 from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_types import FLOAT
 
 from onnx import helper
 

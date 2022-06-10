@@ -19,6 +19,35 @@ def same_optional(field, obj1, obj2, equals=default_equality_op):
     else:
         return not obj2.HasField(field)
 
+def same_repeated(values1, values2, equals=default_equality_op):
+    if len(values1) != len(values2): return False
+    for (val1, val2) in zip(values1, values2):
+        if not equals(val1, val2):
+            return False
+    return True
+
+def same_string_string_map(proto1, proto2):
+    '''Compare repeated StringStringEntryProto as maps.'''
+    def to_map(proto): return { x.key : x.value for x in proto }
+    return to_map(proto1) == to_map(proto2)
+
+def same_tensor(tp1, tp2):
+    if tp1.dims != tp2.dims: return False
+    if not same_optional("data_type", tp1, tp2): return False
+    # Segmented representation not supported yet
+    if tp1.HasField("segment") or tp2.HasField("segment"): return False
+    if tp1.float_data != tp2.float_data: return False
+    if tp1.int32_data != tp2.int32_data: return False
+    if tp1.string_data != tp2.string_data: return False
+    if tp1.int64_data != tp2.int64_data: return False
+    if tp1.uint64_data != tp2.uint64_data: return False
+    if tp1.double_data != tp2.double_data: return False
+    # Ignore name for comparison:
+    # if not same_optional("name", tp1, tp2): return False
+    if not same_optional("doc_string", tp1, tp2): return False
+    if not same_optional("data_location", tp1, tp2): return False
+    if not same_string_string_map(tp1.external_data, tp2.external_data): return False
+    return True
 
 def same_attr(attr1, attr2, graph_equality):
     # no name check; names used to match attributes already.
@@ -26,19 +55,20 @@ def same_attr(attr1, attr2, graph_equality):
         if not same_optional(field, attr1, attr2):
             return False
 
+    if not same_optional("t", attr1, attr2, same_tensor): return False
+
+    if not same_repeated(attr1.tensors, attr2.tensors, same_tensor): return False
+
     for field in ["floats", "ints", "strings"]:
         if getattr(attr1, field) != getattr(attr2, field):
             return False
 
-    if not same_optional("g", attr1, attr2, graph_equality):
-        return False
+    if not same_optional("g", attr1, attr2, graph_equality): return False
 
-    for (g1, g2) in zip(attr1.graphs, attr2.graphs):
-        if not graph_equality(g1, g2):
-            return False
+    if not same_repeated(attr1.graphs, attr2.graphs, graph_equality): return False
 
     # for field in ["t", "sparse_tensor", "tp", "tensors", "sparse_tensors", "type_protos"]:
-    for field in ["t", "sparse_tensor", "tp"]:
+    for field in ["sparse_tensor", "tp"]:
         # TODO: check for more complex fields
         if attr1.HasField(field) or attr2.HasField(field):
             return False
