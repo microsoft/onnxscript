@@ -8,6 +8,7 @@ from onnxscript.test.testutils import TestBase
 from onnxscript import script
 from onnxscript.onnx import opset15 as op
 
+from onnx import helper
 
 class TestConverter(TestBase):
 
@@ -24,6 +25,19 @@ class TestConverter(TestBase):
 
         self.assertSame(plus1, plus2)
 
+    def test_const_promotion(self):
+        '''Test promotion of constant literals to TensorProto.'''
+
+        @script()
+        def explicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:
+            one = op.Constant(value = helper.make_tensor("one", 1, [], [1.0]))
+            return op.Add (A, one)
+
+        @script()
+        def implicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:
+            return op.Add (A, 1.0)
+        
+        self.assertSame(explicit_plus1, implicit_plus1)
 
 if __name__ == '__main__':
     unittest.main()

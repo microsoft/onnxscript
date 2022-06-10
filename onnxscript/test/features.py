@@ -46,15 +46,6 @@ class TestConverter(TestConverter):
 
         self.check(invalid)
 
-    def test_const_promotion(self):
-        '''Test promotion of constant literals to TensorProto.'''
-
-        @script()
-        def plus1(A: FLOAT["N"]) -> FLOAT["N"]:
-            return op.Add (A, 1.0)
-        
-        self.check(plus1)
-
 
 if __name__ == '__main__':
     unittest.main()
