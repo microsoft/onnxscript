@@ -21,23 +21,32 @@ def format(list, prefix, sep, suffix, formatter=str):
 
 
 class Type:
-    def __init__(self) -> None:
-        # TODO
-        tp = onnx.TypeProto()
-        tp.tensor_type.elem_type = onnx.TensorProto.FLOAT
-        self.onnx_type = tp
-        # helper.make_tensor_type_proto(onnx.TensorProto.FLOAT, [10])
+
+    def __init__(self):
+        self.onnx_type = onnx.TypeProto()
 
     def to_type_proto(self):
         return self.onnx_type
 
-    def __str__(self) -> str:
-        return "SomeType"
+    def __repr__(self) -> str:
+        return "Type()"
+
+
+class TensorType(Type):
+
+    def __init__(self, elem_type) -> None:
+        tp = onnx.TypeProto()
+        tp.tensor_type.elem_type = elem_type
+        self.onnx_type = tp
+
+    def __repr__(self) -> str:
+        return "TensorType(%d)" % self.onnx_type.tensor_type.elem_type
 
 
 class Var:
-    def __init__(self, varname, typeinfo=None) -> None:
+    def __init__(self, varname, typeinfo, info) -> None:
         self.name = varname
+        self.info = info
         self.typeinfo = typeinfo
 
     def __str__(self):
@@ -49,7 +58,25 @@ class Var:
     def typed_str(self):
         return self.name + " : " + str(self.typeinfo)
 
-    def to_value_info(self):
+    def to_value_info(self, enforce_typed=False, default_type=None):
+        """
+        Converts the content of this class into :class:`onnx.ValueInfoProto`.
+
+        :param enforce_typed: if True, the function raises an exception if
+            the type of an input or output is not specified (no annotation)
+            unless *io_types* defined a default value to use
+        :param default_type: defines a default value for missing input and output type,
+            this is only used if *enforce_typed* is True
+        :return: an instance of :class:`onnx.ValueInfoProto`
+        """
+        if self.typeinfo is None:
+            if enforce_typed:
+                if default_type is None:
+                    raise TypeError(self.info.msg(
+                        "Variable %r is missing an annotation and default_type "
+                        "is not specified." % self.name))
+                return helper.make_value_info(self.name, default_type.to_type_proto())
+            return helper.make_value_info(self.name, Type().to_type_proto())
         tp = self.typeinfo.to_type_proto()
         # if (not tp.tensor_type.HasField('shape')):
         #     # TODO: temporary patch to export a function as a graph
@@ -171,8 +198,20 @@ class Function:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[opf.name] = proto
 
-    def to_model_proto(self, functions=None, **kwargs):
-        graph, sub_functions = self.to_graph_proto()
+    def to_model_proto(self, functions=None, io_types=None, **kwargs):
+        """
+        Converts the content of this class into a `onnx.ModelProto`.
+
+        :param functions: list of functions to include in the model,
+            by default, all functions called at least once are included
+        :param io_types: many functions are written without any type specification
+            so they can be type agnostic. However, ModelProto requires the inputs
+            and outputs to be strongly typed. When an input or an output has no type,
+            this default value is used.
+        :param kwargs: additional parameters given to function :func:`onnx.helper.make_model`
+        :return: an instance of :class:`onnx.ModelProto`
+        """
+        graph, sub_functions = self.to_graph_proto(enforce_typed=True, io_types=io_types)
         functions = [] if functions is None else list(functions)
         functions.extend(sub_functions.values())
 
@@ -194,15 +233,26 @@ class Function:
         return helper.make_model(graph, opset_imports=opset_imports,
                                  functions=functions, **kwargs)
 
-    def to_graph_proto(self):
+    def to_graph_proto(self, enforce_typed=False, io_types=None):
+        """
+        Converts the content of this class into a `onnx.GraphProto`.
+
+        :param enforce_typed: if True, the function raises an exception if
+            the type of an input or output is not specified (no annotation)
+            unless *io_types* defined a default value to use
+        :param io_types: defines a default value for missing input and output type,
+            this is only used if *enforce_typed* is True
+        :return: an instance of :class:`onnx.GraphProto`
+        """
         sub_functions = {}
         for s in self.stmts:
             sub_functions.update(s.functions)
         sub_functions.update(self.functions)
-        graph = helper.make_graph([s.to_node_proto() for s in self.stmts],
-                                  self.name,
-                                  [x.to_value_info() for x in self.inputs],
-                                  [y.to_value_info() for y in self.outputs])
+        graph = helper.make_graph(
+            [s.to_node_proto() for s in self.stmts],
+            self.name,
+            [x.to_value_info(enforce_typed, default_type=io_types) for x in self.inputs],
+            [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs])
         return graph, sub_functions
 
     def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=None):
@@ -264,16 +314,16 @@ class IRBuilder:
         s = Stmt(results, module, opname, args, attrs, sub_functions=sub_functions)
         fn.append_stmt(s)
 
-    def add_input(self, fn, varname, type):
-        v = Var(varname, type)
+    def add_input(self, fn, varname, type, info):
+        v = Var(varname, type, info)
         fn.append_input(v)
 
-    def add_attr(self, fn, varname, type):
-        v = Var(varname, type)
+    def add_attr(self, fn, varname, type, info):
+        v = Var(varname, type, info)
         fn.append_attr(v)
 
-    def add_output(self, fn, varname, type):
-        v = Var(varname, type)
+    def add_output(self, fn, varname, type, info):
+        v = Var(varname, type, info)
         fn.append_output(v)
 
     def attr(self, attrname, attrval):

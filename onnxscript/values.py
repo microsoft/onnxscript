@@ -10,7 +10,10 @@ import onnx
 
 class DebugInfo:
 
-    def __init__(self, lineno, source="string"):
+    def __init__(self, lineno, source="string", code=None):
+        if hasattr(source, 'source'):
+            code = source.source
+            source = source.current_fn.name
         if hasattr(lineno, 'lineno'):
             self.ast_obj = lineno
             self.lineno = lineno.lineno
@@ -21,12 +24,17 @@ class DebugInfo:
             raise NotImplementedError(
                 "Unable to extract debug information from type %r." % type(lineno))
         self.source = source
+        self.code = code.split('\n')
 
     def msg(self, text):
         return "ERROR\n%s\n    %s" % (str(self), text)
 
     def __str__(self):
-        return "%s:%d" % (self.source, self.lineno)
+        if self.code is None:
+            line = ''
+        else:
+            line = "    -- line: " + self.code[self.lineno - 1]
+        return "%s:%d%s" % (self.source, self.lineno, line)
 
 
 class Opset:
@@ -117,11 +125,12 @@ class OnnxFunction(Op):
     Represents an ONNX op for which a function-body has been defined in onnxscript.
     '''
 
-    def __init__(self, opset, pyfun, irfun):
+    def __init__(self, opset, pyfun, irfun, source):
         opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun
         self.function_ir = irfun
+        self.source = source
 
     @property
     def name(self):
@@ -209,10 +218,14 @@ class DynamicKind(IntFlag):
 
 
 class Dynamic(Value):
-    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo) -> None:
+    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None) -> None:
         super().__init__(val, info)
         assert isinstance(kind, DynamicKind)
         self.kind = kind
+        self.typeinfo = typeinfo
 
     def __repr__(self):
-        return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.kind)
+        if self.typeinfo is None:
+            return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.kind)
+        return '%s(%r, %r, typeinfo=%r)' % (
+            self.__class__.__name__, self.value, self.kind, self.typeinfo)
