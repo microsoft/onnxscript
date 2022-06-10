@@ -93,10 +93,10 @@ def make_model_from_function_proto(
         **attrs: Any
 ) -> ModelProto:
     """Creates a model containing a single call to a given
-        function with input and output value_infos, etc.
+    function with input and output value_infos, etc.
 
-    Arguments:
-        FunctionProto (FunctionProto): function proto
+    Args:
+        function_proto (FunctionProto): function proto
             representing a single call
         input_value_infos (list of ValueInfoProto): function's input
         output_value_infos (list of ValueInfoProto): function's output
@@ -104,6 +104,7 @@ def make_model_from_function_proto(
         onnx_opset_imports (string, default None): opsets that are used by the function
         local_opset_import (string, default None): opset of the function
         **attrs (dict): the attributes of the node for the function
+
     Returns:
         ModelProto
     """

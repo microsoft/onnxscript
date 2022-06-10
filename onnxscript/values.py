@@ -123,6 +123,10 @@ class Op:
 class OnnxFunction(Op):
     '''
     Represents an ONNX op for which a function-body has been defined in onnxscript.
+
+    :param opset: opset the function belongs to
+    :param pyfun: python function
+    :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
     '''
 
     def __init__(self, opset, pyfun, irfun, source):
@@ -134,15 +138,18 @@ class OnnxFunction(Op):
 
     @property
     def name(self):
+        "Returns the function name."
         return self.opname
 
     def __call__(self, *args, **kwargs):
         return self.function(*args, **kwargs)
 
     def to_function_proto(self, domain=None):
+        "Converts the function into :class:`onnx.FunctionProto`."
         return self.function_ir.to_function_proto(domain or self.opset)
 
     def to_model_proto(self, **kwargs):
+        "Converts the function into :class:`onnx.ModelProto`."
         if self.function_ir.attrs:
             raise ValueError("A function with attributes cannot be exported as a model.")
         # Note: The function must also have monomorphic type annotation for inputs/outputs
