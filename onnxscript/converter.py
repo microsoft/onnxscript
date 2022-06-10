@@ -595,7 +595,7 @@ class Converter:
         assert not iter.keywords, "Unsupported loop bound."
         o_loop_bound = self.translate_expr(iter.args[0], "loop_bound")
         # analyze loop body
-        exposed_uses = analysis.exposed_uses(for_stmt.body)
+        exposed_uses = analysis.exposed_uses(for_stmt.body, self)
         vars_def_in_loop = analysis.defs(for_stmt.body)
         loop_state_vars = vars_def_in_loop.intersection(
             exposed_uses | for_stmt.live_out)
@@ -735,7 +735,7 @@ class Converter:
     def top_level_stmt(self, stmt):
         if isinstance(stmt, ast.FunctionDef):
             self.init_function_translation()
-            analysis.do_liveness_analysis(stmt)
+            analysis.do_liveness_analysis(stmt, self)
             fn_ir = self.translate_function_def(stmt)
             fn_ir.debug_print()
             self.this_module[stmt.name] = fn_ir
