@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 
 import unittest
-from onnx import FunctionProto
+from onnx import FunctionProto, GraphProto, parser
 from onnxscript import OnnxFunction
 from .checker import isomorphic
 
@@ -14,8 +14,22 @@ def function_proto(f):
         return f
     if isinstance(f, OnnxFunction):
         return f.to_function_proto()
+    if isinstance(f, str):
+        dummy_graph_txt = "agraph (X) => (Y) { Y = Identity(X) } "
+        model_txt = dummy_graph_txt + f
+        model = parser.parse_model(model_txt)
+        return model.functions[0]
+        # return parser.parse_function(f)
     raise TypeError(f"Cannot convert {type(f)} to FunctionProto")
 
+def graph_proto(g):
+    if isinstance(g, GraphProto):
+        return g
+    if isinstance(g, OnnxFunction):
+        return g.to_model_proto().graph
+    if isinstance(g, str):
+        return parser.parse_graph(g)
+    raise TypeError(f"Cannot convert {type(g)} to ModelProto")
 
 class TestBase(unittest.TestCase):
     def validate(self, fn):
@@ -24,3 +38,6 @@ class TestBase(unittest.TestCase):
 
     def assertSame(self, fn1, fn2):
         self.assertTrue(isomorphic(function_proto(fn1), function_proto(fn2)))
+    
+    def assertSameGraph(self, graph1, graph2):
+        self.assertTrue(isomorphic(graph_proto(graph1), graph_proto(graph2)))

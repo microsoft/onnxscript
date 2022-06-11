@@ -49,6 +49,23 @@ def same_tensor(tp1, tp2):
     if not same_string_string_map(tp1.external_data, tp2.external_data): return False
     return True
 
+def same_shape (shape1, shape2):
+    def same_dim (dim1, dim2):
+        return same_optional("dim_value", dim1, dim2) and same_optional("dim_param", dim1, dim2)
+    return same_repeated(shape1.dim, shape2.dim, same_dim)
+
+def same_type(tp1, tp2):
+    def same_tensor_type (tt1, tt2):
+        return (tt1.elem_type == tt2.elem_type) and same_optional("shape", tt1, tt2, same_shape)
+
+    # Handles only tensor type at this point.
+    return same_optional("tensor_type", tp1, tp2, same_tensor_type)
+
+def same_value_info (vi1, vi2):
+    return (same_optional("name", vi1, vi2)
+           and same_optional("type", vi1, vi2, same_type)
+           and same_optional("doc_string", vi1, vi2))
+
 def same_attr(attr1, attr2, graph_equality):
     # no name check; names used to match attributes already.
     for field in ["type", "ref_attr_name", "f", "i", "s"]:
@@ -177,9 +194,8 @@ class Matcher:
         '''Match two sub-graphs.'''
         g1 = self.fg1
         g2 = self.fg2
-        if len(g1.input) != len(g2.input):
-            return False
-        # TODO: check types
+        if not same_repeated(g1.input, g2.input, same_value_info): return False
+
         if g1.initializer or g2.initializer:
             return False  # TODO
         if g1.sparse_initializer or g2.sparse_initializer:
@@ -229,12 +245,21 @@ class Matcher:
         return True
 
 
-def isomorphic(fn1: onnx.FunctionProto, fn2: onnx.FunctionProto):
+def isomorphic(fg1, fg2):
     '''
-    Checks that two function bodies are isomorphic.
-    Assumes that the inputs are valid FunctionProto.
+    Checks that two function/graph bodies are isomorphic.
+    Assumes that the inputs are valid FunctionProto/GraphProto.
     Use a separate check to verify that the inputs satisfy
-    FunctionProto requirements (like no duplicate attributes).
+    FunctionProto/GraphProto requirements (like no duplicate attributes).
     '''
-    matcher = Matcher(fn1, fn2, None)
-    return matcher.same_function()
+    matcher = Matcher(fg1, fg2, None)
+    if isinstance(fg1, onnx.FunctionProto):
+        if not isinstance(fg2, onnx.FunctionProto):
+            raise TypeError ("Both inputs must be same type (function or graph)")
+        return matcher.same_function()
+    elif isinstance(fg1, onnx.GraphProto):
+        if not isinstance(fg2, onnx.GraphProto):
+            raise TypeError ("Both inputs must be same type (function or graph)")
+        return matcher.same_graph()
+    else:
+        raise TypeError("Inputs must be either a FunctionProto or GraphProto")
