@@ -9,15 +9,16 @@ from onnxscript import script
 from onnxscript.onnx import opset15 as op
 from onnxscript.onnx_types import FLOAT
 
+
 class TypeAnnotationTester (TestBase):
     def test_type_annotation(self):
         '''Test type annotations.'''
 
         @script()
         def static_shape(A: FLOAT[100], B: FLOAT[100]) -> FLOAT[100]:
-            C = op.Add (A, B)
+            C = op.Add(A, B)
             return C
-        
+
         static_shape_txt = '''
             static_shape (float[100] A, float[100] B) => (float[100] C) {
                 C = Add (A, B)
@@ -27,7 +28,7 @@ class TypeAnnotationTester (TestBase):
 
         @script()
         def symbolic_shape(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
-            C = op.Add (A, B)
+            C = op.Add(A, B)
             return C
 
         symbolic_shape_txt = '''
@@ -39,7 +40,7 @@ class TypeAnnotationTester (TestBase):
 
         @script()
         def tensor_scalar(A: FLOAT["N"], B: FLOAT) -> FLOAT["N"]:
-            C = op.Add (A, B)
+            C = op.Add(A, B)
             return C
 
         tensor_scalar_txt = '''
@@ -51,7 +52,7 @@ class TypeAnnotationTester (TestBase):
 
         @script()
         def unknown_rank(A: FLOAT[...], B: FLOAT[...]) -> FLOAT[...]:
-            C = op.Add (A, B)
+            C = op.Add(A, B)
             return C
 
         unknown_rank_txt = '''

@@ -11,6 +11,7 @@ from onnxscript.onnx_types import FLOAT
 
 from onnx import helper
 
+
 class TestConverter(TestBase):
 
     def test_plus_op(self):
@@ -31,14 +32,15 @@ class TestConverter(TestBase):
 
         @script()
         def explicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:
-            one = op.Constant(value = helper.make_tensor("one", 1, [], [1.0]))
-            return op.Add (A, one)
+            one = op.Constant(value=helper.make_tensor("one", 1, [], [1.0]))
+            return op.Add(A, one)
 
         @script()
         def implicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:
-            return op.Add (A, 1.0)
-        
+            return op.Add(A, 1.0)
+
         self.assertSame(explicit_plus1, implicit_plus1)
+
 
 if __name__ == '__main__':
     unittest.main()
