@@ -14,12 +14,6 @@ def function_proto(f):
         return f
     if isinstance(f, OnnxFunction):
         return f.to_function_proto()
-    if isinstance(f, str):
-        dummy_graph_txt = "agraph (X) => (Y) { Y = Identity(X) } "
-        model_txt = dummy_graph_txt + f
-        model = parser.parse_model(model_txt)
-        return model.functions[0]
-        # return parser.parse_function(f)
     raise TypeError(f"Cannot convert {type(f)} to FunctionProto")
 
 def graph_proto(g):
