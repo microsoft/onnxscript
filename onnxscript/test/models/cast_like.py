@@ -26,3 +26,15 @@ def cmp_zero_right(A: FLOAT[...]) -> BOOL[...]:
 @script()
 def cmp_zero_left(A: FLOAT[...]) -> BOOL[...]:
     return 0 == A
+
+
+@script()
+def div_right(A: FLOAT[...]) -> FLOAT[...]:
+    return A / 2
+
+
+# This does not work yet as -2 is interpreted as  operator - (2)
+# and not as a constant.
+# @script()
+# def div_minus_right(A: FLOAT[...]) -> FLOAT[...]:
+#     return A / (-2)

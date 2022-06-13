@@ -187,7 +187,8 @@ class TestConverter(unittest.TestCase):
     def test_cast_like(self):
         from onnxscript.test.models import cast_like
         fcts = self.validate_save(cast_like, check_ort=True)
-        for name in ['inc_right', 'inc_left', 'cmp_zero_right', 'cmp_zero_left']:
+        for name in ['inc_right', 'inc_left', 'cmp_zero_right', 'cmp_zero_left',
+                     'div_right']:
             f = fcts[name]
             self.assertIn("int64_data", str(f))
             self.assertIn('op_type: "CastLike"', str(f))
