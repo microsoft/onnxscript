@@ -15,8 +15,8 @@ def sumprod_typed(x: DOUBLE['N'], N: INT64) -> DOUBLE['N']:   # noqa: F821
     weight = op.Constant(value=make_tensor('zero', TensorProto.DOUBLE, [1], [0]))
     weighted_sum = op.Identity(weight)
     for i in range(N):
-        b: DOUBLE = op.Cast(i, to=11)
-        a: DOUBLE = x * b
+        b: DOUBLE[...] = op.Cast(i, to=11)
+        a: DOUBLE[...] = x * b
         weighted_sum = weighted_sum + a
         weight = weight + b
     return op.Div(weighted_sum, weight)
