@@ -66,16 +66,19 @@ def same_tensor(tp1, tp2):
     return True
 
 
+def same_dim(dim1, dim2):
+    return same_optional("dim_value", dim1, dim2) and same_optional("dim_param", dim1, dim2)
+
+
 def same_shape(shape1, shape2):
-    def same_dim(dim1, dim2):
-        return same_optional("dim_value", dim1, dim2) and same_optional("dim_param", dim1, dim2)
     return same_repeated(shape1.dim, shape2.dim, same_dim)
 
 
-def same_type(tp1, tp2):
-    def same_tensor_type(tt1, tt2):
-        return (tt1.elem_type == tt2.elem_type) and same_optional("shape", tt1, tt2, same_shape)
+def same_tensor_type(tt1, tt2):
+    return (tt1.elem_type == tt2.elem_type) and same_optional("shape", tt1, tt2, same_shape)
 
+
+def same_type(tp1, tp2):
     # Handles only tensor type at this point.
     return same_optional("tensor_type", tp1, tp2, same_tensor_type)
 
