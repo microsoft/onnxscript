@@ -5,6 +5,7 @@
 
 import ast
 import logging
+from enum import IntEnum
 import numpy
 import onnx
 import onnx.helper as helper
@@ -125,6 +126,22 @@ def _known_modules():
         'onnxscript.onnx_types': onnxscript.onnx_types,
         'onnxscript.onnx.opset15': onnxscript.onnx.opset15
     }
+
+
+class ConverterExpressionKind(IntEnum):
+    ANY = 0
+    CONST = 1
+
+
+class ConverterExpression:
+
+    def __init__(self, name: typing.Union[str, typing.List[str]],
+                 kind: ConverterExpressionKind):
+        self.name = name
+        self.kind = kind
+
+    def is_const(self):
+        return self.kind == ConverterExpressionKind.CONST
 
 
 class Converter:
@@ -349,6 +366,7 @@ class Converter:
     # the expression into a target-variable, and returns the variable that is
     # assigned this value.
     def translate_expr(self, node, target="tmp"):
+        kind = ConverterExpressionKind.ANY
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
         elif isinstance(node, ast.BinOp):
@@ -361,6 +379,7 @@ class Converter:
             r = self.translate_name_expr(node)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
+            kind = ConverterExpressionKind.CONST
         else:
             raise ValueError(DebugInfo(node, self).msg(
                 f"Unsupported expression type: {type(node).__name__}."))
@@ -369,28 +388,43 @@ class Converter:
                 result = self.generate_unique_name(target)
                 callee, args, attrs = r
                 self.emit([result], callee, args, attrs)
-                return result
-            assert isinstance(target, list)
+                return ConverterExpression(result, kind)
             results = [self.generate_unique_name(x) for x in target]
             callee, args, attrs = r
             self.emit(results, callee, args, attrs)
-            return results
-        return r
+            return ConverterExpression(results, kind)
+        return ConverterExpression(r, kind)
 
     # Translation of an expression where "None" is permitted (eg., for an optional argument)
     def translate_opt_expr(self, node, target="tmp"):
         # None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
-            return None
+            return ConverterExpression(None, ConverterExpressionKind.ANY)
         return self.translate_expr(node, target)
 
     def translate_call_expr(self, node):
         # TODO: for now, we map named arguments to attributes, and positional
         # arguments to inputs.
         callee = self.translate_callee_expr(node.func)
-        args = [self.translate_opt_expr(x) for x in node.args]
+        args = [self.translate_opt_expr(x).name for x in node.args]
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         return callee, args, attrs
+
+    def _cast_like_binary_expression(self, left, right):
+        if left.is_const() and not right.is_const():
+            right = right.name
+            tmp = self.generate_unique_name(left.name)
+            self.emit([tmp], Op(default_opset, 'CastLike'), [left.name, right], [])
+            left = tmp
+        elif not left.is_const() and right.is_const():
+            left = left.name
+            tmp = self.generate_unique_name(right.name)
+            self.emit([tmp], Op(default_opset, 'CastLike'), [right.name, left], [])
+            right = tmp
+        else:
+            left = left.name
+            right = right.name
+        return left, right
 
     def translate_bin_op_expr(self, node):
         op = type(node.op)
@@ -399,6 +433,7 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
+        left, right = self._cast_like_binary_expression(left, right)
         return Op(default_opset, opname), [left, right], []
 
     def translate_unary_op_expr(self, node):
@@ -406,7 +441,7 @@ class Converter:
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
-        operand = self.translate_expr(node.operand)
+        operand = self.translate_expr(node.operand).name
         return Op(default_opset, opname), [operand], []
 
     def translate_compare_expr(self, node):
@@ -419,6 +454,7 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
+        left, right = self._cast_like_binary_expression(left, right)
         return Op(default_opset, opname), [left, right], []
 
     def translate_name_expr(self, node):
@@ -504,7 +540,7 @@ class Converter:
                 if self.is_constant_expr(rhs):
                     self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
                 else:
-                    t = self.translate_expr(rhs, lhs)
+                    t = self.translate_expr(rhs, lhs).name
                     if isinstance(stmt, ast.AnnAssign):
                         var = Dynamic(t, DynamicKind.Intermediate, info,
                                       typeinfo=self.eval_constant_expr(stmt.annotation))
@@ -516,7 +552,7 @@ class Converter:
                     assert isinstance(x, ast.Name)
                     return x.id
                 ids = [id(x) for x in lhs.elts]
-                onnxids = self.translate_expr(rhs, ids)
+                onnxids = self.translate_expr(rhs, ids).name
                 for x, y in zip(ids, onnxids):
                     self.bind(x, Dynamic(y, DynamicKind.Intermediate, info))
             else:
@@ -540,7 +576,7 @@ class Converter:
 
     def translate_return_stmt(self, stmt: ast.Return):
         def ret(exp, suffix=""):
-            ovar = self.translate_expr(exp, "return_val" + suffix)
+            ovar = self.translate_expr(exp, "return_val" + suffix).name
             if self.returntype is None:
                 t = None
             else:
@@ -558,7 +594,7 @@ class Converter:
 
     def translate_if_stmt(self, stmt: ast.If):
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
-        test = self.translate_expr(stmt.test, "cond")
+        test = self.translate_expr(stmt.test, "cond").name
         lineno = DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
             stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt)
@@ -591,7 +627,7 @@ class Converter:
         assert iter.func.id == "range", "Unsupported loop bound."
         assert iter.args and len(iter.args) == 1, "Unsupported loop bound."
         assert not iter.keywords, "Unsupported loop bound."
-        o_loop_bound = self.translate_expr(iter.args[0], "loop_bound")
+        o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
         # analyze loop body
         exposed_uses = analysis.exposed_uses(for_stmt.body)
         vars_def_in_loop = analysis.defs(for_stmt.body)

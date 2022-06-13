@@ -184,9 +184,17 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(g.output[0].type.tensor_type.elem_type, 11)
         self.validate_save(type_double, check_ort=True)
 
+    def test_cast_like(self):
+        from onnxscript.test.models import cast_like
+        fcts = self.validate_save(cast_like, check_ort=True)
+        for name in ['inc_right', 'inc_left', 'cmp_zero_right', 'cmp_zero_left']:
+            f = fcts[name]
+            self.assertIn("int64_data", str(f))
+            self.assertIn('op_type: "CastLike"', str(f))
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_none_as_input()
+    # TestConverter().test_cast_like()
     unittest.main()
