@@ -31,12 +31,12 @@ class TestConverter(TestBase):
         '''Test promotion of constant literals to TensorProto.'''
 
         @script()
-        def explicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:
+        def explicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:   # noqa: F821
             one = op.Constant(value=helper.make_tensor("one", 1, [], [1.0]))
             return op.Add(A, one)
 
         @script()
-        def implicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:
+        def implicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:   # noqa: F821
             return op.Add(A, 1.0)
 
         self.assertSame(explicit_plus1, implicit_plus1)

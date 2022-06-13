@@ -27,7 +27,7 @@ class TypeAnnotationTester (TestBase):
         self.assertSameGraph(static_shape, static_shape_txt)
 
         @script()
-        def symbolic_shape(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:
+        def symbolic_shape(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:   # noqa: F821
             C = op.Add(A, B)
             return C
 
@@ -39,7 +39,7 @@ class TypeAnnotationTester (TestBase):
         self.assertSameGraph(symbolic_shape, symbolic_shape_txt)
 
         @script()
-        def tensor_scalar(A: FLOAT["N"], B: FLOAT) -> FLOAT["N"]:
+        def tensor_scalar(A: FLOAT["N"], B: FLOAT) -> FLOAT["N"]:   # noqa: F821
             C = op.Add(A, B)
             return C
 
