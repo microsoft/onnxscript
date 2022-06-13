@@ -40,14 +40,30 @@ class DebugInfo:
 class Opset:
     '''
     Represents an ONNX Opset, which consists of a domain name, a version.
-    It also contains a set of operations. The base-class Opset represents
-    an Opset defined in the ONNX schema registry and the operations are
-    retrieved from the ONNX schema registry.
+    It also contains a set of operations. This represents an Opset defined
+    in the ONNX schema registry and the operations are retrieved from the
+    ONNX schema registry. It also stores function definitions created for
+    ops in the corresponding Opset.
+
+    Only a single instance of Opset is created for a given (domain, version) pair.
     '''
+    cache = {}
+
+    def __new__(cls, domain, version):
+        key = (domain, version)
+        existing = cls.cache.get(key)
+        if existing:
+            return existing
+        instance = super(Opset, cls).__new__(cls)
+        instance.domain = domain
+        instance.version = version
+        instance.function_defs = {}
+        cls.cache[key] = instance
+        return instance
 
     def __init__(self, domain, version) -> None:
-        self.domain = domain
-        self.version = version
+        # Nothing to do. Object is initialized by __new__
+        pass
 
     def __getitem__(self, opname):
         return onnx.defs.get_schema(opname, self.version, self.domain)
@@ -69,27 +85,9 @@ class Opset:
         except BaseException:
             raise AttributeError(f"Attribute {attr} not found.")
 
+    def add_function_def(self, fun):
+        self.function_defs[fun.name] = fun
 
-class CustomOpset(Opset):
-    '''
-    An extension of Opset used for Opsets that are not registered in the ONNX schema registry.
-    '''
-
-    def __init__(self, domain, version):
-        super().__init__(domain, version)
-        self.ops = {}
-
-    def __getitem__(self, opname):
-        return self.ops[opname]
-
-    def __contains__(self, opname):
-        return opname in self.ops
-
-    def __setitem__(self, opname, value):
-        self.ops[opname] = value
-
-
-msdomain1 = Opset("com.microsoft", 1)
 
 # ONNX ops
 
