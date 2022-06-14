@@ -1,17 +1,17 @@
 """
-Define an onnx-script library consisting of multiple functions,
-and export it to ONNX proto format.
-==============================================================
+Define an onnx-script library of multiple functions
+===================================================
+
 The examples below show how we can define a library consisting
 of multiple functions.
 """
 
 from onnxscript import script, export_onnx_lib
 from onnxscript.onnx import opset15 as op
-from onnxscript.values import CustomOpset
+from onnxscript.values import Opset
 
 # The domain/version of the library functions defined below
-opset = CustomOpset('com.mydomain', 1)
+opset = Opset('com.mydomain', 1)
 
 
 @script(opset)
