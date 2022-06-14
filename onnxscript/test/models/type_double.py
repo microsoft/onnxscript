@@ -11,6 +11,30 @@ from onnxscript.onnx import opset15 as op
 
 
 @script()
+def sumprod_typed(x: DOUBLE['N'], N: INT64) -> DOUBLE['N']:   # noqa: F821
+    weight = op.Constant(value=make_tensor('zero', TensorProto.DOUBLE, [1], [0]))
+    weighted_sum = op.Identity(weight)
+    for i in range(N):
+        b: DOUBLE[...] = op.Cast(i, to=11)
+        a: DOUBLE[...] = x * b
+        weighted_sum = weighted_sum + a
+        weight = weight + b
+    return op.Div(weighted_sum, weight)
+
+
+@script()
+def sumprod(x: DOUBLE['N'], N: INT64) -> DOUBLE['N']:   # noqa: F821
+    weight = op.Constant(value=make_tensor('zero', TensorProto.DOUBLE, [1], [0]))
+    weighted_sum = op.Identity(weight)
+    for i in range(N):
+        b = op.Cast(i, to=11)
+        a = x * b
+        weighted_sum = weighted_sum + a
+        weight = weight + b
+    return op.Div(weighted_sum, weight)
+
+
+@script()
 def notype_abs_subgraph(A):
     zero = op.Constant(value=make_tensor('zero', TensorProto.FLOAT, [1], [0]))
     if op.Cast(op.ReduceSum(A), to=1) > zero:
