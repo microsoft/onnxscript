@@ -98,3 +98,11 @@ def Clip(input, min = None, max = None):
 
     # TODO: return from if blocks
     return result
+
+#from onnxscript.onnx_types import FLOAT
+# @script()
+# def option1(X, Bias: FLOAT[...] = None):
+#     Y = op.Log(X)
+#     if (Bias != None):
+#         Y = Y + Bias
+#     return Y

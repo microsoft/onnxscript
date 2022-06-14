@@ -42,6 +42,8 @@ def defs(stmt):
 
     if isinstance(stmt, ast.Assign):
         return local_defs(stmt.targets[0])
+    if isinstance(stmt, ast.AnnAssign):
+        return local_defs(stmt.target)
     if isinstance(stmt, ast.Return):
         return set()
     if isinstance(stmt, ast.If):
@@ -57,7 +59,7 @@ def defs(stmt):
     raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
 
 
-def do_liveness_analysis(fun):
+def do_liveness_analysis(fun, converter):
     '''
     Perform liveness analysis of the given function-ast. The results of the
     analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
@@ -77,6 +79,8 @@ def do_liveness_analysis(fun):
 
         if isinstance(stmt, ast.Assign):
             return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+        if isinstance(stmt, ast.AnnAssign):
+            return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
             return used_vars(stmt.value)
         if isinstance(stmt, ast.If):
@@ -99,7 +103,7 @@ def do_liveness_analysis(fun):
                 return live_out
         except (TypeError, AttributeError):
             pass
-        raise ValueError(DebugInfo(stmt).msg(
+        raise ValueError(DebugInfo(stmt, converter).msg(
             f"Unsupported statement type: {type(stmt).__name__}."))
 
     assert isinstance(fun, ast.FunctionDef)
@@ -108,7 +112,7 @@ def do_liveness_analysis(fun):
         live = visit(s, live)
 
 
-def exposed_uses(stmts):
+def exposed_uses(stmts, converter):
     '''
     Return the set of variables that are used before being defined by given block.
     '''
@@ -120,6 +124,8 @@ def exposed_uses(stmts):
     def visit(stmt, live_out):
         if isinstance(stmt, ast.Assign):
             return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+        if isinstance(stmt, ast.AnnAssign):
+            return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
             return used_vars(stmt.value)
         if isinstance(stmt, ast.If):
@@ -131,7 +137,7 @@ def exposed_uses(stmts):
             f = stmt.value.func
             if f.id == 'print':
                 return live_out
-        raise ValueError(DebugInfo(stmt).msg(
+        raise ValueError(DebugInfo(stmt, converter).msg(
             f"Unsupported statement type: {type(stmt).__name__}."))
 
     return visitBlock(stmts, set())

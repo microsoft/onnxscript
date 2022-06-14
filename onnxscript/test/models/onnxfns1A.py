@@ -23,15 +23,6 @@ def Selu(X, alpha: float = 1.67326319217681884765625,
     return op.Where(X <= 0.0, neg, pos)
 
 
-#from onnxscript.onnx_types import FLOAT
-# @script()
-# def option1(X, Bias: FLOAT[...] = None):
-#     Y = op.Log(X)
-#     if (Bias != None):
-#         Y = Y + Bias
-#     return Y
-
-
 @script()
 def Elu(X, alpha: float = 1.0):
     return op.Where(X < 0.0, alpha * (op.Exp(X) - 1.0), X)

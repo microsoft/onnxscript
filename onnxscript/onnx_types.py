@@ -18,6 +18,10 @@ class Tensor:
         shapestr = str(self.shape) if self.shape else "[...]"
         return onnx.TensorProto.DataType.Name(self.dtype) + shapestr
 
+    def __repr__(self) -> str:
+        return "%s(dtype=%r, shape=%r)" % (
+            self.__class__.__name__, self.dtype, self.shape)
+
     def to_type_proto(self):
         # TODO: handle None
         return onnx.helper.make_tensor_type_proto(self.dtype, self.shape)
@@ -31,6 +35,9 @@ class Tensor:
 
 
 class ParametricTensor:
+    """
+    Defines a dense tensor of any shape.
+    """
     def __init__(self, dtype) -> None:
         self.dtype = dtype
 
@@ -55,7 +62,7 @@ class ParametricTensor:
     def to_type_proto(self):
         return onnx.helper.make_tensor_type_proto(self.dtype, ())
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return onnx.TensorProto.DataType.Name(self.dtype)
 
 
