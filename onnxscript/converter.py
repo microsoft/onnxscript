@@ -63,6 +63,8 @@ def py_type_to_onnx_type(pytype: type):
         return onnx.TensorProto.FLOAT
     if pytype is str:
         return onnx.TensorProto.STRING
+    if pytype is type(None):
+        return onnx.TensorProto.UNDEFINED
     fail(DebugInfo(pytype).msg(
         f"Tensor conversion of element of type {pytype} is not implemented"))
 
@@ -92,6 +94,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue):
 # map from python operators to ONNX ops
 primop_map = {
     ast.Add: "Add",
+    ast.And: "And",
     ast.Div: "Div",
     ast.Eq: "Equal",
     ast.Gt: "Greater",
@@ -276,6 +279,10 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
+        # if pyvalue is None:
+        #     self.emit([ovar], Op(default_opset, "OptionalHasElement"), [suggested_name], [])
+        #     return
+
         tensor = pyvalue_to_tensor(ovar, pyvalue)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(default_opset, "Constant"), [], [attr])
@@ -352,6 +359,8 @@ class Converter:
     def translate_expr(self, node, target="tmp"):
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
+        elif isinstance(node, ast.BoolOp):
+            r = self.translate_bool_op_expr(node)
         elif isinstance(node, ast.BinOp):
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.UnaryOp):
@@ -393,6 +402,15 @@ class Converter:
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         return callee, args, attrs
 
+    def translate_bool_op_expr(self, node):
+        op = type(node.op)
+        if op not in primop_map:
+            raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
+        opname = primop_map[op]
+        left = self.translate_expr(node.values[0])
+        right = self.translate_expr(node.values[1])
+        return Op(default_opset, opname), [left, right], []
+
     def translate_bin_op_expr(self, node):
         op = type(node.op)
         if op not in primop_map:
@@ -418,7 +436,23 @@ class Converter:
         if op not in primop_map:
             raise ValueError(DebugInfo(node).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
+        if node.left.id == "max":
+            print(node.left)
         left = self.translate_expr(node.left)
+
+        def left_is_input(left):
+            if any(left == i.name for i in self.current_fn.inputs):
+                return True
+            for outer in self.outer:
+                if any(left == i.name for i in outer.inputs):
+                    return True
+            return False
+
+        if left_is_input(left):
+            if isinstance(node.comparators[0], ast.NameConstant) and\
+                node.comparators[0].value is None:
+                return Op(default_opset, "OptionalHasElement"), [left], []
+
         right = self.translate_expr(node.comparators[0])
         return Op(default_opset, opname), [left, right], []
 

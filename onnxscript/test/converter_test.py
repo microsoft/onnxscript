@@ -106,6 +106,7 @@ class TestConverter(unittest.TestCase):
     def test_onnxfns1A(self):
         from onnxscript.test.models import onnxfns1A
         self.validate(onnxfns1A)
+        self.validate_save(onnxfns1A)
 
     def test_models(self):
         from onnxscript.test.models import onnxmodels
@@ -157,6 +158,11 @@ class TestConverter(unittest.TestCase):
         def clipmax(x: FLOAT['N'], max: FLOAT):  # noqa: F821
             return op.Clip(x, None, max)
         self.validate_save(clipmax)
+
+    def test_function_opset_versioning(self):
+        from onnxscript.test.models import function_opset_versioning
+        # self.validate_save(function_opset_versioning.Elu15, shape_inference=True)
+        self.validate_save(function_opset_versioning.Elu16, shape_inference=True)
 
 
 if __name__ == '__main__':

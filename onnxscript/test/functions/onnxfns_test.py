@@ -63,11 +63,12 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_hard_softsign(self):
         self.run_onnx_test(onnxfns1.Softsign)
 
-    # TODO: Clip has optional input min and max.
-    # need to find out how to pass default min and max
-    # to the test case executor.
     # def test_onnxfns_hard_clip(self):
     #     self.run_onnx_test(onnxfns1.Clip)
+
+    # def test_onnxfns_option1(self):
+    #     self.run_onnx_test(onnxfns1A.option1)
+
 
 
 if __name__ == '__main__':

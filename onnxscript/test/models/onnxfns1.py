@@ -80,5 +80,21 @@ def Softsign(X):
     return X / (one + op.Abs(X))
 
 @script()
-def Clip(input, min, max):
-    return op.Where(input < min, min, op.Where(input > max, max, input))
+def Clip(input, min = None, max = None):
+    # ort checks for input being referred by any node.
+    # If input is used directly in If body, it is a failure in Ort.
+    # Ort shall be fixed so that we do not need x_internals.
+    input_internal = op.Identity(input)
+    min_internal = op.Identity(min)
+    max_internal = op.Identity(max)
+    if min == None and max == None:
+        result = min_internal
+    elif max == None:
+        result = op.Where(input_internal < min_internal, min_internal, input_internal)
+    if min == None:
+        result = op.Where(input_internal > max_internal, max_internal, input_internal)
+    else:
+        result = input_internal
+
+    # TODO: return from if blocks
+    return result
