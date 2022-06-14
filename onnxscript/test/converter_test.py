@@ -163,11 +163,6 @@ class TestConverter(unittest.TestCase):
             return op.Clip(x, None, max)
         self.validate_save(clipmax)
 
-    def test_function_opset_versioning(self):
-        from onnxscript.test.models import function_opset_versioning
-        # self.validate_save(function_opset_versioning.Elu15, shape_inference=True)
-        self.validate_save(function_opset_versioning.Elu16, shape_inference=True)
-
     def test_type_double(self):
         from onnxscript.test.models import type_double
         fcts = self.validate_save(type_double, check_ort=False)
