@@ -683,20 +683,30 @@ class Converter:
         if fn.name in self.this_module.function_defs:
             warn(f"{fn.name}: Already defined.")
         args = fn.args
-        if args.defaults:
-            warn(f"{fn.name}: Default values not yet implemented.")
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
         domain = self.this_module.domain
         self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
-        for x in args.args:
+        for i, x in enumerate(args.args):
+            arg_with_default_start_index = len(args.args) - len(args.defaults)
+            if args.defaults and i >= arg_with_default_start_index:
+                # ast.Num does not have 'value' property in python 3.7
+                if hasattr(args.defaults[i - arg_with_default_start_index], 'value'):
+                    default_value = args.defaults[i - arg_with_default_start_index].value
+                elif hasattr(args.defaults[i - arg_with_default_start_index], 'n'):
+                    default_value = args.defaults[i - arg_with_default_start_index].n
+                else:
+                    default_value = None
+            else:
+                default_value = None
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
             else:
                 # The code can only be exported as a function.
                 typeinfo = None
             if ta.is_attr(typeinfo):
-                self.ir_builder.add_attr(self.current_fn, x.arg, typeinfo, DebugInfo(x, self))
+                self.ir_builder.add_attr(
+                    self.current_fn, x.arg, typeinfo, DebugInfo(x, self), default_value)
                 self.bind(x.arg, AttrRef(x.arg, typeinfo, DebugInfo(x, self)))
             else:
                 self.ir_builder.add_input(self.current_fn, x.arg, typeinfo, DebugInfo(x, self))

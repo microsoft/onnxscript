@@ -72,8 +72,8 @@ class TestConverter(unittest.TestCase):
                             f.write(printable_graph(fct))
                 try:
                     onnx.checker.check_model(model)
-                except (ValidationError, AssertionError) as e:
-                    if "Field 'shape' of type is required but missing" in str(e):
+                except ValidationError as e:
+                    if "Field 'shape' of 'type' is required but missing" in str(e):
                         # input or output shapes are missing because the function
                         # was defined with FLOAT[...].
                         warnings.warn(str(e))
