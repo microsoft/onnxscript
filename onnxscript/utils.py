@@ -3,15 +3,11 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import importlib
-import inspect
 import numbers
 import numpy as np
-from typing import Any, Sequence, Text
+from typing import Any, Sequence
 import onnx
-from onnx import TensorProto, ValueInfoProto, \
-    ModelProto, OperatorSetIdProto, FunctionProto
-from .converter import Converter
+from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
 
 
 def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):
@@ -68,28 +64,11 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=No
     return value_infos
 
 
-def convert_python_function_to_function_proto(function, domain, opset_imports):
-    converter = Converter()
-    module = importlib.import_module(function.__module__)
-
-    ir_functions = converter.convert(inspect.getsource(module))
-    ir_functions = [
-        x for x in ir_functions if x.name == function.__name__]
-    if len(ir_functions) != 1:
-        raise ValueError(f"Cannot find signle function of \
-            '{function.__name__}' from module '{module.__name__}.py'")
-
-    return ir_functions[0].to_function_proto_with_opset_imports(
-        domain, opset_imports)
-
-
 def make_model_from_function_proto(
         function_proto: FunctionProto,
+        function_opset_version: int,
         input_value_infos: Sequence[ValueInfoProto],
         output_value_infos: Sequence[ValueInfoProto],
-        domain: Text,
-        onnx_opset_imports: Sequence[OperatorSetIdProto],
-        local_opset_import: OperatorSetIdProto,
         **attrs: Any
 ) -> ModelProto:
     """Creates a model containing a single call to a given
@@ -98,11 +77,9 @@ def make_model_from_function_proto(
     Args:
         function_proto (FunctionProto): function proto
             representing a single call
+        function_opset_version (int):  function_proto's version
         input_value_infos (list of ValueInfoProto): function's input
         output_value_infos (list of ValueInfoProto): function's output
-        domain (string): domain of the node for the function
-        onnx_opset_imports (string, default None): opsets that are used by the function
-        local_opset_import (string, default None): opset of the function
         **attrs (dict): the attributes of the node for the function
 
     Returns:
@@ -113,14 +90,19 @@ def make_model_from_function_proto(
     output_names = [vi.name for vi in output_value_infos]
     node = onnx.helper.make_node(
         function_proto.name, input_names, output_names,
-        domain=domain,
+        domain=function_proto.domain,
         **(attrs or {}))
     graph = onnx.helper.make_graph(
         [node], "node_graph",
         input_value_infos, output_value_infos)
+    model_proto_opset = function_proto.opset_import
+    if all(o.domain != function_proto.domain for o in model_proto_opset):
+        model_proto_opset = [
+            *model_proto_opset,
+            onnx.helper.make_opsetid(function_proto.domain, function_opset_version)]
     model = onnx.helper.make_model(
         graph,
         functions=[function_proto],
         producer_name='onnx-script',
-        opset_imports=[*onnx_opset_imports, local_opset_import])
+        opset_imports=model_proto_opset)
     return model

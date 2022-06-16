@@ -1,8 +1,10 @@
+numpy==1.21.5
 flake8
 matplotlib
-onnx
---extra-index-url https://test.pypi.org/simple/
-ort-nightly
+--pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html
+onnx-function-experiment
+--pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html
+ort-function-experiment-nightly
 protobuf<4
 sphinx
 sphinx-gallery

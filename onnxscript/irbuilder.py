@@ -150,15 +150,17 @@ class Function:
         self.outputs = []
         self.stmts = []
         self.attrs = []
+        self.attr_protos = []
         self.functions = {}
         self.docstring = ""
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
+        attr_protos = format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
         inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return (self.name + " " + attrs + inputs + " => " + outputs + stmts)
+        return (self.name + " " + attrs + attr_protos + inputs + " => " + outputs + stmts)
 
     def append_docstring(self, docstring):
         self.docstring += docstring
@@ -174,6 +176,9 @@ class Function:
 
     def append_attr(self, attr):
         self.attrs.append(attr)
+
+    def append_attr_proto(self, attr):
+        self.attr_protos.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -255,20 +260,6 @@ class Function:
             [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs])
         return graph, sub_functions
 
-    def to_function_proto_with_opset_imports(self, domain="", func_opset_imports=None):
-        if func_opset_imports is None:
-            func_opset_imports = []
-        # TODO: Ideally, in the long term, we should infer func_opset_imports
-        # from the set of calls within the function itself.
-        return helper.make_function(domain,
-                                    self.name,
-                                    inputs=[x.name for x in self.inputs],
-                                    outputs=[y.name for y in self.outputs],
-                                    nodes=[s.to_node_proto() for s in self.stmts],
-                                    opset_imports=func_opset_imports,
-                                    attributes=[a.name for a in self.attrs],
-                                    doc_string=self.docstring)
-
     def to_function_proto(self, domain):
         opsets = {'': 15}
         if domain != '':
@@ -281,7 +272,7 @@ class Function:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
-        return helper.make_function(
+        f = helper.make_function(
             self.domain,
             self.name,
             inputs=[x.name for x in self.inputs],
@@ -290,6 +281,8 @@ class Function:
             opset_imports=opset_imports,  # TODO
             attributes=[a.name for a in self.attrs],
             doc_string=self.docstring)
+        f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+        return f
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
@@ -318,9 +311,13 @@ class IRBuilder:
         v = Var(varname, type, info)
         fn.append_input(v)
 
-    def add_attr(self, fn, varname, type, info):
-        v = Var(varname, type, info)
-        fn.append_attr(v)
+    def add_attr(self, fn, varname, type, info, default_value=None):
+        if default_value is not None:
+            a = Attr(helper.make_attribute(varname, default_value))
+            fn.append_attr_proto(a)
+        else:
+            v = Var(varname, type, info)
+            fn.append_attr(v)
 
     def add_output(self, fn, varname, type, info):
         v = Var(varname, type, info)
