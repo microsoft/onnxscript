@@ -39,7 +39,7 @@ steps:
         then
           pip uninstall -y onnx-function-experiment
           pip uninstall -y ort-function-experiment-nightly
-          pip install onnx
+          pip install onnx onnxruntime
       fi
   displayName: 'Install onnx'
 
