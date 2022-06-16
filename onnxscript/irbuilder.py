@@ -272,7 +272,7 @@ class Function:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
-        if len(self.attr_protos) == 0 or hasattr(onnx.FunctionProto, 'attribute_proto'):
+        if len(self.attr_protos) == 0:
             f = helper.make_function(
                 self.domain,
                 self.name,
@@ -282,13 +282,18 @@ class Function:
                 opset_imports=opset_imports,  # TODO
                 attributes=[a.name for a in self.attrs],
                 doc_string=self.docstring)
-        if len(self.attr_protos) > 0:
-            if hasattr(onnx.FunctionProto, 'attribute_proto'):
-                f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
-            else:
-                raise AttributeError(
-                    "function has %d attr_protos, onnx>=1.13 or onnx-function-experiment "
-                    "is required." % len(self.attr_protos))
+        elif hasattr(onnx.FunctionProto, 'attribute_proto'):
+            f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+        else:
+            # restore the old beviour
+            f = helper.make_function(
+                self.domain,
+                self.name,
+                inputs=[x.name for x in self.inputs] + [a.name for a in self.attrs],
+                outputs=[y.name for y in self.outputs],
+                nodes=nodes,
+                opset_imports=opset_imports,  # TODO
+                doc_string=self.docstring)
         return f
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
