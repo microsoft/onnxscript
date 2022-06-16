@@ -37,7 +37,12 @@ class OnnxScriptTestCase(unittest.TestCase):
         cls.local_function_opset_version = 1
         cls.atol = 1e-7
         cls.rtol = 1e-7
-        cls.all_test_cases = node_test.collect_testcases(None)
+        try:
+            # experimental version
+            cls.all_test_cases = node_test.collect_testcases()
+        except TypeError:
+            # official version
+            cls.all_test_cases = node_test.collect_testcases(None)
 
     def _create_model_from_param(
             self,
