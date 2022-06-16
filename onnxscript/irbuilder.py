@@ -272,7 +272,7 @@ class Function:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
-        if len(self.attr_protos) == 0 or not hasattr(onnx.FunctionProto, 'attribute_proto'):
+        if len(self.attr_protos) == 0 or hasattr(onnx.FunctionProto, 'attribute_proto'):
             f = helper.make_function(
                 self.domain,
                 self.name,
