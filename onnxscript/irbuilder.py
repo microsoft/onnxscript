@@ -277,7 +277,7 @@ class Function:
             inputs = [x.name for x in self.inputs]
         else:
             atts = [a.name for a in self.attrs]
-            inputs = ([x.name for x in self.inputs] + 
+            inputs = ([x.name for x in self.inputs] +
                       [a.attr_proto.name for a in self.attr_protos])
         f = helper.make_function(
             self.domain,
