@@ -1,4 +1,6 @@
 import unittest
+from packaging.version import Version
+import onnxruntime
 from onnxscript.test.functions.onnx_script_test_case import OnnxScriptTestCase
 from onnxscript.test.models import onnxfns2
 
@@ -9,6 +11,8 @@ class TestOnnxFns(OnnxScriptTestCase):
         super(TestOnnxFns, cls).setUpClass()
         cls.rtol = 1e-05
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_onnxfns_reduce_sum_square(self):
         default_axes = None
         default_keepdims = 1
@@ -22,6 +26,8 @@ class TestOnnxFns(OnnxScriptTestCase):
                 'test_reduce_sum_square_default_axes_keepdims_example',
                 'test_reduce_sum_square_default_axes_keepdims_random'])
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_onnxfns_reduce_l1(self):
         default_axes = None
         default_keepdims = 1
@@ -35,6 +41,8 @@ class TestOnnxFns(OnnxScriptTestCase):
                 'test_reduce_l1_default_axes_keepdims_example',
                 'test_reduce_l1_default_axes_keepdims_random'])
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_onnxfns_reduce_l2(self):
         default_axes = None
         default_keepdims = 1
@@ -48,6 +56,8 @@ class TestOnnxFns(OnnxScriptTestCase):
                 'test_reduce_l2_default_axes_keepdims_example',
                 'test_reduce_l2_default_axes_keepdims_random'])
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_onnxfns_reduce_log_sum(self):
         default_axes = None
         default_keepdims = 1
@@ -73,6 +83,8 @@ class TestOnnxFns(OnnxScriptTestCase):
                 'test_reduce_log_sum_exp_default_axes_keepdims_example',
                 'test_reduce_log_sum_exp_default_axes_keepdims_random'])
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_onnxfns_hardmax(self):
         default_axis = -1
 
