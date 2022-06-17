@@ -70,6 +70,8 @@ class TestOnnxFns(OnnxScriptTestCase):
             skip_test_names=[
                 'test_reduce_log_sum_default'])
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_onnxfns_reduce_log_sum_exp(self):
         default_axes = None
         default_keepdims = 1
