@@ -12,7 +12,7 @@ from onnx import ModelProto
 import onnx.backend.test.case.node as node_test
 from onnxscript import utils
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidArgument
 from onnxscript.main import OnnxFunction
 
 
@@ -83,7 +83,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         try:
             sess = InferenceSession(
                 model.SerializeToString(), providers=['CPUExecutionProvider'])
-        except Fail as e:
+        except (Fail, InvalidArgument) as e:
             raise AssertionError(
                 "Unable to load model\n%s" % str(model)) from e
         actual = sess.run(None, input)

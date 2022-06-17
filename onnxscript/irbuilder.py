@@ -274,15 +274,13 @@ class Function:
                          for domain, version in opsets.items()]
         if hasattr(onnx.FunctionProto, 'attribute_proto'):
             atts = [a.name for a in self.attrs]
-            inputs = [x.name for x in self.inputs]
         else:
-            atts = [a.name for a in self.attrs]
-            inputs = ([x.name for x in self.inputs] +
-                      [a.attr_proto.name for a in self.attr_protos])
+            atts = ([a.name for a in self.attrs] +
+                    [a.attr_proto.name for a in self.attr_protos])
         f = helper.make_function(
             self.domain,
             self.name,
-            inputs=inputs,
+            inputs=[x.name for x in self.inputs],
             outputs=[y.name for y in self.outputs],
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
