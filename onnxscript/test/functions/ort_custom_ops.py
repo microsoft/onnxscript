@@ -1,6 +1,5 @@
 from onnxscript import script
 from onnxscript.onnx import opset16 as op
-from onnxscript.onnx_types import FLOAT, INT64
 import math
 
 M_SQRT1_2 = math.sqrt(0.5)
