@@ -180,6 +180,11 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(g.output[0].type.tensor_type.elem_type, 11)
         self.validate_save(type_double, check_ort=True)
 
+    def test_function_opset_versioning(self):
+        from onnxscript.test.models import function_opset_versioning
+        # self.validate_save(function_opset_versioning.Elu15, shape_inference=True)
+        self.validate_save(function_opset_versioning.Elu16, shape_inference=True)
+
 
 if __name__ == '__main__':
     # import logging
