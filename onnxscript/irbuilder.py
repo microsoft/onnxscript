@@ -261,6 +261,16 @@ class Function:
         return graph, sub_functions
 
     def to_function_proto(self, domain):
+        """
+        Converts a function into a *FunctionProto* after it is parsed
+        by the converter.
+
+        .. warning:: About default values
+
+            Default values for attributes are introduced in onnx==1.13.0.
+            If an earlier version of onnx is installed, it ignores the default
+            values of the function arguments.
+        """
         opsets = {'': 15}
         if domain != '':
             opsets[domain.domain] = domain.version
@@ -272,11 +282,22 @@ class Function:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
+
+        # attribute_proto is introduced in version onnx==1.13.0.
+        # If this attribute is available, onnx-script uses it to
+        # default values for attributes. The function has then two
+        # lists, one list for attributes without default values,
+        # another one for attributes with default values.
+        # If this *attribute_proto* is not available,
+        # all attributes with a default value are moved to the first
+        # list, default values are removed.
+        # TODO: remove this when onnx==1.13.0 is released.
         if hasattr(onnx.FunctionProto, 'attribute_proto'):
             atts = [a.name for a in self.attrs]
         else:
             atts = ([a.name for a in self.attrs] +
                     [a.attr_proto.name for a in self.attr_protos])
+
         f = helper.make_function(
             self.domain,
             self.name,
