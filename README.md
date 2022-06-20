@@ -32,6 +32,20 @@ git clone https://github.com/microsoft/onnx-script.git
 pip install -e .
 ```
 
+A note to use experimental ONNX and ORT packages:
+Some of onnx-script functionalities depend on changes in ONNX that are not in official ONNX package yet.
+In order to work with those functionalities, one needs to:
+```
+pip uninstall onnx onnxruntime
+pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html onnx-function-experiment
+pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html ort-function-experiment-nightly
+```
+
+To validate that experimental features are enabled:
+```
+pytest onnxscript\test\functions\onnxfns1A_test.py
+```
+
 ## Run unit tests
 
 ```
