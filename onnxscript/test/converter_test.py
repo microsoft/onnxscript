@@ -7,6 +7,7 @@ import unittest
 import os
 import warnings
 import types
+from packaging.version import Version
 import numpy as np
 import onnx
 from onnx.helper import printable_graph
@@ -73,7 +74,8 @@ class TestConverter(unittest.TestCase):
                 try:
                     onnx.checker.check_model(model)
                 except ValidationError as e:
-                    if "Field 'shape' of 'type' is required but missing" in str(e):
+                    if ("Field 'shape' of 'type' is required but missing" in str(e) or
+                            "Field 'shape' of type is required but missing" in str(e)):
                         # input or output shapes are missing because the function
                         # was defined with FLOAT[...].
                         warnings.warn(str(e))
@@ -125,6 +127,8 @@ class TestConverter(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_subfunction(self):
         from onnxscript.test.models import subfunction
         self.validate_save(subfunction, check_ort=True)

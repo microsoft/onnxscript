@@ -10,12 +10,18 @@ pool:
   vmImage: ubuntu-latest
 strategy:
   matrix:
-    Python39:
+    Python39-onnx:
       python.version: '3.9'
-    Python38:
+      onnx.standard: '1'
+    Python39-expe:
+      python.version: '3.9'
+      onnx.standard: '0'
+    Python38-expe:
       python.version: '3.8'
-    Python37:
+      onnx.standard: '0'
+    Python37-expe:
       python.version: '3.7'
+      onnx.standard: '0'
 
 steps:
 - task: UsePythonVersion@0
@@ -27,6 +33,15 @@ steps:
     python -m pip install --upgrade pip
     pip install -r requirements-dev.txt
   displayName: 'Install dependencies'
+
+- script: |
+      if [ '$(onnx.standard)' == '1' ]
+        then
+          pip uninstall -y onnx-function-experiment
+          pip uninstall -y ort-function-experiment-nightly
+          pip install onnx onnxruntime
+      fi
+  displayName: 'Install onnx'
 
 - script: |
     python setup.py sdist

@@ -12,7 +12,7 @@ from onnx import ModelProto
 import onnx.backend.test.case.node as node_test
 from onnxscript import utils
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidArgument
 from onnxscript.main import OnnxFunction
 
 
@@ -37,7 +37,12 @@ class OnnxScriptTestCase(unittest.TestCase):
         cls.local_function_opset_version = 1
         cls.atol = 1e-7
         cls.rtol = 1e-7
-        cls.all_test_cases = node_test.collect_testcases(None)
+        try:
+            # experimental version
+            cls.all_test_cases = node_test.collect_testcases()
+        except TypeError:
+            # official version
+            cls.all_test_cases = node_test.collect_testcases(None)
 
     def _create_model_from_param(
             self,
@@ -78,7 +83,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         try:
             sess = InferenceSession(
                 model.SerializeToString(), providers=['CPUExecutionProvider'])
-        except Fail as e:
+        except (Fail, InvalidArgument) as e:
             raise AssertionError(
                 "Unable to load model\n%s" % str(model)) from e
         actual = sess.run(None, input)
