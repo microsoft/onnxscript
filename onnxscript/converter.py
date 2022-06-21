@@ -255,7 +255,10 @@ class Converter:
             return self.emit_const(val.value, result, info)
         if isinstance(val, Dynamic):
             return val.value
-        fail("Cannot convert to onnx variable")
+        # Assume value is a python-value convertible to a tensor
+        # TODO: check if value is convertible to a TensorProto, so that we can
+        # produce a better error message otherwise
+        return self.emit_const(val, target if target else "tmp", info)
 
     def py_var_to_onnx_var(self, py_var, info):
         return self.to_onnx_var(self.lookup(py_var, info), info=info)
@@ -335,8 +338,8 @@ class Converter:
                 return self.eval_constant_expr(node)
             except NameError as e:
                 raise NameError(DebugInfo(node, self).msg(
-                        "Unable to evaluate a constant in node type %r "
-                        "due to %r." % (type(node), str(e))))
+                    "Unable to evaluate a constant in node type %r "
+                    "due to %r." % (type(node), str(e))))
         raise ValueError(f"Unsupported attribute type '{type(node).__name__}'.")
 
     def translate_attr(self, attr_name, node):
@@ -674,7 +677,7 @@ class Converter:
 
         inputs = [o_loop_bound, o_true] + \
                  [self.py_var_to_onnx_var(
-                    pv, DebugInfo(for_stmt, self)) for pv in loop_state_vars]
+                     pv, DebugInfo(for_stmt, self)) for pv in loop_state_vars]
         graph, sub_functions = body.to_graph_proto()
         attrs = [self.ir_builder.attr("body", graph)]
         return self.emit_loop(outputs, "Loop", inputs, attrs,

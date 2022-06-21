@@ -117,6 +117,10 @@ class TestConverter(unittest.TestCase):
         from onnxscript.test.models import onnxfns1A
         self.validate(onnxfns1A)
 
+    def test_ort_custom_ops(self):
+        from onnxscript.test.functions import ort_custom_ops
+        self.validate(ort_custom_ops)
+
     def test_unary_op(self):
         from onnxscript.test.models import m1
         self.validate_save(m1)
