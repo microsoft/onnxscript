@@ -376,6 +376,9 @@ class Converter:
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
+            if r[1] is None:
+                # constant is replaced
+                return self.translate_expr(node.operand, target=target)
         elif isinstance(node, ast.Compare):
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
@@ -443,9 +446,19 @@ class Converter:
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
+        operand = self.translate_expr(node.operand)
+        if operand.is_const():
+            # This function changed the constant node.operand
+            # and returns it. The function calling this one
+            # should intercept this call and replace node
+            # by node.operand.
+            if op == ast.USub:
+                node.operand.value = - node.operand.value
+                return node.operand.value, None, None
+            if op == ast.UAdd:
+                return node.operand.value, None, None
         opname = primop_map[op]
-        operand = self.translate_expr(node.operand).name
-        return Op(default_opset, opname), [operand], []
+        return Op(default_opset, opname), [operand.name], []
 
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
