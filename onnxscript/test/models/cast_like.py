@@ -25,7 +25,7 @@ def cmp_zero_right(A: FLOAT[...]) -> BOOL[...]:
 
 @script()
 def cmp_zero_mright(A: FLOAT[...]) -> BOOL[...]:
-    return A == -1
+    return A == -11
 
 
 @script()

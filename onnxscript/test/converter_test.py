@@ -197,7 +197,7 @@ class TestConverter(unittest.TestCase):
             self.assertIn("int64_data", str(f))
             self.assertIn('op_type: "CastLike"', str(f))
         f = fcts['cmp_zero_mright']
-        self.assertIn('int64_data: -1', str(f))
+        self.assertIn('int64_data: -11', str(f))
 
 
 if __name__ == '__main__':
