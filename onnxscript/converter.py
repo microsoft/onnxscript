@@ -452,11 +452,24 @@ class Converter:
             # and returns it. The function calling this one
             # should intercept this call and replace node
             # by node.operand.
+            if hasattr(node.operand, 'value'):
+                # python 3.8+
+                val = node.operand.value
+                at = 'value'
+            elif hasattr(node.operand, 's'):
+                # python 3.7
+                try:
+                    val = float(node.operand.s)
+                except ValueError as e:
+                    raise ValueError("Unable to convert value %r into float." % (node.operand.s, )) from e
+                at = 's'
+            else:
+                raise TypeError("Unable to guess constant value from type %r." % type(val))
             if op == ast.USub:
-                node.operand.value = - node.operand.value
-                return node.operand.value, None, None
+                setattr(node.operand, at, -val)
+                return node.operand, None, None
             if op == ast.UAdd:
-                return node.operand.value, None, None
+                return node.operand, None, None
         opname = primop_map[op]
         return Op(default_opset, opname), [operand.name], []
 
