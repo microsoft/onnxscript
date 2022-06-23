@@ -461,7 +461,9 @@ class Converter:
                 try:
                     val = float(node.operand.s)
                 except ValueError as e:
-                    raise ValueError("Unable to convert value %r into float." % (node.operand.s, )) from e
+                    raise ValueError(
+                        "Unable to convert value %r into float." % (
+                            node.operand.s, )) from e
                 at = 's'
             else:
                 raise TypeError("Unable to guess constant value from type %r." % type(val))
