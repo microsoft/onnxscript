@@ -456,15 +456,10 @@ class Converter:
                 # python 3.8+
                 val = node.operand.value
                 at = 'value'
-            elif hasattr(node.operand, 's'):
+            elif hasattr(node.operand, 'n'):
                 # python 3.7
-                try:
-                    val = float(node.operand.s)
-                except ValueError as e:
-                    raise ValueError(
-                        "Unable to convert value %r into float." % (
-                            node.operand.s, )) from e
-                at = 's'
+                val = float(node.operand.n)
+                at = 'n'
             else:
                 raise TypeError(
                     "Unable to guess constant value from type %r and attributes %r."
