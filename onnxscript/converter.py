@@ -466,7 +466,9 @@ class Converter:
                             node.operand.s, )) from e
                 at = 's'
             else:
-                raise TypeError("Unable to guess constant value from type %r." % type(val))
+                raise TypeError(
+                    "Unable to guess constant value from type %r and attributes %r."
+                    "" % (type(node.operand), dir(node.operand)))
             if op == ast.USub:
                 setattr(node.operand, at, -val)
                 return node.operand, None, None
