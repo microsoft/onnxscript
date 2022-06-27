@@ -52,7 +52,7 @@ steps:
   displayName: 'pytest'
 
 - script: |
-    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py"
+    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py" --cov-report term-missing
   displayName: 'flake8'
 
 - script: |
