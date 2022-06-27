@@ -172,8 +172,8 @@ class Converter:
         logger.addHandler(console)
     """
 
-    def __init__(self, ir_builder=None, opset=None, global_names=None,
-                 source=None, opsets=None):
+    def __init__(self, ir_builder=None, opset=None, global_names=None, source=None,
+                 default_opset=None):
         self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         self.source = source
@@ -184,13 +184,29 @@ class Converter:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
         self.this_module = opset
-        if opsets is None:
-            self.opsets = {'': opset15}
-        elif isinstance(opsets, dict):
-            self.opsets = opsets
+        self.default_opset_ = default_opset
+
+    @property
+    def default_opset(self):
+        if self.default_opset_ is None:
+            if self.current_fn is None:
+                raise RuntimeError("Unable to return a default opset, None was detected yet.")
+            warn("No default opset was defined or detected in function %r, "
+                 "the converter uses opset 15." % (self.current_fn.name, ))
+            return opset15
+        return self.default_opset_
+
+    def set_default_opset(self, opset, node):
+        if opset.domain != '':
+            return
+        if self.default_opset_ is not None:
+            if (opset.domain != self.default_opset_.domain or
+                    opset.version != self.default_opset_.version):
+                fail(DebugInfo(node, self).msg(
+                    "Two distincts opset were used (%r != %r)." % (
+                        opset, self.default_opset_)))
         else:
-            self.opsets = {'': opsets}
-        self.default_opset = self.opsets['']
+            self.default_opset_ = opset
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -488,14 +504,15 @@ class Converter:
                 warn(f"Unknown opset name {node.id}.")
                 return values.Opset(node.id, 1)
         elif isinstance(node, ast.Attribute):
-            fail("Nested module unimplemented")  # TODO
+            fail(DebugInfo(node, self).msg("Nested module unimplemented"))  # TODO
         else:
-            fail("Invalid opset expression.")
+            fail(DebugInfo(node, self).msg("Invalid opset expression."))
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
+            self.set_default_opset(module, node)
             opname = node.attr
             if opname in module:
                 return Op(module, node.attr)
@@ -513,7 +530,7 @@ class Converter:
                 if function_name not in self.default_opset:
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(self.default_opset, node.id)
-        fail("Invalid callee")
+        fail(DeubgInfo(node).msg("Invalid callee"))
 
     # Statement translation: A single Python statement is mapped into a
     # sequence of IR statements.

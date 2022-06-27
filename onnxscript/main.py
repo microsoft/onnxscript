@@ -12,18 +12,20 @@ from . import values
 from .values import OnnxFunction
 
 
-def script_check(f: ast.FunctionDef, opset, global_names, source):
+def script_check(f: ast.FunctionDef, opset, global_names, source,
+                 default_opset=None):
     '''
     Check that a function falls into the ONNXScript subset of Python.
     '''
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    converter = Converter(opset=opset, global_names=global_names, source=source)
+    converter = Converter(opset=opset, global_names=global_names, source=source,
+                          default_opset=default_opset)
     return converter.top_level_stmt(f)
 
 
-def script(opset=None):
+def script(opset=None, default_opset=None):
     """
     Main decorator. Declares a function as an onnx function.
 
@@ -66,7 +68,8 @@ def script(opset=None):
             assert len(top_level_ast.body) == 1
             f_ast = top_level_ast.body[0]
             assert type(f_ast) == ast.FunctionDef
-            result = script_check(f_ast, opset, module.__dict__.copy(), src)
+            result = script_check(f_ast, opset, module.__dict__.copy(), src,
+                                  default_opset=default_opset)
             # TODO: add transformations.
             return OnnxFunction(opset, f, result, src)
         else:

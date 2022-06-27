@@ -7,11 +7,14 @@ from onnx.defs import onnx_opset_version
 from .values import Opset
 
 
-if onnx_opset_version() < 15:
+if onnx_opset_version() < 14:
     raise ImportError(
-        f"onnx-script requires onnx opset >= 15 but {onnx_opset_version()} is detected.")
+        f"onnx-script requires onnx opset >= 14 but {onnx_opset_version()} is detected.")
 
-opset15 = Opset("", 15)
+opset14 = Opset("", 14)
+
+if onnx_opset_version() >= 15:
+    opset15 = Opset("", 15)
 
 if onnx_opset_version() >= 16:
     opset16 = Opset("", 16)

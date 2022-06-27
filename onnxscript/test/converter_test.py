@@ -228,9 +228,23 @@ class TestConverter(unittest.TestCase):
             self.assertIn("int64_data", str(f))
             self.assertIn('op_type: "CastLike"', str(f))
 
+    def test_opset_import(self):
+        from onnxscript.test.models import different_opset
+        fcts = self.validate_save(different_opset, shape_inference=False)
+        s16 = str(fcts['shape_A'])
+        s14 = str(fcts['shape_B'])
+        sdef = str(fcts['inc_any'])
+        self.assertIn("version: 16", s16)
+        self.assertNotIn("version: 14", s16)
+        self.assertIn("version: 14", s14)
+        self.assertNotIn("version: 16", s14)
+        self.assertIn("version: 16", sdef)
+        self.assertNotIn("version: 14", sdef)
+        self.assertNotIn("version: 15", sdef)
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_cast_like()
+    # TestConverter().test_opset_import()
     unittest.main()
