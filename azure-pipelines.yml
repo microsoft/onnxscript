@@ -48,7 +48,7 @@ steps:
   displayName: 'package'
 
 - script: |
-    pytest -v onnxscript
+    pytest -v onnxscript --cov=onnxscript
   displayName: 'pytest'
 
 - script: |
