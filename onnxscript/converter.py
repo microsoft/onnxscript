@@ -416,12 +416,12 @@ class Converter:
     def _cast_like_binary_expression(self, left, right):
         if left.is_const() and not right.is_const():
             right = right.name
-            tmp = self.generate_unique_name(left.name)
+            tmp = self.generate_unique_name(left.name + "_cast")
             self.emit([tmp], Op(default_opset, 'CastLike'), [left.name, right], [])
             left = tmp
         elif not left.is_const() and right.is_const():
             left = left.name
-            tmp = self.generate_unique_name(right.name)
+            tmp = self.generate_unique_name(right.name + "_cast")
             self.emit([tmp], Op(default_opset, 'CastLike'), [right.name, left], [])
             right = tmp
         else:
