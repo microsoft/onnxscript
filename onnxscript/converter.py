@@ -510,7 +510,7 @@ class Converter:
             if isinstance(found, Op):
                 return found
             if not found:
-                if function_name not in default_opset:
+                if function_name not in self.default_opset:
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(self.default_opset, node.id)
         fail("Invalid callee")
