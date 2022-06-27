@@ -4,13 +4,9 @@
 # --------------------------------------------------------------------------
 
 import unittest
-from onnx import helper
 from onnx.defs import onnx_opset_version
 from onnxscript.test.testutils import TestBase
-from onnxscript import script
 import onnxscript.onnx_opset as mod_opset
-from onnxscript.onnx_types import FLOAT
-
 
 
 class TestOpset(TestBase):
@@ -31,8 +27,7 @@ class TestOpset(TestBase):
         opset = getattr(mod_opset, name)
         self.assertEqual(opset.domain, '')
         self.assertEqual(opset.version, v)
-        
-        
+
 
 if __name__ == '__main__':
     unittest.main()
