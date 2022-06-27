@@ -161,6 +161,37 @@ class TestConverter(unittest.TestCase):
         # shape_inference crashes on stft.
         self.validate_save(signal_dft, shape_inference=False)
 
+    def test_multi(self):
+        from onnxscript.test.models import multi
+        self.validate_save(multi, shape_inference=False)
+
+    def test_dropout(self):
+        from onnxscript.test.models import dropout
+        self.validate_save(dropout, shape_inference=False)
+
+    def test_attrref(self):
+        from onnxscript.test.models import attrref
+        self.validate_save(attrref, shape_inference=False)
+
+    def test_renaming(self):
+        from onnxscript.test.models import renaming
+        self.validate_save(renaming, shape_inference=False)
+
+    @unittest.skipIf(True, reason="TypeError: val must be numeric not <class 'NoneType'>")
+    def test_opt_output(self):
+        from onnxscript.test.models import opt_output
+        self.validate_save(opt_output, shape_inference=False)
+
+    def test_opt_input(self):
+        from onnxscript.test.models import opt_input
+        self.validate_save(opt_input, shape_inference=False)
+
+    @unittest.skipIf(True, reason="ValueError: A function with attributes "
+                                  "cannot be exported as a model.")
+    def test_onnxfns2(self):
+        from onnxscript.test.models import onnxfns2
+        self.validate_save(onnxfns2, shape_inference=False)
+
     def test_none_as_input(self):
         '''
         Test that use of None as an actual parameter is accepted.
