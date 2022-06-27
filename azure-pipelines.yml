@@ -48,11 +48,11 @@ steps:
   displayName: 'package'
 
 - script: |
-    pytest -v onnxscript --cov=onnxscript
+    pytest -v onnxscript --cov=onnxscript --cov-report term-missing
   displayName: 'pytest'
 
 - script: |
-    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py" --cov-report term-missing
+    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py"
   displayName: 'flake8'
 
 - script: |
