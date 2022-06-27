@@ -530,7 +530,7 @@ class Converter:
                 if function_name not in self.default_opset:
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
                 return Op(self.default_opset, node.id)
-        fail(DeubgInfo(node).msg("Invalid callee"))
+        fail(DebugInfo(node, self).msg("Invalid callee"))
 
     # Statement translation: A single Python statement is mapped into a
     # sequence of IR statements.
