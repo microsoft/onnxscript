@@ -33,6 +33,7 @@ pip install -e .
 ```
 
 A note to use experimental ONNX and ORT packages:
+
 Some of onnx-script functionalities depend on changes in ONNX that are not in official ONNX package yet.
 In order to work with those functionalities, one needs to:
 ```
@@ -41,7 +42,7 @@ pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx
 pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html ort-function-experiment-nightly
 ```
 
-To validate that experimental features are enabled:
+With experimental ONNX, one can write a script function with optional attributes. Examples are in [onnxfns1A.py](https://github.com/microsoft/onnx-script/blob/main/onnxscript/test/models/onnxfns1A.py). To validate that experimental features are enabled:
 ```
 pytest onnxscript\test\functions\onnxfns1A_test.py
 ```
