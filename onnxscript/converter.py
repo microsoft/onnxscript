@@ -15,7 +15,7 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .onnx import opset15 as default_opset
+from .onnx_opset import opset15
 from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo)
@@ -114,18 +114,21 @@ primop_map = {
 def _known_modules():
     import onnxscript
     import onnxscript.onnx_types
-    import onnxscript.onnx
-    return {
+    import onnxscript.onnx_opset
+    res = {
         'numpy': numpy,
         'np': numpy,
         'onnx': onnx,
         'onnx.helper': onnx.helper,
         'onnxscript': onnxscript,
-        'onnxscript.onnx': onnxscript.onnx,
+        'onnxscript.onnx_opset': onnxscript.onnx_opset,
         'onnxscript.values': onnxscript.values,
         'onnxscript.onnx_types': onnxscript.onnx_types,
-        'onnxscript.onnx.opset15': onnxscript.onnx.opset15
     }
+    for att in dir(onnxscript.onnx_opset):
+        if att.startswith('opset'):
+            res['onnxscript.onnx_opset.%s' % att] = getattr(onnxscript.onnx_opset, att)
+    return res
 
 
 class ConverterExpressionKind(IntEnum):
@@ -169,7 +172,8 @@ class Converter:
         logger.addHandler(console)
     """
 
-    def __init__(self, ir_builder=None, opset=None, global_names=None, source=None):
+    def __init__(self, ir_builder=None, opset=None, global_names=None,
+                 source=None, opsets=None):
         self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         self.source = source
@@ -180,6 +184,13 @@ class Converter:
             self.globals = global_names
         self.pure_modules = ["onnxscript"]
         self.this_module = opset
+        if opsets is None:
+            self.opsets = {'': opset15}
+        elif isinstance(opsets, dict):
+            self.opsets = opsets
+        else:
+            self.opsets = {'': opsets}
+        self.default_opset = self.opsets['']
 
     def init_function_translation(self):
         """Initialize self for translating a new function."""
@@ -248,7 +259,7 @@ class Converter:
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
             attr = self.to_onnx_attr_ref(val)
-            self.emit([result], Op(default_opset, "Constant"), [], [attr])
+            self.emit([result], Op(self.default_opset, "Constant"), [], [attr])
             return result
         if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
             result = self.generate_unique_name(target if target else "tmp")
@@ -290,14 +301,14 @@ class Converter:
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
-        self.emit(onnx_outputs, Op(default_opset, callee), onnx_inputs, attrs,
+        self.emit(onnx_outputs, Op(self.default_opset, callee), onnx_inputs, attrs,
                   sub_functions=sub_functions)
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
         tensor = pyvalue_to_tensor(ovar, pyvalue, self)
         attr = self.ir_builder.attr("value", tensor)
-        self.emit([ovar], Op(default_opset, "Constant"), [], [attr])
+        self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
         return ovar
 
     def is_pure_module(self, m):
@@ -417,12 +428,12 @@ class Converter:
         if left.is_const() and not right.is_const():
             right = right.name
             tmp = self.generate_unique_name(left.name)
-            self.emit([tmp], Op(default_opset, 'CastLike'), [left.name, right], [])
+            self.emit([tmp], Op(self.default_opset, 'CastLike'), [left.name, right], [])
             left = tmp
         elif not left.is_const() and right.is_const():
             left = left.name
             tmp = self.generate_unique_name(right.name)
-            self.emit([tmp], Op(default_opset, 'CastLike'), [right.name, left], [])
+            self.emit([tmp], Op(self.default_opset, 'CastLike'), [right.name, left], [])
             right = tmp
         else:
             left = left.name
@@ -437,7 +448,7 @@ class Converter:
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.right)
         left, right = self._cast_like_binary_expression(left, right)
-        return Op(default_opset, opname), [left, right], []
+        return Op(self.default_opset, opname), [left, right], []
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
@@ -445,7 +456,7 @@ class Converter:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
         operand = self.translate_expr(node.operand).name
-        return Op(default_opset, opname), [operand], []
+        return Op(self.default_opset, opname), [operand], []
 
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
@@ -458,7 +469,7 @@ class Converter:
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
         left, right = self._cast_like_binary_expression(left, right)
-        return Op(default_opset, opname), [left, right], []
+        return Op(self.default_opset, opname), [left, right], []
 
     def translate_name_expr(self, node):
         return self.py_var_to_onnx_var(node.id, DebugInfo(node, self))
@@ -501,7 +512,7 @@ class Converter:
             if not found:
                 if function_name not in default_opset:
                     warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
-                return Op(default_opset, node.id)
+                return Op(self.default_opset, node.id)
         fail("Invalid callee")
 
     # Statement translation: A single Python statement is mapped into a
@@ -615,7 +626,7 @@ class Converter:
         sub_functions = {}
         sub_functions.update(sub_fct_then)
         sub_functions.update(sub_fct_else)
-        self.emit(renamed, Op(default_opset, "If"), [test], [thenAttr, elseAttr],
+        self.emit(renamed, Op(self.default_opset, "If"), [test], [thenAttr, elseAttr],
                   sub_functions=sub_functions)
 
     def translate_for_stmt(self, for_stmt: ast.For):
@@ -664,7 +675,7 @@ class Converter:
         for s in for_stmt.body:
             self.translate_stmt(s)
         o_cond_out = self.generate_unique_name("cond_out")
-        self.emit([o_cond_out], Op(default_opset, "Identity"), [o_cond_var], [])
+        self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
         self.ir_builder.add_output(
             self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))
         for pv in loop_state_vars:
@@ -708,7 +719,7 @@ class Converter:
                         f"branch, known variables: {list(self.locals)}."))
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
-                self.emit([ovar], Op(default_opset, "Identity"),
+                self.emit([ovar], Op(self.default_opset, "Identity"),
                           [self.to_onnx_var(pv_val, pvar)], [])
                 # TODO: retrieve the annotation if any.
                 typeinfo = None

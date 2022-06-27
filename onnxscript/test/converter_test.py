@@ -15,7 +15,7 @@ from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.values import OnnxFunction
 
