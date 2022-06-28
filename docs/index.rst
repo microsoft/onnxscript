@@ -24,46 +24,30 @@ is not a goal for this mode.
 
 **Example**
 
-Let's write a function in file **onnx_fct.py**. The script may contain multiple functions.
+The following toy example illustrates how to use onnxscript.
 
 ::
 
-    from onnx import TensorProto
-    from onnx.helper import make_tensor
     from onnxscript import script
-    from onnxscript.onnx_types import INT64, FLOAT
-
     # We use ONNX opset 15 to define the function below.
-    from onnxscript.opset15 as op
+    from onnxscript.onnx import opset15 as op
 
-    # We use the script decorator to indicate that this is meant to be translated to ONNX.
+    # We use the script decorator to indicate that the following function is meant
+    # to be translated to ONNX.
     @script()
-    def Hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
-        # The type annotation on X indicates that it is a float tensor of unknown rank.
-        # The type annotation on axis indicates that it will be treated as an int attribute in ONNX.
-
-        # Invoke ONNX opset 15 op ArgMax
-        # Use unnamed arguments for ONNX input parameters, and named arguments for ONNX
-        # attribute parameters.
-        argmax = op.ArgMax(X, axis=axis, keepdims=False)
-
-        xshape = op.Shape(X, start=axis)
-        # use the Constant operator to create constant tensors
-        zero = op.Constant(value_ints=[0])
-        depth = op.GatherElements(xshape, zero)
-        empty_shape = op.Constant(value_ints=[])
-        depth = op.Reshape(depth, empty_shape)
-        # Constant Array must be defined with function make_tensor from onnx package.
-        values = op.Constant(value=make_tensor('cst01', TensorProto.FLOAT, [2], [0, 1]))
-        cast_values = op.CastLike(values, X)
-        return op.OneHot(argmax, depth, cast_values, axis=axis)
+    def MatmulAdd(X, Wt, Bias):
+        return op.MatMul(X, Wt) + Bias
+    
 
 The decorator parses the code of the function and converts it into an intermediate
 representation. If it fails, it produces an error message indicating the line where
-the error was detected. If it succeeds, the intermediate representation
-can be converted into an ONNX structure of type FunctionProto as shown below.
+the error was detected. If it succeeds, the corresponding ONNX representation
+of the function (a value of type FunctionProto) can be generated as shown below:
 
-- `Hardmax.to_function_proto()` returns a :class:`Onnx.FunctionProto`
+::
+
+  fp = MatmulAdd.to_function_proto()  # returns an onnx.FunctionProto
+
 
 **Eager mode**
 
@@ -75,9 +59,11 @@ executes in an eager-evaluation mode.
 
     import numpy as np
 
-    v = np.array([[0, 1], [2, 3]], dtype=np.float32)
-    result = Hardmax(v)
+    x = np.array([[0, 1], [2, 3]], dtype=np.float32)
+    wt = np.array([[0, 1], [2, 3]], dtype=np.float32)
+    bias = np.array([0, 1], dtype=np.float32)
+    result = MatmulAdd(x, wt, bias)
 
 **License**
 
-It is licensed with `MIT <https://github.com/microsoft/onnx-script/blob/main/LICENSE>`_.
+onnxscript comes with a `MIT <https://github.com/microsoft/onnx-script/blob/main/LICENSE>`_ license.
