@@ -35,22 +35,27 @@ into an ONNX tensor constant.
 The example below illustrates how to specify attribute-values in a call.
 In this example, we call the ONNX operator ``Shape`` and specify the attribute
 values for the attributes ``start`` and ``end``.
+
 ::
 
     @script()
     def FirstDim(X):
         return op.Shape(X, start=0, end=1)
 
-In the translation of a call to an ONNX operator, keyword or named arguments are translated into
-attribute parameters, while positional arguments are translated into normal value-parameters.
-Thus, ``X`` is treated as a normal value-parameter for this particular call.
+In the translation of a call to an ONNX operator, keyword arguments (aka named arguments)
+of Python are translated into attribute parameters (of ONNX), while positional arguments
+are translated into normal value-parameters.
+Thus, ``X`` is treated as a normal value-parameter (in ONNX) for this particular call, while
+``start`` and ``end`` are treated as attribute-parameters.
 
 **Specifying formal attribute parameters of functions**
 
 The (formal) input parameters of Python functions are treated by the converter as representing
-either attribute parameters or input value parameters. The converter uses the type annotation
-on the formal input parameters to make this distinction. Thus, in the example below,
-`alpha` is treated as an attribute parameter (because of its `float` type annotation).
+either attribute-parameters or input value parameters (of the generated ONNX function).
+The converter uses the type annotation on the formal input parameters to make this distinction.
+Thus, in the example below, ``alpha`` is treated as an attribute parameter (because of its ``float``
+type annotation).
+
 ::
 
     @script()
