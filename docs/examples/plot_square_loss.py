@@ -1,5 +1,5 @@
 """
-Use onnx-script to implement square loss function
+Overview: A model implementing square-loss
 =================================================
 
 This example demonstrates *onnx-script* on one simple function.
@@ -28,7 +28,8 @@ model = square_loss.to_model_proto()
 #%%
 # Let's see how the graph looks like.
 import onnx
-print(onnx.helper.printable_graph(model.graph))
+import onnx.printer
+print(onnx.printer.to_text(model))
 
 #%%
 # Check the model

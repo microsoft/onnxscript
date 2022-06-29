@@ -1,19 +1,19 @@
 """
-Define an onnx-script function/model.
+Selu as a function
 =====================================
-The examples below show how we can define ONNXScript functions and models.
+
+The example below shows how we can define Selu as a function in onnxscript.
 """
 
 
 from onnxscript import script
 
+#%%
 # Import ONNX opset used in the function/model.
 from onnxscript.onnx import opset15 as op
 
-# Import tensor-type:
-from onnxscript.onnx_types import FLOAT
-
-# Define an ONNXScript function.
+#%%
+# Define Selu as an ONNXScript function.
 
 
 @script()
@@ -24,3 +24,12 @@ def Selu(X, alpha: float, gamma: float):
     pos = gammaX * X
     zero = op.CastLike(0, X)
     return op.Where(X <= zero, neg, pos)
+
+#%%
+# Let's see how the translated function looks like.
+import onnx
+import onnx.printer
+print(onnx.printer.to_text(Selu.to_function_proto()))
+
+#%%
+# 
