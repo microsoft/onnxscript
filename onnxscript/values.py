@@ -61,6 +61,9 @@ class Opset:
         cls.cache[key] = instance
         return instance
 
+    def __repr__(self):
+        return "%s(%r, %r)" % (self.__class__.__name__, self.domain, self.version)
+
     def __init__(self, domain, version) -> None:
         # Nothing to do. Object is initialized by __new__
         pass

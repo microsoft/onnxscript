@@ -1,5 +1,7 @@
+from typing import Optional
+from onnx import TensorProto
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 from onnx.helper import make_tensor
 
@@ -47,11 +49,13 @@ def option2(X, Bias=op.Constant(value=make_tensor('zero', TensorProto.FLOAT, [1]
 # optional inputs (before the full-fledged optional-type was introduced) and that
 # is the source of our problem.
 
- def option3 (X, Bias : optional(FLOAT[...]) = None):
-    Y = op.Log(X)
-    if (Bias != None):
-        Y = Y + Bias
-    return Y
+# does not work yet.
+# TypeError: typing.Optional requires a single type. Got FLOAT.
+# def option3(X, Bias: Optional[FLOAT[...]] = None):
+#     Y = op.Log(X)
+#     if (Bias != None):
+#         Y = Y + Bias
+#     return Y
 
 # Proposal: The proposal is use option 1, and define a variant of the OptionalHasElement
 # op in ONNX to enable this.
