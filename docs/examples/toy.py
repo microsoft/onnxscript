@@ -8,7 +8,7 @@ The examples below show how we can define ONNXScript functions and models.
 from onnxscript import script
 
 # Import ONNX opset used in the function/model.
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 
 # Import tensor-type:
 from onnxscript.onnx_types import FLOAT

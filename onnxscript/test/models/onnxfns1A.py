@@ -6,7 +6,7 @@
 # Same functions as in onnxfns1.py, using autocast and default-attribute-values
 
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 
 
 @script()

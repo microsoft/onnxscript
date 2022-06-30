@@ -15,7 +15,7 @@ from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.values import OnnxFunction
 
@@ -80,6 +80,8 @@ class TestConverter(unittest.TestCase):
                         # was defined with FLOAT[...].
                         warnings.warn(str(e))
                     else:
+                        print(os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
+                        print(model)
                         onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
                         raise AssertionError(
                             "Verification of model failed.") from e
@@ -161,6 +163,37 @@ class TestConverter(unittest.TestCase):
         # shape_inference crashes on stft.
         self.validate_save(signal_dft, shape_inference=False)
 
+    def test_multi(self):
+        from onnxscript.test.models import multi
+        self.validate_save(multi, shape_inference=False)
+
+    def test_dropout(self):
+        from onnxscript.test.models import dropout
+        self.validate_save(dropout, shape_inference=False)
+
+    def test_attrref(self):
+        from onnxscript.test.models import attrref
+        self.validate_save(attrref, shape_inference=False)
+
+    def test_renaming(self):
+        from onnxscript.test.models import renaming
+        self.validate_save(renaming, shape_inference=False)
+
+    @unittest.skipIf(True, reason="TypeError: val must be numeric not <class 'NoneType'>")
+    def test_opt_output(self):
+        from onnxscript.test.models import opt_output
+        self.validate_save(opt_output, shape_inference=False)
+
+    def test_opt_input(self):
+        from onnxscript.test.models import opt_input
+        self.validate_save(opt_input, shape_inference=False)
+
+    @unittest.skipIf(True, reason="ValueError: A function with attributes "
+                                  "cannot be exported as a model.")
+    def test_onnxfns2(self):
+        from onnxscript.test.models import onnxfns2
+        self.validate_save(onnxfns2, shape_inference=False)
+
     def test_none_as_input(self):
         '''
         Test that use of None as an actual parameter is accepted.
@@ -199,9 +232,23 @@ class TestConverter(unittest.TestCase):
         f = fcts['cmp_zero_mright']
         self.assertIn('_data: -11', str(f))
 
+    def test_opset_import(self):
+        from onnxscript.test.models import different_opset
+        fcts = self.validate_save(different_opset, shape_inference=False)
+        s16 = str(fcts['shape_A'])
+        s14 = str(fcts['shape_B'])
+        sdef = str(fcts['inc_any'])
+        self.assertIn("version: 16", s16)
+        self.assertNotIn("version: 14", s16)
+        self.assertIn("version: 14", s14)
+        self.assertNotIn("version: 16", s14)
+        self.assertIn("version: 16", sdef)
+        self.assertNotIn("version: 14", sdef)
+        self.assertNotIn("version: 15", sdef)
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_cast_like()
+    TestConverter().test_if_models()
     unittest.main()
