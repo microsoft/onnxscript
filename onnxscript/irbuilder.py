@@ -6,6 +6,7 @@
 import logging
 from io import StringIO
 import onnx
+from onnx import OperatorSetIdProto
 import onnx.helper as helper
 from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
@@ -260,18 +261,34 @@ class Function:
             [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs])
         return graph, sub_functions
 
-    def to_function_proto(self, domain):
-        opsets = {'': 15}
-        if domain != '':
-            opsets[domain.domain] = domain.version
-        else:
-            opsets = opsets.copy()
+    def get_opset_import(self):
+        def opset_exist(opset_imports, domain, version):
+            return any(domain == o.domain and version == o.version for o in opset_imports)
+
+        func_opset_imports = []
+        for s in self.stmts:
+            if not opset_exist(func_opset_imports, s.module.domain, s.module.version):
+                func_opset_imports.append(
+                    OperatorSetIdProto(domain=s.module.domain, version=s.module.version))
+        return func_opset_imports
+
+    def to_function_proto(self, domain=None):
         nodes = [s.to_node_proto() for s in self.stmts]
-        for n in nodes:
-            if n.domain not in opsets:
-                opsets[n.domain] = 1  # TODO: how to get n.version?
-        opset_imports = [onnx.helper.make_opsetid(domain, version)
-                         for domain, version in opsets.items()]
+
+        if domain is None:
+            opset_imports = self.get_opset_import()
+        else:
+            opsets = {'': 15}
+            if domain != '':
+                opsets[domain.domain] = domain.version
+            else:
+                opsets = opsets.copy()
+
+            for n in nodes:
+                if n.domain not in opsets:
+                    opsets[n.domain] = 1  # TODO: how to get n.version?
+            opset_imports = [onnx.helper.make_opsetid(domain, version)
+                            for domain, version in opsets.items()]
         f = helper.make_function(
             self.domain,
             self.name,
