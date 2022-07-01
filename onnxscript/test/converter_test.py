@@ -80,8 +80,6 @@ class TestConverter(unittest.TestCase):
                         # was defined with FLOAT[...].
                         warnings.warn(str(e))
                     else:
-                        print(os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
-                        print(model)
                         onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
                         raise AssertionError(
                             "Verification of model failed.") from e
