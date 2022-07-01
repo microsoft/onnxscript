@@ -482,11 +482,9 @@ class Converter:
             if hasattr(node.operand, 'value'):
                 # python 3.8+
                 val = node.operand.value
-                at = 'value'
             elif hasattr(node.operand, 'n'):
                 # python 3.7
                 val = float(node.operand.n)
-                at = 'n'
             else:
                 raise TypeError(
                     "Unable to guess constant value from type %r and attributes %r."
