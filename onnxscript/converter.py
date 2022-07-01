@@ -328,7 +328,7 @@ class Converter:
         tensor = pyvalue_to_tensor(ovar, pyvalue, self)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
-        return ovar
+        return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
     def is_pure_module(self, m):
         return (m in self.pure_modules)
@@ -399,37 +399,34 @@ class Converter:
     # the expression into a target-variable, and returns the variable that is
     # assigned this value.
     def translate_expr(self, node, target="tmp"):
-        kind = ConverterExpressionKind.ANY
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
         elif isinstance(node, ast.BinOp):
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
-            if r[1] is None:
-                # constant is replaced
-                return self.translate_expr(node.operand, target=target)
         elif isinstance(node, ast.Compare):
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
-            kind = ConverterExpressionKind.CONST
         else:
             raise ValueError(DebugInfo(node, self).msg(
                 f"Unsupported expression type: {type(node).__name__}."))
+        if isinstance(r, ConverterExpression):
+            return r
         if isinstance(r, tuple):
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
                 callee, args, attrs = r
                 self.emit([result], callee, args, attrs)
-                return ConverterExpression(result, kind)
+                return ConverterExpression(result, ConverterExpressionKind.ANY)
             results = [self.generate_unique_name(x) for x in target]
             callee, args, attrs = r
             self.emit(results, callee, args, attrs)
-            return ConverterExpression(results, kind)
-        return ConverterExpression(r, kind)
+            return ConverterExpression(results, ConverterExpressionKind.ANY)
+        return ConverterExpression(r, ConverterExpressionKind.ANY)
 
     # Translation of an expression where "None" is permitted (eg., for an optional argument)
     def translate_opt_expr(self, node, target="tmp"):
@@ -476,12 +473,12 @@ class Converter:
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
-        operand = self.translate_expr(node.operand)
-        if operand.is_const():
+        if self.is_constant_expr(node.operand):
             # This function changed the constant node.operand
             # and returns it. The function calling this one
             # should intercept this call and replace node
             # by node.operand.
+            # This mechanism does not handle somthing like `(-(-5))`.
             if hasattr(node.operand, 'value'):
                 # python 3.8+
                 val = node.operand.value
@@ -495,10 +492,11 @@ class Converter:
                     "Unable to guess constant value from type %r and attributes %r."
                     "" % (type(node.operand), dir(node.operand)))
             if op == ast.USub:
-                setattr(node.operand, at, -val)
-                return node.operand, None, None
+                cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
+                return self.translate_expr(cst)
             if op == ast.UAdd:
-                return node.operand, None, None
+                return self.translate_expr(node.operand)
+        operand = self.translate_expr(node.operand)
         opname = primop_map[op]
         return Op(self.default_opset, opname), [operand], []
 
@@ -560,10 +558,11 @@ class Converter:
                 return Op(self.default_opset, node.id)
         fail(DebugInfo(node, self).msg("Invalid callee"))
 
-    # Statement translation: A single Python statement is mapped into a
-    # sequence of IR statements.
-
     def translate_stmt(self, node, index_of_stmt=None):
+        """
+        Statement translation: A single Python statement is mapped into a
+        sequence of IR statements.
+        """
         if isinstance(node, ast.Assign):
             return self.translate_assign_stmt(node)
         if isinstance(node, ast.AnnAssign):
@@ -740,8 +739,10 @@ class Converter:
                               sub_functions=sub_functions,
                               info=DebugInfo(for_stmt, self))
 
-    # Translation of a statement-block to GraphProto attribute
     def translate_block(self, stmts, name, live_defs, parent_stmt=None):
+        """
+        Translation of a statement-block to GraphProto attribute.
+        """
         info_stmt = stmts[0] if len(stmts) > 0 else parent_stmt
         self.enter_scope(name, None)
         for s in stmts:
