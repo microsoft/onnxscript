@@ -494,8 +494,8 @@ class Converter:
                 return self.translate_expr(cst)
             if op == ast.UAdd:
                 return self.translate_expr(node.operand)
-        operand = self.translate_expr(node.operand)
         opname = primop_map[op]
+        operand = self.translate_expr(node.operand)
         return Op(self.default_opset, opname), [operand], []
 
     def translate_compare_expr(self, node):
