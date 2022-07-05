@@ -3,7 +3,8 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import onnxscript.onnx.opset15 as op
+from onnxscript.onnx_opset import opset15 as op
+
 
 def Dropout(data, ratio, training_mode, seed: int):
     if (training_mode):

@@ -12,7 +12,7 @@ as the backend to compute onnx ops.
 import numpy as np
 from onnxscript import script
 from onnxscript.onnx_types import FLOAT
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 
 @script()
 def gemmgelu(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]) -> FLOAT["N", "M"]:  # noqa F821

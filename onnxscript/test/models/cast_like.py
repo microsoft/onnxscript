@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15
 from onnxscript.onnx_types import FLOAT, BOOL
 
 
@@ -24,6 +24,11 @@ def cmp_zero_right(A: FLOAT[...]) -> BOOL[...]:
 
 
 @script()
+def cmp_zero_mright(A: FLOAT[...]) -> BOOL[...]:
+    return A == -11
+
+
+@script()
 def cmp_zero_left(A: FLOAT[...]) -> BOOL[...]:
     return 0 == A
 
@@ -33,8 +38,11 @@ def div_right(A: FLOAT[...]) -> FLOAT[...]:
     return A / 2
 
 
-# This does not work yet as -2 is interpreted as  operator - (2)
-# and not as a constant.
+@script()
+def div_minus_right(A: FLOAT[...]) -> FLOAT[...]:
+    return A / (-2)
+
+
 # @script()
-# def div_minus_right(A: FLOAT[...]) -> FLOAT[...]:
-#     return A / (-2)
+# def div_minus_minus_right(A: FLOAT[...]) -> FLOAT[...]:
+#     return A / (-(-2))

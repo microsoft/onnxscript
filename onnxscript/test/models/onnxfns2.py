@@ -5,7 +5,7 @@
 
 from onnxscript import script
 from onnxscript.onnx_types import INT64
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 from typing import List
 
 # TODO: Need to verify definitions below.
