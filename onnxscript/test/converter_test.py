@@ -227,6 +227,8 @@ class TestConverter(unittest.TestCase):
             f = fcts[name]
             self.assertIn("int64_data", str(f))
             self.assertIn('op_type: "CastLike"', str(f))
+        f = fcts['cmp_zero_mright']
+        self.assertIn('_data: -11', str(f))
 
     def test_opset_import(self):
         from onnxscript.test.models import different_opset
@@ -246,5 +248,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_opset_import()
+    # TestConverter().test_cast_like()
     unittest.main()
