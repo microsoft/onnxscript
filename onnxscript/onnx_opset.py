@@ -11,6 +11,7 @@ if onnx_opset_version() < 14:
     raise ImportError(
         f"onnx-script requires onnx opset >= 14 but {onnx_opset_version()} is detected.")
 
+opset13 = Opset("", 13)
 opset14 = Opset("", 14)
 
 if onnx_opset_version() >= 15:

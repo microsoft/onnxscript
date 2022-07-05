@@ -5,18 +5,28 @@
 
 import os
 import unittest
+from contextlib import redirect_stdout, redirect_stderr
+from io import StringIO
 import numpy
-from numpy import array, float32, int64, int8, int32, uint8
 from onnx import TensorProto
 from onnx.helper import (
-    make_model, make_node, set_model_props, make_graph,
-    make_tensor_value_info, make_opsetid, make_tensor,
-    __file__ as onnx_file)
+    make_tensor, __file__ as onnx_file)
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail, NotImplemented, InvalidArgument, RuntimeException)
-from onnxscript.backend.onnx_backend import (
-    enumerate_onnx_tests, assert_almost_equal_string)
+from onnxscript.backend.onnx_export import export2python
+from onnxscript.backend.onnx_backend import enumerate_onnx_tests
+from onnxscript.values import Opset
+from onnxscript import script
+
+
+def print_code(code, begin=1):
+    """
+    Returns the code with line number.
+    """
+    rows = code.split("\n")
+    return "\n".join("%03d %s" % (i + begin, s)
+                     for i, s in enumerate(rows))
 
 
 class TestOnnxBackEnd(unittest.TestCase):
@@ -52,6 +62,36 @@ class TestOnnxBackEnd(unittest.TestCase):
             done += 1
         self.assertEqual(done, 1)
 
+    def verify(self, content, more_context=None):
+        try:
+            obj = compile(content, '<string>', 'exec')
+        except SyntaxError as e:
+            raise AssertionError(
+                "Unable to compile a script due to %r. "
+                "\n--CODE--\n%s"
+                "" % (e, print_code(content))) from e
+        glo = globals().copy()
+        loc = {'Opset': Opset, 'script': script,
+               'TensorProto': TensorProto,
+               'numpy': numpy,
+               'make_tensor': make_tensor}
+        if more_context is not None:
+            loc.update(more_context)
+            glo.update(more_context)
+        out, err = StringIO(), StringIO()
+
+        with redirect_stdout(out):
+            with redirect_stderr(err):
+                try:
+                    exec(obj, glo, loc)  # pylint: disable=W0122
+                except Exception as e:
+                    raise AssertionError(
+                        "Unable to execute a script due to %r. "
+                        "\n--OUT--\n%s\n--ERR--\n%s\n--CODE--\n%s"
+                        "" % (e, out.getvalue(), err.getvalue(),
+                              print_code(content))) from e
+        return glo, loc
+
     def test_enumerate_onnx_tests_run(self):
 
         with self.assertRaises(FileNotFoundError):
@@ -62,24 +102,30 @@ class TestOnnxBackEnd(unittest.TestCase):
         mismatch = []
         success = 0
         for te in enumerate_onnx_tests('node'):
-            self.assertIn(te.name, repr(te))
-            self.assertGreater(len(te), 0)
-            try:
-                te.run(TestOnnxBackEnd.load_fct, TestOnnxBackEnd.run_fct)
-            except NotImplementedError as e:
-                missed.append((te, e))
-                continue
-            except (IndexError, RuntimeError, TypeError, ValueError,
-                    AttributeError, Fail, NotImplemented, InvalidArgument) as e:
-                load_failed.append((te, e))
-                continue
-            except RuntimeException as e:
-                exec_failed.append((te, e))
-                continue
-            except AssertionError as e:
-                mismatch.append((te, e))
-                continue
-            success += 1
+            with self.subTest(name=te.name):
+                self.assertIn(te.name, repr(te))
+                self.assertGreater(len(te), 0)
+                try:
+                    te.run(TestOnnxBackEnd.load_fct, TestOnnxBackEnd.run_fct)
+                except NotImplementedError as e:
+                    missed.append((te, e))
+                    continue
+                except (IndexError, RuntimeError, TypeError, ValueError,
+                        AttributeError, Fail, NotImplemented, InvalidArgument) as e:
+                    load_failed.append((te, e))
+                    continue
+                except RuntimeException as e:
+                    exec_failed.append((te, e))
+                    continue
+                except AssertionError as e:
+                    mismatch.append((te, e))
+                    continue
+                success += 1
+                code = export2python(te.onnx_model)
+                glo, loc = self.verify(code)
+                main = loc['main']
+                self.assertFalse(main is None)
+                # print(dir(main))
 
         if __name__ == '__main__':
             path = os.path.dirname(onnx_file)
@@ -103,4 +149,5 @@ class TestOnnxBackEnd(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    # TestOnnxBackEnd().test_enumerate_onnx_tests_run()
     unittest.main()
