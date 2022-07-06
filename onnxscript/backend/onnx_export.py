@@ -37,7 +37,7 @@ def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{ ",
 
 @script()
 def {{ function_name }}({% if graph.input: %}{{ rename(graph.input[0].name) }}: {{ translate(graph.input[0].type) }}{% endif %}{% for i in graph.input[1:]:
-%}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> {{ translate(graph.output[0].type) }}{% for o in graph.output[1:]: %}, {{ translate(o.type) }}{% endfor %}:
+%}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> ({{ translate(graph.output[0].type) }}{% for o in graph.output[1:]: %}, {{ translate(o.type) }}{% endfor %}):
     {% if doc_string %}"""
     {{ doc_string }}
     """{% endif -%}
@@ -122,6 +122,12 @@ def _translate_type(onnx_type):
         "Unable to translate type %r into onnx-script type." % onnx_type)
 
 
+def _to_str(s):
+    if isinstance(s, bytes):
+        return s.decode('utf-8')
+    return s
+
+
 def _attribute_value(attr):
 
     if attr.HasField("f"):
@@ -129,15 +135,15 @@ def _attribute_value(attr):
     if attr.HasField("i"):
         return attr.i
     if attr.HasField("s"):
-        return attr.s
+        return _to_str(attr.s)
     if attr.HasField("t"):
         return numpy_helper.to_array(attr.t)
     if attr.floats:
-        return attr.floats
+        return list(attr.floats)
     if attr.ints:
-        return attr.ints
+        return list(attr.ints)
     if attr.strings:
-        return attr.strings
+        return list(map(_to_str, attr.strings))
     raise NotImplementedError(
         "Unable to return a value for attribute %r." % attr)
 

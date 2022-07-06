@@ -381,7 +381,8 @@ class Converter:
                 raise NameError(DebugInfo(node, self).msg(
                     "Unable to evaluate a constant in node type %r "
                     "due to %r." % (type(node), str(e))))
-        raise ValueError(f"Unsupported attribute type '{type(node).__name__}'.")
+        raise ValueError(DebugInfo(node).msg(
+            f"Unsupported attribute type '{type(node).__name__}'."))
 
     def translate_attr(self, attr_name, node):
         if isinstance(node, ast.Name):

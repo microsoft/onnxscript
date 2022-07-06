@@ -81,8 +81,8 @@ class TestOnnxBackEnd(unittest.TestCase):
             os.path.split(TestOnnxBackEnd.folder)[-1], name)
         try:
             mod = importlib.import_module(import_name)
-        except ImportError as e:
-            raise ImportError(
+        except (SyntaxError, ImportError) as e:
+            raise AssertionError(
                 "Unable to import %r (file: %r)." % (import_name, filename)) from e
         fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
         return fcts
@@ -141,7 +141,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             path = os.path.dirname(onnx_file)
             failed = [len(missed), len(load_failed), len(exec_failed), len(mismatch)]
             print(success, failed)
-            print("coverage %f%" % (success / sum(failed)))
+            print("coverage ratio %f" % (success / sum(failed)))
             for t in load_failed:
                 print("loading failed",
                       str(t[0]).replace('\\\\', '\\').replace(
@@ -161,4 +161,4 @@ class TestOnnxBackEnd(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
