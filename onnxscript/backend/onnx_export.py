@@ -294,7 +294,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
 
 def export_template(model_onnx, template,
                     name=None, autopep_options=None,
-                    function_name='main_function', clean_code=False):
+                    function_name='main_function', clean_code=True):
     """
     Exports an ONNX model into a code based on a template.
 
@@ -380,8 +380,15 @@ def export_template(model_onnx, template,
         map=map, **context)
 
     final += "\n"
+    if "\nreturn" in final:
+        raise SyntaxError(
+            "The produced code is wrong.\n%s" % final)
     if clean_code:
-        return autopep8.fix_code(final, options=autopep_options)
+        cleaned_code = autopep8.fix_code(final, options=autopep_options)
+        if "\nreturn" in cleaned_code:
+            raise SyntaxError(
+                "The cleaned code is wrong.\n%s" % cleaned_code)
+        return cleaned_code
     return final
 
 
