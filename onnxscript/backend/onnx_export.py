@@ -116,7 +116,7 @@ def _translate_type(onnx_type):
                     shape.append(d.dim_param)
             if len(shape) > 0:
                 return "%s[%s]" % (name, ",".join(shape))
-            return name + "[]"
+            return name + "[...]"
         return name
     raise NotImplementedError(
         "Unable to translate type %r into onnx-script type." % onnx_type)
@@ -245,6 +245,10 @@ def _python_make_node_scan(node, opsets, indent=0):
     raise NotImplementedError()
 
 
+def _string_not_empty(s):
+    return s not in (None, '', b'')
+
+
 def _python_make_node(onnx_node, opsets, indent=0):
     if isinstance(onnx_node, dict):
         node = onnx_node['onnx_node']
@@ -279,9 +283,12 @@ def _python_make_node(onnx_node, opsets, indent=0):
     attributes_str = _python_make_node_make_attribute_str(node)
     if len(node.input) > 0 and len(attributes_str) > 0:
         attributes_str = ", " + attributes_str
-    output = ", ".join(node.output)
+    output = ", ".join(map(_rename_variable, filter(_string_not_empty, node.output)))
     text = [sindent, output, " = ", name,
-            '(', ', '.join(map(_rename_variable, node.input)), attributes_str, ')']
+            '(',
+            ', '.join(map(_rename_variable, filter(_string_not_empty, node.input))),
+            attributes_str,
+            ')']
     return "".join(text)
 
 

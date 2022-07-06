@@ -83,7 +83,8 @@ class TestOnnxBackEnd(unittest.TestCase):
             mod = importlib.import_module(import_name)
         except (SyntaxError, ImportError) as e:
             raise AssertionError(
-                "Unable to import %r (file: %r)." % (import_name, filename)) from e
+                "Unable to import %r (file: %r)\n----\n%s" % (
+                    import_name, filename, content)) from e
         fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
         return fcts
 
@@ -124,8 +125,23 @@ class TestOnnxBackEnd(unittest.TestCase):
                 proto = main.to_model_proto()
 
                 # check converted onnx
-                load_fct = lambda obj: InferenceSession(proto.SerializeToString())
-                te.run(load_fct, TestOnnxBackEnd.run_fct)
+                def load_fct(obj):
+                    try:
+                        return InferenceSession(proto.SerializeToString())
+                    except Exception as e:
+                        raise AssertionError(
+                            "Unable to load onnx for test %r.\n%s" % (
+                                te.name, str(proto))) from e
+
+                def run_fct(obj, *inputs):
+                    try:
+                        return TestOnnxBackEnd.run_fct(obj, *inputs)
+                    except Exception as e:
+                        raise AssertionError(
+                            "Unable to run test %r after conversion.\n%s" % (
+                                te.name, str(proto)))
+
+                te.run(load_fct, run_fct)
 
                 # check eager mode
                 def exec_main(f, *inputs):
