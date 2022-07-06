@@ -294,7 +294,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
 
 def export_template(model_onnx, template,
                     name=None, autopep_options=None,
-                    function_name='main_function', clean_code=True):
+                    function_name='main_function', clean_code=False):
     """
     Exports an ONNX model into a code based on a template.
 
