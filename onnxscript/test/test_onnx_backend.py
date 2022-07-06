@@ -77,7 +77,8 @@ class TestOnnxBackEnd(unittest.TestCase):
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
 
-        import_name = "onnxscript.test.%s.%s" % (TestOnnxBackEnd.folder, name)
+        import_name = "onnxscript.test.%s.%s" % (
+            os.path.split(TestOnnxBackEnd.folder)[-1], name)
         try:
             mod = importlib.import_module(import_name)
         except ImportError as e:
