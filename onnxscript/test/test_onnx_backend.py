@@ -33,7 +33,8 @@ def print_code(code, begin=1):
 
 class TestOnnxBackEnd(unittest.TestCase):
 
-    folder = 'onnx_backend_test_code'
+    folder = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                          'onnx_backend_test_code')
 
     def test_onnx_backend_test(self):
         name = 'test_abs'
