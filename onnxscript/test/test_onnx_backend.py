@@ -88,7 +88,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
         return fcts
 
-    def common_test_enumerate_onnx_tests_run(self, valid):
+    def common_test_enumerate_onnx_tests_run(self, valid, verbose=0):
         with self.assertRaises(FileNotFoundError):
             list(enumerate_onnx_tests('NNN'))
         missed = []
@@ -99,7 +99,11 @@ class TestOnnxBackEnd(unittest.TestCase):
         for te in enumerate_onnx_tests('node'):
             if valid is not None and not valid(te.name):
                 continue
+            if verbose:
+                print("TEST:", te.name)
             with self.subTest(name=te.name):
+                if verbose > 1:
+                    print("  check onnxruntime")
                 self.assertIn(te.name, repr(te))
                 self.assertGreater(len(te), 0)
                 try:
@@ -118,13 +122,18 @@ class TestOnnxBackEnd(unittest.TestCase):
                     mismatch.append((te, e))
                     continue
                 success += 1
+                if verbose > 1:
+                    print("  convert into python")
                 code = export2python(te.onnx_model, function_name="bck_" + te.name)
                 self.assertIn("@script()", code)
                 self.assertIn("def bck_%s(" % te.name, code)
+                if verbose > 1:
+                    print("  check syntax, compilation")
                 fcts = self.verify(te.name, code)
                 main = fcts["bck_" + te.name]
                 self.assertFalse(main is None)
                 proto = main.to_model_proto()
+                self.assertEqual(te.onnx_model.ir_version, proto.ir_version)
 
                 # check converted onnx
                 def load_fct(obj):
@@ -141,8 +150,10 @@ class TestOnnxBackEnd(unittest.TestCase):
                     except Exception as e:
                         raise AssertionError(
                             "Unable to run test %r after conversion.\n%s" % (
-                                te.name, str(proto)))
+                                te.name, str(proto))) from e
 
+                if verbose > 1:
+                    print("  check ModelProto")
                 te.run(load_fct, run_fct)
 
                 # check eager mode
@@ -153,7 +164,11 @@ class TestOnnxBackEnd(unittest.TestCase):
                         return list(output)
                     return [output]
 
+                if verbose > 1:
+                    print("  check eager")
                 te.run(lambda obj: main, exec_main)
+                if verbose > 1:
+                    print("  done")
 
         if __name__ == '__main__':
             path = os.path.dirname(onnx_file)
@@ -181,7 +196,9 @@ class TestOnnxBackEnd(unittest.TestCase):
         self.common_test_enumerate_onnx_tests_run(None)
 
     def test_enumerate_onnx_tests_run_one(self):
-        self.common_test_enumerate_onnx_tests_run(lambda name: "_abs" in name)
+        self.common_test_enumerate_onnx_tests_run(
+            lambda name: "test_resize_downsample_scales_cubic" in name,
+            verbose=2 if __name__ == "__main__" else 0)
 
 
 if __name__ == "__main__":
