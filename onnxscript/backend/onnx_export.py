@@ -9,36 +9,40 @@ import onnx
 from onnx.helper import printable_graph, make_node
 from onnx import numpy_helper, ModelProto
 from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+from ..onnx_types import ParametricTensor
 
 
 _template_python = '''
 import numpy
 from onnx import TensorProto
 from onnx.helper import make_tensor
+from onnxscript import script
 from onnxscript.values import Opset
+from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
 from onnxscript.onnx_opset import opset{{ opsets[''] }}
 
 {% for domain, name, fct in functions: %}
 
 @script()
-def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{ ", ".join(fct['proto'].input) }}):
+def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{ ", ".join(map(rename, fct['proto'].input)) }}):
     # attributes are missing
     {% if fct['proto'].doc_string %}"""
     {{ fct['proto'].doc_string }}
     """{% endif -%}
     {%- for node in fct['proto'].node: %}
 {{ python_make_node(node, opsets) }}{% endfor %}
-    return {{ ", ".join(fct['proto'].output) }}
+    return {{ ", ".join(map(rename, fct['proto'].output)) }}
 
 {% endfor %}
 
 @script()
-def {{ function_name }}({% if graph.input: %}{{ graph.input[0].name }}{% endif %}{% for i in graph.input[1:]: %}, {{ i.name }}{% endfor %}):
+def {{ function_name }}({% if graph.input: %}{{ rename(graph.input[0].name) }}: {{ translate(graph.input[0].type) }}{% endif %}{% for i in graph.input[1:]:
+%}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> {{ translate(graph.output[0].type) }}{% for o in graph.output[1:]: %}, {{ translate(o.type) }}{% endfor %}:
     {% if doc_string %}"""
     {{ doc_string }}
     """{% endif -%}
 {{ python_make_node_graph(graph, opsets) }}
-    return {{ graph.output[0].name }}{% for o in graph.output[1:]: %}, {{ o.name }}{% endfor %}
+    return {{ rename(graph.output[0].name) }}{% for o in graph.output[1:]: %}, {{ rename(o.name) }}{% endfor %}
 
 
 {% for domain, version in unique_function_domain_version: %}
@@ -46,6 +50,76 @@ def {{ function_name }}({% if graph.input: %}{{ graph.input[0].name }}{% endif %
 {%- for domain, name, fct in functions: %}
 {{ domain }}1.{{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }} = {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{% endfor %}
 '''
+
+
+kwlist = {
+    'False',
+    'None',
+    'True',
+    'and',
+    'as',
+    'assert',
+    'async',
+    'await',
+    'break',
+    'class',
+    'continue',
+    'def',
+    'del',
+    'elif',
+    'else',
+    'except',
+    'finally',
+    'for',
+    'from',
+    'global',
+    'if',
+    'import',
+    'in',
+    'is',
+    'lambda',
+    'nonlocal',
+    'not',
+    'or',
+    'pass',
+    'raise',
+    'return',
+    'try',
+    'while',
+    'with',
+    'yield'
+}
+
+
+def _rename_variable(name):
+    """
+    Renames all names equal to a python keyword.
+    """
+    if name in kwlist:
+        return 'r_' + name
+    return name
+
+
+def _translate_type(onnx_type):
+    """
+    Converts a onnx type into a type defined by *onnx-script*.
+    """
+    if onnx_type.HasField('tensor_type'):
+        typ = ParametricTensor.types[onnx_type.tensor_type.elem_type]
+        name = repr(typ)
+        if onnx_type.tensor_type.HasField('shape'):
+            shape = []
+            for d in onnx_type.tensor_type.shape.dim:
+                if d.HasField('dim_value'):
+                    shape.append(str(d.dim_value))
+                else:
+                    shape.append(d.dim_param)
+            if len(shape) > 0:
+                return "%s[%s]" % (name, ",".join(shape))
+            return name + "[]"
+        return name
+    raise NotImplementedError(
+        "Unable to translate type %r into onnx-script type." % onnx_type)
 
 
 def _attribute_value(attr):
@@ -89,7 +163,7 @@ def _python_make_node_graph(graph, opsets, indent=0, output_names=None):
     code = []
     sindent = '    ' * indent
     for init in graph.initializer:
-        node = make_node('Constant', [], [init.name], value=init)
+        node = make_node('Constant', [], [_rename_variable(init.name)], value=init)
         code.append(_python_make_node(node, version, indent=indent))
     if len(graph.sparse_initializer) > 0:
         raise NotImplementedError(
@@ -98,7 +172,8 @@ def _python_make_node_graph(graph, opsets, indent=0, output_names=None):
         code.append(_python_make_node(node, opsets, indent=indent))
     if output_names is not None:
         for fr, to in zip(graph.output, output_names):
-            code.append("%s%s = %s" % (sindent, to, fr.name))
+            code.append("%s%s = %s" % (sindent, _rename_variable(to),
+                                      _rename_variable(fr.name)))
     return "\n".join(code)
 
 
@@ -190,8 +265,9 @@ def _python_make_node(onnx_node, opsets, indent=0):
            'Not': 'not'}
     sindent = "    " * indent
     if node.op_type in ops:
-        return "%s%s = %s" % (sindent, node.output[0],
-                              (" %s " % ops[node.op_type]).join(node.input))
+        return "%s%s = %s" % (sindent, _rename_variable(node.output[0]),
+                              (" %s " % ops[node.op_type]).join(
+                                map(_rename_variable, node.input)))
     name = _python_make_node_name(
         node.domain, opsets[node.domain], node.op_type, node=True)
     attributes_str = _python_make_node_make_attribute_str(node)
@@ -199,7 +275,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
         attributes_str = ", " + attributes_str
     output = ", ".join(node.output)
     text = [sindent, output, " = ", name,
-            '(', ', '.join(node.input), attributes_str, ')']
+            '(', ', '.join(map(_rename_variable, node.input)), attributes_str, ')']
     return "".join(text)
 
 
@@ -233,7 +309,9 @@ def export_template(model_onnx, template,
                'python_make_node': _python_make_node,
                'python_make_node_graph': _python_make_node_graph,
                'python_make_node_name': _python_make_node_name,
-               'unique_function_domain_version': unique_function_domain_version}
+               'unique_function_domain_version': unique_function_domain_version,
+               'rename': _rename_variable,
+               'translate': _translate_type}
 
     # opset
     if hasattr(model_onnx, 'opset_import'):
@@ -243,6 +321,14 @@ def export_template(model_onnx, template,
         context['opsets'] = opsets
 
     graph = model_onnx.graph if hasattr(model_onnx, 'graph') else model_onnx
+
+    # types
+    unique_types = set()
+    for t in list(graph.input) + list(graph.output):
+        ts = _translate_type(t.type)
+        its = ts.split('[', maxsplit=1)[0]
+        unique_types.add(its)
+    context["unique_types"] = list(sorted(unique_types))
 
     # functions
     functions = []
@@ -277,7 +363,8 @@ def export_template(model_onnx, template,
     from jinja2 import Template  # delayed import
     template = Template(template)
     final = template.render(
-        enumerate=enumerate, sorted=sorted, len=len, repr=repr, **context)
+        enumerate=enumerate, sorted=sorted, len=len, repr=repr,
+        map=map, **context)
 
     final += "\n"
     if clean_code:

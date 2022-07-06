@@ -5,6 +5,7 @@
 
 import os
 import unittest
+import importlib
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 import numpy
@@ -16,8 +17,9 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail, NotImplemented, InvalidArgument, RuntimeException)
 from onnxscript.backend.onnx_export import export2python
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
-from onnxscript.values import Opset
-from onnxscript import script
+from onnxscript.values import Opset, OnnxFunction
+from onnxscript.onnx_types import ParametricTensor
+from onnxscript import script, onnx_opset
 
 
 def print_code(code, begin=1):
@@ -31,6 +33,8 @@ def print_code(code, begin=1):
 
 class TestOnnxBackEnd(unittest.TestCase):
 
+    folder = 'onnx_backend_test_code'
+
     def test_onnx_backend_test(self):
         name = 'test_abs'
         code = []
@@ -39,7 +43,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         self.assertEqual(len(code), 1)
 
     @staticmethod
-    def load_fct(obj, runtime='python'):
+    def load_fct(obj):
         return InferenceSession(obj.SerializeToString())
 
     @staticmethod
@@ -62,38 +66,22 @@ class TestOnnxBackEnd(unittest.TestCase):
             done += 1
         self.assertEqual(done, 1)
 
-    def verify(self, content, more_context=None):
-        try:
-            obj = compile(content, '<string>', 'exec')
-        except SyntaxError as e:
-            raise AssertionError(
-                "Unable to compile a script due to %r. "
-                "\n--CODE--\n%s"
-                "" % (e, print_code(content))) from e
-        glo = globals().copy()
-        loc = {'Opset': Opset, 'script': script,
-               'TensorProto': TensorProto,
-               'numpy': numpy,
-               'make_tensor': make_tensor}
-        if more_context is not None:
-            loc.update(more_context)
-            glo.update(more_context)
-        out, err = StringIO(), StringIO()
+    def verify(self, name, content, more_context=None):
+        if not os.path.exists(TestOnnxBackEnd.folder):
+            os.mkdir(TestOnnxBackEnd.folder)
+            init = os.path.join(TestOnnxBackEnd.folder, '__init__.py')
+            with open(init, "w"):
+                pass
+        filename = os.path.join(TestOnnxBackEnd.folder, name + ".py")
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(content)
 
-        with redirect_stdout(out):
-            with redirect_stderr(err):
-                try:
-                    exec(obj, glo, loc)  # pylint: disable=W0122
-                except Exception as e:
-                    raise AssertionError(
-                        "Unable to execute a script due to %r. "
-                        "\n--OUT--\n%s\n--ERR--\n%s\n--CODE--\n%s"
-                        "" % (e, out.getvalue(), err.getvalue(),
-                              print_code(content))) from e
-        return glo, loc
+        mod = importlib.import_module(
+            "onnxscript.test.%s.%s" % (TestOnnxBackEnd.folder, name))
+        fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
+        return fcts
 
     def test_enumerate_onnx_tests_run(self):
-
         with self.assertRaises(FileNotFoundError):
             list(enumerate_onnx_tests('NNN'))
         missed = []
@@ -121,15 +109,33 @@ class TestOnnxBackEnd(unittest.TestCase):
                     mismatch.append((te, e))
                     continue
                 success += 1
-                code = export2python(te.onnx_model)
-                glo, loc = self.verify(code)
-                main = loc['main']
+                code = export2python(te.onnx_model, function_name="bck_" + te.name)
+                self.assertIn("@script()", code)
+                self.assertIn("def bck_%s(" % te.name, code)
+                fcts = self.verify(te.name, code)
+                main = fcts["bck_" + te.name]
                 self.assertFalse(main is None)
-                # print(dir(main))
+                proto = main.to_model_proto()
+
+                # check converted onnx
+                load_fct = lambda obj: InferenceSession(proto.SerializeToString())
+                te.run(load_fct, TestOnnxBackEnd.run_fct)
+
+                # check eager mode
+                def exec_main(f, *inputs):
+                    assert id(f) == id(main)
+                    output = f(*inputs)
+                    if isinstance(output, tuple):
+                        return list(output)
+                    return [output]
+
+                te.run(lambda obj: main, exec_main)
 
         if __name__ == '__main__':
             path = os.path.dirname(onnx_file)
-            print(success, len(missed), len(load_failed), len(exec_failed), len(mismatch))
+            failed = [len(missed), len(load_failed), len(exec_failed), len(mismatch)]
+            print(success, failed)
+            print("coverage %f%" % (success / sum(failed)))
             for t in load_failed:
                 print("loading failed",
                       str(t[0]).replace('\\\\', '\\').replace(
@@ -149,5 +155,4 @@ class TestOnnxBackEnd(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # TestOnnxBackEnd().test_enumerate_onnx_tests_run()
     unittest.main()

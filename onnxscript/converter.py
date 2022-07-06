@@ -15,10 +15,10 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .onnx_opset import opset15
 from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo)
+from .onnx_types import ParametricTensor
 
 
 logger = logging.getLogger("onnx-script")
@@ -180,11 +180,12 @@ class Converter:
         self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         self.source = source
-        if (global_names is None):
+        if global_names is None:
             # TODO: Cleanup: This should be eventually removed.
             self.globals = {"int": int, "float": float, "str": str}
         else:
-            self.globals = global_names
+            # We make a copy in case function eval modifies it.
+            self.globals = global_names.copy()
         self.pure_modules = ["onnxscript"]
         self.this_module = opset
         self.default_opset_ = default_opset
@@ -196,6 +197,7 @@ class Converter:
                 raise RuntimeError("Unable to return a default opset, None was detected yet.")
             warn("No default opset was defined or detected in function %r, "
                  "the converter uses opset 15." % (self.current_fn.name, ))
+            from .onnx_opset import opset15
             return opset15
         return self.default_opset_
 
@@ -349,8 +351,17 @@ class Converter:
     def eval_constant_expr(self, node):
         # TODO: assert (self.is_constant_expr(node))
         locals = {}  # TODO
-        return (eval(compile(ast.Expression(node), filename="<ast>", mode="eval"),
-                self.globals, locals))
+        for v in ParametricTensor.types.values():
+            locals[repr(v)] = v
+        expr = ast.Expression(node)
+        cpl = compile(expr, filename="<ast>", mode="eval")
+        try:
+            return eval(cpl, self.globals, locals)
+        except NameError as e:
+            raise NameError(
+                DebugInfo(node).msg(
+                    "Missing names, globals contains %r, locals %r." % (
+                        list(self.globals), list(locals)))) from e
 
     def eval_attr(self, node):
         if isinstance(node, ast.Num):
@@ -517,18 +528,14 @@ class Converter:
     def translate_opset_expr(self, node) -> values.Opset:
         """Return an Opset"""
         if isinstance(node, ast.Name):
-            try:
-                val = self.lookup(node.id, DebugInfo(node, self))
-                if isinstance(val, ConstValue):  # TODO
-                    val = val.value
-                if isinstance(val, values.Opset):
-                    return val
-                fail(f"{node.id} has value of type {type(node.id)} and used as opset.")
-            except BaseException:
-                warn(f"Unknown opset name {node.id}.")
-                return values.Opset(node.id, 1)
+            val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
+            if isinstance(val, ConstValue):  # TODO
+                val = val.value
+            if isinstance(val, values.Opset):
+                return val
+            fail(DebugInfo(node).msg(f"'{node.id}' is not an instance of type Opset."))
         elif isinstance(node, ast.Attribute):
-            fail(DebugInfo(node, self).msg("Nested module unimplemented"))  # TODO
+            fail(DebugInfo(node, self).msg("Nested module unimplemented."))  # TODO
         else:
             fail(DebugInfo(node, self).msg("Invalid opset expression."))
 
