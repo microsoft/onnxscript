@@ -387,7 +387,8 @@ def export_template(model_onnx, template,
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
             raise SyntaxError(
-                "The cleaned code is wrong.\n%s" % cleaned_code)
+                "The cleaned code is wrong.\n%s\n------%s" % (
+                    final, cleaned_code))
         return cleaned_code
     return final
 
