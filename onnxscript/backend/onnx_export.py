@@ -28,9 +28,9 @@ def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{ ",
     # attributes are missing
     {% if fct['proto'].doc_string %}"""
     {{ fct['proto'].doc_string }}
-    """{% endif -%}
+    """{%- endif %}
     {%- for node in fct['proto'].node: %}
-{{ python_make_node(node, opsets) }}{% endfor %}
+{{ python_make_node(node, opsets, indent=1) }}{% endfor %}
     return {{ ", ".join(map(rename, fct['proto'].output)) }}
 
 {% endfor %}
@@ -40,8 +40,8 @@ def {{ function_name }}({% if graph.input: %}{{ rename(graph.input[0].name) }}: 
 %}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> ({{ translate(graph.output[0].type) }}{% for o in graph.output[1:]: %}, {{ translate(o.type) }}{% endfor %}):
     {% if doc_string %}"""
     {{ doc_string }}
-    """{% endif -%}
-{{ python_make_node_graph(graph, opsets) }}
+    """{%- endif %}
+{{ python_make_node_graph(graph, opsets, indent=1) }}
     return {{ rename(graph.output[0].name) }}{% for o in graph.output[1:]: %}, {{ rename(o.name) }}{% endfor %}
 
 
@@ -180,7 +180,8 @@ def _python_make_node_graph(graph, opsets, indent=0, output_names=None):
         for fr, to in zip(graph.output, output_names):
             code.append("%s%s = %s" % (sindent, _rename_variable(to),
                                       _rename_variable(fr.name)))
-    return "\n".join(code)
+    final = "\n".join(code)
+    return final
 
 
 def _python_make_node_make_attribute_str(node):

@@ -88,7 +88,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
         return fcts
 
-    def test_enumerate_onnx_tests_run(self):
+    def common_test_enumerate_onnx_tests_run(self, valid):
         with self.assertRaises(FileNotFoundError):
             list(enumerate_onnx_tests('NNN'))
         missed = []
@@ -97,6 +97,8 @@ class TestOnnxBackEnd(unittest.TestCase):
         mismatch = []
         success = 0
         for te in enumerate_onnx_tests('node'):
+            if valid is not None and not valid(te.name):
+                continue
             with self.subTest(name=te.name):
                 self.assertIn(te.name, repr(te))
                 self.assertGreater(len(te), 0)
@@ -157,7 +159,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             path = os.path.dirname(onnx_file)
             failed = [len(missed), len(load_failed), len(exec_failed), len(mismatch)]
             print(success, failed)
-            print("coverage ratio %f" % (success / sum(failed)))
+            print("coverage ratio %f" % (success / (success + sum(failed))))
             for t in load_failed:
                 print("loading failed",
                       str(t[0]).replace('\\\\', '\\').replace(
@@ -175,6 +177,13 @@ class TestOnnxBackEnd(unittest.TestCase):
                       str(t[0]).replace('\\\\', '\\').replace(
                           path, 'onnx').replace("\\", "/"))
 
+    def test_enumerate_onnx_tests_run(self):
+        self.common_test_enumerate_onnx_tests_run(None)
+
+    def test_enumerate_onnx_tests_run_one(self):
+        self.common_test_enumerate_onnx_tests_run(lambda name: "_abs" in name)
+
 
 if __name__ == "__main__":
+    # TestOnnxBackEnd().test_enumerate_onnx_tests_run_one()
     unittest.main(verbosity=2)
