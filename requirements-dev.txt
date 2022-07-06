@@ -1,5 +1,6 @@
-numpy==1.21.5
+autopep8
 flake8
+numpy==1.21.5
 matplotlib
 --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html
 onnx-function-experiment
