@@ -697,9 +697,14 @@ class Converter:
         # iter
         iter = for_stmt.iter
         assert isinstance(iter, ast.Call), "Loop bound not a call."
-        assert isinstance(iter.func, ast.Name), "Unsupported loop bound."
-        assert iter.func.id == "range", "Unsupported loop bound."
-        assert iter.args and len(iter.args) == 1, "Unsupported loop bound."
+        if not isinstance(iter.func, ast.Name):
+            fail(DebugInfo(for_stmt).msg("Unsupported loop bound %r." % iter.func))
+        if iter.func.id != 'range':
+            fail(DebugInfo(for_stmt).msg(
+                "Unsupported loop bound, only function 'range' is allowed."))
+        if not iter.args or len(iter.args) != 1:
+            fail(DebugInfo(for_stmt).msg(
+                "Unsupported loop bound, it should be 'range(?)'."))
         assert not iter.keywords, "Unsupported loop bound."
         o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
         # analyze loop body

@@ -249,8 +249,25 @@ def _python_make_node_loop(node, opsets, indent=0):
     """
     Translates a node Loop into python.
     """
-    raise NotImplementedError()
-
+    body = node.attribute[0].g
+    sindent = "    " * indent
+    n_iter = node.input[0]
+    cond = node.input[1]
+    v_initial = node.input[2]
+    rows = []
+    if n_iter and not cond:
+        rows.append("%sfor %s in range(%s):" % (
+            sindent, body.input[0].name, n_iter))
+    elif not n_iter and cond:
+        rows.append("%swhile %s:" % (sindent, cond))
+    else:
+        rows.append("%sfor %s in range(%s):" % (
+            sindent, body.input[0].name, n_iter))
+        rows.append("%s    if not %s:" % (sindent, cond))
+        rows.append("%s        break" % sindent)
+    rows.append(_python_make_node_graph(body, opsets, indent=indent+1,
+                                        output_names=node.output))
+    return "\n".join(rows)
 
 def _python_make_node_scan(node, opsets, indent=0):
     """
@@ -281,8 +298,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
     ops = {'Add': '+', 'Sub': '-', 'Mul': '*', 'MatMul': '@',
            'Div': '/', 'Pow': '**', 'Mod': '%',
            'And': '&', 'Or': '|', 'Greater': '>', 'Equal': '==',
-           'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<=',
-           'Not': 'not'}
+           'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<='}
     sindent = "    " * indent
     if node.op_type in ops:
         return "%s%s = %s" % (sindent, _rename_variable(node.output[0]),

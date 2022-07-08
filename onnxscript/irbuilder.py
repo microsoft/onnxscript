@@ -10,6 +10,7 @@ import onnx.helper as helper
 from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
 from .values import Opset
+from .onnx_opset import __max_supported_opset__
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -240,7 +241,7 @@ class Function:
         if '' not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
-            opsets[''] = onnx_opset_version()
+            opsets[''] = min(onnx_opset_version(), __max_supported_opset__)
         for proto in functions:
             if proto.domain not in opsets:
                 opsets[proto.domain] = 1
