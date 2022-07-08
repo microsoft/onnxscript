@@ -104,6 +104,8 @@ class TestOnnxBackEnd(unittest.TestCase):
             with self.subTest(name=te.name):
                 if verbose > 1:
                     print("  check onnxruntime")
+                    if verbose > 4:
+                        print(te.onnx_model)
                 self.assertIn(te.name, repr(te))
                 self.assertGreater(len(te), 0)
                 try:
@@ -129,6 +131,10 @@ class TestOnnxBackEnd(unittest.TestCase):
                 self.assertIn("def bck_%s(" % te.name, code)
                 if verbose > 1:
                     print("  check syntax, compilation")
+                    if verbose > 2:
+                        print(code)
+                if te.name == "test_resize_downsample_scales_cubic":
+                    self.assertIn("Resize(X, None, scales,", code)
                 fcts = self.verify(te.name, code)
                 main = fcts["bck_" + te.name]
                 self.assertFalse(main is None)
@@ -137,20 +143,36 @@ class TestOnnxBackEnd(unittest.TestCase):
 
                 # check converted onnx
                 def load_fct(obj):
+                    if verbose > 2:
+                        print("    load ONNX")
                     try:
-                        return InferenceSession(proto.SerializeToString())
+                        sess = InferenceSession(proto.SerializeToString())
                     except Exception as e:
                         raise AssertionError(
                             "Unable to load onnx for test %r.\n%s" % (
                                 te.name, str(proto))) from e
+                    if verbose > 2:
+                        print("    done.")
+                    return sess
 
                 def run_fct(obj, *inputs):
+                    if verbose > 2:
+                        print("    run ONNX")
+                        for i, inp in enumerate(inputs):
+                            if inp is None:
+                                print("    input %d: None" % i)
+                            else:
+                                print("    input %d: dtype=%r shape=%r" % (
+                                    i, inp.dtype, inp.shape))
                     try:
-                        return TestOnnxBackEnd.run_fct(obj, *inputs)
+                        res = TestOnnxBackEnd.run_fct(obj, *inputs)
                     except Exception as e:
                         raise AssertionError(
                             "Unable to run test %r after conversion.\n%s" % (
                                 te.name, str(proto))) from e
+                    if verbose > 2:
+                        print("    done.")
+                    return res
 
                 if verbose > 1:
                     print("  check ModelProto")
@@ -198,7 +220,7 @@ class TestOnnxBackEnd(unittest.TestCase):
     def test_enumerate_onnx_tests_run_one(self):
         self.common_test_enumerate_onnx_tests_run(
             lambda name: "test_resize_downsample_scales_cubic" in name,
-            verbose=2 if __name__ == "__main__" else 0)
+            verbose=4 if __name__ == "__main__" else 0)
 
 
 if __name__ == "__main__":

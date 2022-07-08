@@ -97,7 +97,16 @@ def _rename_variable(name):
     """
     if name in kwlist:
         return 'r_' + name
+    if name == "":
+        return None
     return name
+
+
+def _rename_variable_s(name):
+    """
+    Renames all names equal to a python keyword.
+    """
+    return str(_rename_variable(name))
 
 
 def _translate_type(onnx_type):
@@ -129,7 +138,6 @@ def _to_str(s):
 
 
 def _attribute_value(attr):
-
     if attr.HasField("f"):
         return attr.f
     if attr.HasField("i"):
@@ -246,10 +254,6 @@ def _python_make_node_scan(node, opsets, indent=0):
     raise NotImplementedError()
 
 
-def _string_not_empty(s):
-    return s not in (None, '', b'')
-
-
 def _python_make_node(onnx_node, opsets, indent=0):
     if isinstance(onnx_node, dict):
         node = onnx_node['onnx_node']
@@ -284,10 +288,10 @@ def _python_make_node(onnx_node, opsets, indent=0):
     attributes_str = _python_make_node_make_attribute_str(node)
     if len(node.input) > 0 and len(attributes_str) > 0:
         attributes_str = ", " + attributes_str
-    output = ", ".join(map(_rename_variable, filter(_string_not_empty, node.output)))
+    output = ", ".join(map(_rename_variable, node.output))
     text = [sindent, output, " = ", name,
             '(',
-            ', '.join(map(_rename_variable, filter(_string_not_empty, node.input))),
+            ', '.join(map(_rename_variable_s, node.input)),
             attributes_str,
             ')']
     return "".join(text)

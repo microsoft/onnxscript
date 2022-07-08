@@ -20,7 +20,7 @@ def format(list, prefix, sep, suffix, formatter=str):
     return prefix + sep.join([formatter(x) for x in list]) + suffix
 
 
-def select_ir_version(main_opset):
+def select_ir_version(version, domain=''):
     """
     Selects the corresponding ir_version knowning the opset version
     for the main ONNX domain.
@@ -30,7 +30,7 @@ def select_ir_version(main_opset):
         7: 3, 8: 4, 9: 4, 10: 5, 11: 6, 12: 7,
         13: 7, 14: 7, 15: 8, 16: 8, 17: 8
     }
-    return known.get(main_opset, 8)
+    return known.get(version, 8)
 
 
 class Type:
