@@ -296,7 +296,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
         raise RuntimeError(
             "Unable to export node type %r into python." % node.op_type)
     ops = {'Add': '+', 'Sub': '-', 'Mul': '*', 'MatMul': '@',
-           'Div': '/', 'Pow': '**', 'Mod': '%',
+           'Div': '/', 'Pow': '**',
            'And': '&', 'Or': '|', 'Greater': '>', 'Equal': '==',
            'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<='}
     sindent = "    " * indent

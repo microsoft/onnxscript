@@ -139,7 +139,9 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print(code)
                 if te.name == "test_resize_downsample_scales_cubic":
                     self.assertIn("Resize(X, None, scales,", code)
-                if "test_loop" in te.name:
+                if "test_loop" in te.name or te.name in {
+                        'test_range_float_type_positive_delta_expanded',
+                        'test_range_int32_type_negative_delta_expanded'}:
                     # TODO: change change when the converter supports
                     # support something like 'while i < n and cond:'
                     continue
@@ -191,8 +193,8 @@ class TestOnnxBackEnd(unittest.TestCase):
                             if inp is None:
                                 print("    input %d: None" % i)
                             else:
-                                print("    input %d: dtype=%r shape=%r" % (
-                                    i, inp.dtype, inp.shape))
+                                print("    input %d: dtype=%r shape=%r %r" % (
+                                    i, inp.dtype, inp.shape, inp.ravel().tolist()))
                     try:
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)
                     except Exception as e:
@@ -208,18 +210,21 @@ class TestOnnxBackEnd(unittest.TestCase):
                 te.run(load_fct, run_fct)
 
                 # check eager mode
-                def exec_main(f, *inputs):
-                    assert id(f) == id(main)
-                    output = f(*inputs)
-                    if isinstance(output, tuple):
-                        return list(output)
-                    return [output]
-
-                if not te.name.startswith("test_split"):
-                    # test_split has an undefined number of outputs.
+                if not te.name.startswith("test_split") and te.name not in {
+                        'test_lstm_defaults',
+                        'test_lstm_with_initial_bias'}:
+                    # split has an undefined number of outputs.
                     # current implementation of eager mode is not aware of them.
+                    # same goes for lstm
                     if verbose > 1:
                         print("  check eager")
+
+                    def exec_main(f, *inputs):
+                        assert id(f) == id(main)
+                        output = f(*inputs)
+                        if isinstance(output, tuple):
+                            return list(output)
+                        return [output]
                     try:
                         te.run(lambda obj: main, exec_main)
                     except EagerModeError as e:
@@ -257,10 +262,10 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one(self):
         self.common_test_enumerate_onnx_tests_run(
-            lambda name: "test_split_variable_parts_2d" in name,
+            lambda name: "test_add" in name,
             verbose=4 if __name__ == "__main__" else 0)
 
 
 if __name__ == "__main__":
-    # TestOnnxBackEnd().test_enumerate_onnx_tests_run_one()
+    TestOnnxBackEnd().test_enumerate_onnx_tests_run_one()
     unittest.main(verbosity=2)
