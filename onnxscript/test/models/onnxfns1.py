@@ -16,7 +16,7 @@
 # Element-type annotation for tensors
 
 from onnxscript import script
-from onnxscript.onnx_opset import opset16 as op
+from onnxscript.onnx_opset import opset15 as op
 
 @script()
 def Relu(X):

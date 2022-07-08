@@ -15,7 +15,7 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .onnx_opset import opset16
+from .onnx_opset import opset15
 from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo)
@@ -197,7 +197,7 @@ class Converter:
                 raise RuntimeError("Unable to return a default opset, None was detected yet.")
             warn("No default opset was defined or detected in function %r, "
                  "the converter uses opset 15." % (self.current_fn.name, ))
-            return opset16
+            return opset15
         return self.default_opset_
 
     def set_default_opset(self, opset, node):
@@ -328,9 +328,6 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        if pyvalue is None:
-            self.emit([ovar], Op(self.default_opset, "OptionalHasElement"), [suggested_name], [])
-            return
 
         tensor = pyvalue_to_tensor(ovar, pyvalue, self)
         attr = self.ir_builder.attr("value", tensor)
@@ -505,8 +502,6 @@ class Converter:
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
-        if node.left.id == "max":
-            print(node.left)
         left = self.translate_expr(node.left)
 
         def left_is_input(left):

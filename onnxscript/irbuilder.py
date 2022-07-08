@@ -271,7 +271,7 @@ class Function:
             If an earlier version of onnx is installed, it ignores the default
             values of the function arguments.
         """
-        opsets = {'': 16}
+        opsets = {'': 15}
         if domain != '':
             opsets[domain.domain] = domain.version
         else:
