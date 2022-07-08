@@ -20,6 +20,19 @@ def format(list, prefix, sep, suffix, formatter=str):
     return prefix + sep.join([formatter(x) for x in list]) + suffix
 
 
+def select_ir_version(main_opset):
+    """
+    Selects the corresponding ir_version knowning the opset version
+    for the main ONNX domain.
+    """
+    known = {
+        1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3,
+        7: 3, 8: 4, 9: 4, 10: 5, 11: 6, 12: 7,
+        13: 7, 14: 7, 15: 8, 16: 8, 17: 8
+    }
+    return known.get(main_opset, 8)
+
+
 class Type:
 
     def __init__(self):
@@ -232,6 +245,8 @@ class Function:
             if proto.domain not in opsets:
                 opsets[proto.domain] = 1
 
+        if 'ir_version' not in kwargs:
+            kwargs['ir_version'] = select_ir_version(opsets[''])
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
 
