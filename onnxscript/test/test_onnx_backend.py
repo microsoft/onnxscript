@@ -268,5 +268,5 @@ class TestOnnxBackEnd(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    TestOnnxBackEnd().test_enumerate_onnx_tests_run_one()
+    # TestOnnxBackEnd().test_enumerate_onnx_tests_run_one()
     unittest.main(verbosity=2)
