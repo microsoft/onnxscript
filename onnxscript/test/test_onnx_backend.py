@@ -212,7 +212,8 @@ class TestOnnxBackEnd(unittest.TestCase):
                 # check eager mode
                 if not te.name.startswith("test_split") and te.name not in {
                         'test_lstm_defaults',
-                        'test_lstm_with_initial_bias'}:
+                        'test_lstm_with_initial_bias',
+                        'test_lstm_with_peepholes'}:
                     # split has an undefined number of outputs.
                     # current implementation of eager mode is not aware of them.
                     # same goes for lstm
@@ -262,7 +263,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one(self):
         self.common_test_enumerate_onnx_tests_run(
-            lambda name: "test_add" in name,
+            lambda name: "test_layer_normalization_3d_axis2_epsilon_expanded" in name,
             verbose=4 if __name__ == "__main__" else 0)
 
 

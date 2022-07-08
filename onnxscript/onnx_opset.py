@@ -7,9 +7,6 @@ from onnx.defs import onnx_opset_version
 from .values import Opset
 
 
-__max_supported_opset__ = 16
-
-
 if onnx_opset_version() < 14:
     raise ImportError(
         f"onnx-script requires onnx opset >= 14 but {onnx_opset_version()} is detected.")
@@ -34,3 +31,6 @@ if onnx_opset_version() >= 15:
 
 if onnx_opset_version() >= 16:
     opset16 = Opset("", 16)
+
+if onnx_opset_version() >= 17:
+    opset16 = Opset("", 17)
