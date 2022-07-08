@@ -6,20 +6,13 @@
 import os
 import unittest
 import importlib
-from contextlib import redirect_stdout, redirect_stderr
-from io import StringIO
-import numpy
-from onnx import TensorProto
-from onnx.helper import (
-    make_tensor, __file__ as onnx_file)
+from onnx.helper import __file__ as onnx_file
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail, NotImplemented, InvalidArgument, RuntimeException)
 from onnxscript.backend.onnx_export import export2python
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
-from onnxscript.values import Opset, OnnxFunction
-from onnxscript.onnx_types import ParametricTensor
-from onnxscript import script, onnx_opset
+from onnxscript.values import OnnxFunction
 from onnxscript.eager_mode_evaluator import EagerModeError
 
 
@@ -261,12 +254,12 @@ class TestOnnxBackEnd(unittest.TestCase):
     def test_enumerate_onnx_tests_run(self):
         self.common_test_enumerate_onnx_tests_run(None)
 
-    def test_enumerate_onnx_tests_run_one(self):
+    def test_enumerate_onnx_tests_run_one_case(self):
         self.common_test_enumerate_onnx_tests_run(
             lambda name: "test_layer_normalization_3d_axis2_epsilon_expanded" in name,
             verbose=4 if __name__ == "__main__" else 0)
 
 
 if __name__ == "__main__":
-    # TestOnnxBackEnd().test_enumerate_onnx_tests_run_one()
+    # TestOnnxBackEnd().test_enumerate_onnx_tests_run_one_case()
     unittest.main(verbosity=2)

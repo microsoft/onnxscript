@@ -3,12 +3,10 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import textwrap
 import numpy
 import onnx
-from onnx.helper import printable_graph, make_node
+from onnx.helper import make_node
 from onnx import numpy_helper, ModelProto
-from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 from ..onnx_types import ParametricTensor
 
 
@@ -24,7 +22,8 @@ from onnxscript.onnx_opset import opset{{ opsets[''] }}
 {% for domain, name, fct in functions: %}
 
 @script()
-def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{ ", ".join(map(rename, fct['proto'].input)) }}):
+def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
+    ", ".join(map(rename, fct['proto'].input)) }}):
     # attributes are missing
     {% if fct['proto'].doc_string %}"""
     {{ fct['proto'].doc_string }}
@@ -36,19 +35,24 @@ def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{ ",
 {% endfor %}
 
 @script()
-def {{ function_name }}({% if graph.input: %}{{ rename(graph.input[0].name) }}: {{ translate(graph.input[0].type) }}{% endif %}{% for i in graph.input[1:]:
-%}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> ({{ translate(graph.output[0].type) }}{% for o in graph.output[1:]: %}, {{ translate(o.type) }}{% endfor %}):
+def {{ function_name }}({% if graph.input: %}{{ rename(graph.input[0].name) }}: {{
+    translate(graph.input[0].type) }}{% endif %}{% for i in graph.input[1:]:
+%}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> ({{ 
+    translate(graph.output[0].type) }}{% for o in graph.output[1:]: %}, {{
+    translate(o.type) }}{% endfor %}):
     {% if doc_string %}"""
     {{ doc_string }}
     """{%- endif %}
 {{ python_make_node_graph(graph, opsets, indent=1) }}
-    return {{ rename(graph.output[0].name) }}{% for o in graph.output[1:]: %}, {{ rename(o.name) }}{% endfor %}
+    return {{ rename(graph.output[0].name) }}{%
+        for o in graph.output[1:]: %}, {{ rename(o.name) }}{% endfor %}
 
 
 {% for domain, version in unique_function_domain_version: %}
 {{ domain }}{{ version }} = Opset("{{ domain }}", {{ version }}){% endfor %}
 {%- for domain, name, fct in functions: %}
-{{ domain }}1.{{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }} = {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{% endfor %}
+{{ domain }}1.{{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }} = {{
+    python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{% endfor %}
 '''
 
 
@@ -178,7 +182,7 @@ def _python_make_node_graph(graph, opsets, indent=0, output_names=None):
     sindent = '    ' * indent
     for init in graph.initializer:
         node = make_node('Constant', [], [_rename_variable(init.name)], value=init)
-        code.append(_python_make_node(node, version, indent=indent))
+        code.append(_python_make_node(node, opsets, indent=indent))
     if len(graph.sparse_initializer) > 0:
         raise NotImplementedError(
             "Unable to convert sparse_initilizer into python.")
@@ -186,8 +190,8 @@ def _python_make_node_graph(graph, opsets, indent=0, output_names=None):
         code.append(_python_make_node(node, opsets, indent=indent))
     if output_names is not None:
         for fr, to in zip(graph.output, output_names):
-            code.append("%s%s = %s" % (sindent, _rename_variable(to),
-                                      _rename_variable(fr.name)))
+            code.append(
+                "%s%s = %s" % (sindent, _rename_variable(to), _rename_variable(fr.name)))
     final = "\n".join(code)
     return final
 
@@ -253,7 +257,7 @@ def _python_make_node_loop(node, opsets, indent=0):
     sindent = "    " * indent
     n_iter = node.input[0]
     cond = node.input[1]
-    v_initial = node.input[2]
+    # v_initial = node.input[2]
     rows = []
     if n_iter and not cond:
         rows.append("%sfor %s in range(%s):" % (
@@ -268,6 +272,7 @@ def _python_make_node_loop(node, opsets, indent=0):
     rows.append(_python_make_node_graph(body, opsets, indent=indent+1,
                                         output_names=node.output))
     return "\n".join(rows)
+
 
 def _python_make_node_scan(node, opsets, indent=0):
     """
@@ -381,10 +386,7 @@ def export_template(model_onnx, template,
         for fct in model_onnx.functions:
             opsets_fct = {}
             for oimp in fct.opset_import:
-                if oimp.domain == '' and opset is None:
-                    opsets_fct[oimp.domain] = oimp.version
-                else:
-                    opsets_fct[oimp.domain] = opset
+                opsets_fct[oimp.domain] = oimp.version
             functions.append(
                 (fct.domain, fct.name,
                  {'proto': fct,
@@ -401,8 +403,6 @@ def export_template(model_onnx, template,
         context['doc_string'] = model_onnx.doc_string
     else:
         context['doc_string'] = ""
-
-    mark_inits = {}
 
     # First rendering to detect any unused or replaced initializer.
     from jinja2 import Template  # delayed import
