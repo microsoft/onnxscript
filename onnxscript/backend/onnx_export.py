@@ -37,7 +37,7 @@ def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
 @script()
 def {{ function_name }}({% if graph.input: %}{{ rename(graph.input[0].name) }}: {{
     translate(graph.input[0].type) }}{% endif %}{% for i in graph.input[1:]:
-%}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> ({{ 
+%}, {{ rename(i.name) }}: {{ translate(i.type) }}{% endfor %}) -> ({{
     translate(graph.output[0].type) }}{% for o in graph.output[1:]: %}, {{
     translate(o.type) }}{% endfor %}):
     {% if doc_string %}"""
