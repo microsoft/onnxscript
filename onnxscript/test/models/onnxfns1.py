@@ -16,7 +16,7 @@
 # Element-type annotation for tensors
 
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset16 as op
 
 @script()
 def Relu(X):
@@ -79,30 +79,20 @@ def Softsign(X):
     one = op.CastLike(1, X)
     return X / (one + op.Abs(X))
 
+from onnxscript.onnx_types import OptionalFLOAT, FLOAT
 @script()
-def Clip(input, min = None, max = None):
-    # ort checks for input being referred by any node.
-    # If input is used directly in If body, it is a failure in Ort.
-    # Ort shall be fixed so that we do not need x_internals.
-    input_internal = op.Identity(input)
-    min_internal = op.Identity(min)
-    max_internal = op.Identity(max)
-    if min == None and max == None:
-        result = min_internal
-    elif max == None:
-        result = op.Where(input_internal < min_internal, min_internal, input_internal)
-    if min == None:
-        result = op.Where(input_internal > max_internal, max_internal, input_internal)
-    else:
-        result = input_internal
+def Clip(input, min: OptionalFLOAT[...] = None, max: OptionalFLOAT[...] = None):
+    result = input
+    if min != None:
+        result = op.Where(input < min, min, result)
+    if max != None:
+        result = op.Where(result > max, max, result)
 
-    # TODO: return from if blocks
     return result
 
-#from onnxscript.onnx_types import FLOAT
-# @script()
-# def option1(X, Bias: FLOAT[...] = None):
-#     Y = op.Log(X)
-#     if (Bias != None):
-#         Y = Y + Bias
-#     return Y
+@script()
+def option1(X, Bias: FLOAT[...] = None):
+    Y = op.Log(X)
+    if (Bias != None):
+        Y = Y + Bias
+    return Y

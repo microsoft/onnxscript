@@ -10,9 +10,10 @@ import onnx.helper
 class Tensor:
     # Reference implementation placeholder
     # represents a generic ONNX tensor type
-    def __init__(self, dtype=onnx.TensorProto.UNDEFINED, shape=None) -> None:
+    def __init__(self, dtype=onnx.TensorProto.UNDEFINED, shape=None, optional=False) -> None:
         self.dtype = dtype
         self.shape = shape
+        self.optional = optional
 
     def __str__(self) -> str:
         shapestr = str(self.shape) if self.shape else "[...]"
@@ -24,7 +25,11 @@ class Tensor:
 
     def to_type_proto(self):
         # TODO: handle None
-        return onnx.helper.make_tensor_type_proto(self.dtype, self.shape)
+        type_proto = onnx.helper.make_tensor_type_proto(self.dtype, self.shape)
+        if self.optional:
+            return onnx.helper.make_optional_type_proto(type_proto)
+        else:
+            return type_proto
 
 # Utilities used to create parametrized type-annotations for tensors.
 # Example type annotations:
@@ -38,8 +43,9 @@ class ParametricTensor:
     """
     Defines a dense tensor of any shape.
     """
-    def __init__(self, dtype) -> None:
+    def __init__(self, dtype, optional=False) -> None:
         self.dtype = dtype
+        self.optional = optional
 
     def __getitem__(self, shape):
         def mk_dim(dim):
@@ -57,15 +63,20 @@ class ParametricTensor:
             s = None
         else:
             s = [shape]
-        return Tensor(self.dtype, s)
+        return Tensor(self.dtype, s, self.optional)
 
     def to_type_proto(self):
-        return onnx.helper.make_tensor_type_proto(self.dtype, ())
+        type_proto = onnx.helper.make_tensor_type_proto(self.dtype, ())
+        if self.optional:
+            return onnx.helper.make_optional_type_proto(type_proto)
+        else:
+            return type_proto 
 
     def __repr__(self) -> str:
         return onnx.TensorProto.DataType.Name(self.dtype)
 
 
+OptionalFLOAT = ParametricTensor(onnx.TensorProto.FLOAT, True)
 FLOAT = ParametricTensor(onnx.TensorProto.FLOAT)
 UINT8 = ParametricTensor(onnx.TensorProto.UINT8)
 INT8 = ParametricTensor(onnx.TensorProto.INT8)

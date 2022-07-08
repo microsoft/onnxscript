@@ -261,7 +261,17 @@ class Function:
         return graph, sub_functions
 
     def to_function_proto(self, domain):
-        opsets = {'': 15}
+        """
+        Converts a function into a *FunctionProto* after it is parsed
+        by the converter.
+
+        .. warning:: About default values
+
+            Default values for attributes are introduced in onnx==1.13.0.
+            If an earlier version of onnx is installed, it ignores the default
+            values of the function arguments.
+        """
+        opsets = {'': 16}
         if domain != '':
             opsets[domain.domain] = domain.version
         else:
@@ -272,6 +282,22 @@ class Function:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
+
+        # attribute_proto is introduced in version onnx==1.13.0.
+        # If this attribute is available, onnx-script uses it to
+        # default values for attributes. The function has then two
+        # lists, one list for attributes without default values,
+        # another one for attributes with default values.
+        # If this *attribute_proto* is not available,
+        # all attributes with a default value are moved to the first
+        # list, default values are removed.
+        # TODO: remove this when onnx==1.13.0 is released.
+        if hasattr(onnx.FunctionProto, 'attribute_proto'):
+            atts = [a.name for a in self.attrs]
+        else:
+            atts = ([a.name for a in self.attrs] +
+                    [a.attr_proto.name for a in self.attr_protos])
+
         f = helper.make_function(
             self.domain,
             self.name,
@@ -279,9 +305,10 @@ class Function:
             outputs=[y.name for y in self.outputs],
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
-            attributes=[a.name for a in self.attrs],
+            attributes=atts,
             doc_string=self.docstring)
-        f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+        if hasattr(onnx.FunctionProto, 'attribute_proto'):
+            f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
         return f
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter

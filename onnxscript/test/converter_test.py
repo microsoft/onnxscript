@@ -7,6 +7,7 @@ import unittest
 import os
 import warnings
 import types
+from packaging.version import Version
 import numpy as np
 import onnx
 from onnx.helper import printable_graph
@@ -14,7 +15,7 @@ from onnx.onnx_cpp2py_export.checker import ValidationError
 import onnxruntime
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.values import OnnxFunction
 
@@ -73,7 +74,8 @@ class TestConverter(unittest.TestCase):
                 try:
                     onnx.checker.check_model(model)
                 except ValidationError as e:
-                    if "Field 'shape' of 'type' is required but missing" in str(e):
+                    if ("Field 'shape' of 'type' is required but missing" in str(e) or
+                            "Field 'shape' of type is required but missing" in str(e)):
                         # input or output shapes are missing because the function
                         # was defined with FLOAT[...].
                         warnings.warn(str(e))
@@ -116,6 +118,10 @@ class TestConverter(unittest.TestCase):
         self.validate(onnxfns1A)
         self.validate_save(onnxfns1A)
 
+    def test_ort_custom_ops(self):
+        from onnxscript.test.functions import ort_custom_ops
+        self.validate(ort_custom_ops)
+
     def test_unary_op(self):
         from onnxscript.test.models import m1
         self.validate_save(m1)
@@ -126,6 +132,8 @@ class TestConverter(unittest.TestCase):
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
 
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.12'),
+                     reason="onnxruntime does not support that scenario.")
     def test_subfunction(self):
         from onnxscript.test.models import subfunction
         self.validate_save(subfunction, check_ort=True)
@@ -154,6 +162,37 @@ class TestConverter(unittest.TestCase):
         # shape_inference crashes on stft.
         self.validate_save(signal_dft, shape_inference=False)
 
+    def test_multi(self):
+        from onnxscript.test.models import multi
+        self.validate_save(multi, shape_inference=False)
+
+    def test_dropout(self):
+        from onnxscript.test.models import dropout
+        self.validate_save(dropout, shape_inference=False)
+
+    def test_attrref(self):
+        from onnxscript.test.models import attrref
+        self.validate_save(attrref, shape_inference=False)
+
+    def test_renaming(self):
+        from onnxscript.test.models import renaming
+        self.validate_save(renaming, shape_inference=False)
+
+    @unittest.skipIf(True, reason="TypeError: val must be numeric not <class 'NoneType'>")
+    def test_opt_output(self):
+        from onnxscript.test.models import opt_output
+        self.validate_save(opt_output, shape_inference=False)
+
+    def test_opt_input(self):
+        from onnxscript.test.models import opt_input
+        self.validate_save(opt_input, shape_inference=False)
+
+    @unittest.skipIf(True, reason="ValueError: A function with attributes "
+                                  "cannot be exported as a model.")
+    def test_onnxfns2(self):
+        from onnxscript.test.models import onnxfns2
+        self.validate_save(onnxfns2, shape_inference=False)
+
     def test_none_as_input(self):
         '''
         Test that use of None as an actual parameter is accepted.
@@ -181,9 +220,32 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(g.output[0].type.tensor_type.elem_type, 11)
         self.validate_save(type_double, check_ort=True)
 
+    def test_cast_like(self):
+        from onnxscript.test.models import cast_like
+        fcts = self.validate_save(cast_like, check_ort=True)
+        for name in ['inc_right', 'inc_left', 'cmp_zero_right', 'cmp_zero_left',
+                     'div_right']:
+            f = fcts[name]
+            self.assertIn("int64_data", str(f))
+            self.assertIn('op_type: "CastLike"', str(f))
+
+    def test_opset_import(self):
+        from onnxscript.test.models import different_opset
+        fcts = self.validate_save(different_opset, shape_inference=False)
+        s16 = str(fcts['shape_A'])
+        s14 = str(fcts['shape_B'])
+        sdef = str(fcts['inc_any'])
+        self.assertIn("version: 16", s16)
+        self.assertNotIn("version: 14", s16)
+        self.assertIn("version: 14", s14)
+        self.assertNotIn("version: 16", s14)
+        self.assertIn("version: 16", sdef)
+        self.assertNotIn("version: 14", sdef)
+        self.assertNotIn("version: 15", sdef)
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_none_as_input()
+    # TestConverter().test_opset_import()
     unittest.main()

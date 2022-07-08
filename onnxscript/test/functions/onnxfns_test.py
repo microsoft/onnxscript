@@ -63,11 +63,16 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_hard_softsign(self):
         self.run_onnx_test(onnxfns1.Softsign)
 
-    # def test_onnxfns_hard_clip(self):
-    #     self.run_onnx_test(onnxfns1.Clip)
+    def test_onnxfns_hard_clip(self):
+        self.run_onnx_test(
+            onnxfns1.Clip,
+            skip_test_names=[
+                'test_clip_default_int8_min',
+                'test_clip_default_int8_max',
+                'test_clip_default_int8_inbounds'])
 
     # def test_onnxfns_option1(self):
-    #     self.run_onnx_test(onnxfns1A.option1)
+    #     self.run_onnx_test(onnxfns1.option1)
 
 
 
