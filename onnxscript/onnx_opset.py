@@ -33,4 +33,4 @@ if onnx_opset_version() >= 16:
     opset16 = Opset("", 16)
 
 if onnx_opset_version() >= 17:
-    opset16 = Opset("", 17)
+    opset17 = Opset("", 17)

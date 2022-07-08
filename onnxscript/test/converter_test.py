@@ -248,5 +248,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_cast_like()
+    # TestConverter().test_opset_import()
     unittest.main()
