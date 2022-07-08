@@ -299,6 +299,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
             output_names.append('_' * (i + 1))
         else:
             output_names.append(_rename_variable(o))
+
     text = [sindent, ", ".join(output_names), " = ", name,
             '(',
             ', '.join(map(_rename_variable_s, node.input)),

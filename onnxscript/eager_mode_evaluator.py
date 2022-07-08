@@ -15,6 +15,10 @@ from .utils import convert_arrays_to_value_infos
 from .irbuilder import select_ir_version
 
 
+class EagerModeError(RuntimeError):
+    pass
+
+
 def convert_to_tensor(v, k):
     if isinstance(v, np.ndarray):
         return numpy_helper.from_array(v)
@@ -48,9 +52,17 @@ def _rename_io(prefix, i, arg):
 
 
 def _compute_outputs(schema, *args, **kwargs):
-    if schema.domain == '' and schema.name == 'BatchNormalization':
-        if not kwargs.get('training_mode', 0):
-            return ["output0"]
+    if schema.domain == '':
+        if schema.name == 'BatchNormalization':
+            if not kwargs.get('training_mode', 0):
+                return ["output0"]
+        if schema.name == 'LSTM':
+            return ["output0", "output1", "output2"]
+        if schema.name == 'Split':
+            if len(args) == 1:
+                raise EagerModeError(
+                    "Operator Split: the number of expected outputs defines the split. "
+                    "This information is unknown here.")
     return None
 
 
