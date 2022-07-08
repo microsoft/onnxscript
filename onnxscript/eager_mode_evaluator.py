@@ -47,12 +47,25 @@ def _rename_io(prefix, i, arg):
     return "%s%d" % (prefix, i)
 
 
+def _compute_outputs(schema, *args, **kwargs):
+    if schema.domain == '' and schema.name == 'BatchNormalization':
+        if not kwargs.get('training_mode', 0):
+            return ["output0"]
+    return None
+
+
 def call_ort(schema, *args, **kwargs):
     convert_attributes_to_tensors_with_schema(
         kwargs, schema.attributes)
 
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
-    outputs = ["output" + str(i) for i in range(len(schema.outputs))]
+
+    # The number of outputs may be different based on the inputs.
+    # The schema alone cannot be used in all cases (see BachNormalization).
+    outputs = _compute_outputs(schema, *args, **kwargs)
+    if outputs is None:
+        outputs = ["output" + str(i) for i in range(len(schema.outputs))]
+
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
     input_value_infos = convert_arrays_to_value_infos(
         inputs, list(args), schema.inputs)

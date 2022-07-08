@@ -202,10 +202,15 @@ def _python_make_node_make_attribute_str(node):
         if isinstance(value, numpy.ndarray):
             if at.name == 'value':
                 onnx_dtype = at.t.data_type
-                text = (
-                    'make_tensor("value", %s, dims=%r, vals=%r)'
-                    '' % (onnx_dtype, list(value.shape),
-                          value.tolist()))
+                if len(value.shape) == 0:
+                    text = (
+                        'make_tensor("value", %s, dims=[], vals=[%r])'
+                        '' % (onnx_dtype, value.tolist()))
+                else:
+                    text = (
+                        'make_tensor("value", %s, dims=%r, vals=%r)'
+                        '' % (onnx_dtype, list(value.shape),
+                              value.ravel().tolist()))
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value.tolist())))
@@ -275,7 +280,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
             "Unable to export node type %r into python." % node.op_type)
     ops = {'Add': '+', 'Sub': '-', 'Mul': '*', 'MatMul': '@',
            'Div': '/', 'Pow': '**', 'Mod': '%',
-           'And': 'and', 'Or': 'Or', 'Greater': '>', 'Equal': '==',
+           'And': '&', 'Or': '|', 'Greater': '>', 'Equal': '==',
            'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<=',
            'Not': 'not'}
     sindent = "    " * indent
@@ -288,8 +293,13 @@ def _python_make_node(onnx_node, opsets, indent=0):
     attributes_str = _python_make_node_make_attribute_str(node)
     if len(node.input) > 0 and len(attributes_str) > 0:
         attributes_str = ", " + attributes_str
-    output = ", ".join(map(_rename_variable, node.output))
-    text = [sindent, output, " = ", name,
+    output_names = []
+    for i, o in enumerate(node.output):
+        if o in ('', None):
+            output_names.append('_' * (i + 1))
+        else:
+            output_names.append(_rename_variable(o))
+    text = [sindent, ", ".join(output_names), " = ", name,
             '(',
             ', '.join(map(_rename_variable_s, node.input)),
             attributes_str,

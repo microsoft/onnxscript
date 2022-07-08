@@ -94,6 +94,9 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
 # map from python operators to ONNX ops
 primop_map = {
     ast.Add: "Add",
+    ast.And: "And",
+    ast.BitAnd: "And",
+    ast.BitOr: "Or",
     ast.Div: "Div",
     ast.Eq: "Equal",
     ast.Gt: "Greater",
@@ -105,6 +108,7 @@ primop_map = {
     ast.Mult: "Mul",
     ast.Not: "Not",
     ast.NotEq: 'NotEqual',
+    ast.Or: "Or",
     ast.Pow: "Pow",
     ast.Sub: "Sub",
     ast.USub: "Neg",
@@ -413,7 +417,7 @@ class Converter:
     def translate_expr(self, node, target="tmp"):
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
-        elif isinstance(node, ast.BinOp):
+        elif isinstance(node, (ast.BinOp, ast.BoolOp, ast.BitAnd, ast.BitOr)):
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
@@ -476,8 +480,14 @@ class Converter:
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
-        left = self.translate_expr(node.left)
-        right = self.translate_expr(node.right)
+        if hasattr(node, 'left'):
+            # operation
+            left = self.translate_expr(node.left)
+            right = self.translate_expr(node.right)
+        else:
+            # and, or
+            left = self.translate_expr(node.values[0])
+            right = self.translate_expr(node.values[1])
         left, right = self._cast_like_binary_expression(left, right)
         return Op(self.default_opset, opname), [left, right], []
 

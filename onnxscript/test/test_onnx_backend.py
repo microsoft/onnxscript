@@ -142,8 +142,18 @@ class TestOnnxBackEnd(unittest.TestCase):
                 # opset may be different when an binary operator is used.
                 if te.onnx_model.ir_version != proto.ir_version:
                     if (not te.name.startswith("test_mul") and
-                            te.name not in {'test_mul'}):
-                        self.assertEqual(te.onnx_model.ir_version, proto.ir_version)
+                            not te.name.startswith("test_sub") and
+                            not te.name.startswith("test_div") and
+                            not te.name.startswith("test_and") and
+                            not te.name.startswith("test_equal") and
+                            te.name not in {'test_mul', 'test_equal'}):
+                        if te.onnx_model.ir_version != proto.ir_version:
+                            if (te.onnx_model.ir_version, proto.ir_version) != (5, 6):
+                                # ir_version should be 6 for opset 11.
+                                raise AssertionError(
+                                    "Incompable ir_version %d != %d\n%s\n-----\n%s" % (
+                                        te.onnx_model.ir_version, proto.ir_version,
+                                        te.onnx_model, proto))
 
                 # check converted onnx
                 def load_fct(obj):
@@ -194,7 +204,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                     print("  check eager")
                 te.run(lambda obj: main, exec_main)
                 if verbose > 1:
-                    print("  done")
+                    print("  end example.")
 
         if __name__ == '__main__':
             path = os.path.dirname(onnx_file)
@@ -223,7 +233,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one(self):
         self.common_test_enumerate_onnx_tests_run(
-            lambda name: "test_mul" in name,
+            lambda name: "test_less_equal_bcast_expanded" in name,
             verbose=4 if __name__ == "__main__" else 0)
 
 
