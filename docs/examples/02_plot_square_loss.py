@@ -10,7 +10,7 @@ This example demonstrates the use of *onnx-script* to define an ONNX model.
 # First, we define the implementation of a square-loss function in onnxscript.
 
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 
 @script()

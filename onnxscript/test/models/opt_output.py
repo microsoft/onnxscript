@@ -1,6 +1,6 @@
 from tkinter import Y
 from onnxscript import script
-from onnxscript.onnx import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 # from onnxscript.onnx_types import FLOAT
 
 # Issues relating to optional output
