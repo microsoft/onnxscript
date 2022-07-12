@@ -1,5 +1,5 @@
 """
-Selu as a function
+Generating a FunctionProto
 =====================================
 
 The example below shows how we can define Selu as a function in onnxscript.
@@ -9,11 +9,11 @@ The example below shows how we can define Selu as a function in onnxscript.
 from onnxscript import script
 
 #%%
-# Import ONNX opset used in the function/model.
+# First, import the ONNX opset used to define the function.
 from onnxscript.onnx import opset15 as op
 
 #%%
-# Define Selu as an ONNXScript function.
+# Next, define Selu as an ONNXScript function.
 
 
 @script()
@@ -26,10 +26,15 @@ def Selu(X, alpha: float, gamma: float):
     return op.Where(X <= zero, neg, pos)
 
 #%%
-# Let's see how the translated function looks like.
+# We can convert the ONNXScript function to an ONNX function (FunctionProto) as below:
+
+onnx_fun = Selu.to_function_proto()
+
+#%%
+# Let's see what the translated function looks like:
 import onnx
 import onnx.printer
-print(onnx.printer.to_text(Selu.to_function_proto()))
+print(onnx.printer.to_text(onnx_fun))
 
 #%%
 # 

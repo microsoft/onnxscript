@@ -1,11 +1,11 @@
 """
-Exporting a library of multiple functions
+Generating a LibProto
 ===================================================
 
-The examples below show how we can define a library consisting
-of multiple functions.
+The examples below show how we can define a library consisting of multiple functions,
+and export it.
 
-**This is preliminary. Proto extensions required to fully support LibProto.**
+**This is preliminary. Proto extensions are required to fully support LibProto.**
 """
 
 from onnxscript import script, export_onnx_lib
