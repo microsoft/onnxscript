@@ -1,14 +1,14 @@
 """
-Generating a ModelProto
-=======================
+Use onnx-script to implement square loss function
+=================================================
 
-This example demonstrates the use of *onnx-script* to define an ONNX model.
-*onnx-script* behaves like a compiler. It converts a script into an ONNX model.
-
+This example demonstrates *onnx-script* on one simple function.
+*onnx-script* behaves like a compiler. It converts a script into
+an ONNX graph.
 """
 
 #%%
-# First, we define the implementation of a square-loss function in onnxscript.
+# First the implementation of a square loss.
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
@@ -21,24 +21,24 @@ def square_loss(X: FLOAT["N", 1], Y: FLOAT["N", 1]) -> FLOAT[1, 1]:
 
 
 #%%
-# We can convert it to a model (an ONNX *ModelProto*) as follows:
+# Convert it to a model.
 
 model = square_loss.to_model_proto()
 
 #%%
-# Let's see what the generated model looks like.
-from onnxscript.utils import proto_to_text
-print(proto_to_text(model))
+# Let's see how the graph looks like.
+import onnx
+print(onnx.helper.printable_graph(model.graph))
 
 #%%
-# We can run shape-inference and type-check the model using the standard ONNX API.
-import onnx
+# Check the model
+
 model = onnx.shape_inference.infer_shapes(model)
 onnx.checker.check_model(model)
 
 #%%
-# And finally, we can use *onnxruntime* to compute the outputs
-# based on this model, using the standard onnxruntime API.
+# And finally, we use *onnxruntime* to compute the outputs
+# based on this graph.
 import numpy as np
 from onnxruntime import InferenceSession
 
