@@ -19,9 +19,12 @@ from onnxscript.values import Opset
 from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
 from onnxscript.onnx_opset import opset{{ opsets[''] }}
 
+{% for domain, version in unique_function_domain_version: %}
+{{ domain }}{{ version }} = Opset("{{ domain }}", {{ version }}){% endfor %}
+
 {% for domain, name, fct in functions: %}
 
-@script()
+@script({{ domain }}{{ version }})
 def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
     ", ".join(map(rename, fct['proto'].input)) }}):
     # attributes are missing
@@ -46,13 +49,6 @@ def {{ function_name }}({% if graph.input: %}{{ rename(graph.input[0].name) }}: 
 {{ python_make_node_graph(graph, opsets, indent=1) }}
     return {{ rename(graph.output[0].name) }}{%
         for o in graph.output[1:]: %}, {{ rename(o.name) }}{% endfor %}
-
-
-{% for domain, version in unique_function_domain_version: %}
-{{ domain }}{{ version }} = Opset("{{ domain }}", {{ version }}){% endfor %}
-{%- for domain, name, fct in functions: %}
-{{ domain }}1.{{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }} = {{
-    python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{% endfor %}
 '''
 
 
@@ -127,9 +123,9 @@ def _translate_type(onnx_type):
                     shape.append(str(d.dim_value))
                 else:
                     shape.append(d.dim_param)
-            if len(shape) > 0:
-                return "%s[%s]" % (name, ",".join(shape))
-            return name + "[...]"
+            if len(shape) == 0:
+                return name + "[...]"
+            return "%s[%s]" % (name, ",".join(shape))
         return name
     raise NotImplementedError(
         "Unable to translate type %r into onnx-script type." % onnx_type)
@@ -255,8 +251,8 @@ def _python_make_node_loop(node, opsets, indent=0):
     """
     body = node.attribute[0].g
     sindent = "    " * indent
-    n_iter = node.input[0]
-    cond = node.input[1]
+    n_iter = _rename_variable(node.input[0])
+    cond = _rename_variable(node.input[1])
     # v_initial = node.input[2]
     rows = []
     if n_iter and not cond:

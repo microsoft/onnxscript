@@ -25,12 +25,9 @@ def select_ir_version(version, domain=''):
     Selects the corresponding ir_version knowning the opset version
     for the main ONNX domain.
     """
-    known = {
-        1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3,
-        7: 3, 8: 4, 9: 4, 10: 5, 11: 6, 12: 7,
-        13: 7, 14: 7, 15: 8, 16: 8, 17: 8
-    }
-    return known.get(version, 8)
+    if domain == '':
+        domain = 'ai.onnx'
+    return helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
 class Type:
