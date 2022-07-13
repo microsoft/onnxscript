@@ -9,6 +9,11 @@ from typing import Any, Sequence
 import onnx
 from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
 
+# print utility unavailable in ONNX 1.12 or earlier:
+try:
+    from onnx.printer import to_text as proto_to_text
+except ImportError:
+    def proto_to_text (x): return "<print utility unavailable>"
 
 def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):
     # ONNX TensorProto data type is a supper set of python dtype.
