@@ -9,7 +9,7 @@ opsets and types
 Opsets
 ++++++
 
-.. automodule:: onnxscript.onnx
+.. automodule:: onnxscript.onnx_opset
 
     .. autodata:: opset15
         :annotation: All operators defined in opset 15 for the main domain.
