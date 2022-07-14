@@ -3,6 +3,9 @@
 
 import sys
 import onnxscript
+import re
+import os
+import sphinx_gallery.sorting
 
 
 # -- Project information -----------------------------------------------------
@@ -67,4 +70,6 @@ sphinx_gallery_conf = {
     'gallery_dirs': ['auto_examples'],
     'capture_repr': ('_repr_html_', '__repr__'),
     'ignore_repr_types': r'matplotlib.text|matplotlib.axes',
+    'filename_pattern': re.escape(os.sep) + '[0-9]*_?plot_',
+    'within_subsection_order': sphinx_gallery.sorting.FileNameSortKey,
 }
