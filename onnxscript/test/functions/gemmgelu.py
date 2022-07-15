@@ -10,10 +10,10 @@ from onnxscript.onnx_opset import opset15 as op
 
 @script()
 def gemmgelu(
-        A: FLOAT[2048, 16],
-        W: FLOAT[16, 4096],
-        Bias: FLOAT[4096]
-) -> FLOAT[2048, 4096]:
+        A: FLOAT[2, 4],
+        W: FLOAT[4, 8],
+        Bias: FLOAT[8]
+) -> FLOAT[2, 8]:
 
     a = op.Constant(value_float=0.5)
     b = op.Constant(value_float=0.797885)
