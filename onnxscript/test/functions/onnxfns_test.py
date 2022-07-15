@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 import unittest
+import onnx
 from onnxscript.test.functions.onnx_script_test_case import OnnxScriptTestCase
 from onnxscript.test.functions.onnx_script_test_case import FunctionTestParams
 from onnxscript.test.models import onnxfns1
@@ -65,6 +66,8 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_hard_softsign(self):
         self.run_onnx_test(onnxfns1.Softsign)
 
+    @unittest.skipIf(not hasattr(onnx.FunctionProto, 'attribute_proto'),
+                     reason="current onnx does not support default values")
     def test_onnxfns_hard_clip(self):
         self.run_onnx_test(
             onnxfns1.Clip,
@@ -73,6 +76,8 @@ class TestOnnxFns(OnnxScriptTestCase):
                 'test_clip_default_int8_max',
                 'test_clip_default_int8_inbounds'])
 
+    @unittest.skipIf(not hasattr(onnx.FunctionProto, 'attribute_proto'),
+                     reason="current onnx does not support default values")
     def test_onnxfns_call_clip_script_function(self):
         input = np.array([-2, 0, 2]).astype(np.float32)
         min_val = np.array([-1]).astype(np.float32)
