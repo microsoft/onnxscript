@@ -8,7 +8,6 @@ from io import StringIO
 import onnx
 from onnx import OperatorSetIdProto
 import onnx.helper as helper
-from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
 from .values import Opset
 
@@ -214,7 +213,7 @@ class Function:
                 func_opset_imports.append(
                     OperatorSetIdProto(domain=s.module.domain, version=s.module.version))
         return func_opset_imports
-        
+
     def to_model_proto(self, functions=None, io_types=None, **kwargs):
         """
         Converts the content of this class into a `onnx.ModelProto`.
@@ -239,7 +238,11 @@ class Function:
         if '' not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
-            opsets[''] = 15 # onnx_opset_version()
+            # onnx_opset_version() will not work for many tests
+            # which is already hardcoded with 15.
+            # we need to set opset version according to what is used in the graph.
+            # this needs a separate PR because it is a big change.
+            opsets[''] = 15
         for proto in functions:
             if proto.domain not in opsets:
                 opsets[proto.domain] = 1

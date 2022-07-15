@@ -70,7 +70,7 @@ class ParametricTensor:
         if self.optional:
             return onnx.helper.make_optional_type_proto(type_proto)
         else:
-            return type_proto 
+            return type_proto
 
     def __repr__(self) -> str:
         return onnx.TensorProto.DataType.Name(self.dtype)

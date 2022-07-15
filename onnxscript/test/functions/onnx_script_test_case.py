@@ -69,14 +69,17 @@ class OnnxScriptTestCase(unittest.TestCase):
 
         # models from onnx test case do not have optional input if test data
         # are not provided for the input.
-        # models from script keep all optional inputs, notwithstanding test data availability.
+        # models from script keep all optional inputs,
+        # notwithstanding test data availability.
         # to run script model with onnx test data, we need to map input test data
         # to the corresponding script model input.
         if onnx_case_model:
             input_index_map_op_to_model = self._map_op_input_to_model(onnx_case_model)
 
-            test_case_input_value_infos = utils.convert_arrays_to_value_infos(input_names, param.input)
-            script_model_input_type_infos = [input.typeinfo.to_type_proto() if input.typeinfo else None for input in param.function.function_ir.inputs]
+            test_case_input_value_infos =\
+                utils.convert_arrays_to_value_infos(input_names, param.input)
+            script_model_input_type_infos = [input.typeinfo.to_type_proto()\
+                if input.typeinfo else None for input in param.function.function_ir.inputs]
             input_value_infos = [None] * len(script_model_input_type_infos)
 
             for i in range(len(script_model_input_type_infos)):
@@ -88,12 +91,15 @@ class OnnxScriptTestCase(unittest.TestCase):
                 if index_test_case_input >= 0:
                     if script_model_input_type_infos[i]:
                         input_value_infos[i] = onnx.helper.make_value_info(
-                            test_case_input_value_infos[index_test_case_input].name, script_model_input_type_infos[i])
+                            test_case_input_value_infos[index_test_case_input].name,
+                            script_model_input_type_infos[i])
                     else:
-                        input_value_infos[i] = test_case_input_value_infos[index_test_case_input]
+                        input_value_infos[i] =\
+                            test_case_input_value_infos[index_test_case_input]
                 else:
                     # test data is missing for an optional input
-                    assert script_model_input_type_infos[i], "type info is not provided for optional input"
+                    assert script_model_input_type_infos[i],\
+                        "type info is not provided for optional input"
                     input_value_infos[i] = onnx.helper.make_value_info(
                         "input_" + str(i), script_model_input_type_infos[i])
         else:
@@ -120,7 +126,7 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_converter_test(
         self,
         param: FunctionTestParams,
-        onnx_case_model: ModelProto=None):
+        onnx_case_model: ModelProto = None):
         # we need the latest version in onnx.ai domain
         # to build a function
         if onnx_case_model:
@@ -153,11 +159,12 @@ class OnnxScriptTestCase(unittest.TestCase):
             param: FunctionTestParams,
             rtol: float = None,
             atol: float = None,
-            onnx_case_model: ModelProto=None):
+            onnx_case_model: ModelProto = None):
         input_index_map_op_to_model = None
         if onnx_case_model:
             input_index_map_op_to_model = self._map_op_input_to_model(onnx_case_model)
-        if input_index_map_op_to_model and any([idx == -1 for idx in input_index_map_op_to_model]):
+        if input_index_map_op_to_model and any(
+                [idx == -1 for idx in input_index_map_op_to_model]):
             # there are missing optional input.
             # shall call script function with named args for optional inputs
             function_ir_input = param.function.function_ir.inputs
@@ -166,7 +173,8 @@ class OnnxScriptTestCase(unittest.TestCase):
             for i, input in enumerate(function_ir_input):
                 if input.typeinfo and input.typeinfo.optional:
                     if input_index_map_op_to_model[i] != -1:
-                        optional_input_dict[input.name] = param.input[input_index_map_op_to_model[i]]
+                        optional_input_dict[input.name] = \
+                            param.input[input_index_map_op_to_model[i]]
                     if first_optional_input_index == -1:
                         first_optional_input_index = i
 
@@ -220,4 +228,5 @@ class OnnxScriptTestCase(unittest.TestCase):
                         function, ds[0], ds[1], attrs=test_case_attrs)
                     self.run_converter_test(param, case.model)
                     if not skip_eager_test:
-                        self.run_eager_test(param, rtol=rtol, atol=atol, onnx_case_model=case.model)
+                        self.run_eager_test(
+                            param, rtol=rtol, atol=atol, onnx_case_model=case.model)

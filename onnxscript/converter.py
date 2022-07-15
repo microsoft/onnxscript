@@ -64,8 +64,6 @@ def py_type_to_onnx_type(pytype: type, converter):
         return onnx.TensorProto.FLOAT
     if pytype is str:
         return onnx.TensorProto.STRING
-    if pytype is type(None):
-        return onnx.TensorProto.UNDEFINED
     fail(DebugInfo(pytype, converter).msg(
         f"Tensor conversion of element of type {pytype} is not implemented"))
 
@@ -436,7 +434,8 @@ class Converter:
                 callee, args, attrs = r
                 self.emit([result], callee, args, attrs)
                 if callee.opname == "OptionalHasElement":
-                    return ConverterExpression(result, ConverterExpressionKind.ANY), {args[0]: args[0] + "_tensor"}
+                    return ConverterExpression(
+                        result, ConverterExpressionKind.ANY), {args[0]: args[0] + "_tensor"}
                 return ConverterExpression(result, ConverterExpressionKind.ANY)
             results = [self.generate_unique_name(x) for x in target]
             callee, args, attrs = r
@@ -542,8 +541,8 @@ class Converter:
             return False
 
         if left_is_input(left):
-            if isinstance(node.comparators[0], ast.NameConstant) and\
-                node.comparators[0].value is None:
+            if isinstance(node.comparators[0], ast.NameConstant)\
+                    and node.comparators[0].value is None:
                 return Op(self.default_opset, "OptionalHasElement"), [left.name], []
 
         right = self.translate_expr(node.comparators[0])
@@ -783,8 +782,8 @@ class Converter:
                               info=DebugInfo(for_stmt, self))
 
     # Translation of a statement-block to GraphProto attribute
-    def translate_block(self, stmts, name, live_defs, parent_stmt=None,
-        map_optional_to_tensor=None):
+    def translate_block(
+            self, stmts, name, live_defs, parent_stmt=None, map_optional_to_tensor=None):
         """
         Translation of a statement-block to GraphProto attribute.
         """
@@ -800,7 +799,8 @@ class Converter:
                 [optional_get_input], [])
             self.locals[len(self.locals) - 1][optional_get_output] = Dynamic(
                 optional_get_output, DynamicKind.Intermediate, DebugInfo(info_stmt, self))
-            self.optional_to_tensor_maps[len(self.optional_to_tensor_maps) - 1][optional_get_input] = optional_get_output
+            s_index = len(self.optional_to_tensor_maps) - 1
+            self.optional_to_tensor_maps[s_index][optional_get_input] = optional_get_output
 
         for s in stmts:
             self.translate_stmt(s)
