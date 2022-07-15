@@ -218,7 +218,6 @@ class OnnxScriptTestCase(unittest.TestCase):
                     tests models with one operator node.")
 
             if case.name not in skip_test_names:
-                print(case.name)
                 test_case_attrs = {
                     a.name: onnx.helper.get_attribute_value(a)
                     for a in case.model.graph.node[0].attribute}
