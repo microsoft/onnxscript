@@ -6,6 +6,7 @@
 import logging
 from io import StringIO
 import onnx
+from onnx import OperatorSetIdProto
 import onnx.helper as helper
 from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
@@ -203,6 +204,17 @@ class Function:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[opf.name] = proto
 
+    def get_opset_import(self):
+        def opset_exist(opset_imports, domain, version):
+            return any(domain == o.domain and version == o.version for o in opset_imports)
+
+        func_opset_imports = []
+        for s in self.stmts:
+            if not opset_exist(func_opset_imports, s.module.domain, s.module.version):
+                func_opset_imports.append(
+                    OperatorSetIdProto(domain=s.module.domain, version=s.module.version))
+        return func_opset_imports
+        
     def to_model_proto(self, functions=None, io_types=None, **kwargs):
         """
         Converts the content of this class into a `onnx.ModelProto`.
@@ -227,7 +239,7 @@ class Function:
         if '' not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
-            opsets[''] = onnx_opset_version()
+            opsets[''] = 15 # onnx_opset_version()
         for proto in functions:
             if proto.domain not in opsets:
                 opsets[proto.domain] = 1

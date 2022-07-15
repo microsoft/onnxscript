@@ -97,6 +97,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
 primop_map = {
     ast.Add: "Add",
     ast.And: "And",
+    ast.Or: "Or",
     ast.Div: "Div",
     ast.Eq: "Equal",
     ast.Gt: "Greater",
@@ -188,7 +189,6 @@ class Converter:
         self.pure_modules = ["onnxscript"]
         self.this_module = opset
         self.default_opset_ = default_opset
-        self.map_optional_to_tensor = {}
 
     @property
     def default_opset(self):
@@ -219,11 +219,13 @@ class Converter:
         self.nextvar = 0
         self.used_vars = set()
         self.locals = [{}]
+        self.optional_to_tensor_maps = [{}]
 
     def enter_scope(self, name, parent_node):
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
+        self.optional_to_tensor_maps.insert(0, {})
         logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
@@ -232,6 +234,7 @@ class Converter:
         self.current_fn = self.outer[0]
         self.outer.pop(0)
         self.locals.pop(0)
+        self.optional_to_tensor_maps.pop(0)
         return graph
 
     def current_scope(self):
@@ -242,9 +245,9 @@ class Converter:
         self.locals[0][name] = val
 
     def lookup(self, name, info, raise_exception=True):
-        if self.map_optional_to_tensor and name in self.map_optional_to_tensor:
-            name = self.map_optional_to_tensor[name]
-        for scope in self.locals:
+        for scope, optional_to_tensor_map in zip(self.locals, self.optional_to_tensor_maps):
+            if name in optional_to_tensor_map and optional_to_tensor_map[name] in scope:
+                return scope[optional_to_tensor_map[name]]
             if name in scope:
                 return scope[name]
         if name in self.globals:
@@ -300,6 +303,8 @@ class Converter:
         self.ir_builder.add_docstring(self.current_fn, docstring)
 
     def emit(self, outputs, callee, inputs, attrs, sub_functions=None):
+        if callee.opname == "And":
+            print("")
         if callee.opname == 'NotEqual':
             if len(attrs) != 0:
                 raise RuntimeError(
@@ -426,9 +431,9 @@ class Converter:
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
                 callee, args, attrs = r
-                if callee.opname == "OptionalHasElement":
-                    self.map_optional_to_tensor = {args[0]: args[0] + "_tensor"}
                 self.emit([result], callee, args, attrs)
+                if callee.opname == "OptionalHasElement":
+                    return ConverterExpression(result, kind), {args[0]: args[0] + "_tensor"}
                 return ConverterExpression(result, kind)
             results = [self.generate_unique_name(x) for x in target]
             callee, args, attrs = r
@@ -659,11 +664,16 @@ class Converter:
 
     def translate_if_stmt(self, stmt: ast.If):
         live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
-        test = self.translate_expr(stmt.test, "cond").name
+        converter_expr_ = self.translate_expr(stmt.test, "cond")
+        if isinstance(converter_expr_, tuple):
+            cond, map_optional_to_tensor = converter_expr_
+        else:
+            cond, map_optional_to_tensor = converter_expr_, None
         lineno = DebugInfo(stmt, self).lineno
 
         thenGraph, sub_fct_then = self.translate_block(
-            stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt)
+            stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt,
+            map_optional_to_tensor=map_optional_to_tensor)
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
             stmt.orelse, "elseGraph_%d" % lineno, live_defs, parent_stmt=stmt)
@@ -678,7 +688,7 @@ class Converter:
         sub_functions = {}
         sub_functions.update(sub_fct_then)
         sub_functions.update(sub_fct_else)
-        self.emit(renamed, Op(self.default_opset, "If"), [test], [thenAttr, elseAttr],
+        self.emit(renamed, Op(self.default_opset, "If"), [cond.name], [thenAttr, elseAttr],
                   sub_functions=sub_functions)
 
     def translate_for_stmt(self, for_stmt: ast.For):
@@ -748,19 +758,21 @@ class Converter:
                               info=DebugInfo(for_stmt, self))
 
     # Translation of a statement-block to GraphProto attribute
-    def translate_block(self, stmts, name, live_defs, parent_stmt=None):
+    def translate_block(self, stmts, name, live_defs, parent_stmt=None,
+        map_optional_to_tensor=None):
         info_stmt = stmts[0] if len(stmts) > 0 else parent_stmt
         self.enter_scope(name, None)
 
-        if len(self.map_optional_to_tensor) > 0 and name.startswith("thenGraph_"):
-            optional_get_input = list(self.map_optional_to_tensor.keys())[0]
-            optional_get_output = list(self.map_optional_to_tensor.values())[0]
+        if map_optional_to_tensor:
+            optional_get_input = list(map_optional_to_tensor.keys())[0]
+            optional_get_output = list(map_optional_to_tensor.values())[0]
             self.emit(
                 [optional_get_output],
                 Op(self.default_opset, "OptionalGetElement"),
                 [optional_get_input], [])
             self.locals[len(self.locals) - 1][optional_get_output] = Dynamic(
                 optional_get_output, DynamicKind.Intermediate, DebugInfo(info_stmt, self))
+            self.optional_to_tensor_maps[len(self.optional_to_tensor_maps) - 1][optional_get_input] = optional_get_output
 
         for s in stmts:
             self.translate_stmt(s)

@@ -79,20 +79,40 @@ def Softsign(X):
     one = op.CastLike(1, X)
     return X / (one + op.Abs(X))
 
+# TODO: remove type info for optional inputs
 from onnxscript.onnx_types import OptionalFLOAT, FLOAT
 @script()
 def Clip(input, min: OptionalFLOAT[...] = None, max: OptionalFLOAT[...] = None):
     result = input
     if min != None:
-        result = op.Where(input < min, min, result)
+        result = op.Where(result < min, min, result)
     if max != None:
         result = op.Where(result > max, max, result)
 
     return result
 
 @script()
-def option1(X, Bias: FLOAT[...] = None):
-    Y = op.Log(X)
-    if (Bias != None):
-        Y = Y + Bias
-    return Y
+def CallClipScriptFunctionMinMax(input: FLOAT['N'], min: OptionalFLOAT[...], max: OptionalFLOAT[...]) -> FLOAT['N']:
+    return Clip(input, min, max)
+
+@script()
+def CallClipScriptFunctionMin(input: FLOAT['N'], min: OptionalFLOAT[...]) -> FLOAT['N']:
+    # TODO: ort fails with following 2 statements
+    # return Clip(input, min)
+    # return Clip(input, min, None)
+    min_tensor = op.OptionalGetElement(min)
+    return op.Clip(input, min_tensor)
+
+@script()
+def CallClipScriptFunctionMax(input: FLOAT['N'], max: OptionalFLOAT[...]) -> FLOAT['N']:
+    # TODO: ort fails with following statement
+    # return Clip(input, None, max)
+    max_tensor = op.OptionalGetElement(max)
+    return op.Clip(input, None, max_tensor)
+
+@script()
+def CallClipScriptFunction(input: FLOAT['N']) -> FLOAT['N']:
+    # TODO: ort fails with following 2 statements
+    # return Clip(input)
+    # return Clip(input, None, None)
+    return op.Clip(input)

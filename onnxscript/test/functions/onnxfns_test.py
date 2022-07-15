@@ -5,7 +5,9 @@
 
 import unittest
 from onnxscript.test.functions.onnx_script_test_case import OnnxScriptTestCase
+from onnxscript.test.functions.onnx_script_test_case import FunctionTestParams
 from onnxscript.test.models import onnxfns1
+import numpy as np
 
 
 class TestOnnxFns(OnnxScriptTestCase):
@@ -71,9 +73,41 @@ class TestOnnxFns(OnnxScriptTestCase):
                 'test_clip_default_int8_max',
                 'test_clip_default_int8_inbounds'])
 
-    # def test_onnxfns_option1(self):
-    #     self.run_onnx_test(onnxfns1.option1)
+    def test_onnxfns_call_clip_script_function(self):
+        input = np.array([-2, 0, 2]).astype(np.float32)
+        min_val = np.array([-1]).astype(np.float32)
+        max_val = np.array([1]).astype(np.float32)
+        expected_default = np.array([-2, 0, 2]).astype(np.float32)
+        expected_min = np.array([-1, 0, 2]).astype(np.float32)
+        expected_max = np.array([-2, 0, 1]).astype(np.float32)
+        expected_min_max = np.array([-1, 0, 1]).astype(np.float32)
 
+        model = onnxfns1.CallClipScriptFunction.function_ir.to_model_proto(producer_name='call_clip')
+        cases = [
+            FunctionTestParams(onnxfns1.CallClipScriptFunctionMinMax,
+            [input],
+            [expected_default]),
+            FunctionTestParams(onnxfns1.CallClipScriptFunctionMinMax,
+            {'input': input, 'min': min_val},
+            [expected_min]),
+            FunctionTestParams(onnxfns1.CallClipScriptFunctionMinMax,
+            {'input': input, 'max': max_val},
+            [expected_max]),            
+            FunctionTestParams(onnxfns1.CallClipScriptFunctionMinMax,
+            {'input': input, 'min': min_val, 'max': max_val},
+            [expected_min_max]),            
+            FunctionTestParams(onnxfns1.CallClipScriptFunctionMin,
+            {'input': input, 'min': min_val},
+            [expected_min]),            
+            FunctionTestParams(onnxfns1.CallClipScriptFunctionMax,
+            {'input': input, 'max': max_val},
+            [expected_max]),            
+            FunctionTestParams(onnxfns1.CallClipScriptFunction,
+            {'input': input},
+            [expected_default]),            
+            ]
+        for case in cases:
+            self.run_converter_test(case)
 
 
 if __name__ == '__main__':

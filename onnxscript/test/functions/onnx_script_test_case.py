@@ -6,7 +6,7 @@
 import dataclasses
 import numbers
 import unittest
-from typing import Any, List
+from typing import Any, List, Union
 import numpy as np
 import onnx
 from onnx import ModelProto
@@ -20,7 +20,7 @@ from onnxscript.main import OnnxFunction
 @dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
     function: OnnxFunction
-    input: list
+    input: Union[list, dict]
     output: list
     attrs: dict = None
 
@@ -123,16 +123,22 @@ class OnnxScriptTestCase(unittest.TestCase):
         onnx_case_model: ModelProto=None):
         # we need the latest version in onnx.ai domain
         # to build a function
-        model = self._create_model_from_param(param, onnx_case_model)
-        onnx.checker.check_model(model)
         if onnx_case_model:
-            input = {
-                vi.name: np.array(t) if isinstance(t, numbers.Number) else t
-                for vi, t in zip(onnx_case_model.graph.input, param.input)}
+            model = self._create_model_from_param(param, onnx_case_model)
         else:
-            input = {
-                vi.name: np.array(t) if isinstance(t, numbers.Number) else t
-                for vi, t in zip(model.graph.input, param.input)}
+            model = param.function.function_ir.to_model_proto(producer_name='call_clip')
+        onnx.checker.check_model(model)
+        if isinstance(param.input, dict):
+            input = param.input
+        else:
+            if onnx_case_model:
+                input = {
+                    vi.name: np.array(t) if isinstance(t, numbers.Number) else t
+                    for vi, t in zip(onnx_case_model.graph.input, param.input)}
+            else:
+                input = {
+                    vi.name: np.array(t) if isinstance(t, numbers.Number) else t
+                    for vi, t in zip(model.graph.input, param.input)}
         try:
             sess = InferenceSession(
                 model.SerializeToString(), providers=['CPUExecutionProvider'])
@@ -204,8 +210,6 @@ class OnnxScriptTestCase(unittest.TestCase):
 
             if case.name not in skip_test_names:
                 print(case.name)
-                if case.name == "test_clip_default_max":
-                    print(case.name)
                 test_case_attrs = {
                     a.name: onnx.helper.get_attribute_value(a)
                     for a in case.model.graph.node[0].attribute}

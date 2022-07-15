@@ -77,6 +77,8 @@ class ParametricTensor:
 
 
 OptionalFLOAT = ParametricTensor(onnx.TensorProto.FLOAT, True)
+OptionalDOUBLE = ParametricTensor(onnx.TensorProto.DOUBLE, True)
+OptionalINT64 = ParametricTensor(onnx.TensorProto.INT64, True)
 FLOAT = ParametricTensor(onnx.TensorProto.FLOAT)
 UINT8 = ParametricTensor(onnx.TensorProto.UINT8)
 INT8 = ParametricTensor(onnx.TensorProto.INT8)
