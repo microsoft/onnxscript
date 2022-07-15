@@ -78,7 +78,8 @@ class OnnxScriptTestCase(unittest.TestCase):
 
             test_case_input_value_infos =\
                 utils.convert_arrays_to_value_infos(input_names, param.input)
-            script_model_input_type_infos = [input.typeinfo.to_type_proto()\
+            script_model_input_type_infos = [
+                input.typeinfo.to_type_proto()
                 if input.typeinfo else None for input in param.function.function_ir.inputs]
             input_value_infos = [None] * len(script_model_input_type_infos)
 
@@ -124,9 +125,9 @@ class OnnxScriptTestCase(unittest.TestCase):
         return test_cases
 
     def run_converter_test(
-        self,
-        param: FunctionTestParams,
-        onnx_case_model: ModelProto = None):
+            self,
+            param: FunctionTestParams,
+            onnx_case_model: ModelProto = None):
         # we need the latest version in onnx.ai domain
         # to build a function
         if onnx_case_model:
