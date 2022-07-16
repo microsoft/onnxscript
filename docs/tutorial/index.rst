@@ -82,3 +82,22 @@ requiring a value-parameter, the converter will automatically convert the attrib
 into a tensor-value. Specifically, in the sub-expression ``alpha * X``, the attribute
 parameter ``alpha`` is used as a value-parameter of the call to the ``Mul`` op (denoted
 by the ``*``) and is automatically converted.
+
+**Conditional statements**
+
+The function definition below illustrates the use of conditionals.
+
+.. literalinclude:: examples/dropout.py
+
+The use of conditional statements requires that any variable that is *used* in the code
+has a *definition* of the same variable along all possible paths to the use.
+
+**Loops**
+
+*Onnxscript* currently supports only a very limited form of loops, namely
+a *for* loop to iterate over integers in a range [0, N).
+The example below illustrates the use of loops.
+
+.. literalinclude:: examples/forloop.py
+
+
