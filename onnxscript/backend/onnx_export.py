@@ -260,11 +260,15 @@ def _python_make_node_loop(node, opsets, indent=0):
             sindent, body.input[0].name, n_iter))
     elif not n_iter and cond:
         rows.append("%swhile %s:" % (sindent, cond))
-    else:
+    elif n_iter and cond:
         rows.append("%sfor %s in range(%s):" % (
             sindent, body.input[0].name, n_iter))
         rows.append("%s    if not %s:" % (sindent, cond))
         rows.append("%s        break" % sindent)
+    else:
+        raise RuntimeError(
+            "Unable to export loop type %r into python because there is no "
+            "stop condition." % (node.op_type, ))
     rows.append(_python_make_node_graph(body, opsets, indent=indent+1,
                                         output_names=node.output))
     return "\n".join(rows)
@@ -313,7 +317,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
     output_names = []
     for i, o in enumerate(node.output):
         if o in ('', None):
-            output_names.append('_' * (i + 1))
+            output_names.append('_%d' % i)
         else:
             output_names.append(_rename_variable(o))
 

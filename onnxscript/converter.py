@@ -355,8 +355,8 @@ class Converter:
     def eval_constant_expr(self, node):
         # TODO: assert (self.is_constant_expr(node))
         locals = {}  # TODO
-        for v in ParametricTensor.types.values():
-            locals[repr(v)] = v
+        # for v in ParametricTensor.types.values():
+        #     locals[repr(v)] = v
         expr = ast.Expression(node)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
