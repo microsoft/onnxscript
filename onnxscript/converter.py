@@ -18,7 +18,7 @@ from . import values as values
 from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo)
-from .onnx_types import ParametricTensor
+# from .onnx_types import ParametricTensor
 
 
 logger = logging.getLogger("onnx-script")
