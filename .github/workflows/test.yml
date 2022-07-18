@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4.1.0
+        with:
+          python-version: "3.9"
+      - name: "Install dependencies"
+        run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements-dev.txt
+      - name: "Build package"
+        run: python setup.py sdist
+      - name: "pytest"
+        run: pytest -v onnxscript --cov=onnxscript
+      - uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
