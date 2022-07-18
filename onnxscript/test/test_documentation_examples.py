@@ -21,7 +21,7 @@ class TestDocumentationExample(unittest.TestCase):
         for name in sorted(found):
             if os.path.splitext(name)[-1] != '.py':
                 continue
-            with self.subTest(name=name):
+            with self.subTest(folder=folder, name=name):
                 cmds = [sys.executable, "-u", os.path.join(folder, name)]
                 p = subprocess.Popen(
                     cmds, stdout=subprocess.PIPE,
@@ -47,11 +47,11 @@ class TestDocumentationExample(unittest.TestCase):
         pypath = "" if pypath in (None, "") else (pypath + sep)
         pypath += onxc
         os.environ['PYTHONPATH'] = pypath
-        def test(*relpath):
-            self.do_test_folder (os.path.normpath(os.path.join(this, *relpath)))
-        test ('..', '..', 'docs', 'examples')
-        test ('..', '..', 'docs', 'tutorial', 'examples')
 
+        def test(*relpath):
+            self.do_test_folder(os.path.normpath(os.path.join(this, *relpath)))
+        test('..', '..', 'docs', 'examples')
+        test('..', '..', 'docs', 'tutorial', 'examples')
 
 
 if __name__ == "__main__":
