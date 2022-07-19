@@ -244,9 +244,26 @@ class TestConverter(unittest.TestCase):
         self.assertNotIn("version: 14", sdef)
         self.assertNotIn("version: 15", sdef)
 
+    def test_loops(self):
+        from onnxscript.test.models import loops
+        fcts = self.validate_save(loops, check_ort=True)
+        self.assertIn('loop1', fcts)
+        for name in ['loop1', 'loop_range_cond']:
+            with self.subTest(fct=name):
+                f = fcts[name]
+                self.assertIn('op_type: "Loop"', str(f))
+        onx = fcts['loop_range_cond']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        x = np.array([0, 1, 2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 46, 92])
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 1, -2])
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_cast_like()
+    # TestConverter().test_loops()
     unittest.main()

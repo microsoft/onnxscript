@@ -68,19 +68,22 @@ def py_type_to_onnx_type(pytype: type, converter):
         f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info):
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
-            fail(DebugInfo(pyvalue, converter).msg(
+            fail(info.msg(
                 "Cannot convert an empty list to tensor"))
         pytype = type(pyvalue[0])
         if not all([isinstance(e, pytype) for e in pyvalue]):
-            fail(DebugInfo(pyvalue, converter).msg(
+            fail(info.msg(
                 "Cannot convert an list with elements of different types to tensor"))
         return helper.make_tensor(
             tensor_name, py_type_to_onnx_type(pytype, converter), [len(pyvalue)], pyvalue)
 
-    onnx_type = py_type_to_onnx_type(type(pyvalue), converter)
+    try:
+        onnx_type = py_type_to_onnx_type(type(pyvalue), converter)
+    except NotImplementedError as e:
+        fail(info.msg(str(e)))
     if onnx_type is onnx.TensorProto.BOOL:
         return helper.make_tensor(
             tensor_name, onnx_type, [], [int(pyvalue)])
@@ -134,20 +137,27 @@ def _known_modules():
 class ConverterExpressionKind(IntEnum):
     ANY = 0
     CONST = 1
+    ASSIGN = 2
 
 
 class ConverterExpression:
 
     def __init__(self, name: typing.Union[str, typing.List[str]],
-                 kind: ConverterExpressionKind):
+                 kind: ConverterExpressionKind, args=None):
         self.name = name
         self.kind = kind
+        self.args = args
 
     def is_const(self):
         return self.kind == ConverterExpressionKind.CONST
 
     def __str__(self):
         return self.name
+
+    def __repr__(self):
+        if self.args is None:
+            return "ConverterExpression(%r, %r)" % (self.name, self.kind)
+        return "ConverterExpression(%r, %r, ...)" % (self.name, self.kind)
 
 
 class Converter:
@@ -237,7 +247,7 @@ class Converter:
         return self.locals[0]
 
     def bind(self, name, val):
-        logger.debug("Converter:bind:%s", name)
+        logger.debug("Converter:bind:%s:%r", name, val)
         self.locals[0][name] = val
 
     def lookup(self, name, info, raise_exception=True):
@@ -325,7 +335,7 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self)
+        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
@@ -603,7 +613,8 @@ class Converter:
                     else:
                         var = Dynamic(t, DynamicKind.Intermediate, info)
                     self.bind(lhs, var)
-            elif isinstance(lhs, ast.Tuple):
+                    return var
+            if isinstance(lhs, ast.Tuple):
                 def id(x):
                     assert isinstance(x, ast.Name)
                     return x.id
@@ -611,8 +622,8 @@ class Converter:
                 onnxids = self.translate_expr(rhs, ids).name
                 for x, y in zip(ids, onnxids):
                     self.bind(x, Dynamic(y, DynamicKind.Intermediate, info))
-            else:
-                fail("Unsupported construct in LHS of assignment.")
+                return None
+            fail(DebugInfo(stmt, self).msg("Unsupported construct in LHS of assignment."))
 
         if isinstance(stmt, ast.Assign):
             targets = stmt.targets
@@ -627,8 +638,10 @@ class Converter:
                 "Expected same number of elements on lhs and rhs of assignments."
             for p, r in zip(lhs.elts, rhs.elts):
                 assign(p, r)
+            var = None
         else:
-            assign(lhs, rhs)
+            var = assign(lhs, rhs)
+        return ConverterExpression(lhs.id, ConverterExpressionKind.ASSIGN, args=dict(var=var))
 
     def translate_return_stmt(self, stmt: ast.Return):
         def ret(exp, suffix=""):
@@ -680,9 +693,18 @@ class Converter:
         iter = for_stmt.iter
         assert isinstance(iter, ast.Call), "Loop bound not a call."
         assert isinstance(iter.func, ast.Name), "Unsupported loop bound."
-        assert iter.func.id == "range", "Unsupported loop bound."
-        assert iter.args and len(iter.args) == 1, "Unsupported loop bound."
-        assert not iter.keywords, "Unsupported loop bound."
+        if iter.func.id == 'range':
+            if not iter.args or len(iter.args) != 1:
+                fail(DebugInfo(for_stmt, self).msg(
+                    "Unsupported number of arguments for function %r." % iter.func.id))
+        elif iter.func.id == 'conditional_range':
+            if not iter.args or len(iter.args) != 2:
+                fail(DebugInfo(for_stmt, self).msg(
+                    "Unsupported number of arguments for function %r." % iter.func.id))
+        else:
+            fail(DebugInfo(for_stmt, self).msg("Unsupported loop function %r." % iter.func.id))
+        if iter.keywords:
+            fail(DebugInfo(for_stmt, self).msg("Unsupported keywords %r." % (iter.keywords, )))
         o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
         # analyze loop body
         exposed_uses = analysis.exposed_uses(for_stmt.body, self)
@@ -695,6 +717,17 @@ class Converter:
         # loop-condition:
         o_true = self.emit_const(True, "true", DebugInfo(for_stmt, self))
         # o_loop_bound = self.emit_const(3, "loop_bound")
+        o_cond_var = None
+        has_end_condition = False
+        if iter.func.id == 'conditional_range':
+            args = iter.args
+            o_cond_var = args[1].id
+            self.generate_unique_name("cond")
+            o_cond_out = self.generate_unique_name("%s_out" % o_cond_var)
+            has_end_condition = True
+        if o_cond_var is None:
+            o_cond_var = self.generate_unique_name("cond_in")
+            o_cond_out = self.generate_unique_name("cond_out")
 
         # build loop_body
         self.enter_scope("loop_body", for_stmt)
@@ -703,7 +736,7 @@ class Converter:
             self.current_fn, o_loop_var, types.INT64, DebugInfo(for_stmt, self))
         self.bind(p_loop_var, Dynamic(
             o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt, self)))
-        o_cond_var = self.generate_unique_name("cond_in")
+
         self.ir_builder.add_input(
             self.current_fn, o_cond_var, types.BOOL, DebugInfo(for_stmt, self))
         for pv in loop_state_vars:
@@ -714,10 +747,24 @@ class Converter:
             self.ir_builder.add_input(
                 self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
             self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(for_stmt, self)))
+        updated_condition = None
         for s in for_stmt.body:
-            self.translate_stmt(s)
-        o_cond_out = self.generate_unique_name("cond_out")
-        self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
+            r = self.translate_stmt(s)
+            if (has_end_condition and isinstance(r, ConverterExpression) and
+                    r.name == o_cond_var):
+                var = r.args['var']
+                assert isinstance(var, Dynamic)
+                updated_condition = var.value
+
+        if has_end_condition:
+            if updated_condition is None:
+                fail(DebugInfo(for_stmt, self).msg(
+                    "Condition %r is not modified in the loop body. "
+                    "It should be removed." % o_cond_var))
+            self.emit([o_cond_out], Op(self.default_opset, "Identity"), [updated_condition], [])
+        else:
+            self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
+
         self.ir_builder.add_output(
             self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))
         for pv in loop_state_vars:
