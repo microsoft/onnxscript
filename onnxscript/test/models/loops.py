@@ -28,3 +28,21 @@ def loop_range_cond(A: FLOAT["N"]) -> FLOAT["N"]:
         T = T + A * op.Cast(i, to=TensorProto.FLOAT)
         cond = op.ReduceSum(T) > 0
     return T
+
+
+@script()
+def loop_range_cond_none(A: FLOAT["N"]) -> FLOAT["N"]:
+    T = A
+    for i in conditional_range(10, None):
+        T = T + A * op.Cast(i, to=TensorProto.FLOAT)
+    return T
+
+
+@script()
+def loop_range_cond_only(A: FLOAT["N"]) -> FLOAT["N"]:
+    T = A
+    cond = op.Constant(value=make_tensor('true', TensorProto.BOOL, [1], [1]))
+    for i in conditional_range(None, cond):
+        T = T + A * op.Cast(i, to=TensorProto.FLOAT)
+        cond = op.ReduceSum(T) > 0
+    return T

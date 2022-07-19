@@ -643,7 +643,8 @@ class Converter:
             var = assign(lhs, rhs)
         if isinstance(lhs, ast.Tuple):
             return None
-        return ConverterExpression(lhs.id, ConverterExpressionKind.ASSIGN, args=dict(var=var))
+        return ConverterExpression(
+            lhs.id, ConverterExpressionKind.ASSIGN, args=dict(var=var))
 
     def translate_return_stmt(self, stmt: ast.Return):
         def ret(exp, suffix=""):
@@ -704,10 +705,17 @@ class Converter:
                 fail(DebugInfo(for_stmt, self).msg(
                     "Unsupported number of arguments for function %r." % iter.func.id))
         else:
-            fail(DebugInfo(for_stmt, self).msg("Unsupported loop function %r." % iter.func.id))
+            fail(DebugInfo(for_stmt, self).msg(
+                "Unsupported loop function %r." % iter.func.id))
         if iter.keywords:
-            fail(DebugInfo(for_stmt, self).msg("Unsupported keywords %r." % (iter.keywords, )))
-        o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
+            fail(DebugInfo(for_stmt, self).msg(
+                "Unsupported keywords %r." % (iter.keywords, )))
+        if isinstance(iter.args[0], ast.Constant) and iter.args[0].value is None:
+            # loop stop based on a condition
+            o_loop_bound = ""
+        else:
+            o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
+
         # analyze loop body
         exposed_uses = analysis.exposed_uses(for_stmt.body, self)
         vars_def_in_loop = analysis.defs(for_stmt.body)
@@ -718,12 +726,10 @@ class Converter:
 
         # loop-condition:
         o_true = self.emit_const(True, "true", DebugInfo(for_stmt, self))
-        # o_loop_bound = self.emit_const(3, "loop_bound")
         o_cond_var = None
         has_end_condition = False
-        if iter.func.id == 'conditional_range':
-            args = iter.args
-            o_cond_var = args[1].id
+        if iter.func.id == 'conditional_range' and isinstance(iter.args[1], ast.Name):
+            o_cond_var = iter.args[1].id
             self.generate_unique_name("cond")
             o_cond_out = self.generate_unique_name("%s_out" % o_cond_var)
             has_end_condition = True
@@ -763,9 +769,11 @@ class Converter:
                 fail(DebugInfo(for_stmt, self).msg(
                     "Condition %r is not modified in the loop body. "
                     "It should be removed." % o_cond_var))
-            self.emit([o_cond_out], Op(self.default_opset, "Identity"), [updated_condition], [])
+            self.emit([o_cond_out], Op(self.default_opset, "Identity"),
+                      [updated_condition], [])
         else:
-            self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
+            self.emit([o_cond_out], Op(self.default_opset, "Identity"),
+                      [o_cond_var], [])
 
         self.ir_builder.add_output(
             self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))

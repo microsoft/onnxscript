@@ -252,11 +252,24 @@ class TestConverter(unittest.TestCase):
             with self.subTest(fct=name):
                 f = fcts[name]
                 self.assertIn('op_type: "Loop"', str(f))
+
         onx = fcts['loop_range_cond']
         sess = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
         y = sess.run(None, {'A': x})[0]
         self.assertEqual(y.tolist(), [0, 46, 92])
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 1, -2])
+
+        onx = fcts['loop_range_cond_none']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 46, -92])
+
+        onx = fcts['loop_range_cond_only']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
         y = sess.run(None, {'A': x})[0]
         self.assertEqual(y.tolist(), [0, 1, -2])
