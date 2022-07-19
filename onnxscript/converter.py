@@ -715,7 +715,8 @@ class Converter:
             fail(DebugInfo(for_stmt, self).msg(
                 "Unsupported keywords %r." % (iter.keywords, )))
         if (iter.args[0] is None or (
-                isinstance(iter.args[0], ast.Constant) and iter.args[0].value is None)):
+                isinstance(iter.args[0], (ast.Constant, ast.NameConstant)) and
+                iter.args[0].value is None)):
             # loop stop based on a condition
             o_loop_bound = ""
         else:
