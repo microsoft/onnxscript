@@ -641,6 +641,8 @@ class Converter:
             var = None
         else:
             var = assign(lhs, rhs)
+        if isinstance(lhs, ast.Tuple):
+            return None
         return ConverterExpression(lhs.id, ConverterExpressionKind.ASSIGN, args=dict(var=var))
 
     def translate_return_stmt(self, stmt: ast.Return):
