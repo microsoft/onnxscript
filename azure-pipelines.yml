@@ -48,7 +48,7 @@ steps:
   displayName: 'package'
 
 - script: |
-    pytest -v onnxscript
+    pytest -v onnxscript --cov=onnxscript --cov-report term-missing
   displayName: 'pytest'
 
 - script: |
