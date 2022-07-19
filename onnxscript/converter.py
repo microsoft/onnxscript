@@ -708,7 +708,8 @@ class Converter:
         if iter.keywords:
             fail(DebugInfo(for_stmt, self).msg(
                 "Unsupported keywords %r." % (iter.keywords, )))
-        if isinstance(iter.args[0], ast.Constant) and iter.args[0].value is None:
+        if iter.args[0] is None or (isinstance(iter.args[0], ast.Constant) and
+                iter.args[0].value is None):
             # loop stop based on a condition
             o_loop_bound = ""
         else:
