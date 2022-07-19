@@ -14,25 +14,15 @@ import subprocess
 
 class TestDocumentationExample(unittest.TestCase):
 
-    def test_documentation_examples(self):
-
-        this = os.path.abspath(os.path.dirname(__file__))
-        onxc = os.path.normpath(os.path.join(this, '..', '..'))
-        pypath = os.environ.get('PYTHONPATH', None)
-        sep = ";" if sys.platform == 'win32' else ':'
-        pypath = "" if pypath in (None, "") else (pypath + sep)
-        pypath += onxc
-        os.environ['PYTHONPATH'] = pypath
-        fold = os.path.normpath(
-            os.path.join(this, '..', '..', 'docs', 'examples'))
-        sys.path.insert(0, fold)
-        found = os.listdir(fold)
+    def do_test_folder(self, folder):
+        sys.path.insert(0, folder)
+        found = os.listdir(folder)
         tested = 0
         for name in sorted(found):
             if os.path.splitext(name)[-1] != '.py':
                 continue
-            with self.subTest(name=name):
-                cmds = [sys.executable, "-u", os.path.join(fold, name)]
+            with self.subTest(folder=folder, name=name):
+                cmds = [sys.executable, "-u", os.path.join(folder, name)]
                 p = subprocess.Popen(
                     cmds, stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE)
@@ -47,6 +37,21 @@ class TestDocumentationExample(unittest.TestCase):
                 tested += 1
         if tested == 0:
             raise RuntimeError("No example was tested.")
+
+    def test_documentation_examples(self):
+
+        this = os.path.abspath(os.path.dirname(__file__))
+        onxc = os.path.normpath(os.path.join(this, '..', '..'))
+        pypath = os.environ.get('PYTHONPATH', None)
+        sep = ";" if sys.platform == 'win32' else ':'
+        pypath = "" if pypath in (None, "") else (pypath + sep)
+        pypath += onxc
+        os.environ['PYTHONPATH'] = pypath
+
+        def test(*relpath):
+            self.do_test_folder(os.path.normpath(os.path.join(this, *relpath)))
+        test('..', '..', 'docs', 'examples')
+        test('..', '..', 'docs', 'tutorial', 'examples')
 
 
 if __name__ == "__main__":

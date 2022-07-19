@@ -373,17 +373,16 @@ class Converter:
         raise ValueError(f"Unsupported attribute type '{type(node).__name__}'.")
 
     def translate_attr(self, attr_name, node):
+        '''
+        Translate an (attribute-name, value) pair.
+        node must represent an AST that evaluates to a python-value that can be mapped
+        into an ONNX attribute value or it must be an attribute-reference.
+        '''
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, DebugInfo(node, self))
             if (isinstance(val, AttrRef)):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
-            else:
-                # TODO: lookup value; if func.def., compile it to Graph; if a
-                # constant; etc.
-                fail(DebugInfo(node, self).msg(
-                    f"Unimplemented attribute construct "
-                    f"'{attr_name}' for node type '{type(node).__name__}'."))
-        return self.ir_builder.attr(attr_name, self.eval_attr(node))
+        return self.ir_builder.attr(attr_name, self.eval_constant_expr(node))
 
     def translate_docstring(self, node):
         if hasattr(node.value, 'value'):

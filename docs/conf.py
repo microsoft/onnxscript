@@ -28,6 +28,7 @@ extensions = [
     "sphinx_gallery.gen_gallery",
     'sphinx.ext.autodoc',
     'sphinx.ext.graphviz',
+    'sphinx.ext.doctest',
     'sphinx.ext.napoleon',
 ]
 
