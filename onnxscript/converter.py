@@ -55,7 +55,7 @@ def ignore(cond, msg):
 
 
 # Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, converter):
+def py_type_to_onnx_type(pytype: type, converter, info: DebugInfo):
     if pytype is bool:
         return onnx.TensorProto.BOOL
     if pytype is int:
@@ -64,11 +64,11 @@ def py_type_to_onnx_type(pytype: type, converter):
         return onnx.TensorProto.FLOAT
     if pytype is str:
         return onnx.TensorProto.STRING
-    fail(DebugInfo(pytype, converter).msg(
+    fail(info.msg(
         f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: DebugInfo):
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(info.msg(
@@ -78,12 +78,10 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info):
             fail(info.msg(
                 "Cannot convert an list with elements of different types to tensor"))
         return helper.make_tensor(
-            tensor_name, py_type_to_onnx_type(pytype, converter), [len(pyvalue)], pyvalue)
+            tensor_name, py_type_to_onnx_type(pytype, converter, info),
+            [len(pyvalue)], pyvalue)
 
-    try:
-        onnx_type = py_type_to_onnx_type(type(pyvalue), converter)
-    except NotImplementedError as e:
-        fail(info.msg(str(e)))
+    onnx_type = py_type_to_onnx_type(type(pyvalue), converter, info)
     if onnx_type is onnx.TensorProto.BOOL:
         return helper.make_tensor(
             tensor_name, onnx_type, [], [int(pyvalue)])
