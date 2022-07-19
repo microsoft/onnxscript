@@ -69,6 +69,8 @@ def py_type_to_onnx_type(pytype: type, converter, info: DebugInfo):
 
 
 def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: DebugInfo):
+    if pyvalue is None:
+        fail(info.msg("Cannot convert None to tensor."))
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(info.msg(
@@ -418,7 +420,11 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif self.is_constant_expr(node):
-            r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
+            cst = self.eval_constant_expr(node)
+            if cst is None:
+                fail(DebugInfo(node).msg(
+                    "None is not allowed as a constant, node type is %r." % type(node)))
+            r = self.emit_const(cst, target, DebugInfo(node, self))
         else:
             raise ValueError(DebugInfo(node, self).msg(
                 f"Unsupported expression type: {type(node).__name__}."))
@@ -708,8 +714,8 @@ class Converter:
         if iter.keywords:
             fail(DebugInfo(for_stmt, self).msg(
                 "Unsupported keywords %r." % (iter.keywords, )))
-        if iter.args[0] is None or (isinstance(iter.args[0], ast.Constant) and
-                iter.args[0].value is None):
+        if (iter.args[0] is None or (
+                isinstance(iter.args[0], ast.Constant) and iter.args[0].value is None)):
             # loop stop based on a condition
             o_loop_bound = ""
         else:
