@@ -200,20 +200,17 @@ def _python_make_node_make_attribute_str(node):
             attributes.append((at.name, "%r" % value))
             continue
         if isinstance(value, numpy.ndarray):
-            if at.name == 'value':
-                onnx_dtype = at.t.data_type
-                if len(value.shape) == 0:
-                    text = (
-                        'make_tensor("value", %s, dims=[], vals=[%r])'
-                        '' % (onnx_dtype, value.tolist()))
-                else:
-                    text = (
-                        'make_tensor("value", %s, dims=%r, vals=%r)'
-                        '' % (onnx_dtype, list(value.shape),
-                              value.ravel().tolist()))
-                attributes.append((at.name, text))
-                continue
-            attributes.append((at.name, repr(value.tolist())))
+            onnx_dtype = at.t.data_type
+            if len(value.shape) == 0:
+                text = (
+                    'make_tensor("value", %s, dims=[], vals=[%r])'
+                    '' % (onnx_dtype, value.tolist()))
+            else:
+                text = (
+                    'make_tensor("value", %s, dims=%r, vals=%r)'
+                    '' % (onnx_dtype, list(value.shape),
+                          value.ravel().tolist()))
+            attributes.append((at.name, text))
             continue
         attributes.append((at.name, repr(value)))
 
