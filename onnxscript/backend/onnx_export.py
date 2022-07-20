@@ -124,7 +124,7 @@ def _translate_type(onnx_type):
                 else:
                     shape.append(d.dim_param)
             if len(shape) == 0:
-                return name + "[...]"
+                return name
             return "%s[%s]" % (name, ",".join(shape))
         return name
     raise NotImplementedError(
