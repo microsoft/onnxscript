@@ -126,7 +126,7 @@ def _translate_type(onnx_type):
             if len(shape) == 0:
                 return name
             return "%s[%s]" % (name, ",".join(shape))
-        return name
+        return name + "[...]"
     raise NotImplementedError(
         "Unable to translate type %r into onnx-script type." % onnx_type)
 
