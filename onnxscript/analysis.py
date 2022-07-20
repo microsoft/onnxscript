@@ -42,6 +42,9 @@ def defs(stmt):
 
     if isinstance(stmt, ast.Assign):
         return local_defs(stmt.targets[0])
+    if isinstance(stmt, ast.AugAssign):
+        # See comment in function exposed_uses.
+        return local_defs(stmt.target)
     if isinstance(stmt, ast.AnnAssign):
         return local_defs(stmt.target)
     if isinstance(stmt, ast.Return):
@@ -124,6 +127,12 @@ def exposed_uses(stmts, converter):
     def visit(stmt, live_out):
         if isinstance(stmt, ast.Assign):
             return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+        if isinstance(stmt, ast.AugAssign):
+            # This is used in loops to update the condition:
+            # cond &= new_value. eager mode does not work without that trick.
+            # For python it is equivalent to ast.Assign, from python,
+            # it enables a variable to be updated and not replaced.
+            return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.AnnAssign):
             return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):

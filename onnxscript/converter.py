@@ -156,8 +156,8 @@ class ConverterExpression:
 
     def __repr__(self):
         if self.args is None:
-            return "ConverterExpression(%r, %r)" % (self.name, self.kind)
-        return "ConverterExpression(%r, %r, ...)" % (self.name, self.kind)
+            return f"ConverterExpression({self.name}, {self.kind})"
+        return f"ConverterExpression({self.name}, {self.kind}, ...)"
 
 
 class Converter:
@@ -575,7 +575,7 @@ class Converter:
         Statement translation: A single Python statement is mapped into a
         sequence of IR statements.
         """
-        if isinstance(node, ast.Assign):
+        if isinstance(node, (ast.Assign, ast.AugAssign)):
             return self.translate_assign_stmt(node)
         if isinstance(node, ast.AnnAssign):
             return self.translate_assign_stmt(node)
@@ -703,17 +703,17 @@ class Converter:
         if iter.func.id == 'range':
             if not iter.args or len(iter.args) != 1:
                 fail(DebugInfo(for_stmt, self).msg(
-                    "Unsupported number of arguments for function %r." % iter.func.id))
+                    f"Unsupported number of arguments for function {iter.func.id!r}."))
         elif iter.func.id == 'conditional_range':
             if not iter.args or len(iter.args) != 2:
                 fail(DebugInfo(for_stmt, self).msg(
-                    "Unsupported number of arguments for function %r." % iter.func.id))
+                    f"Unsupported number of arguments for function {iter.func.id!r}."))
         else:
             fail(DebugInfo(for_stmt, self).msg(
-                "Unsupported loop function %r." % iter.func.id))
+                f"Unsupported loop function {iter.func.id!r}."))
         if iter.keywords:
             fail(DebugInfo(for_stmt, self).msg(
-                "Unsupported keywords %r." % (iter.keywords, )))
+                f"Unsupported keywords {iter.keywords!r}."))
         if (iter.args[0] is None or (
                 isinstance(iter.args[0], (ast.Constant, ast.NameConstant)) and
                 iter.args[0].value is None)):
