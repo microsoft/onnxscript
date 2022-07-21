@@ -253,7 +253,7 @@ def _python_make_node_loop(node, opsets, indent=0):
     sindent = "    " * indent
     n_iter = _rename_variable(node.input[0])
     cond = _rename_variable(node.input[1])
-    
+
     rows = []
 
     # node has 2 + N inputs and N + K outputs
@@ -270,12 +270,12 @@ def _python_make_node_loop(node, opsets, indent=0):
     for nout in node.output[N:]:
         rows.append(f"{sindent}{nout} = []")
     rows.append(f"{sindent}{body.input[1].name} = {node.input[1]}")
-    
+
     if n_iter and not cond:
         rows.append("%sfor %s in range(%s):" % (
             sindent, body.input[0].name, n_iter))
     elif not n_iter and cond:
-        rows.append("%sfor %s in conditional_range(None, %s):" % (sindent, cond))
+        rows.append(f"{sindent}for _ in conditional_range(None, {cond}):")
     elif n_iter and cond:
         rows.append("%sfor %s in conditional_range(%s, %s):" % (
             sindent, body.input[0].name, n_iter, cond))
