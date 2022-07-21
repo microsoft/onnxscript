@@ -131,9 +131,11 @@ class TestOnnxBackEnd(unittest.TestCase):
                 if verbose > 1:
                     print("  convert into python")
                 code = export2python(te.onnx_model, function_name="bck_" + te.name)
-                code = code.replace("@script()", "@script(default_opset=15)")
                 self.assertIn("@script()", code)
                 self.assertIn("def bck_%s(" % te.name, code)
+                if te.name == 'test_identity':
+                    code = "from onnxscript.onnx_opset import opset15\n" + code
+                    code = code.replace("@script()", "@script(default_opset=opset15)")
                 if verbose > 1:
                     print("  check syntax, compilation")
                     if verbose > 2:

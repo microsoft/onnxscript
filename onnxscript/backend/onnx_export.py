@@ -185,10 +185,8 @@ def _python_make_node_graph(graph, opsets, indent=0, output_names=None):
             code.append(f"{sindent}# sparse_initializer")
         raise NotImplementedError(
             "Unable to convert sparse_initilizer into python.")
-    code.append(f"{sindent}# subgraph begins")
     for node in graph.node:
         code.append(_python_make_node(node, opsets, indent=indent))
-    code.append(f"{sindent}# subgraph ends")
     if output_names is not None:
         code.append(f"{sindent}# output_names")
         for fr, to in zip(graph.output, output_names):
