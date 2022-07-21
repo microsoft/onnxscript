@@ -1,6 +1,6 @@
 """
 Generating a LibProto
-===================================================
+=====================
 
 The examples below show how we can define a library consisting of multiple functions,
 and export it.

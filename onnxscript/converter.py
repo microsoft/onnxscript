@@ -15,7 +15,6 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .onnx_opset import opset15
 from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo)
@@ -97,6 +96,9 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: DebugInfo):
 # map from python operators to ONNX ops
 primop_map = {
     ast.Add: "Add",
+    ast.And: "And",
+    ast.BitAnd: "And",
+    ast.BitOr: "Or",
     ast.Div: "Div",
     ast.Eq: "Equal",
     ast.Gt: "Greater",
@@ -108,6 +110,7 @@ primop_map = {
     ast.Mult: "Mul",
     ast.Not: "Not",
     ast.NotEq: 'NotEqual',
+    ast.Or: "Or",
     ast.Pow: "Pow",
     ast.Sub: "Sub",
     ast.USub: "Neg",
@@ -190,11 +193,12 @@ class Converter:
         self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         self.source = source
-        if (global_names is None):
+        if global_names is None:
             # TODO: Cleanup: This should be eventually removed.
             self.globals = {"int": int, "float": float, "str": str}
         else:
-            self.globals = global_names
+            # We make a copy in case function eval modifies it.
+            self.globals = global_names.copy()
         self.pure_modules = ["onnxscript"]
         self.this_module = opset
         self.default_opset_ = default_opset
@@ -206,6 +210,7 @@ class Converter:
                 raise RuntimeError("Unable to return a default opset, None was detected yet.")
             warn("No default opset was defined or detected in function %r, "
                  "the converter uses opset 15." % (self.current_fn.name, ))
+            from .onnx_opset import opset15
             return opset15
         return self.default_opset_
 
@@ -359,8 +364,15 @@ class Converter:
     def eval_constant_expr(self, node):
         # TODO: assert (self.is_constant_expr(node))
         locals = {}  # TODO
-        return (eval(compile(ast.Expression(node), filename="<ast>", mode="eval"),
-                self.globals, locals))
+        expr = ast.Expression(node)
+        cpl = compile(expr, filename="<ast>", mode="eval")
+        try:
+            return eval(cpl, self.globals, locals)
+        except NameError as e:
+            raise NameError(
+                DebugInfo(node).msg(
+                    "Missing names, globals contains %r, locals %r." % (
+                        list(self.globals), list(locals)))) from e
 
     def eval_attr(self, node):
         if isinstance(node, ast.Num):
@@ -380,20 +392,20 @@ class Converter:
                 raise NameError(DebugInfo(node, self).msg(
                     "Unable to evaluate a constant in node type %r "
                     "due to %r." % (type(node), str(e))))
-        raise ValueError(f"Unsupported attribute type '{type(node).__name__}'.")
+        raise ValueError(DebugInfo(node).msg(
+            f"Unsupported attribute type '{type(node).__name__}'."))
 
     def translate_attr(self, attr_name, node):
+        '''
+        Translate an (attribute-name, value) pair.
+        node must represent an AST that evaluates to a python-value that can be mapped
+        into an ONNX attribute value or it must be an attribute-reference.
+        '''
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, DebugInfo(node, self))
             if (isinstance(val, AttrRef)):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
-            else:
-                # TODO: lookup value; if func.def., compile it to Graph; if a
-                # constant; etc.
-                fail(DebugInfo(node, self).msg(
-                    f"Unimplemented attribute construct "
-                    f"'{attr_name}' for node type '{type(node).__name__}'."))
-        return self.ir_builder.attr(attr_name, self.eval_attr(node))
+        return self.ir_builder.attr(attr_name, self.eval_constant_expr(node))
 
     def translate_docstring(self, node):
         if hasattr(node.value, 'value'):
@@ -411,7 +423,7 @@ class Converter:
     def translate_expr(self, node, target="tmp"):
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
-        elif isinstance(node, ast.BinOp):
+        elif isinstance(node, (ast.BinOp, ast.BoolOp, ast.BitAnd, ast.BitOr)):
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
@@ -478,8 +490,14 @@ class Converter:
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
         opname = primop_map[op]
-        left = self.translate_expr(node.left)
-        right = self.translate_expr(node.right)
+        if hasattr(node, 'left'):
+            # operation
+            left = self.translate_expr(node.left)
+            right = self.translate_expr(node.right)
+        else:
+            # and, or
+            left = self.translate_expr(node.values[0])
+            right = self.translate_expr(node.values[1])
         left, right = self._cast_like_binary_expression(left, right)
         return Op(self.default_opset, opname), [left, right], []
 
@@ -531,18 +549,14 @@ class Converter:
     def translate_opset_expr(self, node) -> values.Opset:
         """Return an Opset"""
         if isinstance(node, ast.Name):
-            try:
-                val = self.lookup(node.id, DebugInfo(node, self))
-                if isinstance(val, ConstValue):  # TODO
-                    val = val.value
-                if isinstance(val, values.Opset):
-                    return val
-                fail(f"{node.id} has value of type {type(node.id)} and used as opset.")
-            except BaseException:
-                warn(f"Unknown opset name {node.id}.")
-                return values.Opset(node.id, 1)
+            val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
+            if isinstance(val, ConstValue):  # TODO
+                val = val.value
+            if isinstance(val, values.Opset):
+                return val
+            fail(DebugInfo(node).msg(f"'{node.id}' is not an instance of type Opset."))
         elif isinstance(node, ast.Attribute):
-            fail(DebugInfo(node, self).msg("Nested module unimplemented"))  # TODO
+            fail(DebugInfo(node, self).msg("Nested module unimplemented."))  # TODO
         else:
             fail(DebugInfo(node, self).msg("Invalid opset expression."))
 
@@ -699,7 +713,8 @@ class Converter:
         # iter
         iter = for_stmt.iter
         assert isinstance(iter, ast.Call), "Loop bound not a call."
-        assert isinstance(iter.func, ast.Name), "Unsupported loop bound."
+        if not isinstance(iter.func, ast.Name):
+            fail(DebugInfo(for_stmt, self).msg("Unsupported loop bound %r." % iter.func))
         if iter.func.id == 'range':
             if not iter.args or len(iter.args) != 1:
                 fail(DebugInfo(for_stmt, self).msg(

@@ -24,7 +24,7 @@ class DebugInfo:
             raise NotImplementedError(
                 "Unable to extract debug information from type %r." % type(lineno))
         self.source = source
-        self.code = code.split('\n') if code else None
+        self.code = None if code is None else code.split('\n')
 
     def msg(self, text):
         return "ERROR\n%s\n    %s" % (str(self), text)
