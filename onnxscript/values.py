@@ -130,12 +130,13 @@ class OnnxFunction(Op):
     :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
     '''
 
-    def __init__(self, opset, pyfun, irfun, source):
+    def __init__(self, opset, pyfun, irfun, source, kwargs):
         opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun
         self.function_ir = irfun
         self.source = source
+        self.kwargs = kwargs
 
     @property
     def name(self):
@@ -157,7 +158,10 @@ class OnnxFunction(Op):
         # to be converted into a valid model. Otherwise, we can still produce an ONNX
         # model, but it will not pass the ONNX model checker. We do not report an error
         # at this stage.
-        return self.function_ir.to_model_proto(**kwargs)
+
+        # Merge kwargs specified in script-decorator with those specified in this call.
+        merged_kw_args = {**self.kwargs, **kwargs}
+        return self.function_ir.to_model_proto(**merged_kw_args)
 
 
 # Values fall into the following categories:
