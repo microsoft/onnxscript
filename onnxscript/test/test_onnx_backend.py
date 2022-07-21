@@ -82,8 +82,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             raise AssertionError(
                 "Unable to import %r (file: %r)\n----\n%s" % (
                     import_name, filename, content)) from e
-        fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
-        return fcts
+        return {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
 
     def common_test_enumerate_onnx_tests_run(self, valid, verbose=0, save_onnx=False):
         with self.assertRaises(FileNotFoundError):
@@ -132,6 +131,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                 if verbose > 1:
                     print("  convert into python")
                 code = export2python(te.onnx_model, function_name="bck_" + te.name)
+                code = code.replace("@script()", "@script(default_opset=15)")
                 self.assertIn("@script()", code)
                 self.assertIn("def bck_%s(" % te.name, code)
                 if verbose > 1:
@@ -146,8 +146,8 @@ class TestOnnxBackEnd(unittest.TestCase):
                                'test_range_int32_type_negative_delta_expanded'}:
                     # Not supported yet.
                     continue
-                fcts = self.verify(te.name, code)
-                main = fcts["bck_" + te.name]
+                test_functions = self.verify(te.name, code)
+                main = test_functions["bck_" + te.name]
                 self.assertFalse(main is None)
                 proto = main.to_model_proto()
                 # opset may be different when an binary operator is used.
@@ -157,7 +157,6 @@ class TestOnnxBackEnd(unittest.TestCase):
                             not te.name.startswith("test_div") and
                             not te.name.startswith("test_equal") and
                             not te.name.startswith("test_greater") and
-                            not te.name.startswith("test_identity") and
                             not te.name.startswith("test_less") and
                             not te.name.startswith("test_matmul") and
                             not te.name.startswith("test_mod") and
