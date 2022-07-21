@@ -64,6 +64,8 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=No
                 arr)
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
             shape = nparray.shape
+        elif arr is None:
+            continue
         else:
             raise ValueError(
                 f"cannot convert a {type(arr)} to value_info")
