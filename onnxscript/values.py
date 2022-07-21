@@ -128,6 +128,8 @@ class OnnxFunction(Op):
     :param opset: opset the function belongs to
     :param pyfun: python function
     :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
+    :param source: source code used to generate the function
+    :param kwargs: additional properties used to construct a ModelProto
     '''
 
     def __init__(self, opset, pyfun, irfun, source, kwargs):

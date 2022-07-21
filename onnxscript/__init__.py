@@ -5,6 +5,6 @@
 
 __version__ = '0.1'
 
-from .main import script, model, export_onnx_lib, OnnxFunction
+from .main import script, export_onnx_lib, OnnxFunction
 
-__all__ = [script, model, export_onnx_lib, OnnxFunction]
+__all__ = [script, export_onnx_lib, OnnxFunction]

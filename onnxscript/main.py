@@ -78,10 +78,6 @@ def script(opset=None, default_opset=None, **kwargs):
 
     return transform
 
-# For now, a decorator for models is the same as the decorator for functions.
-# Will add model-specific checkers later on.
-model = script
-
 def is_converted_fun(f):
     '''
     Return True if f is a function converted by onnx-script decorator.
