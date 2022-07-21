@@ -140,7 +140,10 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print(code)
                 if te.name == "test_resize_downsample_scales_cubic":
                     self.assertIn("Resize(X, None, scales,", code)
-                if te.name in {'test_loop11'}:
+                if te.name in {'test_loop11',
+                               'test_range_float_type_positive_delta_expanded',
+                               'test_range_float_type_positive_delta_expanded4',
+                               'test_range_int32_type_negative_delta_expanded'}:
                     # Not supported yet.
                     continue
                 fcts = self.verify(te.name, code)
