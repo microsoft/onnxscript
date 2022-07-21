@@ -144,9 +144,21 @@ def exposed_uses(stmts, converter):
         if (isinstance(stmt, ast.Expr) and hasattr(stmt, 'value') and
                 isinstance(stmt.value, ast.Call)):
             f = stmt.value.func
-            if f.id == 'print':
+            if getattr(f, 'id', '') == 'print':
                 return live_out
+            if getattr(f, 'attr', '') == 'append':
+                raise NotImplementedError(DebugInfo(stmt, converter).msg(
+                    "A loop includes an instruction <name>.append(<tensor>). "
+                    "This is not supported yet."))
+            raise ValueError(DebugInfo(stmt, converter).msg(
+                f"Unsupported statement type {type(stmt).__name__!r}"
+                f", type(stmt.value)={type(stmt.value)!r}"
+                f", stmt.value.__dict__={stmt.value.__dict__!r}"
+                f", type(stmt.value.func)={type(f)!r}"
+                f", stmt.value.func.__dict__={f.__dict__!r}"
+                f"."))
         raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type: {type(stmt).__name__}."))
+            f"Unsupported statement type {type(stmt).__name__!r}, "
+            f"stmt.__dict__={stmt.__dict__!r}."))
 
     return visitBlock(stmts, set())

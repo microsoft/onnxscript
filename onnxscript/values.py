@@ -186,8 +186,8 @@ class Value:
 
 
 class ConstValue(Value):
-    def __init__(self, val: [float, int], info: DebugInfo) -> None:
-        if not isinstance(val, (float, int)):
+    def __init__(self, val: [float, int, list], info: DebugInfo) -> None:
+        if not isinstance(val, (float, int, list)):
             raise TypeError(
                 "val must be numeric not %r." % type(val))
         super().__init__(val, info)

@@ -620,17 +620,26 @@ class Converter:
         def assign(lhs, rhs):
             info = DebugInfo(lhs, self)
             if isinstance(lhs, ast.Name):
-                lhs = lhs.id
+                lhs_id = lhs.id
+                if isinstance(rhs, ast.List):
+                    # empty sequence
+                    if len(rhs.elts) != 0:
+                        fail(DebugInfo(stmt, self).msg(
+                            f"A variable can be initialized with an empty list "
+                            f"but {len(rhs.elts)} were detected."))
+                    var = ConstValue([], info)
+                    self.bind(lhs_id, var)
+                    return var
                 if self.is_constant_expr(rhs):
-                    self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
+                    self.bind(lhs_id, ConstValue(self.eval_constant_expr(rhs), info))
                 else:
-                    t = self.translate_expr(rhs, lhs).name
+                    t = self.translate_expr(rhs, lhs_id).name
                     if isinstance(stmt, ast.AnnAssign):
                         var = Dynamic(t, DynamicKind.Intermediate, info,
                                       typeinfo=self.eval_constant_expr(stmt.annotation))
                     else:
                         var = Dynamic(t, DynamicKind.Intermediate, info)
-                    self.bind(lhs, var)
+                    self.bind(lhs_id, var)
                     return var
             if isinstance(lhs, ast.Tuple):
                 def id(x):
@@ -641,7 +650,9 @@ class Converter:
                 for x, y in zip(ids, onnxids):
                     self.bind(x, Dynamic(y, DynamicKind.Intermediate, info))
                 return None
-            fail(DebugInfo(stmt, self).msg("Unsupported construct in LHS of assignment."))
+            fail(DebugInfo(stmt, self).msg(
+                f"Unsupported construct in LHS of assignment, "
+                f"type(lhs)=f{type(lhs)!r}, type(rhs)=f{type(rhs)!r}."))
 
         if isinstance(stmt, ast.Assign):
             targets = stmt.targets
