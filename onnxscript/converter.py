@@ -633,7 +633,12 @@ class Converter:
                 if self.is_constant_expr(rhs):
                     self.bind(lhs_id, ConstValue(self.eval_constant_expr(rhs), info))
                 else:
-                    t = self.translate_expr(rhs, lhs_id).name
+                    if isinstance(rhs, ast.Name):
+                        t = rhs.id
+                        # We stil emit an identity node.
+                        self.emit([lhs_id], Op(self.default_opset, "Identity"), [t], [])
+                    else:
+                        t = self.translate_expr(rhs, lhs_id).name
                     if isinstance(stmt, ast.AnnAssign):
                         var = Dynamic(t, DynamicKind.Intermediate, info,
                                       typeinfo=self.eval_constant_expr(stmt.annotation))

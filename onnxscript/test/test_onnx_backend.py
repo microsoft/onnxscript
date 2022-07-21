@@ -152,6 +152,8 @@ class TestOnnxBackEnd(unittest.TestCase):
                 main = test_functions["bck_" + te.name]
                 self.assertFalse(main is None)
                 proto = main.to_model_proto()
+                if te.name == "test_identity" and "@script(default_opset=opset15)" in code:
+                    self.assertIn("version: 15", str(proto))
                 # opset may be different when an binary operator is used.
                 if te.onnx_model.ir_version != proto.ir_version:
                     if (not te.name.startswith("test_add") and
@@ -266,7 +268,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one_case(self):
         self.common_test_enumerate_onnx_tests_run(
-            lambda name: "loop" in name,
+            lambda name: "identity" in name,
             verbose=4 if __name__ == "__main__" else 0,
             save_onnx=True)
 
