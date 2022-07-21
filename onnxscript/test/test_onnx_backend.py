@@ -157,6 +157,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                             not te.name.startswith("test_div") and
                             not te.name.startswith("test_equal") and
                             not te.name.startswith("test_greater") and
+                            not te.name.startswith("test_identity") and
                             not te.name.startswith("test_less") and
                             not te.name.startswith("test_matmul") and
                             not te.name.startswith("test_mod") and
