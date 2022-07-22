@@ -78,6 +78,7 @@ def script(opset=None, default_opset=None, **kwargs):
 
     return transform
 
+
 def is_converted_fun(f):
     '''
     Return True if f is a function converted by onnx-script decorator.

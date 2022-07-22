@@ -221,8 +221,10 @@ class Function:
             functions = sub_functions.values()
         else:
             def to_proto(f):
-                if isinstance(f, onnx.FunctionProto): return f
-                if isinstance(f, OnnxFunction): return f.to_function_proto()
+                if isinstance(f, onnx.FunctionProto):
+                    return f
+                if isinstance(f, OnnxFunction):
+                    return f.to_function_proto()
                 raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
             functions = [to_proto(f) for f in functions]
 
