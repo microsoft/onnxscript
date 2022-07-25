@@ -282,8 +282,9 @@ class TestConverter(unittest.TestCase):
     def test_loops_fail(self):
         try:
             from onnxscript.test.models import loops_fail
+            self.assertFalse(loops_fail is None)
         except TranslationError as e:
-            self.assertIn("Condition 'cond' is not modified in the loop body", str(e))                            
+            self.assertIn("Condition 'cond' is not modified in the loop body", str(e))
 
 
 if __name__ == '__main__':
