@@ -25,7 +25,7 @@ def script_check(f: ast.FunctionDef, opset, global_names, source,
     return converter.top_level_stmt(f)
 
 
-def script(opset=None, default_opset=None):
+def script(opset=None, default_opset=None, **kwargs):
     """
     Main decorator. Declares a function as an onnx function.
 
@@ -76,7 +76,7 @@ def script(opset=None, default_opset=None):
             result = script_check(f_ast, opset, module.__dict__.copy(), src,
                                   default_opset=default_opset)
             # TODO: add transformations.
-            return OnnxFunction(opset, f, result, src)
+            return OnnxFunction(opset, f, result, src, kwargs)
         else:
             raise TypeError(
                 "The ONNXScript decorator should be applied to functions only.")
