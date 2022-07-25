@@ -18,6 +18,7 @@ from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.values import OnnxFunction
+from onnxscript.converter import TranslationError
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
@@ -278,9 +279,15 @@ class TestConverter(unittest.TestCase):
         self.assertEqual(y.tolist(), [0, 11, -22])
         self.assertEqual(loops.loop_range_cond_only(x).tolist(), [0, 11, -22])
 
+    def test_loops_fail(self):
+        try:
+            from onnxscript.test.models import loops_fail
+        except TranslationError as e:
+            self.assertIn("Condition 'cond' is not modified in the loop body", str(e))                            
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_loops()
+    TestConverter().test_loops_fail()
     unittest.main()

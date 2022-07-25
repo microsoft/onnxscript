@@ -699,7 +699,10 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
-        live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        if hasattr(stmt, 'live_out'):
+            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        else:
+            live_defs = []
         test = self.translate_expr(stmt.test, "cond").name
         lineno = DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
@@ -756,8 +759,7 @@ class Converter:
         # analyze loop body
         exposed_uses = analysis.exposed_uses(for_stmt.body, self)
         vars_def_in_loop = analysis.defs(for_stmt.body)
-        loop_state_vars = vars_def_in_loop.intersection(
-            exposed_uses | for_stmt.live_out)
+        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | for_stmt.live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
 
@@ -797,6 +799,8 @@ class Converter:
             r = self.translate_stmt(s)
             if (has_end_condition and isinstance(r, ConverterExpression) and
                     r.name == o_cond_var):
+                # This mechanism does not work if the loop includes
+                # nested blocks.
                 var = r.args['var']
                 assert isinstance(var, Dynamic)
                 updated_condition = var.value
@@ -804,8 +808,9 @@ class Converter:
         if has_end_condition:
             if updated_condition is None:
                 fail(DebugInfo(for_stmt, self).msg(
-                    "Condition %r is not modified in the loop body. "
-                    "It should be removed." % o_cond_var))
+                    "Condition %r is not modified in the loop body or is modified "
+                    "in a nested block (not possible yet). It should be removed."
+                    "" % o_cond_var))
             self.emit([o_cond_out], Op(self.default_opset, "Identity"),
                       [updated_condition], [])
         else:
