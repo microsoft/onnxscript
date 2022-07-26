@@ -8,29 +8,24 @@ from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 
 
-
 @script()
 def make_sequence_tensor(A):
+    # If replaced by [], attribute dtype can not be easily changed.
     seq = op.SequenceEmpty()
-    for i in range(10):
-        seq = op.SequenceInsert(seq, A * 2)
-    return op.ConcatFromSequence(seq)
+    B = A
+    for i in range(5):
+        seq = op.SequenceInsert(seq, B)
+        B = B * 2
+    return op.ConcatFromSequence(seq, axis=0)
 
 
 @script()
-def make_sequence(A):
+def make_sequence_tensor_accumulated(A):
     seq = op.SequenceEmpty()
-    for i in range(10):
-        seq = op.SequenceInsert(seq, A * 2)
-    return seq
-
-
-@script()
-def make_sequence_python(A):
-    seq = []
-    for i in range(10):
-        B = A * 2
-        seq.append(B)
-    ten = op.ConcatFromSequence(seq)
-    return ten 
-
+    B = A
+    C = A * 0
+    for i in range(5):
+        seq = op.SequenceInsert(seq, B)
+        B = B * 2
+        C = C + B + 1
+    return op.ConcatFromSequence(seq, axis=0) - C
