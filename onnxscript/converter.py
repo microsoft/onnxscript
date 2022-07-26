@@ -54,7 +54,7 @@ def ignore(cond, msg):
 
 
 # Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, converter):
+def py_type_to_onnx_type(pytype: type, converter, info: DebugInfo):
     if pytype is bool:
         return onnx.TensorProto.BOOL
     if pytype is int:
@@ -63,11 +63,10 @@ def py_type_to_onnx_type(pytype: type, converter):
         return onnx.TensorProto.FLOAT
     if pytype is str:
         return onnx.TensorProto.STRING
-    fail(DebugInfo(pytype, converter).msg(
-        f"Tensor conversion of element of type {pytype} is not implemented"))
+    fail(info.msg(f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: DebugInfo):
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(DebugInfo(pyvalue, converter).msg(
@@ -75,11 +74,20 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
         pytype = type(pyvalue[0])
         if not all([isinstance(e, pytype) for e in pyvalue]):
             fail(DebugInfo(pyvalue, converter).msg(
-                "Cannot convert an list with elements of different types to tensor"))
+                "Cannot convert an list with elements of different types to tensor."))
         return helper.make_tensor(
-            tensor_name, py_type_to_onnx_type(pytype, converter), [len(pyvalue)], pyvalue)
+            tensor_name, py_type_to_onnx_type(pytype, converter, info),
+            [len(pyvalue)], pyvalue)
+    if isinstance(pyvalue, ConstValue):
+        if pyvalue.is_list():
+            print(pyvalue)
+            import pprint
+            pprint.pprint(pyvalue.__dict__)
+            stop
+        fail(info.msg(
+            f"Tensor conversion of a constant of type {pytype} is not implemented."))
 
-    onnx_type = py_type_to_onnx_type(type(pyvalue), converter)
+    onnx_type = py_type_to_onnx_type(type(pyvalue), converter, info)
     if onnx_type is onnx.TensorProto.BOOL:
         return helper.make_tensor(
             tensor_name, onnx_type, [], [int(pyvalue)])
@@ -330,7 +338,7 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self)
+        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
@@ -593,6 +601,26 @@ class Converter:
                 if hasattr(node.value, 's') and isinstance(node.value.s, str):
                     # python 3.7
                     return self.translate_docstring(node)
+            if (hasattr(node, 'value') and hasattr(node.value, 'func') and
+                    isinstance(node.value.func, ast.Attribute)):
+                attr = node.value.func.attr
+                if attr == 'append':
+                    instance = node.value.func.value
+                    if isinstance(instance, ast.Name):
+                        instance_name = instance.id
+                        # Calls a method: instance_name.append(v)
+                        args = node.value.args
+                        if len(args) != 1:
+                            raise ValueError(DebugInfo(node, self).msg(
+                                f"Unexpected number of arguments in "
+                                f"`{instance_name}.append(...)'."))
+                        var = self.translate_expr(args[0])
+                        return self.emit([var], Op(self.default_opset, "SequenceInsert"),
+                                         [instance_name, var], [])
+                raise ValueError(DebugInfo(node, self).msg(
+                    f"Unexpected expression with attribute {attr!r}."))
+            raise ValueError(DebugInfo(node, self).msg(
+                f"Unexpected expression ({type(node)!r})."))
         try:
             if node.value.func.id == 'print':
                 # Any call to print function are ignored.
@@ -608,7 +636,9 @@ class Converter:
             if isinstance(lhs, ast.Name):
                 lhs = lhs.id
                 if self.is_constant_expr(rhs):
-                    self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
+                    cst = self.eval_constant_expr(rhs)
+                    cstv = ConstValue(cst, info)
+                    self.bind(lhs, cstv)
                 else:
                     t = self.translate_expr(rhs, lhs).name
                     if isinstance(stmt, ast.AnnAssign):
@@ -700,7 +730,7 @@ class Converter:
                 "Unsupported loop bound, only function 'range' is allowed."))
         if not iter.args or len(iter.args) != 1:
             fail(DebugInfo(for_stmt).msg(
-                "Unsupported loop bound, it should be 'range(?)'."))
+                "Unsupported loop bound, it should be 'range(i)' where i is an integer."))
         assert not iter.keywords, "Unsupported loop bound."
         o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
         # analyze loop body

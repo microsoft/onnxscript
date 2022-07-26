@@ -244,9 +244,16 @@ class TestConverter(unittest.TestCase):
         self.assertNotIn("version: 14", sdef)
         self.assertNotIn("version: 15", sdef)
 
+    def test_sequences(self):
+        from onnxscript.test.models import sequences
+        test_functions = self.validate_save(sequences, check_ort=True)
+        f = fcts['make_sequence']
+        self.assertIn(': 10', str(f))
+        self.assertIn('"Sequence"', str(f))
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_opset_import()
+    TestConverter().test_sequences()
     unittest.main()

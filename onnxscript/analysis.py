@@ -37,6 +37,8 @@ def defs(stmt):
     def block_defs(block):
         result = set()
         for s in block:
+            if isinstance(s, ast.Expr):
+                continue
             result = result | defs(s)
         return result
 
@@ -56,7 +58,8 @@ def defs(stmt):
             return set()
     except (TypeError, AttributeError):
         pass
-    raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+    raise ValueError(DebugInfo(stmt).msg(
+        f"Unsupported statement type: {type(stmt)!r}."))
 
 
 def do_liveness_analysis(fun, converter):
@@ -135,8 +138,14 @@ def exposed_uses(stmts, converter):
         if (isinstance(stmt, ast.Expr) and hasattr(stmt, 'value') and
                 isinstance(stmt.value, ast.Call)):
             f = stmt.value.func
-            if f.id == 'print':
-                return live_out
+            if hasattr(f, 'id'):
+                if f.id == 'print':
+                    return live_out
+            elif hasattr(f, 'attr'):
+                if f.attr == 'append':
+                    if isinstance(f.value, ast.Name):
+                        return live_out | set(f.value.id)
+                    return visitBlock(f.value, live_out)
         raise ValueError(DebugInfo(stmt, converter).msg(
             f"Unsupported statement type: {type(stmt).__name__}."))
 
