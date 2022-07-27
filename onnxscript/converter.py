@@ -689,7 +689,7 @@ class Converter:
         # loop-variable
         if isinstance(for_stmt, ast.For):
             if not isinstance(for_stmt.target, ast.Name):
-                fail(DebugInfo(stmt, self).msg(
+                fail(DebugInfo(for_stmt, self).msg(
                     "For loop target must be a single variable."))
             p_loop_var = for_stmt.target.id
             # iter
@@ -713,7 +713,7 @@ class Converter:
             if not isinstance(test, ast.Name):
                 fail(DebugInfo(for_stmt, self).msg(
                     "Unexpected condition type {type(for_stmt)!r} for a while loop, "
-                    f"it should be 'while <condition_name>:'."))
+                    "it should be 'while <condition_name>:'."))
             p_loop_var = 'infinite_loop'
             o_loop_bound = ''
             i_cond_var = test.id
