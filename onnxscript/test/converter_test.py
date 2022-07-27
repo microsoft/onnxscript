@@ -248,32 +248,25 @@ class TestConverter(unittest.TestCase):
         from onnxscript.test.models import loops_break
         test_functions = self.validate_save(loops_break, check_ort=True)
         self.assertIn('loop1', test_functions)
-        for name in ['loop1', 'loop_range_cond_only', 'loop_range_cond']:
+        for name in ['loop1', 'loop_range_cond']:
             with self.subTest(fct=name):
-                f = fcts[name]
+                f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
-
-        onx = test_functions['loop_range_cond_only']
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        x = np.array([0, 1, -2], dtype=np.float32)
-        y = sess.run(None, {'A': x})[0]
-        self.assertEqual(y.tolist(), [0, 11, -22])
-        self.assertEqual(loops.loop_range_cond_only(x).tolist(), [0, 11, -22])
 
         onx = test_functions['loop_range_cond']
         sess = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
         y = sess.run(None, {'A': x})[0]
-        self.assertEqual(y.tolist(), [0, 46, 92])
-        self.assertEqual(loops.loop_range_cond(x).tolist(), [0, 46, 92])
+        self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
+        self.assertEqual(y.tolist(), [0.0, 46.0, 92.0])
         x = np.array([0, 1, -2], dtype=np.float32)
         y = sess.run(None, {'A': x})[0]
+        self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0, 11, -22])
         self.assertEqual(y.tolist(), [0, 11, -22])
-        self.assertEqual(loops.loop_range_cond(x).tolist(), [0, 11, -22])
 
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_loops_break()
+    # TestConverter().test_loops_break()
     unittest.main()

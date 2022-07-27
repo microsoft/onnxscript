@@ -585,7 +585,7 @@ class Converter:
             return self.translate_return_stmt(node)
         if isinstance(node, ast.If):
             return self.translate_if_stmt(node)
-        if isinstance(node, (ast.For, ast.While)):
+        if isinstance(node, ast.For):
             return self.translate_for_stmt(node)
         if isinstance(node, ast.Expr):
             if index_of_stmt == 0 and hasattr(node, 'value'):
@@ -595,8 +595,6 @@ class Converter:
                 if hasattr(node.value, 's') and isinstance(node.value.s, str):
                     # python 3.7
                     return self.translate_docstring(node)
-        if isinstance(node, ast.Break):
-            return self.translate_for_break(node)
         try:
             if node.value.func.id == 'print':
                 # Any call to print function are ignored.
@@ -666,35 +664,12 @@ class Converter:
         else:
             return ret(val)
 
-    def append_test_condition(self, node, condition_name):
-        self.stacked_test_conditions.append((node, condition_name))
-
-    def pop_test_condition(self):
-        return self.stacked_test_conditions.pop()
-
-    def append_break_condition(self, condition_name):
-        self.break_conditions.append(condition_name)
-
-    def pop_break_condition(self):
-        return self.break_conditions.pop()
-
-    def translate_for_break(self, stmt: ast.Assign):
-        if len(self.stacked_test_conditions) == 0:
-            fail(DebugInfo(stmt, self).msg(
-                "Break instruction needs to be inserted in a test block."))
-        _, condition_name = self.stacked_test_conditions[-1]
-        self.append_break_condition(condition_name)
-        var = self.emit_const(False, condition_name + '_false', DebugInfo(stmt, self))
-        self.emit([condition_name], Op(self.default_opset, "Identity"), [var.name], [])
-
     def translate_if_stmt(self, stmt: ast.If):
         if hasattr(stmt, 'live_out'):
             live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
         else:
             live_defs = list(analysis.defs(stmt))
         test = self.translate_expr(stmt.test, "cond").name
-        self.append_test_condition(stmt, test)
-        n_break_conditions = len(self.break_conditions)
         lineno = DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
             stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt)
@@ -702,25 +677,17 @@ class Converter:
         elseGraph, sub_fct_else = self.translate_block(
             stmt.orelse, "elseGraph_%d" % lineno, live_defs, parent_stmt=stmt)
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
-        self.pop_test_condition()
 
         def rename(x):
             r = self.generate_unique_name(x)
             self.bind(x, Dynamic(r, DynamicKind.Intermediate, DebugInfo(stmt, self)))
             return r
 
-        if n_break_conditions == len(self.break_conditions):
-            # no break condition
-            renamed = [rename(x) for x in live_defs]
-            if len(renamed) == 0:
-                fail(DebugInfo(stmt, self).msg(
-                    f"A subgraph for a test do not have any output variable."))
-        else:
-            if len(live_defs) > 0:
-                fail(DebugInfo(stmt, self).msg(
-                    f"A subgraph for a test creates variable despite having a break "
-                    f"instruction. This one should be unique."))
-            renamed = [self.generate_unique_name(self.break_conditions[-1])]
+        # no break condition
+        renamed = [rename(x) for x in live_defs]
+        if len(renamed) == 0:
+            fail(DebugInfo(stmt, self).msg(
+                f"A subgraph for a test do not have any output variable."))
 
         sub_functions = {}
         sub_functions.update(sub_fct_then)
@@ -734,35 +701,23 @@ class Converter:
         # loop-variable
         n_break_conditions = len(self.break_conditions)
 
-        if isinstance(for_stmt, ast.For):
-            if not isinstance(for_stmt.target, ast.Name):
-                fail(DebugInfo(for_stmt, self).msg(
-                    "For loop target must be a single variable."))
-            p_loop_var = for_stmt.target.id
-            # iter
-            iter = for_stmt.iter
-            assert isinstance(iter, ast.Call), "Loop bound not a call."
-            if not isinstance(iter.func, ast.Name):
-                fail(DebugInfo(for_stmt).msg("Unsupported loop bound %r." % iter.func))
-            if iter.func.id != 'range':
-                fail(DebugInfo(for_stmt).msg(
-                    "Unsupported loop bound, only function 'range' is allowed."))
-            if not iter.args or len(iter.args) != 1:
-                fail(DebugInfo(for_stmt).msg(
-                    "Unsupported loop bound, it should be 'range(?)'."))
-            assert not iter.keywords, "Unsupported loop bound."
-            o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
-        elif isinstance(for_stmt, ast.While):
-            test = for_stmt.test
-            if not isinstance(test, ast.Name):
-                fail(DebugInfo(for_stmt, self).msg(
-                    "Unexpected condition type {type(for_stmt)!r} for a while loop, "
-                    f"it should be 'while <condition_name>:'."))
-            self.append_break_condition(test.id)
-            p_loop_var = 'infinite_loop'
-            o_loop_bound = ''
-        else:
-            fail(DebugInfo(for_stmt, self).msg(f"Unexpected loop type {type(for_stmt)!r}."))
+        if not isinstance(for_stmt.target, ast.Name):
+            fail(DebugInfo(for_stmt, self).msg(
+                "For loop target must be a single variable."))
+        p_loop_var = for_stmt.target.id
+        # iter
+        iter = for_stmt.iter
+        assert isinstance(iter, ast.Call), "Loop bound not a call."
+        if not isinstance(iter.func, ast.Name):
+            fail(DebugInfo(for_stmt).msg("Unsupported loop bound %r." % iter.func))
+        if iter.func.id != 'range':
+            fail(DebugInfo(for_stmt).msg(
+                "Unsupported loop bound, only function 'range' is allowed."))
+        if not iter.args or len(iter.args) != 1:
+            fail(DebugInfo(for_stmt).msg(
+                "Unsupported loop bound, it should be 'range(?)'."))
+        assert not iter.keywords, "Unsupported loop bound."
+        o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
             
         # analyze loop body
         exposed_uses = analysis.exposed_uses(for_stmt.body, self)
@@ -794,17 +749,37 @@ class Converter:
             self.ir_builder.add_input(
                 self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
             self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(for_stmt, self)))
-        for s in for_stmt.body:
-            self.translate_stmt(s)
-        o_cond_out = self.generate_unique_name("cond_out")
 
-        if len(self.break_conditions) == n_break_conditions:
-            # No break instructions, the end condition is unchanged.
-            self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
-        else:
-            # Break condition.
-            condition_name = self.pop_break_condition()
-            self.emit([o_cond_out], Op(self.default_opset, "Identity"), [condition_name], [])
+        condition_name = None
+        operator_name = 'Identity'
+        for i, s in enumerate(for_stmt.body):
+            # We first need to intercept a break instruction in test block.
+            # It must be something like `if <condition_name>: break`.
+            # This instruction must be the last of the loop body.
+            if (isinstance(s, ast.If) and len(s.body) == 1 and
+                    isinstance(s.body[0], ast.Break)):
+                if not isinstance(s.test, ast.Name):
+                    fail(DebugInfo(s, self).msg(
+                        f"Instruction break can be introduced with test but it must be "
+                        f"if <condition>: break. However condition is of type "
+                        f"{type(s.test)!r}."))
+                if i != len(for_stmt.body) - 1:
+                    fail(DebugInfo(s, self).msg(
+                        f"Instruction break must be the last one of the loop."))
+
+                current_scope = self.current_scope()
+                if s.test.id not in current_scope:
+                    fail(DebugInfo(for_stmt, self).msg(
+                        f"Unable to find condition variable {s.test.id!r} in known "
+                        f"variables {list(current_scope)!r}."))
+                condition_name = current_scope[s.test.id].value
+                operator_name = 'Not'
+                continue
+            self.translate_stmt(s)
+
+        o_cond_out = self.generate_unique_name("cond_out")
+        self.emit([o_cond_out], Op(self.default_opset, operator_name),
+                  [condition_name or o_cond_var], [])
 
         self.ir_builder.add_output(
             self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))
