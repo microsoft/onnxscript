@@ -244,9 +244,36 @@ class TestConverter(unittest.TestCase):
         self.assertNotIn("version: 14", sdef)
         self.assertNotIn("version: 15", sdef)
 
+    def test_loops_break(self):
+        from onnxscript.test.models import loops_break
+        test_functions = self.validate_save(loops, check_ort=True)
+        self.assertIn('loop1', test_functions)
+        for name in ['loop1', 'loop_range_cond']:
+            with self.subTest(fct=name):
+                f = fcts[name]
+                self.assertIn('op_type: "Loop"', str(f))
+
+        onx = test_functions['loop_range_cond']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        x = np.array([0, 1, 2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 46, 92])
+        self.assertEqual(loops.loop_range_cond(x).tolist(), [0, 46, 92])
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 11, -22])
+        self.assertEqual(loops.loop_range_cond(x).tolist(), [0, 11, -22])
+
+        onx = test_functions['loop_range_cond_only']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 11, -22])
+        self.assertEqual(loops.loop_range_cond_only(x).tolist(), [0, 11, -22])
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_opset_import()
+    TestConverter().test_loops_break()
     unittest.main()

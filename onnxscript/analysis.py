@@ -46,6 +46,8 @@ def defs(stmt):
         return local_defs(stmt.target)
     if isinstance(stmt, ast.Return):
         return set()
+    if isinstance(stmt, ast.Break):
+        return set()
     if isinstance(stmt, ast.If):
         return block_defs(stmt.body) | block_defs(stmt.orelse)
     if isinstance(stmt, list):
@@ -137,7 +139,9 @@ def exposed_uses(stmts, converter):
             f = stmt.value.func
             if f.id == 'print':
                 return live_out
+        if isinstance(stmt, ast.Break):
+            return live_out
         raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type: {type(stmt).__name__}."))
+            f"Unsupported statement type: {type(stmt)!r}."))
 
     return visitBlock(stmts, set())

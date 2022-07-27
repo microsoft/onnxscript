@@ -593,6 +593,8 @@ class Converter:
                 if hasattr(node.value, 's') and isinstance(node.value.s, str):
                     # python 3.7
                     return self.translate_docstring(node)
+        if isinstance(node, ast.Break):
+            return self.translate_for_break(node)
         try:
             if node.value.func.id == 'print':
                 # Any call to print function are ignored.
@@ -601,6 +603,9 @@ class Converter:
             pass
         raise ValueError(DebugInfo(node, self).msg(
             f"Unsupported statement type: {type(node).__name__}."))
+
+    def translate_for_break(self, stmt: ast.Assign):
+        raise NotImplementedError()
 
     def translate_assign_stmt(self, stmt: typing.Union[ast.Assign, ast.AnnAssign]):
         def assign(lhs, rhs):
@@ -663,7 +668,10 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
-        live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        if hasattr(stmt, 'live_out'):
+            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        else:
+            live_defs = list(analysis.defs(stmt))
         test = self.translate_expr(stmt.test, "cond").name
         lineno = DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
