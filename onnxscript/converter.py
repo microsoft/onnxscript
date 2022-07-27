@@ -275,7 +275,7 @@ class Converter:
         elif pytype is typing.List[int]:
             attrname = "value_ints"
         else:
-            fail(DebugInfo(val, self).msg(f"Unsupported attribute type: {pytype}"))
+            fail(DebugInfo(val, self).msg(f"Unsupported attribute type {pytype!r}."))
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None, info=None):
@@ -383,7 +383,7 @@ class Converter:
                     "Unable to evaluate a constant in node type %r "
                     "due to %r." % (type(node), str(e))))
         raise ValueError(DebugInfo(node).msg(
-            f"Unsupported attribute type '{type(node).__name__}'."))
+            f"Unsupported attribute type '{type(node)!r}'."))
 
     def translate_attr(self, attr_name, node):
         '''
@@ -425,7 +425,7 @@ class Converter:
             r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
         else:
             raise ValueError(DebugInfo(node, self).msg(
-                f"Unsupported expression type: {type(node).__name__}."))
+                f"Unsupported expression type {type(node)!r}."))
         if isinstance(r, ConverterExpression):
             return r
         if isinstance(r, tuple):
@@ -583,7 +583,7 @@ class Converter:
             return self.translate_return_stmt(node)
         if isinstance(node, ast.If):
             return self.translate_if_stmt(node)
-        if isinstance(node, ast.For):
+        if isinstance(node, (ast.For, ast.While)):
             return self.translate_for_stmt(node)
         if isinstance(node, ast.Expr):
             if index_of_stmt == 0 and hasattr(node, 'value'):
@@ -600,7 +600,7 @@ class Converter:
         except (TypeError, AttributeError):
             pass
         raise ValueError(DebugInfo(node, self).msg(
-            f"Unsupported statement type: {type(node).__name__}."))
+            f"Unsupported statement type {type(node)!r}."))
 
     def translate_assign_stmt(self, stmt: typing.Union[ast.Assign, ast.AnnAssign]):
         def assign(lhs, rhs):
@@ -685,24 +685,44 @@ class Converter:
         self.emit(renamed, Op(self.default_opset, "If"), [test], [thenAttr, elseAttr],
                   sub_functions=sub_functions)
 
-    def translate_for_stmt(self, for_stmt: ast.For):
+    def translate_for_stmt(self, for_stmt: typing.Union[ast.For, ast.While]):
         # loop-variable
-        assert isinstance(for_stmt.target, ast.Name), \
-            "For loop target must be a single variable."
-        p_loop_var = for_stmt.target.id
-        # iter
-        iter = for_stmt.iter
-        assert isinstance(iter, ast.Call), "Loop bound not a call."
-        if not isinstance(iter.func, ast.Name):
-            fail(DebugInfo(for_stmt).msg("Unsupported loop bound %r." % iter.func))
-        if iter.func.id != 'range':
-            fail(DebugInfo(for_stmt).msg(
-                "Unsupported loop bound, only function 'range' is allowed."))
-        if not iter.args or len(iter.args) != 1:
-            fail(DebugInfo(for_stmt).msg(
-                "Unsupported loop bound, it should be 'range(?)'."))
-        assert not iter.keywords, "Unsupported loop bound."
-        o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
+        if isinstance(for_stmt, ast.For):
+            if not isinstance(for_stmt.target, ast.Name):
+                fail(DebugInfo(stmt, self).msg(
+                    "For loop target must be a single variable."))
+            p_loop_var = for_stmt.target.id
+            # iter
+            iter = for_stmt.iter
+            assert isinstance(iter, ast.Call), "Loop bound not a call."
+            if not isinstance(iter.func, ast.Name):
+                fail(DebugInfo(for_stmt).msg("Unsupported loop bound %r." % iter.func))
+            if iter.func.id != 'range':
+                fail(DebugInfo(for_stmt).msg(
+                    "Unsupported loop bound, only function 'range' is allowed."))
+            if not iter.args or len(iter.args) != 1:
+                fail(DebugInfo(for_stmt).msg(
+                    "Unsupported loop bound, it should be 'range(?)'."))
+            assert not iter.keywords, "Unsupported loop bound."
+            o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
+            o_cond_var = self.generate_unique_name("cond_in")
+            i_cond_var = o_cond_var
+            cond_while = None
+        elif isinstance(for_stmt, ast.While):
+            test = for_stmt.test
+            if not isinstance(test, ast.Name):
+                fail(DebugInfo(for_stmt, self).msg(
+                    "Unexpected condition type {type(for_stmt)!r} for a while loop, "
+                    f"it should be 'while <condition_name>:'."))
+            p_loop_var = 'infinite_loop'
+            o_loop_bound = ''
+            i_cond_var = test.id
+            cond_while = test.id
+            o_cond_var = None
+            # we need to go through all the instructions to see
+            # which instruction defines the condition test.id
+        else:
+            fail(DebugInfo(for_stmt, self).msg(f"Unexpected loop type {type(for_stmt)!r}."))
         # analyze loop body
         exposed_uses = analysis.exposed_uses(for_stmt.body, self)
         vars_def_in_loop = analysis.defs(for_stmt.body)
@@ -722,9 +742,10 @@ class Converter:
             self.current_fn, o_loop_var, types.INT64, DebugInfo(for_stmt, self))
         self.bind(p_loop_var, Dynamic(
             o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt, self)))
-        o_cond_var = self.generate_unique_name("cond_in")
+
         self.ir_builder.add_input(
-            self.current_fn, o_cond_var, types.BOOL, DebugInfo(for_stmt, self))
+            self.current_fn, i_cond_var, types.BOOL, DebugInfo(for_stmt, self))
+
         for pv in loop_state_vars:
             ov = self.generate_unique_name(pv)
             # TODO: retrieve the annotation for variable pv is any is specified.
@@ -733,10 +754,23 @@ class Converter:
             self.ir_builder.add_input(
                 self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
             self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(for_stmt, self)))
+
         for s in for_stmt.body:
             self.translate_stmt(s)
+
         o_cond_out = self.generate_unique_name("cond_out")
+
+        if cond_while is not None:
+            # Loop while
+            current_scope = self.current_scope()
+            if cond_while not in current_scope:
+                fail(DebugInfo(for_stmt, self).msg(
+                    f"Unable to find condition variable {cond_while!r} in known "
+                    f"variables {list(current_scope)!r}."))
+            o_cond_var = current_scope[cond_while].value
+
         self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
+
         self.ir_builder.add_output(
             self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))
         for pv in loop_state_vars:
@@ -746,7 +780,6 @@ class Converter:
             self.ir_builder.add_output(
                 self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
         body = self.exit_scope()
-
         inputs = [o_loop_bound, o_true] + \
                  [self.py_var_to_onnx_var(
                      pv, DebugInfo(for_stmt, self)) for pv in loop_state_vars]
@@ -864,4 +897,4 @@ class Converter:
         if isinstance(stmt, ast.If):
             # Skips it.
             return None
-        raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
+        raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
