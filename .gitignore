@@ -24,3 +24,4 @@ docs/_build/
 onnxscript/test/models/testoutputs/*
 docs/auto_examples/*
 onnxscript/test/mylib.onnxlib
+onnxscript/test/onnx_backend_test_code

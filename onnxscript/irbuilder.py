@@ -10,8 +10,8 @@ from onnx import OperatorSetIdProto
 import onnx.helper as helper
 from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
-from .values import Opset
 import warnings
+from .values import OnnxFunction, Opset
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -20,6 +20,16 @@ logger = logging.getLogger("onnx-script")
 
 def format(list, prefix, sep, suffix, formatter=str):
     return prefix + sep.join([formatter(x) for x in list]) + suffix
+
+
+def select_ir_version(version, domain=''):
+    """
+    Selects the corresponding ir_version knowning the opset version
+    for the main ONNX domain.
+    """
+    if domain == '':
+        domain = 'ai.onnx'
+    return helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
 class Type:
@@ -219,8 +229,16 @@ class Function:
         :return: an instance of :class:`onnx.ModelProto`
         """
         graph, sub_functions = self.to_graph_proto(enforce_typed=True, io_types=io_types)
-        functions = [] if functions is None else list(functions)
-        functions.extend(sub_functions.values())
+        if functions is None:
+            functions = sub_functions.values()
+        else:
+            def to_proto(f):
+                if isinstance(f, onnx.FunctionProto):
+                    return f
+                if isinstance(f, OnnxFunction):
+                    return f.to_function_proto()
+                raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
+            functions = [to_proto(f) for f in functions]
 
         opsets = {}
         for n in self.stmts:
@@ -234,6 +252,8 @@ class Function:
             if proto.domain not in opsets:
                 opsets[proto.domain] = 1
 
+        if 'ir_version' not in kwargs:
+            kwargs['ir_version'] = select_ir_version(opsets[''])
         opset_imports = [onnx.helper.make_opsetid(domain, version)
                          for domain, version in opsets.items()]
 

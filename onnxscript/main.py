@@ -25,7 +25,7 @@ def script_check(f: ast.FunctionDef, opset, global_names, source,
     return converter.top_level_stmt(f)
 
 
-def script(opset=None, default_opset=None):
+def script(opset=None, default_opset=None, **kwargs):
     """
     Main decorator. Declares a function as an onnx function.
 
@@ -60,7 +60,12 @@ def script(opset=None, default_opset=None):
 
     def transform(f):
         if inspect.isfunction(f):
-            src = inspect.getsource(f)
+            try:
+                src = inspect.getsource(f)
+            except OSError as e:
+                raise RuntimeError(
+                    "Decorator script does not work on dynamically "
+                    "compiled function %r." % f.__name__) from e
             src = textwrap.dedent(src)
             module = inspect.getmodule(f)
             top_level_ast = ast.parse(src)
@@ -71,7 +76,7 @@ def script(opset=None, default_opset=None):
             result = script_check(f_ast, opset, module.__dict__.copy(), src,
                                   default_opset=default_opset)
             # TODO: add transformations.
-            return OnnxFunction(opset, f, result, src)
+            return OnnxFunction(opset, f, result, src, kwargs)
         else:
             raise TypeError(
                 "The ONNXScript decorator should be applied to functions only.")

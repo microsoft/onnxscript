@@ -9,9 +9,14 @@ import numpy as np
 import onnx
 from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 
 from .utils import convert_arrays_to_value_infos
+from .irbuilder import select_ir_version
+
+
+class EagerModeError(RuntimeError):
+    pass
 
 
 def convert_to_tensor(v, k):
@@ -40,12 +45,39 @@ def convert_attributes_to_tensors_with_schema(
             attribute_dict[k] = convert_to_tensor(v, k)
 
 
+def _rename_io(prefix, i, arg):
+    if arg is None:
+        return ""
+    return "%s%d" % (prefix, i)
+
+
+def _compute_outputs(schema, *args, **kwargs):
+    if schema.domain == '':
+        if schema.name == 'BatchNormalization':
+            if not kwargs.get('training_mode', 0):
+                return ["output0"]
+        if schema.name == 'LSTM':
+            return ["output0", "output1", "output2"]
+        if schema.name == 'Split':
+            if len(args) == 1:
+                raise EagerModeError(
+                    "Operator Split: the number of expected outputs defines the split. "
+                    "This information is unknown here.")
+    return None
+
+
 def call_ort(schema, *args, **kwargs):
     convert_attributes_to_tensors_with_schema(
         kwargs, schema.attributes)
 
-    inputs = ["input" + str(i) for i in range(len(args))]
-    outputs = ["output" + str(i) for i in range(len(schema.outputs))]
+    inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
+
+    # The number of outputs may be different based on the inputs.
+    # The schema alone cannot be used in all cases (see BachNormalization).
+    outputs = _compute_outputs(schema, *args, **kwargs)
+    if outputs is None:
+        outputs = ["output" + str(i) for i in range(len(schema.outputs))]
+
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
     input_value_infos = convert_arrays_to_value_infos(
         inputs, list(args), schema.inputs)
@@ -55,18 +87,26 @@ def call_ort(schema, *args, **kwargs):
     graph = onnx.helper.make_graph(
         [node], "node_graph", input_value_infos, output_value_infos)
     opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
-    model = onnx.helper.make_model(graph, opset_imports=[opset_id])
+    model = onnx.helper.make_model(graph, opset_imports=[opset_id],
+                                   ir_version=select_ir_version(schema.since_version,
+                                                                domain=schema.domain))
     try:
         sess = InferenceSession(
             model.SerializeToString(), providers=['CPUExecutionProvider'])
-    except (Fail, InvalidGraph) as e:
+    except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             "Unable to create onnxruntime InferenceSession with onnx "
             "model\n%s" % str(model)) from e
 
     session_run_input = {
         input: arg if isinstance(arg, (np.ndarray, list)) else [arg]
-        for input, arg in zip(inputs, args)}
+        for input, arg in zip(inputs, args)
+        if arg is not None}
 
-    got = sess.run(None, session_run_input)
+    try:
+        got = sess.run(None, session_run_input)
+    except RuntimeError as e:
+        raise RuntimeError(
+            "Unable to execute model operator %r due to %r\n%s" % (
+                schema.name, e, model)) from e
     return got[0] if len(got) == 1 else got

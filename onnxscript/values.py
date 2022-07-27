@@ -24,7 +24,7 @@ class DebugInfo:
             raise NotImplementedError(
                 "Unable to extract debug information from type %r." % type(lineno))
         self.source = source
-        self.code = code.split('\n')
+        self.code = None if code is None else code.split('\n')
 
     def msg(self, text):
         return "ERROR\n%s\n    %s" % (str(self), text)
@@ -128,14 +128,17 @@ class OnnxFunction(Op):
     :param opset: opset the function belongs to
     :param pyfun: python function
     :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
+    :param source: source code used to generate the function
+    :param kwargs: additional properties used to construct a ModelProto
     '''
 
-    def __init__(self, opset, pyfun, irfun, source):
+    def __init__(self, opset, pyfun, irfun, source, kwargs):
         opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun
         self.function_ir = irfun
         self.source = source
+        self.kwargs = kwargs
 
     @property
     def name(self):
@@ -157,7 +160,10 @@ class OnnxFunction(Op):
         # to be converted into a valid model. Otherwise, we can still produce an ONNX
         # model, but it will not pass the ONNX model checker. We do not report an error
         # at this stage.
-        return self.function_ir.to_model_proto(**kwargs)
+
+        # Merge kwargs specified in script-decorator with those specified in this call.
+        merged_kw_args = {**self.kwargs, **kwargs}
+        return self.function_ir.to_model_proto(**merged_kw_args)
 
 
 # Values fall into the following categories:

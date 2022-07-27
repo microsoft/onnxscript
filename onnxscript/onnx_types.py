@@ -38,8 +38,12 @@ class ParametricTensor:
     """
     Defines a dense tensor of any shape.
     """
+
+    types = {}
+
     def __init__(self, dtype) -> None:
         self.dtype = dtype
+        ParametricTensor.types[dtype] = self
 
     def __getitem__(self, shape):
         def mk_dim(dim):
