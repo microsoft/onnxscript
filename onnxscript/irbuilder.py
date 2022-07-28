@@ -291,8 +291,10 @@ class Function:
                 # literal operators. Not to extend this PR too much,
                 # it needs to be fixed in another PR.
                 # raise RuntimeError(
-                #     f"There is a version conflict in domain: '{s.module.domain}'.")
-                warnings.warn(f"There is a version conflict in domain: {s.module.domain!r}.")
+                #     ff"There is a version conflict in domain: {s.module.domain!r},\
+                #         with {self.name!r}.")
+                warnings.warn(f"There is a version conflict in domain: {s.module.domain!r},\
+                    with {self.name!r}.")
         return func_opset_imports
 
     def to_function_proto(self, domain):
