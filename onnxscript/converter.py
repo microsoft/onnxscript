@@ -687,20 +687,19 @@ class Converter:
         renamed = [rename(x) for x in live_defs]
         if len(renamed) == 0:
             fail(DebugInfo(stmt, self).msg(
-                f"A subgraph for a test do not have any output variable."))
+                "A subgraph for a test do not have any output variable."))
 
         sub_functions = {}
         sub_functions.update(sub_fct_then)
         sub_functions.update(sub_fct_else)
         if renamed == [test]:
-            fail(DebugInfo(stmt, self).msg(f"Input and output cannot be the same {renamed!r}."))
+            fail(DebugInfo(stmt, self).msg(
+                f"Input and output cannot be the same {renamed!r}."))
         self.emit(renamed, Op(self.default_opset, "If"), [test], [thenAttr, elseAttr],
                   sub_functions=sub_functions)
 
     def translate_for_stmt(self, for_stmt: ast.For):
         # loop-variable
-        n_break_conditions = len(self.break_conditions)
-
         if not isinstance(for_stmt.target, ast.Name):
             fail(DebugInfo(for_stmt, self).msg(
                 "For loop target must be a single variable."))
@@ -718,7 +717,7 @@ class Converter:
                 "Unsupported loop bound, it should be 'range(?)'."))
         assert not iter.keywords, "Unsupported loop bound."
         o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
-            
+
         # analyze loop body
         exposed_uses = analysis.exposed_uses(for_stmt.body, self)
         vars_def_in_loop = analysis.defs(for_stmt.body)
@@ -765,7 +764,7 @@ class Converter:
                         f"{type(s.test)!r}."))
                 if i != len(for_stmt.body) - 1:
                     fail(DebugInfo(s, self).msg(
-                        f"Instruction break must be the last one of the loop."))
+                        "Instruction break must be the last one of the loop."))
 
                 current_scope = self.current_scope()
                 if s.test.id not in current_scope:
