@@ -6,7 +6,6 @@
 import logging
 from io import StringIO
 import onnx
-from onnx import OperatorSetIdProto
 import onnx.helper as helper
 from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
@@ -293,7 +292,7 @@ class Function:
                 # it needs to be fixed in another PR.
                 # raise RuntimeError(
                 #     f"There is a version conflict in domain: '{s.module.domain}'.")
-                warnings.warn(f"There is a version conflict in domain: '{s.module.domain}'.")
+                warnings.warn(f"There is a version conflict in domain: {s.module.domain!r}.")
         return func_opset_imports
 
     def to_function_proto(self, domain):
