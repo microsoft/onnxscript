@@ -48,12 +48,6 @@ class OnnxScriptTestCase(unittest.TestCase):
             # official version
             cls.all_test_cases = node_test.collect_testcases(None)
 
-    def _map_op_input_to_model(self, onnx_case_model: ModelProto):
-        # op("x", "", "max") model("x", "max") => map_op_input_to_model[0, -1, 1]
-        op_input = onnx_case_model.graph.node[0].input
-        model_input = [input.name for input in onnx_case_model.graph.input]
-        return [-1 if input == "" else model_input.index(input) for input in op_input]
-
     def _create_model_from_param(
             self,
             param: FunctionTestParams,
@@ -214,7 +208,6 @@ class OnnxScriptTestCase(unittest.TestCase):
                     tests models with one operator node.")
 
             if case.name not in skip_test_names:
-                print(case.name)
                 test_case_attrs = {
                     a.name: onnx.helper.get_attribute_value(a)
                     for a in case.model.graph.node[0].attribute}

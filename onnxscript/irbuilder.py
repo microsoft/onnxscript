@@ -308,6 +308,9 @@ class Function:
         """
         opsets = self.get_opset_import()
         if domain != '':
+            if domain.domain in opsets and opsets[domain.domain] != domain.version:
+                raise RuntimeError(
+                    f"There is a version conflict in domain: {domain.domain!r}.")
             opsets[domain.domain] = domain.version
         else:
             opsets = opsets.copy()
