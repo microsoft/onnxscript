@@ -58,7 +58,7 @@ def defs(stmt):
             return set()
     except (TypeError, AttributeError):
         pass
-    raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+    raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
 
 
 def do_liveness_analysis(fun, converter):
@@ -106,7 +106,7 @@ def do_liveness_analysis(fun, converter):
         except (TypeError, AttributeError):
             pass
         raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type: {type(stmt)!r}."))
+            f"Unsupported statement type {type(stmt)!r}."))
 
     assert isinstance(fun, ast.FunctionDef)
     live = set()
@@ -142,6 +142,6 @@ def exposed_uses(stmts, converter):
         if isinstance(stmt, ast.Break):
             return live_out
         raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type: {type(stmt)!r}."))
+            f"Unsupported statement type {type(stmt)!r}."))
 
     return visitBlock(stmts, set())

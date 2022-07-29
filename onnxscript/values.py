@@ -188,6 +188,8 @@ class Value:
     def __init__(self, val: Any, info: DebugInfo) -> None:
         if not isinstance(info, DebugInfo):
             raise TypeError("info must be of DebugInfo not %r." % type(info))
+        if val is None:
+            raise ValueError(info.msg('val cannot be None.'))
         self.value = val
         self.info = info
 

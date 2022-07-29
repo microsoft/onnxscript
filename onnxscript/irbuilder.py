@@ -55,6 +55,8 @@ class TensorType(Type):
 
 class Var:
     def __init__(self, varname, typeinfo, info) -> None:
+        if not isinstance(varname, str):
+            raise ValueError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
         self.info = info
         self.typeinfo = typeinfo
@@ -63,7 +65,7 @@ class Var:
         return self.name
 
     def __repr__(self):
-        return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.typeinfo)
+        return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.typeinfo)
 
     def typed_str(self):
         return self.name + " : " + str(self.typeinfo)
@@ -91,6 +93,10 @@ class Var:
         # if (not tp.tensor_type.HasField('shape')):
         #     # TODO: temporary patch to export a function as a graph
         #     tp = helper.make_tensor_type_proto(tp.tensor_type.elem_type, [10])
+        if self.name is None:
+            raise ValueError(self.info.msg("name cannot be None."))
+        if tp is None:
+            raise ValueError(self.info.msg("tp cannot be None."))
         return helper.make_value_info(self.name, tp)
 
 
