@@ -56,7 +56,7 @@ def defs(stmt):
             return set()
     except (TypeError, AttributeError):
         pass
-    raise ValueError(f"Unsupported statement type: {type(stmt).__name__}.")
+    raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
 
 
 def do_liveness_analysis(fun, converter):
@@ -87,7 +87,7 @@ def do_liveness_analysis(fun, converter):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return live1 | live2 | used_vars(stmt.test)
-        if isinstance(stmt, ast.For):
+        if isinstance(stmt, (ast.For, ast.While)):
             return live_out  # TODO
         if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):
             # docstring
@@ -104,7 +104,7 @@ def do_liveness_analysis(fun, converter):
         except (TypeError, AttributeError):
             pass
         raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type: {type(stmt).__name__}."))
+            f"Unsupported statement type {type(stmt)!r}."))
 
     assert isinstance(fun, ast.FunctionDef)
     live = set()
@@ -138,6 +138,6 @@ def exposed_uses(stmts, converter):
             if f.id == 'print':
                 return live_out
         raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type: {type(stmt).__name__}."))
+            f"Unsupported statement type {type(stmt)!r}."))
 
     return visitBlock(stmts, set())
