@@ -140,6 +140,7 @@ def exposed_uses(stmts, converter):
             if f.id == 'print':
                 return live_out
         if isinstance(stmt, ast.Break):
+            # TODO: liveness analysis does not handle breaks in the middle of a loop yet.
             return live_out
         raise ValueError(DebugInfo(stmt, converter).msg(
             f"Unsupported statement type {type(stmt)!r}."))

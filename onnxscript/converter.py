@@ -796,8 +796,6 @@ class Converter:
             self.translate_stmt(s)
 
         o_cond_out = self.generate_unique_name("cond_out")
-        self.emit([o_cond_out], Op(self.default_opset, operator_name),
-                  [condition_name or o_cond_var], [])
 
         if cond_while is not None:
             # Loop while
@@ -808,7 +806,8 @@ class Converter:
                     f"variables {list(current_scope)!r}."))
             o_cond_var = current_scope[cond_while].value
 
-        self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
+        self.emit([o_cond_out], Op(self.default_opset, operator_name),
+                  [condition_name or o_cond_var], [])
 
         self.ir_builder.add_output(
             self.current_fn, o_cond_out, types.BOOL, DebugInfo(loop_stmt, self))
