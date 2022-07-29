@@ -9,8 +9,6 @@ from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 
-# same variable assigned multiple times
-
 
 @script()
 def loop1(A: FLOAT["N"]) -> FLOAT["N"]:
