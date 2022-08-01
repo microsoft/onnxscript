@@ -783,7 +783,7 @@ class Converter:
                 o_cond_var = self.generate_unique_name("cond_in")
                 i_cond_var = o_cond_var
             cond_while = None
-            
+
             i_cond_var = o_cond_var
             cond_while = None
         elif isinstance(loop_stmt, ast.While):
