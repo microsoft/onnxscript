@@ -46,12 +46,12 @@ def defs(stmt):
         return local_defs(stmt.target)
     if isinstance(stmt, ast.Return):
         return set()
-    if isinstance(stmt, ast.Break):
-        return set()
     if isinstance(stmt, ast.If):
         return block_defs(stmt.body) | block_defs(stmt.orelse)
     if isinstance(stmt, list):
         return block_defs(stmt)
+    if isinstance(stmt, ast.Break):
+        return set()
     try:
         if stmt.value.func.id == 'print':
             # Any call to print function are ignored.
