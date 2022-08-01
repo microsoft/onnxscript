@@ -6,10 +6,12 @@ from onnxscript.analysis import do_liveness_analysis
 from onnxscript.converter import Converter
 from onnxscript.onnx_opset import opset15 as op
 
+
 class AnalysisResultsVisitor(ast.NodeVisitor):
     '''
     Visitor class to flatten the results of liveness analysis in a pre-order traversal.
     '''
+
     def __init__(self) -> None:
         super().__init__()
         self.results = []
@@ -22,6 +24,7 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
             last = node.body[-1]
             self.results.append(last.live_out)
 
+
 class TestAnalysis(unittest.TestCase):
     def analyze(self, fun):
         ast = get_ast(fun)
@@ -29,7 +32,7 @@ class TestAnalysis(unittest.TestCase):
         visitor = AnalysisResultsVisitor()
         visitor.visit(ast)
         return visitor.results
-    
+
     def assertLiveness(self, fun, expected):
         self.assertEqual(self.analyze(fun), [set(x) for x in expected])
 
@@ -45,7 +48,7 @@ class TestAnalysis(unittest.TestCase):
             ["x"],
             ["y"],
             ["y"]
-            ])
+        ])
 
     def test_for_loop(self):
         def loop_eg():
@@ -71,7 +74,7 @@ class TestAnalysis(unittest.TestCase):
             ["x", "sum"],
             ["x", "sum"],
             ["x"]
-            ])
+        ])
 
     def test_while_loop(self):
         def while_eg(x):
@@ -93,7 +96,8 @@ class TestAnalysis(unittest.TestCase):
             ["x"],
             ["x", "cond"],
             ["x"]
-            ])
+        ])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -11,6 +11,7 @@ from .converter import Converter
 from . import values
 from .values import OnnxFunction
 
+
 def get_ast(f):
     try:
         src = inspect.getsource(f)
@@ -25,6 +26,7 @@ def get_ast(f):
     f_ast = top_level_ast.body[0]
     assert type(f_ast) == ast.FunctionDef
     return f_ast
+
 
 def script_check(f: ast.FunctionDef, opset, global_names, source,
                  default_opset=None):

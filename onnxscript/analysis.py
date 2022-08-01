@@ -4,7 +4,6 @@
 # --------------------------------------------------------------------------
 
 import ast
-from locale import currency
 from .values import DebugInfo
 
 
@@ -99,7 +98,7 @@ def do_liveness_analysis(fun, converter):
             curr = live_out
             while curr != prev:
                 prev = curr
-                curr = visitBlock(stmt.body, prev).difference (set([p_loop_var]))
+                curr = visitBlock(stmt.body, prev).difference(set([p_loop_var]))
             return curr
         if isinstance(stmt, ast.While):
             cond_vars = used_vars(stmt.test)
@@ -107,7 +106,7 @@ def do_liveness_analysis(fun, converter):
             curr = live_out | cond_vars
             while curr != prev:
                 prev = curr
-                curr = visitBlock(stmt.body, prev) | cond_vars               
+                curr = visitBlock(stmt.body, prev) | cond_vars
             return curr
         if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):
             # docstring
