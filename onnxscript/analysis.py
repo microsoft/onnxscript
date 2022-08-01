@@ -4,11 +4,12 @@
 # --------------------------------------------------------------------------
 
 import ast
+from locale import currency
 from .values import DebugInfo
 
 
 def used_vars(expr):
-    ''' Return set of all variables used with an expression.'''
+    ''' Return set of all variables used in an expression.'''
     if isinstance(expr, ast.Name):
         return set([expr.id])
     result = set()
@@ -89,6 +90,17 @@ def do_liveness_analysis(fun, converter):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return live1 | live2 | used_vars(stmt.test)
+        if isinstance(stmt, ast.For):
+            if not isinstance(stmt.target, ast.Name):
+                raise ValueError(DebugInfo(stmt, converter).msg(
+                    "For loop target must be a single variable."))
+            p_loop_var = stmt.target.id
+            prev = None
+            curr = live_out
+            while curr != prev:
+                prev = curr
+                curr = visitBlock(stmt.body, prev).difference (set([p_loop_var]))
+            return curr
         if isinstance(stmt, (ast.For, ast.While)):
             return live_out  # TODO
         if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):

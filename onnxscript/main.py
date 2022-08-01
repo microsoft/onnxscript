@@ -11,6 +11,20 @@ from .converter import Converter
 from . import values
 from .values import OnnxFunction
 
+def get_ast(f):
+    try:
+        src = inspect.getsource(f)
+    except OSError as e:
+        raise RuntimeError(
+            "Decorator script does not work on dynamically "
+            "compiled function %r." % f.__name__) from e
+    src = textwrap.dedent(src)
+    top_level_ast = ast.parse(src)
+    assert type(top_level_ast) == ast.Module
+    assert len(top_level_ast.body) == 1
+    f_ast = top_level_ast.body[0]
+    assert type(f_ast) == ast.FunctionDef
+    return f_ast
 
 def script_check(f: ast.FunctionDef, opset, global_names, source,
                  default_opset=None):
@@ -60,19 +74,8 @@ def script(opset=None, default_opset=None, **kwargs):
 
     def transform(f):
         if inspect.isfunction(f):
-            try:
-                src = inspect.getsource(f)
-            except OSError as e:
-                raise RuntimeError(
-                    "Decorator script does not work on dynamically "
-                    "compiled function %r." % f.__name__) from e
-            src = textwrap.dedent(src)
+            f_ast = get_ast(f)
             module = inspect.getmodule(f)
-            top_level_ast = ast.parse(src)
-            assert type(top_level_ast) == ast.Module
-            assert len(top_level_ast.body) == 1
-            f_ast = top_level_ast.body[0]
-            assert type(f_ast) == ast.FunctionDef
             result = script_check(f_ast, opset, module.__dict__.copy(), src,
                                   default_opset=default_opset)
             # TODO: add transformations.
