@@ -192,6 +192,8 @@ class Converter:
         self.pure_modules = ["onnxscript"]
         self.this_module = opset
         self.default_opset_ = default_opset
+        self.stacked_test_conditions = []
+        self.break_conditions = []
 
     @property
     def default_opset(self):
@@ -663,7 +665,10 @@ class Converter:
             return ret(val)
 
     def translate_if_stmt(self, stmt: ast.If):
-        live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        if hasattr(stmt, 'live_out'):
+            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        else:
+            live_defs = list(analysis.defs(stmt))
         test = self.translate_expr(stmt.test, "cond").name
         lineno = DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
@@ -678,10 +683,18 @@ class Converter:
             self.bind(x, Dynamic(r, DynamicKind.Intermediate, DebugInfo(stmt, self)))
             return r
 
+        # no break condition
         renamed = [rename(x) for x in live_defs]
+        if len(renamed) == 0:
+            fail(DebugInfo(stmt, self).msg(
+                "A subgraph for a test do not have any output variable."))
+
         sub_functions = {}
         sub_functions.update(sub_fct_then)
         sub_functions.update(sub_fct_else)
+        if renamed == [test]:
+            fail(DebugInfo(stmt, self).msg(
+                f"Input and output cannot be the same {renamed!r}."))
         self.emit(renamed, Op(self.default_opset, "If"), [test], [thenAttr, elseAttr],
                   sub_functions=sub_functions)
 
@@ -755,7 +768,31 @@ class Converter:
                 self.current_fn, ov, typeinfo, DebugInfo(loop_stmt, self))
             self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(loop_stmt, self)))
 
-        for s in loop_stmt.body:
+        condition_name = None
+        operator_name = 'Identity'
+        for i, s in enumerate(loop_stmt.body):
+            # We first need to intercept a break instruction in test block.
+            # It must be something like `if <condition_name>: break`.
+            # This instruction must be the last of the loop body.
+            if (isinstance(s, ast.If) and len(s.body) == 1 and
+                    isinstance(s.body[0], ast.Break)):
+                if not isinstance(s.test, ast.Name):
+                    fail(DebugInfo(s, self).msg(
+                        f"Instruction break can be introduced with test but it must be "
+                        f"if <condition>: break. However condition is of type "
+                        f"{type(s.test)!r}."))
+                if i != len(loop_stmt.body) - 1:
+                    fail(DebugInfo(s, self).msg(
+                        "Instruction break must be the last one of the loop."))
+
+                current_scope = self.current_scope()
+                if s.test.id not in current_scope:
+                    fail(DebugInfo(loop_stmt, self).msg(
+                        f"Unable to find condition variable {s.test.id!r} in known "
+                        f"variables {list(current_scope)!r}."))
+                condition_name = current_scope[s.test.id].value
+                operator_name = 'Not'
+                continue
             self.translate_stmt(s)
 
         o_cond_out = self.generate_unique_name("cond_out")
@@ -769,7 +806,8 @@ class Converter:
                     f"variables {list(current_scope)!r}."))
             o_cond_var = current_scope[cond_while].value
 
-        self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
+        self.emit([o_cond_out], Op(self.default_opset, operator_name),
+                  [condition_name or o_cond_var], [])
 
         self.ir_builder.add_output(
             self.current_fn, o_cond_out, types.BOOL, DebugInfo(loop_stmt, self))

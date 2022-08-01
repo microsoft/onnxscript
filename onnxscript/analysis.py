@@ -50,6 +50,8 @@ def defs(stmt):
         return block_defs(stmt.body) | block_defs(stmt.orelse)
     if isinstance(stmt, list):
         return block_defs(stmt)
+    if isinstance(stmt, ast.Break):
+        return set()
     try:
         if stmt.value.func.id == 'print':
             # Any call to print function are ignored.
@@ -137,6 +139,9 @@ def exposed_uses(stmts, converter):
             f = stmt.value.func
             if f.id == 'print':
                 return live_out
+        if isinstance(stmt, ast.Break):
+            # TODO: liveness analysis does not handle breaks in the middle of a loop yet.
+            return live_out
         raise ValueError(DebugInfo(stmt, converter).msg(
             f"Unsupported statement type {type(stmt)!r}."))
 

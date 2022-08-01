@@ -244,6 +244,25 @@ class TestConverter(unittest.TestCase):
         self.assertNotIn("version: 14", sdef)
         self.assertNotIn("version: 15", sdef)
 
+    def test_loops_break(self):
+        from onnxscript.test.models import loops_break
+        test_functions = self.validate_save(loops_break, check_ort=True)
+        self.assertIn('loop1', test_functions)
+        for name in ['loop1', 'loop_range_cond']:
+            with self.subTest(fct=name):
+                f = test_functions[name]
+                self.assertIn('op_type: "Loop"', str(f))
+        onx = test_functions['loop_range_cond']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        x = np.array([0, 1, 2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
+        self.assertEqual(y.tolist(), [0.0, 46.0, 92.0])
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0, 11, -22])
+        self.assertEqual(y.tolist(), [0, 11, -22])
+
     def test_loops_while(self):
         from onnxscript.test.models import loops_while
         test_functions = self.validate_save(loops_while, check_ort=True)
@@ -265,5 +284,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_loops_while()
+    # TestConverter().test_type_double()
     unittest.main(verbosity=2)
