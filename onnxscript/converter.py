@@ -757,7 +757,7 @@ class Converter:
                         "'conditional_range(condition, n_iteration)'."))
             else:
                 fail(DebugInfo(loop_stmt).msg(
-                    "Unsupported loop bound, only functions 'range' or "
+                    "Unsupported loop function, only functions 'range' or "
                     "'conditional_range' are allowed."))
             assert not iter.keywords, "Unsupported loop bound."
 
@@ -767,14 +767,16 @@ class Converter:
                     self.generate_unique_name("cond")
                     o_cond_out = self.generate_unique_name("%s_out" % o_cond_var)
                     has_end_condition = True
-                    o_loop_bound = self.translate_expr(iter.args[1], "loop_bound").name
                 else:
                     has_end_condition = False
                     o_cond_var = None
-                    o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
                     o_cond_var = self.generate_unique_name("cond_in")
                     o_cond_out = self.generate_unique_name("cond_out")
                     i_cond_var = o_cond_var
+                if isinstance(iter.args[0], ast.Constant) and iter.args[0].value is None:
+                    o_loop_bound = ''
+                else:
+                    o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
             else:
                 has_end_condition = False
                 o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
@@ -795,6 +797,7 @@ class Converter:
             i_cond_var = test.id
             cond_while = test.id
             o_cond_var = None
+            has_end_condition = False
             # we need to go through all the instructions to see
             # which instruction defines the condition test.id
         else:
