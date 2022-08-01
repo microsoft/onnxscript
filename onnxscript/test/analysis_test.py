@@ -8,8 +8,7 @@ from onnxscript.onnx_opset import opset15 as op
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
     '''
-    Visitor used to return the results of liveness analysis as a flattened list
-    in pre-order traversal.
+    Visitor class to flatten the results of liveness analysis in a pre-order traversal.
     '''
     def __init__(self) -> None:
         super().__init__()
@@ -19,6 +18,9 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
         if hasattr(node, "live_in"):
             self.results.append(node.live_in)
         ast.NodeVisitor.generic_visit(self, node)
+        if isinstance(node, (ast.For, ast.While)):
+            last = node.body[-1]
+            self.results.append(last.live_out)
 
 class TestAnalysis(unittest.TestCase):
     def analyze(self, fun):
@@ -27,8 +29,25 @@ class TestAnalysis(unittest.TestCase):
         visitor = AnalysisResultsVisitor()
         visitor.visit(ast)
         return visitor.results
+    
+    def assertLiveness(self, fun, expected):
+        self.assertEqual(self.analyze(fun), [set(x) for x in expected])
 
-    def test_loop(self):
+    def test_basic1(self):
+        def basic_eg(x):
+            # live = {x}
+            y = x+1
+            # live = {y}
+            x = 1
+            # live = {y}
+            return y+1
+        self.assertLiveness(basic_eg, [
+            ["x"],
+            ["y"],
+            ["y"]
+            ])
+
+    def test_for_loop(self):
         def loop_eg():
             # live = {}
             sum = 0.0
@@ -40,19 +59,41 @@ class TestAnalysis(unittest.TestCase):
                 sum = sum + i
                 # live = {x, sum}
                 x = x + sum*sum
+                # live = {x, sum}
             # live = {x}
             return x
-        results = self.analyze(loop_eg)
-        # See annotations in example above for expected results at each point:
-        self.assertEqual(results, [
-            set([]),
-            set(["sum"]),
-            set(["x", "sum"]),
-            set(["x", "sum", "i"]),
-            set(["x", "sum"]),
-            set(["x"])
+
+        self.assertLiveness(loop_eg, [
+            [],
+            ["sum"],
+            ["x", "sum"],
+            ["x", "sum", "i"],
+            ["x", "sum"],
+            ["x", "sum"],
+            ["x"]
             ])
 
+    def test_while_loop(self):
+        def while_eg(x):
+            # live = {x}
+            cond = (x < 100)
+            # live = {x, cond}
+            while cond:
+                # live = {x}
+                x = x + 2
+                # live = {x}
+                cond = (x < 100)
+                # live = {x, cond}
+            # live = {x}
+            return x
+        self.assertLiveness(while_eg, [
+            ["x"],
+            ["x", "cond"],
+            ["x"],
+            ["x"],
+            ["x", "cond"],
+            ["x"]
+            ])
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

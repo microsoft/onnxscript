@@ -101,8 +101,14 @@ def do_liveness_analysis(fun, converter):
                 prev = curr
                 curr = visitBlock(stmt.body, prev).difference (set([p_loop_var]))
             return curr
-        if isinstance(stmt, (ast.For, ast.While)):
-            return live_out  # TODO
+        if isinstance(stmt, ast.While):
+            cond_vars = used_vars(stmt.test)
+            prev = None
+            curr = live_out | cond_vars
+            while curr != prev:
+                prev = curr
+                curr = visitBlock(stmt.body, prev) | cond_vars               
+            return curr
         if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):
             # docstring
             if hasattr(stmt.value, 'value') and isinstance(stmt.value.value, str):
