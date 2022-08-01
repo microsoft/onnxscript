@@ -13,7 +13,11 @@ class DebugInfo:
     def __init__(self, lineno, source="string", code=None):
         if hasattr(source, 'source'):
             code = source.source
-            source = source.current_fn.name
+            current_fn = getattr(source, 'current_fn', None)
+            if current_fn is not None:
+                source = getattr(source.current_fn, 'name', None)
+            else:
+                source = None
         if hasattr(lineno, 'lineno'):
             self.ast_obj = lineno
             self.lineno = lineno.lineno
@@ -184,6 +188,8 @@ class Value:
     def __init__(self, val: Any, info: DebugInfo) -> None:
         if not isinstance(info, DebugInfo):
             raise TypeError("info must be of DebugInfo not %r." % type(info))
+        if val is None:
+            raise ValueError(info.msg('val cannot be None.'))
         self.value = val
         self.info = info
 

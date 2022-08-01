@@ -63,7 +63,7 @@ class TestConverter(unittest.TestCase):
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
                             f"onnxruntime cannot load function "
-                            f"{f.name}\n{str(model)}") from e
+                            f"{f.name}\n--\n{str(model)}") from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
@@ -286,9 +286,45 @@ class TestConverter(unittest.TestCase):
         except TranslationError as e:
             self.assertIn("Condition 'cond' is not modified in the loop body", str(e))
 
+    def test_loops_break(self):
+        from onnxscript.test.models import loops_break
+        test_functions = self.validate_save(loops_break, check_ort=True)
+        self.assertIn('loop1', test_functions)
+        for name in ['loop1', 'loop_range_cond']:
+            with self.subTest(fct=name):
+                f = test_functions[name]
+                self.assertIn('op_type: "Loop"', str(f))
+        onx = test_functions['loop_range_cond']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        x = np.array([0, 1, 2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
+        self.assertEqual(y.tolist(), [0.0, 46.0, 92.0])
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0, 11, -22])
+        self.assertEqual(y.tolist(), [0, 11, -22])
+
+    def test_loops_while(self):
+        from onnxscript.test.models import loops_while
+        test_functions = self.validate_save(loops_while, check_ort=True)
+        self.assertIn('loop1', test_functions)
+        for name in ['loop1', 'loop_range_cond_only']:
+            with self.subTest(fct=name):
+                f = test_functions[name]
+                self.assertIn('op_type: "Loop"', str(f))
+
+        onx = test_functions['loop_range_cond_only']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        x = np.array([0, 1, -2], dtype=np.float32)
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [0, 10, -20])
+        res = loops_while.loop_range_cond_only(x)
+        self.assertEqual(res.tolist(), [0, 10, -20])
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_loops_fail()
-    unittest.main()
+    TestConverter().test_loops()
+    unittest.main(verbosity=2)

@@ -5,7 +5,7 @@
 
 from onnx import TensorProto
 from onnx.helper import make_tensor
-from onnxscript import script, conditional_range
+from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 
@@ -21,28 +21,10 @@ def loop1(A: FLOAT["N"]) -> FLOAT["N"]:
 
 
 @script()
-def loop_range_cond_none(A: FLOAT["N"]) -> FLOAT["N"]:
-    T = A
-    for i in conditional_range(10, None):
-        T = T + A * op.Cast(i, to=TensorProto.FLOAT)
-    return T
-
-
-@script()
-def loop_range_cond(A: FLOAT["N"]) -> FLOAT["N"]:
-    T = A
-    cond = op.Constant(value=make_tensor('true', TensorProto.BOOL, [1], [1]))
-    for i in conditional_range(10, cond):
-        T = T + A * op.Cast(i, to=TensorProto.FLOAT)
-        cond &= op.ReduceSum(T) > -10
-    return T
-
-
-@script()
 def loop_range_cond_only(A: FLOAT["N"]) -> FLOAT["N"]:
     T = A
     cond = op.Constant(value=make_tensor('true', TensorProto.BOOL, [1], [1]))
-    for i in conditional_range(None, cond):
-        T = T + A * op.Cast(i, to=TensorProto.FLOAT)
-        cond &= op.ReduceSum(T) > -10
+    while cond:
+        T = T + A
+        cond = op.ReduceSum(T) > -10
     return T
