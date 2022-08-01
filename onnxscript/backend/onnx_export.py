@@ -128,7 +128,7 @@ def _translate_type(onnx_type):
             return "%s[%s]" % (name, ",".join(shape))
         return name + "[...]"
     raise NotImplementedError(
-        "Unable to translate type %r into onnx-script type." % onnx_type)
+        f"Unable to translate type {onnx_type!r} into onnx-script type.")
 
 
 def _to_str(s):
@@ -152,8 +152,7 @@ def _attribute_value(attr):
         return list(attr.ints)
     if attr.strings:
         return list(map(_to_str, attr.strings))
-    raise NotImplementedError(
-        "Unable to return a value for attribute %r." % attr)
+    raise NotImplementedError(f"Unable to return a value for attribute {attr!r}")
 
 
 def _python_make_node_name(domain, version, name, node=False):
@@ -176,15 +175,20 @@ def _python_make_node_graph(graph, opsets, indent=0, output_names=None):
     """
     code = []
     sindent = '    ' * indent
+    if len(graph.initializer) > 0:
+        code.append(f"{sindent}# initializer")
     for init in graph.initializer:
         node = make_node('Constant', [], [_rename_variable(init.name)], value=init)
         code.append(_python_make_node(node, opsets, indent=indent))
     if len(graph.sparse_initializer) > 0:
+        if len(graph.initializer) > 0:
+            code.append(f"{sindent}# sparse_initializer")
         raise NotImplementedError(
             "Unable to convert sparse_initilizer into python.")
     for node in graph.node:
         code.append(_python_make_node(node, opsets, indent=indent))
     if output_names is not None:
+        code.append(f"{sindent}# output_names")
         for fr, to in zip(graph.output, output_names):
             code.append(
                 "%s%s = %s" % (sindent, _rename_variable(to), _rename_variable(fr.name)))
@@ -225,8 +229,7 @@ def _python_make_node_if(node, opsets, indent=0):
     code = ["%sif %s:" % (sindent, node.input[0])]
     if len(node.attribute) != 2:
         raise RuntimeError(
-            "Node %r expected two attributes not %d." % (
-                node.op_type, len(node.attribute)))
+            f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}.")
     atts = node.attribute
     if atts[0].name == 'else_branch':
         else_branch, then_branch = atts[0].g, atts[1].g
@@ -250,24 +253,49 @@ def _python_make_node_loop(node, opsets, indent=0):
     sindent = "    " * indent
     n_iter = _rename_variable(node.input[0])
     cond = _rename_variable(node.input[1])
-    # v_initial = node.input[2]
+
     rows = []
+
+    # node has 2 + N inputs and N + K outputs
+    # body has 2 + N inputs and 1 + N + K outputs
+    N = len(node.input) - 2
+    K = len(node.output) - N
+    assert len(node.input) == 2 + N
+    assert len(node.output) == N + K
+    assert len(body.input) == 2 + N
+    assert len(body.input) == 1 + N + K
+    for nin, gin in zip(node.input[2: 2 + N], body.input[2: 2 + N]):
+        if gin.name != nin:
+            rows.append(f"{sindent}{gin.name} = {nin}")
+    for nout in node.output[N:]:
+        rows.append(f"{sindent}{nout} = []")
+    rows.append(f"{sindent}{body.input[1].name} = {node.input[1]}")
+
     if n_iter and not cond:
         rows.append("%sfor %s in range(%s):" % (
             sindent, body.input[0].name, n_iter))
     elif not n_iter and cond:
-        rows.append("%swhile %s:" % (sindent, cond))
+        rows.append(f"{sindent}for _ in conditional_range(None, {cond}):")
     elif n_iter and cond:
-        rows.append("%sfor %s in range(%s):" % (
-            sindent, body.input[0].name, n_iter))
-        rows.append("%s    if not %s:" % (sindent, cond))
-        rows.append("%s        break" % sindent)
+        rows.append("%sfor %s in conditional_range(%s, %s):" % (
+            sindent, body.input[0].name, n_iter, cond))
     else:
         raise RuntimeError(
-            "Unable to export loop type %r into python because there is no "
-            "stop condition." % (node.op_type, ))
-    rows.append(_python_make_node_graph(body, opsets, indent=indent+1,
-                                        output_names=node.output))
+            f"Unable to export loop type {node.op_type!r} into python because there is no "
+            f"stop condition.")
+    rows.append(_python_make_node_graph(body, opsets, indent=indent+1))
+
+    # prepare for the next iteration
+    for gin, gout in zip(body.input[2: 2 + N], body.output[1:1 + N]):
+        if gin.name != gout.name:
+            rows.append(f"{sindent}    {gin.name} = {gout.name}")
+    for nout, gout in zip(node.output[N:], body.output[1 + N:]):
+        rows.append(f"{sindent}    {nout}.append({gout.name})")
+
+    # condition
+    rows.append(f"{sindent}    {node.input[1]} &= {body.output[0].name}")
+    rows.append(f"{sindent}    {body.input[1].name} = {body.output[0].name}")
+
     return "\n".join(rows)
 
 
@@ -283,6 +311,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
         node = onnx_node['onnx_node']
     else:
         node = onnx_node
+
     if node.op_type in {'If', 'Loop', 'Scan'}:
         # If, Loop, Scan
         if node.op_type == 'If':
@@ -293,15 +322,23 @@ def _python_make_node(onnx_node, opsets, indent=0):
             return _python_make_node_scan(node, opsets, indent=indent)
         raise RuntimeError(
             "Unable to export node type %r into python." % (node.op_type, ))
+
     if any(map(lambda att: hasattr(att, 'g') and att.g and att.g.ByteSize() > 0,
                node.attribute)):
         raise RuntimeError(
             "Unable to export node type %r into python." % node.op_type)
+
+    sindent = "    " * indent
+    if node.op_type == 'Identity':
+        rows = []
+        for vin, vout in zip(node.input, node.output):
+            rows.append(f"{sindent}{vout} = {vin}")
+        return "\n".join(rows)
+
     ops = {'Add': '+', 'Sub': '-', 'Mul': '*', 'MatMul': '@',
            'Div': '/', 'Pow': '**',
            'And': '&', 'Or': '|', 'Greater': '>', 'Equal': '==',
            'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<='}
-    sindent = "    " * indent
     if node.op_type in ops:
         return "%s%s = %s" % (sindent, _rename_variable(node.output[0]),
                               (" %s " % ops[node.op_type]).join(
@@ -314,7 +351,7 @@ def _python_make_node(onnx_node, opsets, indent=0):
     output_names = []
     for i, o in enumerate(node.output):
         if o in ('', None):
-            output_names.append('_%d' % i)
+            output_names.append(f'_{i}')
         else:
             output_names.append(_rename_variable(o))
 

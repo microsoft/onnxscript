@@ -61,12 +61,15 @@ class TestOnnxBackEnd(unittest.TestCase):
             done += 1
         self.assertEqual(done, 1)
 
-    def verify(self, name, content, more_context=None):
+    def check_folder_existence(self):
         if not os.path.exists(TestOnnxBackEnd.folder):
             os.mkdir(TestOnnxBackEnd.folder)
             init = os.path.join(TestOnnxBackEnd.folder, '__init__.py')
             with open(init, "w"):
                 pass
+
+    def verify(self, name, content, more_context=None):
+        self.check_folder_existence()
         filename = os.path.join(TestOnnxBackEnd.folder, name + ".py")
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
@@ -79,10 +82,9 @@ class TestOnnxBackEnd(unittest.TestCase):
             raise AssertionError(
                 "Unable to import %r (file: %r)\n----\n%s" % (
                     import_name, filename, content)) from e
-        fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
-        return fcts
+        return {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
 
-    def common_test_enumerate_onnx_tests_run(self, valid, verbose=0):
+    def common_test_enumerate_onnx_tests_run(self, valid, verbose=0, save_onnx=False):
         with self.assertRaises(FileNotFoundError):
             list(enumerate_onnx_tests('NNN'))
         missed = []
@@ -98,6 +100,11 @@ class TestOnnxBackEnd(unittest.TestCase):
                 continue
             if verbose:
                 print("TEST:", te.name)
+            if save_onnx:
+                self.check_folder_existence()
+                with open(os.path.join(TestOnnxBackEnd.folder,
+                                       f"{te.name}.in.onnx"), "wb") as f:
+                    f.write(te.onnx_model.SerializeToString())
             with self.subTest(name=te.name):
                 if verbose > 1:
                     print("  check onnxruntime")
@@ -126,22 +133,27 @@ class TestOnnxBackEnd(unittest.TestCase):
                 code = export2python(te.onnx_model, function_name="bck_" + te.name)
                 self.assertIn("@script()", code)
                 self.assertIn("def bck_%s(" % te.name, code)
+                if te.name == 'test_identity':
+                    code = "from onnxscript.onnx_opset import opset15\n" + code
+                    code = code.replace("@script()", "@script(default_opset=opset15)")
                 if verbose > 1:
                     print("  check syntax, compilation")
                     if verbose > 2:
                         print(code)
                 if te.name == "test_resize_downsample_scales_cubic":
                     self.assertIn("Resize(X, None, scales,", code)
-                if "test_loop" in te.name or te.name in {
-                        'test_range_float_type_positive_delta_expanded',
-                        'test_range_int32_type_negative_delta_expanded'}:
-                    # TODO: change change when the converter supports
-                    # support something like 'while i < n and cond:'
+                if te.name in {'test_loop11',
+                               'test_range_float_type_positive_delta_expanded',
+                               'test_range_float_type_positive_delta_expanded4',
+                               'test_range_int32_type_negative_delta_expanded'}:
+                    # Not supported yet.
                     continue
-                fcts = self.verify(te.name, code)
-                main = fcts["bck_" + te.name]
+                test_functions = self.verify(te.name, code)
+                main = test_functions["bck_" + te.name]
                 self.assertFalse(main is None)
                 proto = main.to_model_proto()
+                if te.name == "test_identity" and "@script(default_opset=opset15)" in code:
+                    self.assertIn("version: 15", str(proto))
                 # opset may be different when an binary operator is used.
                 if te.onnx_model.ir_version != proto.ir_version:
                     if (not te.name.startswith("test_add") and
@@ -256,8 +268,9 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one_case(self):
         self.common_test_enumerate_onnx_tests_run(
-            lambda name: "test_layer_normalization_3d_axis2_epsilon_expanded" in name,
-            verbose=4 if __name__ == "__main__" else 0)
+            lambda name: "identity" in name,
+            verbose=4 if __name__ == "__main__" else 0,
+            save_onnx=True)
 
 
 if __name__ == "__main__":
