@@ -27,9 +27,11 @@ def get_src_and_ast(f):
     assert type(f_ast) == ast.FunctionDef
     return src, f_ast
 
+
 def get_ast(f):
     src, ast = get_src_and_ast(f)
     return ast
+
 
 def script_check(f: ast.FunctionDef, opset, global_names, source,
                  default_opset=None):

@@ -111,7 +111,8 @@ def do_liveness_analysis(fun, converter):
         if isinstance(stmt, ast.Break):
             # The following is sufficient for the current restricted usage, where
             # a (conditional) break is allowed only as the last statement of a loop.
-            # Break statements in the middle of the loop, however, will require a generalization.
+            # Break statements in the middle of the loop, however, will require
+            # a generalization.
             return live_out
         if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):
             # docstring

@@ -4,7 +4,6 @@ import unittest
 from onnxscript.main import get_ast
 from onnxscript.analysis import do_liveness_analysis
 from onnxscript.converter import Converter
-from onnxscript.onnx_opset import opset15 as op
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
