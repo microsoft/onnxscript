@@ -9,6 +9,7 @@ import onnx
 import onnx.helper as helper
 from onnx.defs import onnx_opset_version
 from . import type_annotation as ta
+import warnings
 from .values import OnnxFunction, Opset
 
 # A simple IR (Function, Stmt, Attr, Var):
@@ -286,6 +287,22 @@ class Function:
             [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs])
         return graph, sub_functions
 
+    def get_opset_import(self):
+        func_opset_imports = {}
+        for s in self.stmts:
+            if s.module.domain not in func_opset_imports:
+                func_opset_imports[s.module.domain] = s.module.version
+            elif func_opset_imports[s.module.domain] != s.module.version:
+                # TODO: this conflict is caused by assigning the default version to
+                # literal operators. Not to extend this PR too much,
+                # it needs to be fixed in another PR.
+                # raise RuntimeError(
+                #     ff"There is a version conflict in domain: {s.module.domain!r},\
+                #         with {self.name!r}.")
+                warnings.warn(f"There is a version conflict in domain: {s.module.domain!r},\
+                    with {self.name!r}.")
+        return func_opset_imports
+
     def to_function_proto(self, domain):
         """
         Converts a function into a *FunctionProto* after it is parsed
@@ -297,8 +314,11 @@ class Function:
             If an earlier version of onnx is installed, it ignores the default
             values of the function arguments.
         """
-        opsets = {'': 15}
+        opsets = self.get_opset_import()
         if domain != '':
+            if domain.domain in opsets and opsets[domain.domain] != domain.version:
+                raise RuntimeError(
+                    f"There is a version conflict in domain: {domain.domain!r}.")
             opsets[domain.domain] = domain.version
         else:
             opsets = opsets.copy()
