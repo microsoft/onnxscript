@@ -12,7 +12,7 @@ from . import values
 from .values import OnnxFunction
 
 
-def get_ast(f):
+def get_src_and_ast(f):
     try:
         src = inspect.getsource(f)
     except OSError as e:
@@ -25,8 +25,11 @@ def get_ast(f):
     assert len(top_level_ast.body) == 1
     f_ast = top_level_ast.body[0]
     assert type(f_ast) == ast.FunctionDef
-    return f_ast
+    return src, f_ast
 
+def get_ast(f):
+    src, ast = get_src_and_ast(f)
+    return ast
 
 def script_check(f: ast.FunctionDef, opset, global_names, source,
                  default_opset=None):
@@ -76,9 +79,9 @@ def script(opset=None, default_opset=None, **kwargs):
 
     def transform(f):
         if inspect.isfunction(f):
-            f_ast = get_ast(f)
+            src, ast = get_src_and_ast(f)
             module = inspect.getmodule(f)
-            result = script_check(f_ast, opset, module.__dict__.copy(), src,
+            result = script_check(ast, opset, module.__dict__.copy(), src,
                                   default_opset=default_opset)
             # TODO: add transformations.
             return OnnxFunction(opset, f, result, src, kwargs)
