@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import sys
 import ast
 import logging
 from enum import IntEnum
@@ -19,6 +20,11 @@ from .values import (
     ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo)
 
+use_subscript = sys.version_info[:2] >= (3, 9)
+if use_subscript:
+    ast_Subscript = ast.Subscript
+else:
+    ast_Subscript = (ast.Subscript, ast.Index)
 
 logger = logging.getLogger("onnx-script")
 
@@ -429,7 +435,7 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
-        elif isinstance(node, ast.Subscript):
+        elif isinstance(node, ast_Subscript):
             r = self.translate_subscript_expr(node)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
