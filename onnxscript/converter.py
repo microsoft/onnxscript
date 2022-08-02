@@ -483,6 +483,15 @@ class Converter:
                 return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
             fail(DebugInfo(node.slice, self).msg(
                 f"Unexpected constant type {type(index)} for an index."))
+        if not use_subscript:
+            # python <= 3.8
+            if isinstance(node.slice, ast.Index):
+                import pprint
+                raise NotImplementedError(DebugInfo(node.slice, self).msg(
+                    f"Unable to process node {type(node.slice)}\n"
+                    f"{pprint.pformat(node.slice.__dict__)}."))
+            fail(DebugInfo(node, self).msg(
+                f"Index type {type(node.slice)} is not supported for python <= 3.8."))
         fail(DebugInfo(node, self).msg(
             f"Index type {type(node.slice)} is not supported."))
 
