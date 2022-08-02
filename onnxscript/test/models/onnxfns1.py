@@ -16,7 +16,7 @@
 # Element-type annotation for tensors
 
 from onnxscript import script
-from onnxscript.onnx_opset import opset15 as op
+from onnxscript.onnx_opset import opset17 as op
 
 @script()
 def Relu(X):
@@ -79,6 +79,21 @@ def Softsign(X):
     one = op.CastLike(1, X)
     return X / (one + op.Abs(X))
 
+from onnxscript.onnx_types import FLOAT, BOOL
 @script()
-def Clip(input, min, max):
-    return op.Where(input < min, min, op.Where(input > max, max, input))
+def Clip(input: FLOAT[...], min: FLOAT=None, max: FLOAT=None) -> FLOAT[...]:
+    result = input
+    if op.OptionalHasElement(min):
+        result = op.Where(result < min, min, result)
+    if op.OptionalHasElement(max):
+        result = op.Where(result > max, max, result)
+
+    return result
+
+# @script()
+# def Clip(input, min, max):
+#     return op.Where(input < min, min, op.Where(input > max, max, input))
+
+@script()
+def OptionalHasElement(input: FLOAT[...]) -> BOOL:
+    return op.OptionalHasElement(input)
