@@ -473,27 +473,24 @@ class Converter:
         var_name = self.translate_name_expr(var)
         if self.is_constant_expr(node.slice):
             index = self.eval_constant_expr(node.slice)
-            if isinstance(index, int):
-                info = DebugInfo(node.slice, self)
-                var_index = self.emit_const([index], 'subscript_index', info)
-                tmp = self.generate_unique_name(var_name + "_gather")
-                self.emit([tmp], Op(self.default_opset, 'Gather'),
-                          [var_name, var_index.name], [])
-                axis = self.emit_const([0], 'subscript_axis', info)
-                return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
-            fail(DebugInfo(node.slice, self).msg(
-                f"Unexpected constant type {type(index)} for an index."))
-        if not use_subscript:
+            info = DebugInfo(node.slice, self)
+        elif not use_subscript:
             # python <= 3.8
-            if isinstance(node.slice, ast.Index):
-                import pprint
-                raise NotImplementedError(DebugInfo(node.slice, self).msg(
-                    f"Unable to process node {type(node.slice)}\n"
-                    f"{pprint.pformat(node.slice.__dict__)}."))
-            fail(DebugInfo(node, self).msg(
-                f"Index type {type(node.slice)} is not supported for python <= 3.8."))
-        fail(DebugInfo(node, self).msg(
-            f"Index type {type(node.slice)} is not supported."))
+            index = self.eval_constant_expr(node.slice.value)
+            info = DebugInfo(node, self)
+        else:
+            index = None
+
+        if isinstance(index, int):
+            var_index = self.emit_const([index], 'subscript_index', info)
+            tmp = self.generate_unique_name(var_name + "_gather")
+            self.emit([tmp], Op(self.default_opset, 'Gather'),
+                      [var_name, var_index.name], [])
+            axis = self.emit_const([0], 'subscript_axis', info)
+            return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
+
+        fail(DebugInfo(node.slice, self).msg(
+            f"Unexpected constant type {type(node.slice)} for an index."))
 
     def translate_call_expr(self, node):
         # TODO: for now, we map named arguments to attributes, and positional
