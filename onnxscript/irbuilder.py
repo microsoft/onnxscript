@@ -147,13 +147,14 @@ class Stmt:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("%s: %s", type(self), str(self))
 
-    def to_node_proto(self):
+    def to_node_proto(self, name):
         if not isinstance(self.module.domain, str):
             raise TypeError("Unexpected type %r for self.module." % type(self.module))
         n = helper.make_node(self.opname,
                              [opt_var_to_str(x) for x in self.args],
                              [str(x) for x in self.result],
-                             domain=self.module.domain)
+                             domain=self.module.domain,
+                             name=name)
         for a in self.attrs:
             n.attribute.append(a.attr_proto)
         return n
@@ -281,7 +282,7 @@ class Function:
             sub_functions.update(s.functions)
         sub_functions.update(self.functions)
         graph = helper.make_graph(
-            [s.to_node_proto() for s in self.stmts],
+            [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,
             [x.to_value_info(enforce_typed, default_type=io_types) for x in self.inputs],
             [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs])
@@ -322,7 +323,7 @@ class Function:
             opsets[domain.domain] = domain.version
         else:
             opsets = opsets.copy()
-        nodes = [s.to_node_proto() for s in self.stmts]
+        nodes = [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)]
         for n in nodes:
             if n.domain not in opsets:
                 opsets[n.domain] = 1  # TODO: how to get n.version?

@@ -3,9 +3,44 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+from onnx import TensorProto
+from onnx.helper import make_tensor
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
+
+
+@script()
+def getitem_i_var(A: FLOAT[...]) -> FLOAT[...]:
+    # eager mode does not work on this one:
+    # TypeError: only integer scalar arrays can be converted to a scalar index
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    r = A[zero + 1:zero + 2]
+    return r
+
+
+@script()
+def getitem_i_slice_left(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[1:]
+    return r
+
+
+@script()
+def getitem_i_slice_right(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[:2]
+    return r
+
+
+@script()
+def getitem_i_slice_neg(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[1:-1]
+    return r
+
+
+@script()
+def getitem_i_slice(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[1:2]
+    return r
 
 
 @script()

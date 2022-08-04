@@ -486,6 +486,41 @@ class Converter:
             axis = self.emit_const([0], 'subscript_axis', info)
             return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
 
+        if isinstance(node.slice, ast.Slice):
+            info = DebugInfo(node.slice, self)
+            axis = self.emit_const([0], 'subscript_axis', info)
+            new_shape = self.emit_const([1], 'new_shape', info)
+
+            def _get_arg(node, default_value=None):
+                if node is None:
+                    if default_value is None:
+                        return ''
+                    if default_value == 'begin':
+                        return axis.name
+                    if default_value == 'end':
+                        shape_name = self.generate_unique_name(var_name + "_shape")
+                        self.emit([shape_name], Op(self.default_opset, 'Shape'),
+                                  [var_name], [])
+                        sliced = self.generate_unique_name(shape_name + "_first")
+                        self.emit([sliced], Op(self.default_opset, 'Slice'),
+                                  [shape_name, axis.name, new_shape, axis.name], [])
+                        return sliced
+                    raise RuntimeError(f"Unexpected value {value!r} for default_value.")
+
+                name = self.translate_expr(node).name
+                reshaped = self.generate_unique_name(name + "_reshaped")
+                self.emit([reshaped], Op(self.default_opset, 'Reshape'),
+                          [name, new_shape], [])
+                return reshaped
+
+            lower_name = _get_arg(node.slice.lower, "begin")
+            upper_name = _get_arg(node.slice.upper, "end")
+            step_name = _get_arg(node.slice.step)
+            inputs = [var_name, lower_name, upper_name, axis.name]
+            if step_name != '':
+                inputs.append(step_name)
+            return Op(self.default_opset, 'Slice'), inputs, []
+
         fail(DebugInfo(node.slice, self).msg(
             f"Unexpected constant type {type(node.slice)} for an index."))
 

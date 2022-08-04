@@ -283,26 +283,40 @@ class TestConverter(unittest.TestCase):
     def test_getitem(self):
         from onnxscript.test.models import getitem
         test_functions = self.validate_save(getitem, check_ort=True)
-
         x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
 
-        self.assertEqual(getitem.getitem_i(x).tolist(), [0., 1., 2.])
-        onx = test_functions['getitem_i']
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {'A': x})[0]
-        self.assertEqual(y.tolist(), [0., 1., 2.])
+        def check_function(name, expected, eager=True):
+            f = getattr(getitem, name)
+            if eager:
+                self.assertEqual(f(x).tolist(), expected)
+            onx = test_functions[name]
+            sess = onnxruntime.InferenceSession(onx.SerializeToString())
+            try:
+                y = sess.run(None, {'A': x})[0]
+            except Exception as e:
+                raise AssertionError(
+                    f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}.") from e
+            self.assertEqual(y.tolist(), expected)
 
-        self.assertEqual(getitem.getitem_i_last(x).tolist(), [9., 10., 11.])
-        onx = test_functions['getitem_i_last']
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {'A': x})[0]
-        self.assertEqual(y.tolist(), [9., 10., 11.])
+        check_function('getitem_i', [0., 1., 2.])
+        check_function('getitem_i_last', [9., 10., 11.])
+        check_function('getitem_i_expr', [1., 2., 3.])
+        check_function('getitem_i_slice', [[3., 4., 5.]])
+        check_function('getitem_i_slice_left', [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
+        check_function('getitem_i_slice_right', [[0, 1, 2], [3, 4, 5]])
+        check_function('getitem_i_slice_neg', [[3, 4, 5], [6, 7, 8]])
 
-        self.assertEqual(getitem.getitem_i_expr(x).tolist(), [1., 2., 3.])
-        onx = test_functions['getitem_i_expr']
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {'A': x})[0]
-        self.assertEqual(y.tolist(), [1., 2., 3.])
+        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
+        # expression.
+        A = np.array([0, 1, 2])
+        i = np.array([0])
+        try:
+            A[i: i + 1]
+            eager = True
+        except Exception as e:
+            # TypeError: only integer scalar arrays can be converted to a scalar index
+            eager = False
+        check_function('getitem_i_var', [[3., 4., 5.]], eager=False)
 
 
 if __name__ == '__main__':
