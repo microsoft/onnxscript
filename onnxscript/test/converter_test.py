@@ -298,9 +298,15 @@ class TestConverter(unittest.TestCase):
         y = sess.run(None, {'A': x})[0]
         self.assertEqual(y.tolist(), [9., 10., 11.])
 
+        self.assertEqual(getitem.getitem_i_expr(x).tolist(), [1., 2., 3.])
+        onx = test_functions['getitem_i_expr']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        y = sess.run(None, {'A': x})[0]
+        self.assertEqual(y.tolist(), [1., 2., 3.])
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_getitem()
+    TestConverter().test_getitem()
     unittest.main(verbosity=2)

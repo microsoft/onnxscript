@@ -466,11 +466,8 @@ class Converter:
         return self.translate_expr(node, target)
 
     def translate_subscript_expr(self, node):
-        var = node.value
-        if not isinstance(var, ast.Name):
-            fail(DebugInfo(node, self).msg(
-                f"[ ] should apply an a variable not {type(var)}."))
-        var_name = self.translate_name_expr(var)
+        var = self.translate_expr(node.value)
+        var_name = var.name
         if self.is_constant_expr(node.slice):
             index = self.eval_constant_expr(node.slice)
             info = DebugInfo(node.slice, self)

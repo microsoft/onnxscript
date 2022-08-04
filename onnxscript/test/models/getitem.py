@@ -18,3 +18,9 @@ def getitem_i_last(A: FLOAT[...]) -> FLOAT[...]:
 def getitem_i(A: FLOAT[...]) -> FLOAT[...]:
     r = A[0]
     return r
+
+
+@script()
+def getitem_i_expr(A: FLOAT[...]) -> FLOAT[...]:
+    r = (A + 1)[0]
+    return r
