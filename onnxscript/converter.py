@@ -486,8 +486,8 @@ class Converter:
             axis = self.emit_const([0], 'subscript_axis', info)
             return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
 
-        if isinstance(node.slice, ast.Slice):
-            info = DebugInfo(node.slice, self)
+        def _get_slice_input(node):
+            info = DebugInfo(node, self)
             axis = self.emit_const([0], 'subscript_axis', info)
             new_shape = self.emit_const([1], 'new_shape', info)
 
@@ -513,12 +513,16 @@ class Converter:
                           [name, new_shape], [])
                 return reshaped
 
-            lower_name = _get_arg(node.slice.lower, "begin")
-            upper_name = _get_arg(node.slice.upper, "end")
-            step_name = _get_arg(node.slice.step)
+            lower_name = _get_arg(node.lower, "begin")
+            upper_name = _get_arg(node.upper, "end")
+            step_name = _get_arg(node.step)
             inputs = [var_name, lower_name, upper_name, axis.name]
             if step_name != '':
                 inputs.append(step_name)
+            return inputs
+
+        if isinstance(node.slice, ast.Slice):
+            inputs = _get_slice_input(node.slice)
             return Op(self.default_opset, 'Slice'), inputs, []
 
         fail(DebugInfo(node.slice, self).msg(
