@@ -468,62 +468,106 @@ class Converter:
     def translate_subscript_expr(self, node):
         var = self.translate_expr(node.value)
         var_name = var.name
-        if self.is_constant_expr(node.slice):
-            index = self.eval_constant_expr(node.slice)
-            info = DebugInfo(node.slice, self)
-        elif not use_subscript and hasattr(node.slice, 'value'):
-            # python <= 3.8
-            index = self.eval_constant_expr(node.slice.value)
-            info = DebugInfo(node, self)
-        else:
-            index = None
 
-        if isinstance(index, int):
+        info = DebugInfo(node.slice if use_subscript else node, self)
+
+        def _get_int_input(node_slice):
+            index = self.eval_constant_expr(node_slice)
             var_index = self.emit_const([index], 'subscript_index', info)
             tmp = self.generate_unique_name(var_name + "_gather")
             self.emit([tmp], Op(self.default_opset, 'Gather'),
                       [var_name, var_index.name], [])
             axis = self.emit_const([0], 'subscript_axis', info)
-            return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
+            return [tmp, axis.name]
 
-        def _get_slice_input(node_slice):
-            info = DebugInfo(node_slice if use_subscript else node, self)
-            axis = self.emit_const([0], 'subscript_axis', info)
-            new_shape = self.emit_const([1], 'new_shape', info)
+        def _get_arg(node_arg, axis, zero, one, default_value=None):
+            if node_arg is None:
+                if default_value is None:
+                    return ''
+                if default_value == 'begin':
+                    return zero.name
+                if default_value == 'end':
+                    shape_name = self.generate_unique_name(var_name + "_shape")
+                    self.emit([shape_name], Op(self.default_opset, 'Shape'),
+                              [var_name], [])
+                    sliced = self.generate_unique_name(shape_name + "_first")
+                    self.emit([sliced], Op(self.default_opset, 'Slice'),
+                              [shape_name, axis.name, one.name, axis.name], [])
+                    return sliced
+                raise RuntimeError(f"Unexpected default value {default_value!r}.")
 
-            def _get_arg(node, default_value=None):
-                if node is None:
-                    if default_value is None:
-                        return ''
-                    if default_value == 'begin':
-                        return axis.name
-                    if default_value == 'end':
-                        shape_name = self.generate_unique_name(var_name + "_shape")
-                        self.emit([shape_name], Op(self.default_opset, 'Shape'),
-                                  [var_name], [])
-                        sliced = self.generate_unique_name(shape_name + "_first")
-                        self.emit([sliced], Op(self.default_opset, 'Slice'),
-                                  [shape_name, axis.name, new_shape, axis.name], [])
-                        return sliced
-                    raise RuntimeError(f"Unexpected default value {default_value!r}.")
+            name = self.translate_expr(node_arg).name
+            reshaped = self.generate_unique_name(name + "_reshaped")
+            self.emit([reshaped], Op(self.default_opset, 'Reshape'), [name, one.name], [])
+            return reshaped
 
-                name = self.translate_expr(node).name
-                reshaped = self.generate_unique_name(name + "_reshaped")
-                self.emit([reshaped], Op(self.default_opset, 'Reshape'),
-                          [name, new_shape], [])
-                return reshaped
-
-            lower_name = _get_arg(node_slice.lower, "begin")
-            upper_name = _get_arg(node_slice.upper, "end")
-            step_name = _get_arg(node_slice.step)
+        def _get_slice_input(node_slice, axis, zero, one):
+            lower_name = _get_arg(node_slice.lower, axis, zero, one, default_value="begin")
+            upper_name = _get_arg(node_slice.upper, axis, zero, one, default_value="end")
+            step_name = _get_arg(node_slice.step, axis, zero, one)
             inputs = [var_name, lower_name, upper_name, axis.name]
             if step_name != '':
                 inputs.append(step_name)
             return inputs
 
+        if use_subscript:
+            node_slice = node.slice
+        else:
+            node_slice = getattr(node.slice, 'value', None)
+
+        if self.is_constant_expr(node_slice):
+            inputs = _get_int_input(node_slice)
+            return Op(self.default_opset, 'Squeeze'), inputs, []
+        
         if isinstance(node.slice, ast.Slice):
-            inputs = _get_slice_input(node.slice)
+            one = self.emit_const([1], 'one', info)
+            axis = self.emit_const([0], 'subscript_axis', info)
+            inputs = _get_slice_input(node.slice, axis, axis, one)
             return Op(self.default_opset, 'Slice'), inputs, []
+
+        if (isinstance(node.slice, ast.Tuple) or
+                (not use_subscript and isinstance(node.slice, ast.ExtSlice))):
+            if isinstance(node.slice, ast.Tuple):
+                elts = node.slice.elts
+            else:
+                elts = node.slice.dims
+            one = self.emit_const([1], 'one', info)
+            zero = None
+            starts = []
+            ends = []
+            axes = []
+            steps = []
+            for axis, elt in enumerate(elts):
+                if isinstance(elt, ast.Slice):
+                    var_axis = self.emit_const([axis], f"ax{axis}", info)
+                    if zero is None:
+                        zero = var_axis
+                    inputs = _get_slice_input(elt, var_axis, zero, one)
+                    starts.append(inputs[1])
+                    ends.append(inputs[2])
+                    axes.append(var_axis.name)
+                    if len(inputs) > 4:
+                        steps.append(inputs[4])
+                    else:
+                        steps.append(one.name)
+                    continue
+                fail(DebugInfo(elt, self).msg(
+                    f"Unable to interpret axis {axis!r} with type {type(elt)!r}."))
+
+            attr = self.ir_builder.attr("axis", 0)
+            start_name = self.generate_unique_name(var_name + "_start")
+            self.emit([start_name], Op(self.default_opset, 'Concat'), starts, [attr])
+
+            end_name = self.generate_unique_name(var_name + "_end")
+            self.emit([end_name], Op(self.default_opset, 'Concat'), ends, [attr])
+
+            axes_name = self.generate_unique_name(var_name + "_axis")
+            self.emit([axes_name], Op(self.default_opset, 'Concat'), axes, [attr])
+
+            steps_name = self.generate_unique_name(var_name + "_step")
+            self.emit([steps_name], Op(self.default_opset, 'Concat'), steps, [attr])
+            return (Op(self.default_opset, 'Slice'),
+                    [var_name, start_name, end_name, axes_name, steps_name], [])
 
         fail(DebugInfo(node.slice, self).msg(
             f"Unexpected type {type(node.slice)} for an index."))

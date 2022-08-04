@@ -11,6 +11,25 @@ from onnxscript.onnx_types import FLOAT
 
 
 @script()
+def getitem_i_tuple(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[:2, :1]
+    return r
+
+
+@script()
+def getitem_i_slice_step(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[2:0:-1]
+    return r
+
+
+# This notation is not possible with ONNX but is allowed by numpy.
+# @script()
+# def getitem_i_slice_right_step(A: FLOAT[...]) -> FLOAT[...]:
+#     r = A[1::-1]
+#     return r
+
+
+@script()
 def getitem_i_var(A: FLOAT[...]) -> FLOAT[...]:
     # eager mode does not work on this one:
     # TypeError: only integer scalar arrays can be converted to a scalar index

@@ -283,28 +283,6 @@ class TestConverter(unittest.TestCase):
     def test_getitem(self):
         from onnxscript.test.models import getitem
         test_functions = self.validate_save(getitem, check_ort=True)
-        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
-
-        def check_function(name, expected, eager=True):
-            f = getattr(getitem, name)
-            if eager:
-                self.assertEqual(f(x).tolist(), expected)
-            onx = test_functions[name]
-            sess = onnxruntime.InferenceSession(onx.SerializeToString())
-            try:
-                y = sess.run(None, {'A': x})[0]
-            except Exception as e:
-                raise AssertionError(
-                    f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}.") from e
-            self.assertEqual(y.tolist(), expected)
-
-        check_function('getitem_i', [0., 1., 2.])
-        check_function('getitem_i_last', [9., 10., 11.])
-        check_function('getitem_i_expr', [1., 2., 3.])
-        check_function('getitem_i_slice', [[3., 4., 5.]])
-        check_function('getitem_i_slice_left', [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
-        check_function('getitem_i_slice_right', [[0, 1, 2], [3, 4, 5]])
-        check_function('getitem_i_slice_neg', [[3, 4, 5], [6, 7, 8]])
 
         # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
         # expression.
@@ -316,8 +294,34 @@ class TestConverter(unittest.TestCase):
         except Exception:
             # TypeError: only integer scalar arrays can be converted to a scalar index
             eager = False
+
+        def check_function(x, name, expected, eager=True):
+            onx = test_functions[name]
+            sess = onnxruntime.InferenceSession(onx.SerializeToString())
+            try:
+                y = sess.run(None, {'A': x})[0]
+            except Exception as e:
+                raise AssertionError(
+                    f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}.") from e
+            self.assertEqual(y.tolist(), expected)
+            f = getattr(getitem, name)
+            if eager:
+                self.assertEqual(f(x).tolist(), expected)
+
+        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
+
+        check_function(x, 'getitem_i', [0., 1., 2.])
+        check_function(x, 'getitem_i_last', [9., 10., 11.])
+        check_function(x, 'getitem_i_expr', [1., 2., 3.])
+        check_function(x, 'getitem_i_slice', [[3., 4., 5.]])
+        check_function(x, 'getitem_i_slice_left', [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
+        check_function(x, 'getitem_i_slice_right', [[0, 1, 2], [3, 4, 5]])
+        check_function(x, 'getitem_i_slice_neg', [[3, 4, 5], [6, 7, 8]])
         # TODO: force eager to True when the following issue is resolved.
-        check_function('getitem_i_var', [[3., 4., 5.]], eager=eager)
+        check_function(x, 'getitem_i_var', [[3., 4., 5.]], eager=eager)
+        check_function(x, 'getitem_i_slice_step', [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
+        check_function(x, 'getitem_i_tuple', [[0], [3]])
+        
 
 
 if __name__ == '__main__':
