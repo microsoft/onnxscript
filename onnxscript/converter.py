@@ -505,7 +505,7 @@ class Converter:
                         self.emit([sliced], Op(self.default_opset, 'Slice'),
                                   [shape_name, axis.name, new_shape, axis.name], [])
                         return sliced
-                    raise RuntimeError(f"Unexpected value {value!r} for default_value.")
+                    raise RuntimeError(f"Unexpected default value {default_value!r}.")
 
                 name = self.translate_expr(node).name
                 reshaped = self.generate_unique_name(name + "_reshaped")

@@ -313,10 +313,11 @@ class TestConverter(unittest.TestCase):
         try:
             A[i: i + 1]
             eager = True
-        except Exception as e:
+        except Exception:
             # TypeError: only integer scalar arrays can be converted to a scalar index
             eager = False
-        check_function('getitem_i_var', [[3., 4., 5.]], eager=False)
+        # TODO: force eager to True when the following issue is resolved.
+        check_function('getitem_i_var', [[3., 4., 5.]], eager=eager)
 
 
 if __name__ == '__main__':
