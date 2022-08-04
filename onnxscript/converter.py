@@ -518,7 +518,7 @@ class Converter:
         if self.is_constant_expr(node_slice):
             inputs = _get_int_input(node_slice)
             return Op(self.default_opset, 'Squeeze'), inputs, []
-        
+
         if isinstance(node.slice, ast.Slice):
             one = self.emit_const([1], 'one', info)
             axis = self.emit_const([0], 'subscript_axis', info)
