@@ -11,6 +11,12 @@ from onnxscript.onnx_types import FLOAT
 
 
 @script()
+def getitem_i_mixed_tuple(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[:2, 0]
+    return r
+
+
+@script()
 def getitem_i_tuple(A: FLOAT[...]) -> FLOAT[...]:
     r = A[:2, :1]
     return r

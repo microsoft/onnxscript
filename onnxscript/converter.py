@@ -537,12 +537,27 @@ class Converter:
             ends = []
             axes = []
             steps = []
+            squeezed_axes = []
             for axis, elt in enumerate(elts):
-                if isinstance(elt, ast.Slice):
+                if (self.is_constant_expr(elt) or
+                        (not use_subscript and isinstance(elt, ast.Index))):
+                    if use_subscript:
+                        index = self.eval_constant_expr(elt)
+                    else:
+                        index = self.eval_constant_expr(elt.value)
+                    squeezed_axes.append(axis)
+                    kwargs = dict(lineno=getattr(elt, 'lineno', node.lineno),
+                                  col_offset=getattr(elt, 'col_offset', node.col_offset))
+                    element = ast.Slice(ast.Constant(index, **kwargs),
+                                        ast.Constant(index + 1, **kwargs),
+                                        ast.Constant(1, **kwargs))
+                else:
+                    element = elt
+                if isinstance(element, ast.Slice):
                     var_axis = self.emit_const([axis], f"ax{axis}", info)
                     if zero is None:
                         zero = var_axis
-                    inputs = _get_slice_input(elt, var_axis, zero, one)
+                    inputs = _get_slice_input(element, var_axis, zero, one)
                     starts.append(inputs[1])
                     ends.append(inputs[2])
                     axes.append(var_axis.name)
@@ -552,7 +567,7 @@ class Converter:
                         steps.append(one.name)
                     continue
                 fail(DebugInfo(elt, self).msg(
-                    f"Unable to interpret axis {axis!r} with type {type(elt)!r}."))
+                    f"Unable to interpret element on axis {axis!r} with type {type(elt)!r}."))
 
             attr = self.ir_builder.attr("axis", 0)
             start_name = self.generate_unique_name(var_name + "_start")
@@ -566,6 +581,13 @@ class Converter:
 
             steps_name = self.generate_unique_name(var_name + "_step")
             self.emit([steps_name], Op(self.default_opset, 'Concat'), steps, [attr])
+            if len(squeezed_axes) > 0:
+                sliced_name = self.generate_unique_name(var_name + "sliced")
+                self.emit([sliced_name], Op(self.default_opset, 'Slice'),
+                          [var_name, start_name, end_name, axes_name, steps_name], [])
+                squeezed_axis = self.emit_const(squeezed_axes, f"squeezed_ax{axis}", info)
+                return (Op(self.default_opset, 'Squeeze'),
+                        [sliced_name, squeezed_axis], [])
             return (Op(self.default_opset, 'Slice'),
                     [var_name, start_name, end_name, axes_name, steps_name], [])
 

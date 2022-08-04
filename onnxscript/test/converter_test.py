@@ -321,7 +321,7 @@ class TestConverter(unittest.TestCase):
         check_function(x, 'getitem_i_var', [[3., 4., 5.]], eager=eager)
         check_function(x, 'getitem_i_slice_step', [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
         check_function(x, 'getitem_i_tuple', [[0], [3]])
-        
+        check_function(x, 'getitem_i_mixed_tuple', [0, 3])
 
 
 if __name__ == '__main__':
