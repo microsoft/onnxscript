@@ -522,7 +522,7 @@ class Converter:
             return Op(self.default_opset, 'Slice'), inputs, []
 
         fail(DebugInfo(node.slice, self).msg(
-            f"Unexpected constant type {type(node.slice)} for an index."))
+            f"Unexpected type {type(node.slice)} for an index."))
 
     def translate_call_expr(self, node):
         # TODO: for now, we map named arguments to attributes, and positional
