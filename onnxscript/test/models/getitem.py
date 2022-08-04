@@ -11,6 +11,12 @@ from onnxscript.onnx_types import FLOAT
 
 
 @script()
+def getitem_column(A: FLOAT[...]) -> FLOAT[...]:
+    r = A[:, 1]
+    return r
+
+
+@script()
 def getitem_i_mixed_tuple(A: FLOAT[...]) -> FLOAT[...]:
     r = A[:2, 0]
     return r
@@ -26,13 +32,6 @@ def getitem_i_tuple(A: FLOAT[...]) -> FLOAT[...]:
 def getitem_i_slice_step(A: FLOAT[...]) -> FLOAT[...]:
     r = A[2:0:-1]
     return r
-
-
-# This notation is not possible with ONNX but is allowed by numpy.
-# @script()
-# def getitem_i_slice_right_step(A: FLOAT[...]) -> FLOAT[...]:
-#     r = A[1::-1]
-#     return r
 
 
 @script()
@@ -84,3 +83,10 @@ def getitem_i(A: FLOAT[...]) -> FLOAT[...]:
 def getitem_i_expr(A: FLOAT[...]) -> FLOAT[...]:
     r = (A + 1)[0]
     return r
+
+
+# This notation is not possible with ONNX but is allowed by numpy.
+# @script()
+# def getitem_i_slice_right_step(A: FLOAT[...]) -> FLOAT[...]:
+#     r = A[1::-1]
+#     return r
