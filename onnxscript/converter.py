@@ -471,7 +471,7 @@ class Converter:
         if self.is_constant_expr(node.slice):
             index = self.eval_constant_expr(node.slice)
             info = DebugInfo(node.slice, self)
-        elif not use_subscript:
+        elif not use_subscript and hasattr(node.slice, 'value'):
             # python <= 3.8
             index = self.eval_constant_expr(node.slice.value)
             info = DebugInfo(node, self)
@@ -486,8 +486,8 @@ class Converter:
             axis = self.emit_const([0], 'subscript_axis', info)
             return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
 
-        def _get_slice_input(node):
-            info = DebugInfo(node, self)
+        def _get_slice_input(node_slice):
+            info = DebugInfo(node_slice if use_subscript else node, self)
             axis = self.emit_const([0], 'subscript_axis', info)
             new_shape = self.emit_const([1], 'new_shape', info)
 
@@ -513,9 +513,9 @@ class Converter:
                           [name, new_shape], [])
                 return reshaped
 
-            lower_name = _get_arg(node.lower, "begin")
-            upper_name = _get_arg(node.upper, "end")
-            step_name = _get_arg(node.step)
+            lower_name = _get_arg(node_slice.lower, "begin")
+            upper_name = _get_arg(node_slice.upper, "end")
+            step_name = _get_arg(node_slice.step)
             inputs = [var_name, lower_name, upper_name, axis.name]
             if step_name != '':
                 inputs.append(step_name)

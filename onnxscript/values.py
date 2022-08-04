@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import pprint
 import typing
 from typing import Any, List
 from enum import IntFlag
@@ -27,7 +28,8 @@ class DebugInfo:
             self.lineno = lineno
         else:
             raise NotImplementedError(
-                "Unable to extract debug information from type %r." % type(lineno))
+                f"Unable to extract debug information from type {type(lineno)!r}, "
+                f"attributes={pprint.pformat(lineno.__dict__)}.")
         self.source = source
         self.code = None if code is None else code.split('\n')
 
