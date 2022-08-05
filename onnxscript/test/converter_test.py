@@ -296,17 +296,19 @@ class TestConverter(unittest.TestCase):
             eager = False
 
         def check_function(x, name, expected, eager=True):
-            onx = test_functions[name]
-            sess = onnxruntime.InferenceSession(onx.SerializeToString())
-            try:
-                y = sess.run(None, {'A': x})[0]
-            except Exception as e:
-                raise AssertionError(
-                    f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}.") from e
-            self.assertEqual(y.tolist(), expected)
-            f = getattr(getitem, name)
-            if eager:
-                self.assertEqual(f(x).tolist(), expected)
+            with self.subTest(name=name):
+                onx = test_functions[name]
+                sess = onnxruntime.InferenceSession(onx.SerializeToString())
+                try:
+                    y = sess.run(None, {'A': x})[0]
+                except Exception as e:
+                    raise AssertionError(
+                        f"Unable to run ONNX for function {name!r} "
+                        f"due to {e!r}\n{onx}.") from e
+                self.assertEqual(y.tolist(), expected)
+                f = getattr(getitem, name)
+                if eager:
+                    self.assertEqual(f(x).tolist(), expected)
 
         x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
 
@@ -319,7 +321,9 @@ class TestConverter(unittest.TestCase):
         check_function(x, 'getitem_i_slice_neg', [[3, 4, 5], [6, 7, 8]])
         # TODO: force eager to True when the following issue is resolved.
         check_function(x, 'getitem_i_var', [[3., 4., 5.]], eager=eager)
-        check_function(x, 'getitem_i_slice_step', [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
+        if sys.version_info[:2] >= (3, 8):
+            # negative indices are not supported in python 3.7
+            check_function(x, 'getitem_i_slice_step', [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
         check_function(x, 'getitem_i_tuple', [[0], [3]])
         check_function(x, 'getitem_i_mixed_tuple', [0, 3])
         check_function(x, 'getitem_column', [1.0, 4.0, 7.0, 10.0])
