@@ -1,8 +1,10 @@
 import ast
+from os import TMP_MAX
+from re import I
 import unittest
 
 from onnxscript.main import get_ast
-from onnxscript.analysis import do_liveness_analysis
+from onnxscript.analysis import do_liveness_analysis, exposed_uses
 from onnxscript.converter import Converter
 
 
@@ -24,7 +26,7 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
             self.results.append(last.live_out)
 
 
-class TestAnalysis(unittest.TestCase):
+class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
         ast = get_ast(fun)
         do_liveness_analysis(ast, Converter())
@@ -97,6 +99,49 @@ class TestAnalysis(unittest.TestCase):
             ["x"]
         ])
 
+class TestExposedUses(unittest.TestCase):
+    def assertUses(self, f, expected):
+        ast = get_ast(f)
+        result = exposed_uses(ast.body, Converter())
+        self.assertEqual(result, set(expected))
+
+    def test_basic(self):
+        def f(x):
+            x = x + 10
+            y = 20
+            z = x + y
+            x = 30
+        self.assertUses(f, {'x'})
+
+    def test_if(self):
+        def f(x, y, z):
+            if x:
+                c = 10
+                result = y + c
+            else:
+                c = 20
+                result = z + c
+            c30 = 30
+            return result + c30
+        self.assertUses(f, {'x', 'y', 'z'})
+
+    def test_for_loop(self):
+        def f(x, y):
+            for i in range(x):
+                y = y + i
+            tmp = 10
+            result = y + tmp
+            return result
+        self.assertUses(f, {'x', 'y'})
+
+    def test_while_loop(self):
+        def f(x, y):
+            i = 1
+            while ((i < 10) and (x)):
+                y = y + i
+            tmp = y * 2
+            return tmp
+        self.assertUses(f, {'x', 'y'})
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
