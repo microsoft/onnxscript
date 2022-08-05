@@ -13,6 +13,7 @@ def get_loop_var(for_stmt, converter):
             "For loop target must be a single variable."))
     return for_stmt.target.id
 
+
 def used_vars(expr):
     ''' Return set of all variables used in an expression.'''
     if isinstance(expr, ast.Name):

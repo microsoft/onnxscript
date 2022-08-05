@@ -1,6 +1,4 @@
 import ast
-from os import TMP_MAX
-from re import I
 import unittest
 
 from onnxscript.main import get_ast
@@ -99,6 +97,7 @@ class TestLivenessAnalysis(unittest.TestCase):
             ["x"]
         ])
 
+
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
         ast = get_ast(f)
@@ -142,6 +141,7 @@ class TestExposedUses(unittest.TestCase):
             tmp = y * 2
             return tmp
         self.assertUses(f, {'x', 'y'})
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
