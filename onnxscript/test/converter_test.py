@@ -38,7 +38,8 @@ class TestConverter(unittest.TestCase):
             with self.subTest(f=f.name):
                 f.to_function_proto()
 
-    def validate_save(self, script, save_text=False, check_ort=False, shape_inference=True):
+    def validate_save(self, script, save_text=False, check_ort=False, shape_inference=True,
+                      skip_check_ort=None):
         if isinstance(script, types.ModuleType):
             fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
         elif isinstance(script, OnnxFunction):
@@ -57,7 +58,7 @@ class TestConverter(unittest.TestCase):
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")
                             fi.write(printable_graph(fct))
-                if check_ort:
+                if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
                         onnxruntime.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
@@ -283,7 +284,14 @@ class TestConverter(unittest.TestCase):
 
     def test_getitem(self):
         from onnxscript.test.models import getitem
-        test_functions = self.validate_save(getitem, check_ort=True)
+        if sys.version_info[:2] >= (3, 8):
+            skip_check_ort = None
+        else:
+            # negative indices are not supported in python 3.7
+            # one constant is evaluated as float
+            skip_check_ort = ['getitem_i_slice_neg', 'getitem_i_slice_step']
+        test_functions = self.validate_save(
+            getitem, check_ort=True, skip_check_ort=skip_check_ort)
 
         # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
         # expression.
@@ -297,6 +305,8 @@ class TestConverter(unittest.TestCase):
             eager = False
 
         def check_function(x, name, expected, eager=True):
+            if skip_check_ort is not None and name not in skip_check_ort:
+                return
             with self.subTest(name=name):
                 onx = test_functions[name]
                 sess = onnxruntime.InferenceSession(onx.SerializeToString())
@@ -319,11 +329,8 @@ class TestConverter(unittest.TestCase):
         check_function(x, 'getitem_i_slice', [[3., 4., 5.]])
         check_function(x, 'getitem_i_slice_left', [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
         check_function(x, 'getitem_i_slice_right', [[0, 1, 2], [3, 4, 5]])
-        if sys.version_info[:2] >= (3, 8):
-            # negative indices are not supported in python 3.7
-            # one constant is evaluated as float
-            check_function(x, 'getitem_i_slice_neg', [[3, 4, 5], [6, 7, 8]])
-            check_function(x, 'getitem_i_slice_step', [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
+        check_function(x, 'getitem_i_slice_neg', [[3, 4, 5], [6, 7, 8]])
+        check_function(x, 'getitem_i_slice_step', [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
         # TODO: force eager to True when the following issue is resolved.
         check_function(x, 'getitem_i_var', [[3., 4., 5.]], eager=eager)
         check_function(x, 'getitem_i_tuple', [[0], [3]])
@@ -334,5 +341,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_getitem()
+    # TestConverter().test_getitem()
     unittest.main(verbosity=2)
