@@ -62,7 +62,7 @@ steps:
 - script: |
       if [ '$(test.examples)' == '1' ]
         then
-          pytest -v onnxscript/docs/test
+          pytest -v docs/test
       fi
   displayName: 'Test examples'
 
