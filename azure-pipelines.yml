@@ -53,11 +53,19 @@ steps:
 
 - script: |
     python setup.py sdist
-  displayName: 'package'
+  displayName: 'make package'
 
 - script: |
     pytest -v onnxscript --cov=onnxscript --cov-report term-missing
   displayName: 'pytest'
+
+- script: |
+    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py,**onnx_backend_test_code/*.py"
+  displayName: 'flake8'
+
+- script: |
+    python setup.py install
+  displayName: 'install package'
 
 - script: |
       if [ '$(test.examples)' == '1' ]
@@ -65,10 +73,6 @@ steps:
           pytest -v docs/test
       fi
   displayName: 'Test examples'
-
-- script: |
-    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py,**onnx_backend_test_code/*.py"
-  displayName: 'flake8'
 
 - script: |
     python -m sphinx docs dist/html
