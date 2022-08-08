@@ -13,18 +13,23 @@ strategy:
     Python310-onnx:
       python.version: '3.10'
       onnx.standard: '1'
+      test.examples: '1'
     Python39-onnx:
       python.version: '3.9'
       onnx.standard: '1'
+      test.examples: '0'
     Python39-expe:
       python.version: '3.9'
       onnx.standard: '0'
+      test.examples: '0'
     Python38-expe:
       python.version: '3.8'
       onnx.standard: '0'
+      test.examples: '0'
     Python37-expe:
       python.version: '3.7'
       onnx.standard: '0'
+      test.examples: '0'
 
 steps:
 - task: UsePythonVersion@0
@@ -53,6 +58,13 @@ steps:
 - script: |
     pytest -v onnxscript --cov=onnxscript --cov-report term-missing
   displayName: 'pytest'
+
+- script: |
+      if [ '$(test.examples)' == '1' ]
+        then
+          pytest -v onnxscript/docs/test
+      fi
+  displayName: 'Test examples'
 
 - script: |
     python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py,**onnx_backend_test_code/*.py"
