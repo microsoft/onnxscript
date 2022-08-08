@@ -54,7 +54,7 @@ def ignore(cond, msg):
 
 
 # Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, converter, info: DebugInfo):
+def py_type_to_onnx_type(pytype: type, converter):
     if pytype is bool:
         return onnx.TensorProto.BOOL
     if pytype is int:
@@ -63,22 +63,23 @@ def py_type_to_onnx_type(pytype: type, converter, info: DebugInfo):
         return onnx.TensorProto.FLOAT
     if pytype is str:
         return onnx.TensorProto.STRING
-    fail(info.msg(
+    fail(DebugInfo(pytype, converter).msg(
         f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: DebugInfo):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
-            fail(info.msg("Cannot convert an empty list to tensor"))
+            fail(DebugInfo(pyvalue, converter).msg(
+                "Cannot convert an empty list to tensor"))
         pytype = type(pyvalue[0])
         if not all([isinstance(e, pytype) for e in pyvalue]):
-            fail(info.msg("Cannot convert an list with elements of different types to tensor"))
+            fail(DebugInfo(pyvalue, converter).msg(
+                "Cannot convert an list with elements of different types to tensor"))
         return helper.make_tensor(
-            tensor_name, py_type_to_onnx_type(pytype, converter, info),
-            [len(pyvalue)], pyvalue)
+            tensor_name, py_type_to_onnx_type(pytype, converter), [len(pyvalue)], pyvalue)
 
-    onnx_type = py_type_to_onnx_type(type(pyvalue), converter, info)
+    onnx_type = py_type_to_onnx_type(type(pyvalue), converter)
     if onnx_type is onnx.TensorProto.BOOL:
         return helper.make_tensor(
             tensor_name, onnx_type, [], [int(pyvalue)])
@@ -331,7 +332,7 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
+        tensor = pyvalue_to_tensor(ovar, pyvalue, self)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
@@ -346,11 +347,7 @@ class Converter:
                 # A function...
                 return False
             return isinstance(val, ConstValue) and self.is_pure_module(val.value)
-        if isinstance(node, ast.UnaryOp):
-            if self.is_constant_expr(node.operand):
-                return True
-            return False
-        if isinstance(node, (ast.Call, ast.BinOp, ast.Compare,
+        if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load,
                              ast.NameConstant, ast.Constant, ast.Str)):
             return all([self.is_constant_expr(c) for c in ast.iter_child_nodes(node)])
@@ -376,8 +373,7 @@ class Converter:
             return node.s
         if isinstance(node, ast.NameConstant):
             if not isinstance(node.value, bool):
-                raise ValueError(DebugInfo(node, self).msg(
-                    f"Unsupported NameConstant attribute: {node.value}."))
+                raise ValueError(f"Unsupported NameConstant attribute: {node.value}.")
             return 1 if node.value else 0
         if isinstance(node, ast.List):
             return [self.eval_attr(x) for x in node.elts]
@@ -413,12 +409,10 @@ class Converter:
         raise TypeError("Unexpected type %r for node. "
                         "Unsupoorted version of python." % type(node))
 
+    # Expression-translation generates "IR statements/nodes" that compute the value of
+    # the expression into a target-variable, and returns the variable that is
+    # assigned this value.
     def translate_expr(self, node, target="tmp"):
-        """
-        Expression-translation generates "IR statements/nodes" that compute the value of
-        the expression into a target-variable, and returns the variable that is
-        assigned this value.
-        """
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
         elif isinstance(node, (ast.BinOp, ast.BoolOp, ast.BitAnd, ast.BitOr)):
@@ -429,8 +423,6 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
-        elif isinstance(node, ast.Subscript):
-            r = self.translate_subscript_expr(node)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
         else:
@@ -450,35 +442,12 @@ class Converter:
             return ConverterExpression(results, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
+    # Translation of an expression where "None" is permitted (eg., for an optional argument)
     def translate_opt_expr(self, node, target="tmp"):
-        """
-        Translation of an expression where "None" is permitted (eg., for an optional argument)
-        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
-        """
+        # None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
             return ConverterExpression(None, ConverterExpressionKind.ANY)
         return self.translate_expr(node, target)
-
-    def translate_subscript_expr(self, node):
-        var = node.value
-        if not isinstance(var, ast.Name):
-            fail(DebugInfo(node, self).msg(
-                f"[ ] should apply an a variable not {type(var)}."))
-        var_name = self.translate_name_expr(var)
-        if self.is_constant_expr(node.slice):
-            index = self.eval_constant_expr(node.slice)
-            if isinstance(index, int):
-                info = DebugInfo(node.slice, self)
-                var_index = self.emit_const([index], 'subscript_index', info)
-                tmp = self.generate_unique_name(var_name + "_gather")
-                self.emit([tmp], Op(self.default_opset, 'Gather'),
-                          [var_name, var_index.name], [])
-                axis = self.emit_const([0], 'subscript_axis', info)
-                return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
-            fail(DebugInfo(node.slice, self).msg(
-                f"Unexpected constant type {type(index)} for an index."))
-        fail(DebugInfo(node, self).msg(
-            f"Index type {type(node.slice)} is not supported."))
 
     def translate_call_expr(self, node):
         # TODO: for now, we map named arguments to attributes, and positional

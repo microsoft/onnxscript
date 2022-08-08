@@ -280,27 +280,9 @@ class TestConverter(unittest.TestCase):
         res = loops_while.loop_range_cond_only(x)
         self.assertEqual(res.tolist(), [0, 10, -20])
 
-    def test_getitem(self):
-        from onnxscript.test.models import getitem
-        test_functions = self.validate_save(getitem, check_ort=True)
-
-        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
-
-        self.assertEqual(getitem.getitem_i(x).tolist(), [0., 1., 2.])
-        onx = test_functions['getitem_i']
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {'A': x})[0]
-        self.assertEqual(y.tolist(), [0., 1., 2.])
-
-        self.assertEqual(getitem.getitem_i_last(x).tolist(), [9., 10., 11.])
-        onx = test_functions['getitem_i_last']
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {'A': x})[0]
-        self.assertEqual(y.tolist(), [9., 10., 11.])
-
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_getitem()
+    # TestConverter().test_type_double()
     unittest.main(verbosity=2)
