@@ -11,6 +11,27 @@ from onnxscript.onnx_types import FLOAT
 
 
 @script()
+def getitem_index_int0(A: FLOAT[...]) -> FLOAT[...]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    r = A[zero]
+    return r
+
+
+@script()
+def getitem_index_int0_1(A: FLOAT[...]) -> FLOAT[...]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    r = A[zero + 1]
+    return r
+
+
+@script()
+def getitem_index_int(A: FLOAT[...]) -> FLOAT[...]:
+    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    r = A[zero:zero + 1, zero + 2]
+    return r
+
+
+@script()
 def getitem_column(A: FLOAT[...]) -> FLOAT[...]:
     r = A[:, 1]
     return r

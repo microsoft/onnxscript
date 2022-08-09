@@ -3,22 +3,29 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import ast
 import sys
 import unittest
 import os
 import warnings
 import types
+import inspect
+import textwrap
 from packaging.version import Version
 import numpy as np
 import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
+from onnx import TensorProto
+from onnx.helper import make_tensor
 import onnxruntime
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.values import OnnxFunction
+from onnxscript.converter import Converter
+from onnxscript.converter import TranslationError
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
@@ -336,6 +343,33 @@ class TestConverter(unittest.TestCase):
         check_function(x, 'getitem_i_tuple', [[0], [3]])
         check_function(x, 'getitem_i_mixed_tuple', [0, 3])
         check_function(x, 'getitem_column', [1.0, 4.0, 7.0, 10.0])
+        check_function(x, 'getitem_index_int', [2.0], eager=eager)
+        check_function(x, 'getitem_index_int0_1', [3, 4, 5], eager=eager)
+        check_function(x, 'getitem_index_int0', [0, 1, 2], eager=eager)
+
+    def check_failure(self, f, msg):
+        source = textwrap.dedent(inspect.getsource(f))        
+        global_names = globals().copy()
+        top_level_ast = ast.parse(source)
+        f_ast = top_level_ast.body[0]
+        cvt = Converter(opset=op, global_names=global_names, source=source, default_opset=op)
+        try:
+            cvt.top_level_stmt(f_ast)
+        except TranslationError as e:
+            if msg not in str(e):
+                raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
+            return
+        raise AssertionError("No raised exception.")
+
+    def test_getitem_failure(self):
+
+        def f1(A: FLOAT[...]) -> FLOAT[...]:
+            zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+            index = zero, zero + 1
+            r = A[index]
+            return r
+
+        self.check_failure(f1, "Left term must be a tuple not <class 'ast.Name'>")
 
 
 if __name__ == '__main__':

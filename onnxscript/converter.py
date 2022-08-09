@@ -205,8 +205,8 @@ class Converter:
         if self.default_opset_ is None:
             if self.current_fn is None:
                 raise RuntimeError("Unable to return a default opset, None was detected yet.")
-            warn("No default opset was defined or detected in function %r, "
-                 "the converter uses opset 15." % (self.current_fn.name, ))
+            warn(f"No default opset was defined or detected in function {self.current_fn.name!r}, "
+                 f"the converter uses opset 15.")
             from .onnx_opset import opset15
             return opset15
         return self.default_opset_
@@ -466,6 +466,30 @@ class Converter:
         return self.translate_expr(node, target)
 
     def translate_subscript_expr(self, node):
+        """
+        List of supported syntaxes:
+
+        ::
+
+            A[:, 1]
+            A[:2, 0]
+            A[:2, :1]
+            A[2:0:-1]
+            A[1:]
+            A[:2]
+            A[1:-1]
+            A[1:2]
+            A[-1]
+            A[0]
+
+        *i* is a tensor holding one integer.
+
+        ::
+
+            A[i]
+            A[i+1:i+2]
+            A[i:i+j, k]
+        """
         var = self.translate_expr(node.value)
         var_name = var.name
 
@@ -541,6 +565,7 @@ class Converter:
             for axis, elt in enumerate(elts):
                 if (self.is_constant_expr(elt) or
                         (not use_subscript and isinstance(elt, ast.Index))):
+                    # supports [ ..., 4, ...]
                     if use_subscript:
                         index = self.eval_constant_expr(elt)
                     else:
@@ -554,6 +579,7 @@ class Converter:
                 else:
                     element = elt
                 if isinstance(element, ast.Slice):
+                    # supports [ ..., a: b, ...]
                     var_axis = self.emit_const([axis], f"ax{axis}", info)
                     if zero is None:
                         zero = var_axis
@@ -566,8 +592,19 @@ class Converter:
                     else:
                         steps.append(one.name)
                     continue
-                fail(DebugInfo(elt, self).msg(
-                    f"Unable to interpret element on axis {axis!r} with type {type(elt)!r}."))
+
+                # supports [ ..., a, ...]
+                var_axis = self.emit_const([axis], f"ax{axis}", info)
+                if zero is None:
+                    zero = var_axis
+                squeezed_axes.append(axis)
+                index = self.translate_expr(element).name
+                starts.append(index)
+                index_1 = self.generate_unique_name(var_name + "_end")
+                self.emit([index_1], Op(self.default_opset, 'Add'), [index, one], [])
+                ends.append(index_1)
+                axes.append(var_axis.name)
+                steps.append(one.name)
 
             attr = self.ir_builder.attr("axis", 0)
             start_name = self.generate_unique_name(var_name + "_start")
@@ -591,8 +628,13 @@ class Converter:
             return (Op(self.default_opset, 'Slice'),
                     [var_name, start_name, end_name, axes_name, steps_name], [])
 
-        fail(DebugInfo(node.slice, self).msg(
-            f"Unexpected type {type(node.slice)} for an index."))
+        # supports [ ..., i, ...]
+        var_index = self.translate_expr(node_slice)
+        tmp = self.generate_unique_name(var_name + "_gather")
+        self.emit([tmp], Op(self.default_opset, 'Gather'),
+                  [var_name, var_index.name], [])
+        axis = self.emit_const([0], 'subscript_axis', info)
+        return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
 
     def translate_call_expr(self, node):
         # TODO: for now, we map named arguments to attributes, and positional
@@ -779,13 +821,17 @@ class Converter:
             targets = stmt.targets
         else:
             targets = [stmt.target]
-        assert len(targets) == 1, "Multi-assignment not supported."
+        if len(targets) != 1:
+            fail(DebugInfo(stmt, self).msg("Multi-assignment not supported."))
         lhs = targets[0]
         rhs = stmt.value
         if isinstance(rhs, ast.Tuple):
-            assert isinstance(lhs, ast.Tuple)
-            assert len(lhs.elts) == len(rhs.elts), \
-                "Expected same number of elements on lhs and rhs of assignments."
+            if not isinstance(lhs, ast.Tuple):
+                fail(DebugInfo(lhs, self).msg(
+                    f"Left term must be a tuple not {type(lhs)!r}."))
+            if len(lhs.elts) != len(rhs.elts):
+                fail(DebugInfo(stmt, self).msg(
+                    "Expected same number of elements on lhs and rhs of assignments."))
             for p, r in zip(lhs.elts, rhs.elts):
                 assign(p, r)
         else:

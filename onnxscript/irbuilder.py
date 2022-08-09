@@ -300,8 +300,8 @@ class Function:
                 # raise RuntimeError(
                 #     ff"There is a version conflict in domain: {s.module.domain!r},\
                 #         with {self.name!r}.")
-                warnings.warn(f"There is a version conflict in domain: {s.module.domain!r},\
-                    with {self.name!r}.")
+                warnings.warn(f"There is a version conflict in domain: {s.module.domain!r}, "
+                              f"with {self.name!r}.", category=UserWarning)
         return func_opset_imports
 
     def to_function_proto(self, domain):
