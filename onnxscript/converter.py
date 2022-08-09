@@ -205,8 +205,8 @@ class Converter:
         if self.default_opset_ is None:
             if self.current_fn is None:
                 raise RuntimeError("Unable to return a default opset, None was detected yet.")
-            warn(f"No default opset was defined or detected in function {self.current_fn.name!r}, "
-                 f"the converter uses opset 15.")
+            warn(f"No default opset was defined or detected in function "
+                 f"{self.current_fn.name!r}, the converter uses opset 15.")
             from .onnx_opset import opset15
             return opset15
         return self.default_opset_

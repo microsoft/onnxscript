@@ -289,6 +289,8 @@ class TestConverter(unittest.TestCase):
         res = loops_while.loop_range_cond_only(x)
         self.assertEqual(res.tolist(), [0, 10, -20])
 
+    @unittest.skipIf(sys.version_info[:2] < (3, 8),
+                     reason="Notation [...] not supported in python 3.7.")
     def test_getitem(self):
         from onnxscript.test.models import getitem
         if sys.version_info[:2] >= (3, 8):
@@ -348,7 +350,7 @@ class TestConverter(unittest.TestCase):
         check_function(x, 'getitem_index_int0', [0, 1, 2], eager=eager)
 
     def check_failure(self, f, msg):
-        source = textwrap.dedent(inspect.getsource(f))        
+        source = textwrap.dedent(inspect.getsource(f))
         global_names = globals().copy()
         top_level_ast = ast.parse(source)
         f_ast = top_level_ast.body[0]
@@ -361,6 +363,8 @@ class TestConverter(unittest.TestCase):
             return
         raise AssertionError("No raised exception.")
 
+    @unittest.skipIf(sys.version_info[:2] < (3, 8),
+                     reason="Notation [...] not supported in python 3.7.")
     def test_getitem_failure(self):
 
         def f1(A: FLOAT[...]) -> FLOAT[...]:
