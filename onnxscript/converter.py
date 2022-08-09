@@ -488,6 +488,11 @@ class Converter:
 
             A[i]
             A[i+1:i+2]
+
+        Fully supported for python 3.9+.
+
+        ::
+
             A[i:i+j, k]
         """
         var = self.translate_expr(node.value)
@@ -566,16 +571,21 @@ class Converter:
                 if (self.is_constant_expr(elt) or
                         (not use_subscript and isinstance(elt, ast.Index))):
                     # supports [ ..., 4, ...]
+                    element = None
                     if use_subscript:
                         index = self.eval_constant_expr(elt)
                     else:
-                        index = self.eval_constant_expr(elt.value)
-                    squeezed_axes.append(axis)
-                    kwargs = dict(lineno=getattr(elt, 'lineno', node.lineno),
-                                  col_offset=getattr(elt, 'col_offset', node.col_offset))
-                    element = ast.Slice(ast.Constant(index, **kwargs),
-                                        ast.Constant(index + 1, **kwargs),
-                                        ast.Constant(1, **kwargs))
+                        try:
+                            index = self.eval_constant_expr(elt.value)
+                        except NameError:
+                            element = elt
+                    if element is None:
+                        squeezed_axes.append(axis)
+                        kwargs = dict(lineno=getattr(elt, 'lineno', node.lineno),
+                                      col_offset=getattr(elt, 'col_offset', node.col_offset))
+                        element = ast.Slice(ast.Constant(index, **kwargs),
+                                            ast.Constant(index + 1, **kwargs),
+                                            ast.Constant(1, **kwargs))
                 else:
                     element = elt
                 if isinstance(element, ast.Slice):
