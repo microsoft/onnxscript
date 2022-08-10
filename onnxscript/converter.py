@@ -156,14 +156,21 @@ class ConverterExpression:
 class Converter:
     """
     Main class to translate python code into ONNX operators.
+
     :param ir_builder: convert AST node into ONNX structures,
         if None, class :class:`onnxscript.irbuilder.IRBuilder` is used
+
     The class uses logger `onnx-script`. Logging can be enabled with the following code:
+
     ::
+
         import logging
         logging.basicConfig(level=logging.DEBUG)
+
     Or if you need to enable only the logger used by this module:
+
     ::
+
         import logging
         logger = logging.getLogger('onnx-script')
         logger.setLevel(logging.DEBUG)
