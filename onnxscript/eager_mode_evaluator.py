@@ -5,14 +5,13 @@
 
 import numbers
 import numpy as np
-
 import onnx
 from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
-
 from .utils import convert_arrays_to_value_infos
 from .irbuilder import select_ir_version
+from .eager_numpy import NumpyArray
 
 
 class EagerModeError(RuntimeError):
@@ -98,10 +97,21 @@ def call_ort(schema, *args, **kwargs):
             "Unable to create onnxruntime InferenceSession with onnx "
             "model\n%s" % str(model)) from e
 
-    session_run_input = {
-        input: arg if isinstance(arg, (np.ndarray, list)) else [arg]
-        for input, arg in zip(inputs, args)
-        if arg is not None}
+    session_run_input = {}
+    tensor_class = None
+    for name, arg in zip(inputs, args):
+        if arg is None:
+            continue
+        if isinstance(arg, list):
+            session_run_input[name] = arg
+        elif isinstance(arg, NumpyArray):
+            session_run_input[name] = arg.value
+            tensor_class = NumpyArray
+        elif isinstance(arg, (int, float)):
+            session_run_input[name] = np.array(arg)
+        else:
+            raise TypeError(
+                f"Unable to call onnxruntime with type {type(arg)} for input {name!r}).")
 
     try:
         got = sess.run(None, session_run_input)
@@ -109,4 +119,14 @@ def call_ort(schema, *args, **kwargs):
         raise RuntimeError(
             "Unable to execute model operator %r due to %r\n%s" % (
                 schema.name, e, model)) from e
-    return got[0] if len(got) == 1 else got
+
+    if tensor_class is None:
+        return got[0] if len(got) == 1 else got
+    new_got = []
+    for i, g in enumerate(got):
+        if isinstance(g, np.ndarray):
+            new_got.append(tensor_class(g))
+        else:
+            raise TypeError(
+                f"Unexpected output type {type(g)} for output {i}).")
+    return new_got[0] if len(new_got) == 1 else new_got

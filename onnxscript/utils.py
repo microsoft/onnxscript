@@ -8,6 +8,8 @@ import numpy as np
 from typing import Any, Sequence
 import onnx
 from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
+from .eager_numpy import NumpyArray
+
 
 # print utility unavailable in ONNX 1.12 or earlier:
 try:
@@ -36,6 +38,7 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=No
     for i, (name, arr) in enumerate(zip(names, arr_list)):
         elem_type: TensorProto.DataType
         shape: tuple
+
         if isinstance(arr, list):
             # sequence, assuming it is a float sequence
             # list should be replace by another container retaining the type information
@@ -56,26 +59,24 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=No
                 info)
             continue
 
-        if isinstance(arr, np.ndarray):
+        if isinstance(arr, NumpyArray):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
         elif isinstance(arr, numbers.Number):
-            nparray = np.array(
-                arr)
+            nparray = np.array(arr)
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
             shape = nparray.shape
         elif arr is None:
             continue
         else:
             raise ValueError(
-                f"cannot convert a {type(arr)} to value_info")
+                f"Cannot convert a {type(arr)} to value_info")
 
         value_info = onnx.helper.make_tensor_value_info(
             name=name,
             elem_type=elem_type,
             shape=shape)
-        value_infos.append(
-            value_info)
+        value_infos.append(value_info)
     return value_infos
 
 

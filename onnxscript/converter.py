@@ -477,6 +477,15 @@ class Converter:
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
+
+        attr = []
+        if isinstance(node.op, ast.Mod) and self.is_constant_expr(node.right):
+            # specific case X % f where f is a float.
+            # attribute fmod=1 is added in that case.
+            cst = self.eval_constant_expr(node.right)
+            if isinstance(cst, float):
+                attr = [self.ir_builder.attr("fmod", 1)]
+
         opname = primop_map[op]
         if hasattr(node, 'left'):
             # operation
@@ -487,7 +496,7 @@ class Converter:
             left = self.translate_expr(node.values[0])
             right = self.translate_expr(node.values[1])
         left, right = self._cast_like_binary_expression(left, right)
-        return Op(self.default_opset, opname), [left, right], []
+        return Op(self.default_opset, opname), [left, right], attr
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)

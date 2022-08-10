@@ -5,7 +5,9 @@
 import typing
 from typing import Any, List
 from enum import IntFlag
+import numpy as np
 import onnx
+from .eager_numpy import NumpyArray
 
 
 class DebugInfo:
@@ -150,7 +152,29 @@ class OnnxFunction(Op):
         return self.opname
 
     def __call__(self, *args, **kwargs):
-        return self.function(*args, **kwargs)
+        "Eager mode"
+        new_args = []
+        for i, a in enumerate(args):
+            if isinstance(a, np.ndarray):
+                new_args.append(NumpyArray(a))
+            else:
+                raise TypeError(
+                    f"Unexpected input type {type(a)} for an input {i}.")
+        res = self.function(*new_args, **kwargs)
+        if isinstance(res, NumpyArray):
+            return res.value
+        if isinstance(res, tuple):
+            unwrapped = []
+            for i, r in enumerate(res):
+                if isinstance(r, NumpyArray):
+                    unwrapped.append(r.value)
+                else:
+                    raise TypeError(
+                        f"Unexpected output type {type(r)} for an output {i} "
+                        f"in function {self.function!r}.")
+            return tuple(unwrapped)
+        raise TypeError(
+            f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def to_function_proto(self, domain=None):
         "Converts the function into :class:`onnx.FunctionProto`."
