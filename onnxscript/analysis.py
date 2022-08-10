@@ -152,10 +152,13 @@ def exposed_uses(stmts, converter):
     Return the set of variables that are used before being defined by given block.
     In essence, this identifies the "inputs" to a given code-block.
     For example, consider the following code-block:
+    ::
+
        x = x + 10
        y = 20
        z = x + y
        x = 30
+
     The exposed_uses of this code-block is { x }. The value of z is not used within
     the block. Even though the value of y is used within the block, it is assigned
     a value before it is used. However, in contrast, the incoming value of x is used
