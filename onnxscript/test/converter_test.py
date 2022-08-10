@@ -284,5 +284,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_getitem()
+    # TestConverter().test_type_double()
     unittest.main(verbosity=2)
