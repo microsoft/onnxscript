@@ -157,10 +157,16 @@ class OnnxFunction(Op):
         for i, a in enumerate(args):
             if isinstance(a, np.ndarray):
                 new_args.append(NumpyArray(a))
+            elif isinstance(a, bool):
+                new_args.append(NumpyArray(np.array(a)))
+            elif isinstance(a, NumpyArray):
+                new_args.append(a)
             else:
                 raise TypeError(
                     f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
+        if isinstance(res, np.ndarray):
+            return res
         if isinstance(res, NumpyArray):
             return res.value
         if isinstance(res, tuple):

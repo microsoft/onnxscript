@@ -335,7 +335,7 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     # building frames
     seq = op.SequenceEmpty(dtype=TensorProto.FLOAT)
     nf = op.Squeeze(n_frames, zero)
-    for fs in range(nf):
+    for fs in range(int(nf)):
         fs64 = op.Cast(fs, to=7)
         begin = op.Mul(fs64, hop_length)
         end = op.Add(begin, window_size)
@@ -401,9 +401,9 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
     seqi = op.SequenceEmpty()
     seqc = op.SequenceEmpty()
     nf = op.Squeeze(n_frames, zero)
-    for fs in range(nf):
+    for fs in range(int(nf)):
         fs64 = op.Cast(fs, to=7)
-        begin = fs64
+        begin = op.Unsqueeze(fs64, zero)
         end = op.Add(fs64, one)
         frame_x = op.Squeeze(op.Slice(x, begin, end, axisf), axisf)
 

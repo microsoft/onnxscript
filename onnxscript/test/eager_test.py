@@ -31,9 +31,9 @@ class TestOnnxSignal(OnnxScriptTestCase):
     def _cifft(x, fft_length, axis=-1):
         slices = [slice(0, x) for x in x.shape]
         slices[-1] = slice(0, x.shape[-1], 2)
-        real = x[slices]
+        real = x[tuple(slices)]
         slices[-1] = slice(1, x.shape[-1], 2)
-        imag = x[slices]
+        imag = x[tuple(slices)]
         c = np.squeeze(real + 1j * imag, -1)
         return TestOnnxSignal._ifft(c, fft_length, axis=axis)
 
@@ -56,9 +56,9 @@ class TestOnnxSignal(OnnxScriptTestCase):
     def _cfft(x, fft_length, axis=-1):
         slices = [slice(0, x) for x in x.shape]
         slices[-1] = slice(0, x.shape[-1], 2)
-        real = x[slices]
+        real = x[tuple(slices)]
         slices[-1] = slice(1, x.shape[-1], 2)
-        imag = x[slices]
+        imag = x[tuple(slices)]
         c = np.squeeze(real + 1j * imag, -1)
         return TestOnnxSignal._fft(c, fft_length, axis=axis)
 
@@ -427,5 +427,5 @@ class TestOnnxSignal(OnnxScriptTestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestOnnxSignal().test_dft_rstft_istft()
-    unittest.main()
+    # TestOnnxSignal().test_dft_cstft_istft()
+    unittest.main(verbosity=2)

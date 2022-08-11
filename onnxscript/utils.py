@@ -59,7 +59,7 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=No
                 info)
             continue
 
-        if isinstance(arr, NumpyArray):
+        if isinstance(arr, (np.ndarray, NumpyArray)):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
         elif isinstance(arr, numbers.Number):

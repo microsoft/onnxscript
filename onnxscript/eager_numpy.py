@@ -27,6 +27,15 @@ class NumpyArray:
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value!r})"
 
+    def __getitem__(self, index):
+        raise NotImplementedError()
+
+    def __bool__(self):
+        return self.value.__bool__()
+
+    def __int__(self):
+        return self.value.__int__()
+
     def __mod__(self, b):
         if isinstance(b, float):
             return NumpyArray(np.fmod(self.value, b))
@@ -34,9 +43,6 @@ class NumpyArray:
 
     def _unary_op(self, op):
         return NumpyArray(op(self.value))
-
-    def __bool__(self):
-        return self.value.__bool__()
 
     def __neg__(self):
         return self._unary_op(lambda x: -x)
