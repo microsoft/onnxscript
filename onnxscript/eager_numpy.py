@@ -72,7 +72,13 @@ class NumpyArray:
     def __and__(a, b):
         return a._bin_op(b, lambda x, y: x & y)
 
+    def __rand__(a, b):
+        return a._bin_op(b, lambda x, y: x & y)
+
     def __mul__(a, b):
+        return a._bin_op(b, lambda x, y: x * y)
+
+    def __rmul__(a, b):
         return a._bin_op(b, lambda x, y: x * y)
 
     def __matmul__(a, b):
