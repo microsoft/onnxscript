@@ -467,7 +467,8 @@ class Converter:
 
     def translate_subscript_expr(self, node):
         """
-        List of supported syntaxes:
+        List of supported syntaxes is below.
+        `A` is a tensor or an expression equivalent to a tensor.
 
         ::
 
@@ -545,10 +546,12 @@ class Converter:
             node_slice = getattr(node.slice, 'value', None)
 
         if self.is_constant_expr(node_slice):
+            # A[i], i is an integer
             inputs = _get_int_input(node_slice)
             return Op(self.default_opset, 'Squeeze'), inputs, []
 
         if isinstance(node.slice, ast.Slice):
+            # A[a:b], a, b are expressions equivalent to integers
             one = self.emit_const([1], 'one', info)
             axis = self.emit_const([0], 'subscript_axis', info)
             inputs = _get_slice_input(node.slice, axis, axis, one)
@@ -556,6 +559,8 @@ class Converter:
 
         if (isinstance(node.slice, ast.Tuple) or
                 (not use_subscript and isinstance(node.slice, ast.ExtSlice))):
+            # A[a:b, c:d, e], a, b, c, d, e are expressions equivalent to integers
+            # tuple can be any length
             if isinstance(node.slice, ast.Tuple):
                 elts = node.slice.elts
             else:
@@ -570,7 +575,7 @@ class Converter:
             for axis, elt in enumerate(elts):
                 if (self.is_constant_expr(elt) or
                         (not use_subscript and isinstance(elt, ast.Index))):
-                    # supports [ ..., 4, ...]
+                    # process constant index (integer)
                     element = None
                     if use_subscript:
                         index = self.eval_constant_expr(elt)
@@ -589,7 +594,7 @@ class Converter:
                 else:
                     element = elt
                 if isinstance(element, ast.Slice):
-                    # supports [ ..., a: b, ...]
+                    # process slice index
                     var_axis = self.emit_const([axis], f"ax{axis}", info)
                     if zero is None:
                         zero = var_axis
@@ -603,7 +608,7 @@ class Converter:
                         steps.append(one.name)
                     continue
 
-                # supports [ ..., a, ...]
+                # process integer index as expressions
                 var_axis = self.emit_const([axis], f"ax{axis}", info)
                 if zero is None:
                     zero = var_axis
@@ -638,7 +643,7 @@ class Converter:
             return (Op(self.default_opset, 'Slice'),
                     [var_name, start_name, end_name, axes_name, steps_name], [])
 
-        # supports [ ..., i, ...]
+        # A[i], i is an expression equivalent to an integer
         var_index = self.translate_expr(node_slice)
         tmp = self.generate_unique_name(var_name + "_gather")
         self.emit([tmp], Op(self.default_opset, 'Gather'),

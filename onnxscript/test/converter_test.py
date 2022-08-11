@@ -383,6 +383,7 @@ class TestConverter(unittest.TestCase):
         x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
 
         check_function(x, 'getitem_index_int', [2.0], eager=eager)
+        check_function(x, 'getitem_index_int2', [2.0], eager=eager)
 
     def check_failure(self, f, msg):
         source = textwrap.dedent(inspect.getsource(f))
