@@ -17,6 +17,9 @@ Opsets
     .. autodata:: opset16
         :annotation: All operators defined in opset 16 for the main domain.
 
+    .. autodata:: opset17
+        :annotation: All operators defined in opset 17 for the main domain.
+
 Types
 +++++
 

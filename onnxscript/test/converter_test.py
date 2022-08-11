@@ -305,5 +305,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_loops_break()
+    # TestConverter().test_type_double()
     unittest.main(verbosity=2)
