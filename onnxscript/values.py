@@ -214,7 +214,6 @@ class OnnxFunction(Op):
             return tuple(unwrapped)
         raise TypeError(
             f"Unexpected output type {type(res)} in function {self.function!r}.")
-        
 
     def to_function_proto(self, domain=None):
         "Converts the function into :class:`onnx.FunctionProto`."
