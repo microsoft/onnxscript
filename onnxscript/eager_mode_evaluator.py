@@ -63,6 +63,20 @@ def _compute_outputs(schema, *args, **kwargs):
     return None
 
 
+_cache_models = {}
+
+
+def _cache_(model, providers):
+    global _cache_models
+    serialized = model.SerializeToString()
+    key = serialized, tuple(providers)
+    if key in _cache_models:
+        return _cache_models[key]
+    sess = InferenceSession(serialized, providers=providers)
+    _cache_models[key] = sess
+    return sess
+
+
 def call_ort(schema, *args, **kwargs):
 
     inputs = []
@@ -70,7 +84,7 @@ def call_ort(schema, *args, **kwargs):
         if arg is None:
             inputs.append("")
             continue
-        if not isinstance(arg, (NumpyArray, list, int)):
+        if not isinstance(arg, (NumpyArray, list, int, float)):
             raise TypeError(f"Unexpected type {type(arg)} for input {i} "
                             f"and operator {schema.name!r}.")
         inputs.append(_rename_io("input", i, arg))
@@ -94,8 +108,7 @@ def call_ort(schema, *args, **kwargs):
                                    ir_version=select_ir_version(schema.since_version,
                                                                 domain=schema.domain))
     try:
-        sess = InferenceSession(
-            model.SerializeToString(), providers=['CPUExecutionProvider'])
+        sess = _cache_(model, ['CPUExecutionProvider'])
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             "Unable to create onnxruntime InferenceSession with onnx "
@@ -121,8 +134,12 @@ def call_ort(schema, *args, **kwargs):
         got = sess.run(None, session_run_input)
     except (RuntimeError, Fail) as e:
         raise RuntimeError(
-            f"Unable to execute model operator {schema.name!r} due "
-            f"to {e!r}\n{pprint.pformat(session_run_input)}\n{model}")
+            f"Unable to execute model operator {schema.name!r} due to {e!r}"
+            f"\ninput types:\n"
+            f"{pprint.pformat({k: type(v) for k, v in zip(inputs, args)})}"
+            f"\nmodified input types:\n"
+            f"{pprint.pformat({k: type(v) for k, v in session_run_input.items()})}"
+            f"\ninputs:\n{pprint.pformat(session_run_input)}\n{model}")
 
     if tensor_class is None:
         tensor_class = NumpyArray

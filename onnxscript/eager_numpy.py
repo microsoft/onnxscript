@@ -10,6 +10,8 @@ class NumpyArray:
     Wraps numpy arrays to intercept calls to operators.
     """
     def __init__(self, tensor):
+        if not isinstance(tensor, np.ndarray):
+            raise TypeError(f"Unexpected type {type(tensor)}. It must be a numpy array.")
         self._tensor = tensor
 
     @property
@@ -47,16 +49,24 @@ class NumpyArray:
     def __neg__(self):
         return self._unary_op(lambda x: -x)
 
-    def _bin_op(self, b, op):
+    def _bin_op(self, b, op, check=True):
         if isinstance(b, NumpyArray):
-            if self.dtype != b.dtype:
+            if check and self.dtype != b.dtype:
                 raise TypeError(
                     f"Binary operation with different element type {self.dtype} "
                     f"and {b.dtype}.")
-            return NumpyArray(op(self.value, b.value))
-        return NumpyArray(op(self.value, b))
+            v = op(self.value, b.value)
+        else:
+            v = op(self.value, b)
+        # array(4., dtype=float32) - array(0., dtype=float32) -> 4.0 (not an array anymore)
+        if not isinstance(v, np.ndarray):
+            v = np.array(v)
+        return NumpyArray(v)
 
     def __add__(a, b):
+        return a._bin_op(b, lambda x, y: x + y)
+
+    def __radd__(a, b):
         return a._bin_op(b, lambda x, y: x + y)
 
     def __and__(a, b):
@@ -72,7 +82,7 @@ class NumpyArray:
         return a._bin_op(b, lambda x, y: x | y)
 
     def __pow__(a, b):
-        return a._bin_op(b, lambda x, y: x ** y)
+        return a._bin_op(b, (lambda x, y: x ** y), check=False)
 
     def __sub__(a, b):
         return a._bin_op(b, lambda x, y: x - y)
