@@ -67,7 +67,10 @@ def call_ort(schema, *args, **kwargs):
 
     inputs = []
     for i, arg in enumerate(args):
-        if not isinstance(arg, (np.ndarray, NumpyArray, list, int)):
+        if arg is None:
+            inputs.append("")
+            continue
+        if not isinstance(arg, (NumpyArray, list, int)):
             raise TypeError(f"Unexpected type {type(arg)} for input {i} "
                             f"and operator {schema.name!r}.")
         inputs.append(_rename_io("input", i, arg))
@@ -103,11 +106,11 @@ def call_ort(schema, *args, **kwargs):
     for name, arg in zip(inputs, args):
         if arg is None:
             continue
-        if isinstance(arg, (list, np.ndarray)):
-            session_run_input[name] = arg
-        elif isinstance(arg, NumpyArray):
+        if isinstance(arg, NumpyArray):
             session_run_input[name] = arg.value
             tensor_class = NumpyArray
+        elif isinstance(arg, list):
+            session_run_input[name] = arg
         elif isinstance(arg, (int, float)):
             session_run_input[name] = np.array(arg)
         else:

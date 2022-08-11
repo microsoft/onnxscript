@@ -159,8 +159,6 @@ class OnnxFunction(Op):
                 new_args.append(NumpyArray(a))
             elif isinstance(a, bool):
                 new_args.append(NumpyArray(np.array(a)))
-            elif isinstance(a, NumpyArray):
-                new_args.append(a)
             else:
                 raise TypeError(
                     f"Unexpected input type {type(a)} for an input {i}.")
@@ -169,7 +167,7 @@ class OnnxFunction(Op):
             return res
         if isinstance(res, NumpyArray):
             return res.value
-        if isinstance(res, tuple):
+        if isinstance(res, (list, tuple)):
             unwrapped = []
             for i, r in enumerate(res):
                 if isinstance(r, NumpyArray):
@@ -178,9 +176,45 @@ class OnnxFunction(Op):
                     raise TypeError(
                         f"Unexpected output type {type(r)} for an output {i} "
                         f"in function {self.function!r}.")
+            if isinstance(res, tuple):
+                return tuple(unwrapped)
+            return unwrapped
+        raise TypeError(
+            f"Unexpected output type {type(res)} in function {self.function!r}.")
+
+    def libcall(self, *args, **kwargs):
+        """
+        This method must be called when a function decoracted with `script`
+        calls another one decorated with `script`.
+        """
+        new_args = []
+        for i, a in enumerate(args):
+            if isinstance(a, NumpyArray):
+                new_args.append(a)
+            elif isinstance(a, bool):
+                # TODO: default values for function parameters
+                # are not properly handled yet. This section
+                # should disappear.
+                new_args.append(NumpyArray(np.array(a)))
+            else:
+                raise TypeError(
+                    f"Unexpected input type {type(a)} for an input {i}.")
+        res = self.function(*new_args, **kwargs)
+        if isinstance(res, NumpyArray):
+            return res
+        if isinstance(res, tuple):
+            unwrapped = []
+            for i, r in enumerate(res):
+                if isinstance(r, NumpyArray):
+                    unwrapped.append(r)
+                else:
+                    raise TypeError(
+                        f"Unexpected output type {type(r)} for an output {i} "
+                        f"in function {self.function!r}.")
             return tuple(unwrapped)
         raise TypeError(
             f"Unexpected output type {type(res)} in function {self.function!r}.")
+        
 
     def to_function_proto(self, domain=None):
         "Converts the function into :class:`onnx.FunctionProto`."

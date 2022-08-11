@@ -551,7 +551,9 @@ class Converter:
                 val = val.value
             if isinstance(val, values.Opset):
                 return val
-            fail(DebugInfo(node).msg(f"'{node.id}' is not an instance of type Opset."))
+            fail(DebugInfo(node).msg(
+                f"'{node.id}' is not an instance of type Opset but {type(node)} "
+                f"attr={attr!r}."))
         elif isinstance(node, ast.Attribute):
             fail(DebugInfo(node, self).msg("Nested module unimplemented."))  # TODO
         else:
@@ -559,7 +561,7 @@ class Converter:
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
-        if isinstance(node, ast.Attribute):
+        if isinstance(node, ast.Attribute) and getattr(node, 'attr', None) != 'libcall':
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
             opname = node.attr
@@ -567,8 +569,12 @@ class Converter:
                 return Op(module, node.attr)
             warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
-        if isinstance(node, ast.Name):
-            function_name = node.id
+        if (isinstance(node, ast.Name) or (isinstance(node, ast.Attribute) and
+                getattr(node, 'attr', None) == 'libcall')):
+            if isinstance(node, ast.Name):
+                function_name = node.id
+            else:
+                function_name = node.value.id
             found = self.lookup(function_name, DebugInfo(node, self), raise_exception=False)
             if isinstance(found, OnnxFunction):
                 self.current_fn.append_function(found)
@@ -577,8 +583,8 @@ class Converter:
                 return found
             if not found:
                 if function_name not in self.default_opset:
-                    warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
-                return Op(self.default_opset, node.id)
+                    warn(f"Unknown function name {function_name!r}. The ONNX graph may not work.")
+                return Op(self.default_opset, function_name)
         fail(DebugInfo(node, self).msg("Invalid callee"))
 
     def translate_stmt(self, node, index_of_stmt=None):
