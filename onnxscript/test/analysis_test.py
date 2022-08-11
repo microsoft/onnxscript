@@ -109,7 +109,7 @@ class TestExposedUses(unittest.TestCase):
             x = x + 10
             y = 20
             z = x + y
-            x = 30
+            x = 30 + z
         self.assertUses(f, {'x'})
 
     def test_if(self):
