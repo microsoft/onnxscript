@@ -94,10 +94,19 @@ has a *definition* of the same variable along all possible paths to the use.
 
 **Loops**
 
-*Onnxscript* currently supports only a very limited form of loops, namely
-a *for* loop to iterate over integers in a range [0, N).
-The example below illustrates the use of loops.
+ONNX implements a loop operator doing a fixed number of iterations
+and/or a loop breaking if a condition is not true anymore.
+First example below illustrates the use of the most simple case:
+a fixed number of iterations.
 
 .. literalinclude:: examples/forloop.py
 
+Second example shows a loop breaking if a condition is not true
+any more.
+
+.. literalinclude:: examples/whileloop.py
+
+Third example mixes both types of loops.
+
+.. literalinclude:: examples/forwhileloop.py
 

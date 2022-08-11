@@ -85,7 +85,7 @@ class TestOnnxFns(OnnxScriptTestCase):
                 'test_reduce_log_sum_exp_default_axes_keepdims_example',
                 'test_reduce_log_sum_exp_default_axes_keepdims_random'])
 
-    @unittest.skipIf(Version(onnxruntime.__version__) <= Version('1.12'),
+    @unittest.skipIf(Version(onnxruntime.__version__) < Version('1.13'),
                      reason="ORT does not correctly handle attribute-references "
                      "of the form attr1=@attr2 where attr1 and attr2 are different.")
     def test_onnxfns_hardmax(self):

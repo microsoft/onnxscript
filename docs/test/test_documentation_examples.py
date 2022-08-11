@@ -3,9 +3,6 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-"""
-@brief      test log(time=60s)
-"""
 import unittest
 import os
 import sys
@@ -21,6 +18,8 @@ class TestDocumentationExample(unittest.TestCase):
         for name in sorted(found):
             if os.path.splitext(name)[-1] != '.py':
                 continue
+            if __name__ == "__main__":
+                print(f"run {name!r}")
             with self.subTest(folder=folder, name=name):
                 cmds = [sys.executable, "-u", os.path.join(folder, name)]
                 p = subprocess.Popen(
@@ -36,7 +35,7 @@ class TestDocumentationExample(unittest.TestCase):
                         "".format(name, cmds, sys.exec_prefix, st))
                 tested += 1
         if tested == 0:
-            raise RuntimeError("No example was tested.")
+            raise RuntimeError(f"No example was tested in folder {folder}.")
 
     def test_documentation_examples(self):
 
@@ -55,4 +54,4 @@ class TestDocumentationExample(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
