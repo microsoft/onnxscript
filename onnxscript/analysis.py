@@ -7,12 +7,25 @@ import ast
 from .values import DebugInfo
 
 
+def get_loop_var(for_stmt, converter):
+    if not isinstance(for_stmt.target, ast.Name):
+        raise ValueError(DebugInfo(for_stmt, converter).msg(
+            "For loop target must be a single variable."))
+    return for_stmt.target.id
+
+
 def used_vars(expr):
     ''' Return set of all variables used in an expression.'''
     if isinstance(expr, ast.Name):
         return set([expr.id])
+    if isinstance(expr, ast.Call):
+        # Neither the callee-expression, nor keyword arguments are visited
+        # Only args counts towards used_vars
+        children = expr.args
+    else:
+        children = ast.iter_child_nodes(expr)
     result = set()
-    for c in ast.iter_child_nodes(expr):
+    for c in children:
         result = result | used_vars(c)
     return result
 
@@ -90,10 +103,7 @@ def do_liveness_analysis(fun, converter):
             live2 = visitBlock(stmt.orelse, live_out)
             return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
-            if not isinstance(stmt.target, ast.Name):
-                raise ValueError(DebugInfo(stmt, converter).msg(
-                    "For loop target must be a single variable."))
-            p_loop_var = stmt.target.id
+            p_loop_var = get_loop_var(stmt, converter)
             prev = None
             curr = live_out
             while curr != prev:
@@ -140,6 +150,19 @@ def do_liveness_analysis(fun, converter):
 def exposed_uses(stmts, converter):
     '''
     Return the set of variables that are used before being defined by given block.
+    In essence, this identifies the "inputs" to a given code-block.
+    For example, consider the following code-block:
+    ::
+
+       x = x + 10
+       y = 20
+       z = x + y
+       x = 30
+
+    The exposed_uses of this code-block is { x }. The value of z is not used within
+    the block. Even though the value of y is used within the block, it is assigned
+    a value before it is used. However, in contrast, the incoming value of x is used
+    (in the first statement). Hence x is included in the exposed_uses.
     '''
     def visitBlock(block, live_out):
         for stmt in reversed(block):
@@ -162,8 +185,21 @@ def exposed_uses(stmts, converter):
             f = stmt.value.func
             if f.id == 'print':
                 return live_out
+        if isinstance(stmt, ast.For):
+            # Analysis assumes loop may execute zero times. Results can be improved
+            # for loops that execute at least once.
+            loop_var_set = set([get_loop_var(stmt, converter)])
+            used_after_loop = live_out.difference(loop_var_set)
+            used_inside_loop = visitBlock(stmt.body, set()).difference(loop_var_set)
+            used_in_loop_header = used_vars(stmt.iter)
+            return used_inside_loop | used_in_loop_header | used_after_loop
+        if isinstance(stmt, ast.While):
+            # Analysis assumes loop may execute zero times. Results can be improved
+            # for loops that execute at least once.
+            used_inside_loop = visitBlock(stmt.body, set())
+            used_in_loop_header = used_vars(stmt.test)
+            return used_inside_loop | used_in_loop_header | live_out
         if isinstance(stmt, ast.Break):
-            # TODO: liveness analysis does not handle breaks in the middle of a loop yet.
             return live_out
         raise ValueError(DebugInfo(stmt, converter).msg(
             f"Unsupported statement type {type(stmt)!r}."))
