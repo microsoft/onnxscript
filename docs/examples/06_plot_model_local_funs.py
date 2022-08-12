@@ -18,6 +18,7 @@ from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 from onnxscript.values import Opset
+from onnxscript.utils import proto_to_text
 
 # A dummy opset used for model-local functions
 local = Opset("local", 1)
@@ -37,19 +38,19 @@ def l2norm (x : FLOAT["N"], y : FLOAT["N"]) -> FLOAT[1]:
 
 #%%
 # Let's see what the generated model looks like by default:
+
 model = l2norm.to_model_proto()
-from onnxscript.utils import proto_to_text
 print(proto_to_text(model))
 
 #%%
 # Let's now explicitly specify which functions to include.
 # First, generate a model with no model-local functions:
+
 model = l2norm.to_model_proto(functions=[])
-from onnxscript.utils import proto_to_text
 print(proto_to_text(model))
 
 #%%
 # Now, generate a model with one model-local function:
+
 model = l2norm.to_model_proto(functions=[sum])
-from onnxscript.utils import proto_to_text
 print(proto_to_text(model))
