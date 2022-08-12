@@ -14,35 +14,38 @@ from typing import List
 
 
 @script()
-def ReduceSumSquare(data, axes: List[int], keepdims: int=0):
+def ReduceSumSquare(data, axes: List[int], keepdims: int):
     # Note: attribute input is promoted to input when calling ReduceSum
     t_axes = op.Constant(value_ints=axes)
     return op.ReduceSum(data * data, t_axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL1(data, axes: List[int], keepdims: int=0):
+def ReduceL1(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     return op.ReduceSum(op.Abs(data), t_axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL2(data, axes: List[int], keepdims: int=0):
-    # TODO: ONNX spec is unclear about behavior for integral types!
+def ReduceL2(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     sum_square = op.ReduceSum(data * data, t_axes, keepdims=keepdims)
-    # TODO: must cast for integral types
-    return op.Sqrt(sum_square)
+    # We need to cast integral types to floating point before taking square root.
+    # Unfortunately, there is no way to do this, depending on the input type.
+    # So, we uniformly cast to double, which is potentially less efficient.
+    sum_square_dbl = Cast < to = 11 > (sum_square)
+    sqrt = op.Sqrt(sum_square_dbl)
+    return op.CastLike(sqrt, data)
 
 
 @script()
-def ReduceLogSum(data, axes: List[int], keepdims: int=0):
+def ReduceLogSum(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     return op.Log(op.ReduceSum(data, t_axes, keepdims=keepdims))
 
 
 @script()
-def ReduceLogSumExp(data, axes: List[int], keepdims: int=0):
+def ReduceLogSumExp(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     return op.Log(op.ReduceSum(op.Exp(data), t_axes, keepdims=keepdims))
 
