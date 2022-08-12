@@ -482,6 +482,7 @@ class Converter:
             A[1:2]
             A[-1]
             A[0]
+            A[:0:-1]
 
         *i* is a tensor holding one integer.
 
@@ -495,46 +496,59 @@ class Converter:
         ::
 
             A[i:i+j, k]
+
+        Not supported:
+
+        ::
+
+            A[::-1]
         """
         var = self.translate_expr(node.value)
         var_name = var.name
 
         info = DebugInfo(node.slice if use_subscript else node, self)
 
-        def _get_int_input(node_slice):
-            index = self.eval_constant_expr(node_slice)
-            var_index = self.emit_const([index], 'subscript_index', info)
-            tmp = self.generate_unique_name(var_name + "_gather")
-            self.emit([tmp], Op(self.default_opset, 'Gather'),
-                      [var_name, var_index.name], [])
-            axis = self.emit_const([0], 'subscript_axis', info)
-            return [tmp, axis.name]
-
         def _get_arg(node_arg, axis, zero, one, default_value=None):
             if node_arg is None:
                 if default_value is None:
-                    return ''
+                    return '', None
+                # The default value for the extremities depends on the step.
+                # This one is usually positive unless it is a constant,
+                # otherwise it is unknown.
                 if default_value == 'begin':
-                    return zero.name
+                    return zero.name, None
+                if default_value == 'begin_':
+                    fail(DebugInfo(node, self).msg(
+                        "`?::-1` cannot be expressed with ONNX, `?:0:-1` misses "
+                        "the first line, `:-1:-1` returns an empty tensor."))
                 if default_value == 'end':
                     shape_name = self.generate_unique_name(var_name + "_shape")
                     self.emit([shape_name], Op(self.default_opset, 'Shape'),
                               [var_name], [])
-                    sliced = self.generate_unique_name(shape_name + "_first")
-                    self.emit([sliced], Op(self.default_opset, 'Slice'),
-                              [shape_name, axis.name, one.name, axis.name], [])
-                    return sliced
+                    dim_name = self.generate_unique_name(shape_name + "_dim")
+                    self.emit([dim_name], Op(self.default_opset, 'Gather'),
+                              [shape_name, axis.name], [])
+                    return dim_name, None
                 raise RuntimeError(f"Unexpected default value {default_value!r}.")
 
             name = self.translate_expr(node_arg).name
             reshaped = self.generate_unique_name(name + "_reshaped")
             self.emit([reshaped], Op(self.default_opset, 'Reshape'), [name, one.name], [])
-            return reshaped
+            if self.is_constant_expr(node_arg):
+                cst = self.eval_constant_expr(node_arg)
+            else:
+                cst = None
+            return reshaped, cst
 
         def _get_slice_input(node_slice, axis, zero, one):
-            lower_name = _get_arg(node_slice.lower, axis, zero, one, default_value="begin")
-            upper_name = _get_arg(node_slice.upper, axis, zero, one, default_value="end")
-            step_name = _get_arg(node_slice.step, axis, zero, one)
+            step_name, cst = _get_arg(node_slice.step, axis, zero, one)
+            if cst is not None and cst < 0:
+                # handling [::-1]
+                def_a, def_b = "end", "begin_"
+            else:
+                def_a, def_b = "begin", "end"
+            lower_name, _ = _get_arg(node_slice.lower, axis, zero, one, default_value=def_a)
+            upper_name, _ = _get_arg(node_slice.upper, axis, zero, one, default_value=def_b)
             inputs = [var_name, lower_name, upper_name, axis.name]
             if step_name != '':
                 inputs.append(step_name)
@@ -547,7 +561,13 @@ class Converter:
 
         if self.is_constant_expr(node_slice):
             # A[i], i is an integer
-            inputs = _get_int_input(node_slice)
+            index = self.eval_constant_expr(node_slice)
+            var_index = self.emit_const([index], 'subscript_index', info)
+            tmp = self.generate_unique_name(var_name + "_gather")
+            self.emit([tmp], Op(self.default_opset, 'Gather'),
+                      [var_name, var_index.name], [])
+            axis = self.emit_const([0], 'subscript_axis', info)
+            inputs = [tmp, axis.name]
             return Op(self.default_opset, 'Squeeze'), inputs, []
 
         if isinstance(node.slice, ast.Slice):

@@ -347,6 +347,8 @@ class TestConverter(unittest.TestCase):
         check_function(x, 'getitem_column', [1.0, 4.0, 7.0, 10.0])
         check_function(x, 'getitem_index_int0_1', [3, 4, 5], eager=eager)
         check_function(x, 'getitem_index_int0', [0, 1, 2], eager=eager)
+        check_function(x, 'getitem_rev', x[:0:-1].tolist())
+        check_function(x, 'getitem_rev0', x[0, :0:-1].tolist())
 
     @unittest.skipIf(sys.version_info[:2] < (3, 9),
                      reason="Notation [...] not supported in python 3.8.")
@@ -412,9 +414,15 @@ class TestConverter(unittest.TestCase):
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
         self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
 
+        def f2(A: FLOAT[...]) -> FLOAT[...]:
+            return A[::-1]
+
+        ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
+        self.check_failure(f2, "`?::-1` cannot be expressed with ONNX")
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_getitem()
+    TestConverter().test_getitem()
     unittest.main(verbosity=2)
