@@ -33,7 +33,7 @@ def ReduceL2(data, axes: List[int], keepdims: int):
     # We need to cast integral types to floating point before taking square root.
     # Unfortunately, there is no way to do this, depending on the input type.
     # So, we uniformly cast to double, which is potentially less efficient.
-    sum_square_dbl = Cast (sum_square, to=1)
+    sum_square_dbl = op.Cast (sum_square, to=1)
     sqrt = op.Sqrt(sum_square_dbl)
     return op.CastLike(sqrt, data)
 
