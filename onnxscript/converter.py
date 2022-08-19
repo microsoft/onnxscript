@@ -183,10 +183,7 @@ class Converter:
         self.ir_builder = ir_builder or IRBuilder()
         self.known_modules = _known_modules()
         self.source = source
-        if global_names is None:
-            # TODO: Cleanup: This should be eventually removed.
-            # self.globals = {"int": int, "float": float, "str": str}
-        else:
+        if global_names is not None:
             # We make a copy in case function eval modifies it.
             self.globals = global_names.copy()
         self.pure_modules = ["onnxscript"]
