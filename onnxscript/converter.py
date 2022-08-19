@@ -387,17 +387,20 @@ class Converter:
         raise ValueError(DebugInfo(node).msg(
             f"Unsupported attribute type '{type(node)!r}'."))
 
-    def translate_attr(self, attr_name, node):
+    def translate_attr(self, attr_name, expr):
         '''
-        Translate an (attribute-name, value) pair.
-        node must represent an AST that evaluates to a python-value that can be mapped
-        into an ONNX attribute value or it must be an attribute-reference.
+        Translate an attribute-value specification of the form `attr_name=<expr>`
+        in a call to an op. expr is an AST. The following cases are supported:
+        * Expr evaluates to a script-time constant (a python-value) that can be mapped
+        into an ONNX attribute value, or
+        * Expr must be an attribute-reference, that is a name representing an attribute-parameter
+        of a containing function.
         '''
-        if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node, self))
+        if isinstance(expr, ast.Name):
+            val = self.lookup(expr.id, DebugInfo(expr, self))
             if (isinstance(val, AttrRef)):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
-        return self.ir_builder.attr(attr_name, self.eval_constant_expr(node))
+        return self.ir_builder.attr(attr_name, self.eval_constant_expr(expr))
 
     def translate_docstring(self, node):
         if hasattr(node.value, 'value'):
@@ -884,7 +887,8 @@ class Converter:
         for i, x in enumerate(args.args):
             arg_with_default_start_index = len(args.args) - len(args.defaults)
             if args.defaults and i >= arg_with_default_start_index:
-                default_value = self.eval_constant_expr (args.defaults[i - arg_with_default_start_index])
+                default_value = self.eval_constant_expr(
+                    args.defaults[i - arg_with_default_start_index])
             else:
                 default_value = None
             if x.annotation:
