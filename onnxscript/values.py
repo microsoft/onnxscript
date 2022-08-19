@@ -93,6 +93,10 @@ class Opset:
             raise AttributeError(f"Attribute {attr} not found.")
 
     def add_function_def(self, fun):
+        if fun.name in self.function_defs:
+            import logging
+            logger = logging.getLogger("onnx-script")
+            logger.warning(f"{fun.name}: Already defined.")
         self.function_defs[fun.name] = fun
 
 

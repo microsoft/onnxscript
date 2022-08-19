@@ -185,7 +185,7 @@ class Converter:
         self.source = source
         if global_names is None:
             # TODO: Cleanup: This should be eventually removed.
-            self.globals = {"int": int, "float": float, "str": str}
+            # self.globals = {"int": int, "float": float, "str": str}
         else:
             # We make a copy in case function eval modifies it.
             self.globals = global_names.copy()
@@ -877,8 +877,6 @@ class Converter:
 
     def translate_function_def(self, fn: ast.FunctionDef):
         logger.debug("Converter:translate_function_def:%s", fn.name)
-        if fn.name in self.this_module.function_defs:
-            warn(f"{fn.name}: Already defined.")
         args = fn.args
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
