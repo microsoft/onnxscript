@@ -216,7 +216,7 @@ class Converter:
             self.default_opset_ = opset
 
     def init_function_translation(self):
-        """Initialize self for translating a new function."""
+        """Initialize self for translating a new (top-level) function."""
         self.outer = []
         self.current_fn = None
         self.nextvar = 0
@@ -224,12 +224,19 @@ class Converter:
         self.locals = [{}]
 
     def enter_scope(self, name, parent_node):
+        '''
+        Enter a control-flow block (a loop body or if-then-else branch).
+        The block is translated into a nested-scope in ONNX.
+        '''
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
         logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
+        '''
+        Exit from a control-flow block (a loop body or if-then-else branch).
+        '''
         logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
         self.current_fn = self.outer[0]
@@ -350,39 +357,28 @@ class Converter:
             return all([self.is_constant_expr(c) for c in ast.iter_child_nodes(node)])
         return False
 
-    def eval_constant_expr(self, node):
-        # TODO: assert (self.is_constant_expr(node))
-        locals = {}  # TODO
-        expr = ast.Expression(node)
+    def eval_constant_expr(self, expr):
+        '''
+        Evaluates a sub-expression that is assumed to represent a constant value.
+        The expression can refer only to global names (inherited from the scope
+        where the script is evaluated) and cannot refer to local names defined
+        within the script.) Further, these expressions are assumed to be constants.
+        Thus, any subsequent mutation of any state/variables (used in computing
+        this constant value) will potentially lead to unexpected behavior (such
+        as divergence between eager-mode execution and evaluation of the ONNX
+        function.)
+        '''
+        # TODO: assert (self.is_constant_expr(expr))
+        locals = {}
+        expr = ast.Expression(expr)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
             return eval(cpl, self.globals, locals)
         except NameError as e:
             raise NameError(
-                DebugInfo(node).msg(
+                DebugInfo(expr).msg(
                     "Missing names, globals contains %r, locals %r." % (
                         list(self.globals), list(locals)))) from e
-
-    def eval_attr(self, node):
-        if isinstance(node, ast.Num):
-            return node.n
-        if isinstance(node, ast.Str):
-            return node.s
-        if isinstance(node, ast.NameConstant):
-            if not isinstance(node.value, bool):
-                raise ValueError(f"Unsupported NameConstant attribute: {node.value}.")
-            return 1 if node.value else 0
-        if isinstance(node, ast.List):
-            return [self.eval_attr(x) for x in node.elts]
-        if isinstance(node, (ast.Call, ast.Attribute, ast.UnaryOp)):
-            try:
-                return self.eval_constant_expr(node)
-            except NameError as e:
-                raise NameError(DebugInfo(node, self).msg(
-                    "Unable to evaluate a constant in node type %r "
-                    "due to %r." % (type(node), str(e))))
-        raise ValueError(DebugInfo(node).msg(
-            f"Unsupported attribute type '{type(node)!r}'."))
 
     def translate_attr(self, attr_name, expr):
         '''
