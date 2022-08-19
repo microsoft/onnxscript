@@ -110,3 +110,33 @@ Third example mixes both types of loops.
 
 .. literalinclude:: examples/forwhileloop.py
 
+Proposed Features
+-----------------
+
+The features described below are proposals, but they have not been implemented yet.
+
+**Functions as Graph Attributes**
+
+ONNX allows graph-valued attributes. This is the mechanism used to define (quasi)
+higher-order ops, such as *If*, *Loop*, *Scan*, and *SequenceMap*.
+While we use Python control-flow to encode *If* and *Loop*, it is useful
+to have a generic mechanism to support graph-valued attributes.
+We propose to allow users to use Python function-definitions to represent
+graph-valued attributes, as shown in the example below:
+
+::
+
+    from onnxscript import script
+    from onnxscript.onnx_opset import opset15 as op
+
+    @script()
+    def CumulativeSum(X):
+        def Sum(sum_in, next):
+            sum_out = sum_in + next
+            return sum_out, sum_out
+        all_sum, cumulative_sum = op.Scan (0, X, body=Sum, num_scan_inputs=1)
+        return cumulative_sum
+
+Specifically, the function-definition of *Sum* is converted into a graph and used
+as the attribute-value when invoking the *Scan* op.
+
