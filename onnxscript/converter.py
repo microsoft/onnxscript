@@ -393,8 +393,8 @@ class Converter:
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
         into an ONNX attribute value, or
-        * Expr must be an attribute-reference, that is a name representing an attribute-parameter
-        of a containing function.
+        * Expr must be an attribute-reference, that is a name representing an
+        attribute-parameter of a containing function.
         '''
         if isinstance(expr, ast.Name):
             val = self.lookup(expr.id, DebugInfo(expr, self))
