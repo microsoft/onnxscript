@@ -186,7 +186,6 @@ class Converter:
         if global_names is not None:
             # We make a copy in case function eval modifies it.
             self.globals = global_names.copy()
-        self.pure_modules = ["onnxscript"]
         self.this_module = opset
         self.default_opset_ = default_opset
         self.stacked_test_conditions = []
@@ -222,6 +221,16 @@ class Converter:
         self.nextvar = 0
         self.used_vars = set()
         self.locals = [{}]
+
+    '''
+    Name resolution and namescopes: This component handles the following aspects:
+    * Name-scopes are different in Python and the generated ONNX:
+      - Control-flow blocks (a loop body or the then-or-else block of an if-stmt)
+        form part of the same name-scope in Python, but will be mapped to a nested
+        name-scope (as a sub-graph) in ONNX.
+    * Script-time name-value tracking: Name lookup during script-time returns
+      statically-known information about the value the name will have at runtime.
+    '''
 
     def enter_scope(self, name, parent_node):
         '''
@@ -341,16 +350,7 @@ class Converter:
         self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
-    def is_pure_module(self, m):
-        return (m in self.pure_modules)
-
     def is_constant_expr(self, node):
-        if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
-            if val is None:
-                # A function...
-                return False
-            return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load,
                              ast.NameConstant, ast.Constant, ast.Str)):
