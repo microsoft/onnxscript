@@ -647,22 +647,32 @@ class Converter:
             assign(lhs, rhs)
 
     def translate_return_stmt(self, stmt: ast.Return):
-        def ret(exp, suffix=""):
+        def check_num_outputs(n):
+            if self.returntype is not None:
+                if n != len(self.returntype):
+                    raise SyntaxError(DebugInfo(stmt, self).msg(
+                        "Mismatch in number of return values and types. "
+                        "Keyword 'return' cannot be used in a subgraph (test, loop). "
+                        " returntype is %r, num_outputs=%r." % (
+                            self.returntype, n)))
+
+        def ret(exp, i, suffix):
             ovar = self.translate_expr(exp, "return_val" + suffix).name
             if self.returntype is None:
                 t = None
             else:
-                t = self.returntype[self.num_outputs]
+                t = self.returntype[i]
             self.ir_builder.add_output(self.current_fn, ovar, t, DebugInfo(stmt, self))
-            self.num_outputs += 1
             return ovar
 
         val = stmt.value
         assert val is not None, "Return statement without return-value not supported."
         if (isinstance(val, ast.Tuple)):
-            return [ret(exp, str(i)) for i, exp in enumerate(val.elts)]
+            check_num_outputs(len(val.elts))
+            return [ret(exp, i, str(i)) for i, exp in enumerate(val.elts)]
         else:
-            return ret(val)
+            check_num_outputs(1)
+            return ret(val, 0, "")
 
     def translate_if_stmt(self, stmt: ast.If):
         if hasattr(stmt, 'live_out'):
@@ -874,13 +884,7 @@ class Converter:
         for i, x in enumerate(args.args):
             arg_with_default_start_index = len(args.args) - len(args.defaults)
             if args.defaults and i >= arg_with_default_start_index:
-                # ast.Num does not have 'value' property in python 3.7
-                if hasattr(args.defaults[i - arg_with_default_start_index], 'value'):
-                    default_value = args.defaults[i - arg_with_default_start_index].value
-                elif hasattr(args.defaults[i - arg_with_default_start_index], 'n'):
-                    default_value = args.defaults[i - arg_with_default_start_index].n
-                else:
-                    default_value = None
+                default_value = self.eval_constant_expr (args.defaults[i - arg_with_default_start_index])
             else:
                 default_value = None
             if x.annotation:
@@ -905,16 +909,8 @@ class Converter:
                 self.returntype = (returntype,)
         else:
             self.returntype = None
-        self.num_outputs = 0
         for i, s in enumerate(fn.body):
             self.translate_stmt(s, index_of_stmt=i)
-        if self.returntype is not None:
-            if self.num_outputs != len(self.returntype):
-                raise SyntaxError(DebugInfo(fn, self).msg(
-                    "Mismatch in number of return values and types. "
-                    "Keyword 'return' cannot be used in a subgraph (test, loop). "
-                    " returntype is %r, self.num_outputs=%r." % (
-                        returntype, self.num_outputs)))
         return self.current_fn
 
     def top_level_stmt(self, stmt):
