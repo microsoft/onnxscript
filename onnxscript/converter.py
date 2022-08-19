@@ -446,8 +446,12 @@ class Converter:
         return self.translate_expr(node, target)
 
     def translate_call_expr(self, node):
-        # TODO: for now, we map named arguments to attributes, and positional
-        # arguments to inputs.
+        '''
+        Translates a call-expression.
+        For now, the handling of positional and named arguments is slightly different
+        from standard Python. We implicitly map named arguments to ONNX attributes, and
+        positional arguments to ONNX inputs.
+        '''
         callee = self.translate_callee_expr(node.func)
         args = [self.translate_opt_expr(x).name for x in node.args]
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
@@ -578,7 +582,11 @@ class Converter:
         if isinstance(node, ast.AnnAssign):
             return self.translate_assign_stmt(node)
         if isinstance(node, ast.Return):
-            return self.translate_return_stmt(node)
+            if index_of_stmt is not None:
+                return self.translate_return_stmt(node)
+            else:
+                raise ValueError(DebugInfo(node, self).msg(
+                    "Return statements are not permitted inside control-flow statements."))
         if isinstance(node, ast.If):
             return self.translate_if_stmt(node)
         if isinstance(node, (ast.For, ast.While)):
