@@ -917,13 +917,6 @@ class Converter:
                         returntype, self.num_outputs)))
         return self.current_fn
 
-    def do_import(self, alias):
-        logger.debug("Importing %r as %r.", alias.name, alias.asname)
-        fail_if(alias.name not in self.known_modules,
-                f"Import: unsupported module {alias.name}")
-        asname = alias.asname if alias.asname else alias.name
-        self.globals[asname] = self.known_modules[alias.name]
-
     def top_level_stmt(self, stmt):
         if isinstance(stmt, ast.FunctionDef):
             self.init_function_translation()
@@ -932,7 +925,4 @@ class Converter:
             fn_ir.debug_print()
             self.this_module.add_function_def(fn_ir)
             return fn_ir
-        if isinstance(stmt, ast.If):
-            # Skips it.
-            return None
         raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")
