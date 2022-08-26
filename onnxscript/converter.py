@@ -15,9 +15,7 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import (
-    AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
-    DebugInfo)
+from .values import (AttrRef, Dynamic, OnnxFunction, Op, DynamicKind, DebugInfo)
 
 
 logger = logging.getLogger("onnx-script")
