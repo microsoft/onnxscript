@@ -613,16 +613,13 @@ class Converter:
             info = DebugInfo(lhs, self)
             if isinstance(lhs, ast.Name):
                 lhs = lhs.id
-                if self.is_constant_expr(rhs):
-                    self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
+                t = self.translate_expr(rhs, lhs).name
+                if isinstance(stmt, ast.AnnAssign):
+                    var = Dynamic(t, DynamicKind.Intermediate, info,
+                                    typeinfo=self.eval_constant_expr(stmt.annotation))
                 else:
-                    t = self.translate_expr(rhs, lhs).name
-                    if isinstance(stmt, ast.AnnAssign):
-                        var = Dynamic(t, DynamicKind.Intermediate, info,
-                                      typeinfo=self.eval_constant_expr(stmt.annotation))
-                    else:
-                        var = Dynamic(t, DynamicKind.Intermediate, info)
-                    self.bind(lhs, var)
+                    var = Dynamic(t, DynamicKind.Intermediate, info)
+                self.bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
                 def id(x):
                     assert isinstance(x, ast.Name)
