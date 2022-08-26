@@ -616,7 +616,7 @@ class Converter:
                 t = self.translate_expr(rhs, lhs).name
                 if isinstance(stmt, ast.AnnAssign):
                     var = Dynamic(t, DynamicKind.Intermediate, info,
-                                    typeinfo=self.eval_constant_expr(stmt.annotation))
+                                  typeinfo=self.eval_constant_expr(stmt.annotation))
                 else:
                     var = Dynamic(t, DynamicKind.Intermediate, info)
                 self.bind(lhs, var)
