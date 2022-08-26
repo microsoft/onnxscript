@@ -15,9 +15,7 @@ from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
-from .values import (
-    ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
-    DebugInfo)
+from .values import (AttrRef, Dynamic, OnnxFunction, Op, DynamicKind, DebugInfo)
 
 
 logger = logging.getLogger("onnx-script")
@@ -300,9 +298,6 @@ class Converter:
             attr = self.to_onnx_attr_ref(val)
             self.emit([result], Op(self.default_opset, "Constant"), [], [attr])
             return result
-        if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
-            result = self.generate_unique_name(target if target else "tmp")
-            return self.emit_const(val.value, result, info)
         if isinstance(val, Dynamic):
             return val.value
         # Assume value is a python-value convertible to a tensor
@@ -538,8 +533,6 @@ class Converter:
         """Return an Opset"""
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
-            if isinstance(val, ConstValue):  # TODO
-                val = val.value
             if isinstance(val, values.Opset):
                 return val
             fail(DebugInfo(node).msg(f"'{node.id}' is not an instance of type Opset."))
@@ -613,16 +606,13 @@ class Converter:
             info = DebugInfo(lhs, self)
             if isinstance(lhs, ast.Name):
                 lhs = lhs.id
-                if self.is_constant_expr(rhs):
-                    self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
+                t = self.translate_expr(rhs, lhs).name
+                if isinstance(stmt, ast.AnnAssign):
+                    var = Dynamic(t, DynamicKind.Intermediate, info,
+                                  typeinfo=self.eval_constant_expr(stmt.annotation))
                 else:
-                    t = self.translate_expr(rhs, lhs).name
-                    if isinstance(stmt, ast.AnnAssign):
-                        var = Dynamic(t, DynamicKind.Intermediate, info,
-                                      typeinfo=self.eval_constant_expr(stmt.annotation))
-                    else:
-                        var = Dynamic(t, DynamicKind.Intermediate, info)
-                    self.bind(lhs, var)
+                    var = Dynamic(t, DynamicKind.Intermediate, info)
+                self.bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
                 def id(x):
                     assert isinstance(x, ast.Name)
