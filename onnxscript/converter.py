@@ -16,7 +16,7 @@ from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
 from .values import (
-    ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
+    AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
     DebugInfo)
 
 
@@ -300,9 +300,6 @@ class Converter:
             attr = self.to_onnx_attr_ref(val)
             self.emit([result], Op(self.default_opset, "Constant"), [], [attr])
             return result
-        if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
-            result = self.generate_unique_name(target if target else "tmp")
-            return self.emit_const(val.value, result, info)
         if isinstance(val, Dynamic):
             return val.value
         # Assume value is a python-value convertible to a tensor
@@ -538,8 +535,6 @@ class Converter:
         """Return an Opset"""
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
-            if isinstance(val, ConstValue):  # TODO
-                val = val.value
             if isinstance(val, values.Opset):
                 return val
             fail(DebugInfo(node).msg(f"'{node.id}' is not an instance of type Opset."))
