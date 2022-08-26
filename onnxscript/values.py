@@ -174,7 +174,6 @@ class OnnxFunction(Op):
         return self.function_ir.to_model_proto(**merged_kw_args)
 
 
-
 class Value:
     """
     A Value is used to represent information about named variables used in a script.
@@ -188,6 +187,18 @@ class Value:
     Dynamic: values computed at runtime (of tensor type, for now) mapped to NodeArgs.
     Dynamic values include input-parameters of the script, as well intermediate
     values computed in the script.
+
+    For example, consider the following script definition:
+    ::
+
+        @script()
+        def ThresholdedRelu(X, alpha: float):
+            zero = op.CastLike(0, X)
+            return op.Where(X > alpha, X, zero)
+
+    Here, `X` has a Dynamic value, `alpha` has an AttrRef value, and `zero`
+    has a Dynamic value.
+
     """
 
     def __init__(self, val: Any, info: DebugInfo) -> None:
@@ -241,7 +252,7 @@ class Dynamic(Value):
             val: the name of the ONNX variable used to represent this value
             kind: the DynamicKind of this variable
             info: source-location information for error-messages/debugging
-            typeinfo:
+            typeinfo: type-information for the value
         '''
         super().__init__(val, info)
         assert isinstance(kind, DynamicKind)
