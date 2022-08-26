@@ -9,6 +9,7 @@ import warnings
 import types
 from packaging.version import Version
 import numpy as np
+from numpy.testing import assert_almost_equal
 import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
@@ -244,6 +245,32 @@ class TestConverter(unittest.TestCase):
         self.assertNotIn("version: 14", sdef)
         self.assertNotIn("version: 15", sdef)
 
+    def test_sequences(self):
+        from onnxscript.test.models import sequences
+        test_functions = self.validate_save(sequences, check_ort=True)
+
+        f = test_functions['make_sequence_tensor']
+
+        A = np.array([[0, 1, 2]], dtype=np.float32)
+        eager_mode = sequences.make_sequence_tensor(A)
+        self.assertEqual(eager_mode.shape, (5, 3))
+        self.assertEqual(eager_mode.dtype, np.float32)
+
+        sess = onnxruntime.InferenceSession(f.SerializeToString())
+        result = sess.run(None, {'A': A})[0]
+        assert_almost_equal(eager_mode, result)
+
+        f = test_functions['make_sequence_tensor_accumulated']
+
+        A = np.array([[0, 1, 2]], dtype=np.float32)
+        eager_mode = sequences.make_sequence_tensor_accumulated(A)
+        self.assertEqual(eager_mode.shape, (5, 3))
+        self.assertEqual(eager_mode.dtype, np.float32)
+
+        sess = onnxruntime.InferenceSession(f.SerializeToString())
+        result = sess.run(None, {'A': A})[0]
+        assert_almost_equal(eager_mode, result)
+
     def test_loops_break(self):
         from onnxscript.test.models import loops_break
         test_functions = self.validate_save(loops_break, check_ort=True)
@@ -284,5 +311,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_type_double()
-    unittest.main(verbosity=2)
+    # TestConverter().test_sequences()
+    unittest.main()
