@@ -27,5 +27,5 @@ def square_loss(X: FLOAT["N"], Y: FLOAT["N"]) -> FLOAT[1]:
 #%%
 # Let's see what the generated model looks like.
 model = square_loss.to_model_proto()
-from onnxscript.utils import proto_to_text
-print(proto_to_text(model))
+from onnxscript.utils import proto2text
+print(proto2text(model))

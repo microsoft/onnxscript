@@ -101,6 +101,10 @@ class Opset:
             raise AttributeError(f"Attribute {attr} not found.")
 
     def add_function_def(self, fun):
+        if fun.name in self.function_defs:
+            import logging
+            logger = logging.getLogger("onnx-script")
+            logger.warning(f"{fun.name}: Already defined.")
         self.function_defs[fun.name] = fun
 
 
@@ -178,19 +182,31 @@ class OnnxFunction(Op):
         return self.function_ir.to_model_proto(**merged_kw_args)
 
 
-# Values fall into the following categories:
-# ConstValue: values known at translation-time, mapped to ONNX attributes
-# AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes
-# Dynamic: values computed at runtime (of tensor type, for now) mapped to NodeArgs.
-
-
 class Value:
     """
-    A Value is a named variable from the function script.
+    A Value is used to represent information about named variables used in a script.
+    At translation-time, the (local) variables of a script, including its parameters,
+    are bound to a Value.
+
     Values fall into the following categories:
-    ConstValue: values known at translation-time, mapped to ONNX attributes
+
     AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes
+
     Dynamic: values computed at runtime (of tensor type, for now) mapped to NodeArgs.
+    Dynamic values include input-parameters of the script, as well intermediate
+    values computed in the script.
+
+    For example, consider the following script definition:
+    ::
+
+        @script()
+        def ThresholdedRelu(X, alpha: float):
+            zero = op.CastLike(0, X)
+            return op.Where(X > alpha, X, zero)
+
+    Here, `X` has a Dynamic value, `alpha` has an AttrRef value, and `zero`
+    has a Dynamic value.
+
     """
 
     def __init__(self, val: Any, info: DebugInfo) -> None:
@@ -205,14 +221,6 @@ class Value:
         return '%s(%r)' % (self.__class__.__name__, self.value)
 
 
-class ConstValue(Value):
-    def __init__(self, val: [float, int], info: DebugInfo) -> None:
-        if not isinstance(val, (float, int)):
-            raise TypeError(
-                "val must be numeric not %r." % type(val))
-        super().__init__(val, info)
-
-
 class AttrRef(Value):
     def __init__(
             self,
@@ -221,7 +229,7 @@ class AttrRef(Value):
             info: DebugInfo) -> None:
         '''
         Arguments:
-            name: name of the attribute
+            name: name of the attribute-parameter
             typeinfo: type annotation of the attribute.
                 op's attributes in ONNX are usually single type or list of single type.
             info: for debugging use.
@@ -247,6 +255,13 @@ class DynamicKind(IntFlag):
 
 class Dynamic(Value):
     def __init__(self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None) -> None:
+        '''
+        Arguments:
+            val: the name of the ONNX variable used to represent this value
+            kind: the DynamicKind of this variable
+            info: source-location information for error-messages/debugging
+            typeinfo: type-information for the value
+        '''
         super().__init__(val, info)
         assert isinstance(kind, DynamicKind)
         self.kind = kind
