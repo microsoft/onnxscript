@@ -52,7 +52,7 @@ def ignore(cond, msg):
 
 
 # Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, converter):
+def py_type_to_onnx_type(pytype: type, converter, info: DebugInfo):
     if pytype is bool:
         return onnx.TensorProto.BOOL
     if pytype is int:
@@ -61,23 +61,21 @@ def py_type_to_onnx_type(pytype: type, converter):
         return onnx.TensorProto.FLOAT
     if pytype is str:
         return onnx.TensorProto.STRING
-    fail(DebugInfo(pytype, converter).msg(
-        f"Tensor conversion of element of type {pytype} is not implemented"))
+    fail(info.msg(f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: DebugInfo):
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
-            fail(DebugInfo(pyvalue, converter).msg(
-                "Cannot convert an empty list to tensor"))
+            fail(info.msg("Cannot convert an empty list to tensor"))
         pytype = type(pyvalue[0])
         if not all([isinstance(e, pytype) for e in pyvalue]):
-            fail(DebugInfo(pyvalue, converter).msg(
-                "Cannot convert an list with elements of different types to tensor"))
+            fail(info.msg("Cannot convert an list with elements of different types to tensor"))
         return helper.make_tensor(
-            tensor_name, py_type_to_onnx_type(pytype, converter), [len(pyvalue)], pyvalue)
+            tensor_name, py_type_to_onnx_type(pytype, converter, info),
+            [len(pyvalue)], pyvalue)
 
-    onnx_type = py_type_to_onnx_type(type(pyvalue), converter)
+    onnx_type = py_type_to_onnx_type(type(pyvalue), converter, info)
     if onnx_type is onnx.TensorProto.BOOL:
         return helper.make_tensor(
             tensor_name, onnx_type, [], [int(pyvalue)])
@@ -340,7 +338,7 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self)
+        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
         attr = self.ir_builder.attr("value", tensor)
         self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
