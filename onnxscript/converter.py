@@ -350,12 +350,6 @@ class Converter:
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
     def is_constant_expr(self, node):
-        if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
-            if val is None:
-                # A function...
-                return False
-            return isinstance(val, ConstValue) and self.is_pure_module(val.value)
         if isinstance(node, ast.UnaryOp):
             if self.is_constant_expr(node.operand):
                 return True
@@ -612,7 +606,8 @@ class Converter:
             for axis, elt in enumerate(elts):
                 if (self.is_constant_expr(elt) or
                         (not use_subscript and isinstance(elt, ast.Index))):
-                    # process constant index (integer)
+                    # if the tuple contains a constant, it is replaced
+                    # by a slice and processed like any other slice
                     element = None
                     if use_subscript:
                         index = self.eval_constant_expr(elt)
@@ -630,25 +625,21 @@ class Converter:
                                             ast.Constant(1, **kwargs))
                 else:
                     element = elt
+
+                var_axis = self.emit_const([axis], f"ax{axis}", info)
+                if axis == 0:
+                    zero = var_axis
+
                 if isinstance(element, ast.Slice):
                     # process slice index
-                    var_axis = self.emit_const([axis], f"ax{axis}", info)
-                    if zero is None:
-                        zero = var_axis
                     inputs = _get_slice_input(element, var_axis, zero, one)
                     starts.append(inputs[1])
                     ends.append(inputs[2])
                     axes.append(var_axis.name)
-                    if len(inputs) > 4:
-                        steps.append(inputs[4])
-                    else:
-                        steps.append(one.name)
+                    steps.append(inputs[4] if len(inputs) > 4 else one.name)
                     continue
 
-                # process integer index as expressions
-                var_axis = self.emit_const([axis], f"ax{axis}", info)
-                if zero is None:
-                    zero = var_axis
+                # not a constant, not a slice -> an expression
                 squeezed_axes.append(axis)
                 index = self.translate_expr(element).name
                 starts.append(index)
