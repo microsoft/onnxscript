@@ -256,7 +256,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one_case(self):
         self.common_test_enumerate_onnx_tests_run(
-            lambda name: "test_dynamicquantizelinear_min_adjusted_expanded" in name,
+            lambda name: "test_matmul_3d" in name,
             verbose=4 if __name__ == "__main__" else 0)
 
 

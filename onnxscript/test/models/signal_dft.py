@@ -296,11 +296,11 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     positive_axis = op.Where(axis < zero, axis + last_dim, axis)
 
     if positive_axis == last_dim:
-        final = dft_last_axis._libcall(x, fft_length, onesided, inverse, normalize)
+        final = dft_last_axis(x, fft_length, onesided, inverse, normalize)  # call dft_last_axis._libcall in eager mode
     else:
-        xt = switch_axes._libcall(x, positive_axis, last_dim)
-        fft = dft_last_axis._libcall(xt, fft_length, onesided, inverse, normalize)
-        final = switch_axes._libcall(fft, positive_axis, last_dim)
+        xt = switch_axes(x, positive_axis, last_dim)  # call switch_axes._libcall in eager mode
+        fft = dft_last_axis(xt, fft_length, onesided, inverse, normalize)  # call dft_last_axis._libcall in eager mode
+        final = switch_axes(fft, positive_axis, last_dim)  # call switch_axes._libcall in eager mode
     return final
 
 
@@ -312,7 +312,8 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
-    return dft_inv._libcall(x, fft_length, axis, onesided, inverse, inverse)
+    # return dft_inv._libcall(x, fft_length, axis, onesided, inverse, inverse)
+    return dft_inv(x, fft_length, axis, onesided, inverse, inverse)
 
 
 @script()

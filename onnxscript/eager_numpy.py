@@ -39,26 +39,32 @@ class OrtFunction:
 
     def __getitem__(self, name_dtype):
         name = name_dtype[0]
-        dtypes = name_dtype[1:]
-        if name not in self._functions:
-            self._functions[name] = {}
-        typed_functions = self._functions[name]
-        if dtypes not in typed_functions:
-            typed_functions[dtypes] = self.create(name, dtypes)
-        return typed_functions[dtypes]
+        size = len(name_dtype) // 2
+        dtypes = name_dtype[1: 1 + size]
+        shapes = name_dtype[1 + size:]
+        if len(shapes) != len(dtypes):
+            raise NotImplementedError(
+                f"Unable to create a session for name_dtype={name_dtype!r}.")
+        key = name_dtype
+        if key not in self._functions:
+            self._functions[key] = self.create(key, name, dtypes, shapes)
+        return self._functions[key]
 
-    def create(self, op_name, dtypes):
+    def create(self, key, op_name, dtypes, shapes):
         try:
             onnx_op, out_dtype = OrtFunction._mapping_function_op[op_name]
         except KeyError:
             raise NotImplementedError(
-                f"Unable to create onnx model for operator {op_name!r} and dtype={dtypes!r}.")
+                f"Unable to create onnx model for operator {op_name!r}, "
+                f"dtypes={dtypes!r}, shapes={shapes!r}.")
         if len(dtypes) not in (1, 2):
             raise NotImplementedError(
-                f"Unable to create onnx model for operator {op_name!r} and dtype={dtypes!r}.")
-        onnx_dtypes = tuple(NP_TYPE_TO_TENSOR_TYPE[dtype] for dtype in dtypes)
-        X = [make_tensor_value_info(f'X{i}', onnx_dtype, [])
-             for i, onnx_dtype in enumerate(onnx_dtypes)]
+                f"Unable to create onnx model for operator {op_name!r}, "
+                f"dtypes={dtypes!r}, shapes={shapes!r}.")
+        onnx_dtypes = [NP_TYPE_TO_TENSOR_TYPE[dtype] for dtype in dtypes]
+        shapes = [[None] * s for s in shapes]
+        X = [make_tensor_value_info(f'X{i}', onnx_dtype, shape)
+             for i, (onnx_dtype, shape) in enumerate(zip(onnx_dtypes, shapes))]
         if out_dtype is None:
             Z = make_tensor_value_info('Z', onnx_dtypes[0], [])
         else:
@@ -66,26 +72,22 @@ class OrtFunction:
             Z = make_tensor_value_info('Z', out_onnx_dtype, [])
         if op_name != 'Pow' and len(onnx_dtypes) == 2 and onnx_dtypes[0] != onnx_dtypes[1]:
             # need of CastLike because input type are different
-            nodes = [
-                make_node('CastLike', [X[1].name, X[0].name], ['c']),
-                make_node(onnx_op, [X[0].name, 'c'], ['Z'])]
+            nodes = [make_node('CastLike', [X[1].name, X[0].name], ['c']),
+                     make_node(onnx_op, [X[0].name, 'c'], ['Z'])]
         else:
             nodes = [make_node(onnx_op, [x.name for x in X], ['Z'])]
         graph = make_graph(nodes, f"eager_{op_name}", X, [Z])
         onnx_model = make_model(graph)
         check_model(onnx_model)
         # unused but useful to debug
-        if op_name not in self._onnx_models:
-            self._onnx_models[op_name] = {}
-            self._ort_sessions[op_name] = {}
-        self._onnx_models[op_name][dtypes] = onnx_model
+        self._onnx_models[key] = onnx_model
         try:
             sess = InferenceSession(onnx_model.SerializeToString())
         except Fail as e:
             raise RuntimeError(
-                f"Unable to create an InferenceSession for operator {op_name!r} "
-                f"and dtype={dtypes!r} with onnx model\n{onnx_model}") from e
-        self._ort_sessions[op_name][dtypes] = sess
+                f"Unable to create an InferenceSession for operator {op_name!r}, "
+                f"dtype={dtypes!r}, shapes={shapes!r} with onnx model\n{onnx_model}") from e
+        self._ort_sessions[key] = sess
         f = lambda *x: sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]
         return f
 
@@ -135,7 +137,10 @@ class EagerArray:
     def _ort_op(self, b, op, check=True):
         if isinstance(b, (int, float)):
             b = np.array(b)
-        f = EagerArray._cache[op, self.dtype, None if b is None else b.dtype]
+        if b is None:
+            f = EagerArray._cache[op, self.dtype, None, len(self.shape), 0]
+        else:
+            f = EagerArray._cache[op, self.dtype, b.dtype, len(self.shape), len(b.shape)]
         if isinstance(b, EagerArray):
             if check and self.dtype != b.dtype:
                 raise TypeError(
