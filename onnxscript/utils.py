@@ -13,10 +13,9 @@ from .eager_numpy import NumpyArray
 
 # print utility unavailable in ONNX 1.12 or earlier:
 try:
-    from onnx.printer import to_text as proto_to_text
+    from onnx.printer import to_text as proto2text
 except ImportError:
-    def proto_to_text(
-        x): return "<print utility unavailable>"
+    def proto2text(x): return "<print utility unavailable>"
 
 
 def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):

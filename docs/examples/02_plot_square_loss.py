@@ -27,8 +27,8 @@ model = square_loss.to_model_proto()
 
 #%%
 # Let's see what the generated model looks like.
-from onnxscript.utils import proto_to_text
-print(proto_to_text(model))
+from onnxscript.utils import proto2text
+print(proto2text(model))
 
 #%%
 # We can run shape-inference and type-check the model using the standard ONNX API.
