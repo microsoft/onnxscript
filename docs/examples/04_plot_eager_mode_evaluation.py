@@ -15,6 +15,7 @@ from onnxscript import script
 from onnxscript.onnx_types import FLOAT
 from onnxscript.onnx_opset import opset15 as op
 
+
 @script()
 def linear (A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]) -> FLOAT["N", "M"]:  # noqa F821
     T1 = op.MatMul(A, W)
@@ -22,8 +23,10 @@ def linear (A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]) -> FLOAT["
     Y = op.Relu(T2)
     return Y
 
+
 #%%
 # Create inputs for evaluating the function:
+
 np.random.seed(0)
 m = 4
 k = 16
