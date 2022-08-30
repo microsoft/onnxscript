@@ -3,7 +3,6 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 import numpy as np
-from onnx import numpy_helper, TensorProto
 from onnx.helper import make_model, make_node, make_graph, make_tensor_value_info
 from onnx.checker import check_model
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
@@ -101,7 +100,7 @@ class OrtFunction:
                 f"Unable to create an InferenceSession for operator {op_name!r}, "
                 f"dtype={dtypes!r}, shapes={shapes!r} with onnx model\n{onnx_model}") from e
         self._ort_sessions[key] = sess
-        f = lambda *x: sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]
+        f = lambda *x: sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]  # noqa: E731
         self._functions[key] = f
         return f
 
@@ -177,9 +176,6 @@ class EagerArray:
 
     def __rand__(a, b):
         return a._ort_op(b, '__and__')
-
-    def __add__(a, b):
-        return a._ort_op(b, '__add__')
 
     def __mod__(a, b):
         return a._ort_op(b, '__mod__')
