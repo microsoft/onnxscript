@@ -551,7 +551,7 @@ class Converter:
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
-        if isinstance(node, ast.Attribute) and getattr(node, 'attr', None) != 'libcall':
+        if isinstance(node, ast.Attribute) and getattr(node, 'attr', None) != '_libcall':
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
             opname = node.attr
@@ -560,7 +560,7 @@ class Converter:
             warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
         if isinstance(node, ast.Name) or (
-                isinstance(node, ast.Attribute) and getattr(node, 'attr', None) == 'libcall'):
+                isinstance(node, ast.Attribute) and getattr(node, 'attr', None) == '_libcall'):
             if isinstance(node, ast.Name):
                 function_name = node.id
             else:

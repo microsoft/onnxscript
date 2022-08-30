@@ -16,20 +16,20 @@ class OrtFunction:
     Creates and retain function based on onnxruntime.
     """
     _mapping_function_op = {
-        '__add__': ('Add', None, 2),
-        '__and__': ('And', None, 2),
-        '__eq__': ('Equal', np.dtype('bool'), 2),
-        '__ge__': ('GreaterOrEqual', np.dtype('bool'), 2),
-        '__gt__': ('Greater', np.dtype('bool'), 2),
-        '__le__': ('LessOrEqual', np.dtype('bool'), 2),
-        '__lt__': ('Less', np.dtype('bool'), 2),
-        '__matmul__': ('MatMul', None, 2),
-        '__mul__': ('Mul', None, 2),
-        '__neg__': ('Opp', None, 1),
-        '__or__': ('Or', None, 2),
-        '__pow__': ('Pow', None, 2),
-        '__sub__': ('Sub', None, 2),
-        '__truediv__': ('Div', None, 2),
+        '__add__': ('Add', None),
+        '__and__': ('And', None),
+        '__eq__': ('Equal', np.dtype('bool')),
+        '__ge__': ('GreaterOrEqual', np.dtype('bool')),
+        '__gt__': ('Greater', np.dtype('bool')),
+        '__le__': ('LessOrEqual', np.dtype('bool')),
+        '__lt__': ('Less', np.dtype('bool')),
+        '__matmul__': ('MatMul', None),
+        '__mul__': ('Mul', None),
+        '__neg__': ('Opp', None),
+        '__or__': ('Or', None),
+        '__pow__': ('Pow', None),
+        '__sub__': ('Sub', None),
+        '__truediv__': ('Div', None),
     }
 
     def __init__(self):
@@ -38,49 +38,55 @@ class OrtFunction:
         self._functions = {}
 
     def __getitem__(self, name_dtype):
-        dtype, name = name_dtype
+        name = name_dtype[0]
+        dtypes = name_dtype[1:]
         if name not in self._functions:
             self._functions[name] = {}
         typed_functions = self._functions[name]
-        if dtype not in typed_functions:
-            typed_functions[dtype] = self.create(name, dtype)
-        return typed_functions[dtype]
+        if dtypes not in typed_functions:
+            typed_functions[dtypes] = self.create(name, dtypes)
+        return typed_functions[dtypes]
 
-    def create(self, op_name, dtype):
+    def create(self, op_name, dtypes):
         try:
-            onnx_op, out_dtype, n_inputs = OrtFunction._mapping_function_op[op_name]
+            onnx_op, out_dtype = OrtFunction._mapping_function_op[op_name]
         except KeyError:
             raise NotImplementedError(
-                f"Unable to create onnx model for operator {op_name!r} and dtype={dtype!r}.")
-        if n_inputs not in (1, 2):
+                f"Unable to create onnx model for operator {op_name!r} and dtype={dtypes!r}.")
+        if len(dtypes) not in (1, 2):
             raise NotImplementedError(
-                f"Unable to create onnx model for operator {op_name!r} and dtype={dtype!r}.")
-        onnx_dtype = NP_TYPE_TO_TENSOR_TYPE[dtype]
-        X = make_tensor_value_info('X', onnx_dtype, [])
-        if n_inputs > 1:
-            Y = make_tensor_value_info('Y', onnx_dtype, [])
+                f"Unable to create onnx model for operator {op_name!r} and dtype={dtypes!r}.")
+        onnx_dtypes = tuple(NP_TYPE_TO_TENSOR_TYPE[dtype] for dtype in dtypes)
+        X = [make_tensor_value_info(f'X{i}', onnx_dtype, [])
+             for i, onnx_dtype in enumerate(onnx_dtypes)]
         if out_dtype is None:
-            Z = make_tensor_value_info('Z', onnx_dtype, [])
+            Z = make_tensor_value_info('Z', onnx_dtypes[0], [])
         else:
             out_onnx_dtype = NP_TYPE_TO_TENSOR_TYPE[out_dtype]
             Z = make_tensor_value_info('Z', out_onnx_dtype, [])
-        node = make_node(onnx_op, ['X', 'Y'], ['Z'])
-        graph = make_graph([node], 'lr', [X, Y], [Z])
+        if op_name != 'Pow' and len(onnx_dtypes) == 2 and onnx_dtypes[0] != onnx_dtypes[1]:
+            # need of CastLike because input type are different
+            nodes = [
+                make_node('CastLike', [X[1].name, X[0].name], ['c']),
+                make_node(onnx_op, [X[0].name, 'c'], ['Z'])]
+        else:
+            nodes = [make_node(onnx_op, [x.name for x in X], ['Z'])]
+        graph = make_graph(nodes, f"eager_{op_name}", X, [Z])
         onnx_model = make_model(graph)
         check_model(onnx_model)
         # unused but useful to debug
         if op_name not in self._onnx_models:
             self._onnx_models[op_name] = {}
             self._ort_sessions[op_name] = {}
-        self._onnx_models[op_name][dtype] = onnx_model
+        self._onnx_models[op_name][dtypes] = onnx_model
         try:
             sess = InferenceSession(onnx_model.SerializeToString())
         except Fail as e:
             raise RuntimeError(
                 f"Unable to create an InferenceSession for operator {op_name!r} "
-                f"and dtype={dtype!r} with onnx model\n{onnx_model}") from e
-        self._ort_sessions[op_name][dtype] = sess
-        f = lambda x, y: sess.run(['Z'], {'X': x, 'Y': y})[0]
+                f"and dtype={dtypes!r} with onnx model\n{onnx_model}") from e
+        self._ort_sessions[op_name][dtypes] = sess
+        f = lambda *x: sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]
         return f
 
 
@@ -127,7 +133,9 @@ class EagerArray:
         return EagerArray(self._tensor % b)
 
     def _ort_op(self, b, op, check=True):
-        f = EagerArray._cache[self.dtype, op]
+        if isinstance(b, (int, float)):
+            b = np.array(b)
+        f = EagerArray._cache[op, self.dtype, None if b is None else b.dtype]
         if isinstance(b, EagerArray):
             if check and self.dtype != b.dtype:
                 raise TypeError(
@@ -142,7 +150,7 @@ class EagerArray:
         return EagerArray(v)
 
     def __neg__(self):
-        return self._ort_op('__neg__')
+        return self._ort_op(None, '__neg__')
 
     def __add__(a, b):
         return a._ort_op(b, '__add__')

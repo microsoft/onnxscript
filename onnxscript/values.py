@@ -156,6 +156,11 @@ class OnnxFunction(Op):
         return self.opname
 
     def __call__(self, *args, **kwargs):
+        if isinstance(args[0], EagerArray):
+            return self._libcall(*args, **kwargs)
+        return self._usercall(*args, **kwargs)
+
+    def _usercall(self, *args, **kwargs):
         "Eager mode"
         new_args = []
         for i, a in enumerate(args):
@@ -186,7 +191,7 @@ class OnnxFunction(Op):
         raise TypeError(
             f"Unexpected output type {type(res)} in function {self.function!r}.")
 
-    def libcall(self, *args, **kwargs):
+    def _libcall(self, *args, **kwargs):
         """
         This method must be called when a function decoracted with `script`
         calls another one decorated with `script`.
