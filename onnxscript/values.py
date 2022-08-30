@@ -156,6 +156,9 @@ class OnnxFunction(Op):
         return self.opname
 
     def __call__(self, *args, **kwargs):
+        if len(args) == 0:
+            # Operator Constant, it is usually called within a function.
+            return self._libcall(**kwargs)
         if isinstance(args[0], EagerArray):
             return self._libcall(*args, **kwargs)
         return self._usercall(*args, **kwargs)
