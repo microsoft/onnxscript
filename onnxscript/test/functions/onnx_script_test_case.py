@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+
 import dataclasses
 import copy
 import numbers
@@ -112,8 +113,8 @@ class OnnxScriptTestCase(unittest.TestCase):
     def _filter_test_case_by_op_type(self, op_type):
         test_cases = [
             case for case in self.all_test_cases
-            if case.kind == 'node' and len(case.model.graph.node) == 1
-            and case.model.graph.node[0].op_type == op_type]
+            if (case.kind == 'node' and len(case.model.graph.node) == 1 and
+                case.model.graph.node[0].op_type == op_type)]
         return test_cases
 
     def run_converter_test(

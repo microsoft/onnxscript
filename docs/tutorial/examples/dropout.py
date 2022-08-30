@@ -1,6 +1,7 @@
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 
+
 @script()
 def Dropout(data, ratio, training_mode, seed: int):
     if (training_mode):
