@@ -25,6 +25,7 @@ def Selu(X, alpha: float, gamma: float):
     zero = op.CastLike(0, X)
     return op.Where(X <= zero, neg, pos)
 
+
 #%%
 # We can convert the ONNXScript function to an ONNX function (FunctionProto) as below:
 
@@ -32,8 +33,5 @@ onnx_fun = Selu.to_function_proto()
 
 #%%
 # Let's see what the translated function looks like:
-from onnxscript.utils import proto2text
+from onnxscript.utils import proto2text  # noqa: E402
 print(proto2text(onnx_fun))
-
-#%%
-# 

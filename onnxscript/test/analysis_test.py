@@ -38,11 +38,11 @@ class TestLivenessAnalysis(unittest.TestCase):
     def test_basic1(self):
         def basic_eg(x):
             # live = {x}
-            y = x+1
+            y = x + 1
             # live = {y}
             x = 1
             # live = {y}
-            return y+1
+            return y + 1
         self.assertLiveness(basic_eg, [
             ["x"],
             ["y"],
@@ -60,7 +60,7 @@ class TestLivenessAnalysis(unittest.TestCase):
                 # live = {x, sum, i}
                 sum = sum + i
                 # live = {x, sum}
-                x = x + sum*sum
+                x = x + sum * sum
                 # live = {x, sum}
             # live = {x}
             return x
