@@ -12,7 +12,7 @@ from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from .utils import convert_arrays_to_value_infos
 from .irbuilder import select_ir_version
-from .eager_numpy import EagerArray
+from .eager_array import EagerArray
 
 
 class EagerModeError(RuntimeError):

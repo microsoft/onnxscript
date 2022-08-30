@@ -8,7 +8,7 @@ import numpy as np
 from typing import Any, Sequence
 import onnx
 from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
-from .eager_numpy import EagerArray
+from .eager_array import EagerArray
 
 
 # print utility unavailable in ONNX 1.12 or earlier:

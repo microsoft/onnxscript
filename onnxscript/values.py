@@ -7,7 +7,7 @@ from typing import Any, List
 from enum import IntFlag
 import numpy as np
 import onnx
-from .eager_numpy import EagerArray
+from .eager_array import EagerArray
 
 
 class DebugInfo:

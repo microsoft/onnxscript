@@ -13,7 +13,8 @@ from onnxruntime.capi.onnxruntime_pybind11_state import Fail
 
 class OrtFunction:
     """
-    Creates and retain function based on onnxruntime.
+    Implements onnx models for many unary and binary operators
+    with onnxruntime.
     """
     _mapping_function_op = {
         '__add__': ('Add', None),
@@ -24,6 +25,7 @@ class OrtFunction:
         '__le__': ('LessOrEqual', np.dtype('bool')),
         '__lt__': ('Less', np.dtype('bool')),
         '__matmul__': ('MatMul', None),
+        '__mod__': ('Mod', None),
         '__mul__': ('Mul', None),
         '__neg__': ('Opp', None),
         '__or__': ('Or', None),
@@ -47,10 +49,21 @@ class OrtFunction:
                 f"Unable to create a session for name_dtype={name_dtype!r}.")
         key = name_dtype
         if key not in self._functions:
-            self._functions[key] = self.create(key, name, dtypes, shapes)
+            self.create(key, name, dtypes, shapes)
         return self._functions[key]
 
     def create(self, key, op_name, dtypes, shapes):
+        """
+        Creates an onnx model for given operator and instantiates
+        an InferenceSession.
+
+        :param key: cache the onnx model and the session using this key
+        :param op_name: operator name (main domain)
+        :param dtypes: list of dtypes for every input
+        :param shapes: list of number of dimensions for every input
+        :return: a lambda function calling with the expected signature
+            and calling onnxruntime underneath
+        """
         try:
             onnx_op, out_dtype = OrtFunction._mapping_function_op[op_name]
         except KeyError:
@@ -89,6 +102,7 @@ class OrtFunction:
                 f"dtype={dtypes!r}, shapes={shapes!r} with onnx model\n{onnx_model}") from e
         self._ort_sessions[key] = sess
         f = lambda *x: sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]
+        self._functions[key] = f
         return f
 
 
@@ -129,11 +143,6 @@ class EagerArray:
     def __int__(self):
         return self.value.__int__()
 
-    def __mod__(self, b):
-        if isinstance(b, float):
-            return EagerArray(np.fmod(self.value, b))
-        return EagerArray(self._tensor % b)
-
     def _ort_op(self, b, op, check=True):
         if isinstance(b, (int, float)):
             b = np.array(b)
@@ -168,6 +177,12 @@ class EagerArray:
 
     def __rand__(a, b):
         return a._ort_op(b, '__and__')
+
+    def __add__(a, b):
+        return a._ort_op(b, '__add__')
+
+    def __mod__(a, b):
+        return a._ort_op(b, '__mod__')
 
     def __mul__(a, b):
         return a._ort_op(b, '__mul__')
