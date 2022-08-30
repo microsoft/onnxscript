@@ -86,7 +86,8 @@ class OrtFunction:
 
         # handles specific cases first such as pow, mod
         if onnx_op == 'Mod' and onnx_dtypes[0] in {
-                TensorProto.FLOAT, TensorProto.DOUBLE, TensorProto.FLOAT16, TensorProto.BFLOAT16}:
+                TensorProto.FLOAT, TensorProto.DOUBLE,
+                TensorProto.FLOAT16, TensorProto.BFLOAT16}:
             nodes = [make_node('CastLike', [X[1].name, X[0].name], ['c']),
                      make_node(onnx_op, [X[0].name, 'c'], ['Z'], fmod=1)]
         elif op_name != 'Pow' and len(onnx_dtypes) == 2 and onnx_dtypes[0] != onnx_dtypes[1]:
