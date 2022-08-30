@@ -3,11 +3,12 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 import numpy as np
+from onnx import TensorProto
 from onnx.helper import make_model, make_node, make_graph, make_tensor_value_info
 from onnx.checker import check_model
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, RuntimeException
 
 
 class OrtFunction:
@@ -82,12 +83,19 @@ class OrtFunction:
         else:
             out_onnx_dtype = NP_TYPE_TO_TENSOR_TYPE[out_dtype]
             Z = make_tensor_value_info('Z', out_onnx_dtype, [])
-        if op_name != 'Pow' and len(onnx_dtypes) == 2 and onnx_dtypes[0] != onnx_dtypes[1]:
+
+        # handles specific cases first such as pow, mod
+        if onnx_op == 'Mod' and onnx_dtypes[0] in {
+                TensorProto.FLOAT, TensorProto.DOUBLE, TensorProto.FLOAT16, TensorProto.BFLOAT16}:
+            nodes = [make_node('CastLike', [X[1].name, X[0].name], ['c']),
+                     make_node(onnx_op, [X[0].name, 'c'], ['Z'], fmod=1)]
+        elif op_name != 'Pow' and len(onnx_dtypes) == 2 and onnx_dtypes[0] != onnx_dtypes[1]:
             # need of CastLike because input type are different
             nodes = [make_node('CastLike', [X[1].name, X[0].name], ['c']),
                      make_node(onnx_op, [X[0].name, 'c'], ['Z'])]
         else:
             nodes = [make_node(onnx_op, [x.name for x in X], ['Z'])]
+
         graph = make_graph(nodes, f"eager_{op_name}", X, [Z])
         onnx_model = make_model(graph)
         check_model(onnx_model)
@@ -97,12 +105,21 @@ class OrtFunction:
             sess = InferenceSession(onnx_model.SerializeToString())
         except Fail as e:
             raise RuntimeError(
-                f"Unable to create an InferenceSession for operator {op_name!r}, "
+                f"Unable to create an InferenceSession for operator {onnx_op!r}, "
                 f"dtype={dtypes!r}, shapes={shapes!r} with onnx model\n{onnx_model}") from e
         self._ort_sessions[key] = sess
-        f = lambda *x: sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]  # noqa: E731
-        self._functions[key] = f
-        return f
+
+        def call_ort(*x):
+            try:
+                return sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]
+            except RuntimeException as e:
+                raise RuntimeError(
+                    f"Unable to run onnxruntime, op_name={op_name!r}, dtypes={dtypes!r}, "
+                    f"shapes={shapes!r}, with input types "
+                    f"{[(_.dtype, _.shape) for _ in x]} with onnx model\n{onnx_model}") from e
+
+        self._functions[key] = call_ort
+        return call_ort
 
 
 class EagerArray:
