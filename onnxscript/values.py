@@ -199,6 +199,12 @@ class Value:
     Here, `X` has a Dynamic value, `alpha` has an AttrRef value, and `zero`
     has a Dynamic value.
 
+    Scripts may also contain references to global variables, but the translator
+    does not associate a Value with them. The python value of global variables
+    is used directly in the translation, and such global variables are intended
+    to be used for limited purposes, namely:
+    * To identify an opset
+    * To represent constant-values, translated into ONNX constants.
     """
 
     def __init__(self, val: Any, info: DebugInfo) -> None:
