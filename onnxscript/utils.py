@@ -8,7 +8,7 @@ import numpy as np
 from typing import Any, Sequence
 import onnx
 from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
-from .eager_numpy import NumpyArray
+from .eager_numpy import EagerArray
 
 
 # print utility unavailable in ONNX 1.12 or earlier:
@@ -58,7 +58,7 @@ def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=No
                 info)
             continue
 
-        if isinstance(arr, (np.ndarray, NumpyArray)):
+        if isinstance(arr, (np.ndarray, EagerArray)):
             elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
             shape = arr.shape
         elif isinstance(arr, numbers.Number):

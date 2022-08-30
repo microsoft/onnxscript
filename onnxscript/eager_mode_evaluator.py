@@ -12,7 +12,7 @@ from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from .utils import convert_arrays_to_value_infos
 from .irbuilder import select_ir_version
-from .eager_numpy import NumpyArray
+from .eager_numpy import EagerArray
 
 
 class EagerModeError(RuntimeError):
@@ -84,7 +84,7 @@ def call_ort(schema, *args, **kwargs):
         if arg is None:
             inputs.append("")
             continue
-        if not isinstance(arg, (NumpyArray, list, int, float)):
+        if not isinstance(arg, (EagerArray, list, int, float)):
             raise TypeError(f"Unexpected type {type(arg)} for input {i} "
                             f"and operator {schema.name!r}.")
         inputs.append(_rename_io("input", i, arg))
@@ -119,9 +119,9 @@ def call_ort(schema, *args, **kwargs):
     for name, arg in zip(inputs, args):
         if arg is None:
             continue
-        if isinstance(arg, NumpyArray):
+        if isinstance(arg, EagerArray):
             session_run_input[name] = arg.value
-            tensor_class = NumpyArray
+            tensor_class = EagerArray
         elif isinstance(arg, list):
             session_run_input[name] = arg
         elif isinstance(arg, (int, float)):
@@ -142,7 +142,7 @@ def call_ort(schema, *args, **kwargs):
             f"\ninputs:\n{pprint.pformat(session_run_input)}\n{model}")
 
     if tensor_class is None:
-        tensor_class = NumpyArray
+        tensor_class = EagerArray
     new_got = []
     for i, g in enumerate(got):
         if isinstance(g, np.ndarray):

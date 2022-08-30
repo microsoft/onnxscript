@@ -427,5 +427,5 @@ class TestOnnxSignal(OnnxScriptTestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestOnnxSignal().test_dft_rstft_istft()
+    # TestOnnxSignal().test_dft_cfft()
     unittest.main(verbosity=2)
