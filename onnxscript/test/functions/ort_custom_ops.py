@@ -47,4 +47,4 @@ def SigmoidGrad(dY, Y):
 
 @script()
 def TanhGrad(dY, Y):
-    return dY * (1.0 - Y*Y)
+    return dY * (1.0 - Y * Y)

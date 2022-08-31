@@ -1,6 +1,7 @@
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 
+
 @script()
 def sumprod(x, N):
     sum = op.Identity(x)
