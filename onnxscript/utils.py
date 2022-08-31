@@ -15,7 +15,8 @@ from .eager_array import EagerArray
 try:
     from onnx.printer import to_text as proto2text
 except ImportError:
-    def proto2text(x): return "<print utility unavailable>"
+    def proto2text(x):
+        return "<print utility unavailable>"
 
 
 def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):

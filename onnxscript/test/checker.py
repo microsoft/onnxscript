@@ -6,7 +6,8 @@
 import onnx
 
 
-def default_equality_op(x, y): return x == y
+def default_equality_op(x, y):
+    return x == y
 
 
 def same_optional(field, obj1, obj2, equals=default_equality_op):
@@ -31,7 +32,8 @@ def same_repeated(values1, values2, equals=default_equality_op):
 
 def same_string_string_map(proto1, proto2):
     '''Compare repeated StringStringEntryProto as maps.'''
-    def to_map(proto): return {x.key: x.value for x in proto}
+    def to_map(proto):
+        return {x.key: x.value for x in proto}
     return to_map(proto1) == to_map(proto2)
 
 
@@ -84,9 +86,9 @@ def same_type(tp1, tp2):
 
 
 def same_value_info(vi1, vi2):
-    return (same_optional("name", vi1, vi2)
-            and same_optional("type", vi1, vi2, same_type)
-            and same_optional("doc_string", vi1, vi2))
+    return (same_optional("name", vi1, vi2) and
+            same_optional("type", vi1, vi2, same_type) and
+            same_optional("doc_string", vi1, vi2))
 
 
 def same_attr(attr1, attr2, graph_equality):

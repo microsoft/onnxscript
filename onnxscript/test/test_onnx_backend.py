@@ -158,7 +158,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                             not te.name.startswith("test_pow") and
                             not te.name.startswith("test_sub") and
                             (te.onnx_model.ir_version, proto.ir_version) not in {
-                                    (3, 4), (5, 6)}):
+                                (3, 4), (5, 6)}):
                         # unexpected behaviour for old opsets
                         raise AssertionError(
                             "Incompatible ir_version %d != %d\n%s\n-----\n%s" % (

@@ -3,22 +3,30 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import ast
+import sys
 import unittest
 import os
 import warnings
 import types
+import inspect
+import textwrap
 from packaging.version import Version
 import numpy as np
 from numpy.testing import assert_almost_equal
 import onnx
 from onnx.helper import printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
+from onnx import TensorProto
+from onnx.helper import make_tensor
 import onnxruntime
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.values import OnnxFunction
+from onnxscript.converter import Converter
+from onnxscript.converter import TranslationError
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
@@ -38,7 +46,8 @@ class TestConverter(unittest.TestCase):
             with self.subTest(f=f.name):
                 f.to_function_proto()
 
-    def validate_save(self, script, save_text=False, check_ort=False, shape_inference=True):
+    def validate_save(self, script, save_text=False, check_ort=False, shape_inference=True,
+                      skip_check_ort=None):
         if isinstance(script, types.ModuleType):
             fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
         elif isinstance(script, OnnxFunction):
@@ -57,7 +66,7 @@ class TestConverter(unittest.TestCase):
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")
                             fi.write(printable_graph(fct))
-                if check_ort:
+                if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
                         onnxruntime.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
@@ -328,9 +337,140 @@ class TestConverter(unittest.TestCase):
         res = loops_while.loop_range_cond_only(x)
         self.assertEqual(res.tolist(), [0, 10, -20])
 
+    @unittest.skipIf(sys.version_info[:2] < (3, 8),
+                     reason="Notation [...] not supported in python 3.7.")
+    def test_getitem(self):
+        from onnxscript.test.models import getitem
+        if sys.version_info[:2] >= (3, 8):
+            skip_check_ort = None
+        else:
+            # negative indices are not supported in python 3.7
+            # one constant is evaluated as float
+            skip_check_ort = ['getitem_i_slice_neg', 'getitem_i_slice_step']
+        test_functions = self.validate_save(
+            getitem, check_ort=True, skip_check_ort=skip_check_ort)
+
+        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
+        # expression.
+        A = np.array([0, 1, 2])
+        i = np.array([0])
+        try:
+            A[i: i + 1]
+            eager = True
+        except Exception:
+            # TypeError: only integer scalar arrays can be converted to a scalar index
+            eager = False
+
+        def check_function(x, name, expected, eager=True):
+            if skip_check_ort is not None and name in skip_check_ort:
+                return
+            with self.subTest(name=name):
+                onx = test_functions[name]
+                sess = onnxruntime.InferenceSession(onx.SerializeToString())
+                try:
+                    y = sess.run(None, {'A': x})[0]
+                except Exception as e:
+                    raise AssertionError(
+                        f"Unable to run ONNX for function {name!r} "
+                        f"due to {e!r}\n{onx}.") from e
+                self.assertEqual(y.tolist(), expected)
+                f = getattr(getitem, name)
+                if eager:
+                    self.assertEqual(f(x).tolist(), expected)
+
+        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
+
+        check_function(x, 'getitem_i', [0., 1., 2.])
+        check_function(x, 'getitem_i_last', [9., 10., 11.])
+        check_function(x, 'getitem_i_expr', [1., 2., 3.])
+        check_function(x, 'getitem_i_slice', [[3., 4., 5.]])
+        check_function(x, 'getitem_i_slice_left', [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
+        check_function(x, 'getitem_i_slice_right', [[0, 1, 2], [3, 4, 5]])
+        check_function(x, 'getitem_i_slice_neg', [[3, 4, 5], [6, 7, 8]])
+        check_function(x, 'getitem_i_slice_step', [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
+        # TODO: force eager to True when the following issue is resolved.
+        check_function(x, 'getitem_i_var', [[3., 4., 5.]], eager=eager)
+        check_function(x, 'getitem_i_tuple', [[0], [3]])
+        check_function(x, 'getitem_i_mixed_tuple', [0, 3])
+        check_function(x, 'getitem_column', [1.0, 4.0, 7.0, 10.0])
+        check_function(x, 'getitem_index_int0_1', [3, 4, 5], eager=eager)
+        check_function(x, 'getitem_index_int0', [0, 1, 2], eager=eager)
+        check_function(x, 'getitem_rev', x[:0:-1].tolist())
+        check_function(x, 'getitem_rev0', x[0, :0:-1].tolist())
+
+    @unittest.skipIf(sys.version_info[:2] < (3, 9),
+                     reason="Notation [...] not supported in python 3.8.")
+    def test_getitem39(self):
+        from onnxscript.test.models import getitem39
+        test_functions = self.validate_save(getitem39, check_ort=True)
+
+        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
+        # expression.
+        A = np.array([0, 1, 2])
+        i = np.array([0])
+        try:
+            A[i: i + 1]
+            eager = True
+        except Exception:
+            # TypeError: only integer scalar arrays can be converted to a scalar index
+            eager = False
+
+        def check_function(x, name, expected, eager=True):
+            with self.subTest(name=name):
+                onx = test_functions[name]
+                sess = onnxruntime.InferenceSession(onx.SerializeToString())
+                try:
+                    y = sess.run(None, {'A': x})[0]
+                except Exception as e:
+                    raise AssertionError(
+                        f"Unable to run ONNX for function {name!r} "
+                        f"due to {e!r}\n{onx}.") from e
+                self.assertEqual(y.tolist(), expected)
+                f = getattr(getitem39, name)
+                if eager:
+                    self.assertEqual(f(x).tolist(), expected)
+
+        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
+
+        check_function(x, 'getitem_index_int', [2.0], eager=eager)
+        check_function(x, 'getitem_index_int2', [2.0], eager=eager)
+
+    def check_failure(self, f, msg):
+        source = textwrap.dedent(inspect.getsource(f))
+        global_names = globals().copy()
+        top_level_ast = ast.parse(source)
+        f_ast = top_level_ast.body[0]
+        cvt = Converter(opset=op, global_names=global_names, source=source, default_opset=op)
+        try:
+            cvt.top_level_stmt(f_ast)
+        except TranslationError as e:
+            if msg not in str(e):
+                raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
+            return
+        raise AssertionError("No raised exception.")
+
+    @unittest.skipIf(sys.version_info[:2] < (3, 8),
+                     reason="Notation [...] not supported in python 3.7.")
+    def test_getitem_failure(self):
+
+        def f1(A: FLOAT[...]) -> FLOAT[...]:
+            zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+            index = zero, zero + 1
+            r = A[index]
+            return r
+
+        ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
+        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
+
+        def f2(A: FLOAT[...]) -> FLOAT[...]:
+            return A[::-1]
+
+        ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
+        self.check_failure(f2, "`?::-1` cannot be expressed with ONNX")
+
 
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
     # TestConverter().test_eager_op()
-    unittest.main()
+    unittest.main(verbosity=2)

@@ -23,18 +23,22 @@ from onnxscript.utils import proto2text
 # A dummy opset used for model-local functions
 local = Opset("local", 1)
 
+
 @script(local)
-def diff_square (x, y):
+def diff_square(x, y):
     diff = x - y
     return diff * diff
 
+
 @script(local)
-def sum (z):
+def sum(z):
     return op.ReduceSum(z, keepdims=1)
 
+
 @script()
-def l2norm (x : FLOAT["N"], y : FLOAT["N"]) -> FLOAT[1]:
-    return op.sqrt (sum (diff_square(x, y)))
+def l2norm(x: FLOAT["N"], y: FLOAT["N"]) -> FLOAT[1]:  # noqa: F821
+    return op.sqrt(sum(diff_square(x, y)))
+
 
 #%%
 # Let's see what the generated model looks like by default:

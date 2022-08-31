@@ -266,7 +266,7 @@ def _python_make_node_loop(node, opsets, indent=0):
         raise RuntimeError(
             "Unable to export loop type %r into python because there is no "
             "stop condition." % (node.op_type, ))
-    rows.append(_python_make_node_graph(body, opsets, indent=indent+1,
+    rows.append(_python_make_node_graph(body, opsets, indent=indent + 1,
                                         output_names=node.output))
     return "\n".join(rows)
 
@@ -303,9 +303,9 @@ def _python_make_node(onnx_node, opsets, indent=0):
            'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<='}
     sindent = "    " * indent
     if node.op_type in ops:
-        return "%s%s = %s" % (sindent, _rename_variable(node.output[0]),
-                              (" %s " % ops[node.op_type]).join(
-                                map(_rename_variable, node.input)))
+        return "%s%s = %s" % (
+            sindent, _rename_variable(node.output[0]),
+            (" %s " % ops[node.op_type]).join(map(_rename_variable, node.input)))
     name = _python_make_node_name(
         node.domain, opsets[node.domain], node.op_type, node=True)
     attributes_str = _python_make_node_make_attribute_str(node)
