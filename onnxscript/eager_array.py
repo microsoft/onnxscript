@@ -4,11 +4,13 @@
 # --------------------------------------------------------------------------
 import numpy as np
 from onnx import TensorProto
+from onnx.defs import onnx_opset_version
 from onnx.helper import make_model, make_node, make_graph, make_tensor_value_info
+from onnx.numpy_helper import from_array
 from onnx.checker import check_model
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, RuntimeException
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, RuntimeException, InvalidArgument
 
 
 class OrtFunction:
@@ -64,6 +66,27 @@ class OrtFunction:
         :return: a lambda function calling with the expected signature
             and calling onnxruntime underneath
         """
+        if len(dtypes) != len(shapes):
+            raise RuntimeError(
+                f"dtypes={dtypes!r} and shapes={shapes!r} should have the same size.")
+        if op_name == '__getitem__':
+            return self._create_index(key, op_name, dtypes, shapes)
+        if op_name == 'Squeeze':
+            return self._create_squeeze(key, op_name, dtypes, shapes)
+        return self._create_matrix_op(key, op_name, dtypes, shapes)
+
+    def _create_matrix_op(self, key, op_name, dtypes, shapes):
+        """
+        Creates an onnx model for a matrix operator and instantiates
+        an InferenceSession.
+
+        :param key: cache the onnx model and the session using this key
+        :param op_name: operator name (main domain)
+        :param dtypes: list of dtypes for every input
+        :param shapes: list of number of dimensions for every input
+        :return: a lambda function calling with the expected signature
+            and calling onnxruntime underneath
+        """
         try:
             onnx_op, out_dtype = OrtFunction._mapping_function_op[op_name]
         except KeyError:
@@ -96,8 +119,11 @@ class OrtFunction:
                      make_node(onnx_op, [X[0].name, 'c'], ['Z'])]
         else:
             nodes = [make_node(onnx_op, [x.name for x in X], ['Z'])]
+        return self._create_end(key, dtypes, shapes, X, Z, nodes)
 
-        graph = make_graph(nodes, f"eager_{op_name}", X, [Z])
+    def _create_end(self, key, dtypes, shapes, X, Z, nodes, inits=None,
+                    call_ort_function=None):
+        graph = make_graph(nodes, f"eager_{key[0]}", X, [Z], initializer=inits)
         onnx_model = make_model(graph)
         check_model(onnx_model)
         # unused but useful to debug
@@ -106,21 +132,172 @@ class OrtFunction:
             sess = InferenceSession(onnx_model.SerializeToString())
         except Fail as e:
             raise RuntimeError(
-                f"Unable to create an InferenceSession for operator {onnx_op!r}, "
+                f"Unable to create an InferenceSession for operator {key[0]!r}, "
                 f"dtype={dtypes!r}, shapes={shapes!r} with onnx model\n{onnx_model}") from e
         self._ort_sessions[key] = sess
 
+        if call_ort_function is None:
+
+            def call_ort(*x):
+                try:
+                    return sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]
+                except RuntimeException as e:
+                    raise RuntimeError(
+                        f"Unable to run onnxruntime, op_name={key[0]!r}, "
+                        f"dtypes={dtypes!r}, shapes={shapes!r}, with input types with "
+                        f"onnx model\n{onnx_model}") from e
+
+            self._functions[key] = call_ort
+            return call_ort
+
         def call_ort(*x):
             try:
-                return sess.run(['Z'], {f'X{i}': x for i, x in enumerate(x)})[0]
-            except RuntimeException as e:
+                return call_ort_function(onnx_model, sess, *x)
+            except (RuntimeException, InvalidArgument, Fail) as e:
                 raise RuntimeError(
-                    f"Unable to run onnxruntime, op_name={op_name!r}, dtypes={dtypes!r}, "
-                    f"shapes={shapes!r}, with input types "
-                    f"{[(_.dtype, _.shape) for _ in x]} with onnx model\n{onnx_model}") from e
+                    f"Unable to run onnxruntime, op_name={key[0]!r}, dtypes={dtypes!r}, "
+                    f"shapes={shapes!r}, with onnx model\n{onnx_model}") from e
 
         self._functions[key] = call_ort
         return call_ort
+
+    def _create_index(self, key, op_name, dtypes, shapes):
+        """
+        Creates an onnx model for indexing and instantiates
+        an InferenceSession.
+
+        :param key: cache the onnx model and the session using this key
+        :param op_name: operator name (main domain)
+        :param dtypes: list of dtypes for every input
+        :param shapes: list of number of dimensions for every input
+        :return: a lambda function calling with the expected signature
+            and calling onnxruntime underneath
+
+        This function assumes default opset >= 13. (Squeeze)
+        """
+        if onnx_opset_version() < 13:
+            raise RuntimeError(
+                "onnx package is too old. A new version must be "
+                "installed to support opset 13.")
+        if len(dtypes) != 2:
+            raise NotImplementedError(
+                f"Unable to create onnx model for operator {op_name!r}, "
+                f"dtypes={dtypes!r}, shapes={shapes!r}.")
+
+        onnx_dtypes = [NP_TYPE_TO_TENSOR_TYPE[dtypes[0]]]
+        if dtypes[1] in (slice, tuple):
+            onnx_dtypes.append(TensorProto.INT64)
+        else:
+            onnx_dtypes.append(NP_TYPE_TO_TENSOR_TYPE[dtypes[1]])
+        shapes = [[None] * s for s in shapes]
+        Z = make_tensor_value_info('Z', onnx_dtypes[0], [])
+
+        if dtypes[1] in (np.int32, np.int64) and len(shapes[1]) == 0:
+            # notation A[i]
+            X = [make_tensor_value_info(f'X{i}', onnx_dtype, shape)
+                 for i, (onnx_dtype, shape) in enumerate(zip(onnx_dtypes, shapes))]
+            nodes = [make_node('Gather', [x.name for x in X], ['Z'], axis=0)]
+            return self._create_end(key, dtypes, shapes, X, Z, nodes)
+
+        if dtypes[1] in (slice, tuple):
+            # notation A[i:j] or A[i:j:k], A[i:k, k:l]
+            X = [make_tensor_value_info('X0', onnx_dtypes[0], shapes[0]),
+                 make_tensor_value_info('X1', TensorProto.INT64, [None, None])]
+            inits = [from_array(np.array([0], dtype=np.int64), name='i0'),
+                     from_array(np.array([1], dtype=np.int64), name='i1'),
+                     from_array(np.array([2], dtype=np.int64), name='i2'),
+                     from_array(np.array([3], dtype=np.int64), name='i3')]
+            nodes = [make_node('Gather', [X[1].name, 'i0'], ['starts_'], axis=0),
+                     make_node('Gather', [X[1].name, 'i1'], ['ends_'], axis=0),
+                     make_node('Gather', [X[1].name, 'i2'], ['axis_'], axis=0),
+                     make_node('Gather', [X[1].name, 'i3'], ['steps_'], axis=0),
+                     make_node('Squeeze', ['starts_', 'i0'], ['starts']),
+                     make_node('Squeeze', ['ends_', 'i0'], ['ends']),
+                     make_node('Squeeze', ['axis_', 'i0'], ['axis']),
+                     make_node('Squeeze', ['steps_', 'i0'], ['steps']),
+                     make_node('Slice', [X[0].name, 'starts', 'ends', 'axis', 'steps'], ['Z'])]
+
+            sess_squeeze = self['Squeeze', dtypes[0], len(shapes[0])]
+
+            def call_ort(onnx_model, sess, *x):
+                if isinstance(x[1], slice):
+                    slices = (x[1], )
+                elif not isinstance(x[1], tuple):
+                    raise TypeError(
+                        f"Unexpected type for x[1] ({type(x[1])}), it should a tuple "
+                        f"of slices, dtypes={dtypes}, shapes={shapes}.")
+                elif any(map(lambda t: not isinstance(t, (slice, int)), x[1])):
+                    raise TypeError(
+                        f"Unexpected type for x[1] ({[type(t) for t in x[1]]}), "
+                        f"it should be slices, dtypes={dtypes}, shapes={shapes}.")
+                else:
+                    slices = x[1]
+                indices = []
+                to_squeeze = []
+                for axis, s in enumerate(slices):
+                    if isinstance(s, slice):
+                        if s.step is None or s.step > 0:
+                            indices.append([s.start or 0, s.stop or x[0].shape[0],
+                                            axis, s.step or 1])
+                        else:
+                            indices.append([s.start or (x[0].shape[0] - 1), s.stop,
+                                            axis, s.step])
+                    else:
+                        # integer
+                        indices.append([s, s + 1, axis, 1])
+                        to_squeeze.append(axis)
+                index = np.array(indices, dtype=np.int64).T
+                res = sess.run(['Z'], {'X0': x[0], 'X1': index})[0]
+                if len(to_squeeze) == 0:
+                    return res
+
+                # if one index is an integer, the dimension needs to be squeezed
+                for ax in reversed(to_squeeze):
+                    res = sess_squeeze(res, np.array([ax], dtype=np.int64))
+                return res
+
+            return self._create_end(key, dtypes, shapes, X, Z, nodes, inits=inits,
+                                    call_ort_function=call_ort)
+
+        # inits = [from_array(np.array([0], dtype=np.int64))]
+        raise NotImplementedError(
+            f"dtypes={dtypes!r}, shapes={shapes!r} is not supported yet.")
+
+    def _create_squeeze(self, key, op_name, dtypes, shapes):
+        """
+        Creates an onnx model for squeezing an axis and instantiates
+        an InferenceSession.
+
+        :param key: cache the onnx model and the session using this key
+        :param op_name: operator name (main domain)
+        :param dtypes: list of dtypes for every input
+        :param shapes: list of number of dimensions for every input
+        :return: a lambda function calling with the expected signature
+            and calling onnxruntime underneath
+
+        This function assumes default opset >= 13. (Squeeze)
+        """
+        if onnx_opset_version() < 13:
+            raise RuntimeError(
+                "onnx package is too old. A new version must be "
+                "installed to support opset 13.")
+        if len(dtypes) != 1:
+            raise NotImplementedError(
+                f"Unable to create onnx model for operator {op_name!r}, "
+                f"dtypes={dtypes!r}, shapes={shapes!r}.")
+
+        onnx_dtypes = [NP_TYPE_TO_TENSOR_TYPE[dtypes[0]]]
+        shapes = [[None] * shapes[0]]
+        Z = make_tensor_value_info('Z', onnx_dtypes[0], [])
+
+        X = [make_tensor_value_info('X', onnx_dtypes[0], shapes[0]),
+             make_tensor_value_info('axis', TensorProto.INT64, [None])]
+        nodes = [make_node('Squeeze', ['X', 'axis'], ['Z'])]
+
+        def call_ort(onnx_model, sess, *x):
+            return sess.run(['Z'], {'X': x[0], 'axis': x[1]})[0]
+
+        return self._create_end(key, dtypes, shapes, X, Z, nodes, call_ort_function=call_ort)
 
 
 class EagerArray:
@@ -151,9 +328,6 @@ class EagerArray:
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value!r})"
 
-    def __getitem__(self, index):
-        raise NotImplementedError()
-
     def __bool__(self):
         return self.value.__bool__()
 
@@ -165,6 +339,8 @@ class EagerArray:
             b = np.array(b)
         if b is None:
             f = EagerArray._cache[op, self.dtype, None, len(self.shape), 0]
+        elif isinstance(b, (slice, tuple)):
+            f = EagerArray._cache[op, self.dtype, type(b), len(self.shape), 1]
         else:
             f = EagerArray._cache[op, self.dtype, b.dtype, len(self.shape), len(b.shape)]
         if isinstance(b, EagerArray):
@@ -179,6 +355,9 @@ class EagerArray:
         if not isinstance(v, np.ndarray):
             v = np.array(v)
         return EagerArray(v)
+
+    def __getitem__(self, index):
+        return self._ort_op(index, '__getitem__')
 
     def __neg__(self):
         return self._ort_op(None, '__neg__')

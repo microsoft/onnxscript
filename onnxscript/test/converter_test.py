@@ -472,5 +472,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_eager_op()
+    # TestConverter().test_getitem()
     unittest.main(verbosity=2)
