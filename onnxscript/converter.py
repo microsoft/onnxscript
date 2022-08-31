@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import sys
 import ast
 import logging
 from enum import IntEnum
@@ -17,6 +18,11 @@ from . import type_annotation as ta
 from . import values as values
 from .values import (AttrRef, Dynamic, OnnxFunction, Op, DynamicKind, DebugInfo)
 
+use_subscript = sys.version_info[:2] >= (3, 9)
+if use_subscript:
+    ast_Subscript = ast.Subscript
+else:
+    ast_Subscript = (ast.Subscript, ast.Index)
 
 logger = logging.getLogger("onnx-script")
 
@@ -192,8 +198,8 @@ class Converter:
         if self.default_opset_ is None:
             if self.current_fn is None:
                 raise RuntimeError("Unable to return a default opset, None was detected yet.")
-            warn("No default opset was defined or detected in function %r, "
-                 "the converter uses opset 15." % (self.current_fn.name, ))
+            warn(f"No default opset was defined or detected in function "
+                 f"{self.current_fn.name!r}, the converter uses opset 15.")
             from .onnx_opset import opset15
             return opset15
         return self.default_opset_
@@ -344,6 +350,10 @@ class Converter:
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
     def is_constant_expr(self, node):
+        if isinstance(node, ast.UnaryOp):
+            if self.is_constant_expr(node.operand):
+                return True
+            return False
         if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
                              ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load,
                              ast.NameConstant, ast.Constant, ast.Str)):
@@ -373,6 +383,28 @@ class Converter:
                     "Missing names, globals contains %r, locals %r." % (
                         list(self.globals), list(locals)))) from e
 
+    def eval_attr(self, node):
+        if isinstance(node, ast.Num):
+            return node.n
+        if isinstance(node, ast.Str):
+            return node.s
+        if isinstance(node, ast.NameConstant):
+            if not isinstance(node.value, bool):
+                raise ValueError(DebugInfo(node, self).msg(
+                    f"Unsupported NameConstant attribute: {node.value}."))
+            return 1 if node.value else 0
+        if isinstance(node, ast.List):
+            return [self.eval_attr(x) for x in node.elts]
+        if isinstance(node, (ast.Call, ast.Attribute, ast.UnaryOp)):
+            try:
+                return self.eval_constant_expr(node)
+            except NameError as e:
+                raise NameError(DebugInfo(node, self).msg(
+                    "Unable to evaluate a constant in node type %r "
+                    "due to %r." % (type(node), str(e))))
+        raise ValueError(DebugInfo(node).msg(
+            f"Unsupported attribute type '{type(node)!r}'."))
+
     def translate_attr(self, attr_name, expr):
         '''
         Translate an attribute-value specification of the form `attr_name=<expr>`
@@ -398,10 +430,12 @@ class Converter:
         raise TypeError("Unexpected type %r for node. "
                         "Unsupoorted version of python." % type(node))
 
-    # Expression-translation generates "IR statements/nodes" that compute the value of
-    # the expression into a target-variable, and returns the variable that is
-    # assigned this value.
     def translate_expr(self, node, target="tmp"):
+        """
+        Expression-translation generates "IR statements/nodes" that compute the value of
+        the expression into a target-variable, and returns the variable that is
+        assigned this value.
+        """
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
         elif isinstance(node, (ast.BinOp, ast.BoolOp, ast.BitAnd, ast.BitOr)):
@@ -412,6 +446,8 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
+        elif isinstance(node, ast_Subscript):
+            r = self.translate_subscript_expr(node)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
         else:
@@ -431,12 +467,217 @@ class Converter:
             return ConverterExpression(results, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
-    # Translation of an expression where "None" is permitted (eg., for an optional argument)
     def translate_opt_expr(self, node, target="tmp"):
-        # None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        """
+        Translation of an expression where "None" is permitted (eg., for an optional argument)
+        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
             return ConverterExpression(None, ConverterExpressionKind.ANY)
         return self.translate_expr(node, target)
+
+    def translate_subscript_expr(self, node):
+        """
+        List of supported syntaxes is below.
+        `A` is a tensor or an expression equivalent to a tensor.
+
+        ::
+
+            A[:, 1]
+            A[:2, 0]
+            A[:2, :1]
+            A[2:0:-1]
+            A[1:]
+            A[:2]
+            A[1:-1]
+            A[1:2]
+            A[-1]
+            A[0]
+            A[:0:-1]
+
+        *i* is a tensor holding one integer.
+
+        ::
+
+            A[i]
+            A[i+1:i+2]
+
+        Fully supported for python 3.9+.
+
+        ::
+
+            A[i:i+j, k]
+
+        Not supported:
+
+        ::
+
+            A[::-1]
+        """
+        var = self.translate_expr(node.value)
+        var_name = var.name
+
+        info = DebugInfo(node.slice if use_subscript else node, self)
+
+        def _get_arg(node_arg, axis, zero, one, default_value=None):
+            if node_arg is None:
+                if default_value is None:
+                    return '', None
+                # The default value for the extremities depends on the step.
+                # This one is usually positive unless it is a constant,
+                # otherwise it is unknown.
+                if default_value == 'begin':
+                    return zero.name, None
+                if default_value == 'begin_':
+                    fail(DebugInfo(node, self).msg(
+                        "`?::-1` cannot be expressed with ONNX, `?:0:-1` misses "
+                        "the first line, `:-1:-1` returns an empty tensor."))
+                if default_value == 'end':
+                    shape_name = self.generate_unique_name(var_name + "_shape")
+                    self.emit([shape_name], Op(self.default_opset, 'Shape'),
+                              [var_name], [])
+                    dim_name = self.generate_unique_name(shape_name + "_dim")
+                    self.emit([dim_name], Op(self.default_opset, 'Gather'),
+                              [shape_name, axis.name], [])
+                    return dim_name, None
+                raise RuntimeError(f"Unexpected default value {default_value!r}.")
+
+            name = self.translate_expr(node_arg).name
+            reshaped = self.generate_unique_name(name + "_reshaped")
+            self.emit([reshaped], Op(self.default_opset, 'Reshape'), [name, one.name], [])
+            if self.is_constant_expr(node_arg):
+                cst = self.eval_constant_expr(node_arg)
+            else:
+                cst = None
+            return reshaped, cst
+
+        def _get_slice_input(node_slice, axis, zero, one):
+            step_name, cst = _get_arg(node_slice.step, axis, zero, one)
+            if cst is not None and cst < 0:
+                # handling [::-1]
+                def_a, def_b = "end", "begin_"
+            else:
+                def_a, def_b = "begin", "end"
+            lower_name, _ = _get_arg(node_slice.lower, axis, zero, one, default_value=def_a)
+            upper_name, _ = _get_arg(node_slice.upper, axis, zero, one, default_value=def_b)
+            inputs = [var_name, lower_name, upper_name, axis.name]
+            if step_name != '':
+                inputs.append(step_name)
+            return inputs
+
+        if use_subscript:
+            node_slice = node.slice
+        else:
+            node_slice = getattr(node.slice, 'value', None)
+
+        if self.is_constant_expr(node_slice):
+            # A[i], i is an integer
+            index = self.eval_constant_expr(node_slice)
+            var_index = self.emit_const([index], 'subscript_index', info)
+            tmp = self.generate_unique_name(var_name + "_gather")
+            self.emit([tmp], Op(self.default_opset, 'Gather'),
+                      [var_name, var_index.name], [])
+            axis = self.emit_const([0], 'subscript_axis', info)
+            inputs = [tmp, axis.name]
+            return Op(self.default_opset, 'Squeeze'), inputs, []
+
+        if isinstance(node.slice, ast.Slice):
+            # A[a:b], a, b are expressions equivalent to integers
+            one = self.emit_const([1], 'one', info)
+            axis = self.emit_const([0], 'subscript_axis', info)
+            inputs = _get_slice_input(node.slice, axis, axis, one)
+            return Op(self.default_opset, 'Slice'), inputs, []
+
+        if (isinstance(node.slice, ast.Tuple) or
+                (not use_subscript and isinstance(node.slice, ast.ExtSlice))):
+            # A[a:b, c:d, e], a, b, c, d, e are expressions equivalent to integers
+            # tuple can be any length
+            if isinstance(node.slice, ast.Tuple):
+                elts = node.slice.elts
+            else:
+                elts = node.slice.dims
+            one = self.emit_const([1], 'one', info)
+            zero = None
+            starts = []
+            ends = []
+            axes = []
+            steps = []
+            squeezed_axes = []
+            for axis, elt in enumerate(elts):
+                if (self.is_constant_expr(elt) or
+                        (not use_subscript and isinstance(elt, ast.Index))):
+                    # if the tuple contains a constant, it is replaced
+                    # by a slice and processed like any other slice
+                    element = None
+                    if use_subscript:
+                        index = self.eval_constant_expr(elt)
+                    else:
+                        try:
+                            index = self.eval_constant_expr(elt.value)
+                        except NameError:
+                            element = elt
+                    if element is None:
+                        squeezed_axes.append(axis)
+                        kwargs = dict(lineno=getattr(elt, 'lineno', node.lineno),
+                                      col_offset=getattr(elt, 'col_offset', node.col_offset))
+                        element = ast.Slice(ast.Constant(index, **kwargs),
+                                            ast.Constant(index + 1, **kwargs),
+                                            ast.Constant(1, **kwargs))
+                else:
+                    element = elt
+
+                var_axis = self.emit_const([axis], f"ax{axis}", info)
+                if axis == 0:
+                    zero = var_axis
+
+                if isinstance(element, ast.Slice):
+                    # process slice index
+                    inputs = _get_slice_input(element, var_axis, zero, one)
+                    starts.append(inputs[1])
+                    ends.append(inputs[2])
+                    axes.append(var_axis.name)
+                    steps.append(inputs[4] if len(inputs) > 4 else one.name)
+                    continue
+
+                # not a constant, not a slice -> an expression
+                squeezed_axes.append(axis)
+                index = self.translate_expr(element).name
+                starts.append(index)
+                index_1 = self.generate_unique_name(var_name + "_end")
+                self.emit([index_1], Op(self.default_opset, 'Add'), [index, one], [])
+                ends.append(index_1)
+                axes.append(var_axis.name)
+                steps.append(one.name)
+
+            attr = self.ir_builder.attr("axis", 0)
+            start_name = self.generate_unique_name(var_name + "_start")
+            self.emit([start_name], Op(self.default_opset, 'Concat'), starts, [attr])
+
+            end_name = self.generate_unique_name(var_name + "_end")
+            self.emit([end_name], Op(self.default_opset, 'Concat'), ends, [attr])
+
+            axes_name = self.generate_unique_name(var_name + "_axis")
+            self.emit([axes_name], Op(self.default_opset, 'Concat'), axes, [attr])
+
+            steps_name = self.generate_unique_name(var_name + "_step")
+            self.emit([steps_name], Op(self.default_opset, 'Concat'), steps, [attr])
+            if len(squeezed_axes) > 0:
+                sliced_name = self.generate_unique_name(var_name + "sliced")
+                self.emit([sliced_name], Op(self.default_opset, 'Slice'),
+                          [var_name, start_name, end_name, axes_name, steps_name], [])
+                squeezed_axis = self.emit_const(squeezed_axes, f"squeezed_ax{axis}", info)
+                return (Op(self.default_opset, 'Squeeze'),
+                        [sliced_name, squeezed_axis], [])
+            return (Op(self.default_opset, 'Slice'),
+                    [var_name, start_name, end_name, axes_name, steps_name], [])
+
+        # A[i], i is an expression equivalent to an integer
+        var_index = self.translate_expr(node_slice)
+        tmp = self.generate_unique_name(var_name + "_gather")
+        self.emit([tmp], Op(self.default_opset, 'Gather'),
+                  [var_name, var_index.name], [])
+        axis = self.emit_const([0], 'subscript_axis', info)
+        return Op(self.default_opset, 'Squeeze'), [tmp, axis.name], []
 
     def translate_call_expr(self, node):
         '''
@@ -626,13 +867,17 @@ class Converter:
             targets = stmt.targets
         else:
             targets = [stmt.target]
-        assert len(targets) == 1, "Multi-assignment not supported."
+        if len(targets) != 1:
+            fail(DebugInfo(stmt, self).msg("Multi-assignment not supported."))
         lhs = targets[0]
         rhs = stmt.value
         if isinstance(rhs, ast.Tuple):
-            assert isinstance(lhs, ast.Tuple)
-            assert len(lhs.elts) == len(rhs.elts), \
-                "Expected same number of elements on lhs and rhs of assignments."
+            if not isinstance(lhs, ast.Tuple):
+                fail(DebugInfo(lhs, self).msg(
+                    f"Left term must be a tuple not {type(lhs)!r}."))
+            if len(lhs.elts) != len(rhs.elts):
+                fail(DebugInfo(stmt, self).msg(
+                    "Expected same number of elements on lhs and rhs of assignments."))
             for p, r in zip(lhs.elts, rhs.elts):
                 assign(p, r)
         else:
