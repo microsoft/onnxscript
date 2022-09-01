@@ -25,11 +25,11 @@ def value_to_type_proto(val):
     if isinstance(val, np.ndarray):
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
         shape = val.shape
-        return make_tensor_type_proto (elem_type, shape)
+        return make_tensor_type_proto(elem_type, shape)
     if isinstance(val, numbers.Number):
         nparray = np.array(val)
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
-        return make_tensor_type_proto (elem_type, [])
+        return make_tensor_type_proto(elem_type, [])
     if isinstance(val, list):
         if len(val) > 0:
             return make_sequence_type_proto(value_to_type_proto(val[0]))
@@ -48,9 +48,9 @@ def values_to_value_infos(names, values):
     Create a list of ValueInfoProto representing a list of names and a corresponding
     list of values, skipping any None values.
     '''
-    return [ onnx.helper.make_value_info(name, value_to_type_proto(val))
-        for (name, val) in zip(names, values)
-        if val is not None]
+    return [onnx.helper.make_value_info(name, value_to_type_proto(val))
+            for (name, val) in zip(names, values)
+            if val is not None]
 
 
 def make_model_from_function_proto(
