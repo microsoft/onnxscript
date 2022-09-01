@@ -11,7 +11,7 @@ from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 
-from .utils import convert_arrays_to_value_infos
+from .utils import values_to_value_infos
 from .irbuilder import select_ir_version
 
 
@@ -79,8 +79,7 @@ def call_ort(schema, *args, **kwargs):
         outputs = ["output" + str(i) for i in range(len(schema.outputs))]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
-    input_value_infos = convert_arrays_to_value_infos(
-        inputs, list(args), schema.inputs)
+    input_value_infos = values_to_value_infos(inputs, list(args))
     output_value_infos = [
         onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
 
