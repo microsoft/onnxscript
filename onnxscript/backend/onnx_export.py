@@ -137,7 +137,7 @@ def _translate_signature(inputs, outputs):
     """
     Produce the script-functions signature.
     """
-    def input_sig(inp : Union[ValueInfoProto, str]):
+    def input_sig(inp: Union[ValueInfoProto, str]):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
             return _rename_variable(inp.name) + ": " + _translate_type(inp.type)
@@ -188,11 +188,12 @@ def _python_make_node_name(domain, version, name, node=False):
         return "%s%d.%s" % (domain.replace(".", "_"), version, name)
     return name
 
+
 class Exporter:
     '''
     Class used for recursive traversal of Proto structures.
     '''
-    
+
     def __init__(self, use_operators=False) -> None:
         self.use_operators = use_operators
 
@@ -218,7 +219,6 @@ class Exporter:
         final = "\n".join(code)
         return final
 
-
     def _python_make_node_make_attribute_str(self, node):
         attributes = []
         for at in node.attribute:
@@ -236,13 +236,12 @@ class Exporter:
                     text = (
                         'make_tensor("value", %s, dims=%r, vals=%r)'
                         '' % (onnx_dtype, list(value.shape),
-                            value.ravel().tolist()))
+                              value.ravel().tolist()))
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
 
         return ", ".join("%s=%s" % (k, v) for k, v in attributes)
-
 
     def _python_make_node_if(self, node, opsets, indent=0):
         """
@@ -267,7 +266,6 @@ class Exporter:
             else_branch, opsets, indent=indent + 1,
             output_names=node.output))
         return "\n".join(code)
-
 
     def _python_make_node_loop(self, node, opsets, indent=0):
         """
@@ -294,16 +292,14 @@ class Exporter:
                 "Unable to export loop type %r into python because there is no "
                 "stop condition." % (node.op_type, ))
         rows.append(self._python_make_node_graph(body, opsets, indent=indent + 1,
-                                            output_names=node.output))
+                                                 output_names=node.output))
         return "\n".join(rows)
-
 
     def _python_make_node_scan(self, node, opsets, indent=0):
         """
         Translates a node Scan into python.
         """
         raise NotImplementedError()
-
 
     def _python_make_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):
@@ -321,13 +317,13 @@ class Exporter:
             raise RuntimeError(
                 "Unable to export node type %r into python." % (node.op_type, ))
         if any(map(lambda att: hasattr(att, 'g') and att.g and att.g.ByteSize() > 0,
-                node.attribute)):
+                   node.attribute)):
             raise RuntimeError(
                 "Unable to export node type %r into python." % node.op_type)
         ops = {'Add': '+', 'Sub': '-', 'Mul': '*', 'MatMul': '@',
-            'Div': '/', 'Pow': '**',
-            'And': '&', 'Or': '|', 'Greater': '>', 'Equal': '==',
-            'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<='}
+               'Div': '/', 'Pow': '**',
+               'And': '&', 'Or': '|', 'Greater': '>', 'Equal': '==',
+               'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<='}
         sindent = "    " * indent
         if self.use_operators and node.op_type in ops:
             return "%s%s = %s" % (
