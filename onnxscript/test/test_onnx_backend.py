@@ -256,10 +256,10 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one_case(self):
         self.common_test_enumerate_onnx_tests_run(
-            lambda name: "test_layer_normalization_3d_axis2_epsilon_expanded" in name,
+            lambda name: "test_mod" in name,
             verbose=4 if __name__ == "__main__" else 0)
 
 
 if __name__ == "__main__":
-    # TestOnnxBackEnd().test_enumerate_onnx_tests_run_one_case()
+    TestOnnxBackEnd().test_enumerate_onnx_tests_run_one_case()
     unittest.main(verbosity=2)

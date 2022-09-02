@@ -711,6 +711,15 @@ class Converter:
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
+
+        attr = []
+        if isinstance(node.op, ast.Mod) and self.is_constant_expr(node.right):
+            # specific case X % f where f is a float.
+            # attribute fmod=1 is added in that case.
+            cst = self.eval_constant_expr(node.right)
+            if isinstance(cst, float):
+                attr = [self.ir_builder.attr("fmod", 1)]
+
         opname = primop_map[op]
         if hasattr(node, 'left'):
             # operation
@@ -721,7 +730,7 @@ class Converter:
             left = self.translate_expr(node.values[0])
             right = self.translate_expr(node.values[1])
         left, right = self._cast_like_binary_expression(left, right)
-        return Op(self.default_opset, opname), [left, right], []
+        return Op(self.default_opset, opname), [left, right], attr
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
@@ -774,7 +783,8 @@ class Converter:
             val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
             if isinstance(val, values.Opset):
                 return val
-            fail(DebugInfo(node).msg(f"'{node.id}' is not an instance of type Opset."))
+            fail(DebugInfo(node).msg(
+                f"'{node.id}' is not an instance of type Opset but {type(node)}."))
         elif isinstance(node, ast.Attribute):
             fail(DebugInfo(node, self).msg("Nested module unimplemented."))  # TODO
         else:
@@ -782,7 +792,7 @@ class Converter:
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
-        if isinstance(node, ast.Attribute):
+        if isinstance(node, ast.Attribute) and getattr(node, 'attr', None) != '_libcall':
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
             opname = node.attr
@@ -790,8 +800,12 @@ class Converter:
                 return Op(module, node.attr)
             warn(f"'{opname}' is not a known op in '{str(module)}'")
             return Op(module, node.attr)
-        if isinstance(node, ast.Name):
-            function_name = node.id
+        if isinstance(node, ast.Name) or (
+                isinstance(node, ast.Attribute) and getattr(node, 'attr', None) == '_libcall'):
+            if isinstance(node, ast.Name):
+                function_name = node.id
+            else:
+                function_name = node.value.id
             found = self.lookup(function_name, DebugInfo(node, self), raise_exception=False)
             if isinstance(found, OnnxFunction):
                 self.current_fn.append_function(found)
@@ -800,8 +814,9 @@ class Converter:
                 return found
             if not found:
                 if function_name not in self.default_opset:
-                    warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
-                return Op(self.default_opset, node.id)
+                    warn(f"Unknown function name {function_name!r}. "
+                         f"The ONNX graph may not work.")
+                return Op(self.default_opset, function_name)
         fail(DebugInfo(node, self).msg("Invalid callee"))
 
     def translate_stmt(self, node, index_of_stmt=None):

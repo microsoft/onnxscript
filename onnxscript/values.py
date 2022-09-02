@@ -8,7 +8,9 @@ import pprint
 import typing
 from typing import Any, List
 from enum import IntFlag
+import numpy as np
 import onnx
+from .eager_array import EagerArray
 
 
 class DebugInfo:
@@ -162,7 +164,76 @@ class OnnxFunction(Op):
         return self.opname
 
     def __call__(self, *args, **kwargs):
-        return self.function(*args, **kwargs)
+        if len(args) == 0:
+            # Operator Constant, it is usually called within a function.
+            return self._libcall(**kwargs)
+        if isinstance(args[0], EagerArray):
+            return self._libcall(*args, **kwargs)
+        return self._usercall(*args, **kwargs)
+
+    def _usercall(self, *args, **kwargs):
+        "Eager mode"
+        new_args = []
+        for i, a in enumerate(args):
+            if isinstance(a, np.ndarray):
+                new_args.append(EagerArray(a))
+            elif isinstance(a, bool):
+                new_args.append(EagerArray(np.array(a)))
+            else:
+                raise TypeError(
+                    f"Unexpected input type {type(a)} for an input {i}.")
+        res = self.function(*new_args, **kwargs)
+        if isinstance(res, np.ndarray):
+            return res
+        if isinstance(res, EagerArray):
+            return res.value
+        if isinstance(res, (list, tuple)):
+            unwrapped = []
+            for i, r in enumerate(res):
+                if isinstance(r, EagerArray):
+                    unwrapped.append(r.value)
+                else:
+                    raise TypeError(
+                        f"Unexpected output type {type(r)} for an output {i} "
+                        f"in function {self.function!r}.")
+            if isinstance(res, tuple):
+                return tuple(unwrapped)
+            return unwrapped
+        raise TypeError(
+            f"Unexpected output type {type(res)} in function {self.function!r}.")
+
+    def _libcall(self, *args, **kwargs):
+        """
+        This method must be called when a function decoracted with `script`
+        calls another one decorated with `script`.
+        """
+        new_args = []
+        for i, a in enumerate(args):
+            if isinstance(a, EagerArray):
+                new_args.append(a)
+            elif isinstance(a, bool):
+                # TODO: default values for function parameters
+                # are not properly handled yet. This section
+                # should disappear.
+                new_args.append(EagerArray(np.array(a)))
+            else:
+                raise TypeError(
+                    f"Unexpected input type {type(a)} for an input {i}.")
+        res = self.function(*new_args, **kwargs)
+        if isinstance(res, EagerArray):
+            return res
+        if isinstance(res, tuple):
+            unwrapped = []
+            for i, r in enumerate(res):
+                if isinstance(r, EagerArray):
+                    unwrapped.append(r)
+                else:
+                    raise TypeError(
+                        f"Unexpected output type {type(r)} for an output {i} "
+                        f"in function {self.function!r}.")
+            return tuple(unwrapped)
+        raise TypeError(
+            f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def to_function_proto(self, domain=None):
         "Converts the function into :class:`onnx.FunctionProto`."

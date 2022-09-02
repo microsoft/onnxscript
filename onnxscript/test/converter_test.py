@@ -97,6 +97,28 @@ class TestConverter(unittest.TestCase):
                 fcts[f.name] = model
         return fcts
 
+    def test_eager_op(self):
+        from onnxscript.test.models import eager_op
+        test_functions = self.validate_save(eager_op, check_ort=True)
+
+        x = np.array([0, 5, -2], dtype=np.float32)
+
+        onx = test_functions['eager_op']
+        self.assertIn('name: "fmod"', str(onx))
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        y = sess.run(None, {'X': x})[0]
+        self.assertEqual(y.tolist(), [0.0, 0.5, -0.5])
+        # numpy fmod and operator % disagree on this example
+        res = eager_op.eager_op(x)
+        self.assertEqual(res.tolist(), [0.0, 0.5, -0.5])
+
+        onx = test_functions['eager_abs']
+        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        y = sess.run(None, {'X': x})[0]
+        self.assertEqual(y.tolist(), [1, 6, 3])
+        res = eager_op.eager_abs(x)
+        self.assertEqual(res.tolist(), [1, 6, 3])
+
     def test_error_undefined(self):
         with self.assertRaises(ValueError) as e:
             @script()
@@ -307,7 +329,6 @@ class TestConverter(unittest.TestCase):
             with self.subTest(fct=name):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
-
         onx = test_functions['loop_range_cond_only']
         sess = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
@@ -451,5 +472,5 @@ class TestConverter(unittest.TestCase):
 if __name__ == '__main__':
     # import logging
     # logging.basicConfig(level=logging.DEBUG)
-    TestConverter().test_getitem()
+    # TestConverter().test_getitem()
     unittest.main(verbosity=2)

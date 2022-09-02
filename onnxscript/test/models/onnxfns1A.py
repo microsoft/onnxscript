@@ -29,6 +29,11 @@ def Elu(X, alpha: float = 1.0):
 
 
 @script()
+def Elu05(X):
+    return op.Where(X < 0.0, 0.5 * (op.Exp(X) - 1.0), X)
+
+
+@script()
 def ThresholdedRelu(X, alpha: float = 1.0):
     zero = op.CastLike(0, X)
     return op.Where(X > alpha, X, zero)
