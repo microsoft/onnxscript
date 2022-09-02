@@ -23,6 +23,9 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_elu(self):
         self.run_onnx_test(onnxfns1A.Elu)
 
+    def test_onnxfns_elu05(self):
+        self.run_onnx_test(onnxfns1A.Elu05)
+
     @unittest.skipIf(not hasattr(onnx.FunctionProto, 'attribute_proto'),
                      reason="current onnx does not support default values")
     def test_onnxfns_thresholded_relu(self):

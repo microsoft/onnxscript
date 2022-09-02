@@ -17,7 +17,7 @@ import onnx.backend.test.case.node as node_test
 from onnx.onnx_cpp2py_export.checker import ValidationError
 from onnxscript import utils
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidArgument
+from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidArgument, InvalidGraph
 from onnxscript.main import OnnxFunction
 
 
@@ -159,7 +159,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         try:
             sess = InferenceSession(
                 model.SerializeToString(), providers=['CPUExecutionProvider'])
-        except (Fail, InvalidArgument) as e:
+        except (Fail, InvalidArgument, InvalidGraph) as e:
             raise AssertionError(
                 "Unable to load model\n%s" % str(model)) from e
         # input['input_2'] = None

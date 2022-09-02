@@ -296,11 +296,11 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     positive_axis = op.Where(axis < zero, axis + last_dim, axis)
 
     if positive_axis == last_dim:
-        final = dft_last_axis(x, fft_length, onesided, inverse, normalize)
+        final = dft_last_axis(x, fft_length, onesided, inverse, normalize)  # call dft_last_axis._libcall in eager mode
     else:
-        xt = switch_axes(x, positive_axis, last_dim)
-        fft = dft_last_axis(xt, fft_length, onesided, inverse, normalize)
-        final = switch_axes(fft, positive_axis, last_dim)
+        xt = switch_axes(x, positive_axis, last_dim)  # call switch_axes._libcall in eager mode
+        fft = dft_last_axis(xt, fft_length, onesided, inverse, normalize)  # call dft_last_axis._libcall in eager mode
+        final = switch_axes(fft, positive_axis, last_dim)  # call switch_axes._libcall in eager mode
     return final
 
 
@@ -312,6 +312,7 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
+    # return dft_inv._libcall(x, fft_length, axis, onesided, inverse, inverse)
     return dft_inv(x, fft_length, axis, onesided, inverse, inverse)
 
 
@@ -335,7 +336,7 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     # building frames
     seq = op.SequenceEmpty(dtype=TensorProto.FLOAT)
     nf = op.Squeeze(n_frames, zero)
-    for fs in range(nf):
+    for fs in range(int(nf)):
         fs64 = op.Cast(fs, to=7)
         begin = op.Mul(fs64, hop_length)
         end = op.Add(begin, window_size)
@@ -368,7 +369,7 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     weights = op.Reshape(window, window_shape)
     weighted_new_x = op.Mul(new_x, weights)
 
-    result = dft(weighted_new_x, fft_length, last_axis, onesided, False)
+    result = dft._libcall(weighted_new_x, fft_length, last_axis, onesided, False)
 
     # final transpose -3, -2
     two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
@@ -376,7 +377,7 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     dim = op.Shape(op.Shape(result))
     ax1 = op.Sub(dim, three)
     ax2 = op.Sub(dim, two)
-    return switch_axes(result, ax1, ax2)
+    return switch_axes._libcall(result, ax1, ax2)
 
 
 @script()
@@ -401,14 +402,14 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
     seqi = op.SequenceEmpty()
     seqc = op.SequenceEmpty()
     nf = op.Squeeze(n_frames, zero)
-    for fs in range(nf):
+    for fs in range(int(nf)):
         fs64 = op.Cast(fs, to=7)
-        begin = fs64
+        begin = op.Unsqueeze(fs64, zero)
         end = op.Add(fs64, one)
         frame_x = op.Squeeze(op.Slice(x, begin, end, axisf), axisf)
 
         # ifft
-        ift = dft(frame_x, fft_length, mone, onesided, True)
+        ift = dft._libcall(frame_x, fft_length, mone, onesided, True)
         n_dims = op.Shape(op.Shape(ift))
 
         # real part
