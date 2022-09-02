@@ -8,8 +8,8 @@ import numpy as np
 from typing import Any, Sequence
 import onnx
 from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
+from onnx.helper import make_tensor_type_proto, make_sequence_type_proto
 from .eager_array import EagerArray
-
 
 # print utility unavailable in ONNX 1.12 or earlier:
 try:
@@ -19,65 +19,39 @@ except ImportError:
         return "<print utility unavailable>"
 
 
-def map_pytype_to_schema_allowed_dtype(onnx_schema_types, dtype):
-    # ONNX TensorProto data type is a supper set of python dtype.
-    # When a dtype is not allowed by ONNX schema, we need to find a closest
-    # dtype allowed by the schema.
-    if dtype == 'int32':
-        if 'tensor(int32)' not in onnx_schema_types and\
-                'tensor(int64)' in onnx_schema_types:
-            return np.dtype('int64')
-    return dtype
-
-
-def convert_arrays_to_value_infos(names, arr_list, op_schema_formal_parameter=None):
-    if op_schema_formal_parameter is None:
-        op_schema_formal_parameter = []
-
-    value_infos = []
-    for i, (name, arr) in enumerate(zip(names, arr_list)):
-        elem_type: TensorProto.DataType
-        shape: tuple
-
-        if isinstance(arr, list):
-            # sequence, assuming it is a float sequence
-            # list should be replace by another container retaining the type information
-            nparray = np.asarray(
-                arr)
-            if len(arr) == 0:
-                nparray = nparray.astype(
-                    np.float32)
-            if op_schema_formal_parameter and len(op_schema_formal_parameter) > i:
-                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[
-                    map_pytype_to_schema_allowed_dtype(
-                        op_schema_formal_parameter[i].types, nparray.dtype)]
-            else:
-                elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
-            info = onnx.helper.make_tensor_sequence_value_info(
-                name=name, elem_type=elem_type, shape=None)
-            value_infos.append(
-                info)
-            continue
-
-        if isinstance(arr, (np.ndarray, EagerArray)):
-            elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[arr.dtype]
-            shape = arr.shape
-        elif isinstance(arr, numbers.Number):
-            nparray = np.array(arr)
-            elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
-            shape = nparray.shape
-        elif arr is None:
-            continue
+def value_to_type_proto(val):
+    '''
+    Return the ONNX type of a python-value.
+    '''
+    if isinstance(val, (np.ndarray, EagerArray)):
+        elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
+        shape = val.shape
+        return make_tensor_type_proto(elem_type, shape)
+    if isinstance(val, numbers.Number):
+        nparray = np.array(val)
+        elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
+        return make_tensor_type_proto(elem_type, [])
+    if isinstance(val, list):
+        if len(val) > 0:
+            return make_sequence_type_proto(value_to_type_proto(val[0]))
         else:
-            raise ValueError(
-                f"Cannot convert a {type(arr)} to value_info")
+            # Edge-case. Cannot determine a suitable ONNX type for an empty list.
+            # Should be using a typed-value instead.
+            # Treated as a sequence of tensors of float-type.
+            return make_sequence_type_proto(make_tensor_type_proto(TensorProto.FLOAT, None))
+    else:
+        raise ValueError(
+            f"Cannot convert a {type(val)} to TypeProto")
 
-        value_info = onnx.helper.make_tensor_value_info(
-            name=name,
-            elem_type=elem_type,
-            shape=shape)
-        value_infos.append(value_info)
-    return value_infos
+
+def values_to_value_infos(names, values):
+    '''
+    Create a list of ValueInfoProto representing a list of names and a corresponding
+    list of values, skipping any None values.
+    '''
+    return [onnx.helper.make_value_info(name, value_to_type_proto(val))
+            for (name, val) in zip(names, values)
+            if val is not None]
 
 
 def make_model_from_function_proto(
