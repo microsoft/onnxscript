@@ -299,7 +299,6 @@ class OrtFunction:
 
         return self._create_end(key, dtypes, shapes, X, Z, nodes, call_ort_function=call_ort)
 
-
 class EagerArray:
     """
     Wraps arrays to intercept calls to operators and use onnxruntime
@@ -312,6 +311,8 @@ class EagerArray:
         if not isinstance(tensor, np.ndarray):
             raise TypeError(f"Unexpected type {type(tensor)}. It must be a numpy array.")
         self._tensor = tensor
+        from onnxscript.onnx_opset import opset14
+        self._opset = opset14
 
     @property
     def value(self):
@@ -356,62 +357,62 @@ class EagerArray:
             v = np.array(v)
         return EagerArray(v)
 
-    def __getitem__(self, index):
-        return self._ort_op(index, '__getitem__')
+    # def __getitem__(self, index):
+    #     return self._opset(index, '__getitem__')
 
-    def __neg__(self):
-        return self._ort_op(None, '__neg__')
+    def __neg__(a):
+        return a._opset.Neg(a)
 
     def __add__(a, b):
-        return a._ort_op(b, '__add__')
+        return a._opset.Add(a, b)
 
     def __radd__(a, b):
-        return a._ort_op(b, '__add__')
+        return a._opset.Add(b, a)
 
     def __and__(a, b):
-        return a._ort_op(b, '__and__')
+        return a._opset.And(a, b)
 
     def __rand__(a, b):
-        return a._ort_op(b, '__and__')
+        return a._opset.And(b, a)
 
     def __mod__(a, b):
-        return a._ort_op(b, '__mod__')
+        return a._opset.Mod(a, b)
 
     def __mul__(a, b):
-        return a._ort_op(b, '__mul__')
+        return a._opset.Mul(a, b)
 
     def __rmul__(a, b):
-        return a._ort_op(b, '__mul__')
+        return a._opset.Mul(b, a)
 
     def __matmul__(a, b):
-        return a._ort_op(b, '__matmul__')
+        return a._opset.MatMul(a, b)
 
     def __or__(a, b):
-        return a._ort_op(b, '__or__')
+        return a._opset.Or(a, b)
 
     def __pow__(a, b):
-        return a._ort_op(b, '__pow__', check=False)
+        return a._opset.Pow(a, b)
 
     def __sub__(a, b):
-        return a._ort_op(b, '__sub__')
+        return a._opset.Sub(a, b)
 
     def __truediv__(a, b):
-        return a._ort_op(b, '__truediv__')
+        return a._opset.Div(a, b)
 
     def __lt__(a, b):
-        return a._ort_op(b, '__lt__')
+        return a._opset.Less(a, b)
 
     def __le__(a, b):
-        return a._ort_op(b, '__le__')
+        return a._opset.LessOrEqual(a, b)
 
     def __eq__(a, b):
-        return a._ort_op(b, '__eq__')
+        return a._opset.Equal(a, b)
 
-    def __ne__(a, b):
-        return a._ort_op(b, '__ne__')
+    # def __ne__(a, b):
+    #     return a._opset(b, '__ne__')
 
     def __ge__(a, b):
-        return a._ort_op(b, '__ge__')
+        return a._opset.GreaterOrEqual(a, b)
 
     def __gt__(a, b):
-        return a._ort_op(b, '__gt__')
+        return a._opset.Greater(a, b)
