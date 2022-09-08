@@ -26,5 +26,5 @@ def loop_range_cond_only(A: FLOAT["N"]) -> FLOAT["N"]:
     cond = op.Constant(value=make_tensor('true', TensorProto.BOOL, [1], [1]))
     while cond:
         T = T + A
-        cond = op.ReduceSum(T) > -10.0
+        cond = op.ReduceSum(T) > -10
     return T

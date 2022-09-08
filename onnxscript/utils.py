@@ -39,9 +39,13 @@ def value_to_type_proto(val):
             # Should be using a typed-value instead.
             # Treated as a sequence of tensors of float-type.
             return make_sequence_type_proto(make_tensor_type_proto(TensorProto.FLOAT, None))
+    if isinstance(val, numbers.Number):
+        nparray = np.array(val)
+        elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
+        return make_tensor_type_proto(elem_type, [])
     else:
         raise ValueError(
-            f"Cannot convert a {type(val)} to TypeProto")
+            f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
 
 def values_to_value_infos(names, values):
