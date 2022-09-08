@@ -27,10 +27,10 @@ def value_to_type_proto(val):
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
         shape = val.shape
         return make_tensor_type_proto(elem_type, shape)
-    if isinstance(val, numbers.Number):
-        nparray = np.array(val)
-        elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
-        return make_tensor_type_proto(elem_type, [])
+    if isinstance(val, int):
+        return make_tensor_type_proto(TensorProto.INT32, [])
+    if isinstance(val, (float, np.float32)):
+        return make_tensor_type_proto(TensorProto.FLOAT, [])
     if isinstance(val, list):
         if len(val) > 0:
             return make_sequence_type_proto(value_to_type_proto(val[0]))

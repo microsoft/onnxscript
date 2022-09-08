@@ -135,7 +135,52 @@ class Op:
     def has_schema(self):
         return (self.opschema is not None)
 
+    def cast_inputs(self, *args):
+        '''
+        Validates types of actual-arguments against schema specification.
+        Supports a limited form of casting in case of mismatches as convenience.
+        The supported cases must be in sync with the converter supports to ensure
+        eager-mode semantics is same as onnx-conversion semantics.
+        '''
+        if self.opschema is not None:
+            expected_inputs = self.opschema.inputs
+            type_bindings = {}
+            for i, x in enumerate(args):
+                if i >= len(expected_inputs): break
+                expected = expected_inputs[i]
+                typevar = expected.typeStr
+                # Hack to differentiate type-variables from type-constants
+                if '(' in typevar:
+                    # typevar is a constant, like "tensor(float)"
+                    pass
+                else:
+                    # typevar is an identifier, like "T"
+                    if isinstance(x, EagerArray):
+                        type_bindings[typevar] = x.dtype
+            newargs=[]
+            for i, x in enumerate(args):
+                cast_x = x
+                if i < len(expected_inputs):
+                    expected = expected_inputs[i]
+                    typevar = expected.typeStr
+                    # Hack to differentiate type-variables from type-constants
+                    if '(' in typevar:
+                        # typevar is a constant, like "tensor(float)"
+                        pass
+                    else:
+                        # typevar is an identifier, like "T"
+                        if isinstance(x, (int,float)):
+                            if typevar in type_bindings:
+                                cast_x = EagerArray(np.array(x, dtype=type_bindings[typevar]))   
+                newargs.append(cast_x)
+            return tuple(newargs)                  
+        else:
+            # Either an error or a custom op.
+            # No checks/casts in this case.
+            return args
+
     def __call__(self, *args, **kwargs):
+        args = self.cast_inputs(*args)
         return self.evaluator(self.opschema, *args, **kwargs)
 
 

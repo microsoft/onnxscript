@@ -105,7 +105,7 @@ def getitem_i(A: FLOAT[...]) -> FLOAT[...]:
 
 @script()
 def getitem_i_expr(A: FLOAT[...]) -> FLOAT[...]:
-    r = (A + 1)[0]
+    r = (A + 1.0)[0]
     return r
 
 

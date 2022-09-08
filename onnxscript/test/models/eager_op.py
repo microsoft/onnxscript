@@ -18,4 +18,4 @@ def eager_op(X: FLOAT[...]) -> FLOAT[...]:
 
 @script()
 def eager_abs(X: FLOAT[...]) -> FLOAT[...]:
-    return op.Abs(X) + 1
+    return op.Abs(X) + 1.0

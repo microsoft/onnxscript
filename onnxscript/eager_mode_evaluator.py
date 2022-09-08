@@ -10,7 +10,7 @@ import onnx
 from onnx import numpy_helper, AttributeProto, TypeProto
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
-from .utils import values_to_value_infos
+from .utils import values_to_value_infos, proto2text
 from .irbuilder import select_ir_version
 from .eager_array import EagerArray
 
@@ -112,7 +112,7 @@ def call_ort(schema, *args, **kwargs):
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             "Unable to create onnxruntime InferenceSession with onnx "
-            "model\n%s" % str(model)) from e
+            "model\n%s" % proto2text(model)) from e
 
     session_run_input = {}
     tensor_class = None
@@ -124,8 +124,10 @@ def call_ort(schema, *args, **kwargs):
             tensor_class = EagerArray
         elif isinstance(arg, list):
             session_run_input[name] = arg
-        elif isinstance(arg, (int, float)):
-            session_run_input[name] = np.array(arg)
+        elif isinstance(arg, int):
+            session_run_input[name] = np.array(arg, dtype=np.int32)
+        elif isinstance(arg, float):
+            session_run_input[name] = np.array(arg, dtype=np.float32)
         else:
             raise TypeError(
                 f"Unable to call onnxruntime with type {type(arg)} for input {name!r}).")
