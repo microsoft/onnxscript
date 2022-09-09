@@ -179,8 +179,14 @@ class Op:
             for x, typevar in args_typevars:
                 cast_x = x
                 if isinstance(x, (int, float)):
+                    # Scalar values are promoted to tensors of a type chosen as below:
                     if typevar in type_bindings:
-                        cast_x = EagerArray(np.array(x, dtype=type_bindings[typevar]))
+                        dtype = type_bindings[typevar]
+                    elif isinstance(x, int):
+                        dtype = np.int32
+                    elif isinstance(x, float):
+                        dtype = np.float32
+                    cast_x = EagerArray(np.array(x, dtype=dtype))
                 newargs.append(cast_x)
             return tuple(newargs)
         else:
