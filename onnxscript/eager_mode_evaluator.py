@@ -4,10 +4,9 @@
 # --------------------------------------------------------------------------
 
 import pprint
-import numbers
 import numpy as np
 import onnx
-from onnx import numpy_helper, AttributeProto, TypeProto
+from onnx import TypeProto
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from .utils import values_to_value_infos, proto2text
@@ -17,29 +16,6 @@ from .eager_array import EagerArray
 
 class EagerModeError(RuntimeError):
     pass
-
-
-def convert_to_tensor(v, k):
-    if isinstance(v, np.ndarray):
-        return numpy_helper.from_array(v)
-    if isinstance(v, list):
-        return numpy_helper.from_array(np.array(v))
-    if isinstance(v, numbers.Number):
-        return numpy_helper.from_array(np.array([v]))
-    if isinstance(v, onnx.TensorProto):
-        return v
-    raise ValueError(f"Attribute {k!r} must be convertable to TensorProto, got {type(v)}.")
-
-
-def convert_attributes_to_tensors_with_schema(attribute_dict, schema_attribute_dict):
-    # Constant and ConstantLike are the 2 ops in onnx
-    # that take a tensor as attribute value.
-    # onnx-script tends to use a literal number for attribute.
-    # This methods is to make this scenario work.
-    for k, v in attribute_dict.items():
-        attribute_type = schema_attribute_dict[k].type
-        if attribute_type == AttributeProto.TENSOR:
-            attribute_dict[k] = convert_to_tensor(v, k)
 
 
 def _rename_io(prefix, i, arg):
@@ -88,8 +64,6 @@ def call_ort(schema, *args, **kwargs):
             raise TypeError(f"Unexpected type {type(arg)} for input {i} "
                             f"and operator {schema.name!r}.")
         inputs.append(_rename_io("input", i, arg))
-
-    convert_attributes_to_tensors_with_schema(kwargs, schema.attributes)
 
     # The number of outputs may be different based on the inputs.
     # The schema alone cannot be used in all cases (see BachNormalization).

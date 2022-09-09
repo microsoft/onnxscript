@@ -88,7 +88,8 @@ class EagerArray:
         return result
 
     def __mod__(a, b):
-        if a.onnx_dtype in {TensorProto.FLOAT, TensorProto.DOUBLE, TensorProto.FLOAT16, TensorProto.BFLOAT16}:
+        if a.onnx_dtype in {TensorProto.FLOAT, TensorProto.DOUBLE,
+                            TensorProto.FLOAT16, TensorProto.BFLOAT16}:
             return a._opset.Mod(a, b, fmod=1)
         else:
             return a._opset.Mod(a, b)
