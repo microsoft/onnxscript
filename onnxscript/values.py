@@ -170,7 +170,7 @@ class Op:
                         f"Number of actual parameters {len(args)} "
                         f"exceeds number of formal parameters {len(expected_inputs)}.")
                 typevar = expected.typeStr
-                if not '(' in typevar:
+                if '(' not in typevar:
                     # typevar is an identifier, like "T"
                     if isinstance(x, EagerArray):
                         type_bindings[typevar] = x.dtype
