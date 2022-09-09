@@ -175,14 +175,14 @@ class Op:
                     if isinstance(x, EagerArray):
                         type_bindings[typevar] = x.dtype
                 args_typevars.append((x, typevar))
-            newargs=[]
+            newargs = []
             for x, typevar in args_typevars:
                 cast_x = x
-                if isinstance(x, (int,float)):
+                if isinstance(x, (int, float)):
                     if typevar in type_bindings:
-                        cast_x = EagerArray(np.array(x, dtype=type_bindings[typevar]))   
+                        cast_x = EagerArray(np.array(x, dtype=type_bindings[typevar]))
                 newargs.append(cast_x)
-            return tuple(newargs)                  
+            return tuple(newargs)
         else:
             # Either an error or a custom op.
             # No checks/casts in this case.
