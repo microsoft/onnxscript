@@ -82,7 +82,7 @@ def ort_to_os_value(v):
     elif isinstance(v, list):
         return v
     elif v is None:
-        raise TypeError(f"Dynamic optional values not yet supported.")
+        raise TypeError("Dynamic optional values not yet supported.")
     else:
         raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
