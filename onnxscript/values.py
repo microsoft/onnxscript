@@ -10,6 +10,7 @@ from typing import Any, List
 from enum import IntFlag
 import numpy as np
 import onnx
+from onnx.defs import OpSchema
 from .eager_array import EagerArray
 
 
@@ -137,41 +138,49 @@ class Op:
 
     def cast_inputs(self, *args):
         '''
-        Validates types of actual-arguments against schema specification.
-        Supports a limited form of casting in case of mismatches as convenience.
-        The supported cases must be in sync with the converter supports to ensure
-        eager-mode semantics is same as onnx-conversion semantics.
+        Uses schema specification to support a limited form of casting.
+        * Scalars are promoted to tensors.
+        * Further. they are cast to the required type when used in ops with other
+        tensor inputs that are required to be of same type.
+        Thus, in "A+1" or "Add(A, 1)", the value 1 will be converted to the same
+        type as A.
+
+        The supported cases must be in sync with the cases supported by the converter
+        to ensure that the eager-mode semantics is same as onnx-conversion semantics.
         '''
         if self.opschema is not None:
             expected_inputs = self.opschema.inputs
+            # We make two passes. In the first pass, we identify known type-bindings for
+            # type-variables: eg., {'T1' : np.float32, 'T2' : np.int32}.
+            # In the second pass, we use these bindings to cast scalar-values to
+            # tensors of appropriate types. The two passes are needed to handle cases
+            # like "Add(1, X)" where 1 must be cast to the same type as X.
             type_bindings = {}
+            args_typevars = []
             for i, x in enumerate(args):
-                if i >= len(expected_inputs): break
-                expected = expected_inputs[i]
-                typevar = expected.typeStr
-                # Hack to differentiate type-variables from type-constants
-                if '(' in typevar:
-                    # typevar is a constant, like "tensor(float)"
-                    pass
+                if i < len(expected_inputs):
+                    expected = expected_inputs[i]
+                elif expected_inputs[-1].option == OpSchema.FormalParameterOption.Variadic:
+                    expected = expected_inputs[-1]
+                    if not expected.isHomogeneous:
+                        args_typevars.append((x, None))
+                        continue
                 else:
+                    raise ValueError(
+                        f"Number of actual parameters {len(args)} "
+                        f"exceeds number of formal parameters {len(expected_inputs)}.")
+                typevar = expected.typeStr
+                if not '(' in typevar:
                     # typevar is an identifier, like "T"
                     if isinstance(x, EagerArray):
                         type_bindings[typevar] = x.dtype
+                args_typevars.append((x, typevar))
             newargs=[]
-            for i, x in enumerate(args):
+            for x, typevar in args_typevars:
                 cast_x = x
-                if i < len(expected_inputs):
-                    expected = expected_inputs[i]
-                    typevar = expected.typeStr
-                    # Hack to differentiate type-variables from type-constants
-                    if '(' in typevar:
-                        # typevar is a constant, like "tensor(float)"
-                        pass
-                    else:
-                        # typevar is an identifier, like "T"
-                        if isinstance(x, (int,float)):
-                            if typevar in type_bindings:
-                                cast_x = EagerArray(np.array(x, dtype=type_bindings[typevar]))   
+                if isinstance(x, (int,float)):
+                    if typevar in type_bindings:
+                        cast_x = EagerArray(np.array(x, dtype=type_bindings[typevar]))   
                 newargs.append(cast_x)
             return tuple(newargs)                  
         else:
