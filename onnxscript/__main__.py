@@ -4,13 +4,13 @@
 # --------------------------------------------------------------------------
 
 import os
-import sys
 from typing import Optional
 import onnx
 import onnx.helper as helper
 import click
 from onnxscript.converter import Converter
 from onnxscript.backend.onnx_export import export2python
+
 
 @click.group()
 def cli():
@@ -75,7 +75,7 @@ def to_text(input_py_file: str):
               help="Translate input to a single ModelProto ('model'), "
                    "into a LibProto ('lib'), "
                    "or into text 'text').")
-@click.option('name', '--name', envvar='PATHS', multiple=True, type=click.Path(), 
+@click.option('name', '--name', envvar='PATHS', multiple=True, type=click.Path(),
               help="File or files to convert.")
 def translate(fmt="text", name=None):
     """Translate a file or many files into a ModelProto, a LibProto or text."""
@@ -88,7 +88,7 @@ def translate(fmt="text", name=None):
 
 
 @cli.command()
-@click.option('name', '--name', envvar='PATHS', multiple=False, type=click.Path(), 
+@click.option('name', '--name', envvar='PATHS', multiple=False, type=click.Path(),
               help="filename to convert")
 @click.option("--op", is_flag=True, default=False,
               help="converts a numerical operator into op.Add (False) or keep it (True)")
