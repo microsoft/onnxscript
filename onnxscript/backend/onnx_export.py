@@ -205,7 +205,8 @@ class Exporter:
         sindent = '    ' * indent
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
-                node = make_node('Constant', [], [self._rename_variable(init.name)], value=init)
+                node = make_node('Constant', [], [self._rename_variable(init.name)],
+                                 value=init)
                 code.append(self._python_make_node(node, opsets, indent=indent))
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
             raise NotImplementedError(
@@ -215,7 +216,8 @@ class Exporter:
         if output_names is not None:
             for fr, to in zip(graph.output, output_names):
                 code.append(
-                    "%s%s = %s" % (sindent, self._rename_variable(to), self._rename_variable(fr.name)))
+                    "%s%s = %s" % (sindent, self._rename_variable(to),
+                                   self._rename_variable(fr.name)))
         final = "\n".join(code)
         return final
 
@@ -380,15 +382,13 @@ def export_template(model_onnx, template,
         variable_names = dict()
 
         def rename_variable(name):
-            if isinstance(name, ValueInfoProto):
-                name = name.name
-            if name in variable_names:
-                return variable_names[name]
             var_name = _rename_variable(name)
+            if var_name in variable_names:
+                return variable_names[var_name]
             new_name = f"v{len(variable_names) + 1}"
-            variable_names[name] = new_name
+            variable_names[var_name] = new_name
             return new_name
-    
+
     else:
 
         def rename_variable(name):
