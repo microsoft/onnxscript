@@ -104,13 +104,6 @@ def _rename_variable(name):
     return name
 
 
-def _rename_variable_s(name):
-    """
-    Renames all names equal to a python keyword.
-    """
-    return str(_rename_variable(name))
-
-
 def _translate_type(onnx_type):
     """
     Converts a onnx type into a type defined by *onnx-script*.
@@ -194,8 +187,15 @@ class Exporter:
     Class used for recursive traversal of Proto structures.
     '''
 
-    def __init__(self, use_operators=False) -> None:
+    def __init__(self, use_operators=False, rename_function=None) -> None:
         self.use_operators = use_operators
+        self._rename_variable = rename_function or _rename_variable
+
+    def _rename_variable_s(self, name):
+        """
+        Renames all names equal to a python keyword.
+        """
+        return str(self._rename_variable(name))
 
     def _python_make_node_graph(self, graph, opsets, indent=0, output_names=None):
         """
@@ -205,7 +205,7 @@ class Exporter:
         sindent = '    ' * indent
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
-                node = make_node('Constant', [], [_rename_variable(init.name)], value=init)
+                node = make_node('Constant', [], [self._rename_variable(init.name)], value=init)
                 code.append(self._python_make_node(node, opsets, indent=indent))
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
             raise NotImplementedError(
@@ -215,7 +215,7 @@ class Exporter:
         if output_names is not None:
             for fr, to in zip(graph.output, output_names):
                 code.append(
-                    "%s%s = %s" % (sindent, _rename_variable(to), _rename_variable(fr.name)))
+                    "%s%s = %s" % (sindent, self._rename_variable(to), self._rename_variable(fr.name)))
         final = "\n".join(code)
         return final
 
@@ -273,8 +273,8 @@ class Exporter:
         """
         body = node.attribute[0].g
         sindent = "    " * indent
-        n_iter = _rename_variable(node.input[0])
-        cond = _rename_variable(node.input[1])
+        n_iter = self._rename_variable(node.input[0])
+        cond = self._rename_variable(node.input[1])
         # v_initial = node.input[2]
         rows = []
         if n_iter and not cond:
@@ -327,8 +327,8 @@ class Exporter:
         sindent = "    " * indent
         if self.use_operators and node.op_type in ops:
             return "%s%s = %s" % (
-                sindent, _rename_variable(node.output[0]),
-                (" %s " % ops[node.op_type]).join(map(_rename_variable, node.input)))
+                sindent, self._rename_variable(node.output[0]),
+                (" %s " % ops[node.op_type]).join(map(self._rename_variable, node.input)))
         name = _python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True)
         attributes_str = self._python_make_node_make_attribute_str(node)
@@ -339,11 +339,11 @@ class Exporter:
             if o in ('', None):
                 output_names.append('_%d' % i)
             else:
-                output_names.append(_rename_variable(o))
+                output_names.append(self._rename_variable(o))
 
         text = [sindent, ", ".join(output_names), " = ", name,
                 '(',
-                ', '.join(map(_rename_variable_s, node.input)),
+                ', '.join(map(self._rename_variable_s, node.input)),
                 attributes_str,
                 ')']
         return "".join(text)
@@ -351,7 +351,8 @@ class Exporter:
 
 def export_template(model_onnx, template,
                     name=None, autopep_options=None,
-                    function_name='main_function', clean_code=True, use_operators=False):
+                    function_name='main_function', clean_code=True,
+                    use_operators=False, rename=False):
     """
     Exports an ONNX model into a code based on a template.
 
@@ -361,6 +362,7 @@ def export_template(model_onnx, template,
     :param autopep_options: :epkg:`autopep8` options
     :param function_name: main function name in the code
     :param clean_code: clean the code
+    :param rename: rename variable name to get shorter names
     :return: python code
     """
     # delayed import to avoid raising an exception if not installed.
@@ -374,7 +376,25 @@ def export_template(model_onnx, template,
     unique_function_domain_version = list(
         sorted(unique_function_domain_version))
 
-    exporter = Exporter(use_operators)
+    if rename:
+        variable_names = dict()
+
+        def rename_variable(name):
+            if isinstance(name, ValueInfoProto):
+                name = name.name
+            if name in variable_names:
+                return variable_names[name]
+            var_name = _rename_variable(name)
+            new_name = f"v{len(variable_names) + 1}"
+            variable_names[name] = new_name
+            return new_name
+    
+    else:
+
+        def rename_variable(name):
+            return _rename_variable(name)
+
+    exporter = Exporter(use_operators, rename_function=rename_variable)
 
     # containers
     context = {'main_model': model_onnx,
@@ -382,7 +402,7 @@ def export_template(model_onnx, template,
                'python_make_node_graph': exporter._python_make_node_graph,
                'python_make_node_name': _python_make_node_name,
                'unique_function_domain_version': unique_function_domain_version,
-               'rename': _rename_variable,
+               'rename': rename_variable,
                'translate_sig': _translate_signature}
 
     # opset
@@ -493,5 +513,5 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
     code = export_template(model_onnx, template=_template_python,
                            name=name, autopep_options=autopep_options,
                            clean_code=True, function_name=function_name,
-                           use_operators=use_operators)
+                           use_operators=use_operators, rename=rename)
     return code

@@ -30,6 +30,12 @@ class TestOnnxBackEnd(unittest.TestCase):
     folder = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                           'onnx_backend_test_code')
 
+    def test_exporter(self):
+        from onnxscript.test.models import type_double
+        proto = type_double.double_abs_subgraph.to_model_proto()
+        code = export2python(proto, rename=True, use_operators=True)
+        self.assertIn("v4 = v2 > v1", code)
+
     def test_onnx_backend_test(self):
         name = 'test_abs'
         code = []
