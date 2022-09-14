@@ -26,6 +26,7 @@ def graph_proto(g):
         return parser.parse_graph(g)
     raise TypeError(f"Cannot convert {type(g)} to ModelProto")
 
+
 def to_function_or_graph(testcase):
     if isinstance(testcase, FunctionProto):
         return testcase
@@ -36,6 +37,7 @@ def to_function_or_graph(testcase):
     if isinstance(testcase, OnnxFunction):
         return testcase.to_function_proto()
     raise TypeError(f"Cannot convert {type(testcase)} to FunctionProto or GraphProto")
+
 
 class TestBase(unittest.TestCase):
     def validate(self, fn):
