@@ -26,7 +26,7 @@ Any use of third-party trademarks or logos are subject to those third-party's po
 
 ## Installation steps
 
-```
+```bash
 pip install onnx onnxruntime
 git clone https://github.com/microsoft/onnx-script.git
 pip install -e .
@@ -36,20 +36,22 @@ A note to use experimental ONNX and ORT packages:
 
 Some of onnx-script functionalities depend on changes in ONNX that are not in official ONNX package yet.
 In order to work with those functionalities, one needs to:
-```
+
+```bash
 pip uninstall onnx onnxruntime
 pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html onnx-function-experiment
 pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html ort-function-experiment-nightly
 ```
 
 With experimental ONNX, one can write a script function with optional attributes. Examples are in [onnxfns1A.py](https://github.com/microsoft/onnx-script/blob/main/onnxscript/test/models/onnxfns1A.py). To validate that experimental features are enabled:
-```
+
+```bash
 pytest onnxscript\test\functions\onnxfns1A_test.py
 ```
 
 ## Run unit tests
 
-```
+```bash
 pytest onnxscript/test
 ```
 
@@ -78,7 +80,7 @@ from onnxscript import script
 from onnxscript.onnx_types import INT64, FLOAT
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript.opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 
 # We use the script decorator to indicate that this is meant to be translated to ONNX.
 @script()
