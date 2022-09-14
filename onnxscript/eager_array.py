@@ -17,8 +17,8 @@ class EagerArray:
         if not isinstance(tensor, np.ndarray):
             raise TypeError(f"Unexpected type {type(tensor)}. It must be a numpy array.")
         self._tensor = tensor
-        from onnxscript.onnx_opset import opset14
-        self._opset = opset or opset14
+        from onnxscript.onnx_opset import default_opset
+        self._opset = opset or default_opset
 
     @property
     def value(self):
