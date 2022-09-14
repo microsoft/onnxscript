@@ -66,7 +66,7 @@ def script(opset=None, default_opset=None, **kwargs):
 
     ::
 
-        from onnxscript.onnx import opset16
+        from onnxscript.onnx_opset import opset16
 
         @script(opset16)
         def log2(x):
