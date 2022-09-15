@@ -450,7 +450,7 @@ class Converter:
         if isinstance(r, tuple):
             callee, args, attrs = r
             if isinstance(target, str):
-                result = self.generate_unique_name(target)                
+                result = self.generate_unique_name(target)
                 self.emit([result], callee, args, attrs)
                 return ConverterExpression(result, ConverterExpressionKind.ANY)
             results = [self.generate_unique_name(x) for x in target]
