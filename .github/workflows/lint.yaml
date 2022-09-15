@@ -1,0 +1,63 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint-python:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v4.1.0
+        with:
+          python-version: "3.10"
+      - name: misspell # Check spellings as well
+        uses: reviewdog/action-misspell@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          locale: "US"
+          reporter: github-pr-check
+          level: info
+          filter_mode: diff_context
+      - name: shellcheck # Static check shell scripts
+        uses: reviewdog/action-shellcheck@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+          reporter: github-pr-check
+          level: info
+          filter_mode: diff_context
+      - name: pylint
+        uses: dciborow/action-pylint@0.0.7
+        with:
+          github_token: ${{ secrets.github_token }}
+          reporter: github-pr-check
+          level: warning
+          filter_mode: diff_context
+          glob_pattern: "**/*.py"
+
+  enforce-style:
+    name: Enforce style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v4.1.0
+        with:
+          # Version range or exact version of Python to use, using SemVer's version range syntax. Reads from .python-version if unset.
+          python-version: "3.10"
+      - name: Install ONNX script
+        # check
+      - name: Run style.sh
+        run: |
+          # style check (flake8, isort, black, and mypy)
+          python -m pip install -q -r requirements-dev.txt
+          bash tools/style.sh
+          if [ $? -ne 0 ]; then
+            echo "style check failed"
+            exit 1
+          fi
