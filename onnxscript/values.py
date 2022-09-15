@@ -84,7 +84,10 @@ class Opset:
         pass
 
     def __getitem__(self, opname):
-        return onnx.defs.get_schema(opname, self.version, self.domain)
+        try:
+            return onnx.defs.get_schema(opname, self.version, self.domain)
+        except BaseException:
+            return None
 
     def __contains__(self, opname):
         try:
@@ -131,7 +134,9 @@ class Op:
         return isinstance(self.opname, str)
 
     def get_schema(self):
-        return self.opschema
+        if self.opschema:
+            return self.opschema
+        return self.opset[self.opname]
 
     def has_schema(self):
         return (self.opschema is not None)

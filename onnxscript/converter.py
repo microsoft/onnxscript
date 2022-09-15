@@ -11,12 +11,14 @@ import numpy
 import onnx
 import onnx.helper as helper
 import typing
+
 from . import onnx_types as types
 from .irbuilder import IRBuilder
 from . import analysis as analysis
 from . import type_annotation as ta
 from . import values as values
 from .values import (AttrRef, Dynamic, OnnxFunction, Op, DynamicKind, DebugInfo)
+from onnxscript.autocast import static_cast_inputs
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -687,12 +689,12 @@ class Converter:
         positional arguments to ONNX inputs.
         '''
         callee = self.translate_callee_expr(node.func)
-        args = [self.translate_opt_expr(x).name for x in node.args]
+        args = [self.translate_opt_expr(x) for x in node.args]
+        args = static_cast_inputs(self, callee.get_schema(), *args)
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, left, right):
-        from onnxscript.autocast import static_cast_inputs
         schema = self.default_opset.Add.get_schema()
         return static_cast_inputs(self, schema, left, right)
 

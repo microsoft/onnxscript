@@ -50,6 +50,7 @@ def cast_inputs(get_type_info, cast, opschema, *args):
         # No checks/casts in this case.
         return args
 
+
 def dynamic_cast_inputs(opschema, *args):
     def get_type_info(x):
         return x.dtype if isinstance(x, EagerArray) else None
@@ -66,10 +67,14 @@ def dynamic_cast_inputs(opschema, *args):
             return EagerArray(np.array(x, dtype=dtype))
         else:
             return x
-    
+
     return cast_inputs(get_type_info, cast, opschema, *args)
 
+
 def static_cast_inputs(converter, opschema, *args):
+    if opschema is None:
+        return args
+
     def get_type_info(x):
         return x if not x.is_const() else None
 
@@ -78,9 +83,10 @@ def static_cast_inputs(converter, opschema, *args):
             # Scalar values are promoted to tensors of a type chosen as below:
             from .values import Op
             tmp = converter.generate_unique_name(x.name + "_cast")
-            converter.emit([tmp], Op(converter.default_opset, 'CastLike'), [x.name, typeinfo], [])
-            return tmp        
+            converter.emit([tmp], Op(converter.default_opset,
+                           'CastLike'), [x.name, typeinfo], [])
+            return tmp
         else:
-            return x
-    
+            return x.name
+
     return cast_inputs(get_type_info, cast, opschema, *args)

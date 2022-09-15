@@ -33,7 +33,8 @@ class TestConverter(TestBase):
         @script()
         def explicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:   # noqa: F821
             one = op.Constant(value=helper.make_tensor("one", 1, [], [1.0]))
-            return op.Add(A, one)
+            one_cast = op.CastLike(one, A)
+            return op.Add(A, one_cast)
 
         @script()
         def implicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:   # noqa: F821

@@ -70,10 +70,18 @@ def div_minus_right_expanded(A: FLOAT[...]) -> FLOAT[...]:
 # def div_minus_minus_right(A: FLOAT[...]) -> FLOAT[...]:
 #     return A / (-(-2))
 
-# @script()
-# def where_left(C: BOOL[...], A: FLOAT[...]) -> FLOAT[...]:
-#     return op.Where(C, 2, A)
+@script()
+def where_left(C: BOOL[...], A: FLOAT[...]) -> FLOAT[...]:
+    return op.Where(C, 2, A)
 
-# @script()
-# def where_left_expanded(C: BOOL[...], A: FLOAT[...]) -> FLOAT[...]:
-#     return op.Where(C, op.CastLike(2, A), A)
+@script()
+def where_left_expanded(C: BOOL[...], A: FLOAT[...]) -> FLOAT[...]:
+    return op.Where(C, op.CastLike(2, A), A)
+
+@script()
+def where_right(C: BOOL[...], A: FLOAT[...]) -> FLOAT[...]:
+    return op.Where(C, A, 3)
+
+@script()
+def where_right_expanded(C: BOOL[...], A: FLOAT[...]) -> FLOAT[...]:
+    return op.Where(C, A, op.CastLike(3, A))
