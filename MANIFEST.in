@@ -7,3 +7,4 @@ include requirements.txt
 
 # exclude from sdist
 exclude *.onnx
+prune */__pycache__
