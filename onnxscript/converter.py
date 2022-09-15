@@ -318,19 +318,9 @@ class Converter:
         self.ir_builder.add_docstring(self.current_fn, docstring)
 
     def emit(self, outputs, callee, inputs, attrs, sub_functions=None):
-        if callee.opname == 'NotEqual':
-            if len(attrs) != 0:
-                raise RuntimeError(
-                    "Operator %r does not support attributes." % callee.opname)
-            tmp = self.generate_unique_name()
-            self.ir_builder.add_stmt(
-                self.current_fn, [tmp], callee.opset, "Equal", inputs, attrs)
-            self.ir_builder.add_stmt(
-                self.current_fn, outputs, callee.opset, "Not", [tmp], attrs)
-        else:
-            self.ir_builder.add_stmt(
-                self.current_fn, outputs, callee.opset,
-                callee.opname, inputs, attrs, sub_functions)
+        self.ir_builder.add_stmt(
+            self.current_fn, outputs, callee.opset,
+            callee.opname, inputs, attrs, sub_functions)
 
     def emit_loop(self, outputs, callee, inputs, attrs, info, sub_functions=None):
         def rename(x):
@@ -458,13 +448,12 @@ class Converter:
         if isinstance(r, ConverterExpression):
             return r
         if isinstance(r, tuple):
+            callee, args, attrs = r
             if isinstance(target, str):
-                result = self.generate_unique_name(target)
-                callee, args, attrs = r
+                result = self.generate_unique_name(target)                
                 self.emit([result], callee, args, attrs)
                 return ConverterExpression(result, ConverterExpressionKind.ANY)
             results = [self.generate_unique_name(x) for x in target]
-            callee, args, attrs = r
             self.emit(results, callee, args, attrs)
             return ConverterExpression(results, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
@@ -694,8 +683,8 @@ class Converter:
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         return callee, args, attrs
 
-    def _cast_like_binary_expression(self, left, right):
-        schema = self.default_opset.Add.get_schema()
+    def _cast_like_binary_expression(self, op, left, right):
+        schema = op.get_schema()
         return static_cast_inputs(self, schema, left, right)
 
     def translate_bin_op_expr(self, node):
@@ -720,8 +709,9 @@ class Converter:
             # and, or
             left = self.translate_expr(node.values[0])
             right = self.translate_expr(node.values[1])
+
         op = Op(self.default_opset, opname)
-        left, right = self._cast_like_binary_expression(left, right)
+        left, right = self._cast_like_binary_expression(op, left, right)
         return op, [left, right], attr
 
     def translate_unary_op_expr(self, node):
@@ -763,8 +753,17 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
-        op = Op(self.default_opset, opname)
-        left, right = self._cast_like_binary_expression(left, right)
+
+        # NotEqual is not a standard ONNX op, and needs to be translated into
+        # an Equal op/node followed by a Not op/node.
+        op = Op(self.default_opset, opname if opname != "NotEqual" else "Equal")
+        left, right = self._cast_like_binary_expression(op, left, right)
+        if opname == "NotEqual":
+            tmp = self.generate_unique_name()
+            self.emit([tmp], op, [left, right], [])
+            not_op = Op(self.default_opset, "Not")
+            return not_op, [tmp], []
+
         return op, [left, right], []
 
     def translate_name_expr(self, node):
