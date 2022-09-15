@@ -105,8 +105,9 @@ class TestConverter(TestBase):
                 f = functions[name]
                 name_expanded = name + "_expanded"
                 if name_expanded in functions:
-                    f_expanded = functions[name_expanded]
-                    self.assertSame(f, f_expanded)
+                    with self.subTest("Expansion test", function=name):
+                        f_expanded = functions[name_expanded]
+                        self.assertSame(f, f_expanded)
 
     def test_eager_op(self):
         from onnxscript.test.models import eager_op

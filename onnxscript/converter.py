@@ -692,20 +692,9 @@ class Converter:
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, left, right):
-        if left.is_const() and not right.is_const():
-            right = right.name
-            tmp = self.generate_unique_name(left.name + "_cast")
-            self.emit([tmp], Op(self.default_opset, 'CastLike'), [left.name, right], [])
-            left = tmp
-        elif not left.is_const() and right.is_const():
-            left = left.name
-            tmp = self.generate_unique_name(right.name + "_cast")
-            self.emit([tmp], Op(self.default_opset, 'CastLike'), [right.name, left], [])
-            right = tmp
-        else:
-            left = left.name
-            right = right.name
-        return left, right
+        from onnxscript.autocast import static_cast_inputs
+        schema = self.default_opset.Add.get_schema()
+        return static_cast_inputs(self, schema, left, right)
 
     def translate_bin_op_expr(self, node):
         op = type(node.op)
@@ -729,8 +718,9 @@ class Converter:
             # and, or
             left = self.translate_expr(node.values[0])
             right = self.translate_expr(node.values[1])
+        op = Op(self.default_opset, opname)
         left, right = self._cast_like_binary_expression(left, right)
-        return Op(self.default_opset, opname), [left, right], attr
+        return op, [left, right], attr
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
@@ -771,8 +761,9 @@ class Converter:
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
+        op = Op(self.default_opset, opname)
         left, right = self._cast_like_binary_expression(left, right)
-        return Op(self.default_opset, opname), [left, right], []
+        return op, [left, right], []
 
     def translate_name_expr(self, node):
         return self.py_var_to_onnx_var(node.id, DebugInfo(node, self))
