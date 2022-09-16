@@ -7,30 +7,30 @@ from onnx import TensorProto
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 
 
-class EagerArray:
+class Tensor:
     """
-    Wraps arrays to intercept calls to operators and use onnxruntime
-    to process the output.
+    An implementation of ONNX Tensors, based on a wrapper around numpy arrays.
+    Serves to define overloaded ops with an ONNX/ONNXScript semantics.
     """
 
-    def __init__(self, tensor, opset=None):
-        if not isinstance(tensor, np.ndarray):
+    def __init__(self, nparray, opset=None):
+        if not isinstance(nparray, np.ndarray):
             raise TypeError(f"Unexpected type {type(tensor)}. It must be a numpy array.")
-        self._tensor = tensor
+        self._nparray = nparray
         from onnxscript.onnx_opset import default_opset
         self._opset = opset or default_opset
 
     @property
     def value(self):
-        return self._tensor
+        return self._nparray
 
     @property
     def shape(self):
-        return self._tensor.shape
+        return self._nparray.shape
 
     @property
     def dtype(self):
-        return self._tensor.dtype
+        return self._nparray.dtype
 
     @property
     def onnx_dtype(self):
@@ -52,7 +52,7 @@ class EagerArray:
         if isinstance(index, int):
             # case A[i]: indexing
             # promote integer input to tensor
-            i = EagerArray(np.array(index))
+            i = Tensor(np.array(index))
             # use Gather to perform indexing
             return op.Gather(self, i, axis=0)
         if not isinstance(index, (slice, tuple)):
@@ -78,13 +78,13 @@ class EagerArray:
             else:
                 raise TypeError(f"Unexpected type {type(s)}: slice or int expected.")
         indices = np.array(indices, dtype=np.int64).T
-        starts = EagerArray(indices[0])
-        ends = EagerArray(indices[1])
-        axis = EagerArray(indices[2])
-        steps = EagerArray(indices[3])
+        starts = Tensor(indices[0])
+        ends = Tensor(indices[1])
+        axis = Tensor(indices[2])
+        steps = Tensor(indices[3])
         result = op.Slice(self, starts, ends, axis, steps)
         if len(to_squeeze) > 0:
-            result = EagerArray(np.squeeze(result.value, axis=tuple(to_squeeze)))
+            result = Tensor(np.squeeze(result.value, axis=tuple(to_squeeze)))
         return result
 
     def __mod__(self, other):
