@@ -23,8 +23,6 @@ with open(README) as f:
 setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
-    author='Microsoft Corporation',
-    author_email='onnx@microsoft.com',
     url='https://github.com/onnx/onnx-script',
     packages=packages,
     include_package_data=True,

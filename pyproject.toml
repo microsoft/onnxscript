@@ -11,22 +11,25 @@
   name = "onnx-script"
   version = "0.1"
   description = "Authoring ONNX functions in Python"
-  # TODO: put author/email/url/longer description into here
+  authors = [
+    {name = "Microsoft Corporation", email = "onnx@microsoft.com"},
+  ]
+  # TODO: put url/longer description into here
   # Get rid of longer description seems to require Poetry
   readme = "README.md"
   requires-python = ">=3.7"
   license = {text = 'Apache License v2.0'}
   classifiers = [
-        'Development Status :: 4 - Beta',
-        'Environment :: Console',
-        'Intended Audience :: Developers',
-        'Operating System :: MacOS :: MacOS X',
-        'Operating System :: Microsoft :: Windows',
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'License :: OSI Approved :: Apache Software License'
+    'Development Status :: 4 - Beta',
+    'Environment :: Console',
+    'Intended Audience :: Developers',
+    'Operating System :: MacOS :: MacOS X',
+    'Operating System :: Microsoft :: Windows',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'License :: OSI Approved :: Apache Software License'
   ]
   # NOTE: replace requirements.txt
   dependencies = [
