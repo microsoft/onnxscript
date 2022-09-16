@@ -55,18 +55,19 @@ jobs:
           # The code is from azure-pipelines.yml
           # Install dependencies
           python -m pip install --upgrade pip
+          python -m pip install setuptools==61.0.0
           python -m pip install -q -r requirements-dev.txt
 
           # Install ONNX
           if [ '$(onnx.standard)' == '1' ]
             then
-              pip uninstall -y onnx-function-experiment
-              pip uninstall -y ort-function-experiment-nightly
-              pip install onnx onnxruntime
+              python -m pip uninstall -y onnx-function-experiment
+              python -m pip uninstall -y ort-function-experiment-nightly
+              python -m pip install onnx onnxruntime
           fi
 
           # install packages
-          pip install -e .
+          python -m pip install -e .
       - name: Run style.sh
         run: |
           # style check (flake8, isort, black, and mypy)

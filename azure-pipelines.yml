@@ -39,16 +39,16 @@ steps:
 
 - script: |
     python -m pip install --upgrade pip
-    pip install setuptools
-    pip install -r requirements-dev.txt
+    python -m pip install setuptools==61.0.0
+    python -m pip install -r requirements-dev.txt
   displayName: 'Install dependencies'
 
 - script: |
       if [ '$(onnx.standard)' == '1' ]
         then
-          pip uninstall -y onnx-function-experiment
-          pip uninstall -y ort-function-experiment-nightly
-          pip install onnx onnxruntime
+          python -m pip uninstall -y onnx-function-experiment
+          python -m pip uninstall -y ort-function-experiment-nightly
+          python -m pip install onnx onnxruntime
       fi
   displayName: 'Install onnx'
 
