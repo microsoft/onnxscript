@@ -33,6 +33,7 @@
     "numpy==1.21.5",
     "protobuf<4",
     "onnx",
+    'importlib-metadata; python_version<"3.8"', # For py3.7 get version
   ]
 
   [project.optional-dependencies]
