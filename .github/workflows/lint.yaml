@@ -50,8 +50,6 @@ jobs:
         with:
           # Version range or exact version of Python to use, using SemVer's version range syntax. Reads from .python-version if unset.
           python-version: "3.10"
-      - name: Install ONNX script
-        # check
       - name: Run style.sh
         run: |
           # style check (flake8, isort, black, and mypy)
