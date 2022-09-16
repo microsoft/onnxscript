@@ -6,22 +6,15 @@ import re
 import os
 import sphinx_gallery.sorting
 import sys
-
-# single-source ONNXScript version
-# python version decides different lib
-# if sys.version_info[:2] >= (3, 8):
 from importlib import metadata
-# else:
-#     import importlib_metadata as metadata
-__version__ = metadata.version(__package__)
-del metadata
+
 
 # -- Project information -----------------------------------------------------
 
 project = 'onnx-script'
 copyright = '2022, onnx'
 author = 'onnx'
-version = __version__
+version = metadata.version(project)
 release = version
 
 # -- General configuration ---------------------------------------------------

@@ -15,4 +15,9 @@ pytest-cov
 pytest-azurepipelines
 pytest-subtests
 torch
+# Lint
+flake8
+mypy
+black
+isort[colors]
 

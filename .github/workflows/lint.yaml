@@ -55,7 +55,7 @@ jobs:
           # The code is from azure-pipelines.yml
           # Install dependencies
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          python -m pip install -q -r requirements-dev.txt
 
           # Install ONNX
           if [ '$(onnx.standard)' == '1' ]
