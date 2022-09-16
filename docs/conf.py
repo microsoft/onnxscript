@@ -6,7 +6,7 @@ import re
 import os
 import sphinx_gallery.sorting
 import sys
-from importlib import metadata
+import importlib_metadata as metadata
 
 
 # -- Project information -----------------------------------------------------
