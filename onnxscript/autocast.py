@@ -5,15 +5,15 @@ import numpy as np
 
 def cast_inputs(get_type_info, cast, opschema, *args):
     '''
-    Uses schema specification to support a limited form of casting.
+    Uses schema specification to support a limited form of auto-casting.
     * Scalars are promoted to tensors.
     * Further. they are cast to the required type when used in ops with other
     tensor inputs that are required to be of same type.
     Thus, in "A+1" or "Add(A, 1)", the value 1 will be converted to the same
     type as A.
 
-    The supported cases must be in sync with the cases supported by the converter
-    to ensure that the eager-mode semantics is same as onnx-conversion semantics.
+    This is used by the converter in a static-mode, as well as by the eager-mode
+    execution in a dynamic-mode.
     '''
     if opschema is not None:
         expected_inputs = opschema.inputs
@@ -48,10 +48,11 @@ def cast_inputs(get_type_info, cast, opschema, *args):
     else:
         # Either an error or a custom op.
         # No checks/casts in this case.
-        return args
+        return tuple([cast(x, None) for x in args])
 
 
 def dynamic_cast_inputs(opschema, *args):
+    '''Used for autocast during eager-mode execution.'''
     def get_type_info(x):
         return x.dtype if isinstance(x, EagerArray) else None
 
@@ -62,7 +63,7 @@ def dynamic_cast_inputs(opschema, *args):
                 dtype = typeinfo
             elif isinstance(x, int):
                 dtype = np.int32
-            elif isinstance(x, float):
+            else:  # isinstance(x, float):
                 dtype = np.float32
             return EagerArray(np.array(x, dtype=dtype))
         else:
@@ -72,6 +73,7 @@ def dynamic_cast_inputs(opschema, *args):
 
 
 def static_cast_inputs(converter, opschema, *args):
+    '''Used for autocast during script-translation.'''
     if opschema is None:
         return args
 

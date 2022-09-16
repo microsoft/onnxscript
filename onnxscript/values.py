@@ -86,14 +86,14 @@ class Opset:
     def __getitem__(self, opname):
         try:
             return onnx.defs.get_schema(opname, self.version, self.domain)
-        except BaseException:
+        except Exception:
             return None
 
     def __contains__(self, opname):
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
             return True
-        except BaseException:
+        except Exception:
             return False
 
     def __str__(self) -> str:
@@ -103,7 +103,7 @@ class Opset:
         try:
             schema = onnx.defs.get_schema(attr, self.version, self.domain)
             return Op(self, attr, schema)
-        except BaseException:
+        except Exception:
             raise AttributeError(f"Attribute {attr} not found.")
 
     def add_function_def(self, fun):
