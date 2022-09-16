@@ -56,6 +56,7 @@ jobs:
           # Install dependencies
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
+
           # Install ONNX
           if [ '$(onnx.standard)' == '1' ]
             then
@@ -63,14 +64,15 @@ jobs:
               pip uninstall -y ort-function-experiment-nightly
               pip install onnx onnxruntime
           fi
-          # make packages
+
+          # make package
           python setup.py sdist
+          
           # install packages
           python setup.py install
       - name: Run style.sh
         run: |
           # style check (flake8, isort, black, and mypy)
-          python -m pip install -q -r requirements-dev.txt
           bash tools/style.sh
           if [ $? -ne 0 ]; then
             echo "style check failed"
