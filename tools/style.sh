@@ -13,7 +13,8 @@ err=0
 trap 'err=1' ERR
 
 echo -e "\n::group:: ===> check flake8..."
-flake8 .
+# TODO: flake .
+flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py,**onnx_backend_test_code/*.py"
 echo -e "::endgroup::"
 
 echo -e "\n::group:: ===> check isort..."

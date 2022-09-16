@@ -60,10 +60,6 @@ steps:
   displayName: 'pytest'
 
 - script: |
-    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py,**onnx_backend_test_code/*.py"
-  displayName: 'flake8'
-
-- script: |
     python setup.py install
   displayName: 'install package'
 
