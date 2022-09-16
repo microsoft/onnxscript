@@ -45,8 +45,8 @@ class EagerArray:
     def __int__(self):
         return self.value.__int__()
 
-    def __getitem__(a, index):
-        op = a._opset
+    def __getitem__(self, index):
+        op = self._opset
         if op.version < 13:
             raise RuntimeError("Indexing requires opset 13 or later.")
         if isinstance(index, int):
@@ -54,14 +54,14 @@ class EagerArray:
             # promote integer input to tensor
             i = EagerArray(np.array(index))
             # use Gather to perform indexing
-            return op.Gather(a, i, axis=0)
+            return op.Gather(self, i, axis=0)
         if not isinstance(index, (slice, tuple)):
             raise TypeError(f"Unexpected type {type(index)} for index.")
         # case A[i:j] or A[i:j:k], A[i:k, j:l]
         if isinstance(index, slice):
             # Treat 1-dimensional slicing A[i:j] as generic n-dimensional case A[i:j,...]
             index = (index, )
-        shape = a.shape
+        shape = self.shape
         indices = []
         to_squeeze = []
         for axis, s in enumerate(index):
@@ -82,69 +82,69 @@ class EagerArray:
         ends = EagerArray(indices[1])
         axis = EagerArray(indices[2])
         steps = EagerArray(indices[3])
-        result = op.Slice(a, starts, ends, axis, steps)
+        result = op.Slice(self, starts, ends, axis, steps)
         if len(to_squeeze) > 0:
             result = EagerArray(np.squeeze(result.value, axis=tuple(to_squeeze)))
         return result
 
-    def __mod__(a, b):
-        if a.onnx_dtype in {TensorProto.FLOAT, TensorProto.DOUBLE,
+    def __mod__(self, other):
+        if self.onnx_dtype in {TensorProto.FLOAT, TensorProto.DOUBLE,
                             TensorProto.FLOAT16, TensorProto.BFLOAT16}:
-            return a._opset.Mod(a, b, fmod=1)
+            return self._opset.Mod(self, other, fmod=1)
         else:
-            return a._opset.Mod(a, b)
+            return self._opset.Mod(self, other)
 
-    def __ne__(a, b):
-        temp = a._opset.Equal(a, b)
-        return a._opset.Not(temp)
+    def __ne__(self, other):
+        temp = self._opset.Equal(self, other)
+        return self._opset.Not(temp)
 
-    def __neg__(a):
-        return a._opset.Neg(a)
+    def __neg__(self):
+        return self._opset.Neg(self)
 
-    def __add__(a, b):
-        return a._opset.Add(a, b)
+    def __add__(self, other):
+        return self._opset.Add(self, other)
 
-    def __radd__(a, b):
-        return a._opset.Add(b, a)
+    def __radd__(self, other):
+        return self._opset.Add(other, self)
 
-    def __and__(a, b):
-        return a._opset.And(a, b)
+    def __and__(self, other):
+        return self._opset.And(self, other)
 
-    def __rand__(a, b):
-        return a._opset.And(b, a)
+    def __rand__(self, other):
+        return self._opset.And(other, self)
 
-    def __mul__(a, b):
-        return a._opset.Mul(a, b)
+    def __mul__(self, other):
+        return self._opset.Mul(self, other)
 
-    def __rmul__(a, b):
-        return a._opset.Mul(b, a)
+    def __rmul__(self, other):
+        return self._opset.Mul(other, self)
 
-    def __matmul__(a, b):
-        return a._opset.MatMul(a, b)
+    def __matmul__(self, other):
+        return self._opset.MatMul(self, other)
 
-    def __or__(a, b):
-        return a._opset.Or(a, b)
+    def __or__(self, other):
+        return self._opset.Or(self, other)
 
-    def __pow__(a, b):
-        return a._opset.Pow(a, b)
+    def __pow__(self, other):
+        return self._opset.Pow(self, other)
 
-    def __sub__(a, b):
-        return a._opset.Sub(a, b)
+    def __sub__(self, other):
+        return self._opset.Sub(self, other)
 
-    def __truediv__(a, b):
-        return a._opset.Div(a, b)
+    def __truediv__(self, other):
+        return self._opset.Div(self, other)
 
-    def __lt__(a, b):
-        return a._opset.Less(a, b)
+    def __lt__(self, other):
+        return self._opset.Less(self, other)
 
-    def __le__(a, b):
-        return a._opset.LessOrEqual(a, b)
+    def __le__(self, other):
+        return self._opset.LessOrEqual(self, other)
 
-    def __eq__(a, b):
-        return a._opset.Equal(a, b)
+    def __eq__(self, other):
+        return self._opset.Equal(self, other)
 
-    def __ge__(a, b):
-        return a._opset.GreaterOrEqual(a, b)
+    def __ge__(self, other):
+        return self._opset.GreaterOrEqual(self, other)
 
-    def __gt__(a, b):
-        return a._opset.Greater(a, b)
+    def __gt__(self, other):
+        return self._opset.Greater(self, other)
