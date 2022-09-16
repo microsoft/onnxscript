@@ -65,11 +65,8 @@ jobs:
               pip install onnx onnxruntime
           fi
 
-          # make package
-          python setup.py sdist
-          
           # install packages
-          python setup.py install
+          pip install -e .
       - name: Run style.sh
         run: |
           # style check (flake8, isort, black, and mypy)
