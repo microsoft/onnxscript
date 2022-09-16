@@ -1,9 +1,10 @@
 # flake8 is currebtly not yet supported by pyproject.toml.
-# Please move this into pyproject.toml, when it does.
+# Please move this into pyproject.toml when it does.
 
 [flake8]
 select = B,C,E,F,P,T4,W,B9
-max-line-length = 88
+# TODO: should we change this to 88, the same as ONNX?
+max-line-length = 95
 ### DEFAULT IGNORES FOR 4-space INDENTED PROJECTS ###
 # E127, E128 are hard to silence in certain nested formatting situations.
 # E265, E266 talk about comment formatting which is too opinionated.
@@ -16,11 +17,12 @@ max-line-length = 88
 # P207 is a duplicate of B003.
 # P208 is a duplicate of C403.
 # W503 talks about operator formatting which is too opinionated.
+# W504 line break after binary operator
 # F401 clashes with PEP484 requiring us to import types that are only used in
 # type comments.
 # E203 is need to support black formatting.
 # https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html
-ignore = E127, E128, E265, E266, E402, E501, E722, F405, P207, P208, W503, F401, E203
+ignore = E127, E128, E265, E266, E402, E501, E722, F405, P207, P208, W503, F401, E203, W504
 exclude =
   .git,
   __pycache__,
