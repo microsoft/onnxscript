@@ -15,7 +15,7 @@ class Tensor:
 
     def __init__(self, nparray, opset=None):
         if not isinstance(nparray, np.ndarray):
-            raise TypeError(f"Unexpected type {type(tensor)}. It must be a numpy array.")
+            raise TypeError(f"Unexpected type {type(nparray)}. It must be a numpy array.")
         self._nparray = nparray
         from onnxscript.onnx_opset import default_opset
         self._opset = opset or default_opset
