@@ -2,7 +2,7 @@
 # To run the documentation: python -m sphinx docs dist/html
 
 import sys
-import onnx_script
+import onnxscript
 import re
 import os
 import sphinx_gallery.sorting
@@ -13,7 +13,7 @@ import sphinx_gallery.sorting
 project = 'onnx-script'
 copyright = '2022, onnx'
 author = 'onnx'
-version = onnx_script.__version__
+version = onnxscript.__version__
 release = version
 
 # -- General configuration ---------------------------------------------------
