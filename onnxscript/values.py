@@ -16,16 +16,15 @@ from .eager_array import EagerArray
 
 
 class DebugInfo:
-
     def __init__(self, lineno, source="string", code=None):
-        if hasattr(source, 'source'):
+        if hasattr(source, "source"):
             code = source.source
-            current_fn = getattr(source, 'current_fn', None)
+            current_fn = getattr(source, "current_fn", None)
             if current_fn is not None:
-                source = getattr(source.current_fn, 'name', None)
+                source = getattr(source.current_fn, "name", None)
             else:
                 source = None
-        if hasattr(lineno, 'lineno'):
+        if hasattr(lineno, "lineno"):
             self.ast_obj = lineno
             self.lineno = lineno.lineno
         elif isinstance(lineno, int):
@@ -38,23 +37,24 @@ class DebugInfo:
         else:
             raise NotImplementedError(
                 f"Unable to extract debug information from type {type(lineno)!r}, "
-                f"attributes={pprint.pformat(lineno.__dict__)}.")
+                f"attributes={pprint.pformat(lineno.__dict__)}."
+            )
         self.source = source
-        self.code = None if code is None else code.split('\n')
+        self.code = None if code is None else code.split("\n")
 
     def msg(self, text):
         return "ERROR\n%s\n    %s" % (str(self), text)
 
     def __str__(self):
         if self.code is None:
-            line = ''
+            line = ""
         else:
             line = "    -- line: " + self.code[self.lineno - 1]
         return "%s:%d%s" % (self.source, self.lineno, line)
 
 
 class Opset:
-    '''
+    """
     Represents an ONNX Opset, which consists of a domain name, a version.
     It also contains a set of operations. This represents an Opset defined
     in the ONNX schema registry and the operations are retrieved from the
@@ -62,7 +62,8 @@ class Opset:
     ops in the corresponding Opset.
 
     Only a single instance of Opset is created for a given (domain, version) pair.
-    '''
+    """
+
     cache = {}
 
     def __new__(cls, domain, version):
@@ -107,6 +108,7 @@ class Opset:
     def add_function_def(self, fun):
         if fun.name in self.function_defs:
             import logging
+
             logger = logging.getLogger("onnx-script")
             logger.warning(f"{fun.name}: Already defined.")
         self.function_defs[fun.name] = fun
@@ -116,13 +118,14 @@ class Opset:
 
 
 class Op:
-    '''
+    """
     Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
-    '''
+    """
 
     def __init__(self, opset, opname, opschema=None) -> None:
         from . import eager_mode_evaluator
+
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
@@ -135,14 +138,14 @@ class Op:
         return self.opschema
 
     def has_schema(self):
-        return (self.opschema is not None)
+        return self.opschema is not None
 
     def __call__(self, *args, **kwargs):
         return self.evaluator(self.opschema, *args, **kwargs)
 
 
 class OnnxFunction(Op):
-    '''
+    """
     Represents an ONNX op for which a function-body has been defined in onnxscript.
 
     :param opset: opset the function belongs to
@@ -150,7 +153,7 @@ class OnnxFunction(Op):
     :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
     :param source: source code used to generate the function
     :param kwargs: additional properties used to construct a ModelProto
-    '''
+    """
 
     def __init__(self, opset, pyfun, irfun, source, kwargs):
         opset = opset or Opset(irfun.domain, 1)
@@ -182,8 +185,7 @@ class OnnxFunction(Op):
             elif isinstance(a, bool):
                 new_args.append(EagerArray(np.array(a)))
             else:
-                raise TypeError(
-                    f"Unexpected input type {type(a)} for an input {i}.")
+                raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
         if isinstance(res, np.ndarray):
             return res
@@ -197,12 +199,14 @@ class OnnxFunction(Op):
                 else:
                     raise TypeError(
                         f"Unexpected output type {type(r)} for an output {i} "
-                        f"in function {self.function!r}.")
+                        f"in function {self.function!r}."
+                    )
             if isinstance(res, tuple):
                 return tuple(unwrapped)
             return unwrapped
         raise TypeError(
-            f"Unexpected output type {type(res)} in function {self.function!r}.")
+            f"Unexpected output type {type(res)} in function {self.function!r}."
+        )
 
     def _libcall(self, *args, **kwargs):
         """
@@ -219,8 +223,7 @@ class OnnxFunction(Op):
                 # should disappear.
                 new_args.append(EagerArray(np.array(a)))
             else:
-                raise TypeError(
-                    f"Unexpected input type {type(a)} for an input {i}.")
+                raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
         if isinstance(res, EagerArray):
             return res
@@ -232,10 +235,12 @@ class OnnxFunction(Op):
                 else:
                     raise TypeError(
                         f"Unexpected output type {type(r)} for an output {i} "
-                        f"in function {self.function!r}.")
+                        f"in function {self.function!r}."
+                    )
             return tuple(unwrapped)
         raise TypeError(
-            f"Unexpected output type {type(res)} in function {self.function!r}.")
+            f"Unexpected output type {type(res)} in function {self.function!r}."
+        )
 
     def to_function_proto(self, domain=None):
         "Converts the function into :class:`onnx.FunctionProto`."
@@ -244,7 +249,9 @@ class OnnxFunction(Op):
     def to_model_proto(self, **kwargs):
         "Converts the function into :class:`onnx.ModelProto`."
         if self.function_ir.attrs:
-            raise ValueError("A function with attributes cannot be exported as a model.")
+            raise ValueError(
+                "A function with attributes cannot be exported as a model."
+            )
         # Note: The function must also have monomorphic type annotation for inputs/outputs
         # to be converted into a valid model. Otherwise, we can still produce an ONNX
         # model, but it will not pass the ONNX model checker. We do not report an error
@@ -292,27 +299,23 @@ class Value:
         if not isinstance(info, DebugInfo):
             raise TypeError("info must be of DebugInfo not %r." % type(info))
         if val is None:
-            raise ValueError(info.msg('val cannot be None.'))
+            raise ValueError(info.msg("val cannot be None."))
         self.value = val
         self.info = info
 
     def __repr__(self):
-        return '%s(%r)' % (self.__class__.__name__, self.value)
+        return "%s(%r)" % (self.__class__.__name__, self.value)
 
 
 class AttrRef(Value):
-    def __init__(
-            self,
-            name: str,
-            typeinfo: type or List,
-            info: DebugInfo) -> None:
-        '''
+    def __init__(self, name: str, typeinfo: type or List, info: DebugInfo) -> None:
+        """
         Arguments:
             name: name of the attribute-parameter
             typeinfo: type annotation of the attribute.
                 op's attributes in ONNX are usually single type or list of single type.
             info: for debugging use.
-        '''
+        """
         super().__init__(name, info)
         self.typeinfo = typeinfo
         if not isinstance(typeinfo, (type, typing._GenericAlias)):
@@ -321,7 +324,7 @@ class AttrRef(Value):
         self.typeinfo = typeinfo
 
     def __repr__(self):
-        return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.typeinfo)
+        return "%s(%r, %r)" % (self.__class__.__name__, self.value, self.typeinfo)
 
 
 class DynamicKind(IntFlag):
@@ -333,14 +336,16 @@ class DynamicKind(IntFlag):
 
 
 class Dynamic(Value):
-    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None) -> None:
-        '''
+    def __init__(
+        self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None
+    ) -> None:
+        """
         Arguments:
             val: the name of the ONNX variable used to represent this value
             kind: the DynamicKind of this variable
             info: source-location information for error-messages/debugging
             typeinfo: type-information for the value
-        '''
+        """
         super().__init__(val, info)
         assert isinstance(kind, DynamicKind)
         self.kind = kind
@@ -348,6 +353,10 @@ class Dynamic(Value):
 
     def __repr__(self):
         if self.typeinfo is None:
-            return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.kind)
-        return '%s(%r, %r, typeinfo=%r)' % (
-            self.__class__.__name__, self.value, self.kind, self.typeinfo)
+            return "%s(%r, %r)" % (self.__class__.__name__, self.value, self.kind)
+        return "%s(%r, %r, typeinfo=%r)" % (
+            self.__class__.__name__,
+            self.value,
+            self.kind,
+            self.typeinfo,
+        )

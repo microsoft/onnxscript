@@ -53,41 +53,41 @@ def {{ function_name }}{{translate_sig(graph.input, graph.output)}}
 
 
 kwlist = {
-    'False',
-    'None',
-    'True',
-    'and',
-    'as',
-    'assert',
-    'async',
-    'await',
-    'break',
-    'class',
-    'continue',
-    'def',
-    'del',
-    'elif',
-    'else',
-    'except',
-    'finally',
-    'for',
-    'from',
-    'global',
-    'if',
-    'import',
-    'in',
-    'is',
-    'lambda',
-    'nonlocal',
-    'not',
-    'or',
-    'pass',
-    'raise',
-    'return',
-    'try',
-    'while',
-    'with',
-    'yield'
+    "False",
+    "None",
+    "True",
+    "and",
+    "as",
+    "assert",
+    "async",
+    "await",
+    "break",
+    "class",
+    "continue",
+    "def",
+    "del",
+    "elif",
+    "else",
+    "except",
+    "finally",
+    "for",
+    "from",
+    "global",
+    "if",
+    "import",
+    "in",
+    "is",
+    "lambda",
+    "nonlocal",
+    "not",
+    "or",
+    "pass",
+    "raise",
+    "return",
+    "try",
+    "while",
+    "with",
+    "yield",
 }
 
 
@@ -99,7 +99,7 @@ def _rename_variable(name):
         # Handle graph/function input/output uniformly
         name = name.name
     if name in kwlist:
-        return 'r_' + name
+        return "r_" + name
     if name == "":
         return None
     return name
@@ -109,13 +109,13 @@ def _translate_type(onnx_type):
     """
     Converts a onnx type into a type defined by *onnx-script*.
     """
-    if onnx_type.HasField('tensor_type'):
+    if onnx_type.HasField("tensor_type"):
         typ = ParametricTensor.types[onnx_type.tensor_type.elem_type]
         name = repr(typ)
-        if onnx_type.tensor_type.HasField('shape'):
+        if onnx_type.tensor_type.HasField("shape"):
             shape = []
             for d in onnx_type.tensor_type.shape.dim:
-                if d.HasField('dim_value'):
+                if d.HasField("dim_value"):
                     shape.append(str(d.dim_value))
                 else:
                     shape.append(d.dim_param)
@@ -124,13 +124,15 @@ def _translate_type(onnx_type):
             return "%s[%s]" % (name, ",".join(shape))
         return name + "[...]"
     raise NotImplementedError(
-        "Unable to translate type %r into onnx-script type." % onnx_type)
+        "Unable to translate type %r into onnx-script type." % onnx_type
+    )
 
 
 def _translate_signature(inputs, outputs):
     """
     Produce the script-functions signature.
     """
+
     def input_sig(inp: Union[ValueInfoProto, str]):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
@@ -138,6 +140,7 @@ def _translate_signature(inputs, outputs):
         else:
             # FunctionProto inputs/outputs are just strings
             return _rename_variable(inp)
+
     result = "(" + ", ".join([input_sig(x) for x in inputs]) + ")"
     if outputs and isinstance(outputs[0], ValueInfoProto):
         result += " -> (" + ", ".join([_translate_type(x.type) for x in outputs]) + ")"
@@ -146,7 +149,7 @@ def _translate_signature(inputs, outputs):
 
 def _to_str(s):
     if isinstance(s, bytes):
-        return s.decode('utf-8')
+        return s.decode("utf-8")
     return s
 
 
@@ -165,8 +168,7 @@ def _attribute_value(attr):
         return list(attr.ints)
     if attr.strings:
         return list(map(_to_str, attr.strings))
-    raise NotImplementedError(
-        "Unable to return a value for attribute %r." % attr)
+    raise NotImplementedError("Unable to return a value for attribute %r." % attr)
 
 
 def _python_make_node_name(domain, version, name, node=False):
@@ -175,18 +177,19 @@ def _python_make_node_name(domain, version, name, node=False):
             version = 1
         if not isinstance(version, int):
             raise TypeError(
-                "version must be an integer not %r for domain=%r and name=%r." % (
-                    version, domain, name))
-        if domain == '':
+                "version must be an integer not %r for domain=%r and name=%r."
+                % (version, domain, name)
+            )
+        if domain == "":
             return "opset%d.%s" % (version, name)
         return "%s%d.%s" % (domain.replace(".", "_"), version, name)
     return name
 
 
 class Exporter:
-    '''
+    """
     Class used for recursive traversal of Proto structures.
-    '''
+    """
 
     def __init__(self, use_operators=False, rename_function=None) -> None:
         self.use_operators = use_operators
@@ -203,22 +206,29 @@ class Exporter:
         Translates a GraphProto into python.
         """
         code = []
-        sindent = '    ' * indent
+        sindent = "    " * indent
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
-                node = make_node('Constant', [], [self._rename_variable(init.name)],
-                                 value=init)
+                node = make_node(
+                    "Constant", [], [self._rename_variable(init.name)], value=init
+                )
                 code.append(self._python_make_node(node, opsets, indent=indent))
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
             raise NotImplementedError(
-                "Unable to convert sparse_initilizer into python.")
+                "Unable to convert sparse_initilizer into python."
+            )
         for node in graph.node:
             code.append(self._python_make_node(node, opsets, indent=indent))
         if output_names is not None:
             for fr, to in zip(graph.output, output_names):
                 code.append(
-                    "%s%s = %s" % (sindent, self._rename_variable(to),
-                                   self._rename_variable(fr.name)))
+                    "%s%s = %s"
+                    % (
+                        sindent,
+                        self._rename_variable(to),
+                        self._rename_variable(fr.name),
+                    )
+                )
         final = "\n".join(code)
         return final
 
@@ -232,14 +242,16 @@ class Exporter:
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
-                    text = (
-                        'make_tensor("value", %s, dims=[], vals=[%r])'
-                        '' % (onnx_dtype, value.tolist()))
+                    text = 'make_tensor("value", %s, dims=[], vals=[%r])' "" % (
+                        onnx_dtype,
+                        value.tolist(),
+                    )
                 else:
-                    text = (
-                        'make_tensor("value", %s, dims=%r, vals=%r)'
-                        '' % (onnx_dtype, list(value.shape),
-                              value.ravel().tolist()))
+                    text = 'make_tensor("value", %s, dims=%r, vals=%r)' "" % (
+                        onnx_dtype,
+                        list(value.shape),
+                        value.ravel().tolist(),
+                    )
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -250,24 +262,29 @@ class Exporter:
         """
         Translates a node If into python.
         """
-        sindent = '    ' * indent
+        sindent = "    " * indent
         code = ["%sif %s:" % (sindent, node.input[0])]
         if len(node.attribute) != 2:
             raise RuntimeError(
-                "Node %r expected two attributes not %d." % (
-                    node.op_type, len(node.attribute)))
+                "Node %r expected two attributes not %d."
+                % (node.op_type, len(node.attribute))
+            )
         atts = node.attribute
-        if atts[0].name == 'else_branch':
+        if atts[0].name == "else_branch":
             else_branch, then_branch = atts[0].g, atts[1].g
         else:
             else_branch, then_branch = atts[1].g, atts[0].g
-        code.append(self._python_make_node_graph(
-            then_branch, opsets, indent=indent + 1,
-            output_names=node.output))
+        code.append(
+            self._python_make_node_graph(
+                then_branch, opsets, indent=indent + 1, output_names=node.output
+            )
+        )
         code.append("%selse:" % sindent)
-        code.append(self._python_make_node_graph(
-            else_branch, opsets, indent=indent + 1,
-            output_names=node.output))
+        code.append(
+            self._python_make_node_graph(
+                else_branch, opsets, indent=indent + 1, output_names=node.output
+            )
+        )
         return "\n".join(code)
 
     def _python_make_node_loop(self, node, opsets, indent=0):
@@ -281,21 +298,27 @@ class Exporter:
         # v_initial = node.input[2]
         rows = []
         if n_iter and not cond:
-            rows.append("%sfor %s in range(%s):" % (
-                sindent, body.input[0].name, n_iter))
+            rows.append(
+                "%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter)
+            )
         elif not n_iter and cond:
             rows.append("%swhile %s:" % (sindent, cond))
         elif n_iter and cond:
-            rows.append("%sfor %s in range(%s):" % (
-                sindent, body.input[0].name, n_iter))
+            rows.append(
+                "%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter)
+            )
             rows.append("%s    if not %s:" % (sindent, cond))
             rows.append("%s        break" % sindent)
         else:
             raise RuntimeError(
                 "Unable to export loop type %r into python because there is no "
-                "stop condition." % (node.op_type, ))
-        rows.append(self._python_make_node_graph(body, opsets, indent=indent + 1,
-                                                 output_names=node.output))
+                "stop condition." % (node.op_type,)
+            )
+        rows.append(
+            self._python_make_node_graph(
+                body, opsets, indent=indent + 1, output_names=node.output
+            )
+        )
         return "\n".join(rows)
 
     def _python_make_node_scan(self, node, opsets, indent=0):
@@ -306,56 +329,89 @@ class Exporter:
 
     def _python_make_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):
-            node = onnx_node['onnx_node']
+            node = onnx_node["onnx_node"]
         else:
             node = onnx_node
-        if node.op_type in {'If', 'Loop', 'Scan'}:
+        if node.op_type in {"If", "Loop", "Scan"}:
             # If, Loop, Scan
-            if node.op_type == 'If':
+            if node.op_type == "If":
                 return self._python_make_node_if(node, opsets, indent=indent)
-            if node.op_type == 'Loop':
+            if node.op_type == "Loop":
                 return self._python_make_node_loop(node, opsets, indent=indent)
-            if node.op_type == 'Scan':
+            if node.op_type == "Scan":
                 return self._python_make_node_scan(node, opsets, indent=indent)
             raise RuntimeError(
-                "Unable to export node type %r into python." % (node.op_type, ))
-        if any(map(lambda att: hasattr(att, 'g') and att.g and att.g.ByteSize() > 0,
-                   node.attribute)):
+                "Unable to export node type %r into python." % (node.op_type,)
+            )
+        if any(
+            map(
+                lambda att: hasattr(att, "g") and att.g and att.g.ByteSize() > 0,
+                node.attribute,
+            )
+        ):
             raise RuntimeError(
-                "Unable to export node type %r into python." % node.op_type)
-        ops = {'Add': '+', 'Sub': '-', 'Mul': '*', 'MatMul': '@',
-               'Div': '/', 'Pow': '**',
-               'And': '&', 'Or': '|', 'Greater': '>', 'Equal': '==',
-               'Lesser': '<', 'GreaterOrEqual': '>=', 'LessOrEqual': '<='}
+                "Unable to export node type %r into python." % node.op_type
+            )
+        ops = {
+            "Add": "+",
+            "Sub": "-",
+            "Mul": "*",
+            "MatMul": "@",
+            "Div": "/",
+            "Pow": "**",
+            "And": "&",
+            "Or": "|",
+            "Greater": ">",
+            "Equal": "==",
+            "Lesser": "<",
+            "GreaterOrEqual": ">=",
+            "LessOrEqual": "<=",
+        }
         sindent = "    " * indent
         if self.use_operators and node.op_type in ops:
             return "%s%s = %s" % (
-                sindent, self._rename_variable(node.output[0]),
-                (" %s " % ops[node.op_type]).join(map(self._rename_variable, node.input)))
+                sindent,
+                self._rename_variable(node.output[0]),
+                (" %s " % ops[node.op_type]).join(
+                    map(self._rename_variable, node.input)
+                ),
+            )
         name = _python_make_node_name(
-            node.domain, opsets[node.domain], node.op_type, node=True)
+            node.domain, opsets[node.domain], node.op_type, node=True
+        )
         attributes_str = self._python_make_node_make_attribute_str(node)
         if len(node.input) > 0 and len(attributes_str) > 0:
             attributes_str = ", " + attributes_str
         output_names = []
         for i, o in enumerate(node.output):
-            if o in ('', None):
-                output_names.append('_%d' % i)
+            if o in ("", None):
+                output_names.append("_%d" % i)
             else:
                 output_names.append(self._rename_variable(o))
 
-        text = [sindent, ", ".join(output_names), " = ", name,
-                '(',
-                ', '.join(map(self._rename_variable_s, node.input)),
-                attributes_str,
-                ')']
+        text = [
+            sindent,
+            ", ".join(output_names),
+            " = ",
+            name,
+            "(",
+            ", ".join(map(self._rename_variable_s, node.input)),
+            attributes_str,
+            ")",
+        ]
         return "".join(text)
 
 
-def export_template(model_onnx, template,
-                    name=None, autopep_options=None,
-                    function_name='main_function', clean_code=True,
-                    use_operators=False, rename=False):
+def export_template(
+    model_onnx,
+    template,
+    name=None,
+    autopep_options=None,
+    function_name="main_function",
+    clean_code=True,
+    use_operators=False,
+    rename=False,
+):
     """
     Exports an ONNX model into a code based on a template.
 
@@ -373,11 +429,10 @@ def export_template(model_onnx, template,
 
     # unique_function_domain_version
     unique_function_domain_version = set()
-    if hasattr(model_onnx, 'functions'):
+    if hasattr(model_onnx, "functions"):
         for f in model_onnx.functions:
             unique_function_domain_version.add((f.domain, 1))
-    unique_function_domain_version = list(
-        sorted(unique_function_domain_version))
+    unique_function_domain_version = list(sorted(unique_function_domain_version))
 
     if rename:
         variable_names = dict()
@@ -398,79 +453,88 @@ def export_template(model_onnx, template,
     exporter = Exporter(use_operators, rename_function=rename_variable)
 
     # containers
-    context = {'main_model': model_onnx,
-               'python_make_node': exporter._python_make_node,
-               'python_make_node_graph': exporter._python_make_node_graph,
-               'python_make_node_name': _python_make_node_name,
-               'unique_function_domain_version': unique_function_domain_version,
-               'rename': rename_variable,
-               'translate_sig': _translate_signature}
+    context = {
+        "main_model": model_onnx,
+        "python_make_node": exporter._python_make_node,
+        "python_make_node_graph": exporter._python_make_node_graph,
+        "python_make_node_name": _python_make_node_name,
+        "unique_function_domain_version": unique_function_domain_version,
+        "rename": rename_variable,
+        "translate_sig": _translate_signature,
+    }
 
     # opset
-    if hasattr(model_onnx, 'opset_import'):
+    if hasattr(model_onnx, "opset_import"):
         opsets = {}
         for oimp in model_onnx.opset_import:
             opsets[oimp.domain] = oimp.version
-        context['opsets'] = opsets
+        context["opsets"] = opsets
 
-    graph = model_onnx.graph if hasattr(model_onnx, 'graph') else model_onnx
+    graph = model_onnx.graph if hasattr(model_onnx, "graph") else model_onnx
 
     # types
     unique_types = set()
     for t in list(graph.input) + list(graph.output):
         if hasattr(t, "type"):
             ts = _translate_type(t.type)
-            its = ts.split('[', maxsplit=1)[0]
+            its = ts.split("[", maxsplit=1)[0]
             unique_types.add(its)
     context["unique_types"] = list(sorted(unique_types))
 
     # functions
     functions = []
-    if hasattr(model_onnx, 'functions'):
+    if hasattr(model_onnx, "functions"):
         for fct in model_onnx.functions:
             opsets_fct = {}
             for oimp in fct.opset_import:
                 opsets_fct[oimp.domain] = oimp.version
             functions.append(
-                (fct.domain, fct.name,
-                 {'proto': fct,
-                  'opsets': opsets_fct}))
-    context['functions'] = functions
+                (fct.domain, fct.name, {"proto": fct, "opsets": opsets_fct})
+            )
+    context["functions"] = functions
 
     # node
-    context['graph'] = graph
+    context["graph"] = graph
 
     # graph
-    context['name'] = name or graph.name
-    context['function_name'] = function_name
-    if hasattr(model_onnx, 'graph'):
-        context['doc_string'] = model_onnx.doc_string
+    context["name"] = name or graph.name
+    context["function_name"] = function_name
+    if hasattr(model_onnx, "graph"):
+        context["doc_string"] = model_onnx.doc_string
     else:
-        context['doc_string'] = ""
+        context["doc_string"] = ""
 
     # First rendering to detect any unused or replaced initializer.
     from jinja2 import Template  # delayed import
+
     template = Template(template)
     final = template.render(
-        enumerate=enumerate, sorted=sorted, len=len, repr=repr,
-        map=map, **context)
+        enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, **context
+    )
 
     final += "\n"
     if "\nreturn" in final:
-        raise SyntaxError(
-            "The produced code is wrong.\n%s" % final)
+        raise SyntaxError("The produced code is wrong.\n%s" % final)
     if clean_code:
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
             raise SyntaxError(
-                "The cleaned code is wrong.\n%s\n------%s" % (
-                    final, cleaned_code))
+                "The cleaned code is wrong.\n%s\n------%s" % (final, cleaned_code)
+            )
         return cleaned_code
     return final
 
 
-def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
-                  autopep_options=None, function_name='main', use_operators=False):
+def export2python(
+    model_onnx,
+    opset=None,
+    verbose=True,
+    name=None,
+    rename=False,
+    autopep_options=None,
+    function_name="main",
+    use_operators=False,
+):
     """
     Exports an ONNX model to the *python* syntax.
 
@@ -509,10 +573,15 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
         model_onnx = onnx.load(model_onnx)
 
     if not isinstance(model_onnx, (ModelProto, FunctionProto)):
-        raise TypeError(
-            "The function expects a ModelProto not %r." % type(model_onnx))
-    code = export_template(model_onnx, template=_template_python,
-                           name=name, autopep_options=autopep_options,
-                           clean_code=True, function_name=function_name,
-                           use_operators=use_operators, rename=rename)
+        raise TypeError("The function expects a ModelProto not %r." % type(model_onnx))
+    code = export_template(
+        model_onnx,
+        template=_template_python,
+        name=name,
+        autopep_options=autopep_options,
+        clean_code=True,
+        function_name=function_name,
+        use_operators=use_operators,
+        rename=rename,
+    )
     return code

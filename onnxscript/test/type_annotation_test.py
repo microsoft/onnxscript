@@ -11,44 +11,44 @@ from onnxscript.onnx_types import FLOAT
 from onnxscript.test.testutils import TestBase
 
 
-class TypeAnnotationTester (TestBase):
+class TypeAnnotationTester(TestBase):
     def test_type_annotation(self):
-        '''Test type annotations.'''
+        """Test type annotations."""
 
         @script()
         def static_shape(A: FLOAT[100], B: FLOAT[100]) -> FLOAT[100]:
             C = op.Add(A, B)
             return C
 
-        static_shape_txt = '''
+        static_shape_txt = """
             static_shape (float[100] A, float[100] B) => (float[100] C) {
                 C = Add (A, B)
             }
-        '''
+        """
         self.assertSameGraph(static_shape, static_shape_txt)
 
         @script()
-        def symbolic_shape(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:   # noqa: F821
+        def symbolic_shape(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
             C = op.Add(A, B)
             return C
 
-        symbolic_shape_txt = '''
+        symbolic_shape_txt = """
             symbolic_shape (float[N] A, float[N] B) => (float[N] C) {
                 C = Add (A, B)
             }
-        '''
+        """
         self.assertSameGraph(symbolic_shape, symbolic_shape_txt)
 
         @script()
-        def tensor_scalar(A: FLOAT["N"], B: FLOAT) -> FLOAT["N"]:   # noqa: F821
+        def tensor_scalar(A: FLOAT["N"], B: FLOAT) -> FLOAT["N"]:  # noqa: F821
             C = op.Add(A, B)
             return C
 
-        tensor_scalar_txt = '''
+        tensor_scalar_txt = """
             tensor_scalar (float[N] A, float B) => (float[N] C) {
                 C = Add (A, B)
             }
-        '''
+        """
         self.assertSameGraph(tensor_scalar, tensor_scalar_txt)
 
         @script()
@@ -56,13 +56,13 @@ class TypeAnnotationTester (TestBase):
             C = op.Add(A, B)
             return C
 
-        unknown_rank_txt = '''
+        unknown_rank_txt = """
             unknown_rank (float[] A, float[] B) => (float[] C) {
                 C = Add (A, B)
             }
-        '''
+        """
         self.assertSameGraph(unknown_rank, unknown_rank_txt)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

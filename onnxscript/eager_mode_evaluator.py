@@ -34,7 +34,9 @@ def convert_to_tensor(v, k):
         return numpy_helper.from_array(np.array([v]))
     if isinstance(v, onnx.TensorProto):
         return v
-    raise ValueError(f"Attribute {k!r} must be convertable to TensorProto, got {type(v)}.")
+    raise ValueError(
+        f"Attribute {k!r} must be convertable to TensorProto, got {type(v)}."
+    )
 
 
 def convert_attributes_to_tensors_with_schema(attribute_dict, schema_attribute_dict):
@@ -55,17 +57,18 @@ def _rename_io(prefix, i, arg):
 
 
 def _compute_outputs(schema, *args, **kwargs):
-    if schema.domain == '':
-        if schema.name == 'BatchNormalization':
-            if not kwargs.get('training_mode', 0):
+    if schema.domain == "":
+        if schema.name == "BatchNormalization":
+            if not kwargs.get("training_mode", 0):
                 return ["output0"]
-        if schema.name == 'LSTM':
+        if schema.name == "LSTM":
             return ["output0", "output1", "output2"]
-        if schema.name == 'Split':
+        if schema.name == "Split":
             if len(args) == 1:
                 raise EagerModeError(
                     "Operator Split: the number of expected outputs defines the split. "
-                    "This information is unknown here.")
+                    "This information is unknown here."
+                )
     return None
 
 
@@ -91,8 +94,10 @@ def call_ort(schema, *args, **kwargs):
             inputs.append("")
             continue
         if not isinstance(arg, (EagerArray, list, int, float)):
-            raise TypeError(f"Unexpected type {type(arg)} for input {i} "
-                            f"and operator {schema.name!r}.")
+            raise TypeError(
+                f"Unexpected type {type(arg)} for input {i} "
+                f"and operator {schema.name!r}."
+            )
         inputs.append(_rename_io("input", i, arg))
 
     convert_attributes_to_tensors_with_schema(kwargs, schema.attributes)
@@ -105,20 +110,26 @@ def call_ort(schema, *args, **kwargs):
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
     input_value_infos = values_to_value_infos(inputs, list(args))
-    output_value_infos = [onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
+    output_value_infos = [
+        onnx.helper.make_value_info(name, TypeProto()) for name in outputs
+    ]
 
     graph = onnx.helper.make_graph(
-        [node], "node_graph", input_value_infos, output_value_infos)
+        [node], "node_graph", input_value_infos, output_value_infos
+    )
     opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
-    model = onnx.helper.make_model(graph, opset_imports=[opset_id],
-                                   ir_version=select_ir_version(schema.since_version,
-                                                                domain=schema.domain))
+    model = onnx.helper.make_model(
+        graph,
+        opset_imports=[opset_id],
+        ir_version=select_ir_version(schema.since_version, domain=schema.domain),
+    )
     try:
-        sess = _cache_(model, ['CPUExecutionProvider'])
+        sess = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             "Unable to create onnxruntime InferenceSession with onnx "
-            "model\n%s" % str(model)) from e
+            "model\n%s" % str(model)
+        ) from e
 
     session_run_input = {}
     tensor_class = None
@@ -134,7 +145,8 @@ def call_ort(schema, *args, **kwargs):
             session_run_input[name] = np.array(arg)
         else:
             raise TypeError(
-                f"Unable to call onnxruntime with type {type(arg)} for input {name!r}).")
+                f"Unable to call onnxruntime with type {type(arg)} for input {name!r})."
+            )
 
     try:
         got = sess.run(None, session_run_input)
@@ -145,7 +157,8 @@ def call_ort(schema, *args, **kwargs):
             f"{pprint.pformat({k: type(v) for k, v in zip(inputs, args)})}"
             f"\nmodified input types:\n"
             f"{pprint.pformat({k: type(v) for k, v in session_run_input.items()})}"
-            f"\ninputs:\n{pprint.pformat(session_run_input)}\n{model}")
+            f"\ninputs:\n{pprint.pformat(session_run_input)}\n{model}"
+        )
 
     if tensor_class is None:
         tensor_class = EagerArray
@@ -156,6 +169,5 @@ def call_ort(schema, *args, **kwargs):
         elif isinstance(g, list):
             new_got.append(g)
         else:
-            raise TypeError(
-                f"Unexpected output type {type(g)} for output {i}).")
+            raise TypeError(f"Unexpected output type {type(g)} for output {i}).")
     return new_got[0] if len(new_got) == 1 else new_got

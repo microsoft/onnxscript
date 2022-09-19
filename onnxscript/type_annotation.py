@@ -12,7 +12,7 @@ pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
-    typing.List[int]: onnx.AttributeProto.INTS
+    typing.List[int]: onnx.AttributeProto.INTS,
 }
 
 

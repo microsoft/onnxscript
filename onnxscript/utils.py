@@ -17,14 +17,15 @@ from .eager_array import EagerArray
 try:
     from onnx.printer import to_text as proto2text
 except ImportError:
+
     def proto2text(x):
         return "<print utility unavailable>"
 
 
 def value_to_type_proto(val):
-    '''
+    """
     Return the ONNX type of a python-value.
-    '''
+    """
     if isinstance(val, (np.ndarray, EagerArray)):
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
         shape = val.shape
@@ -40,28 +41,31 @@ def value_to_type_proto(val):
             # Edge-case. Cannot determine a suitable ONNX type for an empty list.
             # Should be using a typed-value instead.
             # Treated as a sequence of tensors of float-type.
-            return make_sequence_type_proto(make_tensor_type_proto(TensorProto.FLOAT, None))
+            return make_sequence_type_proto(
+                make_tensor_type_proto(TensorProto.FLOAT, None)
+            )
     else:
-        raise ValueError(
-            f"Cannot convert a {type(val)} to TypeProto")
+        raise ValueError(f"Cannot convert a {type(val)} to TypeProto")
 
 
 def values_to_value_infos(names, values):
-    '''
+    """
     Create a list of ValueInfoProto representing a list of names and a corresponding
     list of values, skipping any None values.
-    '''
-    return [onnx.helper.make_value_info(name, value_to_type_proto(val))
-            for (name, val) in zip(names, values)
-            if val is not None]
+    """
+    return [
+        onnx.helper.make_value_info(name, value_to_type_proto(val))
+        for (name, val) in zip(names, values)
+        if val is not None
+    ]
 
 
 def make_model_from_function_proto(
-        function_proto: FunctionProto,
-        function_opset_version: int,
-        input_value_infos: Sequence[ValueInfoProto],
-        output_value_infos: Sequence[ValueInfoProto],
-        **attrs: Any
+    function_proto: FunctionProto,
+    function_opset_version: int,
+    input_value_infos: Sequence[ValueInfoProto],
+    output_value_infos: Sequence[ValueInfoProto],
+    **attrs: Any,
 ) -> ModelProto:
     """Creates a model containing a single call to a given
     function with input and output value_infos, etc.
@@ -78,26 +82,28 @@ def make_model_from_function_proto(
         ModelProto
     """
 
-    input_names = [
-        vi.name for vi in input_value_infos]
-    output_names = [
-        vi.name for vi in output_value_infos]
+    input_names = [vi.name for vi in input_value_infos]
+    output_names = [vi.name for vi in output_value_infos]
     node = onnx.helper.make_node(
-        function_proto.name, input_names, output_names,
+        function_proto.name,
+        input_names,
+        output_names,
         domain=function_proto.domain,
-        **(attrs or {}))
+        **(attrs or {}),
+    )
     graph = onnx.helper.make_graph(
-        [node], "node_graph",
-        input_value_infos, output_value_infos)
+        [node], "node_graph", input_value_infos, output_value_infos
+    )
     model_proto_opset = function_proto.opset_import
     if all(o.domain != function_proto.domain for o in model_proto_opset):
         model_proto_opset = [
             *model_proto_opset,
-            onnx.helper.make_opsetid(function_proto.domain, function_opset_version)]
+            onnx.helper.make_opsetid(function_proto.domain, function_opset_version),
+        ]
     model = onnx.helper.make_model(
         graph,
-        functions=[
-            function_proto],
-        producer_name='onnx-script',
-        opset_imports=model_proto_opset)
+        functions=[function_proto],
+        producer_name="onnx-script",
+        opset_imports=model_proto_opset,
+    )
     return model

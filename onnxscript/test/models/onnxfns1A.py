@@ -16,8 +16,11 @@ def Relu(X):
 
 
 @script()
-def Selu(X, alpha: float = 1.67326319217681884765625,
-         gamma: float = 1.05070102214813232421875):
+def Selu(
+    X,
+    alpha: float = 1.67326319217681884765625,
+    gamma: float = 1.05070102214813232421875,
+):
     neg = gamma * (alpha * op.Exp(X) - alpha)
     pos = gamma * X
     return op.Where(X <= 0.0, neg, pos)

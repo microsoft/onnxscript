@@ -7,9 +7,9 @@ from onnxscript.main import get_ast
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
-    '''
+    """
     Visitor class to flatten the results of liveness analysis in a pre-order traversal.
-    '''
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -43,11 +43,8 @@ class TestLivenessAnalysis(unittest.TestCase):
             x = 1
             # live = {y}
             return y + 1
-        self.assertLiveness(basic_eg, [
-            ["x"],
-            ["y"],
-            ["y"]
-        ])
+
+        self.assertLiveness(basic_eg, [["x"], ["y"], ["y"]])
 
     def test_for_loop(self):
         def loop_eg():
@@ -65,37 +62,36 @@ class TestLivenessAnalysis(unittest.TestCase):
             # live = {x}
             return x
 
-        self.assertLiveness(loop_eg, [
-            [],
-            ["sum"],
-            ["x", "sum"],
-            ["x", "sum", "i"],
-            ["x", "sum"],
-            ["x", "sum"],
-            ["x"]
-        ])
+        self.assertLiveness(
+            loop_eg,
+            [
+                [],
+                ["sum"],
+                ["x", "sum"],
+                ["x", "sum", "i"],
+                ["x", "sum"],
+                ["x", "sum"],
+                ["x"],
+            ],
+        )
 
     def test_while_loop(self):
         def while_eg(x):
             # live = {x}
-            cond = (x < 100)
+            cond = x < 100
             # live = {x, cond}
             while cond:
                 # live = {x}
                 x = x + 2
                 # live = {x}
-                cond = (x < 100)
+                cond = x < 100
                 # live = {x, cond}
             # live = {x}
             return x
-        self.assertLiveness(while_eg, [
-            ["x"],
-            ["x", "cond"],
-            ["x"],
-            ["x"],
-            ["x", "cond"],
-            ["x"]
-        ])
+
+        self.assertLiveness(
+            while_eg, [["x"], ["x", "cond"], ["x"], ["x"], ["x", "cond"], ["x"]]
+        )
 
 
 class TestExposedUses(unittest.TestCase):
@@ -110,7 +106,8 @@ class TestExposedUses(unittest.TestCase):
             y = 20
             z = x + y
             x = 30 + z
-        self.assertUses(f, {'x'})
+
+        self.assertUses(f, {"x"})
 
     def test_if(self):
         def f(x, y, z):
@@ -122,7 +119,8 @@ class TestExposedUses(unittest.TestCase):
                 result = z + c
             c30 = 30
             return result + c30
-        self.assertUses(f, {'x', 'y', 'z'})
+
+        self.assertUses(f, {"x", "y", "z"})
 
     def test_for_loop(self):
         def f(x, y):
@@ -131,17 +129,19 @@ class TestExposedUses(unittest.TestCase):
             tmp = 10
             result = y + tmp
             return result
-        self.assertUses(f, {'x', 'y'})
+
+        self.assertUses(f, {"x", "y"})
 
     def test_while_loop(self):
         def f(x, y):
             i = 1
-            while ((i < 10) and (x)):
+            while (i < 10) and (x):
                 y = y + i
             tmp = y * 2
             return tmp
-        self.assertUses(f, {'x', 'y'})
+
+        self.assertUses(f, {"x", "y"})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main(verbosity=2)

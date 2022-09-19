@@ -9,7 +9,8 @@ from .values import Opset
 
 if onnx_opset_version() < 14:
     raise ImportError(
-        f"onnx-script requires onnx opset >= 14 but {onnx_opset_version()} is detected.")
+        f"onnx-script requires onnx opset >= 14 but {onnx_opset_version()} is detected."
+    )
 
 opset1 = Opset("", 1)
 opset2 = Opset("", 2)

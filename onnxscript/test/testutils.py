@@ -31,7 +31,7 @@ def graph_proto(g):
 
 class TestBase(unittest.TestCase):
     def validate(self, fn):
-        '''validate script function translation'''
+        """validate script function translation"""
         return fn.to_function_proto()
 
     def assertSame(self, fn1, fn2):
