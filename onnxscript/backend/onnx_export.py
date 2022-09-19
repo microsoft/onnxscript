@@ -7,7 +7,7 @@ from typing import Union
 import numpy
 import onnx
 from onnx.helper import make_node
-from onnx import numpy_helper, ModelProto, FunctionProto, ValueInfoProto
+from onnx import numpy_helper, ModelProto, FunctionProto, ValueInfoProto, TensorProto, external_data_helper
 from ..onnx_types import ParametricTensor
 
 
@@ -15,7 +15,7 @@ _template_python = '''
 import numpy
 from onnx import TensorProto
 from onnx.helper import make_tensor
-from onnxscript import script
+from onnxscript import script, external_tensor
 from onnxscript.values import Opset
 {% if unique_types %}
 from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
@@ -157,7 +157,11 @@ def _attribute_value(attr):
     if attr.HasField("s"):
         return _to_str(attr.s)
     if attr.HasField("t"):
-        return numpy_helper.to_array(attr.t)
+        tensor_proto = attr.t
+        if external_data_helper.uses_external_data(tensor_proto):
+            return tensor_proto
+        else:
+            return numpy_helper.to_array(attr.t)
     if attr.floats:
         return list(attr.floats)
     if attr.ints:
@@ -239,6 +243,18 @@ class Exporter:
                         'make_tensor("value", %s, dims=%r, vals=%r)'
                         '' % (onnx_dtype, list(value.shape),
                               value.ravel().tolist()))
+                attributes.append((at.name, text))
+                continue
+            if isinstance(value, TensorProto):
+                metadata = external_data_helper.ExternalDataInfo(value)
+                text = "external_tensor("
+                name = value.name or "value"
+                text += '%r, %s, %r' % (name, value.data_type, list(value.dims))
+                text += ', %r' % (metadata.location,)
+                if metadata.offset:
+                    text += ", offset=" + repr(metadata.offset)
+                if metadata.length:
+                    text += ", length=" + repr(metadata.length)
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -469,7 +485,8 @@ def export_template(model_onnx, template,
 
 
 def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
-                  autopep_options=None, function_name='main', use_operators=False):
+                  autopep_options=None, function_name='main', use_operators=False,
+                  clean_code=True):
     """
     Exports an ONNX model to the *python* syntax.
 
@@ -512,6 +529,6 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
             "The function expects a ModelProto not %r." % type(model_onnx))
     code = export_template(model_onnx, template=_template_python,
                            name=name, autopep_options=autopep_options,
-                           clean_code=True, function_name=function_name,
+                           clean_code=clean_code, function_name=function_name,
                            use_operators=use_operators, rename=rename)
     return code

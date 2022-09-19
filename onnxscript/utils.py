@@ -5,9 +5,9 @@
 
 import numbers
 import numpy as np
-from typing import Any, Sequence
+from typing import Any, Sequence, Optional
 import onnx
-from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
+from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto, external_data_helper
 from onnx.helper import make_tensor_type_proto, make_sequence_type_proto
 from .eager_array import EagerArray
 
@@ -17,6 +17,22 @@ try:
 except ImportError:
     def proto2text(x):
         return "<print utility unavailable>"
+
+
+def external_tensor(
+        name: str,
+        data_type: int,
+        dims: Sequence[int],
+        location: str,
+        offset: Optional[int] = None,
+        length: Optional[int] = None,
+        checksum: Optional[str] = None,
+        basepath: Optional[str] = None):
+    tensor = TensorProto()
+    tensor.name = name
+    tensor.data_type = data_type
+    tensor.dims.extend(dims)
+    external_data_helper.set_external_data(tensor, location, offset, length, checksum, basepath)
 
 
 def value_to_type_proto(val):
