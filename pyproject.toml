@@ -72,22 +72,21 @@
   warn_unused_configs = true
   show_error_codes = true
   show_column_numbers = true
-  exclude = [
-      "\\.git",
-      "__pycache__",
-  ]
+
 
   [[tool.mypy.overrides]]
     module = "tools.*"
     disallow_untyped_defs = true
 
-  # Ignore errors in setup.py
+  # Ignore errors in test
   [[tool.mypy.overrides]]
-    module = "setup"
+    module = ["setup", "onnxscript.test.models.*", "onnxscript.test.onnx_backend_test_code.*"]
     ignore_errors = true
 
 [tool.black]
   target-version = ["py37", "py38", "py39", "py310"]
+  extend-exclude = "^onnxscript/test/models"
 
 [tool.isort]
   profile = "black"
+  extend_skip_glob  = ["**test/models/*.py", "**onnx_backend_test_code/*.py"]

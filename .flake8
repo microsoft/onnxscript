@@ -27,3 +27,5 @@ exclude =
   .git,
   __pycache__,
   .eggs,
+  **test/models/*.py,
+  **onnx_backend_test_code/*.py,

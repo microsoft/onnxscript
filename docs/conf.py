@@ -2,11 +2,10 @@
 # To run the documentation: python -m sphinx docs dist/html
 
 import sys
+import onnx_script
 import re
 import os
 import sphinx_gallery.sorting
-import sys
-import importlib_metadata as metadata
 
 
 # -- Project information -----------------------------------------------------
@@ -14,7 +13,7 @@ import importlib_metadata as metadata
 project = 'onnx-script'
 copyright = '2022, onnx'
 author = 'onnx'
-version = metadata.version(project)
+version = onnx_script.__version__
 release = version
 
 # -- General configuration ---------------------------------------------------

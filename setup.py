@@ -26,4 +26,5 @@ setup(
     url='https://github.com/onnx/onnx-script',
     packages=packages,
     include_package_data=True,
+    package_data={"onnx-script": ["py.typed"], "onnx": ["py.typed"],},
 )

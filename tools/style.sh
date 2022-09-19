@@ -13,20 +13,19 @@ err=0
 trap 'err=1' ERR
 
 echo -e "\n::group:: ===> check flake8..."
-# TODO: flake .
-flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py,**onnx_backend_test_code/*.py"
+flake8 onnxscript --config .flake8
 echo -e "::endgroup::"
 
 echo -e "\n::group:: ===> check isort..."
-isort . --color --diff --check
+isort onnxscript --color --diff --check
 echo -e "::endgroup::"
 
 echo -e "\n::group:: ===> check black format..."
-black . --color --diff --check
+black onnxscript --color --diff --check
 echo -e "::endgroup::"
 
 echo -e "\n::group:: ===> check mypy"
-mypy . --no-site-packages
+mypy onnxscript --config-file pyproject.toml
 echo -e "::endgroup::"
 
 git diff --exit-code
