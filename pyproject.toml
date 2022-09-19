@@ -78,10 +78,15 @@
     module = "tools.*"
     disallow_untyped_defs = true
 
-  # Ignore errors in test
+  # Ignore errors in tests
   [[tool.mypy.overrides]]
     module = ["setup", "onnxscript.test.models.*", "onnxscript.test.onnx_backend_test_code.*"]
     ignore_errors = true
+
+  [[tool.mypy.overrides]]
+    # TODO: delete this when py.typed is supported in these packages
+    module = ["onnx.*", "onnxruntime.*"]
+    ignore_missing_imports = true
 
 [tool.black]
   target-version = ["py37", "py38", "py39", "py310"]
