@@ -4,9 +4,11 @@
 # --------------------------------------------------------------------------
 
 import unittest
+
 from onnx.defs import onnx_opset_version
-from onnxscript.test.testutils import TestBase
+
 import onnxscript.onnx_opset as mod_opset
+from onnxscript.test.testutils import TestBase
 
 
 class TestOpset(TestBase):

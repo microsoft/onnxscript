@@ -4,9 +4,10 @@
 # --------------------------------------------------------------------------
 
 import unittest
-from onnxscript.test.testutils import TestBase
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
+from onnxscript.test.testutils import TestBase
 
 
 class IfOpTester(TestBase):

@@ -3,17 +3,23 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import importlib
 import os
 import unittest
-import importlib
+
 from onnx.helper import __file__ as onnx_file
 from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import (
-    Fail, NotImplemented, InvalidArgument, RuntimeException)
-from onnxscript.backend.onnx_export import export2python
+    Fail,
+    InvalidArgument,
+    NotImplemented,
+    RuntimeException,
+)
+
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
-from onnxscript.values import OnnxFunction
+from onnxscript.backend.onnx_export import export2python
 from onnxscript.eager_mode_evaluator import EagerModeError
+from onnxscript.values import OnnxFunction
 
 
 def print_code(code, begin=1):

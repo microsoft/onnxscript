@@ -3,13 +3,15 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import sys
 import pprint
+import sys
 import typing
-from typing import Any, List
 from enum import IntFlag
+from typing import Any, List
+
 import numpy as np
 import onnx
+
 from .eager_array import EagerArray
 
 

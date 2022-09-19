@@ -2,12 +2,16 @@
 
 import unittest
 import warnings
+
 import numpy as np
 from numpy.testing import assert_almost_equal
-from onnxscript.test.models import signal_dft
-from onnxscript.test.functions.onnx_script_test_case import (
-    OnnxScriptTestCase, FunctionTestParams)
 from onnxruntime.capi.onnxruntime_pybind11_state import RuntimeException
+
+from onnxscript.test.functions.onnx_script_test_case import (
+    FunctionTestParams,
+    OnnxScriptTestCase,
+)
+from onnxscript.test.models import signal_dft
 
 
 class TestOnnxSignal(OnnxScriptTestCase):

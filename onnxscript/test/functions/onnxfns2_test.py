@@ -1,6 +1,8 @@
 import unittest
-from packaging.version import Version
+
 import onnxruntime
+from packaging.version import Version
+
 from onnxscript.test.functions.onnx_script_test_case import OnnxScriptTestCase
 from onnxscript.test.models import onnxfns2
 

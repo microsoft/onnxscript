@@ -4,13 +4,17 @@
 # --------------------------------------------------------------------------
 import numpy as np
 from onnx import TensorProto
-from onnx.defs import onnx_opset_version
-from onnx.helper import make_model, make_node, make_graph, make_tensor_value_info
-from onnx.numpy_helper import from_array
 from onnx.checker import check_model
+from onnx.defs import onnx_opset_version
+from onnx.helper import make_graph, make_model, make_node, make_tensor_value_info
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
+from onnx.numpy_helper import from_array
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, RuntimeException, InvalidArgument
+from onnxruntime.capi.onnxruntime_pybind11_state import (
+    Fail,
+    InvalidArgument,
+    RuntimeException,
+)
 
 
 class OrtFunction:

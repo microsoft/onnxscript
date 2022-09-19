@@ -3,20 +3,22 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import sys
 import ast
 import logging
+import sys
+import typing
 from enum import IntEnum
+
 import numpy
 import onnx
 import onnx.helper as helper
-import typing
-from . import onnx_types as types
-from .irbuilder import IRBuilder
+
 from . import analysis as analysis
+from . import onnx_types as types
 from . import type_annotation as ta
 from . import values as values
-from .values import (AttrRef, Dynamic, OnnxFunction, Op, DynamicKind, DebugInfo)
+from .irbuilder import IRBuilder
+from .values import AttrRef, DebugInfo, Dynamic, DynamicKind, OnnxFunction, Op
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -118,8 +120,8 @@ primop_map = {
 
 def _known_modules():
     import onnxscript
-    import onnxscript.onnx_types
     import onnxscript.onnx_opset
+    import onnxscript.onnx_types
     res = {
         'numpy': numpy,
         'np': numpy,

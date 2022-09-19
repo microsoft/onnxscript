@@ -4,20 +4,26 @@
 # --------------------------------------------------------------------------
 
 
-import dataclasses
 import copy
+import dataclasses
 import numbers
 import unittest
-from typing import Any, List, Union
-import numpy as np
 import warnings
+from typing import Any, List, Union
+
+import numpy as np
 import onnx
-from onnx import ModelProto
 import onnx.backend.test.case.node as node_test
+from onnx import ModelProto
 from onnx.onnx_cpp2py_export.checker import ValidationError
-from onnxscript import utils
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidArgument, InvalidGraph
+from onnxruntime.capi.onnxruntime_pybind11_state import (
+    Fail,
+    InvalidArgument,
+    InvalidGraph,
+)
+
+from onnxscript import utils
 from onnxscript.main import OnnxFunction
 
 

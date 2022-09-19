@@ -3,16 +3,22 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import pprint
 import numbers
+import pprint
+
 import numpy as np
 import onnx
-from onnx import numpy_helper, AttributeProto, TypeProto
+from onnx import AttributeProto, TypeProto, numpy_helper
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
-from .utils import values_to_value_infos
-from .irbuilder import select_ir_version
+from onnxruntime.capi.onnxruntime_pybind11_state import (
+    Fail,
+    InvalidArgument,
+    InvalidGraph,
+)
+
 from .eager_array import EagerArray
+from .irbuilder import select_ir_version
+from .utils import values_to_value_infos
 
 
 class EagerModeError(RuntimeError):

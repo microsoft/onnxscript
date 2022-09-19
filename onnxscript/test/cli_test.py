@@ -4,7 +4,9 @@
 # --------------------------------------------------------------------------
 
 import unittest
+
 from click.testing import CliRunner
+
 from onnxscript.__main__ import onnx2script, translate
 
 

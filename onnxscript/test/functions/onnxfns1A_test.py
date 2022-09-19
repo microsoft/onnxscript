@@ -1,5 +1,7 @@
 import unittest
+
 import onnx
+
 from onnxscript.test.functions.onnx_script_test_case import OnnxScriptTestCase
 from onnxscript.test.models import onnxfns1A
 

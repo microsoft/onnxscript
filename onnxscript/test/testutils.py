@@ -4,7 +4,9 @@
 # --------------------------------------------------------------------------
 
 import unittest
+
 from onnx import FunctionProto, GraphProto, parser
+
 from onnxscript import OnnxFunction
 from onnxscript.test.checker import isomorphic
 

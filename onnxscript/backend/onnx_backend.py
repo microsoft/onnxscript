@@ -6,12 +6,13 @@
 
 import os
 import textwrap
+
 import numpy
+import onnx
 from numpy import object as dtype_object
 from numpy.testing import assert_almost_equal
-import onnx
-from onnx.numpy_helper import to_array, to_list
 from onnx.backend.test import __file__ as backend_folder
+from onnx.numpy_helper import to_array, to_list
 
 
 def assert_almost_equal_string(expected, value):

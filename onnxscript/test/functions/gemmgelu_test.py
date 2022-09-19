@@ -3,10 +3,11 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import numpy as np
 import unittest
-from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
+
 import gemmgelu
+import numpy as np
+from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
 
 
 class TestGemmGelu(OnnxScriptTestCase):

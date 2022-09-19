@@ -4,12 +4,13 @@
 # --------------------------------------------------------------------------
 
 from typing import Union
+
 import numpy
 import onnx
+from onnx import FunctionProto, ModelProto, ValueInfoProto, numpy_helper
 from onnx.helper import make_node
-from onnx import numpy_helper, ModelProto, FunctionProto, ValueInfoProto
-from ..onnx_types import ParametricTensor
 
+from ..onnx_types import ParametricTensor
 
 _template_python = '''
 import numpy

@@ -6,9 +6,11 @@
 import ast
 import inspect
 import textwrap
+
 import onnx.helper
-from .converter import Converter
+
 from . import values
+from .converter import Converter
 from .values import OnnxFunction
 
 

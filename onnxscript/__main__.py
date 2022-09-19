@@ -5,11 +5,13 @@
 
 import os
 from typing import Optional
+
+import click
 import onnx
 import onnx.helper as helper
-import click
-from onnxscript.converter import Converter
+
 from onnxscript.backend.onnx_export import export2python
+from onnxscript.converter import Converter
 
 
 @click.group()

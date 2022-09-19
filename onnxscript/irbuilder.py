@@ -4,12 +4,14 @@
 # --------------------------------------------------------------------------
 
 import logging
+import warnings
 from io import StringIO
+
 import onnx
 import onnx.helper as helper
 from onnx.defs import onnx_opset_version
+
 from . import type_annotation as ta
-import warnings
 from .values import OnnxFunction, Opset
 
 # A simple IR (Function, Stmt, Attr, Var):

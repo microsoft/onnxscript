@@ -3,9 +3,11 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import numpy as np
 import unittest
+
+import numpy as np
 from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
+
 from onnxscript.test.models import if_statement
 
 

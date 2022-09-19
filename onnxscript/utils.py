@@ -4,11 +4,13 @@
 # --------------------------------------------------------------------------
 
 import numbers
-import numpy as np
 from typing import Any, Sequence
+
+import numpy as np
 import onnx
-from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
-from onnx.helper import make_tensor_type_proto, make_sequence_type_proto
+from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
+from onnx.helper import make_sequence_type_proto, make_tensor_type_proto
+
 from .eager_array import EagerArray
 
 # print utility unavailable in ONNX 1.12 or earlier:
