@@ -27,12 +27,13 @@ from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.values import OnnxFunction
 from onnxscript.converter import Converter
 from onnxscript.converter import TranslationError
+from onnxscript.test.testutils import TestBase
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 
 
-class TestConverter(unittest.TestCase):
+class TestConverter(TestBase):
     def validate(self, script):
         if isinstance(script, types.ModuleType):
             fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
@@ -96,6 +97,17 @@ class TestConverter(unittest.TestCase):
                 onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
                 fcts[f.name] = model
         return fcts
+
+    def validate_expansion(self, script):
+        functions = self.validate_save(script, check_ort=True)
+        for name in functions:
+            if not name.endswith("_expanded"):
+                f = functions[name]
+                name_expanded = name + "_expanded"
+                if name_expanded in functions:
+                    with self.subTest("Expansion test", function=name):
+                        f_expanded = functions[name_expanded]
+                        self.assertSame(f, f_expanded)
 
     def test_eager_op(self):
         from onnxscript.test.models import eager_op
@@ -253,14 +265,7 @@ class TestConverter(unittest.TestCase):
 
     def test_cast_like(self):
         from onnxscript.test.models import cast_like
-        fcts = self.validate_save(cast_like, check_ort=True)
-        for name in ['inc_right', 'inc_left', 'cmp_zero_right', 'cmp_zero_left',
-                     'div_right']:
-            f = fcts[name]
-            self.assertIn("int64_data", str(f))
-            self.assertIn('op_type: "CastLike"', str(f))
-        f = fcts['cmp_zero_mright']
-        self.assertIn('_data: -11', str(f))
+        self.validate_expansion(cast_like)
 
     def test_opset_import(self):
         from onnxscript.test.models import different_opset
