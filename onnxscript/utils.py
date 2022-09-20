@@ -32,7 +32,21 @@ def external_tensor(
     tensor.name = name
     tensor.data_type = data_type
     tensor.dims.extend(dims)
-    external_data_helper.set_external_data(tensor, location, offset, length, checksum, basepath)
+    tensor.data_location = TensorProto.EXTERNAL
+    def add(k, v):
+        entry = tensor.external_data.add()
+        entry.key = k
+        entry.value = str(v)
+    add("location", location)
+    if offset is not None:
+        add("offset", int(offset))
+    if length is not None:
+        add("length", int(length))
+    if checksum is not None:
+        add("checksum", checksum)
+    if basepath is not None:
+        add("basepath", basepath)
+    return tensor
 
 
 def value_to_type_proto(val):

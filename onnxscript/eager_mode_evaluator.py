@@ -69,6 +69,8 @@ def os_to_ort_value(v):
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
         return v
+    elif isinstance(v, np.ndarray):
+        return v
     else:
         raise TypeError(f"Unexpected ORT value type {type(v)}.")
 

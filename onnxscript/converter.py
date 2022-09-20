@@ -73,6 +73,8 @@ def py_type_to_onnx_type(pytype: type, converter, info: DebugInfo):
 
 
 def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: DebugInfo):
+    if isinstance(pyvalue, numpy.ndarray):
+        return onnx.numpy_helper.from_array(pyvalue, tensor_name)
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(info.msg("Cannot convert an empty list to tensor"))
