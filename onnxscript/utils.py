@@ -7,7 +7,7 @@ import numbers
 import numpy as np
 from typing import Any, Sequence, Optional
 import onnx
-from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto, external_data_helper
+from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
 from onnx.helper import make_tensor_type_proto, make_sequence_type_proto
 from .eager_array import EagerArray
 
@@ -33,6 +33,7 @@ def external_tensor(
     tensor.data_type = data_type
     tensor.dims.extend(dims)
     tensor.data_location = TensorProto.EXTERNAL
+
     def add(k, v):
         entry = tensor.external_data.add()
         entry.key = k

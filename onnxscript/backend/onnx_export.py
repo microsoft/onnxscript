@@ -3,12 +3,12 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+from ..onnx_types import ParametricTensor
 from typing import Union
 import numpy
 import onnx
 from onnx.helper import make_node
-from onnx import numpy_helper, ModelProto, FunctionProto, ValueInfoProto, TensorProto, external_data_helper
-from ..onnx_types import ParametricTensor
+from onnx import ModelProto, FunctionProto, ValueInfoProto, TensorProto
 
 
 _template_python = '''
@@ -158,10 +158,10 @@ def _attribute_value(attr):
         return _to_str(attr.s)
     if attr.HasField("t"):
         tensor_proto = attr.t
-        if external_data_helper.uses_external_data(tensor_proto):
+        if onnx.external_data_helper.uses_external_data(tensor_proto):
             return tensor_proto
         else:
-            return numpy_helper.to_array(attr.t)
+            return onnx.numpy_helper.to_array(attr.t)
     if attr.floats:
         return list(attr.floats)
     if attr.ints:
@@ -246,7 +246,7 @@ class Exporter:
                 attributes.append((at.name, text))
                 continue
             if isinstance(value, TensorProto):
-                metadata = external_data_helper.ExternalDataInfo(value)
+                metadata = onnx.external_data_helper.ExternalDataInfo(value)
                 text = "external_tensor("
                 name = value.name or "value"
                 text += '%r, %s, %r' % (name, value.data_type, list(value.dims))

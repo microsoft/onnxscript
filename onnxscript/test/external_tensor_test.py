@@ -40,14 +40,14 @@ class TestConverter(unittest.TestCase):
             # Convert model to use external-tensors and save
             modelfile = os.path.join(dir, "model.onnx")
             onnx.save_model(model, modelfile, save_as_external_data=True,
-                            all_tensors_to_one_file=False, size_threshold=32, convert_attribute=True)
+                            all_tensors_to_one_file=False, size_threshold=32,
+                            convert_attribute=True)
 
             # Convert model to python:
             pymodel = proto2python(model, clean_code=False)
-            self.assertTrue("external_tensor('weight', 1, [1024, 10], 'weight', length=40960)"
-                            in pymodel)
-            self.assertTrue("external_tensor('bias', 1, [10], 'bias', length=40)"
-                            in pymodel)
+            self.assertIn("external_tensor('weight', 1, [1024, 10], 'weight', length=40960)",
+                          pymodel)
+            self.assertIn("external_tensor('bias', 1, [10], 'bias', length=40)", pymodel)
 
 
 if __name__ == '__main__':
