@@ -9,9 +9,8 @@ import textwrap
 
 import onnx.helper
 
-from . import values
-from .converter import Converter
-from .values import OnnxFunction
+from onnxscript import converter
+from onnxscript import values
 
 
 def get_src_and_ast(f):
@@ -43,13 +42,13 @@ def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    converter = Converter(
+    convert = converter.Converter(
         opset=opset,
         global_names=global_names,
         source=source,
         default_opset=default_opset,
     )
-    return converter.top_level_stmt(f)
+    return convert.top_level_stmt(f)
 
 
 def script(opset=None, default_opset=None, **kwargs):
@@ -94,7 +93,7 @@ def script(opset=None, default_opset=None, **kwargs):
                 ast, opset, module.__dict__.copy(), src, default_opset=default_opset
             )
             # TODO: add transformations.
-            return OnnxFunction(opset, f, result, src, kwargs)
+            return values.OnnxFunction(opset, f, result, src, kwargs)
         else:
             raise TypeError(
                 "The ONNXScript decorator should be applied to functions only."
@@ -107,7 +106,7 @@ def is_converted_fun(f):
     """
     Return True if f is a function converted by onnx-script decorator.
     """
-    return isinstance(f, OnnxFunction)
+    return isinstance(f, values.OnnxFunction)
 
 
 def export_onnx_lib(functions, filename: str) -> None:

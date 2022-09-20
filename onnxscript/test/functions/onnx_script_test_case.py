@@ -24,7 +24,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 
 from onnxscript import utils
-from onnxscript.main import OnnxFunction
+from onnxscript.values import OnnxFunction
 
 
 @dataclasses.dataclass(repr=False, eq=False)
