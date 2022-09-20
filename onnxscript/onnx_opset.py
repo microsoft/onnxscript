@@ -35,3 +35,5 @@ if onnx_opset_version() >= 16:
 
 if onnx_opset_version() >= 17:
     opset17 = Opset("", 17)
+
+default_opset = Opset("", onnx_opset_version())

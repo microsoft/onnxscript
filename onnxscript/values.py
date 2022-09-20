@@ -13,6 +13,7 @@ import numpy as np
 import onnx
 
 from .eager_array import EagerArray
+from .autocast import dynamic_cast_inputs
 
 
 class DebugInfo:
@@ -86,13 +87,16 @@ class Opset:
         pass
 
     def __getitem__(self, opname):
-        return onnx.defs.get_schema(opname, self.version, self.domain)
+        try:
+            return onnx.defs.get_schema(opname, self.version, self.domain)
+        except Exception:
+            return None
 
     def __contains__(self, opname):
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
             return True
-        except BaseException:
+        except Exception:
             return False
 
     def __str__(self) -> str:
@@ -102,7 +106,7 @@ class Opset:
         try:
             schema = onnx.defs.get_schema(attr, self.version, self.domain)
             return Op(self, attr, schema)
-        except BaseException:
+        except Exception:
             raise AttributeError(f"Attribute {attr} not found.")
 
     def add_function_def(self, fun):
@@ -135,12 +139,15 @@ class Op:
         return isinstance(self.opname, str)
 
     def get_schema(self):
-        return self.opschema
+        if self.opschema:
+            return self.opschema
+        return self.opset[self.opname]
 
     def has_schema(self):
         return self.opschema is not None
 
     def __call__(self, *args, **kwargs):
+        args = dynamic_cast_inputs(self.opschema, *args)
         return self.evaluator(self.opschema, *args, **kwargs)
 
 
