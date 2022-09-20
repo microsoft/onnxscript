@@ -83,8 +83,10 @@ def script(opset=None, default_opset=None, **kwargs):
         if inspect.isfunction(f):
             src, ast = get_src_and_ast(f)
             module = inspect.getmodule(f)
-            result = script_check(ast, opset, module.__dict__.copy(), src,
-                                  default_opset=default_opset)
+            closure = inspect.getclosurevars(f)
+            env = module.__dict__.copy()
+            env.update(closure.nonlocals)
+            result = script_check(ast, opset, env, src, default_opset=default_opset)
             # TODO: add transformations.
             return OnnxFunction(opset, f, result, src, kwargs)
         else:

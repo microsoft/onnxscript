@@ -314,7 +314,7 @@ class Converter:
         return self.emit_const(val, target if target else "tmp", info)
 
     def py_var_to_onnx_var(self, py_var, info):
-        return self.to_onnx_var(self.lookup(py_var, info), info=info)
+        return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self.current_fn, docstring)
