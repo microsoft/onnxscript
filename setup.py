@@ -5,16 +5,17 @@
 
 # -*- coding: utf-8 -*-
 
+import os
 from distutils.core import setup
 from setuptools import find_packages
-import os
+
 this = os.path.dirname(__file__)
 
 packages = find_packages()
 assert packages
 
 README = os.path.join(os.getcwd(), "README.md")
-with open(README) as f:
+with open(README, "r") as f:
     long_description = f.read()
     start_pos = long_description.find('## Contributing')
     if start_pos >= 0:

@@ -13,8 +13,12 @@ else:
     # TODO: Remove this when Python 3.7 is deprecated
     import importlib_metadata
 
-# TODO: should we algin the folder name with pacakge name? 
-# It's onnxscript and onnx-script now. That way, we can use __package__ here.
-__version__ = importlib_metadata.version(__package__)
+try:
+    # TODO: should we algin the folder name with pacakge name?
+    # It's onnxscript and onnx-script now. That way, we can use __package__ here.
+    __version__ = importlib_metadata.version("onnx-scriptgit")
+except importlib_metadata.PackageNotFoundError:
+    __version__ = None
 
-__all__ = [script, export_onnx_lib, OnnxFunction, proto2python]
+
+__all__ = ["script", "export_onnx_lib", "OnnxFunction", "proto2python"]
