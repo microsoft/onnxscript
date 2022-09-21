@@ -16,7 +16,7 @@ else:
 try:
     # TODO: should we algin the folder name with package name?
     # It's onnxscript and onnx-script now. That way, we can use __package__ here.
-    __version__ = importlib_metadata.version("onnx-scriptgit")
+    __version__ = importlib_metadata.version("onnx-script")
 except importlib_metadata.PackageNotFoundError:
     __version__ = None
 
