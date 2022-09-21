@@ -3,8 +3,9 @@
 
 [flake8]
 select = B,C,E,F,P,T4,W,B9
-# TODO: should we change this to 88, the same as ONNX?
 max-line-length = 95
+# TODO: enable E203, W504
+
 ### DEFAULT IGNORES FOR 4-space INDENTED PROJECTS ###
 # E127, E128 are hard to silence in certain nested formatting situations.
 # E265, E266 talk about comment formatting which is too opinionated.
