@@ -9,7 +9,7 @@ from typing import Any, Sequence
 import onnx
 from onnx import TensorProto, ValueInfoProto, ModelProto, FunctionProto
 from onnx.helper import make_tensor_type_proto, make_sequence_type_proto
-from .eager_array import EagerArray
+from .tensor import Tensor
 
 # print utility unavailable in ONNX 1.12 or earlier:
 try:
@@ -23,7 +23,7 @@ def value_to_type_proto(val):
     '''
     Return the ONNX type of a python-value.
     '''
-    if isinstance(val, (np.ndarray, EagerArray)):
+    if isinstance(val, (np.ndarray, Tensor)):
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
         shape = val.shape
         return make_tensor_type_proto(elem_type, shape)
