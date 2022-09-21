@@ -1,27 +1,11 @@
 import os
-import shutil
+import tempfile
 import unittest
 import numpy as np
 import onnx
 from onnxscript import script, proto2python
 from onnxscript.onnx_types import FLOAT
 from onnxscript.onnx_opset import opset17 as op
-
-
-class TempFolder:
-    def __init__(self, folder_name=None) -> None:
-        if folder_name is None:
-            folder_name = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TempDir")
-        if os.path.exists(folder_name):
-            raise ValueError(folder_name + ": already exists!")
-        os.makedirs(folder_name)
-        self.folder_name = folder_name
-
-    def __enter__(self):
-        return self.folder_name
-
-    def __exit__(self, type, value, traceback):
-        shutil.rmtree(self.folder_name)
 
 
 class TestConverter(unittest.TestCase):
@@ -36,7 +20,7 @@ class TestConverter(unittest.TestCase):
 
         model = TestFun.to_model_proto()
 
-        with TempFolder() as dir:
+        with tempfile.TemporaryDirectory() as dir:
             # Convert model to use external-tensors and save
             modelfile = os.path.join(dir, "model.onnx")
             onnx.save_model(model, modelfile, save_as_external_data=True,
