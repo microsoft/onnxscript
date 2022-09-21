@@ -319,10 +319,10 @@ class TestOnnxSignal(OnnxScriptTestCase):
 
     @staticmethod
     def _stft(
-        x, fft_length, window, axis=-1, center=False, onesided=False, hop_length=None
+        x, fft_length, window, axis=-1, center=False, onesided=False, hop_length=None # pylint disable=unused-argument
     ):
         try:
-            import torch
+            import torch # pylint disable=import-outside-toplevel
         except ImportError as e:
             raise ImportError("torch is not installed.") from e
         _ = torch.from_numpy
@@ -352,10 +352,10 @@ class TestOnnxSignal(OnnxScriptTestCase):
 
     @staticmethod
     def _istft(
-        y, fft_length, window, axis=-1, center=False, onesided=False, hop_length=None
+        y, fft_length, window, axis=-1, center=False, onesided=False, hop_length=None # pylint disable=unused-argument
     ):
         try:
-            import torch
+            import torch # pylint disable=import-outside-toplevel
         except ImportError as e:
             raise ImportError("torch is not installed.") from e
         _ = torch.from_numpy

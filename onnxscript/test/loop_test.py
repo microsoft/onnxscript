@@ -15,7 +15,7 @@ class LoopOpTester(TestBase):
         def sumprod(x: FLOAT["N"], N: INT64) -> (FLOAT["N"], FLOAT["N"]):  # noqa: F821
             sum = op.Identity(x)
             prod = op.Identity(x)
-            for i in range(N):
+            for _ in range(N):
                 sum = sum + x
                 prod = prod * x
             return sum, prod
@@ -29,7 +29,7 @@ class LoopOpTester(TestBase):
         def sumprod(x: FLOAT["N"], N: INT64) -> (FLOAT["N"], FLOAT["N"]):  # noqa: F821
             sum = op.Identity(x)
             prod = op.Identity(x)
-            for i in range(2 * N + 1):
+            for _ in range(2 * N + 1):
                 sum = sum + x
                 prod = prod * x
             return sum, prod

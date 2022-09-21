@@ -26,7 +26,7 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
-        ast = get_ast(fun)
+        ast = get_ast(fun) # pylint: disable=redefined-outer-name
         do_liveness_analysis(ast, Converter())
         visitor = AnalysisResultsVisitor()
         visitor.visit(ast)
@@ -96,7 +96,7 @@ class TestLivenessAnalysis(unittest.TestCase):
 
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
-        ast = get_ast(f)
+        ast = get_ast(f) # pylint: disable=redefined-outer-name
         result = exposed_uses(ast.body, Converter())
         self.assertEqual(result, set(expected))
 

@@ -45,7 +45,7 @@ class Type:
 
 
 class TensorType(Type):
-    def __init__(self, elem_type) -> None:
+    def __init__(self, elem_type) -> None: # pylint: disable=super-init-not-called # TODO: why?
         tp = onnx.TypeProto()
         tp.tensor_type.elem_type = elem_type
         self.onnx_type = tp
@@ -87,8 +87,8 @@ class Var:
                 if default_type is None:
                     raise TypeError(
                         self.info.msg(
-                            "Variable %r is missing an annotation and default_type "
-                            "is not specified." % self.name
+                            f"Variable {self.name} is missing an annotation and default_type "
+                            "is not specified."
                         )
                     )
                 return helper.make_value_info(self.name, default_type.to_type_proto())

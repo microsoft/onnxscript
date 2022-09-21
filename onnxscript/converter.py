@@ -11,13 +11,14 @@ from enum import IntEnum
 
 import numpy
 import onnx
-import onnx.helper as helper
+from onnx import helper
 
 # _known_modules() needs full module name
 import onnxscript
 from onnxscript import analysis, autocast, irbuilder, onnx_types
 from onnxscript import type_annotation as ta
 from onnxscript import values
+from onnxscript.onnx_opset import opset15
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -59,7 +60,7 @@ def ignore(cond, msg):
 
 
 # Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, converter, info: values.DebugInfo):
+def py_type_to_onnx_type(pytype: type, info: values.DebugInfo):
     if pytype is bool:
         return onnx.TensorProto.BOOL
     if pytype is int:
@@ -216,7 +217,6 @@ class Converter:
                 f"No default opset was defined or detected in function "
                 f"{self.current_fn.name!r}, the converter uses opset 15."
             )
-            from .onnx_opset import opset15
 
             return opset15
         return self.default_opset_
@@ -231,8 +231,7 @@ class Converter:
             ):
                 fail(
                     values.DebugInfo(node, self).msg(
-                        "Two distincts opset were used (%r != %r)."
-                        % (opset, self.default_opset_)
+                        f"Two distincts opset were used ({opset} != {self.default_opset_})."
                     )
                 )
         else:
@@ -449,10 +448,10 @@ class Converter:
             except NameError as e:
                 raise NameError(
                     values.DebugInfo(node, self).msg(
-                        "Unable to evaluate a constant in node type %r "
-                        "due to %r." % (type(node), str(e))
+                        f"Unable to evaluate a constant in node type {type(node)} "
+                        f"due to {str(e)}."
                     )
-                )
+                ) from e
         raise ValueError(
             values.DebugInfo(node).msg(f"Unsupported attribute type '{type(node)!r}'.")
         )

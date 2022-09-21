@@ -177,8 +177,7 @@ def _python_make_node_name(domain, version, name, node=False):
             version = 1
         if not isinstance(version, int):
             raise TypeError(
-                "version must be an integer not %r for domain=%r and name=%r."
-                % (version, domain, name)
+                f"version must be an integer not {version!r} for domain={domain!r} and name={name!r}."
             )
         if domain == "":
             return "opset%d.%s" % (version, name)
@@ -242,16 +241,9 @@ class Exporter:
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
-                    text = 'make_tensor("value", %s, dims=[], vals=[%r])' "" % (
-                        onnx_dtype,
-                        value.tolist(),
-                    )
+                    text = f"make_tensor(\"value\", {onnx_dtype}, dims=[], vals=[{value.tolist()!r}])"
                 else:
-                    text = 'make_tensor("value", %s, dims=%r, vals=%r)' "" % (
-                        onnx_dtype,
-                        list(value.shape),
-                        value.ravel().tolist(),
-                    )
+                    text = f"make_tensor(\"value\", {onnx_dtype}, dims={list(value.shape)!r}, vals={value.ravel().tolist()!r})"
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -265,10 +257,7 @@ class Exporter:
         sindent = "    " * indent
         code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
-            raise RuntimeError(
-                "Node %r expected two attributes not %d."
-                % (node.op_type, len(node.attribute))
-            )
+            raise RuntimeError(f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}.")
         atts = node.attribute
         if atts[0].name == "else_branch":
             else_branch, then_branch = atts[0].g, atts[1].g
@@ -505,7 +494,7 @@ def export_template(
         context["doc_string"] = ""
 
     # First rendering to detect any unused or replaced initializer.
-    from jinja2 import Template  # delayed import
+    from jinja2 import Template  # delayed import  # pyliny: import-outside-toplevel
 
     template = Template(template)
     final = template.render(
@@ -527,8 +516,8 @@ def export_template(
 
 def export2python(
     model_onnx,
-    opset=None,
-    verbose=True,
+    opset=None,  # pyliny: diable=unused-argument
+    verbose=True,  # pyliny: diable=unused-argument
     name=None,
     rename=False,
     autopep_options=None,

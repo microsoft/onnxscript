@@ -19,8 +19,7 @@ def same_optional(field, obj1, obj2, equals=default_equality_op):
         return obj2.HasField(field) and equals(
             getattr(obj1, field), getattr(obj2, field)
         )
-    else:
-        return not obj2.HasField(field)
+    return not obj2.HasField(field)
 
 
 def same_repeated(values1, values2, equals=default_equality_op):
@@ -301,9 +300,8 @@ def isomorphic(fg1, fg2):
         if not isinstance(fg2, onnx.FunctionProto):
             raise TypeError("Both inputs must be same type (function or graph)")
         return matcher.same_function()
-    elif isinstance(fg1, onnx.GraphProto):
+    if isinstance(fg1, onnx.GraphProto):
         if not isinstance(fg2, onnx.GraphProto):
             raise TypeError("Both inputs must be same type (function or graph)")
         return matcher.same_graph()
-    else:
-        raise TypeError("Inputs must be either a FunctionProto or GraphProto")
+    raise TypeError("Inputs must be either a FunctionProto or GraphProto")

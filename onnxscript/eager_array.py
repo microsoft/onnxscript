@@ -5,7 +5,7 @@
 import numpy as np
 from onnx import TensorProto
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
-
+from onnxscript import onnx_opset
 
 class EagerArray:
     """
@@ -19,9 +19,8 @@ class EagerArray:
                 f"Unexpected type {type(tensor)}. It must be a numpy array."
             )
         self._tensor = tensor
-        from onnxscript.onnx_opset import default_opset
 
-        self._opset = opset or default_opset
+        self._opset = opset or onnx_opset.default_opset
 
     @property
     def value(self):
@@ -98,8 +97,7 @@ class EagerArray:
             TensorProto.BFLOAT16,
         }:
             return self._opset.Mod(self, other, fmod=1)
-        else:
-            return self._opset.Mod(self, other)
+        return self._opset.Mod(self, other)
 
     def __ne__(self, other):
         temp = self._opset.Equal(self, other)

@@ -13,7 +13,7 @@ from numpy import object as dtype_object
 from numpy.testing import assert_almost_equal
 from onnx.backend.test import __file__ as backend_folder
 from onnx.numpy_helper import to_array, to_list
-
+from onnxscript.onnx_tools import onnx_export
 
 def assert_almost_equal_string(expected, value):
     """
@@ -24,7 +24,7 @@ def assert_almost_equal_string(expected, value):
     :param value: value
     """
 
-    def is_float(x):
+    def is_float(x): # pyliny: diable=unused-argument
         try:
             return True
         except ValueError:  # pragma: no cover
@@ -78,8 +78,7 @@ class OnnxBackendTest:
                     loaded = onnx.load_model_from_string(serialized)
                 except Exception:  # pragma: no cover
                     raise RuntimeError(
-                        "Unable to read %r, error is %s, content is %r."
-                        % (full, e, serialized[:100])
+                        f"Unable to read {full!r}, error is {e}, content is {serialized[:100]!r}."
                     ) from e
         return loaded
 
@@ -171,28 +170,24 @@ class OnnxBackendTest:
                         assert_almost_equal_string(e, o)
                     except AssertionError as ex:
                         raise AssertionError(  # pragma: no cover
-                            "Output %d of test %d in folder %r failed."
-                            % (i, index, self.folder)
+                            "Output %d of test %d in folder %r failed." % (i, index, self.folder)
                         ) from ex
                 else:
                     try:
                         assert_almost_equal(e, o, decimal=deci)
                     except AssertionError as ex:
                         raise AssertionError(
-                            "Output %d of test %d in folder %r failed."
-                            % (i, index, self.folder)
+                            "Output %d of test %d in folder %r failed." % (i, index, self.folder)
                         ) from ex
             elif hasattr(o, "is_compatible"):
                 # A shape
                 if e.dtype != o.dtype:
                     raise AssertionError(
-                        "Output %d of test %d in folder %r failed "
-                        "(e.dtype=%r, o=%r)." % (i, index, self.folder, e.dtype, o)
+                        "Output %d of test %d in folder %r failed (e.dtype=%r, o=%r)." % (i, index, self.folder, e.dtype, o)
                     )
                 if not o.is_compatible(e.shape):
                     raise AssertionError(  # pragma: no cover
-                        "Output %d of test %d in folder %r failed "
-                        "(e.shape=%r, o=%r)." % (i, index, self.folder, e.shape, o)
+                        "Output %d of test %d in folder %r failed (e.shape=%r, o=%r)." % (i, index, self.folder, e.shape, o)
                     )
         else:
             raise NotImplementedError(
@@ -228,22 +223,18 @@ class OnnxBackendTest:
         expected = self.tests[index]["outputs"]
         if len(got) != len(expected):
             raise AssertionError(  # pragma: no cover
-                "Unexpected number of output (test %d, folder %r), "
-                "got %r, expected %r." % (index, self.folder, len(got), len(expected))
+                f"Unexpected number of output (test {index}, folder {self.folder}), "
+                f"got {len(got)}, expected {len(expected)}."
             )
         for i, (e, o) in enumerate(zip(expected, got)):
             if self.is_random():
                 if e.dtype != o.dtype:
                     raise AssertionError(
-                        "Output %d of test %d in folder %r failed "
-                        "(type mismatch %r != %r)."
-                        % (i, index, self.folder, e.dtype, o.dtype)
+                        f"Output {i} of test {index} in folder {self.folder} failed (type mismatch {e.dtype} != {o.dtype})."
                     )
                 if e.shape != o.shape:
                     raise AssertionError(
-                        "Output %d of test %d in folder %r failed "
-                        "(shape mismatch %r != %r)."
-                        % (i, index, self.folder, e.shape, o.shape)
+                        f"Output {i} of test {index} in folder {self.folder} failed (shape mismatch {e.shape} != {o.shape})."
                     )
             else:
                 self._compare_results(index, i, e, o, decimal=decimal)
@@ -254,10 +245,9 @@ class OnnxBackendTest:
 
         :return: code
         """
-        from ..onnx_tools.onnx_export import export2onnx
 
         rows = []
-        code = export2onnx(self.onnx_model)
+        code = onnx_export.export2onnx(self.onnx_model)
         lines = code.split("\n")
         lines = [
             line

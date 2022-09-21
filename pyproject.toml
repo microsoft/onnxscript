@@ -96,6 +96,11 @@ disable = [
   "invalid-name",           # TODO: Add naming guidance and enable this check.
   "too-many-locals",
   "too-many-arguments",
-  "too-many-statements",
+  "too-many-statements", # TODO: we should work on these: too-many-xxx series
+  "too-many-instance-attributes",
+  "too-many-branches",
+  "too-many-lines",
+  "too-many-public-methods",
+  "too-many-return-statements",
   "redefined-builtin", # TODO: should we avoid redefined-builtin?
 ]

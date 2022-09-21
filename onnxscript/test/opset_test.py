@@ -24,7 +24,7 @@ class TestOpset(TestBase):
 
     def test_opset_last(self):
         v = onnx_opset_version()
-        name = "opset%d" % v
+        name = f"opset{v}"
         opset = getattr(mod_opset, name)
         self.assertEqual(opset.domain, "")
         self.assertEqual(opset.version, v)

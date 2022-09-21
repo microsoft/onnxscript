@@ -43,8 +43,8 @@ def local_defs(lhs):
         return e.id
 
     if isinstance(lhs, ast.Tuple):
-        return set([get_id(x) for x in lhs.elts])
-    return set([get_id(lhs)])
+        return {get_id(x) for x in lhs.elts}
+    return {get_id(lhs)}
 
 
 def defs(stmt):

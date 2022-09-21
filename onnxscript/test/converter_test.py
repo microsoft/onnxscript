@@ -33,6 +33,8 @@ from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.test.testutils import TestBase
 from onnxscript.values import OnnxFunction
 
+from onnxscript.test.models import getitem39, getitem, loops_while, loops_break, sequences, different_opset, cast_like, eager_op, onnxfns1, onnxfns1A, m1, subfunction, if_statement, signal_dft, multi, dropout, attrref, renaming, opt_output, opt_input, onnxfns2, type_double
+
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 
@@ -133,7 +135,6 @@ class TestConverter(TestBase):
                         self.assertSame(f, f_expanded)
 
     def test_eager_op(self):
-        from onnxscript.test.models import eager_op
 
         test_functions = self.validate_save(eager_op, check_ort=True)
 
@@ -181,12 +182,10 @@ class TestConverter(TestBase):
         self.assertEqual((x * x).tolist(), got[0].tolist())
 
     def test_onnxfns1(self):
-        from onnxscript.test.models import onnxfns1
 
         self.validate(onnxfns1)
 
     def test_onnxfns1A(self):
-        from onnxscript.test.models import onnxfns1A
 
         self.validate(onnxfns1A)
 
@@ -196,12 +195,10 @@ class TestConverter(TestBase):
         self.validate(ort_custom_ops)
 
     def test_unary_op(self):
-        from onnxscript.test.models import m1
 
         self.validate_save(m1)
 
     def test_subfunction_check_model(self):
-        from onnxscript.test.models import subfunction
 
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name="p2o")
         model = onnx.shape_inference.infer_shapes(model)
@@ -212,12 +209,10 @@ class TestConverter(TestBase):
         reason="onnxruntime does not support that scenario.",
     )
     def test_subfunction(self):
-        from onnxscript.test.models import subfunction
 
         self.validate_save(subfunction, check_ort=True)
 
     def test_if_models(self):
-        from onnxscript.test.models import if_statement
 
         self.validate_save(if_statement)
 
@@ -238,28 +233,23 @@ class TestConverter(TestBase):
         self.assertEqual(proto.doc_string.strip(), "Combines ReduceSum, ReduceProd.")
 
     def test_signal(self):
-        from onnxscript.test.models import signal_dft
 
         # shape_inference crashes on stft.
         self.validate_save(signal_dft, shape_inference=False)
 
     def test_multi(self):
-        from onnxscript.test.models import multi
 
         self.validate_save(multi, shape_inference=False)
 
     def test_dropout(self):
-        from onnxscript.test.models import dropout
 
         self.validate_save(dropout, shape_inference=False)
 
     def test_attrref(self):
-        from onnxscript.test.models import attrref
 
         self.validate_save(attrref, shape_inference=False)
 
     def test_renaming(self):
-        from onnxscript.test.models import renaming
 
         self.validate_save(renaming, shape_inference=False)
 
@@ -267,12 +257,10 @@ class TestConverter(TestBase):
         True, reason="TypeError: val must be numeric not <class 'NoneType'>"
     )
     def test_opt_output(self):
-        from onnxscript.test.models import opt_output
 
         self.validate_save(opt_output, shape_inference=False)
 
     def test_opt_input(self):
-        from onnxscript.test.models import opt_input
 
         self.validate_save(opt_input, shape_inference=False)
 
@@ -282,7 +270,6 @@ class TestConverter(TestBase):
         "cannot be exported as a model.",
     )
     def test_onnxfns2(self):
-        from onnxscript.test.models import onnxfns2
 
         self.validate_save(onnxfns2, shape_inference=False)
 
@@ -298,7 +285,6 @@ class TestConverter(TestBase):
         self.validate_save(clipmax)
 
     def test_type_double(self):
-        from onnxscript.test.models import type_double
 
         fcts = self.validate_save(type_double, check_ort=False)
         f = fcts["double_abs"]
@@ -317,12 +303,10 @@ class TestConverter(TestBase):
         self.validate_save(type_double, check_ort=True)
 
     def test_cast_like(self):
-        from onnxscript.test.models import cast_like
 
         self.validate_expansion(cast_like)
 
     def test_opset_import(self):
-        from onnxscript.test.models import different_opset
 
         fcts = self.validate_save(different_opset, shape_inference=False)
         s16 = str(fcts["shape_A"])
@@ -337,7 +321,6 @@ class TestConverter(TestBase):
         self.assertNotIn("version: 15", sdef)
 
     def test_sequences(self):
-        from onnxscript.test.models import sequences
 
         test_functions = self.validate_save(sequences, check_ort=True)
 
@@ -364,7 +347,6 @@ class TestConverter(TestBase):
         assert_almost_equal(eager_mode, result)
 
     def test_loops_break(self):
-        from onnxscript.test.models import loops_break
 
         test_functions = self.validate_save(loops_break, check_ort=True)
         self.assertIn("loop1", test_functions)
@@ -384,7 +366,6 @@ class TestConverter(TestBase):
         self.assertEqual(y.tolist(), [0, 11, -22])
 
     def test_loops_while(self):
-        from onnxscript.test.models import loops_while
 
         test_functions = self.validate_save(loops_while, check_ort=True)
         self.assertIn("loop1", test_functions)
@@ -405,7 +386,6 @@ class TestConverter(TestBase):
         reason="Notation [...] not supported in python 3.7.",
     )
     def test_getitem(self):
-        from onnxscript.test.models import getitem
 
         if sys.version_info[:2] >= (3, 8):
             skip_check_ort = None
@@ -471,7 +451,6 @@ class TestConverter(TestBase):
         reason="Notation [...] not supported in python 3.8.",
     )
     def test_getitem39(self):
-        from onnxscript.test.models import getitem39
 
         test_functions = self.validate_save(getitem39, check_ort=True)
 
