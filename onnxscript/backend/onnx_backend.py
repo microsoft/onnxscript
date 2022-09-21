@@ -63,7 +63,7 @@ class OnnxBackendTest:
     @staticmethod
     def _read_proto_from_file(full):
         if not os.path.exists(full):
-            raise FileNotFoundError("File not found: %r." % full)  # pragma: no cover
+            raise FileNotFoundError(f"File not found: {full!r}.")  # pragma: no cover
         with open(full, "rb") as f:
             serialized = f.read()
         try:
@@ -95,25 +95,25 @@ class OnnxBackendTest:
                 t = to_array(new_tensor)
             else:
                 raise RuntimeError(  # pragma: no cover
-                    "Unexpected type %r for %r." % (type(new_tensor), full)
+                    f"Unexpected type {type(new_tensor)!r} for {full!r}."
                 )
             res.append(t)
         return res
 
     def __repr__(self):
         "usual"
-        return "%s(%r)" % (self.__class__.__name__, self.folder)
+        return f"{self.__class__.__name__}({self.folder!r})"
 
     def __init__(self, folder):
         if not os.path.exists(folder):
             raise FileNotFoundError(  # pragma: no cover
-                "Unable to find folder %r." % folder
+                f"Unable to find folder {folder!r}."
             )
         content = os.listdir(folder)
         onx = [c for c in content if os.path.splitext(c)[-1] in {".onnx"}]
         if len(onx) != 1:
             raise ValueError(  # pragma: no cover
-                "There is more than one onnx file in %r (%r)." % (folder, onx)
+                f"There is more than one onnx file in {folder!r} ({onx!r})."
             )
         self.folder = folder
         self.onnx_path = os.path.join(folder, onx[0])
@@ -196,7 +196,7 @@ class OnnxBackendTest:
                     )
         else:
             raise NotImplementedError(
-                "Comparison not implemented for type %r." % type(e)
+                f"Comparison not implemented for type {type(e)!r}."
             )
 
     def is_random(self):
@@ -283,7 +283,7 @@ class OnnxBackendTest:
             rows.append("    self.assertEqualArray(y, gy)")
             rows.append("")
         code = "\n".join(rows)
-        final = "\n".join(["def %s(self):" % self.name, textwrap.indent(code, "    ")])
+        final = "\n".join([f"def {self.name}(self):", textwrap.indent(code, "    ")])
         try:
             from pyquickhelper.pycode.code_helper import remove_extra_spaces_and_pep8
         except ImportError:  # pragma: no cover

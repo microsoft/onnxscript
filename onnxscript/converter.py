@@ -138,7 +138,7 @@ def _known_modules():
     }
     for att in dir(onnxscript.onnx_opset):
         if att.startswith("opset"):
-            res["onnxscript.onnx_opset.%s" % att] = getattr(onnxscript.onnx_opset, att)
+            res[f"onnxscript.onnx_opset.{att}"] = getattr(onnxscript.onnx_opset, att)
     return res
 
 
@@ -480,8 +480,7 @@ class Converter:
             # python 3.7
             return self.emit_docstring(node.value.s)
         raise TypeError(
-            "Unexpected type %r for node. "
-            "Unsupoorted version of python." % type(node)
+            f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
         )
 
     def translate_expr(self, node, target="tmp"):
@@ -812,7 +811,7 @@ class Converter:
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(
-                values.DebugInfo(node, self).msg("Unsupported operator %r." % op)
+                values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
             )
 
         attr = []
@@ -841,7 +840,7 @@ class Converter:
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(
-                values.DebugInfo(node, self).msg("Unsupported operator %r." % op)
+                values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
             )
         if self.is_constant_expr(node.operand):
             # This function changed the constant node.operand
@@ -876,7 +875,7 @@ class Converter:
         op = type(node.ops[0])
         if op not in primop_map:
             raise ValueError(
-                values.DebugInfo(node, self).msg("Unsupported operator %r." % op)
+                values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
             )
         opname = primop_map[op]
         left = self.translate_expr(node.left)
@@ -1154,7 +1153,7 @@ class Converter:
             if not isinstance(iter.func, ast.Name):
                 fail(
                     values.DebugInfo(loop_stmt).msg(
-                        "Unsupported loop bound %r." % iter.func
+                        f"Unsupported loop bound {iter.func!r}."
                     )
                 )
             if iter.func.id != "range":

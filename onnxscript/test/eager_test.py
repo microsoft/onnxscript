@@ -426,7 +426,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 try:
                     self.run_eager_test(case, rtol=1e-3, atol=1e-3)
                 except AssertionError as e:
-                    raise AssertionError("Issue with %r." % info) from e
+                    raise AssertionError(f"Issue with {info!r}.") from e
 
             # istft (imaginary part is null but still returned by istft)
             ix = self._complex2float(c_expected)
@@ -438,7 +438,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 assert_almost_equal(x_[:-1], t_istft, decimal=4)
             else:
                 raise NotImplementedError(
-                    "Not implemented when shape is %r." % (x_.shape,)
+                    f"Not implemented when shape is {x_.shape!r}."
                 )
 
             info["expected"] = expected
@@ -514,7 +514,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 try:
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
                 except AssertionError as e:
-                    raise AssertionError("Issue with %r." % info) from e
+                    raise AssertionError(f"Issue with {info!r}.") from e
 
             # istft
             ix = self._complex2float(c_expected)

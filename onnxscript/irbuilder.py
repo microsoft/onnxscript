@@ -66,7 +66,7 @@ class Var:
         return self.name
 
     def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.name, self.typeinfo)
+        return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
 
     def typed_str(self):
         return self.name + " : " + str(self.typeinfo)
@@ -153,7 +153,7 @@ class Stmt:
 
     def to_node_proto(self, name):
         if not isinstance(self.module.domain, str):
-            raise TypeError("Unexpected type %r for self.module." % type(self.module))
+            raise TypeError(f"Unexpected type {type(self.module)!r} for self.module.")
         n = helper.make_node(
             self.opname,
             [opt_var_to_str(x) for x in self.args],

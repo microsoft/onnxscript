@@ -121,10 +121,10 @@ def _translate_type(onnx_type):
                     shape.append(d.dim_param)
             if len(shape) == 0:
                 return name
-            return "%s[%s]" % (name, ",".join(shape))
+            return f"{name}[{','.join(shape)}]"
         return name + "[...]"
     raise NotImplementedError(
-        "Unable to translate type %r into onnx-script type." % onnx_type
+        f"Unable to translate type {onnx_type!r} into onnx-script type."
     )
 
 
@@ -168,7 +168,7 @@ def _attribute_value(attr):
         return list(attr.ints)
     if attr.strings:
         return list(map(_to_str, attr.strings))
-    raise NotImplementedError("Unable to return a value for attribute %r." % attr)
+    raise NotImplementedError(f"Unable to return a value for attribute {attr!r}.")
 
 
 def _python_make_node_name(domain, version, name, node=False):
@@ -237,7 +237,7 @@ class Exporter:
         for at in node.attribute:
             value = _attribute_value(at)
             if isinstance(value, str):
-                attributes.append((at.name, "%r" % value))
+                attributes.append((at.name, f"{value!r}"))
                 continue
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
@@ -256,14 +256,14 @@ class Exporter:
                 continue
             attributes.append((at.name, repr(value)))
 
-        return ", ".join("%s=%s" % (k, v) for k, v in attributes)
+        return ", ".join(f"{k}={v}" for k, v in attributes)
 
     def _python_make_node_if(self, node, opsets, indent=0):
         """
         Translates a node If into python.
         """
         sindent = "    " * indent
-        code = ["%sif %s:" % (sindent, node.input[0])]
+        code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
                 "Node %r expected two attributes not %d."
@@ -279,7 +279,7 @@ class Exporter:
                 then_branch, opsets, indent=indent + 1, output_names=node.output
             )
         )
-        code.append("%selse:" % sindent)
+        code.append(f"{sindent}else:")
         code.append(
             self._python_make_node_graph(
                 else_branch, opsets, indent=indent + 1, output_names=node.output
@@ -299,16 +299,16 @@ class Exporter:
         rows = []
         if n_iter and not cond:
             rows.append(
-                "%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter)
+                f"{sindent}for {body.input[0].name} in range({n_iter}):"
             )
         elif not n_iter and cond:
-            rows.append("%swhile %s:" % (sindent, cond))
+            rows.append(f"{sindent}while {cond}:")
         elif n_iter and cond:
             rows.append(
-                "%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter)
+                f"{sindent}for {body.input[0].name} in range({n_iter}):"
             )
-            rows.append("%s    if not %s:" % (sindent, cond))
-            rows.append("%s        break" % sindent)
+            rows.append(f"{sindent}    if not {cond}:")
+            rows.append(f"{sindent}        break")
         else:
             raise RuntimeError(
                 "Unable to export loop type %r into python because there is no "
@@ -341,7 +341,7 @@ class Exporter:
             if node.op_type == "Scan":
                 return self._python_make_node_scan(node, opsets, indent=indent)
             raise RuntimeError(
-                "Unable to export node type %r into python." % (node.op_type,)
+                f"Unable to export node type {node.op_type!r} into python."
             )
         if any(
             map(
@@ -350,7 +350,7 @@ class Exporter:
             )
         ):
             raise RuntimeError(
-                "Unable to export node type %r into python." % node.op_type
+                f"Unable to export node type {node.op_type!r} into python."
             )
         ops = {
             "Add": "+",
@@ -514,12 +514,12 @@ def export_template(
 
     final += "\n"
     if "\nreturn" in final:
-        raise SyntaxError("The produced code is wrong.\n%s" % final)
+        raise SyntaxError(f"The produced code is wrong.\n{final}")
     if clean_code:
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
             raise SyntaxError(
-                "The cleaned code is wrong.\n%s\n------%s" % (final, cleaned_code)
+                f"The cleaned code is wrong.\n{final}\n------{cleaned_code}"
             )
         return cleaned_code
     return final
@@ -573,7 +573,7 @@ def export2python(
         model_onnx = onnx.load(model_onnx)
 
     if not isinstance(model_onnx, (ModelProto, FunctionProto)):
-        raise TypeError("The function expects a ModelProto not %r." % type(model_onnx))
+        raise TypeError(f"The function expects a ModelProto not {type(model_onnx)!r}.")
     code = export_template(
         model_onnx,
         template=_template_python,

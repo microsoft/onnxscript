@@ -19,11 +19,7 @@ class Tensor:
         return onnx.TensorProto.DataType.Name(self.dtype) + shapestr
 
     def __repr__(self) -> str:
-        return "%s(dtype=%r, shape=%r)" % (
-            self.__class__.__name__,
-            self.dtype,
-            self.shape,
-        )
+        return f"{self.__class__.__name__}(dtype={self.dtype!r}, shape={self.shape!r})"
 
     def to_type_proto(self):
         # TODO: handle None

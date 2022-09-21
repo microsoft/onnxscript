@@ -43,7 +43,7 @@ class DebugInfo:
         self.code = None if code is None else code.split("\n")
 
     def msg(self, text):
-        return "ERROR\n%s\n    %s" % (str(self), text)
+        return f"ERROR\n{str(self)}\n    {text}"
 
     def __str__(self):
         if self.code is None:
@@ -79,7 +79,7 @@ class Opset:
         return instance
 
     def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.domain, self.version)
+        return f"{self.__class__.__name__}({self.domain!r}, {self.version!r})"
 
     def __init__(self, domain, version) -> None:
         # Nothing to do. Object is initialized by __new__
@@ -303,14 +303,14 @@ class Value:
 
     def __init__(self, val: Any, info: DebugInfo) -> None:
         if not isinstance(info, DebugInfo):
-            raise TypeError("info must be of DebugInfo not %r." % type(info))
+            raise TypeError(f"info must be of DebugInfo not {type(info)!r}.")
         if val is None:
             raise ValueError(info.msg("val cannot be None."))
         self.value = val
         self.info = info
 
     def __repr__(self):
-        return "%s(%r)" % (self.__class__.__name__, self.value)
+        return f"{self.__class__.__name__}({self.value!r})"
 
 
 class AttrRef(Value):
@@ -330,7 +330,7 @@ class AttrRef(Value):
         self.typeinfo = typeinfo
 
     def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.value, self.typeinfo)
+        return f"{self.__class__.__name__}({self.value!r}, {self.typeinfo!r})"
 
 
 class DynamicKind(IntFlag):
@@ -359,7 +359,7 @@ class Dynamic(Value):
 
     def __repr__(self):
         if self.typeinfo is None:
-            return "%s(%r, %r)" % (self.__class__.__name__, self.value, self.kind)
+            return f"{self.__class__.__name__}({self.value!r}, {self.kind!r})"
         return "%s(%r, %r, typeinfo=%r)" % (
             self.__class__.__name__,
             self.value,

@@ -179,7 +179,7 @@ class OnnxScriptTestCase(unittest.TestCase):
                 model.SerializeToString(), providers=["CPUExecutionProvider"]
             )
         except (Fail, InvalidArgument, InvalidGraph) as e:
-            raise AssertionError("Unable to load model\n%s" % str(model)) from e
+            raise AssertionError(f"Unable to load model\n{str(model)}") from e
         # input['input_2'] = None
         actual = sess.run(None, input)
         np.testing.assert_allclose(actual, param.output, rtol=self.rtol)

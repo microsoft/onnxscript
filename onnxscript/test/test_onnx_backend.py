@@ -59,7 +59,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         names = [i.name for i in obj.get_inputs()]
         if len(names) < len(inputs):
             raise AssertionError(
-                "Got %d inputs but expecting %d." % (len(inputs), len(names))
+                f"Got {len(inputs)} inputs but expecting {len(names)}."
             )
         feeds = {names[i]: inputs[i] for i in range(len(inputs))}
         got = obj.run(None, feeds)
@@ -149,7 +149,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                     print("  convert into python")
                 code = export2python(te.onnx_model, function_name="bck_" + te.name)
                 self.assertIn("@script()", code)
-                self.assertIn("def bck_%s(" % te.name, code)
+                self.assertIn(f"def bck_{te.name}(", code)
                 if verbose > 1:
                     print("  check syntax, compilation")
                     if verbose > 2:
@@ -271,7 +271,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             path = os.path.dirname(onnx_file)
             failed = [len(missed), len(load_failed), len(exec_failed), len(mismatch)]
             print(success, failed)
-            print("coverage ratio %f" % (success / (success + sum(failed))))
+            print(f"coverage ratio {success / (success + sum(failed)):f}")
             for t in load_failed:
                 print(
                     "loading failed",
