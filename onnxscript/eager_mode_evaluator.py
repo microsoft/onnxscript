@@ -11,7 +11,7 @@ from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
 from .utils import values_to_value_infos, proto2text
 from .irbuilder import select_ir_version
-from .eager_array import EagerArray
+from .tensor import Tensor
 
 
 class EagerModeError(RuntimeError):
@@ -61,7 +61,7 @@ def os_to_ort_value(v):
     '''
     Converts an onnxscript encoding of an ONNX value into the encoding used by ORT.
     '''
-    if isinstance(v, EagerArray):
+    if isinstance(v, Tensor):
         return v.value
     elif isinstance(v, list):
         return v
@@ -80,7 +80,7 @@ def ort_to_os_value(v):
     Converts an ORT encoding of an ONNX value into the encoding used by onnxscript.
     '''
     if isinstance(v, np.ndarray):
-        return EagerArray(v)
+        return Tensor(v)
     elif isinstance(v, list):
         return v
     elif v is None:

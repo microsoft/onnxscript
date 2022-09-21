@@ -10,7 +10,7 @@ from typing import Any, List
 from enum import IntFlag
 import numpy as np
 import onnx
-from .eager_array import EagerArray
+from .tensor import Tensor
 from .autocast import dynamic_cast_inputs
 
 
@@ -174,7 +174,7 @@ class OnnxFunction(Op):
         if len(args) == 0:
             # Operator Constant, it is usually called within a function.
             return self._libcall(**kwargs)
-        if isinstance(args[0], EagerArray):
+        if isinstance(args[0], Tensor):
             return self._libcall(*args, **kwargs)
         return self._usercall(*args, **kwargs)
 
@@ -183,21 +183,21 @@ class OnnxFunction(Op):
         new_args = []
         for i, a in enumerate(args):
             if isinstance(a, np.ndarray):
-                new_args.append(EagerArray(a))
+                new_args.append(Tensor(a))
             elif isinstance(a, bool):
-                new_args.append(EagerArray(np.array(a)))
+                new_args.append(Tensor(np.array(a)))
             else:
                 raise TypeError(
                     f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
         if isinstance(res, np.ndarray):
             return res
-        if isinstance(res, EagerArray):
+        if isinstance(res, Tensor):
             return res.value
         if isinstance(res, (list, tuple)):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, EagerArray):
+                if isinstance(r, Tensor):
                     unwrapped.append(r.value)
                 else:
                     raise TypeError(
@@ -216,23 +216,23 @@ class OnnxFunction(Op):
         """
         new_args = []
         for i, a in enumerate(args):
-            if isinstance(a, EagerArray):
+            if isinstance(a, Tensor):
                 new_args.append(a)
             elif isinstance(a, bool):
                 # TODO: default values for function parameters
                 # are not properly handled yet. This section
                 # should disappear.
-                new_args.append(EagerArray(np.array(a)))
+                new_args.append(Tensor(np.array(a)))
             else:
                 raise TypeError(
                     f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
-        if isinstance(res, EagerArray):
+        if isinstance(res, Tensor):
             return res
         if isinstance(res, tuple):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, EagerArray):
+                if isinstance(r, Tensor):
                     unwrapped.append(r)
                 else:
                     raise TypeError(
