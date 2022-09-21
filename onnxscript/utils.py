@@ -29,7 +29,7 @@ def external_tensor(
         checksum: Optional[str] = None,
         basepath: Optional[str] = None) -> TensorProto:
     '''
-    Helper function to create a TensorProto referencing externally stored tensor-data.
+    Create a TensorProto referencing externally stored tensor-data.
     '''
     tensor = TensorProto()
     tensor.name = name
