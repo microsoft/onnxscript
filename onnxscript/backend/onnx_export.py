@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from ..onnx_types import ParametricTensor
+from onnxscript.onnx_types import ParametricTensor
 from typing import Union
 import numpy
 import onnx
