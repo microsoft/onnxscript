@@ -82,6 +82,10 @@ def script(opset=None, default_opset=None, **kwargs):
     def transform(f):
         if inspect.isfunction(f):
             src, ast = get_src_and_ast(f)
+            # The script should be compiled using the globals/locals at the definition site.
+            # This allows the script to reference names defined outside the script,
+            # which is used for a few different purposes.
+            # The following is an approximate solution that works for normal use.
             module = inspect.getmodule(f)
             closure = inspect.getclosurevars(f)
             env = module.__dict__.copy()
