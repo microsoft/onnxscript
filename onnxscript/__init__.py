@@ -5,8 +5,8 @@
 
 import sys
 
-from .backend.onnx_export import export2python as proto2python
-from .main import OnnxFunction, export_onnx_lib, script
+from onnxscript.backend.onnx_export import export2python as proto2python
+from onnxscript.main import OnnxFunction, export_onnx_lib, script
 
 if sys.version_info[0:2] >= (3, 8):
     import importlib.metadata as importlib_metadata

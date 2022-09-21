@@ -10,8 +10,8 @@ import click
 import onnx
 import onnx.helper as helper
 
-from onnxscript.backend.onnx_export import export2python
-from onnxscript.converter import Converter
+from onnxscript import converter
+from onnxscript.backend import onnx_export
 
 
 @click.group()
@@ -20,8 +20,8 @@ def cli():
 
 
 def convert_file(script):
-    converter = Converter()
-    return converter.convert_file(script)
+    convert = converter.Converter()
+    return convert.convert_file(script)
 
 
 def to_single_model_proto(
@@ -123,7 +123,7 @@ def onnx2script(name, op=False, rename=False):
     """Exports an onnx graph to a script in following onnx-script syntax.
     The result is printed on the standard output.
     """
-    code = export2python(name, use_operators=op, rename=rename)
+    code = onnx_export.export2python(name, use_operators=op, rename=rename)
     print(code)
 
 

@@ -3,16 +3,16 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import io
 import logging
 import warnings
-from io import StringIO
 
 import onnx
 import onnx.helper as helper
 from onnx.defs import onnx_opset_version
 
-from . import type_annotation as ta
-from .values import OnnxFunction, Opset
+from onnxscript import type_annotation as ta
+from onnxscript import values
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -121,7 +121,7 @@ class Attr:
 
 class Stmt:
     def __init__(self, result, module, opname, args, attrs, sub_functions=None) -> None:
-        if not isinstance(module, Opset):
+        if not isinstance(module, values.Opset):
             raise TypeError(f"Unexpected type {type(module)} for module.")
         if not isinstance(opname, str):
             raise TypeError(f"Unexpected type {type(opname)} for opname.")
@@ -208,7 +208,7 @@ class Function:
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
-            st = StringIO()
+            st = io.StringIO()
             for s in self.stmts:
                 for attr in s.attrs:
                     if attr.attr_proto.HasField("g"):
@@ -252,7 +252,7 @@ class Function:
             def to_proto(f):
                 if isinstance(f, onnx.FunctionProto):
                     return f
-                if isinstance(f, OnnxFunction):
+                if isinstance(f, values.OnnxFunction):
                     return f.to_function_proto()
                 raise TypeError(
                     "Expected a value of type FunctionProto of OnnxFunction"

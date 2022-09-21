@@ -1,7 +1,7 @@
 import numpy as np
 from onnx.defs import OpSchema
 
-from .eager_array import EagerArray
+from onnxscript import eager_array
 
 
 def cast_inputs(get_type_info, cast, opschema, *args):
@@ -59,7 +59,7 @@ def dynamic_cast_inputs(opschema, *args):
     """Used for autocast during eager-mode execution."""
 
     def get_type_info(x):
-        return x.dtype if isinstance(x, EagerArray) else None
+        return x.dtype if isinstance(x, eager_array.EagerArray) else None
 
     def cast(x, typeinfo):
         if isinstance(x, (int, float)):
@@ -70,7 +70,7 @@ def dynamic_cast_inputs(opschema, *args):
                 dtype = np.int32
             else:  # isinstance(x, float):
                 dtype = np.float32
-            return EagerArray(np.array(x, dtype=dtype))
+            return eager_array.EagerArray(np.array(x, dtype=dtype))
         else:
             return x
 

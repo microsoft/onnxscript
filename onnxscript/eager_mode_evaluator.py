@@ -15,9 +15,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 
-from .eager_array import EagerArray
-from .irbuilder import select_ir_version
-from .utils import proto2text, values_to_value_infos
+from onnxscript import eager_array, irbuilder, utils
 
 
 class EagerModeError(RuntimeError):
@@ -68,7 +66,7 @@ def os_to_ort_value(v):
     """
     Converts an onnxscript encoding of an ONNX value into the encoding used by ORT.
     """
-    if isinstance(v, EagerArray):
+    if isinstance(v, eager_array.EagerArray):
         return v.value
     elif isinstance(v, list):
         return v
@@ -85,7 +83,7 @@ def ort_to_os_value(v):
     Converts an ORT encoding of an ONNX value into the encoding used by onnxscript.
     """
     if isinstance(v, np.ndarray):
-        return EagerArray(v)
+        return eager_array.EagerArray(v)
     elif isinstance(v, list):
         return v
     elif v is None:
@@ -105,7 +103,7 @@ def call_ort(schema, *args, **kwargs):
     outputs = ["output" + str(i) for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
-    input_value_infos = values_to_value_infos(inputs, list(args))
+    input_value_infos = utils.values_to_value_infos(inputs, list(args))
     output_value_infos = [
         onnx.helper.make_value_info(name, TypeProto()) for name in outputs
     ]
@@ -117,14 +115,16 @@ def call_ort(schema, *args, **kwargs):
     model = onnx.helper.make_model(
         graph,
         opset_imports=[opset_id],
-        ir_version=select_ir_version(schema.since_version, domain=schema.domain),
+        ir_version=irbuilder.select_ir_version(
+            schema.since_version, domain=schema.domain
+        ),
     )
     try:
         sess = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             "Unable to create onnxruntime InferenceSession with onnx "
-            "model\n%s" % proto2text(model)
+            "model\n%s" % utils.proto2text(model)
         ) from e
 
     session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
