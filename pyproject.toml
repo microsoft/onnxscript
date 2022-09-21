@@ -43,7 +43,8 @@
       "flake8",
       "mypy",
       "black",
-      "isort[colors]"
+      "isort[colors]",
+      "pylint"
     ]
 
 [tool.distutils.bdist_wheel]
@@ -90,3 +91,21 @@
 [tool.isort]
   profile = "black"
   extend_skip_glob  = ["**test/models/*.py", "**onnx_backend_test_code/*.py"]
+
+[tool.pylint.MASTER]
+  ignore-paths = [ 
+    "^onnxscript/test/models/",
+    "^onnxscript/test/onnx_backend_test_code/",
+  ]
+
+[tool.pylint.'MESSAGES CONTROL']
+  disable = [
+    "missing-docstring",
+    "import-error",
+    "no-member",
+    "line-too-long",
+    "fixme",
+    "too-few-public-methods",
+    "no-name-in-module",
+    "invalid-name",  # TODO: Add naming guidance and enable this check.
+]

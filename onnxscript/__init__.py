@@ -17,8 +17,5 @@ try:
     # TODO: should we algin the folder name with pacakge name? 
     # It's onnxscript and onnx-script now. That way, we can use __package__ here.
     __version__ = importlib_metadata.version(__package__)
-except Exception:  # nosec: allow bare except
-    # If the package is not installed or the version lookup fails
-    __version__ = None
 
 __all__ = [script, export_onnx_lib, OnnxFunction, proto2python]
