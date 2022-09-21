@@ -6,22 +6,21 @@
 # -*- coding: utf-8 -*-
 
 import os
-from distutils.core import setup
-from setuptools import find_packages
+import setuptools
 
 this = os.path.dirname(__file__)
 
-packages = find_packages()
+packages = setuptools.find_packages()
 assert packages
 
 README = os.path.join(os.getcwd(), "README.md")
-with open(README, "r") as f:
+with open(README, encoding="utf-8") as f:
     long_description = f.read()
     start_pos = long_description.find('## Contributing')
     if start_pos >= 0:
         long_description = long_description[:start_pos]
 
-setup(
+setuptools.setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/onnx/onnx-script',
