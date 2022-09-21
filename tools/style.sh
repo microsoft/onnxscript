@@ -24,6 +24,10 @@ echo -e "\n::group:: ===> check black format..."
 black onnxscript --color --diff --check
 echo -e "::endgroup::"
 
+echo -e "\n::group:: ===> check pylint"
+pylint onnxscript
+echo -e "::endgroup::"
+
 echo -e "\n::group:: ===> check mypy"
 mypy onnxscript --config-file pyproject.toml
 echo -e "::endgroup::"
