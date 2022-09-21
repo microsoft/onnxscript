@@ -94,4 +94,8 @@ disable = [
   "too-few-public-methods",
   "no-name-in-module",
   "invalid-name",           # TODO: Add naming guidance and enable this check.
+  "too-many-locals",
+  "too-many-arguments",
+  "too-many-statements",
+  "redefined-builtin", # TODO: should we avoid redefined-builtin?
 ]

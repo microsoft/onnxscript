@@ -8,7 +8,7 @@ import logging
 import warnings
 
 import onnx
-import onnx.helper as helper
+from onnx import helper
 from onnx.defs import onnx_opset_version
 
 from onnxscript import type_annotation as ta
@@ -51,7 +51,7 @@ class TensorType(Type):
         self.onnx_type = tp
 
     def __repr__(self) -> str:
-        return "TensorType(%d)" % self.onnx_type.tensor_type.elem_type
+        return f"TensorType({self.onnx_type.tensor_type.elem_type})"
 
 
 class Var:
