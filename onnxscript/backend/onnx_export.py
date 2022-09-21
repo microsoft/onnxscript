@@ -516,8 +516,8 @@ def export_template(
 
 def export2python(
     model_onnx,
-    opset=None,  # pyliny: diable=unused-argument
-    verbose=True,  # pyliny: diable=unused-argument
+    opset=None,  # pylint: diable=unused-argument
+    verbose=True,  # pylint: diable=unused-argument
     name=None,
     rename=False,
     autopep_options=None,

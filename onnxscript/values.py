@@ -8,11 +8,11 @@ import sys
 import typing
 from enum import IntFlag
 from typing import Any, List
-
+import logging
 import numpy as np
 import onnx
 
-from onnxscript import autocast, eager_array
+from onnxscript import autocast, eager_array, eager_mode_evaluator
 
 
 class DebugInfo:
@@ -50,7 +50,7 @@ class DebugInfo:
             line = ""
         else:
             line = "    -- line: " + self.code[self.lineno - 1]
-        return "%s:%d%s" % (self.source, self.lineno, line)
+        return f"{self.source}:{self.lineno}{line}"
 
 
 class Opset:
@@ -88,14 +88,14 @@ class Opset:
     def __getitem__(self, opname):
         try:
             return onnx.defs.get_schema(opname, self.version, self.domain)
-        except Exception:
+        except Exception: # pylint: disable=broad-except # TODO: more specific exception
             return None
 
     def __contains__(self, opname):
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
             return True
-        except Exception:
+        except Exception: # pylint: disable=broad-except # TODO: more specific exception
             return False
 
     def __str__(self) -> str:
@@ -105,15 +105,14 @@ class Opset:
         try:
             schema = onnx.defs.get_schema(attr, self.version, self.domain)
             return Op(self, attr, schema)
-        except Exception:
-            raise AttributeError(f"Attribute {attr} not found.")
+        except Exception as exc:
+            raise AttributeError(f"Attribute {attr} not found.") from exc
 
     def add_function_def(self, fun):
         if fun.name in self.function_defs:
-            import logging
 
             logger = logging.getLogger("onnx-script")
-            logger.warning(f"{fun.name}: Already defined.")
+            logger.warning(f"{fun.name}: Already defined.") # pylint: disable=logging-fstring-interpolation
         self.function_defs[fun.name] = fun
 
 
@@ -127,7 +126,6 @@ class Op:
     """
 
     def __init__(self, opset, opname, opschema=None) -> None:
-        from . import eager_mode_evaluator
 
         self.opset = opset
         self.opname = opname
@@ -360,9 +358,4 @@ class Dynamic(Value):
     def __repr__(self):
         if self.typeinfo is None:
             return f"{self.__class__.__name__}({self.value!r}, {self.kind!r})"
-        return "%s(%r, %r, typeinfo=%r)" % (
-            self.__class__.__name__,
-            self.value,
-            self.kind,
-            self.typeinfo,
-        )
+        return f"{self.__class__.__name__}({self.value}, {self.kind}, typeinfo={self.typeinfo})"

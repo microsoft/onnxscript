@@ -102,5 +102,7 @@ disable = [
   "too-many-lines",
   "too-many-public-methods",
   "too-many-return-statements",
+  "too-many-function-args",
+  "attribute-defined-outside-init", # TODO: mostly in onnxscript/converter.py
   "redefined-builtin", # TODO: should we avoid redefined-builtin?
 ]

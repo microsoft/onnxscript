@@ -8,7 +8,7 @@ from typing import Optional
 
 import click
 import onnx
-import onnx.helper as helper
+from onnx import helper
 
 from onnxscript import converter
 from onnxscript.backend import onnx_export
@@ -28,7 +28,7 @@ def to_single_model_proto(
     model, input_py_file: str, output_onnx_file: Optional[str] = None
 ):
     if not output_onnx_file:
-        prefix, ext = os.path.splitext(input_py_file)
+        prefix, _ = os.path.splitext(input_py_file)
         output_onnx_file = prefix + ".onnx"
 
     fnlist = convert_file(input_py_file)
@@ -91,13 +91,13 @@ def to_text(input_py_file: str):
     type=click.Path(),
     help="File or files to convert.",
 )
-def translate(fmt="text", name=None):
+def translate(fmt="text", names=None):
     """Translate a file or many files into a ModelProto, a LibProto or text."""
     if fmt == "text":
-        for name in name:
+        for name in names:
             to_text(name)
     else:
-        for name in name:
+        for name in names:
             to_single_model_proto(fmt == "model", name)
 
 

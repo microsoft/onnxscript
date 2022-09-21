@@ -10,17 +10,13 @@ import numpy as np
 import onnx
 from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_sequence_type_proto, make_tensor_type_proto
-
-from onnxscript import eager_array
-
 # print utility unavailable in ONNX 1.12 or earlier:
 try:
-    from onnx.printer import to_text as proto2text
+    from onnx.printer import to_text as proto2text # pylint: disable=unused-import
 except ImportError:
-
-    def proto2text(x):
+    def proto2text(x): # pylint: disable=unused-argument
         return "<print utility unavailable>"
-
+from onnxscript import eager_array
 
 def value_to_type_proto(val):
     """
@@ -37,21 +33,19 @@ def value_to_type_proto(val):
     if isinstance(val, list):
         if len(val) > 0:
             return make_sequence_type_proto(value_to_type_proto(val[0]))
-        else:
-            # Edge-case. Cannot determine a suitable ONNX type for an empty list.
-            # Should be using a typed-value instead.
-            # Treated as a sequence of tensors of float-type.
-            return make_sequence_type_proto(
-                make_tensor_type_proto(TensorProto.FLOAT, None)
-            )
+        # Edge-case. Cannot determine a suitable ONNX type for an empty list.
+        # Should be using a typed-value instead.
+        # Treated as a sequence of tensors of float-type.
+        return make_sequence_type_proto(
+            make_tensor_type_proto(TensorProto.FLOAT, None)
+        )
     if isinstance(val, numbers.Number):
         nparray = np.array(val)
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
         return make_tensor_type_proto(elem_type, [])
-    else:
-        raise ValueError(
-            f"Value of type {type(val)} is invalid as an ONNX input/output."
-        )
+    raise ValueError(
+        f"Value of type {type(val)} is invalid as an ONNX input/output."
+    )
 
 
 def values_to_value_infos(names, values):

@@ -11,12 +11,12 @@ pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
-    List[int]: onnx.AttributeProto.INTS,
+    List[int]: onnx.AttributeProto.INTS, # pylint: disable=unhashable-member # TODO: Need change
 }
 
 
 def is_attr(typeinfo):
-    return typeinfo in {float, int, str, List[float], List[int], List[str]}
+    return typeinfo in {float, int, str, List[float], List[int], List[str]} # pylint: disable=unhashable-member # TODO: Need change
 
 
 def is_tensor(typeinfo):

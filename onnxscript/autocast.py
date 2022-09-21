@@ -1,7 +1,7 @@
 import numpy as np
 from onnx.defs import OpSchema
 
-from onnxscript import eager_array
+from onnxscript import eager_array, values
 
 
 def cast_inputs(get_type_info, cast, opschema, *args):
@@ -49,10 +49,9 @@ def cast_inputs(get_type_info, cast, opschema, *args):
             cast(x, type_bindings.get(typevar)) for x, typevar in args_typevars
         ]
         return tuple(cast_args)
-    else:
-        # Either an error or a custom op.
-        # No checks/casts in this case.
-        return tuple([cast(x, None) for x in args])
+    # Either an error or a custom op.
+    # No checks/casts in this case.
+    return (cast(x, None) for x in args)
 
 
 def dynamic_cast_inputs(opschema, *args):
@@ -71,8 +70,7 @@ def dynamic_cast_inputs(opschema, *args):
             else:  # isinstance(x, float):
                 dtype = np.float32
             return eager_array.EagerArray(np.array(x, dtype=dtype))
-        else:
-            return x
+        return x
 
     return cast_inputs(get_type_info, cast, opschema, *args)
 
@@ -88,14 +86,12 @@ def static_cast_inputs(converter, opschema, *args):
     def cast(x, typeinfo):
         if x.is_const() and typeinfo is not None:
             # Scalar values are promoted to tensors of a type chosen as below:
-            from .values import Op
 
             tmp = converter.generate_unique_name(x.name + "_cast")
             converter.emit(
-                [tmp], Op(converter.default_opset, "CastLike"), [x.name, typeinfo], []
+                [tmp], values.Op(converter.default_opset, "CastLike"), [x.name, typeinfo], []
             )
             return tmp
-        else:
-            return x.name
+        return x.name
 
     return cast_inputs(get_type_info, cast, opschema, *args)

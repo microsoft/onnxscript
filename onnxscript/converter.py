@@ -965,12 +965,11 @@ class Converter:
         if isinstance(node, ast.Return):
             if index_of_stmt is not None:
                 return self.translate_return_stmt(node)
-            else:
-                raise ValueError(
-                    values.DebugInfo(node, self).msg(
-                        "Return statements are not permitted inside control-flow statements."
-                    )
+            raise ValueError(
+                values.DebugInfo(node, self).msg(
+                    "Return statements are not permitted inside control-flow statements."
                 )
+            )
         if isinstance(node, ast.If):
             return self.translate_if_stmt(node)
         if isinstance(node, (ast.For, ast.While)):
@@ -1080,9 +1079,8 @@ class Converter:
         if isinstance(val, ast.Tuple):
             check_num_outputs(len(val.elts))
             return [ret(exp, i, str(i)) for i, exp in enumerate(val.elts)]
-        else:
-            check_num_outputs(1)
-            return ret(val, 0, "")
+        check_num_outputs(1)
+        return ret(val, 0, "")
 
     def translate_if_stmt(self, stmt: ast.If):
         if hasattr(stmt, "live_out"):

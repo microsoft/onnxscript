@@ -24,7 +24,7 @@ def assert_almost_equal_string(expected, value):
     :param value: value
     """
 
-    def is_float(x): # pyliny: diable=unused-argument
+    def is_float(x): # pylint: disable=unused-argument
         try:
             return True
         except ValueError:  # pragma: no cover
@@ -170,24 +170,24 @@ class OnnxBackendTest:
                         assert_almost_equal_string(e, o)
                     except AssertionError as ex:
                         raise AssertionError(  # pragma: no cover
-                            "Output %d of test %d in folder %r failed." % (i, index, self.folder)
+                            "Output {i} of test {index} in folder {self.folder} failed."
                         ) from ex
                 else:
                     try:
                         assert_almost_equal(e, o, decimal=deci)
                     except AssertionError as ex:
                         raise AssertionError(
-                            "Output %d of test %d in folder %r failed." % (i, index, self.folder)
+                            "Output {i} of test {index} in folder {self.folder} failed."
                         ) from ex
             elif hasattr(o, "is_compatible"):
                 # A shape
                 if e.dtype != o.dtype:
                     raise AssertionError(
-                        "Output %d of test %d in folder %r failed (e.dtype=%r, o=%r)." % (i, index, self.folder, e.dtype, o)
+                        "Output {i} of test {index} in folder {self.folder} failed (e.dtype={e.dtype}, o={o})."
                     )
                 if not o.is_compatible(e.shape):
                     raise AssertionError(  # pragma: no cover
-                        "Output %d of test %d in folder %r failed (e.shape=%r, o=%r)." % (i, index, self.folder, e.shape, o)
+                       "Output {i} of test {index} in folder {self.folder} failed (e.shape={e.shape}, o={o})."
                     )
         else:
             raise NotImplementedError(
@@ -275,7 +275,7 @@ class OnnxBackendTest:
         code = "\n".join(rows)
         final = "\n".join([f"def {self.name}(self):", textwrap.indent(code, "    ")])
         try:
-            from pyquickhelper.pycode.code_helper import remove_extra_spaces_and_pep8
+            from pyquickhelper.pycode.code_helper import remove_extra_spaces_and_pep8 # pylint: disable=import-outside-toplevel
         except ImportError:  # pragma: no cover
             return final
         return remove_extra_spaces_and_pep8(final, aggressive=True)

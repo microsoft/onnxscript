@@ -17,20 +17,20 @@ def get_src_and_ast(f):
         src = inspect.getsource(f)
     except OSError as e:
         raise RuntimeError(
-            "Decorator script does not work on dynamically "
-            "compiled function %r." % f.__name__
+            f"Decorator script does not work on dynamically "
+            f"compiled function {f.__name__}."
         ) from e
     src = textwrap.dedent(src)
     top_level_ast = ast.parse(src)
-    assert type(top_level_ast) == ast.Module
+    assert isinstance(type(top_level_ast), ast.Module)
     assert len(top_level_ast.body) == 1
     f_ast = top_level_ast.body[0]
-    assert type(f_ast) == ast.FunctionDef
+    assert isinstance(type(f_ast), ast.FunctionDef)
     return src, f_ast
 
 
 def get_ast(f):
-    src, ast = get_src_and_ast(f)
+    _, ast = get_src_and_ast(f) # pylint: disable=redefined-outer-name
     return ast
 
 
@@ -86,17 +86,16 @@ def script(opset=None, default_opset=None, **kwargs):
 
     def transform(f):
         if inspect.isfunction(f):
-            src, ast = get_src_and_ast(f)
+            src, ast = get_src_and_ast(f) # pylint: disable=redefined-outer-name
             module = inspect.getmodule(f)
             result = script_check(
                 ast, opset, module.__dict__.copy(), src, default_opset=default_opset
             )
             # TODO: add transformations.
             return values.OnnxFunction(opset, f, result, src, kwargs)
-        else:
-            raise TypeError(
-                "The ONNXScript decorator should be applied to functions only."
-            )
+        raise TypeError(
+            "The ONNXScript decorator should be applied to functions only."
+        )
 
     return transform
 
