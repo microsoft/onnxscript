@@ -50,6 +50,7 @@ def compute_num_outputs(schema, *args, **kwargs):
 
 _cache_models = {}
 
+
 def _cache_(model, providers):
     serialized = model.SerializeToString()
     key = serialized, tuple(providers)

@@ -3,12 +3,13 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import logging
 import pprint
 import sys
 import typing
 from enum import IntFlag
 from typing import Any, List
-import logging
+
 import numpy as np
 import onnx
 
@@ -88,14 +89,14 @@ class Opset:
     def __getitem__(self, opname):
         try:
             return onnx.defs.get_schema(opname, self.version, self.domain)
-        except Exception: # pylint: disable=broad-except # TODO: more specific exception
+        except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return None
 
     def __contains__(self, opname):
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
             return True
-        except Exception: # pylint: disable=broad-except # TODO: more specific exception
+        except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return False
 
     def __str__(self) -> str:
@@ -112,7 +113,9 @@ class Opset:
         if fun.name in self.function_defs:
 
             logger = logging.getLogger("onnx-script")
-            logger.warning(f"{fun.name}: Already defined.") # pylint: disable=logging-fstring-interpolation
+            logger.warning(
+                f"{fun.name}: Already defined."
+            )  # pylint: disable=logging-fstring-interpolation
         self.function_defs[fun.name] = fun
 
 

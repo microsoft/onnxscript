@@ -241,9 +241,9 @@ class Exporter:
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
-                    text = f"make_tensor(\"value\", {onnx_dtype}, dims=[], vals=[{value.tolist()!r}])"
+                    text = f'make_tensor("value", {onnx_dtype}, dims=[], vals=[{value.tolist()!r}])'
                 else:
-                    text = f"make_tensor(\"value\", {onnx_dtype}, dims={list(value.shape)!r}, vals={value.ravel().tolist()!r})"
+                    text = f'make_tensor("value", {onnx_dtype}, dims={list(value.shape)!r}, vals={value.ravel().tolist()!r})'
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -257,7 +257,9 @@ class Exporter:
         sindent = "    " * indent
         code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
-            raise RuntimeError(f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}.")
+            raise RuntimeError(
+                f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}."
+            )
         atts = node.attribute
         if atts[0].name == "else_branch":
             else_branch, then_branch = atts[0].g, atts[1].g
@@ -287,15 +289,11 @@ class Exporter:
         # v_initial = node.input[2]
         rows = []
         if n_iter and not cond:
-            rows.append(
-                f"{sindent}for {body.input[0].name} in range({n_iter}):"
-            )
+            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
         elif not n_iter and cond:
             rows.append(f"{sindent}while {cond}:")
         elif n_iter and cond:
-            rows.append(
-                f"{sindent}for {body.input[0].name} in range({n_iter}):"
-            )
+            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
             rows.append(f"{sindent}    if not {cond}:")
             rows.append(f"{sindent}        break")
         else:

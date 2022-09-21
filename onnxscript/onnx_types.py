@@ -46,7 +46,7 @@ class ParametricTensor:
         ParametricTensor.types[dtype] = self
 
     def __getitem__(self, shape):
-        def mk_dim(dim): # pylint: disable=unused-variable # TODO: why?
+        def mk_dim(dim):  # pylint: disable=unused-variable # TODO: why?
             r = onnx.TensorShapeProto.Dimension()
             if isinstance(dim, int):
                 r.dim_value = dim

@@ -45,7 +45,9 @@ class Type:
 
 
 class TensorType(Type):
-    def __init__(self, elem_type) -> None: # pylint: disable=super-init-not-called # TODO: why?
+    def __init__(
+        self, elem_type
+    ) -> None:  # pylint: disable=super-init-not-called # TODO: why?
         tp = onnx.TypeProto()
         tp.tensor_type.elem_type = elem_type
         self.onnx_type = tp

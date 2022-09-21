@@ -5,7 +5,9 @@
 import numpy as np
 from onnx import TensorProto
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
+
 from onnxscript import onnx_opset
+
 
 class EagerArray:
     """

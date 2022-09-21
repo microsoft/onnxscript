@@ -89,7 +89,10 @@ def static_cast_inputs(converter, opschema, *args):
 
             tmp = converter.generate_unique_name(x.name + "_cast")
             converter.emit(
-                [tmp], values.Op(converter.default_opset, "CastLike"), [x.name, typeinfo], []
+                [tmp],
+                values.Op(converter.default_opset, "CastLike"),
+                [x.name, typeinfo],
+                [],
             )
             return tmp
         return x.name

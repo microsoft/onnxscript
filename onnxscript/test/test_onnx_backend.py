@@ -219,7 +219,10 @@ class TestOnnxBackEnd(unittest.TestCase):
                             if inp is None:
                                 print("    input %d: None" % i)
                             else:
-                                print("    input %d: dtype=%r shape=%r %r" % (i, inp.dtype, inp.shape, inp.ravel().tolist()))
+                                print(
+                                    "    input %d: dtype=%r shape=%r %r"
+                                    % (i, inp.dtype, inp.shape, inp.ravel().tolist())
+                                )
                     try:
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)
                     except Exception as e:

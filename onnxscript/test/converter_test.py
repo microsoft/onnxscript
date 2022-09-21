@@ -30,10 +30,32 @@ from onnxscript import script
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
+from onnxscript.test.models import (
+    attrref,
+    cast_like,
+    different_opset,
+    dropout,
+    eager_op,
+    getitem,
+    getitem39,
+    if_statement,
+    loops_break,
+    loops_while,
+    m1,
+    multi,
+    onnxfns1,
+    onnxfns1A,
+    onnxfns2,
+    opt_input,
+    opt_output,
+    renaming,
+    sequences,
+    signal_dft,
+    subfunction,
+    type_double,
+)
 from onnxscript.test.testutils import TestBase
 from onnxscript.values import OnnxFunction
-
-from onnxscript.test.models import getitem39, getitem, loops_while, loops_break, sequences, different_opset, cast_like, eager_op, onnxfns1, onnxfns1A, m1, subfunction, if_statement, signal_dft, multi, dropout, attrref, renaming, opt_output, opt_input, onnxfns2, type_double
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")

@@ -13,7 +13,9 @@ from numpy import object as dtype_object
 from numpy.testing import assert_almost_equal
 from onnx.backend.test import __file__ as backend_folder
 from onnx.numpy_helper import to_array, to_list
+
 from onnxscript.onnx_tools import onnx_export
+
 
 def assert_almost_equal_string(expected, value):
     """
@@ -24,7 +26,7 @@ def assert_almost_equal_string(expected, value):
     :param value: value
     """
 
-    def is_float(x): # pylint: disable=unused-argument
+    def is_float(x):  # pylint: disable=unused-argument
         try:
             return True
         except ValueError:  # pragma: no cover
@@ -187,7 +189,7 @@ class OnnxBackendTest:
                     )
                 if not o.is_compatible(e.shape):
                     raise AssertionError(  # pragma: no cover
-                       "Output {i} of test {index} in folder {self.folder} failed (e.shape={e.shape}, o={o})."
+                        "Output {i} of test {index} in folder {self.folder} failed (e.shape={e.shape}, o={o})."
                     )
         else:
             raise NotImplementedError(
@@ -275,7 +277,9 @@ class OnnxBackendTest:
         code = "\n".join(rows)
         final = "\n".join([f"def {self.name}(self):", textwrap.indent(code, "    ")])
         try:
-            from pyquickhelper.pycode.code_helper import remove_extra_spaces_and_pep8 # pylint: disable=import-outside-toplevel
+            from pyquickhelper.pycode.code_helper import (  # pylint: disable=import-outside-toplevel
+                remove_extra_spaces_and_pep8,
+            )
         except ImportError:  # pragma: no cover
             return final
         return remove_extra_spaces_and_pep8(final, aggressive=True)

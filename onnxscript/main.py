@@ -30,7 +30,7 @@ def get_src_and_ast(f):
 
 
 def get_ast(f):
-    _, ast = get_src_and_ast(f) # pylint: disable=redefined-outer-name
+    _, ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
     return ast
 
 
@@ -86,16 +86,14 @@ def script(opset=None, default_opset=None, **kwargs):
 
     def transform(f):
         if inspect.isfunction(f):
-            src, ast = get_src_and_ast(f) # pylint: disable=redefined-outer-name
+            src, ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
             module = inspect.getmodule(f)
             result = script_check(
                 ast, opset, module.__dict__.copy(), src, default_opset=default_opset
             )
             # TODO: add transformations.
             return values.OnnxFunction(opset, f, result, src, kwargs)
-        raise TypeError(
-            "The ONNXScript decorator should be applied to functions only."
-        )
+        raise TypeError("The ONNXScript decorator should be applied to functions only.")
 
     return transform
 
