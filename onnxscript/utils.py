@@ -27,7 +27,10 @@ def external_tensor(
         offset: Optional[int] = None,
         length: Optional[int] = None,
         checksum: Optional[str] = None,
-        basepath: Optional[str] = None):
+        basepath: Optional[str] = None) -> TensorProto:
+    '''
+    Helper function to create a TensorProto referencing externally stored tensor-data.
+    '''
     tensor = TensorProto()
     tensor.name = name
     tensor.data_type = data_type

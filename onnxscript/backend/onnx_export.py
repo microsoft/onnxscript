@@ -107,8 +107,8 @@ def _get_const_repr(const_node):
     if (tp.data_type == TensorProto.FLOAT or tp.data_type == TensorProto.INT64):
         rank = len(tp.dims)
         if rank == 0:
-            arr = onnx.numpy_helper.to_array(tp).reshape(1)
-            return repr(arr[0])
+            array = onnx.numpy_helper.to_array(tp).reshape(1)
+            return repr(array[0])
         if rank == 1 and tp.dims[0] < 5:
             return repr(list(onnx.numpy_helper.to_array(tp)))
     return None
@@ -275,10 +275,10 @@ class Exporter:
                 continue
             if isinstance(value, TensorProto):
                 metadata = onnx.external_data_helper.ExternalDataInfo(value)
-                text = "external_tensor("
                 name = value.name or "value"
-                text += '%r, %s, %r' % (name, value.data_type, list(value.dims))
-                text += ', %r' % (metadata.location,)
+                text = "external_tensor("
+                text += f"{repr(name)}, {value.data_type}, {repr(list(value.dims))}"
+                text += f", {repr(metadata.location)}"
                 if metadata.offset:
                     text += ", offset=" + repr(metadata.offset)
                 if metadata.length:
@@ -538,6 +538,7 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
     :param rename: rename the names to get shorter names
     :param autopep_options: :epkg:`autopep8` options
     :param function_name: main function name
+    :param clean_code: clean the code
     :param inline_const: replace ONNX constants inline if compact
     :return: python code
 
