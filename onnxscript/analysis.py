@@ -4,18 +4,22 @@
 # --------------------------------------------------------------------------
 
 import ast
+
 from .values import DebugInfo
 
 
 def get_loop_var(for_stmt, converter):
     if not isinstance(for_stmt.target, ast.Name):
-        raise ValueError(DebugInfo(for_stmt, converter).msg(
-            "For loop target must be a single variable."))
+        raise ValueError(
+            DebugInfo(for_stmt, converter).msg(
+                "For loop target must be a single variable."
+            )
+        )
     return for_stmt.target.id
 
 
 def used_vars(expr):
-    ''' Return set of all variables used in an expression.'''
+    """Return set of all variables used in an expression."""
     if isinstance(expr, ast.Name):
         return set([expr.id])
     if isinstance(expr, ast.Call):
@@ -31,22 +35,24 @@ def used_vars(expr):
 
 
 def local_defs(lhs):
-    '''Utility function to return set of assigned/defined
-    variables in the lhs of an assignment statement.'''
+    """Utility function to return set of assigned/defined
+    variables in the lhs of an assignment statement."""
+
     def get_id(e):
         assert isinstance(e, ast.Name), "Only simple assignments supported."
         return e.id
 
-    if (isinstance(lhs, ast.Tuple)):
+    if isinstance(lhs, ast.Tuple):
         return set([get_id(x) for x in lhs.elts])
     return set([get_id(lhs)])
 
 
 def defs(stmt):
-    '''
+    """
     Return the set of all variables that may be defined (assigned to) in an
     execution of input stmt.
-    '''
+    """
+
     def block_defs(block):
         result = set()
         for s in block:
@@ -66,7 +72,7 @@ def defs(stmt):
     if isinstance(stmt, ast.Break):
         return set()
     try:
-        if stmt.value.func.id == 'print':
+        if stmt.value.func.id == "print":
             # Any call to print function are ignored.
             return set()
     except (TypeError, AttributeError):
@@ -75,11 +81,12 @@ def defs(stmt):
 
 
 def do_liveness_analysis(fun, converter):
-    '''
+    """
     Perform liveness analysis of the given function-ast. The results of the
     analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
     and `s.live_out`.
-    '''
+    """
+
     def visit(stmt, live_out):
         stmt.live_out = live_out
         live = do_visit(stmt, live_out)
@@ -93,7 +100,9 @@ def do_liveness_analysis(fun, converter):
             return live_out
 
         if isinstance(stmt, ast.Assign):
-            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(
+                stmt.value
+            )
         if isinstance(stmt, ast.AnnAssign):
             return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
@@ -124,22 +133,25 @@ def do_liveness_analysis(fun, converter):
             # Break statements in the middle of the loop, however, will require
             # a generalization.
             return live_out
-        if isinstance(stmt, ast.Expr) and hasattr(stmt, 'value'):
+        if isinstance(stmt, ast.Expr) and hasattr(stmt, "value"):
             # docstring
-            if hasattr(stmt.value, 'value') and isinstance(stmt.value.value, str):
+            if hasattr(stmt.value, "value") and isinstance(stmt.value.value, str):
                 # python 3.8+
                 return live_out
-            if hasattr(stmt.value, 's') and isinstance(stmt.value.s, str):
+            if hasattr(stmt.value, "s") and isinstance(stmt.value.s, str):
                 # python 3.7
                 return live_out
         try:
-            if stmt.value.func.id == 'print':
+            if stmt.value.func.id == "print":
                 # Any call to print function are ignored.
                 return live_out
         except (TypeError, AttributeError):
             pass
-        raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type {type(stmt)!r}."))
+        raise ValueError(
+            DebugInfo(stmt, converter).msg(
+                f"Unsupported statement type {type(stmt)!r}."
+            )
+        )
 
     assert isinstance(fun, ast.FunctionDef)
     live = set()
@@ -148,7 +160,7 @@ def do_liveness_analysis(fun, converter):
 
 
 def exposed_uses(stmts, converter):
-    '''
+    """
     Return the set of variables that are used before being defined by given block.
     In essence, this identifies the "inputs" to a given code-block.
     For example, consider the following code-block:
@@ -163,7 +175,8 @@ def exposed_uses(stmts, converter):
     the block. Even though the value of y is used within the block, it is assigned
     a value before it is used. However, in contrast, the incoming value of x is used
     (in the first statement). Hence x is included in the exposed_uses.
-    '''
+    """
+
     def visitBlock(block, live_out):
         for stmt in reversed(block):
             live_out = visit(stmt, live_out)
@@ -171,7 +184,9 @@ def exposed_uses(stmts, converter):
 
     def visit(stmt, live_out):
         if isinstance(stmt, ast.Assign):
-            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(
+                stmt.value
+            )
         if isinstance(stmt, ast.AnnAssign):
             return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
@@ -180,10 +195,13 @@ def exposed_uses(stmts, converter):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
-        if (isinstance(stmt, ast.Expr) and hasattr(stmt, 'value') and
-                isinstance(stmt.value, ast.Call)):
+        if (
+            isinstance(stmt, ast.Expr)
+            and hasattr(stmt, "value")
+            and isinstance(stmt.value, ast.Call)
+        ):
             f = stmt.value.func
-            if f.id == 'print':
+            if f.id == "print":
                 return live_out
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved
@@ -201,7 +219,10 @@ def exposed_uses(stmts, converter):
             return used_inside_loop | used_in_loop_header | live_out
         if isinstance(stmt, ast.Break):
             return live_out
-        raise ValueError(DebugInfo(stmt, converter).msg(
-            f"Unsupported statement type {type(stmt)!r}."))
+        raise ValueError(
+            DebugInfo(stmt, converter).msg(
+                f"Unsupported statement type {type(stmt)!r}."
+            )
+        )
 
     return visitBlock(stmts, set())

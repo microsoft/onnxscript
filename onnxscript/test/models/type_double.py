@@ -11,8 +11,8 @@ from onnxscript.onnx_opset import opset15 as op
 
 
 @script()
-def sumprod_typed(x: DOUBLE['N'], N: INT64) -> DOUBLE['N']:   # noqa: F821
-    weight = op.Constant(value=make_tensor('zero', TensorProto.DOUBLE, [1], [0]))
+def sumprod_typed(x: DOUBLE["N"], N: INT64) -> DOUBLE["N"]:  # noqa: F821
+    weight = op.Constant(value=make_tensor("zero", TensorProto.DOUBLE, [1], [0]))
     weighted_sum = op.Identity(weight)
     for i in range(N):
         b: DOUBLE[...] = op.Cast(i, to=11)
@@ -23,8 +23,8 @@ def sumprod_typed(x: DOUBLE['N'], N: INT64) -> DOUBLE['N']:   # noqa: F821
 
 
 @script()
-def sumprod(x: DOUBLE['N'], N: INT64) -> DOUBLE['N']:   # noqa: F821
-    weight = op.Constant(value=make_tensor('zero', TensorProto.DOUBLE, [1], [0]))
+def sumprod(x: DOUBLE["N"], N: INT64) -> DOUBLE["N"]:  # noqa: F821
+    weight = op.Constant(value=make_tensor("zero", TensorProto.DOUBLE, [1], [0]))
     weighted_sum = op.Identity(weight)
     for i in range(N):
         b = op.Cast(i, to=11)
@@ -36,7 +36,7 @@ def sumprod(x: DOUBLE['N'], N: INT64) -> DOUBLE['N']:   # noqa: F821
 
 @script()
 def notype_abs_subgraph(A):
-    zero = op.Constant(value=make_tensor('zero', TensorProto.FLOAT, [1], [0]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.FLOAT, [1], [0]))
     if op.Cast(op.ReduceSum(A), to=1) > zero:
         B = op.Identity(A)
     else:
@@ -46,7 +46,7 @@ def notype_abs_subgraph(A):
 
 @script()
 def double_abs_subgraph(A: DOUBLE["N"]) -> DOUBLE["N"]:
-    zero = op.Constant(value=make_tensor('zero', TensorProto.DOUBLE, [1], [0]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.DOUBLE, [1], [0]))
     if op.ReduceSum(A) > zero:
         B: DOUBLE["N"] = op.Identity(A)
     else:

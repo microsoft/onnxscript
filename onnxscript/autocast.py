@@ -1,10 +1,11 @@
-from onnx.defs import OpSchema
-from .eager_array import EagerArray
 import numpy as np
+from onnx.defs import OpSchema
+
+from .eager_array import EagerArray
 
 
 def cast_inputs(get_type_info, cast, opschema, *args):
-    '''
+    """
     Uses schema specification to support a limited form of auto-casting.
     * Scalars are promoted to tensors.
     * Further. they are cast to the required type when used in ops with other
@@ -14,7 +15,7 @@ def cast_inputs(get_type_info, cast, opschema, *args):
 
     This is used by the converter in a static-mode, as well as by the eager-mode
     execution in a dynamic-mode.
-    '''
+    """
     if opschema is not None:
         expected_inputs = opschema.inputs
         # We make two passes. In the first pass, we identify known type-bindings for
@@ -35,15 +36,18 @@ def cast_inputs(get_type_info, cast, opschema, *args):
             else:
                 raise ValueError(
                     f"Number of actual parameters {len(args)} "
-                    f"exceeds number of formal parameters {len(expected_inputs)}.")
+                    f"exceeds number of formal parameters {len(expected_inputs)}."
+                )
             typevar = expected.typeStr
-            if '(' not in typevar:
+            if "(" not in typevar:
                 # typevar is an identifier, like "T"
                 typeinfo = get_type_info(x)
                 if typeinfo is not None:
                     type_bindings[typevar] = typeinfo
             args_typevars.append((x, typevar))
-        cast_args = [cast(x, type_bindings.get(typevar)) for x, typevar in args_typevars]
+        cast_args = [
+            cast(x, type_bindings.get(typevar)) for x, typevar in args_typevars
+        ]
         return tuple(cast_args)
     else:
         # Either an error or a custom op.
@@ -52,7 +56,8 @@ def cast_inputs(get_type_info, cast, opschema, *args):
 
 
 def dynamic_cast_inputs(opschema, *args):
-    '''Used for autocast during eager-mode execution.'''
+    """Used for autocast during eager-mode execution."""
+
     def get_type_info(x):
         return x.dtype if isinstance(x, EagerArray) else None
 
@@ -73,7 +78,7 @@ def dynamic_cast_inputs(opschema, *args):
 
 
 def static_cast_inputs(converter, opschema, *args):
-    '''Used for autocast during script-translation.'''
+    """Used for autocast during script-translation."""
     if opschema is None:
         return args
 
@@ -84,9 +89,11 @@ def static_cast_inputs(converter, opschema, *args):
         if x.is_const() and typeinfo is not None:
             # Scalar values are promoted to tensors of a type chosen as below:
             from .values import Op
+
             tmp = converter.generate_unique_name(x.name + "_cast")
-            converter.emit([tmp], Op(converter.default_opset,
-                           'CastLike'), [x.name, typeinfo], [])
+            converter.emit(
+                [tmp], Op(converter.default_opset, "CastLike"), [x.name, typeinfo], []
+            )
             return tmp
         else:
             return x.name

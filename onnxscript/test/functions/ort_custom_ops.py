@@ -1,6 +1,7 @@
+import math
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset16 as op
-import math
 
 M_SQRT1_2 = math.sqrt(0.5)
 

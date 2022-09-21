@@ -6,9 +6,11 @@
 import ast
 import inspect
 import textwrap
+
 import onnx.helper
-from .converter import Converter
+
 from . import values
+from .converter import Converter
 from .values import OnnxFunction
 
 
@@ -18,7 +20,8 @@ def get_src_and_ast(f):
     except OSError as e:
         raise RuntimeError(
             "Decorator script does not work on dynamically "
-            "compiled function %r." % f.__name__) from e
+            "compiled function %r." % f.__name__
+        ) from e
     src = textwrap.dedent(src)
     top_level_ast = ast.parse(src)
     assert type(top_level_ast) == ast.Module
@@ -33,16 +36,19 @@ def get_ast(f):
     return ast
 
 
-def script_check(f: ast.FunctionDef, opset, global_names, source,
-                 default_opset=None):
-    '''
+def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=None):
+    """
     Check that a function falls into the ONNXScript subset of Python.
-    '''
+    """
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    converter = Converter(opset=opset, global_names=global_names, source=source,
-                          default_opset=default_opset)
+    converter = Converter(
+        opset=opset,
+        global_names=global_names,
+        source=source,
+        default_opset=default_opset,
+    )
     return converter.top_level_stmt(f)
 
 
@@ -73,31 +79,34 @@ def script(opset=None, default_opset=None, **kwargs):
             one = op.Constant(value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
             return op.Div(op.Log(x), op.CastLike(op.Log(cst), x))
     """
-    if (opset is None):
-        opset = values.Opset('this', 1)
+    if opset is None:
+        opset = values.Opset("this", 1)
     if not isinstance(opset, values.Opset):
         raise TypeError(
-            "Script parameter must be an opset. Did you use @script instead of @script()?")
+            "Script parameter must be an opset. Did you use @script instead of @script()?"
+        )
 
     def transform(f):
         if inspect.isfunction(f):
             src, ast = get_src_and_ast(f)
             module = inspect.getmodule(f)
-            result = script_check(ast, opset, module.__dict__.copy(), src,
-                                  default_opset=default_opset)
+            result = script_check(
+                ast, opset, module.__dict__.copy(), src, default_opset=default_opset
+            )
             # TODO: add transformations.
             return OnnxFunction(opset, f, result, src, kwargs)
         else:
             raise TypeError(
-                "The ONNXScript decorator should be applied to functions only.")
+                "The ONNXScript decorator should be applied to functions only."
+            )
 
     return transform
 
 
 def is_converted_fun(f):
-    '''
+    """
     Return True if f is a function converted by onnx-script decorator.
-    '''
+    """
     return isinstance(f, OnnxFunction)
 
 
@@ -108,7 +117,8 @@ def export_onnx_lib(functions, filename: str) -> None:
     model = onnx.helper.make_model(
         onnx.GraphProto(),
         functions=[f.to_function_proto() for f in functions],
-        producer_name='p2o',
-        opset_imports=[onnx.helper.make_opsetid("", 15)])
+        producer_name="p2o",
+        opset_imports=[onnx.helper.make_opsetid("", 15)],
+    )
 
     onnx.save(model, filename)

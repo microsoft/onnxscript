@@ -4,7 +4,9 @@
 # --------------------------------------------------------------------------
 
 import unittest
+
 import onnx
+
 from onnxscript.test.functions.onnx_script_test_case import OnnxScriptTestCase
 from onnxscript.test.models import onnxfns1
 
@@ -22,10 +24,7 @@ class TestOnnxFns(OnnxScriptTestCase):
         default_alpha = 1.67326319217681884765625
         default_gamma = 1.05070102214813232421875
 
-        self.run_onnx_test(
-            onnxfns1.Selu,
-            alpha=default_alpha,
-            gamma=default_gamma)
+        self.run_onnx_test(onnxfns1.Selu, alpha=default_alpha, gamma=default_gamma)
 
     def test_onnxfns_elu(self):
         default_alpha = 1.0
@@ -45,18 +44,12 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_hard_sigmoid(self):
         default_alpha = 0.2
         default_beta = 0.5
-        self.run_onnx_test(
-            onnxfns1.HardSigmoid,
-            alpha=default_alpha,
-            beta=default_beta)
+        self.run_onnx_test(onnxfns1.HardSigmoid, alpha=default_alpha, beta=default_beta)
 
     def test_onnxfns_hard_shrink(self):
         default_bias = 0.0
         default_lambd = 0.5
-        self.run_onnx_test(
-            onnxfns1.Shrink,
-            bias=default_bias,
-            lambd=default_lambd)
+        self.run_onnx_test(onnxfns1.Shrink, bias=default_bias, lambd=default_lambd)
 
     def test_onnxfns_hard_softplus(self):
         self.run_onnx_test(onnxfns1.Softplus)
@@ -64,17 +57,21 @@ class TestOnnxFns(OnnxScriptTestCase):
     def test_onnxfns_hard_softsign(self):
         self.run_onnx_test(onnxfns1.Softsign)
 
-    @unittest.skipIf(not hasattr(onnx.FunctionProto, 'attribute_proto'),
-                     reason="current onnx does not support default values")
+    @unittest.skipIf(
+        not hasattr(onnx.FunctionProto, "attribute_proto"),
+        reason="current onnx does not support default values",
+    )
     def test_onnxfns_hard_clip(self):
         self.run_onnx_test(
             onnxfns1.Clip,
             skip_eager_test=True,
             skip_test_names=[
-                'test_clip_default_int8_min',
-                'test_clip_default_int8_max',
-                'test_clip_default_int8_inbounds'])
+                "test_clip_default_int8_min",
+                "test_clip_default_int8_max",
+                "test_clip_default_int8_inbounds",
+            ],
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

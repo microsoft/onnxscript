@@ -4,16 +4,16 @@
 # --------------------------------------------------------------------------
 
 from onnxscript import script
-from onnxscript.onnx_types import FLOAT
 from onnxscript.onnx_opset import opset15 as op
+from onnxscript.onnx_types import FLOAT
 
 
 @script()
 def gemmgelu(
-        A: FLOAT["M", "K"],     # noqa: F821
-        W: FLOAT["K", "N"],     # noqa: F821
-        Bias: FLOAT["N"]        # noqa: F821
-) -> FLOAT["M", "N"]:           # noqa: F821
+    A: FLOAT["M", "K"],  # noqa: F821
+    W: FLOAT["K", "N"],  # noqa: F821
+    Bias: FLOAT["N"],  # noqa: F821
+) -> FLOAT["M", "N"]:  # noqa: F821
 
     a = op.Constant(value_float=0.5)
     b = op.Constant(value_float=0.797885)

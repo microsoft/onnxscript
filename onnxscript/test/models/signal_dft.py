@@ -14,11 +14,11 @@ def hann_window(window_length):
     :math:`\\omega_n = \\sin^2\\left( \\frac{\\pi n}{N-1} \\right)`
     where *N* is the window length.
     """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    pi = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
+    pi = op.Constant(value=make_tensor("pi", TensorProto.FLOAT, [1], [np.pi]))
     N_1 = op.Sub(window_length, one)
-    
+
     ni = op.Cast(op.Range(zero, window_length, one), to=1)
     pin = op.Div(op.Mul(ni, pi), op.Cast(N_1, to=1))
     sin = op.Sin(pin)
@@ -34,9 +34,9 @@ def hamming_window(window_length, alpha, beta):
 
     Default values for torch: `alpha=0.54, beta=0.46`.
     """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
+    pi2 = op.Constant(value=make_tensor("pi", TensorProto.FLOAT, [1], [np.pi * 2]))
     N_1 = op.Sub(window_length, one)
 
     ni = op.Cast(op.Range(zero, window_length, one), to=1)
@@ -53,14 +53,14 @@ def blackman_window(window_length):
     0.8 \\cos \\left( \\frac{4\\pi n}{N-1} \\right)`
     where *N* is the window length.
     """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    pi2 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 2]))
-    pi4 = op.Constant(value=make_tensor('pi', TensorProto.FLOAT, [1], [np.pi * 4]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
+    pi2 = op.Constant(value=make_tensor("pi", TensorProto.FLOAT, [1], [np.pi * 2]))
+    pi4 = op.Constant(value=make_tensor("pi", TensorProto.FLOAT, [1], [np.pi * 4]))
     N_1 = op.Cast(op.Sub(window_length, one), to=1)
-    t042 = op.Constant(value=make_tensor('alpha', TensorProto.FLOAT, [1], [0.42]))
-    t05 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.5]))
-    t008 = op.Constant(value=make_tensor('beta', TensorProto.FLOAT, [1], [0.08]))
+    t042 = op.Constant(value=make_tensor("alpha", TensorProto.FLOAT, [1], [0.42]))
+    t05 = op.Constant(value=make_tensor("beta", TensorProto.FLOAT, [1], [0.5]))
+    t008 = op.Constant(value=make_tensor("beta", TensorProto.FLOAT, [1], [0.08]))
 
     ni = op.Cast(op.Range(zero, window_length, one), to=1)
     cos2 = op.Cos(op.Div(op.Mul(ni, pi2), N_1))
@@ -73,13 +73,13 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     """
     Switches two axis. The function assumes `axis1 < axis2`.
     """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
     shape = op.Shape(x)
     n_dims = op.Shape(shape)
     axis2_1 = op.Sub(axis2, one)
     n_dims_1 = op.Sub(n_dims, one)
-    
+
     # First into a 5D dimension tensor.
     dims1_final = op.Slice(shape, zero, axis1, zero)
     if axis1 == zero:
@@ -102,12 +102,14 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     dim1 = op.Slice(shape, axis1, op.Add(axis1, one), zero)
     dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
 
-    new_shape = op.Concat(op.ReduceProd(dims1),
-                          dim1,
-                          op.ReduceProd(dims2),
-                          dim2,
-                          op.ReduceProd(dims3),
-                          axis=0)
+    new_shape = op.Concat(
+        op.ReduceProd(dims1),
+        dim1,
+        op.ReduceProd(dims2),
+        dim2,
+        op.ReduceProd(dims3),
+        axis=0,
+    )
     reshaped = op.Reshape(x, new_shape)
 
     # Transpose
@@ -119,8 +121,9 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
 
 
 @script()
-def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
-                  onesided=False, inverse=False, normalize=False) -> FLOAT[...]:
+def dft_last_axis(
+    x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=False, normalize=False
+) -> FLOAT[...]:
     """
     See PR https://github.com/onnx/onnx/pull/3741/.
 
@@ -151,12 +154,12 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
     """
 
     # Part 1
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    last = op.Constant(value=make_tensor('last', TensorProto.INT64, [1], [-1]))
-    shape1 = op.Constant(value=make_tensor('shape1', TensorProto.INT64, [2], [-1, 1]))
-    shape2 = op.Constant(value=make_tensor('shape2', TensorProto.INT64, [2], [1, -1]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
+    two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))
+    last = op.Constant(value=make_tensor("last", TensorProto.INT64, [1], [-1]))
+    shape1 = op.Constant(value=make_tensor("shape1", TensorProto.INT64, [2], [-1, 1]))
+    shape2 = op.Constant(value=make_tensor("shape2", TensorProto.INT64, [2], [1, -1]))
 
     nar = op.Range(zero, fft_length, one)  # fft_length or dim
     n0 = op.Cast(nar, to=1)
@@ -168,10 +171,12 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
 
     if op.Cast(inverse, to=TensorProto.BOOL):
         cst_2pi = op.Constant(
-            value=make_tensor('pi', TensorProto.FLOAT, [1], [6.28318530718])) #  2pi
+            value=make_tensor("pi", TensorProto.FLOAT, [1], [6.28318530718])
+        )  #  2pi
     else:
         cst_2pi = op.Constant(
-            value=make_tensor('pi', TensorProto.FLOAT, [1], [-6.28318530718])) #  -2pi
+            value=make_tensor("pi", TensorProto.FLOAT, [1], [-6.28318530718])
+        )  #  -2pi
     fft_length_float = op.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
     cos_win = op.Cos(p)
@@ -187,7 +192,7 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
 
     # Part 2
     if last_dim == one:
-        # rfft: x is a float tensor        
+        # rfft: x is a float tensor
         real_x = op.Squeeze(op.Slice(x, zero, one, last), last)
         x_shape = op.Shape(real_x)
         axis = op.Size(x_shape) - one
@@ -206,8 +211,8 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
                 x_shape_but_last = op.Slice(op.Shape(real_x), zero, last, zero, one)
                 new_shape = op.Concat(x_shape_but_last, fft_length - dim, axis=0)
                 cst = op.ConstantOfShape(
-                    new_shape,
-                    value=make_tensor('zerof', TensorProto.FLOAT, [1], [0]))
+                    new_shape, value=make_tensor("zerof", TensorProto.FLOAT, [1], [0])
+                )
                 pad_x = op.Concat(real_x, op.Cast(cst, to=1), axis=-1)
 
         result_real = op.Unsqueeze(op.MatMul(pad_x, cos_win), zero)
@@ -239,13 +244,17 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
                 x_shape_but_last = op.Slice(op.Shape(real_x), zero, last, zero, one)
                 new_shape = op.Concat(x_shape_but_last, fft_length - dim, axis=0)
                 cst = op.ConstantOfShape(
-                    new_shape,
-                    value=make_tensor('zerof', TensorProto.FLOAT, [1], [0]))
+                    new_shape, value=make_tensor("zerof", TensorProto.FLOAT, [1], [0])
+                )
                 pad_r = op.Concat(real_x, op.Cast(cst, to=1), axis=-1)
                 pad_i = op.Concat(imag_x, op.Cast(cst, to=1), axis=-1)
 
-        result_real = op.Unsqueeze(op.Sub(op.MatMul(pad_r, cos_win), op.MatMul(pad_i, sin_win)), zero)
-        result_imag = op.Unsqueeze(op.Add(op.MatMul(pad_r, sin_win), op.MatMul(pad_i, cos_win)), zero)
+        result_real = op.Unsqueeze(
+            op.Sub(op.MatMul(pad_r, cos_win), op.MatMul(pad_i, sin_win)), zero
+        )
+        result_imag = op.Unsqueeze(
+            op.Add(op.MatMul(pad_r, sin_win), op.MatMul(pad_i, cos_win)), zero
+        )
 
     # final step, needs to move to first axis into the last position.
     result = op.Concat(result_real, result_imag, axis=0)
@@ -264,7 +273,9 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
         final = op.Identity(truncated)
     else:
         result_shape = op.Shape(truncated)
-        shape_cpl = op.Constant(value=make_tensor('shape_cpl', TensorProto.INT64, [2], [2, -1]))
+        shape_cpl = op.Constant(
+            value=make_tensor("shape_cpl", TensorProto.INT64, [2], [2, -1])
+        )
         reshaped_result = op.Reshape(truncated, shape_cpl)
         transposed = op.Transpose(reshaped_result, perm=[1, 0])
         other_dimensions = op.Slice(result_shape, one, op.Shape(result_shape), zero)
@@ -280,9 +291,14 @@ def dft_last_axis(x: FLOAT[...], fft_length: INT64[1],
 
 
 @script()
-def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
-            onesided=False, inverse=False,
-            normalize=False) -> FLOAT[...]:
+def dft_inv(
+    x: FLOAT[...],
+    fft_length: INT64[1],
+    axis: INT64[1],
+    onesided=False,
+    inverse=False,
+    normalize=False,
+) -> FLOAT[...]:
     """
     Applies one dimension FFT.
     The function moves the considered axis to the last position
@@ -290,23 +306,32 @@ def dft_inv(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
     """
     shape = op.Shape(x)
     n_dims = op.Shape(shape)
-    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
     last_dim = op.Sub(n_dims, two)
     positive_axis = op.Where(axis < zero, axis + last_dim, axis)
 
     if positive_axis == last_dim:
-        final = dft_last_axis(x, fft_length, onesided, inverse, normalize)  # call dft_last_axis._libcall in eager mode
+        final = dft_last_axis(
+            x, fft_length, onesided, inverse, normalize
+        )  # call dft_last_axis._libcall in eager mode
     else:
-        xt = switch_axes(x, positive_axis, last_dim)  # call switch_axes._libcall in eager mode
-        fft = dft_last_axis(xt, fft_length, onesided, inverse, normalize)  # call dft_last_axis._libcall in eager mode
-        final = switch_axes(fft, positive_axis, last_dim)  # call switch_axes._libcall in eager mode
+        xt = switch_axes(
+            x, positive_axis, last_dim
+        )  # call switch_axes._libcall in eager mode
+        fft = dft_last_axis(
+            xt, fft_length, onesided, inverse, normalize
+        )  # call dft_last_axis._libcall in eager mode
+        final = switch_axes(
+            fft, positive_axis, last_dim
+        )  # call switch_axes._libcall in eager mode
     return final
 
 
 @script()
-def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
-        inverse=False, onesided=False) -> FLOAT[...]:
+def dft(
+    x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], inverse=False, onesided=False
+) -> FLOAT[...]:
     """
     Applies one dimensional FFT.
     The function moves the considered axis to the last position
@@ -317,20 +342,25 @@ def dft(x: FLOAT[...], fft_length: INT64[1], axis: INT64[1],
 
 
 @script()
-def stft(x: FLOAT[...], fft_length: INT64[1],
-         hop_length: INT64[1], n_frames: INT64[1],
-         window: FLOAT['N'], onesided=False) -> FLOAT[...]:
+def stft(
+    x: FLOAT[...],
+    fft_length: INT64[1],
+    hop_length: INT64[1],
+    n_frames: INT64[1],
+    window: FLOAT["N"],
+    onesided=False,
+) -> FLOAT[...]:
     """
     Applies one dimensional FFT with window weights.
     torch defines the number of frames as:
     `n_frames = 1 + (len - n_fft) / hop_length`.
     """
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    mtwo = op.Constant(value=make_tensor('mtwo', TensorProto.INT64, [1], [-2]))
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
+    mtwo = op.Constant(value=make_tensor("mtwo", TensorProto.INT64, [1], [-2]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
     last_axis = op.Sub(op.Shape(op.Shape(x)), one)
-    axis = op.Constant(value=make_tensor('axis', TensorProto.INT64, [1], [-2]))
-    axis2 = op.Constant(value=make_tensor('axis2', TensorProto.INT64, [1], [-3]))
+    axis = op.Constant(value=make_tensor("axis", TensorProto.INT64, [1], [-2]))
+    axis2 = op.Constant(value=make_tensor("axis2", TensorProto.INT64, [1], [-3]))
     window_size = op.Shape(window)
 
     # building frames
@@ -349,9 +379,11 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
             op.Shape(sliced_x, start=0, end=-2),
             missing,
             op.Shape(sliced_x, start=-1),
-            axis=0)
+            axis=0,
+        )
         cst = op.ConstantOfShape(
-            new_shape, value=make_tensor('zerof', TensorProto.FLOAT, [1], [0]))
+            new_shape, value=make_tensor("zerof", TensorProto.FLOAT, [1], [0])
+        )
         pad_sliced_x = op.Concat(sliced_x, op.Cast(cst, to=1), axis=-2)
 
         # same size
@@ -372,8 +404,8 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
     result = dft._libcall(weighted_new_x, fft_length, last_axis, onesided, False)
 
     # final transpose -3, -2
-    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    three  = op.Constant(value=make_tensor('three', TensorProto.INT64, [1], [3]))
+    two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))
+    three = op.Constant(value=make_tensor("three", TensorProto.INT64, [1], [3]))
     dim = op.Shape(op.Shape(result))
     ax1 = op.Sub(dim, three)
     ax2 = op.Sub(dim, two)
@@ -381,19 +413,27 @@ def stft(x: FLOAT[...], fft_length: INT64[1],
 
 
 @script()
-def istft(x: FLOAT[...], fft_length: INT64[1],
-          hop_length: INT64[1], window: FLOAT['N'], onesided=False) -> FLOAT[...]:
+def istft(
+    x: FLOAT[...],
+    fft_length: INT64[1],
+    hop_length: INT64[1],
+    window: FLOAT["N"],
+    onesided=False,
+) -> FLOAT[...]:
     """
     Reverses of `stft`.
     """
-    zero = op.Constant(value=make_tensor('zero', TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor('one', TensorProto.INT64, [1], [1]))
-    two = op.Constant(value=make_tensor('two', TensorProto.INT64, [1], [2]))
-    mone = op.Constant(value=make_tensor('mone', TensorProto.INT64, [1], [-1]))
-    wone = op.Cast(op.ConstantOfShape(
-        op.Shape(window),
-        value=make_tensor('onef', TensorProto.FLOAT, [1], [1])), to=1)    
-    axisf = op.Constant(value=make_tensor('axis3', TensorProto.INT64, [1], [-2]))
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
+    two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))
+    mone = op.Constant(value=make_tensor("mone", TensorProto.INT64, [1], [-1]))
+    wone = op.Cast(
+        op.ConstantOfShape(
+            op.Shape(window), value=make_tensor("onef", TensorProto.FLOAT, [1], [1])
+        ),
+        to=1,
+    )
+    axisf = op.Constant(value=make_tensor("axis3", TensorProto.INT64, [1], [-2]))
     n_frames = op.Shape(x, start=-2, end=-1)
     expected_signal_len = op.Add(fft_length, op.Mul(hop_length, op.Sub(n_frames, one)))
 
@@ -415,11 +455,16 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
         # real part
         n_dims_1 = op.Sub(n_dims, one)
         ytmp = op.Squeeze(op.Slice(ift, zero, one, n_dims_1), n_dims_1)
-        ctmp = op.Mul(op.Cast(
-            op.ConstantOfShape(
-                op.Shape(ytmp),
-                value=make_tensor('onef', TensorProto.FLOAT, [1], [1])),
-            to=1), window)
+        ctmp = op.Mul(
+            op.Cast(
+                op.ConstantOfShape(
+                    op.Shape(ytmp),
+                    value=make_tensor("onef", TensorProto.FLOAT, [1], [1]),
+                ),
+                to=1,
+            ),
+            window,
+        )
 
         shape_begin = op.Shape(ytmp, end=-1)
         n_left = op.Mul(fs64, hop_length)
@@ -430,14 +475,16 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
         right_shape = op.Concat(shape_begin, n_right, axis=0)
         right = op.Cast(
             op.ConstantOfShape(
-                right_shape,
-                value=make_tensor('zerof', TensorProto.FLOAT, [1], [0])),
-            to=1)
+                right_shape, value=make_tensor("zerof", TensorProto.FLOAT, [1], [0])
+            ),
+            to=1,
+        )
         left = op.Cast(
             op.ConstantOfShape(
-                left_shape,
-                value=make_tensor('zerof', TensorProto.FLOAT, [1], [0])),
-            to=1)
+                left_shape, value=make_tensor("zerof", TensorProto.FLOAT, [1], [0])
+            ),
+            to=1,
+        )
 
         y = op.Concat(left, ytmp, right, axis=-1)
         yc = op.Concat(left, ctmp, right, axis=-1)
@@ -470,7 +517,9 @@ def istft(x: FLOAT[...], fft_length: INT64[1],
 
     # rotation, bring first dimension to the last position
     result_shape = op.Shape(conc)
-    shape_cpl = op.Constant(value=make_tensor('shape_cpl', TensorProto.INT64, [2], [2, -1]))
+    shape_cpl = op.Constant(
+        value=make_tensor("shape_cpl", TensorProto.INT64, [2], [2, -1])
+    )
     reshaped_result = op.Reshape(conc, shape_cpl)
     transposed = op.Transpose(reshaped_result, perm=[1, 0])
     other_dimensions = op.Slice(result_shape, one, op.Shape(result_shape), zero)

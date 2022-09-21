@@ -3,15 +3,16 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import onnx
 import typing
 from typing import List
+
+import onnx
 
 pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
-    typing.List[int]: onnx.AttributeProto.INTS
+    typing.List[int]: onnx.AttributeProto.INTS,
 }
 
 

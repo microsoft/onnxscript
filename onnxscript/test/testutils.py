@@ -4,7 +4,9 @@
 # --------------------------------------------------------------------------
 
 import unittest
+
 from onnx import FunctionProto, GraphProto, ModelProto, parser
+
 from onnxscript import OnnxFunction
 from onnxscript.test.checker import isomorphic
 
@@ -41,11 +43,13 @@ def to_function_or_graph(testcase):
 
 class TestBase(unittest.TestCase):
     def validate(self, fn):
-        '''validate script function translation'''
+        """validate script function translation"""
         return fn.to_function_proto()
 
     def assertSame(self, fn1, fn2):
-        self.assertTrue(isomorphic(to_function_or_graph(fn1), to_function_or_graph(fn2)))
+        self.assertTrue(
+            isomorphic(to_function_or_graph(fn1), to_function_or_graph(fn2))
+        )
 
     def assertSameGraph(self, graph1, graph2):
         self.assertTrue(isomorphic(graph_proto(graph1), graph_proto(graph2)))

@@ -15,9 +15,12 @@ class EagerArray:
 
     def __init__(self, tensor, opset=None):
         if not isinstance(tensor, np.ndarray):
-            raise TypeError(f"Unexpected type {type(tensor)}. It must be a numpy array.")
+            raise TypeError(
+                f"Unexpected type {type(tensor)}. It must be a numpy array."
+            )
         self._tensor = tensor
         from onnxscript.onnx_opset import default_opset
+
         self._opset = opset or default_opset
 
     @property
@@ -60,18 +63,18 @@ class EagerArray:
         # case A[i:j] or A[i:j:k], A[i:k, j:l]
         if isinstance(index, slice):
             # Treat 1-dimensional slicing A[i:j] as generic n-dimensional case A[i:j,...]
-            index = (index, )
+            index = (index,)
         shape = self.shape
         indices = []
         to_squeeze = []
         for axis, s in enumerate(index):
             if isinstance(s, slice):
                 if s.step is None or s.step > 0:
-                    indices.append([s.start or 0, s.stop or shape[axis],
-                                    axis, s.step or 1])
+                    indices.append(
+                        [s.start or 0, s.stop or shape[axis], axis, s.step or 1]
+                    )
                 else:
-                    indices.append([s.start or (shape[axis] - 1), s.stop,
-                                    axis, s.step])
+                    indices.append([s.start or (shape[axis] - 1), s.stop, axis, s.step])
             elif isinstance(s, int):
                 indices.append([s, s + 1, axis, 1])
                 to_squeeze.append(axis)
@@ -88,8 +91,12 @@ class EagerArray:
         return result
 
     def __mod__(self, other):
-        if self.onnx_dtype in {TensorProto.FLOAT, TensorProto.DOUBLE,
-                               TensorProto.FLOAT16, TensorProto.BFLOAT16}:
+        if self.onnx_dtype in {
+            TensorProto.FLOAT,
+            TensorProto.DOUBLE,
+            TensorProto.FLOAT16,
+            TensorProto.BFLOAT16,
+        }:
             return self._opset.Mod(self, other, fmod=1)
         else:
             return self._opset.Mod(self, other)
