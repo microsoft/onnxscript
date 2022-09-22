@@ -49,18 +49,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade setuptools
           python -m pip install -q -r requirements-dev.txt
-
           # Install ONNX
           python -m pip uninstall -y onnx-function-experiment
           python -m pip uninstall -y ort-function-experiment-nightly
           python -m pip install onnx onnxruntime
-
           # install packages
           python -m pip install -e .
       - name: Run style.sh
         run: |
           bash tools/style.sh
-
   optional-style:
     name: Optional style
     runs-on: ubuntu-latest
@@ -78,12 +75,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade setuptools
           python -m pip install -q -r requirements-dev.txt
-
           # Install ONNX
           python -m pip uninstall -y onnx-function-experiment
           python -m pip uninstall -y ort-function-experiment-nightly
           python -m pip install onnx onnxruntime
-
           # install packages
           python -m pip install -e .
       - name: Run style_optional.sh
