@@ -11,6 +11,7 @@ import onnx
 from onnx import helper
 from onnx.defs import onnx_opset_version
 
+import onnxscript
 from onnxscript import type_annotation as ta
 from onnxscript import values
 

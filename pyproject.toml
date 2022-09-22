@@ -72,12 +72,12 @@ ignore_errors = true
 
 [tool.black]
 target-version = ["py37", "py38", "py39", "py310"]
-extend-exclude = "^onnxscript/test/models"
+extend-exclude = ["^onnxscript/test/models", "^onnxscript/backend/"]
 line-length = 95
 
 [tool.isort]
 profile = "black"
-extend_skip_glob = ["**test/models/*.py", "**onnx_backend_test_code/*.py"]
+extend_skip_glob = ["**test/models/*.py", "**onnx_backend_test_code/*.py", "**backend/"]
 
 [tool.pylint.MASTER]
 ignore-paths = [

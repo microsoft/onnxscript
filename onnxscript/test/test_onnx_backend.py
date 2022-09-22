@@ -17,7 +17,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 
 import onnxscript
-from onnxscript import eager_mode_evaluator, values
+from onnxscript import eager_mode_evaluator
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
 from onnxscript.backend.onnx_export import export2python
 from onnxscript.test.models import type_double

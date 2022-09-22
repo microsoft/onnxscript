@@ -14,6 +14,8 @@ from numpy.testing import assert_almost_equal
 from onnx.backend.test import __file__ as backend_folder
 from onnx.numpy_helper import to_array, to_list
 
+from onnxscript.backend import onnx_export
+
 
 def assert_almost_equal_string(expected, value):
     """

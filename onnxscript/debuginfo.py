@@ -5,7 +5,6 @@
 
 import pprint
 import sys
-import typing
 
 
 class DebugInfo:
