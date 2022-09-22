@@ -159,7 +159,6 @@ class TestConverter(TestBase):
             # checking that the function raises an exception when types are not defined.
             square.to_model_proto()
         self.assertIn("square:2", str(cm.exception))
-        print("TITAI CHECK: ", str(cm.exception))
         self.assertIn("Variable x is missing", str(cm.exception))
         model = square.to_model_proto(io_types=FLOAT)
         sess = onnxruntime.InferenceSession(model.SerializeToString())

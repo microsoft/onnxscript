@@ -77,7 +77,11 @@ line-length = 95
 
 [tool.isort]
 profile = "black"
-extend_skip_glob = ["**test/models/*.py", "**onnx_backend_test_code/*.py", "**backend/"]
+extend_skip_glob = [
+  "**test/models/*.py",
+  "**onnx_backend_test_code/*.py",
+  "**backend/",
+]
 
 [tool.pylint.MASTER]
 ignore-paths = [
