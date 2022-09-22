@@ -1,9 +1,9 @@
+from onnx.defs import OpSchema
+from .tensor import Tensor
 import numpy as np
 from onnx.defs import OpSchema
 
-from onnxscript import eager_array, values
-
-from .tensor import Tensor
+from onnxscript import values
 
 
 def cast_inputs(get_type_info, cast, opschema, *args):
