@@ -6,9 +6,6 @@ on:
       - main
   pull_request:
 
-permissions:
-  pull-requests: read
-
 jobs:
   lint-python:
     name: Lint Python
