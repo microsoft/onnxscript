@@ -1,9 +1,9 @@
-from onnx.defs import OpSchema
-from .tensor import Tensor
 import numpy as np
 from onnx.defs import OpSchema
 
 from onnxscript import values
+
+from .tensor import Tensor
 
 
 def cast_inputs(get_type_info, cast, opschema, *args):
@@ -47,9 +47,7 @@ def cast_inputs(get_type_info, cast, opschema, *args):
                 if typeinfo is not None:
                     type_bindings[typevar] = typeinfo
             args_typevars.append((x, typevar))
-        cast_args = [
-            cast(x, type_bindings.get(typevar)) for x, typevar in args_typevars
-        ]
+        cast_args = [cast(x, type_bindings.get(typevar)) for x, typevar in args_typevars]
         return tuple(cast_args)
     # Either an error or a custom op.
     # No checks/casts in this case.

@@ -9,9 +9,7 @@ from onnxscript.onnx_types import FLOAT
 # tensor inputs can have ONNX-like type annotations
 
 
-def gemm(
-    A: FLOAT[2048, 124], W: FLOAT[124, 4096], Bias: FLOAT[4096]
-) -> FLOAT[2048, 4096]:
+def gemm(A: FLOAT[2048, 124], W: FLOAT[124, 4096], Bias: FLOAT[4096]) -> FLOAT[2048, 4096]:
     return op.MatMul(A, W) + Bias
 
 

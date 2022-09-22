@@ -15,9 +15,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 
-from .irbuilder import select_ir_version
-from .tensor import Tensor
-from .utils import proto2text, values_to_value_infos
+from onnxscript import irbuilder, tensor, utils
 
 
 class EagerModeError(RuntimeError):
@@ -67,7 +65,7 @@ def os_to_ort_value(v):
     """
     Converts an onnxscript encoding of an ONNX value into the encoding used by ORT.
     """
-    if isinstance(v, Tensor):
+    if isinstance(v, tensor.Tensor):
         return v.value
     if isinstance(v, list):
         return v
@@ -83,7 +81,7 @@ def ort_to_os_value(v):
     Converts an ORT encoding of an ONNX value into the encoding used by onnxscript.
     """
     if isinstance(v, np.ndarray):
-        return Tensor(v)
+        return tensor.Tensor(v)
     elif isinstance(v, list):
         return v
     if v is None:
@@ -103,26 +101,21 @@ def call_ort(schema, *args, **kwargs):
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
     input_value_infos = utils.values_to_value_infos(inputs, list(args))
-    output_value_infos = [
-        onnx.helper.make_value_info(name, TypeProto()) for name in outputs
-    ]
+    output_value_infos = [onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
 
-    graph = onnx.helper.make_graph(
-        [node], "node_graph", input_value_infos, output_value_infos
-    )
+    graph = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
     opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
     model = onnx.helper.make_model(
         graph,
         opset_imports=[opset_id],
-        ir_version=irbuilder.select_ir_version(
-            schema.since_version, domain=schema.domain
-        ),
+        ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
     try:
         sess = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
-            f"Unable to create onnxruntime InferenceSession with onnx model\n{utils.proto2text(model)}"
+            f"Unable to create onnxruntime InferenceSession "
+            f"with onnx model\n{utils.proto2text(model)}"
         ) from e
 
     session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}

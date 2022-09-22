@@ -136,9 +136,7 @@ class Stmt:
 
     def __str__(self):
         if isinstance(self.result, str):
-            logger.debug(
-                "unexpected str type for self.result where type(self)=%r", type(self)
-            )
+            logger.debug("unexpected str type for self.result where type(self)=%r", type(self))
         lhs = ", ".join(self.result)
         attrs = ""
         if self.attrs:
@@ -182,9 +180,7 @@ class Function:
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
-        attr_protos = (
-            format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
-        )
+        attr_protos = format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
         inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
@@ -244,9 +240,7 @@ class Function:
         :param kwargs: additional parameters given to function :func:`onnx.helper.make_model`
         :return: an instance of :class:`onnx.ModelProto`
         """
-        graph, sub_functions = self.to_graph_proto(
-            enforce_typed=True, io_types=io_types
-        )
+        graph, sub_functions = self.to_graph_proto(enforce_typed=True, io_types=io_types)
         if functions is None:
             functions = sub_functions.values()
         else:
@@ -256,9 +250,7 @@ class Function:
                     return f
                 if isinstance(f, values.OnnxFunction):
                     return f.to_function_proto()
-                raise TypeError(
-                    "Expected a value of type FunctionProto of OnnxFunction"
-                )
+                raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
 
             functions = [to_proto(f) for f in functions]
 
@@ -277,8 +269,7 @@ class Function:
         if "ir_version" not in kwargs:
             kwargs["ir_version"] = select_ir_version(opsets[""])
         opset_imports = [
-            onnx.helper.make_opsetid(domain, version)
-            for domain, version in opsets.items()
+            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
         ]
 
         return helper.make_model(
@@ -303,14 +294,8 @@ class Function:
         graph = helper.make_graph(
             [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,
-            [
-                x.to_value_info(enforce_typed, default_type=io_types)
-                for x in self.inputs
-            ],
-            [
-                y.to_value_info(enforce_typed, default_type=io_types)
-                for y in self.outputs
-            ],
+            [x.to_value_info(enforce_typed, default_type=io_types) for x in self.inputs],
+            [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs],
         )
         return graph, sub_functions
 
@@ -358,8 +343,7 @@ class Function:
             if n.domain not in opsets:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
         opset_imports = [
-            onnx.helper.make_opsetid(domain, version)
-            for domain, version in opsets.items()
+            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
         ]
 
         # attribute_proto is introduced in version onnx==1.13.0.
@@ -374,9 +358,7 @@ class Function:
         if hasattr(onnx.FunctionProto, "attribute_proto"):
             atts = [a.name for a in self.attrs]
         else:
-            atts = [a.name for a in self.attrs] + [
-                a.attr_proto.name for a in self.attr_protos
-            ]
+            atts = [a.name for a in self.attrs] + [a.attr_proto.name for a in self.attr_protos]
 
         f = helper.make_function(
             self.domain,
@@ -402,9 +384,7 @@ class IRBuilder:
 
     def new_function(self, name, domain="", register=False):
         if register and (domain, name) in self.functions:
-            raise RuntimeError(
-                f"Function '{name}' already exists in domain '{domain}'."
-            )
+            raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
         fct = Function(name, domain)
         if register:
             self.functions[domain, name] = fct

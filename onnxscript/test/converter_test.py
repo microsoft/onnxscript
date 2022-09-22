@@ -64,9 +64,7 @@ TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 class TestConverter(TestBase):
     def validate(self, script):
         if isinstance(script, types.ModuleType):
-            fnlist = [
-                f for f in script.__dict__.values() if isinstance(f, OnnxFunction)
-            ]
+            fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
         elif isinstance(script, OnnxFunction):
             fnlist = [script]
         else:
@@ -86,9 +84,7 @@ class TestConverter(TestBase):
         skip_check_ort=None,
     ):
         if isinstance(script, types.ModuleType):
-            fnlist = [
-                f for f in script.__dict__.values() if isinstance(f, OnnxFunction)
-            ]
+            fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
         elif isinstance(script, OnnxFunction):
             fnlist = [script]
         else:
@@ -100,29 +96,22 @@ class TestConverter(TestBase):
             with self.subTest(f=f.name):
                 model = f.to_model_proto(io_types=FLOAT)
                 if save_text:
-                    with open(
-                        os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), "w"
-                    ) as fi:
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), "w") as fi:
                         fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")
                             fi.write(printable_graph(fct))
-                if check_ort and (
-                    skip_check_ort is None or f.name not in skip_check_ort
-                ):
+                if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
                         onnxruntime.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
-                            f"onnxruntime cannot load function "
-                            f"{f.name}\n--\n{str(model)}"
+                            f"onnxruntime cannot load function " f"{f.name}\n--\n{str(model)}"
                         ) from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
-                    with open(
-                        os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), "w"
-                    ) as fi:
+                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), "w") as fi:
                         fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
@@ -137,9 +126,7 @@ class TestConverter(TestBase):
                         # was defined with FLOAT[...].
                         warnings.warn(str(e))
                     else:
-                        onnx.save(
-                            model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx")
-                        )
+                        onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
                         raise AssertionError("Verification of model failed.") from e
                 onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
                 fcts[f.name] = model
@@ -275,9 +262,7 @@ class TestConverter(TestBase):
 
         self.validate_save(renaming, shape_inference=False)
 
-    @unittest.skipIf(
-        True, reason="TypeError: val must be numeric not <class 'NoneType'>"
-    )
+    @unittest.skipIf(True, reason="TypeError: val must be numeric not <class 'NoneType'>")
     def test_opt_output(self):
 
         self.validate_save(opt_output, shape_inference=False)
@@ -288,8 +273,7 @@ class TestConverter(TestBase):
 
     @unittest.skipIf(
         True,
-        reason="ValueError: A function with attributes "
-        "cannot be exported as a model.",
+        reason="ValueError: A function with attributes " "cannot be exported as a model.",
     )
     def test_onnxfns2(self):
 
@@ -440,8 +424,7 @@ class TestConverter(TestBase):
                     y = sess.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} "
-                        f"due to {e!r}\n{onx}."
+                        f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
                     ) from e
                 self.assertEqual(y.tolist(), expected)
                 f = getattr(getitem, name)
@@ -495,8 +478,7 @@ class TestConverter(TestBase):
                     y = sess.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} "
-                        f"due to {e!r}\n{onx}."
+                        f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
                     ) from e
                 self.assertEqual(y.tolist(), expected)
                 f = getattr(getitem39, name)
@@ -513,16 +495,12 @@ class TestConverter(TestBase):
         global_names = globals().copy()
         top_level_ast = ast.parse(source)
         f_ast = top_level_ast.body[0]
-        cvt = Converter(
-            opset=op, global_names=global_names, source=source, default_opset=op
-        )
+        cvt = Converter(opset=op, global_names=global_names, source=source, default_opset=op)
         try:
             cvt.top_level_stmt(f_ast)
         except TranslationError as e:
             if msg not in str(e):
-                raise AssertionError(
-                    f"Unable to find {msg!r} in {e!r} in\n{source}"
-                ) from e
+                raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
             return
         raise AssertionError("No raised exception.")
 
@@ -538,9 +516,7 @@ class TestConverter(TestBase):
             return r
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(
-            f1, f"Left term must be a tuple not <class '{ast_name}.Name'>"
-        )
+        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
 
         def f2(A: FLOAT[...]) -> FLOAT[...]:
             return A[::-1]

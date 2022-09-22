@@ -65,7 +65,7 @@ jobs:
           bash tools/style_optional.sh
 
   optional-style:
-    name: Enforce style
+    name: Optional style
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

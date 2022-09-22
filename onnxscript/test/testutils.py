@@ -47,9 +47,7 @@ class TestBase(unittest.TestCase):
         return fn.to_function_proto()
 
     def assertSame(self, fn1, fn2):
-        self.assertTrue(
-            isomorphic(to_function_or_graph(fn1), to_function_or_graph(fn2))
-        )
+        self.assertTrue(isomorphic(to_function_or_graph(fn1), to_function_or_graph(fn2)))
 
     def assertSameGraph(self, graph1, graph2):
         self.assertTrue(isomorphic(graph_proto(graph1), graph_proto(graph2)))

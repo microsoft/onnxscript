@@ -32,9 +32,7 @@ def print_code(code, begin=1):
 
 class TestOnnxBackEnd(unittest.TestCase):
 
-    folder = os.path.join(
-        os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code"
-    )
+    folder = os.path.join(os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code")
 
     def test_exporter(self):
         from onnxscript.test.models import type_double
@@ -58,9 +56,7 @@ class TestOnnxBackEnd(unittest.TestCase):
     def run_fct(obj, *inputs):
         names = [i.name for i in obj.get_inputs()]
         if len(names) < len(inputs):
-            raise AssertionError(
-                f"Got {len(inputs)} inputs but expecting {len(names)}."
-            )
+            raise AssertionError(f"Got {len(inputs)} inputs but expecting {len(names)}.")
         feeds = {names[i]: inputs[i] for i in range(len(inputs))}
         got = obj.run(None, feeds)
         return got
@@ -92,8 +88,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             mod = importlib.import_module(import_name)
         except (SyntaxError, ImportError) as e:
             raise AssertionError(
-                "Unable to import %r (file: %r)\n----\n%s"
-                % (import_name, filename, content)
+                "Unable to import %r (file: %r)\n----\n%s" % (import_name, filename, content)
             ) from e
         fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
         return fcts
@@ -275,34 +270,22 @@ class TestOnnxBackEnd(unittest.TestCase):
             for t in load_failed:
                 print(
                     "loading failed",
-                    str(t[0])
-                    .replace("\\\\", "\\")
-                    .replace(path, "onnx")
-                    .replace("\\", "/"),
+                    str(t[0]).replace("\\\\", "\\").replace(path, "onnx").replace("\\", "/"),
                 )
             for t in exec_failed:
                 print(
                     "execution failed",
-                    str(t[0])
-                    .replace("\\\\", "\\")
-                    .replace(path, "onnx")
-                    .replace("\\", "/"),
+                    str(t[0]).replace("\\\\", "\\").replace(path, "onnx").replace("\\", "/"),
                 )
             for t in mismatch:
                 print(
                     "mismatch",
-                    str(t[0])
-                    .replace("\\\\", "\\")
-                    .replace(path, "onnx")
-                    .replace("\\", "/"),
+                    str(t[0]).replace("\\\\", "\\").replace(path, "onnx").replace("\\", "/"),
                 )
             for t in missed:
                 print(
                     "missed",
-                    str(t[0])
-                    .replace("\\\\", "\\")
-                    .replace(path, "onnx")
-                    .replace("\\", "/"),
+                    str(t[0]).replace("\\\\", "\\").replace(path, "onnx").replace("\\", "/"),
                 )
 
     def test_enumerate_onnx_tests_run(self):

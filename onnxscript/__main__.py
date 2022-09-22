@@ -24,9 +24,7 @@ def convert_file(script):
     return convert.convert_file(script)
 
 
-def to_single_model_proto(
-    model, input_py_file: str, output_onnx_file: Optional[str] = None
-):
+def to_single_model_proto(model, input_py_file: str, output_onnx_file: Optional[str] = None):
     if not output_onnx_file:
         prefix, _ = os.path.splitext(input_py_file)
         output_onnx_file = prefix + ".onnx"
@@ -116,9 +114,7 @@ def translate(fmt="text", names=None):
     default=False,
     help="converts a numerical operator into op.Add (False) or keep it (True)",
 )
-@click.option(
-    "--rename", is_flag=True, default=False, help="to use shorter variable name"
-)
+@click.option("--rename", is_flag=True, default=False, help="to use shorter variable name")
 def onnx2script(name, op=False, rename=False):
     """Exports an onnx graph to a script in following onnx-script syntax.
     The result is printed on the standard output.

@@ -33,9 +33,7 @@ def option1(X, Bias: FLOAT[...] = None):
 # similar to initializers in GraphProto
 
 
-def option2(
-    X, Bias=op.Constant(value=make_tensor("zero", TensorProto.FLOAT, [1], [0]))
-):
+def option2(X, Bias=op.Constant(value=make_tensor("zero", TensorProto.FLOAT, [1], [0]))):
     Y = op.Log(X)
     Bias = CastLike(Bias, Y)
     Y = Y + Bias

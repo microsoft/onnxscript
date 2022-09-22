@@ -17,13 +17,10 @@ class Tensor:
 
     def __init__(self, nparray, opset=None):
         if not isinstance(nparray, np.ndarray):
-            raise TypeError(
-                f"Unexpected type {type(nparray)}. It must be a numpy array."
-            )
+            raise TypeError(f"Unexpected type {type(nparray)}. It must be a numpy array.")
         self._nparray = nparray
-        from onnxscript.onnx_opset import default_opset
 
-        self._opset = opset or default_opset
+        self._opset = opset or onnx_opset.default_opset
 
     @property
     def value(self):
@@ -72,9 +69,7 @@ class Tensor:
         for axis, s in enumerate(index):
             if isinstance(s, slice):
                 if s.step is None or s.step > 0:
-                    indices.append(
-                        [s.start or 0, s.stop or shape[axis], axis, s.step or 1]
-                    )
+                    indices.append([s.start or 0, s.stop or shape[axis], axis, s.step or 1])
                 else:
                     indices.append([s.start or (shape[axis] - 1), s.stop, axis, s.step])
             elif isinstance(s, int):

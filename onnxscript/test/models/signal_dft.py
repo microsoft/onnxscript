@@ -316,9 +316,7 @@ def dft_inv(
             x, fft_length, onesided, inverse, normalize
         )  # call dft_last_axis._libcall in eager mode
     else:
-        xt = switch_axes(
-            x, positive_axis, last_dim
-        )  # call switch_axes._libcall in eager mode
+        xt = switch_axes(x, positive_axis, last_dim)  # call switch_axes._libcall in eager mode
         fft = dft_last_axis(
             xt, fft_length, onesided, inverse, normalize
         )  # call dft_last_axis._libcall in eager mode
@@ -517,9 +515,7 @@ def istft(
 
     # rotation, bring first dimension to the last position
     result_shape = op.Shape(conc)
-    shape_cpl = op.Constant(
-        value=make_tensor("shape_cpl", TensorProto.INT64, [2], [2, -1])
-    )
+    shape_cpl = op.Constant(value=make_tensor("shape_cpl", TensorProto.INT64, [2], [2, -1]))
     reshaped_result = op.Reshape(conc, shape_cpl)
     transposed = op.Transpose(reshaped_result, perm=[1, 0])
     other_dimensions = op.Slice(result_shape, one, op.Shape(result_shape), zero)

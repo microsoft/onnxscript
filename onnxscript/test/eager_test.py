@@ -27,8 +27,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
         tr = np.transpose(merged, list(perm))
         if tr.shape[-1] != 2:
             raise AssertionError(
-                f"Unexpected shape {tr.shape}, x.shape={x.shape} "
-                f"fft_length={fft_length}."
+                f"Unexpected shape {tr.shape}, x.shape={x.shape} " f"fft_length={fft_length}."
             )
         return tr
 
@@ -54,8 +53,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
         tr = np.transpose(merged, list(perm))
         if tr.shape[-1] != 2:
             raise AssertionError(
-                f"Unexpected shape {tr.shape}, x.shape={x.shape} "
-                f"fft_length={fft_length}."
+                f"Unexpected shape {tr.shape}, x.shape={x.shape} " f"fft_length={fft_length}."
             )
         return tr
 
@@ -103,9 +101,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     expected = self._fft(x_, le)
                     if onesided:
                         slices = [slice(0, a) for a in expected.shape]
-                        slices[-2] = slice(
-                            0, expected.shape[-2] // 2 + expected.shape[-2] % 2
-                        )
+                        slices[-2] = slice(0, expected.shape[-2] // 2 + expected.shape[-2] % 2)
                         expected = expected[slices]
                     with self.subTest(
                         x_shape=x.shape,
@@ -187,9 +183,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                         ax=ax,
                         expected_shape=expected.shape,
                     ):
-                        case = FunctionTestParams(
-                            signal_dft.dft, [x, le, nax], [expected]
-                        )
+                        case = FunctionTestParams(signal_dft.dft, [x, le, nax], [expected])
                         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_cfft(self):
@@ -302,9 +296,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
         alpha = np.array([0.54], dtype=np.float32)
         beta = np.array([0.46], dtype=np.float32)
         expected = alpha - np.cos(np.arange(5) * np.pi * 2 / 4) * beta
-        case = FunctionTestParams(
-            signal_dft.hamming_window, [le, alpha, beta], [expected]
-        )
+        case = FunctionTestParams(signal_dft.hamming_window, [le, alpha, beta], [expected])
         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_blackman_window(self):
@@ -410,15 +402,11 @@ class TestOnnxSignal(OnnxScriptTestCase):
             window = signal_dft.blackman_window(le)
             window[:] = (np.arange(window.shape[0]) + 1).astype(window.dtype)
             try:
-                c_expected, expected = self._stft(
-                    x_, le[0], window=window, hop_length=hpv[0]
-                )
+                c_expected, expected = self._stft(x_, le[0], window=window, hop_length=hpv[0])
             except RuntimeError:
                 # unable to validate with torch
                 continue
-            i_expected = self._istft(
-                c_expected, le[0], window=window, hop_length=hpv[0]
-            )
+            i_expected = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
             info = dict(
                 name=name,
                 x_shape=x.shape,
@@ -449,18 +437,14 @@ class TestOnnxSignal(OnnxScriptTestCase):
             elif len(x_.shape) == 1:
                 assert_almost_equal(x_[:-1], t_istft, decimal=4)
             else:
-                raise NotImplementedError(
-                    f"Not implemented when shape is {x_.shape!r}."
-                )
+                raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
 
             info["expected"] = expected
             info["expected_shape"] = expected.shape
             info["i_expected_shape"] = i_expected.shape
             info["ix_shape"] = ix.shape
             with self.subTest(F="ISTFT", **info):
-                case = FunctionTestParams(
-                    signal_dft.istft, [ix, le, hpv, window], [expected]
-                )
+                case = FunctionTestParams(signal_dft.istft, [ix, le, hpv, window], [expected])
                 try:
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
                 except (AssertionError, RuntimeException) as e:
@@ -536,9 +520,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
             info["i_expected_shape"] = i_expected.shape
             info["ix_shape"] = ix.shape
             with self.subTest(F="ISTFT", **info):
-                case = FunctionTestParams(
-                    signal_dft.istft, [ix, le, hpv, window], [expected]
-                )
+                case = FunctionTestParams(signal_dft.istft, [ix, le, hpv, window], [expected])
                 try:
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
                 except (AssertionError, RuntimeException) as e:

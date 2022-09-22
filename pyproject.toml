@@ -73,6 +73,7 @@ ignore_errors = true
 [tool.black]
 target-version = ["py37", "py38", "py39", "py310"]
 extend-exclude = "^onnxscript/test/models"
+line-length = 95
 
 [tool.isort]
 profile = "black"

@@ -123,9 +123,7 @@ def _translate_type(onnx_type):
                 return name
             return f"{name}[{','.join(shape)}]"
         return name + "[...]"
-    raise NotImplementedError(
-        f"Unable to translate type {onnx_type!r} into onnx-script type."
-    )
+    raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnx-script type.")
 
 
 def _translate_signature(inputs, outputs):
@@ -177,7 +175,8 @@ def _python_make_node_name(domain, version, name, node=False):
             version = 1
         if not isinstance(version, int):
             raise TypeError(
-                f"version must be an integer not {version!r} for domain={domain!r} and name={name!r}."
+                f"version must be an integer not {version!r} "
+                f"for domain={domain!r} and name={name!r}."
             )
         if domain == "":
             return "opset%d.%s" % (version, name)
@@ -213,9 +212,7 @@ class Exporter:
                 )
                 code.append(self._python_make_node(node, opsets, indent=indent))
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
-            raise NotImplementedError(
-                "Unable to convert sparse_initilizer into python."
-            )
+            raise NotImplementedError("Unable to convert sparse_initilizer into python.")
         for node in graph.node:
             code.append(self._python_make_node(node, opsets, indent=indent))
         if output_names is not None:
@@ -241,9 +238,11 @@ class Exporter:
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
-                    text = f'make_tensor("value", {onnx_dtype}, dims=[], vals=[{value.tolist()!r}])'
+                    text = f'make_tensor("value", {onnx_dtype}, '
+                    f"dims=[], vals=[{value.tolist()!r}])"
                 else:
-                    text = f'make_tensor("value", {onnx_dtype}, dims={list(value.shape)!r}, vals={value.ravel().tolist()!r})'
+                    text = f'make_tensor("value", {onnx_dtype}, '
+                    f"dims={list(value.shape)!r}, vals={value.ravel().tolist()!r})"
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -327,18 +326,14 @@ class Exporter:
                 return self._python_make_node_loop(node, opsets, indent=indent)
             if node.op_type == "Scan":
                 return self._python_make_node_scan(node, opsets, indent=indent)
-            raise RuntimeError(
-                f"Unable to export node type {node.op_type!r} into python."
-            )
+            raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         if any(
             map(
                 lambda att: hasattr(att, "g") and att.g and att.g.ByteSize() > 0,
                 node.attribute,
             )
         ):
-            raise RuntimeError(
-                f"Unable to export node type {node.op_type!r} into python."
-            )
+            raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         ops = {
             "Add": "+",
             "Sub": "-",
@@ -359,9 +354,7 @@ class Exporter:
             return "%s%s = %s" % (
                 sindent,
                 self._rename_variable(node.output[0]),
-                (" %s " % ops[node.op_type]).join(
-                    map(self._rename_variable, node.input)
-                ),
+                (" %s " % ops[node.op_type]).join(map(self._rename_variable, node.input)),
             )
         name = _python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True
@@ -475,9 +468,7 @@ def export_template(
             opsets_fct = {}
             for oimp in fct.opset_import:
                 opsets_fct[oimp.domain] = oimp.version
-            functions.append(
-                (fct.domain, fct.name, {"proto": fct, "opsets": opsets_fct})
-            )
+            functions.append((fct.domain, fct.name, {"proto": fct, "opsets": opsets_fct}))
     context["functions"] = functions
 
     # node
@@ -505,9 +496,7 @@ def export_template(
     if clean_code:
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
-            raise SyntaxError(
-                f"The cleaned code is wrong.\n{final}\n------{cleaned_code}"
-            )
+            raise SyntaxError(f"The cleaned code is wrong.\n{final}\n------{cleaned_code}")
         return cleaned_code
     return final
 

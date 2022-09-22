@@ -127,9 +127,7 @@ class TestOnnxFns(OnnxScriptTestCase):
 
     def test_onnxfns_space_to_depth(self):
 
-        self.run_onnx_test(
-            onnxfns2.SpaceToDepth, skip_test_names=[], skip_eager_test=True
-        )
+        self.run_onnx_test(onnxfns2.SpaceToDepth, skip_test_names=[], skip_eager_test=True)
 
 
 if __name__ == "__main__":

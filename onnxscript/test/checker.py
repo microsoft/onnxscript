@@ -16,9 +16,7 @@ def same_optional(field, obj1, obj2, equals=default_equality_op):
     This is restricted to simple field types where == comparison is sufficient.
     """
     if obj1.HasField(field):
-        return obj2.HasField(field) and equals(
-            getattr(obj1, field), getattr(obj2, field)
-        )
+        return obj2.HasField(field) and equals(getattr(obj1, field), getattr(obj2, field))
     return not obj2.HasField(field)
 
 
@@ -72,9 +70,7 @@ def same_tensor(tp1, tp2):
 
 
 def same_dim(dim1, dim2):
-    return same_optional("dim_value", dim1, dim2) and same_optional(
-        "dim_param", dim1, dim2
-    )
+    return same_optional("dim_value", dim1, dim2) and same_optional("dim_param", dim1, dim2)
 
 
 def same_shape(shape1, shape2):
@@ -82,9 +78,7 @@ def same_shape(shape1, shape2):
 
 
 def same_tensor_type(tt1, tt2):
-    return (tt1.elem_type == tt2.elem_type) and same_optional(
-        "shape", tt1, tt2, same_shape
-    )
+    return (tt1.elem_type == tt2.elem_type) and same_optional("shape", tt1, tt2, same_shape)
 
 
 def same_type(tp1, tp2):
@@ -182,11 +176,7 @@ class Matcher:
         """Match two variables (strings)."""
         if var1 not in self.defmap1 or var2 not in self.defmap2:
             # If one of the variables is in current scope, or if there is no outer scope, fail
-            if (
-                (var1 in self.defmap1)
-                or (var2 in self.defmap2)
-                or (self.outer_scope is None)
-            ):
+            if (var1 in self.defmap1) or (var2 in self.defmap2) or (self.outer_scope is None):
                 return False
             # Both variables are in outer-scopes. Delay check until later
             return self.outer_scope.same_value(var1, var2)

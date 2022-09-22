@@ -78,11 +78,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: values.DebugIn
             fail(info.msg("Cannot convert an empty list to tensor"))
         pytype = type(pyvalue[0])
         if not all([isinstance(e, pytype) for e in pyvalue]):
-            fail(
-                info.msg(
-                    "Cannot convert an list with elements of different types to tensor"
-                )
-            )
+            fail(info.msg("Cannot convert an list with elements of different types to tensor"))
         return helper.make_tensor(
             tensor_name,
             py_type_to_onnx_type(pytype, converter, info),
@@ -94,9 +90,7 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: values.DebugIn
     if onnx_type is onnx.TensorProto.BOOL:
         return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
     if onnx_type is onnx.TensorProto.STRING:
-        return helper.make_tensor(
-            tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")]
-        )
+        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
 
     return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
@@ -210,9 +204,7 @@ class Converter:
     def default_opset(self):
         if self.default_opset_ is None:
             if self.current_fn is None:
-                raise RuntimeError(
-                    "Unable to return a default opset, None was detected yet."
-                )
+                raise RuntimeError("Unable to return a default opset, None was detected yet.")
             warn(
                 f"No default opset was defined or detected in function "
                 f"{self.current_fn.name!r}, the converter uses opset 15."
@@ -263,9 +255,7 @@ class Converter:
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
-        logger.debug(
-            "Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node)
-        )
+        logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
         """
@@ -315,11 +305,7 @@ class Converter:
         elif pytype is typing.List[int]:
             attrname = "value_ints"
         else:
-            fail(
-                values.DebugInfo(val, self).msg(
-                    f"Unsupported attribute type {pytype!r}."
-                )
-            )
+            fail(values.DebugInfo(val, self).msg(f"Unsupported attribute type {pytype!r}."))
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None, info=None):
@@ -630,12 +616,8 @@ class Converter:
                 def_a, def_b = "end", "begin_"
             else:
                 def_a, def_b = "begin", "end"
-            lower_name, _ = _get_arg(
-                node_slice.lower, axis, zero, one, default_value=def_a
-            )
-            upper_name, _ = _get_arg(
-                node_slice.upper, axis, zero, one, default_value=def_b
-            )
+            lower_name, _ = _get_arg(node_slice.lower, axis, zero, one, default_value=def_a)
+            upper_name, _ = _get_arg(node_slice.upper, axis, zero, one, default_value=def_b)
             inputs = [var_name, lower_name, upper_name, axis.name]
             if step_name != "":
                 inputs.append(step_name)
@@ -730,31 +712,23 @@ class Converter:
                 index = self.translate_expr(element).name
                 starts.append(index)
                 index_1 = self.generate_unique_name(var_name + "_end")
-                self.emit(
-                    [index_1], values.Op(self.default_opset, "Add"), [index, one], []
-                )
+                self.emit([index_1], values.Op(self.default_opset, "Add"), [index, one], [])
                 ends.append(index_1)
                 axes.append(var_axis.name)
                 steps.append(one.name)
 
             attr = self.ir_builder.attr("axis", 0)
             start_name = self.generate_unique_name(var_name + "_start")
-            self.emit(
-                [start_name], values.Op(self.default_opset, "Concat"), starts, [attr]
-            )
+            self.emit([start_name], values.Op(self.default_opset, "Concat"), starts, [attr])
 
             end_name = self.generate_unique_name(var_name + "_end")
             self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [attr])
 
             axes_name = self.generate_unique_name(var_name + "_axis")
-            self.emit(
-                [axes_name], values.Op(self.default_opset, "Concat"), axes, [attr]
-            )
+            self.emit([axes_name], values.Op(self.default_opset, "Concat"), axes, [attr])
 
             steps_name = self.generate_unique_name(var_name + "_step")
-            self.emit(
-                [steps_name], values.Op(self.default_opset, "Concat"), steps, [attr]
-            )
+            self.emit([steps_name], values.Op(self.default_opset, "Concat"), steps, [attr])
             if len(squeezed_axes) > 0:
                 sliced_name = self.generate_unique_name(var_name + "sliced")
                 self.emit(
@@ -763,9 +737,7 @@ class Converter:
                     [var_name, start_name, end_name, axes_name, steps_name],
                     [],
                 )
-                squeezed_axis = self.emit_const(
-                    squeezed_axes, f"squeezed_ax{axis}", info
-                )
+                squeezed_axis = self.emit_const(squeezed_axes, f"squeezed_ax{axis}", info)
                 return (
                     values.Op(self.default_opset, "Squeeze"),
                     [sliced_name, squeezed_axis],
@@ -809,9 +781,7 @@ class Converter:
     def translate_bin_op_expr(self, node):
         op = type(node.op)
         if op not in primop_map:
-            raise ValueError(
-                values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
-            )
+            raise ValueError(values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}."))
 
         attr = []
         if isinstance(node.op, ast.Mod) and self.is_constant_expr(node.right):
@@ -838,9 +808,7 @@ class Converter:
     def translate_unary_op_expr(self, node):
         op = type(node.op)
         if op not in primop_map:
-            raise ValueError(
-                values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
-            )
+            raise ValueError(values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}."))
         if self.is_constant_expr(node.operand):
             # This function changed the constant node.operand
             # and returns it. The function calling this one
@@ -873,9 +841,7 @@ class Converter:
         assert len(node.comparators) == 1
         op = type(node.ops[0])
         if op not in primop_map:
-            raise ValueError(
-                values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
-            )
+            raise ValueError(values.DebugInfo(node, self).msg(f"Unsupported operator {op!r}."))
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
@@ -898,9 +864,7 @@ class Converter:
     def translate_opset_expr(self, node) -> values.Opset:
         """Return an Opset"""
         if isinstance(node, ast.Name):
-            val = self.lookup(
-                node.id, values.DebugInfo(node, self), raise_exception=False
-            )
+            val = self.lookup(node.id, values.DebugInfo(node, self), raise_exception=False)
             if isinstance(val, values.Opset):
                 return val
             fail(
@@ -909,18 +873,13 @@ class Converter:
                 )
             )
         elif isinstance(node, ast.Attribute):
-            fail(
-                values.DebugInfo(node, self).msg("Nested module unimplemented.")
-            )  # TODO
+            fail(values.DebugInfo(node, self).msg("Nested module unimplemented."))  # TODO
         else:
             fail(values.DebugInfo(node, self).msg("Invalid opset expression."))
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
-        if (
-            isinstance(node, ast.Attribute)
-            and getattr(node, "attr", None) != "_libcall"
-        ):
+        if isinstance(node, ast.Attribute) and getattr(node, "attr", None) != "_libcall":
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
             opname = node.attr
@@ -929,8 +888,7 @@ class Converter:
             warn(f"'{opname}' is not a known op in '{str(module)}'")
             return values.Op(module, node.attr)
         if isinstance(node, ast.Name) or (
-            isinstance(node, ast.Attribute)
-            and getattr(node, "attr", None) == "_libcall"
+            isinstance(node, ast.Attribute) and getattr(node, "attr", None) == "_libcall"
         ):
             if isinstance(node, ast.Name):
                 function_name = node.id
@@ -989,9 +947,7 @@ class Converter:
         except (TypeError, AttributeError):
             pass
         raise ValueError(
-            values.DebugInfo(node, self).msg(
-                f"Unsupported statement type {type(node)!r}."
-            )
+            values.DebugInfo(node, self).msg(f"Unsupported statement type {type(node)!r}.")
         )
 
     def translate_assign_stmt(self, stmt: typing.Union[ast.Assign, ast.AnnAssign]):
@@ -1019,9 +975,7 @@ class Converter:
                 ids = [id(x) for x in lhs.elts]
                 onnxids = self.translate_expr(rhs, ids).name
                 for x, y in zip(ids, onnxids):
-                    self.bind(
-                        x, values.Dynamic(y, values.DynamicKind.Intermediate, info)
-                    )
+                    self.bind(x, values.Dynamic(y, values.DynamicKind.Intermediate, info))
             else:
                 fail("Unsupported construct in LHS of assignment.")
 
@@ -1069,9 +1023,7 @@ class Converter:
                 t = None
             else:
                 t = self.returntype[i]
-            self.ir_builder.add_output(
-                self.current_fn, ovar, t, values.DebugInfo(stmt, self)
-            )
+            self.ir_builder.add_output(self.current_fn, ovar, t, values.DebugInfo(stmt, self))
             return ovar
 
         val = stmt.value
@@ -1148,11 +1100,7 @@ class Converter:
             iter = loop_stmt.iter
             assert isinstance(iter, ast.Call), "Loop bound not a call."
             if not isinstance(iter.func, ast.Name):
-                fail(
-                    values.DebugInfo(loop_stmt).msg(
-                        f"Unsupported loop bound {iter.func!r}."
-                    )
-                )
+                fail(values.DebugInfo(loop_stmt).msg(f"Unsupported loop bound {iter.func!r}."))
             if iter.func.id != "range":
                 fail(
                     values.DebugInfo(loop_stmt).msg(
@@ -1195,9 +1143,7 @@ class Converter:
         # analyze loop body
         exposed_uses = analysis.exposed_uses(loop_stmt.body, self)
         vars_def_in_loop = analysis.defs(loop_stmt.body)
-        loop_state_vars = vars_def_in_loop.intersection(
-            exposed_uses | loop_stmt.live_out
-        )
+        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
 
@@ -1238,9 +1184,7 @@ class Converter:
             )
             self.bind(
                 pv,
-                values.Dynamic(
-                    ov, values.DynamicKind.Loop, values.DebugInfo(loop_stmt, self)
-                ),
+                values.Dynamic(ov, values.DynamicKind.Loop, values.DebugInfo(loop_stmt, self)),
             )
 
         condition_name = None
@@ -1249,11 +1193,7 @@ class Converter:
             # We first need to intercept a break instruction in test block.
             # It must be something like `if <condition_name>: break`.
             # This instruction must be the last of the loop body.
-            if (
-                isinstance(s, ast.If)
-                and len(s.body) == 1
-                and isinstance(s.body[0], ast.Break)
-            ):
+            if isinstance(s, ast.If) and len(s.body) == 1 and isinstance(s.body[0], ast.Break):
                 if not isinstance(s.test, ast.Name):
                     fail(
                         values.DebugInfo(s, self).msg(
@@ -1407,18 +1347,14 @@ class Converter:
                     values.DebugInfo(x, self),
                     default_value,
                 )
-                self.bind(
-                    x.arg, values.AttrRef(x.arg, typeinfo, values.DebugInfo(x, self))
-                )
+                self.bind(x.arg, values.AttrRef(x.arg, typeinfo, values.DebugInfo(x, self)))
             else:
                 self.ir_builder.add_input(
                     self.current_fn, x.arg, typeinfo, values.DebugInfo(x, self)
                 )
                 self.bind(
                     x.arg,
-                    values.Dynamic(
-                        x.arg, values.DynamicKind.Input, values.DebugInfo(x, self)
-                    ),
+                    values.Dynamic(x.arg, values.DynamicKind.Input, values.DebugInfo(x, self)),
                 )
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)

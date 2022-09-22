@@ -13,10 +13,7 @@ from typing import Any, List
 import numpy as np
 import onnx
 
-from onnxscript import autocast, eager_array, eager_mode_evaluator
-
-from .autocast import dynamic_cast_inputs
-from .tensor import Tensor
+from onnxscript import autocast, eager_mode_evaluator, tensor
 
 
 class DebugInfo:
@@ -182,7 +179,7 @@ class OnnxFunction(Op):
         if len(args) == 0:
             # Operator Constant, it is usually called within a function.
             return self._libcall(**kwargs)
-        if isinstance(args[0], Tensor):
+        if isinstance(args[0], tensor.Tensor):
             return self._libcall(*args, **kwargs)
         return self._usercall(*args, **kwargs)
 
@@ -191,20 +188,20 @@ class OnnxFunction(Op):
         new_args = []
         for i, a in enumerate(args):
             if isinstance(a, np.ndarray):
-                new_args.append(Tensor(a))
+                new_args.append(tensor.Tensor(a))
             elif isinstance(a, bool):
-                new_args.append(Tensor(np.array(a)))
+                new_args.append(tensor.Tensor(np.array(a)))
             else:
                 raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
         if isinstance(res, np.ndarray):
             return res
-        if isinstance(res, Tensor):
+        if isinstance(res, tensor.Tensor):
             return res.value
         if isinstance(res, (list, tuple)):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, Tensor):
+                if isinstance(r, tensor.Tensor):
                     unwrapped.append(r.value)
                 else:
                     raise TypeError(
@@ -214,9 +211,7 @@ class OnnxFunction(Op):
             if isinstance(res, tuple):
                 return tuple(unwrapped)
             return unwrapped
-        raise TypeError(
-            f"Unexpected output type {type(res)} in function {self.function!r}."
-        )
+        raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def _libcall(self, *args, **kwargs):
         """
@@ -225,22 +220,22 @@ class OnnxFunction(Op):
         """
         new_args = []
         for i, a in enumerate(args):
-            if isinstance(a, Tensor):
+            if isinstance(a, tensor.Tensor):
                 new_args.append(a)
             elif isinstance(a, bool):
                 # TODO: default values for function parameters
                 # are not properly handled yet. This section
                 # should disappear.
-                new_args.append(Tensor(np.array(a)))
+                new_args.append(tensor.Tensor(np.array(a)))
             else:
                 raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
-        if isinstance(res, Tensor):
+        if isinstance(res, tensor.Tensor):
             return res
         if isinstance(res, tuple):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, Tensor):
+                if isinstance(r, tensor.Tensor):
                     unwrapped.append(r)
                 else:
                     raise TypeError(
@@ -248,9 +243,7 @@ class OnnxFunction(Op):
                         f"in function {self.function!r}."
                     )
             return tuple(unwrapped)
-        raise TypeError(
-            f"Unexpected output type {type(res)} in function {self.function!r}."
-        )
+        raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def to_function_proto(self, domain=None):
         "Converts the function into :class:`onnx.FunctionProto`."
@@ -259,9 +252,7 @@ class OnnxFunction(Op):
     def to_model_proto(self, **kwargs):
         "Converts the function into :class:`onnx.ModelProto`."
         if self.function_ir.attrs:
-            raise ValueError(
-                "A function with attributes cannot be exported as a model."
-            )
+            raise ValueError("A function with attributes cannot be exported as a model.")
         # Note: The function must also have monomorphic type annotation for inputs/outputs
         # to be converted into a valid model. Otherwise, we can still produce an ONNX
         # model, but it will not pass the ONNX model checker. We do not report an error
@@ -346,9 +337,7 @@ class DynamicKind(IntFlag):
 
 
 class Dynamic(Value):
-    def __init__(
-        self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None
-    ) -> None:
+    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None) -> None:
         """
         Arguments:
             val: the name of the ONNX variable used to represent this value
@@ -364,4 +353,6 @@ class Dynamic(Value):
     def __repr__(self):
         if self.typeinfo is None:
             return f"{self.__class__.__name__}({self.value!r}, {self.kind!r})"
-        return f"{self.__class__.__name__}({self.value}, {self.kind}, typeinfo={self.typeinfo})"
+        return (
+            f"{self.__class__.__name__}({self.value}, {self.kind}, typeinfo={self.typeinfo})"
+        )

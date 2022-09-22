@@ -63,9 +63,9 @@ class OnnxScriptTestCase(unittest.TestCase):
             input_names = ["input_" + str(i) for i in range(len(param.input))]
             output_names = ["output_" + str(i) for i in range(len(param.output))]
             input_value_infos = utils.values_to_value_infos(input_names, param.input)
-        elif len(onnx_case_model.graph.input) == len(
-            local_function_proto.input
-        ) and all([i != "" for i in onnx_case_model.graph.input]):
+        elif len(onnx_case_model.graph.input) == len(local_function_proto.input) and all(
+            [i != "" for i in onnx_case_model.graph.input]
+        ):
             # we want to create a model that onnx_test_runner
             # can run with onnx test case data
             input_names = [i.name for i in onnx_case_model.graph.input]
@@ -234,9 +234,7 @@ class OnnxScriptTestCase(unittest.TestCase):
                 test_case_attrs = {**attrs, **test_case_attrs}
 
                 for ds in case.data_sets:
-                    param = FunctionTestParams(
-                        function, ds[0], ds[1], attrs=test_case_attrs
-                    )
+                    param = FunctionTestParams(function, ds[0], ds[1], attrs=test_case_attrs)
                     self.run_converter_test(param, case.model)
                     if not skip_eager_test:
                         self.run_eager_test(param, rtol=rtol, atol=atol)

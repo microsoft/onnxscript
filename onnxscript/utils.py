@@ -22,9 +22,6 @@ except ImportError:
         return "<print utility unavailable>"
 
 
-from onnxscript import eager_array
-
-
 def value_to_type_proto(val):
     """
     Return the ONNX type of a python-value.
@@ -94,9 +91,7 @@ def make_model_from_function_proto(
         domain=function_proto.domain,
         **(attrs or {}),
     )
-    graph = onnx.helper.make_graph(
-        [node], "node_graph", input_value_infos, output_value_infos
-    )
+    graph = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
     model_proto_opset = function_proto.opset_import
     if all(o.domain != function_proto.domain for o in model_proto_opset):
         model_proto_opset = [
