@@ -39,7 +39,7 @@ steps:
 
 - script: |
     python -m pip install --upgrade pip
-    python -m pip install setuptools==61.0.0
+    python -m pip install --upgrade setuptools
     python -m pip install -r requirements-dev.txt
   displayName: 'Install dependencies'
 
