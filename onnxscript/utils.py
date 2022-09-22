@@ -10,9 +10,6 @@ import numpy as np
 import onnx
 from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_sequence_type_proto, make_tensor_type_proto
-
-from .tensor import Tensor
-
 # print utility unavailable in ONNX 1.12 or earlier:
 try:
     from onnx.printer import to_text as proto2text  # pylint: disable=unused-import
@@ -20,13 +17,14 @@ except ImportError:
 
     def proto2text(x):  # pylint: disable=unused-argument
         return "<print utility unavailable>"
+from onnxscript import tensor
 
 
 def value_to_type_proto(val):
     """
     Return the ONNX type of a python-value.
     """
-    if isinstance(val, (np.ndarray, Tensor)):
+    if isinstance(val, (np.ndarray, tensor.Tensor)):
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
         shape = val.shape
         return make_tensor_type_proto(elem_type, shape)

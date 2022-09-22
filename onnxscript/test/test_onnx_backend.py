@@ -18,9 +18,10 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
 from onnxscript.backend.onnx_export import export2python
-from onnxscript.eager_mode_evaluator import EagerModeError
-from onnxscript.values import OnnxFunction
-
+from onnxscript import eager_mode_evaluator
+from onnxscript import values
+from onnxscript.test.models import type_double
+import onnxscript
 
 def print_code(code, begin=1):
     """
@@ -35,7 +36,6 @@ class TestOnnxBackEnd(unittest.TestCase):
     folder = os.path.join(os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code")
 
     def test_exporter(self):
-        from onnxscript.test.models import type_double
 
         proto = type_double.double_abs_subgraph.to_model_proto()
         code = export2python(proto, rename=True, use_operators=True)
@@ -90,7 +90,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             raise AssertionError(
                 "Unable to import %r (file: %r)\n----\n%s" % (import_name, filename, content)
             ) from e
-        fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, OnnxFunction)}
+        fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)}
         return fcts
 
     def common_test_enumerate_onnx_tests_run(self, valid, verbose=0):
@@ -254,7 +254,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
                     try:
                         te.run(lambda obj: main, exec_main)
-                    except EagerModeError as e:
+                    except eager_mode_evaluator.EagerModeError as e:
                         # Does not work.
                         if verbose > 0:
                             print("ERROR: ", e)

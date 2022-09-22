@@ -23,13 +23,13 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 
+import onnxscript
 from onnxscript import utils
-from onnxscript.main import OnnxFunction
 
 
 @dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
-    function: OnnxFunction
+    function: onnxscript.OnnxFunction
     input: Union[list, dict]
     output: list
     attrs: dict = None
@@ -197,7 +197,7 @@ class OnnxScriptTestCase(unittest.TestCase):
 
     def run_onnx_test(
         self,
-        function: OnnxFunction,
+        function: onnxscript.OnnxFunction,
         rtol: float = None,
         atol: float = None,
         skip_eager_test: bool = False,
@@ -205,13 +205,13 @@ class OnnxScriptTestCase(unittest.TestCase):
         **attrs: Any,
     ) -> None:
         """
-        Run ONNX test cases with an OnnxFunction.
+        Run ONNX test cases with an onnxscript.OnnxFunction.
         The function shall have test cases in ONNX repo.
         For example: in onnx/test/case/node.
         Test case models and data are used to do converter and eager mode test.
 
         Arguments:
-            function (OnnxFunction): the function to be tested.
+            function (onnxscript.OnnxFunction): the function to be tested.
             skip_eager_test (bool): not to run eager test if Ture.
             skip_test_names (List[str]): to skip these tests.
             attrs (Any): default attributes of the function node.

@@ -60,9 +60,6 @@ jobs:
       - name: Run style.sh
         run: |
           bash tools/style.sh
-      - name: Run style_optional.sh
-        run: |
-          bash tools/style_optional.sh
 
   optional-style:
     name: Optional style

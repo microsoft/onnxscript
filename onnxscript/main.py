@@ -10,7 +10,7 @@ import textwrap
 import onnx.helper
 
 from onnxscript import converter, values
-
+import onnxscript
 
 def get_src_and_ast(f):
     try:
@@ -22,10 +22,10 @@ def get_src_and_ast(f):
         ) from e
     src = textwrap.dedent(src)
     top_level_ast = ast.parse(src)
-    assert isinstance(type(top_level_ast), ast.Module)
+    assert isinstance(top_level_ast, ast.Module)
     assert len(top_level_ast.body) == 1
     f_ast = top_level_ast.body[0]
-    assert isinstance(type(f_ast), ast.FunctionDef)
+    assert isinstance(f_ast, ast.FunctionDef)
     return src, f_ast
 
 
@@ -92,7 +92,7 @@ def script(opset=None, default_opset=None, **kwargs):
                 ast, opset, module.__dict__.copy(), src, default_opset=default_opset
             )
             # TODO: add transformations.
-            return values.OnnxFunction(opset, f, result, src, kwargs)
+            return onnxscript.OnnxFunction(opset, f, result, src, kwargs)
         raise TypeError("The ONNXScript decorator should be applied to functions only.")
 
     return transform
@@ -102,7 +102,7 @@ def is_converted_fun(f):
     """
     Return True if f is a function converted by onnx-script decorator.
     """
-    return isinstance(f, values.OnnxFunction)
+    return isinstance(f, onnxscript.OnnxFunction)
 
 
 def export_onnx_lib(functions, filename: str) -> None:

@@ -4,55 +4,12 @@
 # --------------------------------------------------------------------------
 
 import logging
-import pprint
-import sys
-import typing
 from enum import IntFlag
-from typing import Any, List
+from typing import Any, List, _GenericAlias
 
 import numpy as np
 import onnx
-
-from onnxscript import autocast, eager_mode_evaluator, tensor
-
-
-class DebugInfo:
-    def __init__(self, lineno, source="string", code=None):
-        if hasattr(source, "source"):
-            code = source.source
-            current_fn = getattr(source, "current_fn", None)
-            if current_fn is not None:
-                source = getattr(source.current_fn, "name", None)
-            else:
-                source = None
-        if hasattr(lineno, "lineno"):
-            self.ast_obj = lineno
-            self.lineno = lineno.lineno
-        elif isinstance(lineno, int):
-            self.ast_obj = None
-            self.lineno = lineno
-        elif sys.version_info[:2] < (3, 9):
-            # python 3.8 and below
-            self.ast_obj = None
-            self.lineno = 1
-        else:
-            raise NotImplementedError(
-                f"Unable to extract debug information from type {type(lineno)!r}, "
-                f"attributes={pprint.pformat(lineno.__dict__)}."
-            )
-        self.source = source
-        self.code = None if code is None else code.split("\n")
-
-    def msg(self, text):
-        return f"ERROR\n{str(self)}\n    {text}"
-
-    def __str__(self):
-        if self.code is None:
-            line = ""
-        else:
-            line = "    -- line: " + self.code[self.lineno - 1]
-        return f"{self.source}:{self.lineno}{line}"
-
+from onnxscript import autocast, eager_mode_evaluator, tensor, debuginfo
 
 class Opset:
     """
@@ -113,9 +70,9 @@ class Opset:
         if fun.name in self.function_defs:
 
             logger = logging.getLogger("onnx-script")
-            logger.warning(
+            logger.warning(  # pylint: disable=logging-fstring-interpolation
                 f"{fun.name}: Already defined."
-            )  # pylint: disable=logging-fstring-interpolation
+            )
         self.function_defs[fun.name] = fun
 
 
@@ -296,9 +253,9 @@ class Value:
     * To represent constant-values, translated into ONNX constants.
     """
 
-    def __init__(self, val: Any, info: DebugInfo) -> None:
-        if not isinstance(info, DebugInfo):
-            raise TypeError(f"info must be of DebugInfo not {type(info)!r}.")
+    def __init__(self, val: Any, info: debuginfo.DebugInfo) -> None:
+        if not isinstance(info, debuginfo.DebugInfo):
+            raise TypeError(f"info must be of debuginfo.DebugInfo not {type(info)!r}.")
         if val is None:
             raise ValueError(info.msg("val cannot be None."))
         self.value = val
@@ -309,7 +266,7 @@ class Value:
 
 
 class AttrRef(Value):
-    def __init__(self, name: str, typeinfo: type or List, info: DebugInfo) -> None:
+    def __init__(self, name: str, typeinfo: type or List, info: debuginfo.DebugInfo) -> None:
         """
         Arguments:
             name: name of the attribute-parameter
@@ -319,7 +276,7 @@ class AttrRef(Value):
         """
         super().__init__(name, info)
         self.typeinfo = typeinfo
-        if not isinstance(typeinfo, (type, typing._GenericAlias)):
+        if not isinstance(typeinfo, (type, _GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
@@ -337,7 +294,7 @@ class DynamicKind(IntFlag):
 
 
 class Dynamic(Value):
-    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None) -> None:
+    def __init__(self, val: str, kind: DynamicKind, info: debuginfo.DebugInfo, typeinfo=None) -> None:
         """
         Arguments:
             val: the name of the ONNX variable used to represent this value

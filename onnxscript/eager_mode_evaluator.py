@@ -82,7 +82,7 @@ def ort_to_os_value(v):
     """
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
-    elif isinstance(v, list):
+    if isinstance(v, list):
         return v
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")

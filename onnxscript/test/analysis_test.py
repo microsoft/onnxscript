@@ -1,9 +1,9 @@
 import ast
 import unittest
 
-from onnxscript.analysis import do_liveness_analysis, exposed_uses
-from onnxscript.converter import Converter
-from onnxscript.main import get_ast
+from onnxscript import analysis
+from onnxscript import converter
+from onnxscript import main
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
@@ -26,8 +26,8 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
-        ast = get_ast(fun)  # pylint: disable=redefined-outer-name
-        do_liveness_analysis(ast, Converter())
+        ast = main.get_ast(fun)  # pylint: disable=redefined-outer-name
+        analysis.do_liveness_analysis(ast, converter.Converter())
         visitor = AnalysisResultsVisitor()
         visitor.visit(ast)
         return visitor.results
@@ -96,8 +96,8 @@ class TestLivenessAnalysis(unittest.TestCase):
 
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
-        ast = get_ast(f)  # pylint: disable=redefined-outer-name
-        result = exposed_uses(ast.body, Converter())
+        ast = main.get_ast(f)  # pylint: disable=redefined-outer-name
+        result = analysis.exposed_uses(ast.body, converter.Converter())
         self.assertEqual(result, set(expected))
 
     def test_basic(self):

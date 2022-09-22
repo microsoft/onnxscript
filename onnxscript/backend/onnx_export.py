@@ -4,27 +4,28 @@
 # --------------------------------------------------------------------------
 
 from typing import Union
+import autopep8
 
 import numpy
 import onnx
 from onnx import FunctionProto, ModelProto, ValueInfoProto, numpy_helper
 from onnx.helper import make_node
 
-from ..onnx_types import ParametricTensor
+from onnxscript import onnx_types
 
 _template_python = '''
 import numpy
 from onnx import TensorProto
 from onnx.helper import make_tensor
 from onnxscript import script
-from onnxscript.values import Opset
+from onnxscript import values
 {% if unique_types %}
 from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
 {%- endif %}
 from onnxscript.onnx_opset import opset{{ opsets[''] }}
 
 {% for domain, version in unique_function_domain_version: %}
-{{ domain }}{{ version }} = Opset("{{ domain }}", {{ version }}){% endfor %}
+{{ domain }}{{ version }} = values.Opset("{{ domain }}", {{ version }}){% endfor %}
 
 {% for domain, name, fct in functions: %}
 
@@ -110,7 +111,7 @@ def _translate_type(onnx_type):
     Converts a onnx type into a type defined by *onnx-script*.
     """
     if onnx_type.HasField("tensor_type"):
-        typ = ParametricTensor.types[onnx_type.tensor_type.elem_type]
+        typ = onnx_types.ParametricTensor.types[onnx_type.tensor_type.elem_type]
         name = repr(typ)
         if onnx_type.tensor_type.HasField("shape"):
             shape = []
@@ -405,7 +406,6 @@ def export_template(
     :return: python code
     """
     # delayed import to avoid raising an exception if not installed.
-    import autopep8
 
     # unique_function_domain_version
     unique_function_domain_version = set()
@@ -483,7 +483,7 @@ def export_template(
         context["doc_string"] = ""
 
     # First rendering to detect any unused or replaced initializer.
-    from jinja2 import Template  # delayed import  # pyliny: import-outside-toplevel
+    from jinja2 import Template  # delayed import  # pylint: disable=import-outside-toplevel
 
     template = Template(template)
     final = template.render(

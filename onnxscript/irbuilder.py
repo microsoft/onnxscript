@@ -45,9 +45,9 @@ class Type:
 
 
 class TensorType(Type):
-    def __init__(
+    def __init__(  # pylint: disable=super-init-not-called # TODO: why?
         self, elem_type
-    ) -> None:  # pylint: disable=super-init-not-called # TODO: why?
+    ) -> None:
         tp = onnx.TypeProto()
         tp.tensor_type.elem_type = elem_type
         self.onnx_type = tp
@@ -248,7 +248,7 @@ class Function:
             def to_proto(f):
                 if isinstance(f, onnx.FunctionProto):
                     return f
-                if isinstance(f, values.OnnxFunction):
+                if isinstance(f, onnxscript.OnnxFunction):
                     return f.to_function_proto()
                 raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
 

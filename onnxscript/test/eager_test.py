@@ -314,10 +314,10 @@ class TestOnnxSignal(OnnxScriptTestCase):
         x,
         fft_length,
         window,
-        axis=-1,
+        axis=-1,  # pylint: disable=unused-argument
         center=False,
         onesided=False,
-        hop_length=None,  # pylint: disable=unused-argument
+        hop_length=None,
     ):
         try:
             import torch  # pylint: disable=import-outside-toplevel
@@ -353,10 +353,10 @@ class TestOnnxSignal(OnnxScriptTestCase):
         y,
         fft_length,
         window,
-        axis=-1,
+        axis=-1,  # pylint: disable=unused-argument
         center=False,
         onesided=False,
-        hop_length=None,  # pylint: disable=unused-argument
+        hop_length=None,
     ):
         try:
             import torch  # pylint: disable=import-outside-toplevel
