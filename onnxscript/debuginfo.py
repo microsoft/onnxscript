@@ -3,22 +3,21 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import sys
 import pprint
+import sys
 import typing
 
 
 class DebugInfo:
-
     def __init__(self, lineno, source="string", code=None):
-        if hasattr(source, 'source'):
+        if hasattr(source, "source"):
             code = source.source
-            current_fn = getattr(source, 'current_fn', None)
+            current_fn = getattr(source, "current_fn", None)
             if current_fn is not None:
-                source = getattr(source.current_fn, 'name', None)
+                source = getattr(source.current_fn, "name", None)
             else:
                 source = None
-        if hasattr(lineno, 'lineno'):
+        if hasattr(lineno, "lineno"):
             self.ast_obj = lineno
             self.lineno = lineno.lineno
         elif isinstance(lineno, int):
@@ -31,16 +30,17 @@ class DebugInfo:
         else:
             raise NotImplementedError(
                 f"Unable to extract debug information from type {type(lineno)!r}, "
-                f"attributes={pprint.pformat(lineno.__dict__)}.")
+                f"attributes={pprint.pformat(lineno.__dict__)}."
+            )
         self.source = source
-        self.code = None if code is None else code.split('\n')
+        self.code = None if code is None else code.split("\n")
 
     def msg(self, text):
         return "ERROR\n%s\n    %s" % (str(self), text)
 
     def __str__(self):
         if self.code is None:
-            line = ''
+            line = ""
         else:
             line = "    -- line: " + self.code[self.lineno - 1]
         return "%s:%d%s" % (self.source, self.lineno, line)

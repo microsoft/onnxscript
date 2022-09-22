@@ -9,7 +9,9 @@ from typing import Any, List, _GenericAlias
 
 import numpy as np
 import onnx
-from onnxscript import autocast, eager_mode_evaluator, tensor, debuginfo
+
+from onnxscript import autocast, debuginfo, eager_mode_evaluator, tensor
+
 
 class Opset:
     """
@@ -294,7 +296,9 @@ class DynamicKind(IntFlag):
 
 
 class Dynamic(Value):
-    def __init__(self, val: str, kind: DynamicKind, info: debuginfo.DebugInfo, typeinfo=None) -> None:
+    def __init__(
+        self, val: str, kind: DynamicKind, info: debuginfo.DebugInfo, typeinfo=None
+    ) -> None:
         """
         Arguments:
             val: the name of the ONNX variable used to represent this value

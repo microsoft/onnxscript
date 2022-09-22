@@ -4,8 +4,8 @@
 # --------------------------------------------------------------------------
 
 from onnx.defs import onnx_opset_version
-from onnxscript import values
 
+from onnxscript import values
 
 if onnx_opset_version() < 14:
     raise ImportError(

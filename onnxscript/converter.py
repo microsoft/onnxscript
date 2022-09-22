@@ -13,12 +13,11 @@ import numpy
 import onnx
 from onnx import helper
 
-from onnxscript import analysis, autocast, irbuilder, onnx_types
-from onnxscript import type_annotation as ta
-from onnxscript import values, debuginfo
-from onnxscript import onnx_opset
 # _known_modules() needs full module name
 import onnxscript
+from onnxscript import analysis, autocast, debuginfo, irbuilder, onnx_opset, onnx_types
+from onnxscript import type_annotation as ta
+from onnxscript import values
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -780,7 +779,9 @@ class Converter:
     def translate_bin_op_expr(self, node):
         op = type(node.op)
         if op not in primop_map:
-            raise ValueError(debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}."))
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
+            )
 
         attr = []
         if isinstance(node.op, ast.Mod) and self.is_constant_expr(node.right):
@@ -807,7 +808,9 @@ class Converter:
     def translate_unary_op_expr(self, node):
         op = type(node.op)
         if op not in primop_map:
-            raise ValueError(debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}."))
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
+            )
         if self.is_constant_expr(node.operand):
             # This function changed the constant node.operand
             # and returns it. The function calling this one
@@ -840,7 +843,9 @@ class Converter:
         assert len(node.comparators) == 1
         op = type(node.ops[0])
         if op not in primop_map:
-            raise ValueError(debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}."))
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
+            )
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
@@ -1022,7 +1027,9 @@ class Converter:
                 t = None
             else:
                 t = self.returntype[i]
-            self.ir_builder.add_output(self.current_fn, ovar, t, debuginfo.DebugInfo(stmt, self))
+            self.ir_builder.add_output(
+                self.current_fn, ovar, t, debuginfo.DebugInfo(stmt, self)
+            )
             return ovar
 
         val = stmt.value
@@ -1099,7 +1106,11 @@ class Converter:
             iter = loop_stmt.iter
             assert isinstance(iter, ast.Call), "Loop bound not a call."
             if not isinstance(iter.func, ast.Name):
-                fail(debuginfo.DebugInfo(loop_stmt).msg(f"Unsupported loop bound {iter.func!r}."))
+                fail(
+                    debuginfo.DebugInfo(loop_stmt).msg(
+                        f"Unsupported loop bound {iter.func!r}."
+                    )
+                )
             if iter.func.id != "range":
                 fail(
                     debuginfo.DebugInfo(loop_stmt).msg(
@@ -1183,7 +1194,9 @@ class Converter:
             )
             self.bind(
                 pv,
-                values.Dynamic(ov, values.DynamicKind.Loop, debuginfo.DebugInfo(loop_stmt, self)),
+                values.Dynamic(
+                    ov, values.DynamicKind.Loop, debuginfo.DebugInfo(loop_stmt, self)
+                ),
             )
 
         condition_name = None
@@ -1353,7 +1366,9 @@ class Converter:
                 )
                 self.bind(
                     x.arg,
-                    values.Dynamic(x.arg, values.DynamicKind.Input, debuginfo.DebugInfo(x, self)),
+                    values.Dynamic(
+                        x.arg, values.DynamicKind.Input, debuginfo.DebugInfo(x, self)
+                    ),
                 )
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)

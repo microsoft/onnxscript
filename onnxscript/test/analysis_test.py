@@ -1,9 +1,7 @@
 import ast
 import unittest
 
-from onnxscript import analysis
-from onnxscript import converter
-from onnxscript import main
+from onnxscript import analysis, converter, main
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):

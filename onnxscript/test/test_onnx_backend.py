@@ -16,12 +16,12 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     RuntimeException,
 )
 
+import onnxscript
+from onnxscript import eager_mode_evaluator, values
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
 from onnxscript.backend.onnx_export import export2python
-from onnxscript import eager_mode_evaluator
-from onnxscript import values
 from onnxscript.test.models import type_double
-import onnxscript
+
 
 def print_code(code, begin=1):
     """
@@ -90,7 +90,9 @@ class TestOnnxBackEnd(unittest.TestCase):
             raise AssertionError(
                 "Unable to import %r (file: %r)\n----\n%s" % (import_name, filename, content)
             ) from e
-        fcts = {k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)}
+        fcts = {
+            k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
+        }
         return fcts
 
     def common_test_enumerate_onnx_tests_run(self, valid, verbose=0):

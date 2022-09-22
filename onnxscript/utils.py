@@ -10,6 +10,7 @@ import numpy as np
 import onnx
 from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_sequence_type_proto, make_tensor_type_proto
+
 # print utility unavailable in ONNX 1.12 or earlier:
 try:
     from onnx.printer import to_text as proto2text  # pylint: disable=unused-import
@@ -17,6 +18,8 @@ except ImportError:
 
     def proto2text(x):  # pylint: disable=unused-argument
         return "<print utility unavailable>"
+
+
 from onnxscript import tensor
 
 

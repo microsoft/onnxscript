@@ -4,8 +4,8 @@
 # --------------------------------------------------------------------------
 
 from typing import Union
-import autopep8
 
+import autopep8
 import numpy
 import onnx
 from onnx import FunctionProto, ModelProto, ValueInfoProto, numpy_helper
@@ -483,7 +483,9 @@ def export_template(
         context["doc_string"] = ""
 
     # First rendering to detect any unused or replaced initializer.
-    from jinja2 import Template  # delayed import  # pylint: disable=import-outside-toplevel
+    from jinja2 import (
+        Template,  # delayed import  # pylint: disable=import-outside-toplevel
+    )
 
     template = Template(template)
     final = template.render(

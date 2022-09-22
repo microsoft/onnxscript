@@ -9,8 +9,9 @@ import textwrap
 
 import onnx.helper
 
-from onnxscript import converter, values
 import onnxscript
+from onnxscript import converter, values
+
 
 def get_src_and_ast(f):
     try:

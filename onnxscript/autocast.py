@@ -1,8 +1,7 @@
 import numpy as np
 from onnx.defs import OpSchema
 
-from onnxscript import tensor
-from onnxscript import values
+from onnxscript import tensor, values
 
 
 def cast_inputs(get_type_info, cast, opschema, *args):
