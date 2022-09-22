@@ -148,4 +148,10 @@ and run `check` by:
 ./tools/style.sh
 ```
 
-NOTE: mypy and pylint needs to be manually address.
+optional check:
+
+```bash
+./tools/style_optional.sh
+```
+
+NOTE: mypy and pylint needs to be manually address
