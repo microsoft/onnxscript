@@ -3,6 +3,8 @@ from onnx.defs import OpSchema
 
 from onnxscript import eager_array, values
 
+from .tensor import Tensor
+
 
 def cast_inputs(get_type_info, cast, opschema, *args):
     """
@@ -58,7 +60,7 @@ def dynamic_cast_inputs(opschema, *args):
     """Used for autocast during eager-mode execution."""
 
     def get_type_info(x):
-        return x.dtype if isinstance(x, eager_array.EagerArray) else None
+        return x.dtype if isinstance(x, Tensor) else None
 
     def cast(x, typeinfo):
         if isinstance(x, (int, float)):
@@ -69,8 +71,9 @@ def dynamic_cast_inputs(opschema, *args):
                 dtype = np.int32
             else:  # isinstance(x, float):
                 dtype = np.float32
-            return eager_array.EagerArray(np.array(x, dtype=dtype))
-        return x
+            return Tensor(np.array(x, dtype=dtype))
+        else:
+            return x
 
     return cast_inputs(get_type_info, cast, opschema, *args)
 

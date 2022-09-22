@@ -7,7 +7,7 @@ import onnx
 import onnx.helper
 
 
-class Tensor:
+class TensorType:
     # Reference implementation placeholder
     # represents a generic ONNX tensor type
     def __init__(self, dtype=onnx.TensorProto.UNDEFINED, shape=None) -> None:
@@ -62,7 +62,7 @@ class ParametricTensor:
             s = None
         else:
             s = [shape]
-        return Tensor(self.dtype, s)
+        return TensorType(self.dtype, s)
 
     def to_type_proto(self):
         return onnx.helper.make_tensor_type_proto(self.dtype, ())

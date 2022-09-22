@@ -15,7 +15,9 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 
-from onnxscript import eager_array, irbuilder, utils
+from .irbuilder import select_ir_version
+from .tensor import Tensor
+from .utils import proto2text, values_to_value_infos
 
 
 class EagerModeError(RuntimeError):
@@ -65,7 +67,7 @@ def os_to_ort_value(v):
     """
     Converts an onnxscript encoding of an ONNX value into the encoding used by ORT.
     """
-    if isinstance(v, eager_array.EagerArray):
+    if isinstance(v, Tensor):
         return v.value
     if isinstance(v, list):
         return v
@@ -81,8 +83,8 @@ def ort_to_os_value(v):
     Converts an ORT encoding of an ONNX value into the encoding used by onnxscript.
     """
     if isinstance(v, np.ndarray):
-        return eager_array.EagerArray(v)
-    if isinstance(v, list):
+        return Tensor(v)
+    elif isinstance(v, list):
         return v
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
