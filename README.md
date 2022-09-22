@@ -134,8 +134,25 @@ class `OnnxScriptTestCase` to ensure both systems do return the same results wit
 
 **Code Style**
 
-We use flake8, black, isort, and mypy to check code format. You can find their configuration in .flake8 and pyproject.toml, and run lint check by:
+We use flake8, black, isort, and mypy to check code format. You can find their configuration in .flake8 and pyproject.toml, and 
+
+run `auto-formatter` by:
+
+```bash
+./tools/lint.sh
+```
+
+and run `check` by:
 
 ```bash
 ./tools/style.sh
 ```
+
+optional check:
+
+```bash
+./tools/style_optional.sh
+```
+
+NOTE: mypy and pylint needs to be manually address
+

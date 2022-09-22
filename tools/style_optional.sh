@@ -12,16 +12,12 @@ cd "$(git rev-parse --show-toplevel)"
 err=0
 trap 'err=1' ERR
 
-echo -e "\n::group:: ===> check flake8..."
-flake8 onnxscript --config .flake8
+echo -e "\n::group:: ===> check pylint"
+pylint onnxscript
 echo -e "::endgroup::"
 
-echo -e "\n::group:: ===> check isort..."
-isort onnxscript --color --diff --check
-echo -e "::endgroup::"
-
-echo -e "\n::group:: ===> check black format..."
-black onnxscript --color --diff --check
+echo -e "\n::group:: ===> check mypy"
+mypy onnxscript --config-file pyproject.toml
 echo -e "::endgroup::"
 
 git diff --exit-code
