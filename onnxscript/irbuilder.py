@@ -91,7 +91,7 @@ class Var:
                     raise TypeError(
                         self.info.msg(
                             f"Variable {self.name} is missing an annotation and default_type "
-                            "is not specified."
+                            f"is not specified."
                         )
                     )
                 return helper.make_value_info(self.name, default_type.to_type_proto())
