@@ -28,9 +28,22 @@ def external_tensor(
         length: Optional[int] = None,
         checksum: Optional[str] = None,
         basepath: Optional[str] = None) -> TensorProto:
-    '''
+    """
     Create a TensorProto referencing externally stored tensor-data.
-    '''
+
+    :param      name:        name of the tensor
+    :param      data_type:   data type of tensor element
+    :param      dims:        shape of the tensor
+    :param      location:    location of the external file (relative path)
+    :param      offset:      offset in the file where the tensor-data starts
+    :param      length:      number of bytes containing the data
+    :param      checksum:    SHA1 digest of the file
+    :param      basepath:    basepath combined with location to form the full path
+    :return:                 TensorProto
+
+    See https://github.com/onnx/onnx/blob/main/docs/ExternalData.md for more details.
+    """
+
     tensor = TensorProto()
     tensor.name = name
     tensor.data_type = data_type
