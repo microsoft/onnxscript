@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 
 import numbers
-from typing import Any, Sequence
+from typing import Any, Sequence, Optional
 
 import numpy as np
 import onnx

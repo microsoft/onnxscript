@@ -8,7 +8,7 @@ from typing import Union
 
 import numpy
 import onnx
-from onnx import FunctionProto, ModelProto, ValueInfoProto
+from onnx import FunctionProto, ModelProto, ValueInfoProto, TensorProto
 from onnx.helper import make_node
 
 

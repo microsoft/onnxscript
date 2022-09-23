@@ -11,7 +11,7 @@ from enum import IntEnum
 
 import numpy
 import onnx
-from onnx import helper
+from onnx import helper, numpy_helper
 
 # _known_modules() needs full module name
 import onnxscript
@@ -73,7 +73,7 @@ def py_type_to_onnx_type(pytype: type, info: debuginfo.DebugInfo):
 
 def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: debuginfo.DebugInfo):
     if isinstance(pyvalue, numpy.ndarray):
-        return onnx.numpy_helper.from_array(pyvalue, tensor_name)
+        return numpy_helper.from_array(pyvalue, tensor_name)
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(info.msg("Cannot convert an empty list to tensor"))
