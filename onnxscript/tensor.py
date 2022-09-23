@@ -6,6 +6,8 @@ import numpy as np
 from onnx import TensorProto
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 
+from onnxscript import onnx_opset
+
 
 class Tensor:
     """
@@ -17,8 +19,8 @@ class Tensor:
         if not isinstance(nparray, np.ndarray):
             raise TypeError(f"Unexpected type {type(nparray)}. It must be a numpy array.")
         self._nparray = nparray
-        from onnxscript.onnx_opset import default_opset
-        self._opset = opset or default_opset
+
+        self._opset = opset or onnx_opset.default_opset
 
     @property
     def value(self):
@@ -60,18 +62,16 @@ class Tensor:
         # case A[i:j] or A[i:j:k], A[i:k, j:l]
         if isinstance(index, slice):
             # Treat 1-dimensional slicing A[i:j] as generic n-dimensional case A[i:j,...]
-            index = (index, )
+            index = (index,)
         shape = self.shape
         indices = []
         to_squeeze = []
         for axis, s in enumerate(index):
             if isinstance(s, slice):
                 if s.step is None or s.step > 0:
-                    indices.append([s.start or 0, s.stop or shape[axis],
-                                    axis, s.step or 1])
+                    indices.append([s.start or 0, s.stop or shape[axis], axis, s.step or 1])
                 else:
-                    indices.append([s.start or (shape[axis] - 1), s.stop,
-                                    axis, s.step])
+                    indices.append([s.start or (shape[axis] - 1), s.stop, axis, s.step])
             elif isinstance(s, int):
                 indices.append([s, s + 1, axis, 1])
                 to_squeeze.append(axis)
@@ -88,11 +88,14 @@ class Tensor:
         return result
 
     def __mod__(self, other):
-        if self.onnx_dtype in {TensorProto.FLOAT, TensorProto.DOUBLE,
-                               TensorProto.FLOAT16, TensorProto.BFLOAT16}:
+        if self.onnx_dtype in {
+            TensorProto.FLOAT,
+            TensorProto.DOUBLE,
+            TensorProto.FLOAT16,
+            TensorProto.BFLOAT16,
+        }:
             return self._opset.Mod(self, other, fmod=1)
-        else:
-            return self._opset.Mod(self, other)
+        return self._opset.Mod(self, other)
 
     def __ne__(self, other):
         temp = self._opset.Equal(self, other)

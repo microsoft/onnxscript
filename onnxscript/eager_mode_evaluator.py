@@ -4,14 +4,18 @@
 # --------------------------------------------------------------------------
 
 import pprint
+
 import numpy as np
 import onnx
 from onnx import TypeProto
 from onnxruntime import InferenceSession
-from onnxruntime.capi.onnxruntime_pybind11_state import Fail, InvalidGraph, InvalidArgument
-from .utils import values_to_value_infos, proto2text
-from .irbuilder import select_ir_version
-from .tensor import Tensor
+from onnxruntime.capi.onnxruntime_pybind11_state import (
+    Fail,
+    InvalidArgument,
+    InvalidGraph,
+)
+
+from onnxscript import irbuilder, tensor, utils
 
 
 class EagerModeError(RuntimeError):
@@ -25,21 +29,22 @@ def _rename_io(prefix, i, arg):
 
 
 def compute_num_outputs(schema, *args, **kwargs):
-    '''
+    """
     Returns the number of outputs expected.
     TODO: Use ONNX type inference to replace the special-case handling below.
-    '''
-    if schema.domain == '':
-        if schema.name == 'BatchNormalization':
-            if not kwargs.get('training_mode', 0):
+    """
+    if schema.domain == "":
+        if schema.name == "BatchNormalization":
+            if not kwargs.get("training_mode", 0):
                 return 1
-        if schema.name == 'LSTM':
+        if schema.name == "LSTM":
             return 3
-        if schema.name == 'Split':
+        if schema.name == "Split":
             if len(args) == 1:
                 raise EagerModeError(
                     "Operator Split: the number of expected outputs defines the split. "
-                    "This information is unknown here.")
+                    "This information is unknown here."
+                )
     return len(schema.outputs)
 
 
@@ -47,7 +52,6 @@ _cache_models = {}
 
 
 def _cache_(model, providers):
-    global _cache_models
     serialized = model.SerializeToString()
     key = serialized, tuple(providers)
     if key in _cache_models:
@@ -58,33 +62,31 @@ def _cache_(model, providers):
 
 
 def os_to_ort_value(v):
-    '''
+    """
     Converts an onnxscript encoding of an ONNX value into the encoding used by ORT.
-    '''
-    if isinstance(v, Tensor):
+    """
+    if isinstance(v, tensor.Tensor):
         return v.value
-    elif isinstance(v, list):
+    if isinstance(v, list):
         return v
-    elif v is None:
+    if v is None:
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
         return v
-    else:
-        raise TypeError(f"Unexpected ORT value type {type(v)}.")
+    raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
 def ort_to_os_value(v):
-    '''
+    """
     Converts an ORT encoding of an ONNX value into the encoding used by onnxscript.
-    '''
+    """
     if isinstance(v, np.ndarray):
-        return Tensor(v)
-    elif isinstance(v, list):
+        return tensor.Tensor(v)
+    if isinstance(v, list):
         return v
-    elif v is None:
+    if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
-    else:
-        raise TypeError(f"Unexpected ORT value type {type(v)}.")
+    raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
 def call_ort(schema, *args, **kwargs):
@@ -98,23 +100,25 @@ def call_ort(schema, *args, **kwargs):
     outputs = ["output" + str(i) for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
-    input_value_infos = values_to_value_infos(inputs, list(args))
+    input_value_infos = utils.values_to_value_infos(inputs, list(args))
     output_value_infos = [onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
 
-    graph = onnx.helper.make_graph(
-        [node], "node_graph", input_value_infos, output_value_infos)
+    graph = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
     opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
-    model = onnx.helper.make_model(graph, opset_imports=[opset_id],
-                                   ir_version=select_ir_version(schema.since_version,
-                                                                domain=schema.domain))
+    model = onnx.helper.make_model(
+        graph,
+        opset_imports=[opset_id],
+        ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
+    )
     try:
-        sess = _cache_(model, ['CPUExecutionProvider'])
+        sess = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
-            "Unable to create onnxruntime InferenceSession with onnx "
-            "model\n%s" % proto2text(model)) from e
+            f"Unable to create onnxruntime InferenceSession "
+            f"with onnx model\n{utils.proto2text(model)}"
+        ) from e
 
-    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ''}
+    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
 
     try:
         result = sess.run(None, session_run_input)
@@ -125,7 +129,8 @@ def call_ort(schema, *args, **kwargs):
             f"{pprint.pformat({k: type(v) for k, v in zip(inputs, args)})}"
             f"\nmodified input types:\n"
             f"{pprint.pformat({k: type(v) for k, v in session_run_input.items()})}"
-            f"\ninputs:\n{pprint.pformat(session_run_input)}\n{model}")
+            f"\ninputs:\n{pprint.pformat(session_run_input)}\n{model}"
+        ) from e
 
     # Map ORT output values to the onnxscript representation-type.
     cast_result = [ort_to_os_value(x) for x in result]

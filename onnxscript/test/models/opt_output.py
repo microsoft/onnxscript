@@ -1,6 +1,7 @@
 from tkinter import Y
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
+
 # from onnxscript.onnx_types import FLOAT
 
 # Issues relating to optional output
@@ -18,18 +19,20 @@ from onnxscript.onnx_opset import opset15 as op
 # code, and not the function-definition. In the function definition, we always
 # return it.
 @script()
-def MeanDiff (x) :
+def MeanDiff(x):
     mean = op.ReduceMean(x)
     diff = x - mean
     # Caller context may have second output "missing".
     # It is the inliner's responsibility to handle this correctly.
     return (diff, mean)
 
+
 # A call to a function with an optional output:
 @script()
 def MeanDiffCaller(x):
     diff, _ = MeanDiff(x)
     return diff * diff
+
 
 # Use Case 2: In this scenario, the inputs/attributes determine which outputs
 # are computed. In particular, the op may return different numbers of outputs
@@ -47,8 +50,9 @@ def MeanDiffCaller(x):
 # However, the question here is whether it is useful to support examples such as
 # the one below:
 
+
 @script()
-def ConditionalOptOutput (x, y, flag: bool):
+def ConditionalOptOutput(x, y, flag: bool):
     if flag:
         z1 = x + y
         # Challenge: Should we support this kind of usage?
@@ -61,4 +65,3 @@ def ConditionalOptOutput (x, y, flag: bool):
         z1 = x + y
         z2 = x / y
     return z1, z2
-

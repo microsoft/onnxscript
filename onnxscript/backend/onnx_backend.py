@@ -6,12 +6,15 @@
 
 import os
 import textwrap
+
 import numpy
+import onnx
 from numpy import object as dtype_object
 from numpy.testing import assert_almost_equal
-import onnx
-from onnx.numpy_helper import to_array, to_list
 from onnx.backend.test import __file__ as backend_folder
+from onnx.numpy_helper import to_array, to_list
+
+from onnxscript.backend import onnx_export
 
 
 def assert_almost_equal_string(expected, value):
@@ -22,7 +25,8 @@ def assert_almost_equal_string(expected, value):
     :param expected: expected array
     :param value: value
     """
-    def is_float(x):
+
+    def is_float(x):  # pylint: disable=unused-argument
         try:
             return True
         except ValueError:  # pragma: no cover
@@ -47,12 +51,13 @@ class OnnxBackendTest:
     :param onnx_model: loaded onnx file
     :param tests: list of test
     """
+
     @staticmethod
     def _sort(filenames):
         temp = []
         for f in filenames:
             name = os.path.splitext(f)[0]
-            i = name.split('_')[-1]
+            i = name.split("_")[-1]
             temp.append((int(i), f))
         temp.sort()
         return [_[1] for _ in temp]
@@ -60,9 +65,8 @@ class OnnxBackendTest:
     @staticmethod
     def _read_proto_from_file(full):
         if not os.path.exists(full):
-            raise FileNotFoundError(  # pragma: no cover
-                "File not found: %r." % full)
-        with open(full, 'rb') as f:
+            raise FileNotFoundError(f"File not found: {full!r}.")  # pragma: no cover
+        with open(full, "rb") as f:
             serialized = f.read()
         try:
             loaded = to_array(onnx.load_tensor_from_string(serialized))
@@ -76,8 +80,9 @@ class OnnxBackendTest:
                     loaded = onnx.load_model_from_string(serialized)
                 except Exception:  # pragma: no cover
                     raise RuntimeError(
-                        "Unable to read %r, error is %s, content is %r." % (
-                            full, e, serialized[:100])) from e
+                        f"Unable to read {full!r}, error is {e}, "
+                        f"content is {serialized[:100]!r}."
+                    ) from e
         return loaded
 
     @staticmethod
@@ -92,24 +97,24 @@ class OnnxBackendTest:
                 t = to_array(new_tensor)
             else:
                 raise RuntimeError(  # pragma: no cover
-                    "Unexpected type %r for %r." % (type(new_tensor), full))
+                    f"Unexpected type {type(new_tensor)!r} for {full!r}."
+                )
             res.append(t)
         return res
 
     def __repr__(self):
         "usual"
-        return "%s(%r)" % (self.__class__.__name__, self.folder)
+        return f"{self.__class__.__name__}({self.folder!r})"
 
     def __init__(self, folder):
         if not os.path.exists(folder):
-            raise FileNotFoundError(  # pragma: no cover
-                "Unable to find folder %r." % folder)
+            raise FileNotFoundError(f"Unable to find folder {folder!r}.")  # pragma: no cover
         content = os.listdir(folder)
-        onx = [c for c in content if os.path.splitext(c)[-1] in {'.onnx'}]
+        onx = [c for c in content if os.path.splitext(c)[-1] in {".onnx"}]
         if len(onx) != 1:
             raise ValueError(  # pragma: no cover
-                "There is more than one onnx file in %r (%r)." % (
-                    folder, onx))
+                f"There is more than one onnx file in {folder!r} ({onx!r})."
+            )
         self.folder = folder
         self.onnx_path = os.path.join(folder, onx[0])
         self.onnx_model = onnx.load(self.onnx_path)
@@ -118,16 +123,14 @@ class OnnxBackendTest:
         for sub in content:
             full = os.path.join(folder, sub)
             if os.path.isdir(full):
-                pb = [c for c in os.listdir(full)
-                      if os.path.splitext(c)[-1] in {'.pb'}]
-                inputs = OnnxBackendTest._sort(
-                    c for c in pb if c.startswith('input_'))
-                outputs = OnnxBackendTest._sort(
-                    c for c in pb if c.startswith('output_'))
+                pb = [c for c in os.listdir(full) if os.path.splitext(c)[-1] in {".pb"}]
+                inputs = OnnxBackendTest._sort(c for c in pb if c.startswith("input_"))
+                outputs = OnnxBackendTest._sort(c for c in pb if c.startswith("output_"))
 
                 t = dict(
                     inputs=OnnxBackendTest._load(full, inputs),
-                    outputs=OnnxBackendTest._load(full, outputs))
+                    outputs=OnnxBackendTest._load(full, outputs),
+                )
                 self.tests.append(t)
 
     @property
@@ -166,34 +169,33 @@ class OnnxBackendTest:
                         assert_almost_equal_string(e, o)
                     except AssertionError as ex:
                         raise AssertionError(  # pragma: no cover
-                            "Output %d of test %d in folder %r failed." % (
-                                i, index, self.folder)) from ex
+                            f"Output {i} of test {index} in folder {self.folder} failed."
+                        ) from ex
                 else:
                     try:
                         assert_almost_equal(e, o, decimal=deci)
                     except AssertionError as ex:
                         raise AssertionError(
-                            "Output %d of test %d in folder %r failed." % (
-                                i, index, self.folder)) from ex
-            elif hasattr(o, 'is_compatible'):
+                            f"Output {i} of test {index} in folder {self.folder} failed."
+                        ) from ex
+            elif hasattr(o, "is_compatible"):
                 # A shape
                 if e.dtype != o.dtype:
                     raise AssertionError(
-                        "Output %d of test %d in folder %r failed "
-                        "(e.dtype=%r, o=%r)." % (
-                            i, index, self.folder, e.dtype, o))
+                        f"Output {i} of test {index} in folder "
+                        f"{self.folder} failed (e.dtype={e.dtype}, o={o})."
+                    )
                 if not o.is_compatible(e.shape):
                     raise AssertionError(  # pragma: no cover
-                        "Output %d of test %d in folder %r failed "
-                        "(e.shape=%r, o=%r)." % (
-                            i, index, self.folder, e.shape, o))
+                        f"Output {i} of test {index} in folder "
+                        f"{self.folder} failed (e.shape={e.shape}, o={o})."
+                    )
         else:
-            raise NotImplementedError(
-                "Comparison not implemented for type %r." % type(e))
+            raise NotImplementedError(f"Comparison not implemented for type {type(e)!r}.")
 
     def is_random(self):
         "Tells if a test is random or not."
-        if 'bernoulli' in self.folder:
+        if "bernoulli" in self.folder:
             return True
         return False
 
@@ -216,25 +218,25 @@ class OnnxBackendTest:
 
         obj = load_fct(self.onnx_model)
 
-        got = run_fct(obj, *self.tests[index]['inputs'])
-        expected = self.tests[index]['outputs']
+        got = run_fct(obj, *self.tests[index]["inputs"])
+        expected = self.tests[index]["outputs"]
         if len(got) != len(expected):
             raise AssertionError(  # pragma: no cover
-                "Unexpected number of output (test %d, folder %r), "
-                "got %r, expected %r." % (
-                    index, self.folder, len(got), len(expected)))
+                f"Unexpected number of output (test {index}, folder {self.folder}), "
+                f"got {len(got)}, expected {len(expected)}."
+            )
         for i, (e, o) in enumerate(zip(expected, got)):
             if self.is_random():
                 if e.dtype != o.dtype:
                     raise AssertionError(
-                        "Output %d of test %d in folder %r failed "
-                        "(type mismatch %r != %r)." % (
-                            i, index, self.folder, e.dtype, o.dtype))
+                        f"Output {i} of test {index} in folder "
+                        f"{self.folder} failed (type mismatch {e.dtype} != {o.dtype})."
+                    )
                 if e.shape != o.shape:
                     raise AssertionError(
-                        "Output %d of test %d in folder %r failed "
-                        "(shape mismatch %r != %r)." % (
-                            i, index, self.folder, e.shape, o.shape))
+                        f"Output {i} of test {index} in folder "
+                        f"{self.folder} failed (shape mismatch {e.shape} != {o.shape})."
+                    )
             else:
                 self._compare_results(index, i, e, o, decimal=decimal)
 
@@ -244,23 +246,25 @@ class OnnxBackendTest:
 
         :return: code
         """
-        from ..onnx_tools.onnx_export import export2onnx
+
         rows = []
-        code = export2onnx(self.onnx_model)
-        lines = code.split('\n')
-        lines = [line for line in lines
-                 if not line.strip().startswith('print') and
-                 not line.strip().startswith('# ')]
+        code = onnx_export.export2onnx(self.onnx_model)
+        lines = code.split("\n")
+        lines = [
+            line
+            for line in lines
+            if not line.strip().startswith("print") and not line.strip().startswith("# ")
+        ]
         rows.append(textwrap.dedent("\n".join(lines)))
         rows.append("oinf = OnnxInference(onnx_model)")
         for test in self.tests:
             rows.append("xs = [")
-            for inp in test['inputs']:
-                rows.append(textwrap.indent(repr(inp) + ',', '    ' * 2))
+            for inp in test["inputs"]:
+                rows.append(textwrap.indent(repr(inp) + ",", "    " * 2))
             rows.append("]")
             rows.append("ys = [")
-            for out in test['outputs']:
-                rows.append(textwrap.indent(repr(out) + ',', '    ' * 2))
+            for out in test["outputs"]:
+                rows.append(textwrap.indent(repr(out) + ",", "    " * 2))
             rows.append("]")
             rows.append("feeds = {n: x for n, x in zip(oinf.input_names, xs)}")
             rows.append("got = oinf.run(feeds)")
@@ -269,10 +273,11 @@ class OnnxBackendTest:
             rows.append("    self.assertEqualArray(y, gy)")
             rows.append("")
         code = "\n".join(rows)
-        final = "\n".join(["def %s(self):" % self.name,
-                           textwrap.indent(code, '    ')])
+        final = "\n".join([f"def {self.name}(self):", textwrap.indent(code, "    ")])
         try:
-            from pyquickhelper.pycode.code_helper import remove_extra_spaces_and_pep8
+            from pyquickhelper.pycode.code_helper import (  # pylint: disable=import-outside-toplevel # noqa E501
+                remove_extra_spaces_and_pep8,
+            )
         except ImportError:  # pragma: no cover
             return final
         return remove_extra_spaces_and_pep8(final, aggressive=True)
@@ -291,17 +296,18 @@ def enumerate_onnx_tests(series, fct_filter=None):
     :return: list of @see cl OnnxBackendTest
     """
     root = os.path.dirname(backend_folder)
-    sub = os.path.join(root, 'data', series)
+    sub = os.path.join(root, "data", series)
     if not os.path.exists(sub):
         raise FileNotFoundError(
-            "Unable to find series of tests in %r, subfolders:\n%s" % (
-                root, "\n".join(os.listdir(root))))
+            "Unable to find series of tests in %r, subfolders:\n%s"
+            % (root, "\n".join(os.listdir(root)))
+        )
     tests = os.listdir(sub)
     for t in tests:
         if fct_filter is not None and not fct_filter(t):
             continue
         folder = os.path.join(sub, t)
         content = os.listdir(folder)
-        onx = [c for c in content if os.path.splitext(c)[-1] in {'.onnx'}]
+        onx = [c for c in content if os.path.splitext(c)[-1] in {".onnx"}]
         if len(onx) == 1:
             yield OnnxBackendTest(folder)

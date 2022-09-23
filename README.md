@@ -155,4 +155,3 @@ optional check:
 ```
 
 NOTE: mypy and pylint needs to be manually address
-

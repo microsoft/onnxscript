@@ -3,20 +3,29 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import onnx
-import typing
 from typing import List
+
+import onnx
 
 pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
-    typing.List[int]: onnx.AttributeProto.INTS
+    List[  # pylint: disable=unhashable-member # TODO: Need change
+        int
+    ]: onnx.AttributeProto.INTS,
 }
 
 
 def is_attr(typeinfo):
-    return typeinfo in {float, int, str, List[float], List[int], List[str]}
+    return typeinfo in {
+        float,
+        int,
+        str,
+        List[float],  # pylint: disable=unhashable-member # TODO: Need change
+        List[int],  # pylint: disable=unhashable-member # TODO: Need change
+        List[str],  # pylint: disable=unhashable-member # TODO: Need change
+    }
 
 
 def is_tensor(typeinfo):
