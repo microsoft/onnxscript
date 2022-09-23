@@ -3,14 +3,14 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from onnxscript.onnx_types import ParametricTensor
 from typing import Union
 
 import numpy
 import onnx
-from onnx import FunctionProto, ModelProto, ValueInfoProto, TensorProto
+from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_node
 
+from onnxscript.onnx_types import ParametricTensor
 
 _template_python = '''
 import numpy

@@ -4,12 +4,13 @@
 # --------------------------------------------------------------------------
 
 import numbers
-from typing import Any, Sequence, Optional
+from typing import Any, Optional, Sequence
 
 import numpy as np
 import onnx
 from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_sequence_type_proto, make_tensor_type_proto
+
 from onnxscript import tensor
 
 # print utility unavailable in ONNX 1.12 or earlier:

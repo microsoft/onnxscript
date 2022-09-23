@@ -1,11 +1,13 @@
 import os
 import tempfile
 import unittest
+
 import numpy as np
 import onnx
-from onnxscript import script, proto2python
-from onnxscript.onnx_types import FLOAT
+
+from onnxscript import proto2python, script
 from onnxscript.onnx_opset import opset17 as op
+from onnxscript.onnx_types import FLOAT
 
 
 class TestConverter(unittest.TestCase):
