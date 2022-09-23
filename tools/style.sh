@@ -13,15 +13,15 @@ err=0
 trap 'err=1' ERR
 
 echo -e "\n::group:: ===> check flake8..."
-flake8 onnxscript --config .flake8
+flake8 onnxscript
 echo -e "::endgroup::"
 
 echo -e "\n::group:: ===> check isort..."
-isort onnxscript --color --diff --check
+isort . --color --diff --check
 echo -e "::endgroup::"
 
 echo -e "\n::group:: ===> check black format..."
-black onnxscript --color --diff --check
+black . --color --diff --check
 echo -e "::endgroup::"
 
 git diff --exit-code

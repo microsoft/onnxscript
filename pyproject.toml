@@ -72,24 +72,24 @@ ignore_errors = true
 
 [tool.black]
 target-version = ["py37", "py38", "py39", "py310"]
-extend-exclude = ["^onnxscript/test/models", "^onnxscript/backend/"]
-line-length = 95
+# Black's extend-exclude needs to be a regex string
+extend-exclude = "/onnxscript/test|/onnxscript/backend"
 
 [tool.isort]
 profile = "black"
 extend_skip_glob = [
-  "**test/models/*.py",
-  "**onnx_backend_test_code/*.py",
-  "**backend/",
+  "onnxscript/test/models/*.py",
+  "onnxscript/test/onnx_backend_test_code/*.py",
+  "onnxscript/backend/",
 ]
 
-[tool.pylint.MASTER]
+[tool.pylint.master]
 ignore-paths = [
   "^onnxscript/test/models/",
   "^onnxscript/test/onnx_backend_test_code/",
 ]
 
-[tool.pylint.'MESSAGES CONTROL']
+[tool.pylint.messages_control]
 disable = [
   "missing-docstring",
   "import-error",
