@@ -27,7 +27,7 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
 ]
 # NOTE: replace requirements.txt
-dependencies = ["numpy==1.21.5", "protobuf<4", "onnx"]
+dependencies = ["numpy>=1.21.5", "protobuf<4", "onnx"]
 
 [project.optional-dependencies]
 test = ["flake8", "mypy", "black", "isort[colors]", "pylint"]

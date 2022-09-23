@@ -1,4 +1,4 @@
-# flake8 is currebtly not yet supported by pyproject.toml.
+# flake8 is currently not yet supported by pyproject.toml.
 # Please move this into pyproject.toml, when it does.
 
 [flake8]
