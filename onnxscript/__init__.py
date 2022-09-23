@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 import sys
+
 from .backend.onnx_export import export2python as proto2python
 from .main import export_onnx_lib, script
 from .values import OnnxFunction
