@@ -3,57 +3,18 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import sys
-import pprint
-import typing
-from typing import Any, List
+import logging
 from enum import IntFlag
+from typing import Any, List, _GenericAlias
+
 import numpy as np
 import onnx
-from .tensor import Tensor
-from .autocast import dynamic_cast_inputs
 
-
-class DebugInfo:
-
-    def __init__(self, lineno, source="string", code=None):
-        if hasattr(source, 'source'):
-            code = source.source
-            current_fn = getattr(source, 'current_fn', None)
-            if current_fn is not None:
-                source = getattr(source.current_fn, 'name', None)
-            else:
-                source = None
-        if hasattr(lineno, 'lineno'):
-            self.ast_obj = lineno
-            self.lineno = lineno.lineno
-        elif isinstance(lineno, int):
-            self.ast_obj = None
-            self.lineno = lineno
-        elif sys.version_info[:2] < (3, 9):
-            # python 3.8 and below
-            self.ast_obj = None
-            self.lineno = 1
-        else:
-            raise NotImplementedError(
-                f"Unable to extract debug information from type {type(lineno)!r}, "
-                f"attributes={pprint.pformat(lineno.__dict__)}.")
-        self.source = source
-        self.code = None if code is None else code.split('\n')
-
-    def msg(self, text):
-        return "ERROR\n%s\n    %s" % (str(self), text)
-
-    def __str__(self):
-        if self.code is None:
-            line = ''
-        else:
-            line = "    -- line: " + self.code[self.lineno - 1]
-        return "%s:%d%s" % (self.source, self.lineno, line)
+from onnxscript import autocast, debuginfo, eager_mode_evaluator, tensor
 
 
 class Opset:
-    '''
+    """
     Represents an ONNX Opset, which consists of a domain name, a version.
     It also contains a set of operations. This represents an Opset defined
     in the ONNX schema registry and the operations are retrieved from the
@@ -61,7 +22,8 @@ class Opset:
     ops in the corresponding Opset.
 
     Only a single instance of Opset is created for a given (domain, version) pair.
-    '''
+    """
+
     cache = {}
 
     def __new__(cls, domain, version):
@@ -77,7 +39,7 @@ class Opset:
         return instance
 
     def __repr__(self):
-        return "%s(%r, %r)" % (self.__class__.__name__, self.domain, self.version)
+        return f"{self.__class__.__name__}({self.domain!r}, {self.version!r})"
 
     def __init__(self, domain, version) -> None:
         # Nothing to do. Object is initialized by __new__
@@ -86,14 +48,14 @@ class Opset:
     def __getitem__(self, opname):
         try:
             return onnx.defs.get_schema(opname, self.version, self.domain)
-        except Exception:
+        except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return None
 
     def __contains__(self, opname):
         try:
             onnx.defs.get_schema(opname, self.version, self.domain)
             return True
-        except Exception:
+        except Exception:  # pylint: disable=broad-except # TODO: more specific exception
             return False
 
     def __str__(self) -> str:
@@ -103,14 +65,16 @@ class Opset:
         try:
             schema = onnx.defs.get_schema(attr, self.version, self.domain)
             return Op(self, attr, schema)
-        except Exception:
-            raise AttributeError(f"Attribute {attr} not found.")
+        except Exception as exc:
+            raise AttributeError(f"Attribute {attr} not found.") from exc
 
     def add_function_def(self, fun):
         if fun.name in self.function_defs:
-            import logging
+
             logger = logging.getLogger("onnx-script")
-            logger.warning(f"{fun.name}: Already defined.")
+            logger.warning(  # pylint: disable=logging-fstring-interpolation
+                f"{fun.name}: Already defined."
+            )
         self.function_defs[fun.name] = fun
 
 
@@ -118,13 +82,13 @@ class Opset:
 
 
 class Op:
-    '''
+    """
     Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
-    '''
+    """
 
     def __init__(self, opset, opname, opschema=None) -> None:
-        from . import eager_mode_evaluator
+
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
@@ -139,15 +103,15 @@ class Op:
         return self.opset[self.opname]
 
     def has_schema(self):
-        return (self.opschema is not None)
+        return self.opschema is not None
 
     def __call__(self, *args, **kwargs):
-        args = dynamic_cast_inputs(self.opschema, *args)
+        args = autocast.dynamic_cast_inputs(self.opschema, *args)
         return self.evaluator(self.opschema, *args, **kwargs)
 
 
 class OnnxFunction(Op):
-    '''
+    """
     Represents an ONNX op for which a function-body has been defined in onnxscript.
 
     :param opset: opset the function belongs to
@@ -155,7 +119,7 @@ class OnnxFunction(Op):
     :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
     :param source: source code used to generate the function
     :param kwargs: additional properties used to construct a ModelProto
-    '''
+    """
 
     def __init__(self, opset, pyfun, irfun, source, kwargs):
         opset = opset or Opset(irfun.domain, 1)
@@ -174,7 +138,7 @@ class OnnxFunction(Op):
         if len(args) == 0:
             # Operator Constant, it is usually called within a function.
             return self._libcall(**kwargs)
-        if isinstance(args[0], Tensor):
+        if isinstance(args[0], tensor.Tensor):
             return self._libcall(*args, **kwargs)
         return self._usercall(*args, **kwargs)
 
@@ -183,31 +147,30 @@ class OnnxFunction(Op):
         new_args = []
         for i, a in enumerate(args):
             if isinstance(a, np.ndarray):
-                new_args.append(Tensor(a))
+                new_args.append(tensor.Tensor(a))
             elif isinstance(a, bool):
-                new_args.append(Tensor(np.array(a)))
+                new_args.append(tensor.Tensor(np.array(a)))
             else:
-                raise TypeError(
-                    f"Unexpected input type {type(a)} for an input {i}.")
+                raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
         if isinstance(res, np.ndarray):
             return res
-        if isinstance(res, Tensor):
+        if isinstance(res, tensor.Tensor):
             return res.value
         if isinstance(res, (list, tuple)):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, Tensor):
+                if isinstance(r, tensor.Tensor):
                     unwrapped.append(r.value)
                 else:
                     raise TypeError(
                         f"Unexpected output type {type(r)} for an output {i} "
-                        f"in function {self.function!r}.")
+                        f"in function {self.function!r}."
+                    )
             if isinstance(res, tuple):
                 return tuple(unwrapped)
             return unwrapped
-        raise TypeError(
-            f"Unexpected output type {type(res)} in function {self.function!r}.")
+        raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def _libcall(self, *args, **kwargs):
         """
@@ -216,31 +179,30 @@ class OnnxFunction(Op):
         """
         new_args = []
         for i, a in enumerate(args):
-            if isinstance(a, Tensor):
+            if isinstance(a, tensor.Tensor):
                 new_args.append(a)
             elif isinstance(a, bool):
                 # TODO: default values for function parameters
                 # are not properly handled yet. This section
                 # should disappear.
-                new_args.append(Tensor(np.array(a)))
+                new_args.append(tensor.Tensor(np.array(a)))
             else:
-                raise TypeError(
-                    f"Unexpected input type {type(a)} for an input {i}.")
+                raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
-        if isinstance(res, Tensor):
+        if isinstance(res, tensor.Tensor):
             return res
         if isinstance(res, tuple):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, Tensor):
+                if isinstance(r, tensor.Tensor):
                     unwrapped.append(r)
                 else:
                     raise TypeError(
                         f"Unexpected output type {type(r)} for an output {i} "
-                        f"in function {self.function!r}.")
+                        f"in function {self.function!r}."
+                    )
             return tuple(unwrapped)
-        raise TypeError(
-            f"Unexpected output type {type(res)} in function {self.function!r}.")
+        raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def to_function_proto(self, domain=None):
         "Converts the function into :class:`onnx.FunctionProto`."
@@ -293,40 +255,36 @@ class Value:
     * To represent constant-values, translated into ONNX constants.
     """
 
-    def __init__(self, val: Any, info: DebugInfo) -> None:
-        if not isinstance(info, DebugInfo):
-            raise TypeError("info must be of DebugInfo not %r." % type(info))
+    def __init__(self, val: Any, info: debuginfo.DebugInfo) -> None:
+        if not isinstance(info, debuginfo.DebugInfo):
+            raise TypeError(f"info must be of debuginfo.DebugInfo not {type(info)!r}.")
         if val is None:
-            raise ValueError(info.msg('val cannot be None.'))
+            raise ValueError(info.msg("val cannot be None."))
         self.value = val
         self.info = info
 
     def __repr__(self):
-        return '%s(%r)' % (self.__class__.__name__, self.value)
+        return f"{self.__class__.__name__}({self.value!r})"
 
 
 class AttrRef(Value):
-    def __init__(
-            self,
-            name: str,
-            typeinfo: type or List,
-            info: DebugInfo) -> None:
-        '''
+    def __init__(self, name: str, typeinfo: type or List, info: debuginfo.DebugInfo) -> None:
+        """
         Arguments:
             name: name of the attribute-parameter
             typeinfo: type annotation of the attribute.
                 op's attributes in ONNX are usually single type or list of single type.
             info: for debugging use.
-        '''
+        """
         super().__init__(name, info)
         self.typeinfo = typeinfo
-        if not isinstance(typeinfo, (type, typing._GenericAlias)):
+        if not isinstance(typeinfo, (type, _GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
 
     def __repr__(self):
-        return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.typeinfo)
+        return f"{self.__class__.__name__}({self.value!r}, {self.typeinfo!r})"
 
 
 class DynamicKind(IntFlag):
@@ -338,14 +296,16 @@ class DynamicKind(IntFlag):
 
 
 class Dynamic(Value):
-    def __init__(self, val: str, kind: DynamicKind, info: DebugInfo, typeinfo=None) -> None:
-        '''
+    def __init__(
+        self, val: str, kind: DynamicKind, info: debuginfo.DebugInfo, typeinfo=None
+    ) -> None:
+        """
         Arguments:
             val: the name of the ONNX variable used to represent this value
             kind: the DynamicKind of this variable
             info: source-location information for error-messages/debugging
             typeinfo: type-information for the value
-        '''
+        """
         super().__init__(val, info)
         assert isinstance(kind, DynamicKind)
         self.kind = kind
@@ -353,6 +313,7 @@ class Dynamic(Value):
 
     def __repr__(self):
         if self.typeinfo is None:
-            return '%s(%r, %r)' % (self.__class__.__name__, self.value, self.kind)
-        return '%s(%r, %r, typeinfo=%r)' % (
-            self.__class__.__name__, self.value, self.kind, self.typeinfo)
+            return f"{self.__class__.__name__}({self.value!r}, {self.kind!r})"
+        return (
+            f"{self.__class__.__name__}({self.value}, {self.kind}, typeinfo={self.typeinfo})"
+        )

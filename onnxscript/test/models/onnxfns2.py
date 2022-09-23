@@ -33,7 +33,7 @@ def ReduceL2(data, axes: List[int], keepdims: int):
     # We need to cast integral types to floating point before taking square root.
     # Unfortunately, there is no way to do this, depending on the input type.
     # So, we uniformly cast to double, which is potentially less efficient.
-    sum_square_dbl = op.Cast (sum_square, to=1)
+    sum_square_dbl = op.Cast(sum_square, to=1)
     sqrt = op.Sqrt(sum_square_dbl)
     return op.CastLike(sqrt, data)
 
@@ -52,9 +52,9 @@ def ReduceLogSumExp(data, axes: List[int], keepdims: int):
 
 @script()
 def Hardmax(X, axis: int):
-    '''
+    """
     Hardmax is similar to ArgMax, with the result being encoded OneHot style.
-    '''
+    """
     argmax = op.ArgMax(X, axis=axis, keepdims=False)
     # Get the size of input X along specified axis
     # Unfortunately, we cannot say `end=axis+1`.
@@ -103,8 +103,8 @@ def DepthToSpace(input, blocksize: int, mode: str):
     # Create a 1D tensor representing blocksize
     size_0 = op.Constant(value_int=blocksize)
     size = op.Reshape(size_0, [1])
-    if (mode == 'DCR'):
-        tmpshape = op.Concat(b, size, size, c / (size*size), h, w, axis=0)
+    if mode == "DCR":
+        tmpshape = op.Concat(b, size, size, c / (size * size), h, w, axis=0)
         reshaped = op.Reshape(input, tmpshape)
         transposed = op.Transpose(reshaped, perm=[0, 3, 4, 1, 5, 2])
     else:
@@ -112,7 +112,7 @@ def DepthToSpace(input, blocksize: int, mode: str):
         tmpshape = op.Concat(b, c / (size * size), size, size, h, w, axis=0)
         reshaped = op.Reshape(input, tmpshape)
         transposed = op.Transpose(reshaped, perm=[0, 1, 4, 2, 5, 3])
-    finalshape = op.Concat(b, c / (size*size), h * size, w * size, axis=0)
+    finalshape = op.Concat(b, c / (size * size), h * size, w * size, axis=0)
     y = op.Reshape(transposed, finalshape)
     return y
 
@@ -125,9 +125,9 @@ def SpaceToDepth(input, blocksize: int):
     # size = op.Reshape(size_0, onnxscript.make_tensor('one', 7, [1], [1])) # TensorProto.INT64: 7
     size = op.Reshape(size_0, [1])
     # Reshape to [b, C, H/size, size, W/size, size]
-    tmpshape = op.Concat(b, C, H/size, size, W/size, size, axis=0)
+    tmpshape = op.Concat(b, C, H / size, size, W / size, size, axis=0)
     reshaped = op.Reshape(input, tmpshape)
     transposed = op.Transpose(reshaped, perm=[0, 3, 5, 1, 2, 4])
-    finalshape = op.Concat(b, C * size * size, H/size, W/size, axis=0)
+    finalshape = op.Concat(b, C * size * size, H / size, W / size, axis=0)
     y = op.Reshape(transposed, finalshape)
     return y

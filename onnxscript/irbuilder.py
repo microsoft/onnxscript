@@ -3,14 +3,17 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import io
 import logging
-from io import StringIO
-import onnx
-import onnx.helper as helper
-from onnx.defs import onnx_opset_version
-from . import type_annotation as ta
 import warnings
-from .values import OnnxFunction, Opset
+
+import onnx
+from onnx import helper
+from onnx.defs import onnx_opset_version
+
+import onnxscript
+from onnxscript import type_annotation as ta
+from onnxscript import values
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -21,18 +24,17 @@ def format(list, prefix, sep, suffix, formatter=str):
     return prefix + sep.join([formatter(x) for x in list]) + suffix
 
 
-def select_ir_version(version, domain=''):
+def select_ir_version(version, domain=""):
     """
     Selects the corresponding ir_version knowning the opset version
     for the main ONNX domain.
     """
-    if domain == '':
-        domain = 'ai.onnx'
+    if domain == "":
+        domain = "ai.onnx"
     return helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
 class Type:
-
     def __init__(self):
         self.onnx_type = onnx.TypeProto()
 
@@ -44,14 +46,15 @@ class Type:
 
 
 class TensorType(Type):
-
-    def __init__(self, elem_type) -> None:
+    def __init__(  # pylint: disable=super-init-not-called # TODO: why?
+        self, elem_type
+    ) -> None:
         tp = onnx.TypeProto()
         tp.tensor_type.elem_type = elem_type
         self.onnx_type = tp
 
     def __repr__(self) -> str:
-        return "TensorType(%d)" % self.onnx_type.tensor_type.elem_type
+        return f"TensorType({self.onnx_type.tensor_type.elem_type})"
 
 
 class Var:
@@ -66,7 +69,7 @@ class Var:
         return self.name
 
     def __repr__(self):
-        return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.typeinfo)
+        return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
 
     def typed_str(self):
         return self.name + " : " + str(self.typeinfo)
@@ -85,9 +88,12 @@ class Var:
         if self.typeinfo is None:
             if enforce_typed:
                 if default_type is None:
-                    raise TypeError(self.info.msg(
-                        "Variable %r is missing an annotation and default_type "
-                        "is not specified." % self.name))
+                    raise TypeError(
+                        self.info.msg(
+                            f"Variable {self.name} is missing an annotation and default_type "
+                            f"is not specified."
+                        )
+                    )
                 return helper.make_value_info(self.name, default_type.to_type_proto())
             return helper.make_value_info(self.name, Type().to_type_proto())
         tp = self.typeinfo.to_type_proto()
@@ -110,7 +116,7 @@ class Attr:
         self.attr_proto = attrproto
 
     def __str__(self):
-        if (self.attr_proto.HasField("ref_attr_name")):
+        if self.attr_proto.HasField("ref_attr_name"):
             return self.attr_proto.name + " = @" + self.attr_proto.ref_attr_name
         # self.name + " = " + self.value
         return helper.printable_attribute(self.attr_proto)
@@ -118,7 +124,7 @@ class Attr:
 
 class Stmt:
     def __init__(self, result, module, opname, args, attrs, sub_functions=None) -> None:
-        if not isinstance(module, Opset):
+        if not isinstance(module, values.Opset):
             raise TypeError(f"Unexpected type {type(module)} for module.")
         if not isinstance(opname, str):
             raise TypeError(f"Unexpected type {type(opname)} for opname.")
@@ -130,17 +136,16 @@ class Stmt:
         self.functions = sub_functions or {}
 
     def __str__(self):
-        if (isinstance(self.result, str)):
-            logger.debug("unexpected str type for self.result where type(self)=%r",
-                         type(self))
+        if isinstance(self.result, str):
+            logger.debug("unexpected str type for self.result where type(self)=%r", type(self))
         lhs = ", ".join(self.result)
         attrs = ""
-        if (self.attrs):
+        if self.attrs:
             attrs = format(self.attrs, "<", ", ", ">")
 
         args = format(self.args, "(", ", ", ")", opt_var_to_str)
         module = str(self.module)
-        callee = module + "." + self.opname if (module != '') else self.opname
+        callee = module + "." + self.opname if (module != "") else self.opname
         return lhs + " = " + callee + " " + attrs + args
 
     def debug_print(self):
@@ -149,12 +154,14 @@ class Stmt:
 
     def to_node_proto(self, name):
         if not isinstance(self.module.domain, str):
-            raise TypeError("Unexpected type %r for self.module." % type(self.module))
-        n = helper.make_node(self.opname,
-                             [opt_var_to_str(x) for x in self.args],
-                             [str(x) for x in self.result],
-                             domain=self.module.domain,
-                             name=name)
+            raise TypeError(f"Unexpected type {type(self.module)!r} for self.module.")
+        n = helper.make_node(
+            self.opname,
+            [opt_var_to_str(x) for x in self.args],
+            [str(x) for x in self.result],
+            domain=self.module.domain,
+            name=name,
+        )
         for a in self.attrs:
             n.attribute.append(a.attr_proto)
         return n
@@ -178,7 +185,7 @@ class Function:
         inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return (self.name + " " + attrs + attr_protos + inputs + " => " + outputs + stmts)
+        return self.name + " " + attrs + attr_protos + inputs + " => " + outputs + stmts
 
     def append_docstring(self, docstring):
         self.docstring += docstring
@@ -200,7 +207,7 @@ class Function:
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
-            st = StringIO()
+            st = io.StringIO()
             for s in self.stmts:
                 for attr in s.attrs:
                     if attr.attr_proto.HasField("g"):
@@ -238,33 +245,37 @@ class Function:
         if functions is None:
             functions = sub_functions.values()
         else:
+
             def to_proto(f):
                 if isinstance(f, onnx.FunctionProto):
                     return f
-                if isinstance(f, OnnxFunction):
+                if isinstance(f, onnxscript.OnnxFunction):
                     return f.to_function_proto()
                 raise TypeError("Expected a value of type FunctionProto of OnnxFunction")
+
             functions = [to_proto(f) for f in functions]
 
         opsets = {}
         for n in self.stmts:
             if n.module.domain not in opsets:
                 opsets[n.module.domain] = n.module.version
-        if '' not in opsets:
+        if "" not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
-            opsets[''] = onnx_opset_version()
+            opsets[""] = onnx_opset_version()
         for proto in functions:
             if proto.domain not in opsets:
                 opsets[proto.domain] = 1
 
-        if 'ir_version' not in kwargs:
-            kwargs['ir_version'] = select_ir_version(opsets[''])
-        opset_imports = [onnx.helper.make_opsetid(domain, version)
-                         for domain, version in opsets.items()]
+        if "ir_version" not in kwargs:
+            kwargs["ir_version"] = select_ir_version(opsets[""])
+        opset_imports = [
+            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
+        ]
 
-        return helper.make_model(graph, opset_imports=opset_imports,
-                                 functions=functions, **kwargs)
+        return helper.make_model(
+            graph, opset_imports=opset_imports, functions=functions, **kwargs
+        )
 
     def to_graph_proto(self, enforce_typed=False, io_types=None):
         """
@@ -285,7 +296,8 @@ class Function:
             [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,
             [x.to_value_info(enforce_typed, default_type=io_types) for x in self.inputs],
-            [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs])
+            [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs],
+        )
         return graph, sub_functions
 
     def get_opset_import(self):
@@ -300,8 +312,11 @@ class Function:
                 # raise RuntimeError(
                 #     ff"There is a version conflict in domain: {s.module.domain!r},\
                 #         with {self.name!r}.")
-                warnings.warn(f"There is a version conflict in domain: {s.module.domain!r}, "
-                              f"with {self.name!r}.", category=UserWarning)
+                warnings.warn(
+                    f"There is a version conflict in domain: {s.module.domain!r}, "
+                    f"with {self.name!r}.",
+                    category=UserWarning,
+                )
         return func_opset_imports
 
     def to_function_proto(self, domain):
@@ -316,10 +331,11 @@ class Function:
             values of the function arguments.
         """
         opsets = self.get_opset_import()
-        if domain != '':
+        if domain != "":
             if domain.domain in opsets and opsets[domain.domain] != domain.version:
                 raise RuntimeError(
-                    f"There is a version conflict in domain: {domain.domain!r}.")
+                    f"There is a version conflict in domain: {domain.domain!r}."
+                )
             opsets[domain.domain] = domain.version
         else:
             opsets = opsets.copy()
@@ -327,8 +343,9 @@ class Function:
         for n in nodes:
             if n.domain not in opsets:
                 opsets[n.domain] = 1  # TODO: how to get n.version?
-        opset_imports = [onnx.helper.make_opsetid(domain, version)
-                         for domain, version in opsets.items()]
+        opset_imports = [
+            onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
+        ]
 
         # attribute_proto is introduced in version onnx==1.13.0.
         # If this attribute is available, onnx-script uses it to
@@ -339,11 +356,10 @@ class Function:
         # all attributes with a default value are moved to the first
         # list, default values are removed.
         # TODO: remove this when onnx==1.13.0 is released.
-        if hasattr(onnx.FunctionProto, 'attribute_proto'):
+        if hasattr(onnx.FunctionProto, "attribute_proto"):
             atts = [a.name for a in self.attrs]
         else:
-            atts = ([a.name for a in self.attrs] +
-                    [a.attr_proto.name for a in self.attr_protos])
+            atts = [a.name for a in self.attrs] + [a.attr_proto.name for a in self.attr_protos]
 
         f = helper.make_function(
             self.domain,
@@ -353,16 +369,17 @@ class Function:
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
             attributes=atts,
-            doc_string=self.docstring)
-        if hasattr(onnx.FunctionProto, 'attribute_proto'):
+            doc_string=self.docstring,
+        )
+        if hasattr(onnx.FunctionProto, "attribute_proto"):
             f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
         return f
+
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
 
 class IRBuilder:
-
     def __init__(self):
         self.functions = {}
 
@@ -398,7 +415,7 @@ class IRBuilder:
         fn.append_output(v)
 
     def attr(self, attrname, attrval):
-        if (isinstance(attrval, Function)):
+        if isinstance(attrval, Function):
             attrval = str(attrval)  # TODO
         return Attr(helper.make_attribute(attrname, attrval))
 

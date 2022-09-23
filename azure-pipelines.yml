@@ -39,15 +39,16 @@ steps:
 
 - script: |
     python -m pip install --upgrade pip
-    pip install -r requirements-dev.txt
+    python -m pip install --upgrade setuptools
+    python -m pip install -r requirements-dev.txt
   displayName: 'Install dependencies'
 
 - script: |
       if [ '$(onnx.standard)' == '1' ]
         then
-          pip uninstall -y onnx-function-experiment
-          pip uninstall -y ort-function-experiment-nightly
-          pip install onnx onnxruntime
+          python -m pip uninstall -y onnx-function-experiment
+          python -m pip uninstall -y ort-function-experiment-nightly
+          python -m pip install onnx onnxruntime
       fi
   displayName: 'Install onnx'
 
@@ -58,10 +59,6 @@ steps:
 - script: |
     pytest -v onnxscript --cov=onnxscript --cov-report term-missing
   displayName: 'pytest'
-
-- script: |
-    python -m flake8 onnxscript --max-line-length 95 --exclude "**test/models/*.py,**onnx_backend_test_code/*.py"
-  displayName: 'flake8'
 
 - script: |
     python setup.py install

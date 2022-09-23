@@ -2,20 +2,6 @@
 
 ONNXScript is a subset of Python that can be used to author ONNX functions (as well as ONNX models).
 
-## Contributing
-
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
-
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
 ## Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
@@ -129,5 +115,43 @@ More examples can be found in folder [docs/examples](docs/examples).
 
 ## Contributing
 
+This project welcomes contributions and suggestions.  Most contributions require you to agree to a
+Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
+the rights to use your contribution. For details, visit [Microsoft CLA](https://cla.opensource.microsoft.com).
+
+When you submit a pull request, a CLA bot will automatically determine whether you need to provide
+a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
+provided by the bot. You will only need to do this once across all repos using our CLA.
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+**Unit Test**
+
 Every change impacting the converter or the eager evaluation must be unit tested with
 class `OnnxScriptTestCase` to ensure both systems do return the same results with the same inputs.
+
+**Code Style**
+
+We use flake8, black, isort, and mypy to check code format. You can find their configuration in .flake8 and pyproject.toml, and 
+
+run `auto-formatter` by:
+
+```bash
+./tools/lint.sh
+```
+
+and run `check` by:
+
+```bash
+./tools/style.sh
+```
+
+optional check:
+
+```bash
+./tools/style_optional.sh
+```
+
+NOTE: mypy and pylint needs to be manually address

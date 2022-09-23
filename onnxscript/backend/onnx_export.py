@@ -5,11 +5,11 @@
 
 from onnxscript.onnx_types import ParametricTensor
 from typing import Union
+
 import numpy
 import onnx
+from onnx import FunctionProto, ModelProto, ValueInfoProto
 from onnx.helper import make_node
-from onnx import ModelProto, FunctionProto, ValueInfoProto, TensorProto
-import onnx.numpy_helper
 
 
 _template_python = '''
@@ -22,12 +22,9 @@ from onnxscript.values import Opset
 from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
 {%- endif %}
 from onnxscript.onnx_opset import opset{{ opsets[''] }}
-
 {% for domain, version in unique_function_domain_version: %}
 {{ domain }}{{ version }} = Opset("{{ domain }}", {{ version }}){% endfor %}
-
 {% for domain, name, fct in functions: %}
-
 @script({{ domain }}{{ version }})
 def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
     ", ".join(map(rename, fct['proto'].input)) }}):
@@ -38,9 +35,7 @@ def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
     {%- for node in fct['proto'].node: %}
 {{ python_make_node(node, opsets, indent=1) }}{% endfor %}
     return {{ ", ".join(map(rename, fct['proto'].output)) }}
-
 {% endfor %}
-
 @script()
 def {{ function_name }}{{translate_sig(graph.input, graph.output)}}
     {% if doc_string %}"""
@@ -412,7 +407,6 @@ def export_template(model_onnx, template,
                     use_operators=False, rename=False, inline_const=False):
     """
     Exports an ONNX model into a code based on a template.
-
     :param model_onnx: string or ONNX graph
     :param template: exporting template
     :param name: to overwrite onnx name
@@ -529,7 +523,6 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
                   clean_code=True, inline_const=False):
     """
     Exports an ONNX model to the *python* syntax.
-
     :param model_onnx: string or ONNX graph
     :param opset: opset to export to
         (None to select the one from the graph)
@@ -541,26 +534,20 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
     :param clean_code: clean the code
     :param inline_const: replace ONNX constants inline if compact
     :return: python code
-
     The following example shows what a python code creating a graph
     implementing the KMeans would look like.
-
     .. runpython::
         :showcode:
         :process:
-
         import numpy
         from sklearn.cluster import KMeans
         from mlprodict.onnx_conv import to_onnx
         from mlprodict.onnx_tools.onnx_export import export2python
-
         X = numpy.arange(20).reshape(10, 2).astype(numpy.float32)
         tr = KMeans(n_clusters=2)
         tr.fit(X)
-
         onx = to_onnx(tr, X, target_opset=14)
         code = export2python(onx)
-
         print(code)
     """
     if isinstance(model_onnx, str):

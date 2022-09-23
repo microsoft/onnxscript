@@ -4,15 +4,15 @@
 # --------------------------------------------------------------------------
 
 import unittest
-from onnxscript.test.testutils import TestBase
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
+from onnxscript.test.testutils import TestBase
 
 
 class IfOpTester(TestBase):
-
     def test_no_else(self):
-        '''Basic test for if-then without else.'''
+        """Basic test for if-then without else."""
         # TODO: pass default opset as parameter to @script
         @script()
         def if1(cond, x, y):
@@ -45,5 +45,5 @@ class IfOpTester(TestBase):
         self.assertSame(if2, if3)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

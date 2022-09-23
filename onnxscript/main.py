@@ -6,10 +6,11 @@
 import ast
 import inspect
 import textwrap
+
 import onnx.helper
-from .converter import Converter
-from . import values
-from .values import OnnxFunction
+
+import onnxscript
+from onnxscript import converter, values
 
 
 def get_src_and_ast(f):
@@ -17,33 +18,37 @@ def get_src_and_ast(f):
         src = inspect.getsource(f)
     except OSError as e:
         raise RuntimeError(
-            "Decorator script does not work on dynamically "
-            "compiled function %r." % f.__name__) from e
+            f"Decorator script does not work on dynamically "
+            f"compiled function {f.__name__}."
+        ) from e
     src = textwrap.dedent(src)
     top_level_ast = ast.parse(src)
-    assert type(top_level_ast) == ast.Module
+    assert isinstance(top_level_ast, ast.Module)
     assert len(top_level_ast.body) == 1
     f_ast = top_level_ast.body[0]
-    assert type(f_ast) == ast.FunctionDef
+    assert isinstance(f_ast, ast.FunctionDef)
     return src, f_ast
 
 
 def get_ast(f):
-    src, ast = get_src_and_ast(f)
+    _, ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
     return ast
 
 
-def script_check(f: ast.FunctionDef, opset, global_names, source,
-                 default_opset=None):
-    '''
+def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=None):
+    """
     Check that a function falls into the ONNXScript subset of Python.
-    '''
+    """
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
-    converter = Converter(opset=opset, global_names=global_names, source=source,
-                          default_opset=default_opset)
-    return converter.top_level_stmt(f)
+    convert = converter.Converter(
+        opset=opset,
+        global_names=global_names,
+        source=source,
+        default_opset=default_opset,
+    )
+    return convert.top_level_stmt(f)
 
 
 def script(opset=None, default_opset=None, **kwargs):
@@ -73,15 +78,16 @@ def script(opset=None, default_opset=None, **kwargs):
             one = op.Constant(value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
             return op.Div(op.Log(x), op.CastLike(op.Log(cst), x))
     """
-    if (opset is None):
-        opset = values.Opset('this', 1)
+    if opset is None:
+        opset = values.Opset("this", 1)
     if not isinstance(opset, values.Opset):
         raise TypeError(
-            "Script parameter must be an opset. Did you use @script instead of @script()?")
+            "Script parameter must be an opset. Did you use @script instead of @script()?"
+        )
 
     def transform(f):
         if inspect.isfunction(f):
-            src, ast = get_src_and_ast(f)
+            src, ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
             # The script should be compiled using the globals/locals at the definition site.
             # This allows the script to reference names defined outside the script,
             # which is used for a few different purposes.
@@ -92,19 +98,17 @@ def script(opset=None, default_opset=None, **kwargs):
             env.update(closure.nonlocals)
             result = script_check(ast, opset, env, src, default_opset=default_opset)
             # TODO: add transformations.
-            return OnnxFunction(opset, f, result, src, kwargs)
-        else:
-            raise TypeError(
-                "The ONNXScript decorator should be applied to functions only.")
+            return onnxscript.OnnxFunction(opset, f, result, src, kwargs)
+        raise TypeError("The ONNXScript decorator should be applied to functions only.")
 
     return transform
 
 
 def is_converted_fun(f):
-    '''
+    """
     Return True if f is a function converted by onnx-script decorator.
-    '''
-    return isinstance(f, OnnxFunction)
+    """
+    return isinstance(f, onnxscript.OnnxFunction)
 
 
 def export_onnx_lib(functions, filename: str) -> None:
@@ -114,7 +118,8 @@ def export_onnx_lib(functions, filename: str) -> None:
     model = onnx.helper.make_model(
         onnx.GraphProto(),
         functions=[f.to_function_proto() for f in functions],
-        producer_name='p2o',
-        opset_imports=[onnx.helper.make_opsetid("", 15)])
+        producer_name="p2o",
+        opset_imports=[onnx.helper.make_opsetid("", 15)],
+    )
 
     onnx.save(model, filename)
