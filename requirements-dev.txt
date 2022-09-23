@@ -1,6 +1,5 @@
 autopep8
 click
-flake8
 numpy==1.21.5
 matplotlib
 --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html
@@ -16,4 +15,9 @@ pytest-cov
 pytest-azurepipelines
 pytest-subtests
 torch
+# Lint
+flake8
+mypy
+black
+isort[colors]
 
