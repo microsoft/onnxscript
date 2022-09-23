@@ -24,5 +24,11 @@ except importlib_metadata.PackageNotFoundError:
     __version__ = None
 
 
-__all__ = ["script", "export_onnx_lib", "OnnxFunction",
-           "proto2python", "proto2text", "external_tensor"]
+__all__ = [
+    "script",
+    "export_onnx_lib",
+    "OnnxFunction",
+    "proto2python",
+    "proto2text",
+    "external_tensor",
+]
