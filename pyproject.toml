@@ -74,6 +74,7 @@ ignore_errors = true
 target-version = ["py37", "py38", "py39", "py310"]
 # Black's extend-exclude needs to be a regex string
 extend-exclude = "/onnxscript/test|/onnxscript/backend"
+line-length = 95
 
 [tool.isort]
 profile = "black"
