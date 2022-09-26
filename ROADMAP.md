@@ -1,6 +1,20 @@
-# onnx-script roadmap
+<table>
+<tr>
+<td>⚠️</td>
+<td>
+<strong>NOTE:</strong> ONNX Script is in <strong><em>very early
+and active development</em></strong> and the team anticipates
+<strong><em>breaking changes</em></strong> as the project evolves.
+ONNX Script is <strong><ins>not ready for production</ins></strong>,
+but early feedback is welcome.
+</td>
+<td>⚠️</td>
+</tr>
+</table>
 
-onnx-script is being actively developed. Its features and specs may change as a result.
+----
+
+# ONNX Script Roadmap
 
 * Improve error-checking and error-handling to identify use of unsupported
 Python features/constructs as early as possible and report it.
