@@ -36,13 +36,7 @@ k = 16
 n = 4
 a = np.random.rand(k, m).astype("float32").T
 w = np.random.rand(n, k).astype("float32").T
-b = (
-    np.random.rand(
-        n,
-    )
-    .astype("float32")
-    .T
-)
+b = np.random.rand(n).astype("float32").T
 
 #%%
 # Evaluate the function:
