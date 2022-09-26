@@ -28,18 +28,23 @@ of the Python language.
 
 ## Design Overview
 
-ONNX Script provides two major capabilities for authoring and debugging
+ONNX Script provides a few major capabilities for authoring and debugging
 ONNX models and functions:
 
-* A converter that translates a Python function into an ONNX graph. 
-  The converter analyzes the [Python Abstract Syntax Tree][python-ast]
-  and converts that tree into an ONNX graph equivalent to the function.
+* A converter which translates a Python ONNX Script function into an
+  ONNX graph, accomplished by traversing the [Python Abstract Syntax Tree][python-ast] to build an ONNX graph equivalent of the function.
+
+* A converter that operates inversely, translating ONNX models and
+  functions into ONNX Script. This capability can be used to fully round-trip
+  ONNX Script ↔ ONNX graph.
 
 * A runtime shim that allows such functions to be evaluated
-  (in an "eager mode"); this functionality currently relies on
-  [ONNX Runtime][onnx-runtime] for executing every [ONNX Operator][onnx-ops].
+  (in an "eager mode"). This functionality currently relies on
+  [ONNX Runtime][onnx-runtime] for executing every [ONNX Operator][onnx-ops],
+  and there is a Python-only reference runtime for ONNX underway that
+  will also be supported.
 
-The runtime is intended to help understand and debug function definitions. Performance is not a goal here.
+  Note that the runtime is intended to help understand and debug function definitions. Performance is not a goal here.
 
 ## Installing ONNX Script
 
