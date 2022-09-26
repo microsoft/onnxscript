@@ -25,7 +25,7 @@ jobs:
             python -m pip install --upgrade pip
             pip install -r requirements-dev.txt
       - name: "Build package"
-        run: python setup.py sdist
+        run: pip install -e .
       - name: "pytest"
         run: pytest -v onnxscript --cov=onnxscript
       - uses: codecov/codecov-action@v3
