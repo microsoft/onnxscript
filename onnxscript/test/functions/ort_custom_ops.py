@@ -1,6 +1,7 @@
+import math
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset16 as op
-import math
 
 M_SQRT1_2 = math.sqrt(0.5)
 
@@ -47,4 +48,4 @@ def SigmoidGrad(dY, Y):
 
 @script()
 def TanhGrad(dY, Y):
-    return dY * (1.0 - Y*Y)
+    return dY * (1.0 - Y * Y)

@@ -14,6 +14,7 @@ def renaming(A: FLOAT["N"]) -> FLOAT["N"]:
     T = op.Neg(A)
     return T
 
+
 # clash between generated-name and pre-existing name
 
 

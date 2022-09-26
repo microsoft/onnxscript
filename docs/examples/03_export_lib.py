@@ -1,6 +1,6 @@
 """
 Generating a LibProto
-===================================================
+=====================
 
 The examples below show how we can define a library consisting of multiple functions,
 and export it.
@@ -16,6 +16,7 @@ from onnxscript.values import Opset
 # The domain/version of the library functions defined below
 opset = Opset('com.mydomain', 1)
 
+
 #%%
 # The definitions of the functions:
 @script(opset)
@@ -26,6 +27,7 @@ def l2norm(X):
 @script(opset)
 def square_loss(X, Y):
     return l2norm(X - Y)
+
 
 #%%
 # Export the functions as an ONNX library.

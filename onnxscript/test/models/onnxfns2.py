@@ -14,44 +14,47 @@ from typing import List
 
 
 @script()
-def ReduceSumSquare(data, axes: List[int], keepdims: int=0):
+def ReduceSumSquare(data, axes: List[int], keepdims: int):
     # Note: attribute input is promoted to input when calling ReduceSum
     t_axes = op.Constant(value_ints=axes)
     return op.ReduceSum(data * data, t_axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL1(data, axes: List[int], keepdims: int=0):
+def ReduceL1(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     return op.ReduceSum(op.Abs(data), t_axes, keepdims=keepdims)
 
 
 @script()
-def ReduceL2(data, axes: List[int], keepdims: int=0):
-    # TODO: ONNX spec is unclear about behavior for integral types!
+def ReduceL2(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     sum_square = op.ReduceSum(data * data, t_axes, keepdims=keepdims)
-    # TODO: must cast for integral types
-    return op.Sqrt(sum_square)
+    # We need to cast integral types to floating point before taking square root.
+    # Unfortunately, there is no way to do this, depending on the input type.
+    # So, we uniformly cast to double, which is potentially less efficient.
+    sum_square_dbl = op.Cast(sum_square, to=1)
+    sqrt = op.Sqrt(sum_square_dbl)
+    return op.CastLike(sqrt, data)
 
 
 @script()
-def ReduceLogSum(data, axes: List[int], keepdims: int=0):
+def ReduceLogSum(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     return op.Log(op.ReduceSum(data, t_axes, keepdims=keepdims))
 
 
 @script()
-def ReduceLogSumExp(data, axes: List[int], keepdims: int=0):
+def ReduceLogSumExp(data, axes: List[int], keepdims: int):
     t_axes = op.Constant(value_ints=axes)
     return op.Log(op.ReduceSum(op.Exp(data), t_axes, keepdims=keepdims))
 
 
 @script()
 def Hardmax(X, axis: int):
-    '''
+    """
     Hardmax is similar to ArgMax, with the result being encoded OneHot style.
-    '''
+    """
     argmax = op.ArgMax(X, axis=axis, keepdims=False)
     # Get the size of input X along specified axis
     # Unfortunately, we cannot say `end=axis+1`.
@@ -100,8 +103,8 @@ def DepthToSpace(input, blocksize: int, mode: str):
     # Create a 1D tensor representing blocksize
     size_0 = op.Constant(value_int=blocksize)
     size = op.Reshape(size_0, [1])
-    if (mode == 'DCR'):
-        tmpshape = op.Concat(b, size, size, c / (size*size), h, w, axis=0)
+    if mode == "DCR":
+        tmpshape = op.Concat(b, size, size, c / (size * size), h, w, axis=0)
         reshaped = op.Reshape(input, tmpshape)
         transposed = op.Transpose(reshaped, perm=[0, 3, 4, 1, 5, 2])
     else:
@@ -109,7 +112,7 @@ def DepthToSpace(input, blocksize: int, mode: str):
         tmpshape = op.Concat(b, c / (size * size), size, size, h, w, axis=0)
         reshaped = op.Reshape(input, tmpshape)
         transposed = op.Transpose(reshaped, perm=[0, 1, 4, 2, 5, 3])
-    finalshape = op.Concat(b, c / (size*size), h * size, w * size, axis=0)
+    finalshape = op.Concat(b, c / (size * size), h * size, w * size, axis=0)
     y = op.Reshape(transposed, finalshape)
     return y
 
@@ -122,9 +125,9 @@ def SpaceToDepth(input, blocksize: int):
     # size = op.Reshape(size_0, onnxscript.make_tensor('one', 7, [1], [1])) # TensorProto.INT64: 7
     size = op.Reshape(size_0, [1])
     # Reshape to [b, C, H/size, size, W/size, size]
-    tmpshape = op.Concat(b, C, H/size, size, W/size, size, axis=0)
+    tmpshape = op.Concat(b, C, H / size, size, W / size, size, axis=0)
     reshaped = op.Reshape(input, tmpshape)
     transposed = op.Transpose(reshaped, perm=[0, 3, 5, 1, 2, 4])
-    finalshape = op.Concat(b, C * size * size, H/size, W/size, axis=0)
+    finalshape = op.Concat(b, C * size * size, H / size, W / size, axis=0)
     y = op.Reshape(transposed, finalshape)
     return y

@@ -20,9 +20,10 @@ from onnx.helper import make_tensor
 
 def option1(X, Bias: FLOAT[...] = None):
     Y = op.Log(X)
-    if (Bias != None):
+    if Bias != None:
         Y = Y + Bias
     return Y
+
 
 # The pros/cons of the option2 implementation below are just the dual of option1.
 # (1) This leads to an unnecessary tensor creation and add operation.
@@ -32,11 +33,12 @@ def option1(X, Bias: FLOAT[...] = None):
 # similar to initializers in GraphProto
 
 
-def option2(X, Bias=op.Constant(value=make_tensor('zero', TensorProto.FLOAT, [1], [0]))):
+def option2(X, Bias=op.Constant(value=make_tensor("zero", TensorProto.FLOAT, [1], [0]))):
     Y = op.Log(X)
     Bias = CastLike(Bias, Y)
     Y = Y + Bias
     return Y
+
 
 # The implementation option3 is similar to option1, but differs in one aspect.
 # It changes the type-signature of the op/function, namely Bias is declared to

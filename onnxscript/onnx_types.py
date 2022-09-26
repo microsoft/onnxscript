@@ -7,7 +7,7 @@ import onnx
 import onnx.helper
 
 
-class Tensor:
+class TensorType:
     # Reference implementation placeholder
     # represents a generic ONNX tensor type
     def __init__(self, dtype=onnx.TensorProto.UNDEFINED, shape=None) -> None:
@@ -19,12 +19,12 @@ class Tensor:
         return onnx.TensorProto.DataType.Name(self.dtype) + shapestr
 
     def __repr__(self) -> str:
-        return "%s(dtype=%r, shape=%r)" % (
-            self.__class__.__name__, self.dtype, self.shape)
+        return f"{self.__class__.__name__}(dtype={self.dtype!r}, shape={self.shape!r})"
 
     def to_type_proto(self):
         # TODO: handle None
         return onnx.helper.make_tensor_type_proto(self.dtype, self.shape)
+
 
 # Utilities used to create parametrized type-annotations for tensors.
 # Example type annotations:
@@ -38,26 +38,31 @@ class ParametricTensor:
     """
     Defines a dense tensor of any shape.
     """
+
+    types = {}
+
     def __init__(self, dtype) -> None:
         self.dtype = dtype
+        ParametricTensor.types[dtype] = self
 
     def __getitem__(self, shape):
-        def mk_dim(dim):
+        def mk_dim(dim):  # pylint: disable=unused-variable # TODO: why?
             r = onnx.TensorShapeProto.Dimension()
-            if (isinstance(dim, int)):
+            if isinstance(dim, int):
                 r.dim_value = dim
-            elif (isinstance(dim, str)):
+            elif isinstance(dim, str):
                 r.dim_param = dim
-            elif (dim is not None):
+            elif dim is not None:
                 raise TypeError("Invalid dimension")
             return r
-        if (isinstance(shape, tuple)):
+
+        if isinstance(shape, tuple):
             s = shape
-        elif (shape == Ellipsis):
+        elif shape == Ellipsis:
             s = None
         else:
             s = [shape]
-        return Tensor(self.dtype, s)
+        return TensorType(self.dtype, s)
 
     def to_type_proto(self):
         return onnx.helper.make_tensor_type_proto(self.dtype, ())

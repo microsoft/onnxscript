@@ -1,0 +1,16 @@
+# flake8 is currently not yet supported by pyproject.toml.
+# Please move this into pyproject.toml, when it does.
+
+[flake8]
+max-line-length = 95
+### DEFAULT IGNORES FOR 4-space INDENTED PROJECTS ###
+# W503 talks about operator formatting which is too opinionated.
+# E203 is need to support black formatting.
+# https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html
+extend-ignore = E203, W503
+exclude =
+  .git,
+  __pycache__,
+  .eggs,
+  **test/models/*.py,
+  **onnx_backend_test_code/*.py,

@@ -5,21 +5,25 @@
 
 import ast
 import logging
+import sys
+import typing
 from enum import IntEnum
+
 import numpy
 import onnx
-import onnx.helper as helper
-import typing
-from . import onnx_types as types
-from .irbuilder import IRBuilder
-from . import analysis as analysis
-from . import type_annotation as ta
-from . import values as values
-from .onnx_opset import opset15
-from .values import (
-    ConstValue, AttrRef, Dynamic, OnnxFunction, Op, DynamicKind,
-    DebugInfo)
+from onnx import helper
 
+# _known_modules() needs full module name
+import onnxscript
+from onnxscript import analysis, autocast, debuginfo, irbuilder, onnx_opset, onnx_types
+from onnxscript import type_annotation as ta
+from onnxscript import values
+
+use_subscript = sys.version_info[:2] >= (3, 9)
+if use_subscript:
+    ast_Subscript = ast.Subscript
+else:
+    ast_Subscript = (ast.Subscript, ast.Index)
 
 logger = logging.getLogger("onnx-script")
 
@@ -55,7 +59,7 @@ def ignore(cond, msg):
 
 
 # Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, converter):
+def py_type_to_onnx_type(pytype: type, info: debuginfo.DebugInfo):
     if pytype is bool:
         return onnx.TensorProto.BOOL
     if pytype is int:
@@ -64,29 +68,27 @@ def py_type_to_onnx_type(pytype: type, converter):
         return onnx.TensorProto.FLOAT
     if pytype is str:
         return onnx.TensorProto.STRING
-    fail(DebugInfo(pytype, converter).msg(
-        f"Tensor conversion of element of type {pytype} is not implemented"))
+    fail(info.msg(f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
+def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: debuginfo.DebugInfo):
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
-            fail(DebugInfo(pyvalue, converter).msg(
-                "Cannot convert an empty list to tensor"))
+            fail(info.msg("Cannot convert an empty list to tensor"))
         pytype = type(pyvalue[0])
         if not all([isinstance(e, pytype) for e in pyvalue]):
-            fail(DebugInfo(pyvalue, converter).msg(
-                "Cannot convert an list with elements of different types to tensor"))
+            fail(info.msg("Cannot convert an list with elements of different types to tensor"))
         return helper.make_tensor(
-            tensor_name, py_type_to_onnx_type(pytype, converter), [len(pyvalue)], pyvalue)
-
-    onnx_type = py_type_to_onnx_type(type(pyvalue), converter)
+            tensor_name,
+            py_type_to_onnx_type(pytype, info),
+            [len(pyvalue)],
+            pyvalue,
+        )
+    onnx_type = py_type_to_onnx_type(type(pyvalue), info)
     if onnx_type is onnx.TensorProto.BOOL:
-        return helper.make_tensor(
-            tensor_name, onnx_type, [], [int(pyvalue)])
+        return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
     if onnx_type is onnx.TensorProto.STRING:
-        return helper.make_tensor(
-            tensor_name, onnx_type, [], vals=[pyvalue.encode('utf-8')])
+        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
 
     return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
@@ -94,6 +96,9 @@ def pyvalue_to_tensor(tensor_name: str, pyvalue, converter):
 # map from python operators to ONNX ops
 primop_map = {
     ast.Add: "Add",
+    ast.And: "And",
+    ast.BitAnd: "And",
+    ast.BitOr: "Or",
     ast.Div: "Div",
     ast.Eq: "Equal",
     ast.Gt: "Greater",
@@ -104,7 +109,8 @@ primop_map = {
     ast.Mod: "Mod",
     ast.Mult: "Mul",
     ast.Not: "Not",
-    ast.NotEq: 'NotEqual',
+    ast.NotEq: "NotEqual",
+    ast.Or: "Or",
     ast.Pow: "Pow",
     ast.Sub: "Sub",
     ast.USub: "Neg",
@@ -112,22 +118,20 @@ primop_map = {
 
 
 def _known_modules():
-    import onnxscript
-    import onnxscript.onnx_types
-    import onnxscript.onnx_opset
+
     res = {
-        'numpy': numpy,
-        'np': numpy,
-        'onnx': onnx,
-        'onnx.helper': onnx.helper,
-        'onnxscript': onnxscript,
-        'onnxscript.onnx_opset': onnxscript.onnx_opset,
-        'onnxscript.values': onnxscript.values,
-        'onnxscript.onnx_types': onnxscript.onnx_types,
+        "numpy": numpy,
+        "np": numpy,
+        "onnx": onnx,
+        "onnx.helper": onnx.helper,
+        "onnxscript": onnxscript,
+        "onnxscript.onnx_opset": onnxscript.onnx_opset,
+        "onnxscript.values": onnxscript.values,
+        "onnxscript.onnx_types": onnxscript.onnx_types,
     }
     for att in dir(onnxscript.onnx_opset):
-        if att.startswith('opset'):
-            res['onnxscript.onnx_opset.%s' % att] = getattr(onnxscript.onnx_opset, att)
+        if att.startswith("opset"):
+            res[f"onnxscript.onnx_opset.{att}"] = getattr(onnxscript.onnx_opset, att)
     return res
 
 
@@ -137,9 +141,9 @@ class ConverterExpressionKind(IntEnum):
 
 
 class ConverterExpression:
-
-    def __init__(self, name: typing.Union[str, typing.List[str]],
-                 kind: ConverterExpressionKind):
+    def __init__(
+        self, name: typing.Union[str, typing.List[str]], kind: ConverterExpressionKind
+    ):
         self.name = name
         self.kind = kind
 
@@ -175,57 +179,86 @@ class Converter:
         logger.addHandler(console)
     """
 
-    def __init__(self, ir_builder=None, opset=None, global_names=None, source=None,
-                 default_opset=None):
-        self.ir_builder = ir_builder or IRBuilder()
+    def __init__(
+        self,
+        ir_builder=None,
+        opset=None,
+        global_names=None,
+        source=None,
+        default_opset=None,
+    ):
+        self.ir_builder = ir_builder or irbuilder.IRBuilder()
         self.known_modules = _known_modules()
         self.source = source
-        if (global_names is None):
-            # TODO: Cleanup: This should be eventually removed.
-            self.globals = {"int": int, "float": float, "str": str}
-        else:
-            self.globals = global_names
-        self.pure_modules = ["onnxscript"]
+        if global_names is not None:
+            # We make a copy in case function eval modifies it.
+            self.globals = global_names.copy()
         self.this_module = opset
         self.default_opset_ = default_opset
+        self.stacked_test_conditions = []
+        self.break_conditions = []
 
     @property
     def default_opset(self):
         if self.default_opset_ is None:
             if self.current_fn is None:
                 raise RuntimeError("Unable to return a default opset, None was detected yet.")
-            warn("No default opset was defined or detected in function %r, "
-                 "the converter uses opset 15." % (self.current_fn.name, ))
-            return opset15
+            warn(
+                f"No default opset was defined or detected in function "
+                f"{self.current_fn.name!r}, the converter uses opset 15."
+            )
+
+            return onnx_opset.opset15
         return self.default_opset_
 
     def set_default_opset(self, opset, node):
-        if opset.domain != '':
+        if opset.domain != "":
             return
         if self.default_opset_ is not None:
-            if (opset.domain != self.default_opset_.domain or
-                    opset.version != self.default_opset_.version):
-                fail(DebugInfo(node, self).msg(
-                    "Two distincts opset were used (%r != %r)." % (
-                        opset, self.default_opset_)))
+            if (
+                opset.domain != self.default_opset_.domain
+                or opset.version != self.default_opset_.version
+            ):
+                fail(
+                    debuginfo.DebugInfo(node, self).msg(
+                        f"Two distincts opset were used ({opset} != {self.default_opset_})."
+                    )
+                )
         else:
             self.default_opset_ = opset
 
     def init_function_translation(self):
-        """Initialize self for translating a new function."""
+        """Initialize self for translating a new (top-level) function."""
         self.outer = []
         self.current_fn = None
         self.nextvar = 0
         self.used_vars = set()
         self.locals = [{}]
 
+    """
+    Name resolution and namescopes: This component handles the following aspects:
+    * Name-scopes are different in Python and the generated ONNX:
+      - Control-flow blocks (a loop body or the then-or-else block of an if-stmt)
+        form part of the same name-scope in Python, but will be mapped to a nested
+        name-scope (as a sub-graph) in ONNX.
+    * Script-time name-value tracking: Name lookup during script-time returns
+      statically-known information about the value the name will have at runtime.
+    """
+
     def enter_scope(self, name, parent_node):
+        """
+        Enter a control-flow block (a loop body or if-then-else branch).
+        The block is translated into a nested-scope in ONNX.
+        """
         self.outer.insert(0, self.current_fn)
         self.current_fn = self.ir_builder.new_function(name)
         self.locals.insert(0, {})
         logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
+        """
+        Exit from a control-flow block (a loop body or if-then-else branch).
+        """
         logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
         self.current_fn = self.outer[0]
@@ -258,7 +291,7 @@ class Converter:
         self.used_vars.add(r)
         return r
 
-    def to_onnx_attr_ref(self, val: AttrRef):
+    def to_onnx_attr_ref(self, val: values.AttrRef):
         pytype = val.typeinfo
         attrname = None
         if pytype is float:
@@ -270,20 +303,17 @@ class Converter:
         elif pytype is typing.List[int]:
             attrname = "value_ints"
         else:
-            fail(DebugInfo(val, self).msg(f"Unsupported attribute type: {pytype}"))
+            fail(debuginfo.DebugInfo(val, self).msg(f"Unsupported attribute type {pytype!r}."))
         return self.ir_builder.attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None, info=None):
-        if isinstance(val, AttrRef):
+        if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
             attr = self.to_onnx_attr_ref(val)
-            self.emit([result], Op(self.default_opset, "Constant"), [], [attr])
+            self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
             return result
-        if isinstance(val, ConstValue) and isinstance(val.value, float):  # TODO
-            result = self.generate_unique_name(target if target else "tmp")
-            return self.emit_const(val.value, result, info)
-        if isinstance(val, Dynamic):
+        if isinstance(val, values.Dynamic):
             return val.value
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
@@ -297,60 +327,89 @@ class Converter:
         self.ir_builder.add_docstring(self.current_fn, docstring)
 
     def emit(self, outputs, callee, inputs, attrs, sub_functions=None):
-        if callee.opname == 'NotEqual':
-            if len(attrs) != 0:
-                raise RuntimeError(
-                    "Operator %r does not support attributes." % callee.opname)
-            tmp = self.generate_unique_name()
-            self.ir_builder.add_stmt(
-                self.current_fn, [tmp], callee.opset, "Equal", inputs, attrs)
-            self.ir_builder.add_stmt(
-                self.current_fn, outputs, callee.opset, "Not", [tmp], attrs)
-        else:
-            self.ir_builder.add_stmt(
-                self.current_fn, outputs, callee.opset,
-                callee.opname, inputs, attrs, sub_functions)
+        self.ir_builder.add_stmt(
+            self.current_fn,
+            outputs,
+            callee.opset,
+            callee.opname,
+            inputs,
+            attrs,
+            sub_functions,
+        )
 
     def emit_loop(self, outputs, callee, inputs, attrs, info, sub_functions=None):
         def rename(x):
             r = self.generate_unique_name(x)
-            self.bind(x, Dynamic(r, DynamicKind.Output, info))
+            self.bind(x, values.Dynamic(r, values.DynamicKind.Output, info))
             return r
 
         # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
-        self.emit(onnx_outputs, Op(self.default_opset, callee), onnx_inputs, attrs,
-                  sub_functions=sub_functions)
+        self.emit(
+            onnx_outputs,
+            values.Op(self.default_opset, callee),
+            onnx_inputs,
+            attrs,
+            sub_functions=sub_functions,
+        )
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self)
+        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
         attr = self.ir_builder.attr("value", tensor)
-        self.emit([ovar], Op(self.default_opset, "Constant"), [], [attr])
+        self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
-    def is_pure_module(self, m):
-        return (m in self.pure_modules)
-
     def is_constant_expr(self, node):
-        if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node, self), raise_exception=False)
-            if val is None:
-                # A function...
-                return False
-            return isinstance(val, ConstValue) and self.is_pure_module(val.value)
-        if isinstance(node, (ast.Call, ast.BinOp, ast.UnaryOp, ast.Compare,
-                             ast.Num, ast.Str, ast.Attribute, ast.List, ast.Load,
-                             ast.NameConstant, ast.Constant, ast.Str)):
+        if isinstance(node, ast.UnaryOp):
+            if self.is_constant_expr(node.operand):
+                return True
+            return False
+        if isinstance(
+            node,
+            (
+                ast.Call,
+                ast.BinOp,
+                ast.UnaryOp,
+                ast.Compare,
+                ast.Num,
+                ast.Str,
+                ast.Attribute,
+                ast.List,
+                ast.Load,
+                ast.NameConstant,
+                ast.Constant,
+                ast.Str,
+            ),
+        ):
             return all([self.is_constant_expr(c) for c in ast.iter_child_nodes(node)])
         return False
 
-    def eval_constant_expr(self, node):
-        # TODO: assert (self.is_constant_expr(node))
-        locals = {}  # TODO
-        return (eval(compile(ast.Expression(node), filename="<ast>", mode="eval"),
-                self.globals, locals))
+    def eval_constant_expr(self, expr):
+        """
+        Evaluates a sub-expression that is assumed to represent a constant value.
+        The expression can refer only to global names (inherited from the scope
+        where the script is evaluated) and cannot refer to local names defined
+        within the script.) Further, these expressions are assumed to be constants.
+        Thus, any subsequent mutation of any state/variables (used in computing
+        this constant value) will potentially lead to unexpected behavior (such
+        as divergence between eager-mode execution and evaluation of the ONNX
+        function.)
+        """
+        # TODO: assert (self.is_constant_expr(expr))
+        locals = {}
+        expr = ast.Expression(expr)
+        cpl = compile(expr, filename="<ast>", mode="eval")
+        try:
+            return eval(cpl, self.globals, locals)
+        except NameError as e:
+            raise NameError(
+                debuginfo.DebugInfo(expr).msg(
+                    "Missing names, globals contains %r, locals %r."
+                    % (list(self.globals), list(locals))
+                )
+            ) from e
 
     def eval_attr(self, node):
         if isinstance(node, ast.Num):
@@ -359,7 +418,11 @@ class Converter:
             return node.s
         if isinstance(node, ast.NameConstant):
             if not isinstance(node.value, bool):
-                raise ValueError(f"Unsupported NameConstant attribute: {node.value}.")
+                raise ValueError(
+                    debuginfo.DebugInfo(node, self).msg(
+                        f"Unsupported NameConstant attribute: {node.value}."
+                    )
+                )
             return 1 if node.value else 0
         if isinstance(node, ast.List):
             return [self.eval_attr(x) for x in node.elts]
@@ -367,41 +430,51 @@ class Converter:
             try:
                 return self.eval_constant_expr(node)
             except NameError as e:
-                raise NameError(DebugInfo(node, self).msg(
-                    "Unable to evaluate a constant in node type %r "
-                    "due to %r." % (type(node), str(e))))
-        raise ValueError(f"Unsupported attribute type '{type(node).__name__}'.")
+                raise NameError(
+                    debuginfo.DebugInfo(node, self).msg(
+                        f"Unable to evaluate a constant in node type {type(node)} "
+                        f"due to {str(e)}."
+                    )
+                ) from e
+        raise ValueError(
+            debuginfo.DebugInfo(node).msg(f"Unsupported attribute type '{type(node)!r}'.")
+        )
 
-    def translate_attr(self, attr_name, node):
-        if isinstance(node, ast.Name):
-            val = self.lookup(node.id, DebugInfo(node, self))
-            if (isinstance(val, AttrRef)):
+    def translate_attr(self, attr_name, expr):
+        """
+        Translate an attribute-value specification of the form `attr_name=<expr>`
+        in a call to an op. expr is an AST. The following cases are supported:
+        * Expr evaluates to a script-time constant (a python-value) that can be mapped
+        into an ONNX attribute value, or
+        * Expr must be an attribute-reference, that is a name representing an
+        attribute-parameter of a containing function.
+        """
+        if isinstance(expr, ast.Name):
+            val = self.lookup(expr.id, debuginfo.DebugInfo(expr, self))
+            if isinstance(val, values.AttrRef):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
-            else:
-                # TODO: lookup value; if func.def., compile it to Graph; if a
-                # constant; etc.
-                fail(DebugInfo(node, self).msg(
-                    f"Unimplemented attribute construct "
-                    f"'{attr_name}' for node type '{type(node).__name__}'."))
-        return self.ir_builder.attr(attr_name, self.eval_attr(node))
+        return self.ir_builder.attr(attr_name, self.eval_constant_expr(expr))
 
     def translate_docstring(self, node):
-        if hasattr(node.value, 'value'):
+        if hasattr(node.value, "value"):
             # python 3.8+
             return self.emit_docstring(node.value.value)
-        if hasattr(node.value, 's'):
+        if hasattr(node.value, "s"):
             # python 3.7
             return self.emit_docstring(node.value.s)
-        raise TypeError("Unexpected type %r for node. "
-                        "Unsupoorted version of python." % type(node))
+        raise TypeError(
+            f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
+        )
 
-    # Expression-translation generates "IR statements/nodes" that compute the value of
-    # the expression into a target-variable, and returns the variable that is
-    # assigned this value.
     def translate_expr(self, node, target="tmp"):
+        """
+        Expression-translation generates "IR statements/nodes" that compute the value of
+        the expression into a target-variable, and returns the variable that is
+        assigned this value.
+        """
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
-        elif isinstance(node, ast.BinOp):
+        elif isinstance(node, (ast.BinOp, ast.BoolOp, ast.BitAnd, ast.BitOr)):
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
@@ -409,86 +482,352 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
+        elif isinstance(node, ast_Subscript):
+            r = self.translate_subscript_expr(node)
         elif self.is_constant_expr(node):
-            r = self.emit_const(self.eval_constant_expr(node), target, DebugInfo(node, self))
+            r = self.emit_const(
+                self.eval_constant_expr(node), target, debuginfo.DebugInfo(node, self)
+            )
         else:
-            raise ValueError(DebugInfo(node, self).msg(
-                f"Unsupported expression type: {type(node).__name__}."))
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(
+                    f"Unsupported expression type {type(node)!r}."
+                )
+            )
         if isinstance(r, ConverterExpression):
             return r
         if isinstance(r, tuple):
+            callee, args, attrs = r
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
-                callee, args, attrs = r
                 self.emit([result], callee, args, attrs)
                 return ConverterExpression(result, ConverterExpressionKind.ANY)
             results = [self.generate_unique_name(x) for x in target]
-            callee, args, attrs = r
             self.emit(results, callee, args, attrs)
             return ConverterExpression(results, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
-    # Translation of an expression where "None" is permitted (eg., for an optional argument)
     def translate_opt_expr(self, node, target="tmp"):
-        # None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        """
+        Translation of an expression where "None" is permitted (eg., for an optional argument)
+        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
             return ConverterExpression(None, ConverterExpressionKind.ANY)
         return self.translate_expr(node, target)
 
+    def translate_subscript_expr(self, node):
+        """
+        List of supported syntaxes is below.
+        `A` is a tensor or an expression equivalent to a tensor.
+
+        ::
+
+            A[:, 1]
+            A[:2, 0]
+            A[:2, :1]
+            A[2:0:-1]
+            A[1:]
+            A[:2]
+            A[1:-1]
+            A[1:2]
+            A[-1]
+            A[0]
+            A[:0:-1]
+
+        *i* is a tensor holding one integer.
+
+        ::
+
+            A[i]
+            A[i+1:i+2]
+
+        Fully supported for python 3.9+.
+
+        ::
+
+            A[i:i+j, k]
+
+        Not supported:
+
+        ::
+
+            A[::-1]
+        """
+        var = self.translate_expr(node.value)
+        var_name = var.name
+
+        info = debuginfo.DebugInfo(node.slice if use_subscript else node, self)
+
+        def _get_arg(node_arg, axis, zero, one, default_value=None):
+            if node_arg is None:
+                if default_value is None:
+                    return "", None
+                # The default value for the extremities depends on the step.
+                # This one is usually positive unless it is a constant,
+                # otherwise it is unknown.
+                if default_value == "begin":
+                    return zero.name, None
+                if default_value == "begin_":
+                    fail(
+                        debuginfo.DebugInfo(node, self).msg(
+                            "`?::-1` cannot be expressed with ONNX, `?:0:-1` misses "
+                            "the first line, `:-1:-1` returns an empty tensor."
+                        )
+                    )
+                if default_value == "end":
+                    shape_name = self.generate_unique_name(var_name + "_shape")
+                    self.emit(
+                        [shape_name],
+                        values.Op(self.default_opset, "Shape"),
+                        [var_name],
+                        [],
+                    )
+                    dim_name = self.generate_unique_name(shape_name + "_dim")
+                    self.emit(
+                        [dim_name],
+                        values.Op(self.default_opset, "Gather"),
+                        [shape_name, axis.name],
+                        [],
+                    )
+                    return dim_name, None
+                raise RuntimeError(f"Unexpected default value {default_value!r}.")
+
+            name = self.translate_expr(node_arg).name
+            reshaped = self.generate_unique_name(name + "_reshaped")
+            self.emit(
+                [reshaped],
+                values.Op(self.default_opset, "Reshape"),
+                [name, one.name],
+                [],
+            )
+            if self.is_constant_expr(node_arg):
+                cst = self.eval_constant_expr(node_arg)
+            else:
+                cst = None
+            return reshaped, cst
+
+        def _get_slice_input(node_slice, axis, zero, one):
+            step_name, cst = _get_arg(node_slice.step, axis, zero, one)
+            if cst is not None and cst < 0:
+                # handling [::-1]
+                def_a, def_b = "end", "begin_"
+            else:
+                def_a, def_b = "begin", "end"
+            lower_name, _ = _get_arg(node_slice.lower, axis, zero, one, default_value=def_a)
+            upper_name, _ = _get_arg(node_slice.upper, axis, zero, one, default_value=def_b)
+            inputs = [var_name, lower_name, upper_name, axis.name]
+            if step_name != "":
+                inputs.append(step_name)
+            return inputs
+
+        if use_subscript:
+            node_slice = node.slice
+        else:
+            node_slice = getattr(node.slice, "value", None)
+
+        if self.is_constant_expr(node_slice):
+            # A[i], i is an integer
+            index = self.eval_constant_expr(node_slice)
+            var_index = self.emit_const([index], "subscript_index", info)
+            tmp = self.generate_unique_name(var_name + "_gather")
+            self.emit(
+                [tmp],
+                values.Op(self.default_opset, "Gather"),
+                [var_name, var_index.name],
+                [],
+            )
+            axis = self.emit_const([0], "subscript_axis", info)
+            inputs = [tmp, axis.name]
+            return values.Op(self.default_opset, "Squeeze"), inputs, []
+
+        if isinstance(node.slice, ast.Slice):
+            # A[a:b], a, b are expressions equivalent to integers
+            one = self.emit_const([1], "one", info)
+            axis = self.emit_const([0], "subscript_axis", info)
+            inputs = _get_slice_input(node.slice, axis, axis, one)
+            return values.Op(self.default_opset, "Slice"), inputs, []
+
+        if isinstance(node.slice, ast.Tuple) or (
+            not use_subscript and isinstance(node.slice, ast.ExtSlice)
+        ):
+            # A[a:b, c:d, e], a, b, c, d, e are expressions equivalent to integers
+            # tuple can be any length
+            if isinstance(node.slice, ast.Tuple):
+                elts = node.slice.elts
+            else:
+                elts = node.slice.dims
+            one = self.emit_const([1], "one", info)
+            zero = None
+            starts = []
+            ends = []
+            axes = []
+            steps = []
+            squeezed_axes = []
+            for axis, elt in enumerate(elts):
+                if self.is_constant_expr(elt) or (
+                    not use_subscript and isinstance(elt, ast.Index)
+                ):
+                    # if the tuple contains a constant, it is replaced
+                    # by a slice and processed like any other slice
+                    element = None
+                    if use_subscript:
+                        index = self.eval_constant_expr(elt)
+                    else:
+                        try:
+                            index = self.eval_constant_expr(elt.value)
+                        except NameError:
+                            element = elt
+                    if element is None:
+                        squeezed_axes.append(axis)
+                        kwargs = dict(
+                            lineno=getattr(elt, "lineno", node.lineno),
+                            col_offset=getattr(elt, "col_offset", node.col_offset),
+                        )
+                        element = ast.Slice(
+                            ast.Constant(index, **kwargs),
+                            ast.Constant(index + 1, **kwargs),
+                            ast.Constant(1, **kwargs),
+                        )
+                else:
+                    element = elt
+
+                var_axis = self.emit_const([axis], f"ax{axis}", info)
+                if axis == 0:
+                    zero = var_axis
+
+                if isinstance(element, ast.Slice):
+                    # process slice index
+                    inputs = _get_slice_input(element, var_axis, zero, one)
+                    starts.append(inputs[1])
+                    ends.append(inputs[2])
+                    axes.append(var_axis.name)
+                    steps.append(inputs[4] if len(inputs) > 4 else one.name)
+                    continue
+
+                # not a constant, not a slice -> an expression
+                squeezed_axes.append(axis)
+                index = self.translate_expr(element).name
+                starts.append(index)
+                index_1 = self.generate_unique_name(var_name + "_end")
+                self.emit([index_1], values.Op(self.default_opset, "Add"), [index, one], [])
+                ends.append(index_1)
+                axes.append(var_axis.name)
+                steps.append(one.name)
+
+            attr = self.ir_builder.attr("axis", 0)
+            start_name = self.generate_unique_name(var_name + "_start")
+            self.emit([start_name], values.Op(self.default_opset, "Concat"), starts, [attr])
+
+            end_name = self.generate_unique_name(var_name + "_end")
+            self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [attr])
+
+            axes_name = self.generate_unique_name(var_name + "_axis")
+            self.emit([axes_name], values.Op(self.default_opset, "Concat"), axes, [attr])
+
+            steps_name = self.generate_unique_name(var_name + "_step")
+            self.emit([steps_name], values.Op(self.default_opset, "Concat"), steps, [attr])
+            if len(squeezed_axes) > 0:
+                sliced_name = self.generate_unique_name(var_name + "sliced")
+                self.emit(
+                    [sliced_name],
+                    values.Op(self.default_opset, "Slice"),
+                    [var_name, start_name, end_name, axes_name, steps_name],
+                    [],
+                )
+                squeezed_axis = self.emit_const(squeezed_axes, f"squeezed_ax{axis}", info)
+                return (
+                    values.Op(self.default_opset, "Squeeze"),
+                    [sliced_name, squeezed_axis],
+                    [],
+                )
+            return (
+                values.Op(self.default_opset, "Slice"),
+                [var_name, start_name, end_name, axes_name, steps_name],
+                [],
+            )
+
+        # A[i], i is an expression equivalent to an integer
+        var_index = self.translate_expr(node_slice)
+        tmp = self.generate_unique_name(var_name + "_gather")
+        self.emit(
+            [tmp],
+            values.Op(self.default_opset, "Gather"),
+            [var_name, var_index.name],
+            [],
+        )
+        axis = self.emit_const([0], "subscript_axis", info)
+        return values.Op(self.default_opset, "Squeeze"), [tmp, axis.name], []
+
     def translate_call_expr(self, node):
-        # TODO: for now, we map named arguments to attributes, and positional
-        # arguments to inputs.
+        """
+        Translates a call-expression.
+        For now, the handling of positional and named arguments is slightly different
+        from standard Python. We implicitly map named arguments to ONNX attributes, and
+        positional arguments to ONNX inputs.
+        """
         callee = self.translate_callee_expr(node.func)
-        args = [self.translate_opt_expr(x).name for x in node.args]
+        args = [self.translate_opt_expr(x) for x in node.args]
+        args = autocast.static_cast_inputs(self, callee.get_schema(), *args)
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         return callee, args, attrs
 
-    def _cast_like_binary_expression(self, left, right):
-        if left.is_const() and not right.is_const():
-            right = right.name
-            tmp = self.generate_unique_name(left.name + "_cast")
-            self.emit([tmp], Op(self.default_opset, 'CastLike'), [left.name, right], [])
-            left = tmp
-        elif not left.is_const() and right.is_const():
-            left = left.name
-            tmp = self.generate_unique_name(right.name + "_cast")
-            self.emit([tmp], Op(self.default_opset, 'CastLike'), [right.name, left], [])
-            right = tmp
-        else:
-            left = left.name
-            right = right.name
-        return left, right
+    def _cast_like_binary_expression(self, op, left, right):
+        schema = op.get_schema()
+        return autocast.static_cast_inputs(self, schema, left, right)
 
     def translate_bin_op_expr(self, node):
         op = type(node.op)
         if op not in primop_map:
-            raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
+            )
+
+        attr = []
+        if isinstance(node.op, ast.Mod) and self.is_constant_expr(node.right):
+            # specific case X % f where f is a float.
+            # attribute fmod=1 is added in that case.
+            cst = self.eval_constant_expr(node.right)
+            if isinstance(cst, float):
+                attr = [self.ir_builder.attr("fmod", 1)]
+
         opname = primop_map[op]
-        left = self.translate_expr(node.left)
-        right = self.translate_expr(node.right)
-        left, right = self._cast_like_binary_expression(left, right)
-        return Op(self.default_opset, opname), [left, right], []
+        if hasattr(node, "left"):
+            # operation
+            left = self.translate_expr(node.left)
+            right = self.translate_expr(node.right)
+        else:
+            # and, or
+            left = self.translate_expr(node.values[0])
+            right = self.translate_expr(node.values[1])
+
+        op = values.Op(self.default_opset, opname)
+        left, right = self._cast_like_binary_expression(op, left, right)
+        return op, [left, right], attr
 
     def translate_unary_op_expr(self, node):
         op = type(node.op)
         if op not in primop_map:
-            raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
+            )
         if self.is_constant_expr(node.operand):
             # This function changed the constant node.operand
             # and returns it. The function calling this one
             # should intercept this call and replace node
             # by node.operand.
             # This mechanism does not handle somthing like `(-(-5))`.
-            if hasattr(node.operand, 'value'):
+            if hasattr(node.operand, "value"):
                 # python 3.8+
                 val = node.operand.value
-            elif hasattr(node.operand, 'n'):
+            elif hasattr(node.operand, "n"):
                 # python 3.7
                 val = float(node.operand.n)
             else:
                 raise TypeError(
                     "Unable to guess constant value from type %r and attributes %r."
-                    "" % (type(node.operand), dir(node.operand)))
+                    "" % (type(node.operand), dir(node.operand))
+                )
             if op == ast.USub:
                 cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
                 return self.translate_expr(cst)
@@ -496,7 +835,7 @@ class Converter:
                 return self.translate_expr(node.operand)
         opname = primop_map[op]
         operand = self.translate_expr(node.operand)
-        return Op(self.default_opset, opname), [operand], []
+        return values.Op(self.default_opset, opname), [operand], []
 
     def translate_compare_expr(self, node):
         # TODO: handle multiple comparisons in one expression
@@ -504,57 +843,77 @@ class Converter:
         assert len(node.comparators) == 1
         op = type(node.ops[0])
         if op not in primop_map:
-            raise ValueError(DebugInfo(node, self).msg("Unsupported operator %r." % op))
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(f"Unsupported operator {op!r}.")
+            )
         opname = primop_map[op]
         left = self.translate_expr(node.left)
         right = self.translate_expr(node.comparators[0])
-        left, right = self._cast_like_binary_expression(left, right)
-        return Op(self.default_opset, opname), [left, right], []
+
+        # NotEqual is not a standard ONNX op, and needs to be translated into
+        # an Equal op/node followed by a Not op/node.
+        op = values.Op(self.default_opset, opname if opname != "NotEqual" else "Equal")
+        left, right = self._cast_like_binary_expression(op, left, right)
+        if opname == "NotEqual":
+            tmp = self.generate_unique_name()
+            self.emit([tmp], op, [left, right], [])
+            not_op = values.Op(self.default_opset, "Not")
+            return not_op, [tmp], []
+
+        return op, [left, right], []
 
     def translate_name_expr(self, node):
-        return self.py_var_to_onnx_var(node.id, DebugInfo(node, self))
+        return self.py_var_to_onnx_var(node.id, debuginfo.DebugInfo(node, self))
 
     def translate_opset_expr(self, node) -> values.Opset:
         """Return an Opset"""
         if isinstance(node, ast.Name):
-            try:
-                val = self.lookup(node.id, DebugInfo(node, self))
-                if isinstance(val, ConstValue):  # TODO
-                    val = val.value
-                if isinstance(val, values.Opset):
-                    return val
-                fail(f"{node.id} has value of type {type(node.id)} and used as opset.")
-            except BaseException:
-                warn(f"Unknown opset name {node.id}.")
-                return values.Opset(node.id, 1)
+            val = self.lookup(node.id, debuginfo.DebugInfo(node, self), raise_exception=False)
+            if isinstance(val, values.Opset):
+                return val
+            fail(
+                debuginfo.DebugInfo(node).msg(
+                    f"'{node.id}' is not an instance of type Opset but {type(node)}."
+                )
+            )
         elif isinstance(node, ast.Attribute):
-            fail(DebugInfo(node, self).msg("Nested module unimplemented"))  # TODO
+            fail(debuginfo.DebugInfo(node, self).msg("Nested module unimplemented."))  # TODO
         else:
-            fail(DebugInfo(node, self).msg("Invalid opset expression."))
+            fail(debuginfo.DebugInfo(node, self).msg("Invalid opset expression."))
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
-        if isinstance(node, ast.Attribute):
+        if isinstance(node, ast.Attribute) and getattr(node, "attr", None) != "_libcall":
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
             opname = node.attr
             if opname in module:
-                return Op(module, node.attr)
+                return values.Op(module, node.attr)
             warn(f"'{opname}' is not a known op in '{str(module)}'")
-            return Op(module, node.attr)
-        if isinstance(node, ast.Name):
-            function_name = node.id
-            found = self.lookup(function_name, DebugInfo(node, self), raise_exception=False)
-            if isinstance(found, OnnxFunction):
+            return values.Op(module, node.attr)
+        if isinstance(node, ast.Name) or (
+            isinstance(node, ast.Attribute) and getattr(node, "attr", None) == "_libcall"
+        ):
+            if isinstance(node, ast.Name):
+                function_name = node.id
+            else:
+                function_name = node.value.id
+            found = self.lookup(
+                function_name, debuginfo.DebugInfo(node, self), raise_exception=False
+            )
+            if isinstance(found, onnxscript.OnnxFunction):
                 self.current_fn.append_function(found)
                 return found
-            if isinstance(found, Op):
+            if isinstance(found, values.Op):
                 return found
             if not found:
                 if function_name not in self.default_opset:
-                    warn(f"Unknown function name {node.id}. The ONNX graph may not work.")
-                return Op(self.default_opset, node.id)
-        fail(DebugInfo(node, self).msg("Invalid callee"))
+                    warn(
+                        f"Unknown function name {function_name!r}. "
+                        f"The ONNX graph may not work."
+                    )
+                return values.Op(self.default_opset, function_name)
+        fail(debuginfo.DebugInfo(node, self).msg("Invalid callee"))
 
     def translate_stmt(self, node, index_of_stmt=None):
         """
@@ -566,51 +925,61 @@ class Converter:
         if isinstance(node, ast.AnnAssign):
             return self.translate_assign_stmt(node)
         if isinstance(node, ast.Return):
-            return self.translate_return_stmt(node)
+            if index_of_stmt is not None:
+                return self.translate_return_stmt(node)
+            raise ValueError(
+                debuginfo.DebugInfo(node, self).msg(
+                    "Return statements are not permitted inside control-flow statements."
+                )
+            )
         if isinstance(node, ast.If):
             return self.translate_if_stmt(node)
-        if isinstance(node, ast.For):
-            return self.translate_for_stmt(node)
+        if isinstance(node, (ast.For, ast.While)):
+            return self.translate_loop_stmt(node)
         if isinstance(node, ast.Expr):
-            if index_of_stmt == 0 and hasattr(node, 'value'):
-                if hasattr(node.value, 'value') and isinstance(node.value.value, str):
+            if index_of_stmt == 0 and hasattr(node, "value"):
+                if hasattr(node.value, "value") and isinstance(node.value.value, str):
                     # python 3.8+
                     return self.translate_docstring(node)
-                if hasattr(node.value, 's') and isinstance(node.value.s, str):
+                if hasattr(node.value, "s") and isinstance(node.value.s, str):
                     # python 3.7
                     return self.translate_docstring(node)
         try:
-            if node.value.func.id == 'print':
+            if node.value.func.id == "print":
                 # Any call to print function are ignored.
                 return None
         except (TypeError, AttributeError):
             pass
-        raise ValueError(DebugInfo(node, self).msg(
-            f"Unsupported statement type: {type(node).__name__}."))
+        raise ValueError(
+            debuginfo.DebugInfo(node, self).msg(f"Unsupported statement type {type(node)!r}.")
+        )
 
     def translate_assign_stmt(self, stmt: typing.Union[ast.Assign, ast.AnnAssign]):
         def assign(lhs, rhs):
-            info = DebugInfo(lhs, self)
+            info = debuginfo.DebugInfo(lhs, self)
             if isinstance(lhs, ast.Name):
                 lhs = lhs.id
-                if self.is_constant_expr(rhs):
-                    self.bind(lhs, ConstValue(self.eval_constant_expr(rhs), info))
+                t = self.translate_expr(rhs, lhs).name
+                if isinstance(stmt, ast.AnnAssign):
+                    var = values.Dynamic(
+                        t,
+                        values.DynamicKind.Intermediate,
+                        info,
+                        typeinfo=self.eval_constant_expr(stmt.annotation),
+                    )
                 else:
-                    t = self.translate_expr(rhs, lhs).name
-                    if isinstance(stmt, ast.AnnAssign):
-                        var = Dynamic(t, DynamicKind.Intermediate, info,
-                                      typeinfo=self.eval_constant_expr(stmt.annotation))
-                    else:
-                        var = Dynamic(t, DynamicKind.Intermediate, info)
-                    self.bind(lhs, var)
+                    var = values.Dynamic(t, values.DynamicKind.Intermediate, info)
+                self.bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
+
                 def id(x):
                     assert isinstance(x, ast.Name)
                     return x.id
+
                 ids = [id(x) for x in lhs.elts]
                 onnxids = self.translate_expr(rhs, ids).name
                 for x, y in zip(ids, onnxids):
-                    self.bind(x, Dynamic(y, DynamicKind.Intermediate, info))
+                    self.bind(x, values.Dynamic(y, values.DynamicKind.Intermediate, info))
             else:
                 fail("Unsupported construct in LHS of assignment.")
 
@@ -618,124 +987,302 @@ class Converter:
             targets = stmt.targets
         else:
             targets = [stmt.target]
-        assert len(targets) == 1, "Multi-assignment not supported."
+        if len(targets) != 1:
+            fail(debuginfo.DebugInfo(stmt, self).msg("Multi-assignment not supported."))
         lhs = targets[0]
         rhs = stmt.value
         if isinstance(rhs, ast.Tuple):
-            assert isinstance(lhs, ast.Tuple)
-            assert len(lhs.elts) == len(rhs.elts), \
-                "Expected same number of elements on lhs and rhs of assignments."
+            if not isinstance(lhs, ast.Tuple):
+                fail(
+                    debuginfo.DebugInfo(lhs, self).msg(
+                        f"Left term must be a tuple not {type(lhs)!r}."
+                    )
+                )
+            if len(lhs.elts) != len(rhs.elts):
+                fail(
+                    debuginfo.DebugInfo(stmt, self).msg(
+                        "Expected same number of elements on lhs and rhs of assignments."
+                    )
+                )
             for p, r in zip(lhs.elts, rhs.elts):
                 assign(p, r)
         else:
             assign(lhs, rhs)
 
     def translate_return_stmt(self, stmt: ast.Return):
-        def ret(exp, suffix=""):
+        def check_num_outputs(n):
+            if self.returntype is not None:
+                if n != len(self.returntype):
+                    raise SyntaxError(
+                        debuginfo.DebugInfo(stmt, self).msg(
+                            "Mismatch in number of return values and types. "
+                            "Keyword 'return' cannot be used in a subgraph (test, loop). "
+                            " returntype is %r, num_outputs=%r." % (self.returntype, n)
+                        )
+                    )
+
+        def ret(exp, i, suffix):
             ovar = self.translate_expr(exp, "return_val" + suffix).name
             if self.returntype is None:
                 t = None
             else:
-                t = self.returntype[self.num_outputs]
-            self.ir_builder.add_output(self.current_fn, ovar, t, DebugInfo(stmt, self))
-            self.num_outputs += 1
+                t = self.returntype[i]
+            self.ir_builder.add_output(
+                self.current_fn, ovar, t, debuginfo.DebugInfo(stmt, self)
+            )
             return ovar
 
         val = stmt.value
         assert val is not None, "Return statement without return-value not supported."
-        if (isinstance(val, ast.Tuple)):
-            return [ret(exp, str(i)) for i, exp in enumerate(val.elts)]
-        else:
-            return ret(val)
+        if isinstance(val, ast.Tuple):
+            check_num_outputs(len(val.elts))
+            return [ret(exp, i, str(i)) for i, exp in enumerate(val.elts)]
+        check_num_outputs(1)
+        return ret(val, 0, "")
 
     def translate_if_stmt(self, stmt: ast.If):
-        live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        if hasattr(stmt, "live_out"):
+            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+        else:
+            live_defs = list(analysis.defs(stmt))
         test = self.translate_expr(stmt.test, "cond").name
-        lineno = DebugInfo(stmt, self).lineno
+        lineno = debuginfo.DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
-            stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt)
+            stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt
+        )
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
-            stmt.orelse, "elseGraph_%d" % lineno, live_defs, parent_stmt=stmt)
+            stmt.orelse, "elseGraph_%d" % lineno, live_defs, parent_stmt=stmt
+        )
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
         def rename(x):
             r = self.generate_unique_name(x)
-            self.bind(x, Dynamic(r, DynamicKind.Intermediate, DebugInfo(stmt, self)))
+            self.bind(
+                x,
+                values.Dynamic(
+                    r, values.DynamicKind.Intermediate, debuginfo.DebugInfo(stmt, self)
+                ),
+            )
             return r
 
+        # no break condition
         renamed = [rename(x) for x in live_defs]
+        if len(renamed) == 0:
+            fail(
+                debuginfo.DebugInfo(stmt, self).msg(
+                    "A subgraph for a test do not have any output variable."
+                )
+            )
+
         sub_functions = {}
         sub_functions.update(sub_fct_then)
         sub_functions.update(sub_fct_else)
-        self.emit(renamed, Op(self.default_opset, "If"), [test], [thenAttr, elseAttr],
-                  sub_functions=sub_functions)
+        if renamed == [test]:
+            fail(
+                debuginfo.DebugInfo(stmt, self).msg(
+                    f"Input and output cannot be the same {renamed!r}."
+                )
+            )
+        self.emit(
+            renamed,
+            values.Op(self.default_opset, "If"),
+            [test],
+            [thenAttr, elseAttr],
+            sub_functions=sub_functions,
+        )
 
-    def translate_for_stmt(self, for_stmt: ast.For):
+    def translate_loop_stmt(self, loop_stmt: typing.Union[ast.For, ast.While]):
         # loop-variable
-        assert isinstance(for_stmt.target, ast.Name), \
-            "For loop target must be a single variable."
-        p_loop_var = for_stmt.target.id
-        # iter
-        iter = for_stmt.iter
-        assert isinstance(iter, ast.Call), "Loop bound not a call."
-        assert isinstance(iter.func, ast.Name), "Unsupported loop bound."
-        assert iter.func.id == "range", "Unsupported loop bound."
-        assert iter.args and len(iter.args) == 1, "Unsupported loop bound."
-        assert not iter.keywords, "Unsupported loop bound."
-        o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
+        if isinstance(loop_stmt, ast.For):
+            if not isinstance(loop_stmt.target, ast.Name):
+                fail(
+                    debuginfo.DebugInfo(loop_stmt, self).msg(
+                        "For loop target must be a single variable."
+                    )
+                )
+            p_loop_var = loop_stmt.target.id
+            # iter
+            iter = loop_stmt.iter
+            assert isinstance(iter, ast.Call), "Loop bound not a call."
+            if not isinstance(iter.func, ast.Name):
+                fail(
+                    debuginfo.DebugInfo(loop_stmt).msg(
+                        f"Unsupported loop bound {iter.func!r}."
+                    )
+                )
+            if iter.func.id != "range":
+                fail(
+                    debuginfo.DebugInfo(loop_stmt).msg(
+                        "Unsupported loop bound, only function 'range' is allowed."
+                    )
+                )
+            if not iter.args or len(iter.args) != 1:
+                fail(
+                    debuginfo.DebugInfo(loop_stmt).msg(
+                        "Unsupported loop bound, it should be 'range(?)'."
+                    )
+                )
+            assert not iter.keywords, "Unsupported loop bound."
+            o_loop_bound = self.translate_expr(iter.args[0], "loop_bound").name
+            o_cond_var = self.generate_unique_name("cond_in")
+            i_cond_var = o_cond_var
+            cond_while = None
+        elif isinstance(loop_stmt, ast.While):
+            test = loop_stmt.test
+            if not isinstance(test, ast.Name):
+                fail(
+                    debuginfo.DebugInfo(loop_stmt, self).msg(
+                        "Unexpected condition type {type(loop_stmt)!r} for a while loop, "
+                        "it should be 'while <condition_name>:'."
+                    )
+                )
+            p_loop_var = "infinite_loop"
+            o_loop_bound = ""
+            i_cond_var = test.id
+            cond_while = test.id
+            o_cond_var = None
+            # we need to go through all the instructions to see
+            # which instruction defines the condition test.id
+        else:
+            fail(
+                debuginfo.DebugInfo(loop_stmt, self).msg(
+                    f"Unexpected loop type {type(loop_stmt)!r}."
+                )
+            )
         # analyze loop body
-        exposed_uses = analysis.exposed_uses(for_stmt.body, self)
-        vars_def_in_loop = analysis.defs(for_stmt.body)
-        loop_state_vars = vars_def_in_loop.intersection(
-            exposed_uses | for_stmt.live_out)
+        exposed_uses = analysis.exposed_uses(loop_stmt.body, self)
+        vars_def_in_loop = analysis.defs(loop_stmt.body)
+        loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
 
         # loop-condition:
-        o_true = self.emit_const(True, "true", DebugInfo(for_stmt, self))
+        o_true = self.emit_const(True, "true", debuginfo.DebugInfo(loop_stmt, self))
         # o_loop_bound = self.emit_const(3, "loop_bound")
 
         # build loop_body
-        self.enter_scope("loop_body", for_stmt)
+        self.enter_scope("loop_body", loop_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
         self.ir_builder.add_input(
-            self.current_fn, o_loop_var, types.INT64, DebugInfo(for_stmt, self))
-        self.bind(p_loop_var, Dynamic(
-            o_loop_var, DynamicKind.Loop, DebugInfo(for_stmt, self)))
-        o_cond_var = self.generate_unique_name("cond_in")
+            self.current_fn,
+            o_loop_var,
+            onnx_types.INT64,
+            debuginfo.DebugInfo(loop_stmt, self),
+        )
+        self.bind(
+            p_loop_var,
+            values.Dynamic(
+                o_loop_var, values.DynamicKind.Loop, debuginfo.DebugInfo(loop_stmt, self)
+            ),
+        )
+
         self.ir_builder.add_input(
-            self.current_fn, o_cond_var, types.BOOL, DebugInfo(for_stmt, self))
+            self.current_fn,
+            i_cond_var,
+            onnx_types.BOOL,
+            debuginfo.DebugInfo(loop_stmt, self),
+        )
+
         for pv in loop_state_vars:
             ov = self.generate_unique_name(pv)
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self.eval_constant_expr(pv.annotation)
             typeinfo = None
             self.ir_builder.add_input(
-                self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
-            self.bind(pv, Dynamic(ov, DynamicKind.Loop, DebugInfo(for_stmt, self)))
-        for s in for_stmt.body:
+                self.current_fn, ov, typeinfo, debuginfo.DebugInfo(loop_stmt, self)
+            )
+            self.bind(
+                pv,
+                values.Dynamic(
+                    ov, values.DynamicKind.Loop, debuginfo.DebugInfo(loop_stmt, self)
+                ),
+            )
+
+        condition_name = None
+        operator_name = "Identity"
+        for i, s in enumerate(loop_stmt.body):
+            # We first need to intercept a break instruction in test block.
+            # It must be something like `if <condition_name>: break`.
+            # This instruction must be the last of the loop body.
+            if isinstance(s, ast.If) and len(s.body) == 1 and isinstance(s.body[0], ast.Break):
+                if not isinstance(s.test, ast.Name):
+                    fail(
+                        debuginfo.DebugInfo(s, self).msg(
+                            f"Instruction break can be introduced with test but it must be "
+                            f"if <condition>: break. However condition is of type "
+                            f"{type(s.test)!r}."
+                        )
+                    )
+                if i != len(loop_stmt.body) - 1:
+                    fail(
+                        debuginfo.DebugInfo(s, self).msg(
+                            "Instruction break must be the last one of the loop."
+                        )
+                    )
+
+                current_scope = self.current_scope()
+                if s.test.id not in current_scope:
+                    fail(
+                        debuginfo.DebugInfo(loop_stmt, self).msg(
+                            f"Unable to find condition variable {s.test.id!r} in known "
+                            f"variables {list(current_scope)!r}."
+                        )
+                    )
+                condition_name = current_scope[s.test.id].value
+                operator_name = "Not"
+                continue
             self.translate_stmt(s)
+
         o_cond_out = self.generate_unique_name("cond_out")
-        self.emit([o_cond_out], Op(self.default_opset, "Identity"), [o_cond_var], [])
+
+        if cond_while is not None:
+            # Loop while
+            current_scope = self.current_scope()
+            if cond_while not in current_scope:
+                fail(
+                    debuginfo.DebugInfo(loop_stmt, self).msg(
+                        f"Unable to find condition variable {cond_while!r} in known "
+                        f"variables {list(current_scope)!r}."
+                    )
+                )
+            o_cond_var = current_scope[cond_while].value
+
+        self.emit(
+            [o_cond_out],
+            values.Op(self.default_opset, operator_name),
+            [condition_name or o_cond_var],
+            [],
+        )
+
         self.ir_builder.add_output(
-            self.current_fn, o_cond_out, types.BOOL, DebugInfo(for_stmt, self))
+            self.current_fn,
+            o_cond_out,
+            onnx_types.BOOL,
+            debuginfo.DebugInfo(loop_stmt, self),
+        )
         for pv in loop_state_vars:
-            ov = self.py_var_to_onnx_var(pv, DebugInfo(for_stmt, self))
+            ov = self.py_var_to_onnx_var(pv, debuginfo.DebugInfo(loop_stmt, self))
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
             self.ir_builder.add_output(
-                self.current_fn, ov, typeinfo, DebugInfo(for_stmt, self))
+                self.current_fn, ov, typeinfo, debuginfo.DebugInfo(loop_stmt, self)
+            )
         body = self.exit_scope()
-
-        inputs = [o_loop_bound, o_true] + \
-                 [self.py_var_to_onnx_var(
-                     pv, DebugInfo(for_stmt, self)) for pv in loop_state_vars]
+        inputs = [o_loop_bound, o_true] + [
+            self.py_var_to_onnx_var(pv, debuginfo.DebugInfo(loop_stmt, self))
+            for pv in loop_state_vars
+        ]
         graph, sub_functions = body.to_graph_proto()
         attrs = [self.ir_builder.attr("body", graph)]
-        return self.emit_loop(outputs, "Loop", inputs, attrs,
-                              sub_functions=sub_functions,
-                              info=DebugInfo(for_stmt, self))
+        return self.emit_loop(
+            outputs,
+            "Loop",
+            inputs,
+            attrs,
+            sub_functions=sub_functions,
+            info=debuginfo.DebugInfo(loop_stmt, self),
+        )
 
     def translate_block(self, stmts, name, live_defs, parent_stmt=None):
         """
@@ -750,7 +1297,11 @@ class Converter:
                 pv_val = self.current_scope()[pvar]
                 output = self.to_onnx_var(pv_val, pvar)
                 self.ir_builder.add_output(
-                    self.current_fn, output, pv_val.typeinfo, DebugInfo(info_stmt, self))
+                    self.current_fn,
+                    output,
+                    pv_val.typeinfo,
+                    debuginfo.DebugInfo(info_stmt, self),
+                )
             else:
                 pv_val = None
                 for scope in self.locals:  # TODO: skip current_scope
@@ -758,24 +1309,30 @@ class Converter:
                         pv_val = scope[pvar]
                         break
                 if pv_val is None:
-                    fail(DebugInfo(stmts[0], self).msg(
-                        f"Variable {pvar} is not assigned a value along a conditional "
-                        f"branch, known variables: {list(self.locals)}."))
+                    fail(
+                        debuginfo.DebugInfo(stmts[0], self).msg(
+                            f"Variable {pvar} is not assigned a value along a conditional "
+                            f"branch, known variables: {list(self.locals)}."
+                        )
+                    )
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
-                self.emit([ovar], Op(self.default_opset, "Identity"),
-                          [self.to_onnx_var(pv_val, pvar)], [])
+                self.emit(
+                    [ovar],
+                    values.Op(self.default_opset, "Identity"),
+                    [self.to_onnx_var(pv_val, pvar)],
+                    [],
+                )
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
                 self.ir_builder.add_output(
-                    self.current_fn, ovar, typeinfo, DebugInfo(info_stmt, self))
+                    self.current_fn, ovar, typeinfo, debuginfo.DebugInfo(info_stmt, self)
+                )
         graph = self.exit_scope()
         return graph.to_graph_proto()
 
     def translate_function_def(self, fn: ast.FunctionDef):
         logger.debug("Converter:translate_function_def:%s", fn.name)
-        if fn.name in self.this_module.function_defs:
-            warn(f"{fn.name}: Already defined.")
         args = fn.args
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
@@ -784,13 +1341,9 @@ class Converter:
         for i, x in enumerate(args.args):
             arg_with_default_start_index = len(args.args) - len(args.defaults)
             if args.defaults and i >= arg_with_default_start_index:
-                # ast.Num does not have 'value' property in python 3.7
-                if hasattr(args.defaults[i - arg_with_default_start_index], 'value'):
-                    default_value = args.defaults[i - arg_with_default_start_index].value
-                elif hasattr(args.defaults[i - arg_with_default_start_index], 'n'):
-                    default_value = args.defaults[i - arg_with_default_start_index].n
-                else:
-                    default_value = None
+                default_value = self.eval_constant_expr(
+                    args.defaults[i - arg_with_default_start_index]
+                )
             else:
                 default_value = None
             if x.annotation:
@@ -800,11 +1353,23 @@ class Converter:
                 typeinfo = None
             if ta.is_attr(typeinfo):
                 self.ir_builder.add_attr(
-                    self.current_fn, x.arg, typeinfo, DebugInfo(x, self), default_value)
-                self.bind(x.arg, AttrRef(x.arg, typeinfo, DebugInfo(x, self)))
+                    self.current_fn,
+                    x.arg,
+                    typeinfo,
+                    debuginfo.DebugInfo(x, self),
+                    default_value,
+                )
+                self.bind(x.arg, values.AttrRef(x.arg, typeinfo, debuginfo.DebugInfo(x, self)))
             else:
-                self.ir_builder.add_input(self.current_fn, x.arg, typeinfo, DebugInfo(x, self))
-                self.bind(x.arg, Dynamic(x.arg, DynamicKind.Input, DebugInfo(x, self)))
+                self.ir_builder.add_input(
+                    self.current_fn, x.arg, typeinfo, debuginfo.DebugInfo(x, self)
+                )
+                self.bind(
+                    x.arg,
+                    values.Dynamic(
+                        x.arg, values.DynamicKind.Input, debuginfo.DebugInfo(x, self)
+                    ),
+                )
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)
             if isinstance(returntype, tuple):
@@ -815,24 +1380,9 @@ class Converter:
                 self.returntype = (returntype,)
         else:
             self.returntype = None
-        self.num_outputs = 0
         for i, s in enumerate(fn.body):
             self.translate_stmt(s, index_of_stmt=i)
-        if self.returntype is not None:
-            if self.num_outputs != len(self.returntype):
-                raise SyntaxError(DebugInfo(fn, self).msg(
-                    "Mismatch in number of return values and types. "
-                    "Keyword 'return' cannot be used in a subgraph (test, loop). "
-                    " returntype is %r, self.num_outputs=%r." % (
-                        returntype, self.num_outputs)))
         return self.current_fn
-
-    def do_import(self, alias):
-        logger.debug("Importing %r as %r.", alias.name, alias.asname)
-        fail_if(alias.name not in self.known_modules,
-                f"Import: unsupported module {alias.name}")
-        asname = alias.asname if alias.asname else alias.name
-        self.globals[asname] = self.known_modules[alias.name]
 
     def top_level_stmt(self, stmt):
         if isinstance(stmt, ast.FunctionDef):
@@ -842,7 +1392,4 @@ class Converter:
             fn_ir.debug_print()
             self.this_module.add_function_def(fn_ir)
             return fn_ir
-        if isinstance(stmt, ast.If):
-            # Skips it.
-            return None
-        raise ValueError(f"Unsupported top-level statement type: {type(stmt).__name__}.")
+        raise ValueError(f"Unsupported top-level statement type {type(stmt)!r}.")

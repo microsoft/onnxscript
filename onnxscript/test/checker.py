@@ -6,18 +6,18 @@
 import onnx
 
 
-def default_equality_op(x, y): return x == y
+def default_equality_op(x, y):
+    return x == y
 
 
 def same_optional(field, obj1, obj2, equals=default_equality_op):
-    '''
+    """
     Check two proto object have same value for optional field.
     This is restricted to simple field types where == comparison is sufficient.
-    '''
-    if (obj1.HasField(field)):
+    """
+    if obj1.HasField(field):
         return obj2.HasField(field) and equals(getattr(obj1, field), getattr(obj2, field))
-    else:
-        return not obj2.HasField(field)
+    return not obj2.HasField(field)
 
 
 def same_repeated(values1, values2, equals=default_equality_op):
@@ -30,8 +30,11 @@ def same_repeated(values1, values2, equals=default_equality_op):
 
 
 def same_string_string_map(proto1, proto2):
-    '''Compare repeated StringStringEntryProto as maps.'''
-    def to_map(proto): return {x.key: x.value for x in proto}
+    """Compare repeated StringStringEntryProto as maps."""
+
+    def to_map(proto):
+        return {x.key: x.value for x in proto}
+
     return to_map(proto1) == to_map(proto2)
 
 
@@ -84,9 +87,11 @@ def same_type(tp1, tp2):
 
 
 def same_value_info(vi1, vi2):
-    return (same_optional("name", vi1, vi2)
-            and same_optional("type", vi1, vi2, same_type)
-            and same_optional("doc_string", vi1, vi2))
+    return (
+        same_optional("name", vi1, vi2)
+        and same_optional("type", vi1, vi2, same_type)
+        and same_optional("doc_string", vi1, vi2)
+    )
 
 
 def same_attr(attr1, attr2, graph_equality):
@@ -131,6 +136,7 @@ def same_attrs(attrs1, attrs2, graph_equality):
             return False
     return True
 
+
 # Return the name of an input/output of a function or graph
 
 
@@ -139,18 +145,17 @@ def ioname(x):
 
 
 class Matcher:
-    '''
+    """
     An isomorphism matcher for two functions or two graphs.
-    '''
+    """
 
     def __init__(self, fg1, fg2, outer_scope) -> None:
-
         def defmap(f):
-            '''
+            """
             Compute a map from variables v to their definition-sites.
             A definition-site (n, i) indicates the i-th output of n-th node
             The special value (-1, i) is used to indicate the i-th input of a function/graph.
-            '''
+            """
             result = {}
             for (i, x) in enumerate(f.input):
                 result[ioname(x)] = (-1, i)
@@ -168,8 +173,8 @@ class Matcher:
         self.outer_scope = outer_scope
 
     def same_value(self, var1, var2):
-        '''Match two variables (strings).'''
-        if (var1 not in self.defmap1 or var2 not in self.defmap2):
+        """Match two variables (strings)."""
+        if var1 not in self.defmap1 or var2 not in self.defmap2:
             # If one of the variables is in current scope, or if there is no outer scope, fail
             if (var1 in self.defmap1) or (var2 in self.defmap2) or (self.outer_scope is None):
                 return False
@@ -180,12 +185,12 @@ class Matcher:
         return (index1 == index2) and self.same_node(node1, node2)
 
     def same_node(self, n1, n2):
-        '''Match two node-indices. The special node-index -1 represents inputs.'''
+        """Match two node-indices. The special node-index -1 represents inputs."""
         if (n1 == -1) and (n2 == -1):
             return True  # Both are inputs
         if (n1 == -1) or (n2 == -1):
             return False  # Only one is input
-        if (n1 in self.node_mapping):
+        if n1 in self.node_mapping:
             return self.node_mapping[n1] == n2
         node1 = self.fg1.node[n1]
         node2 = self.fg2.node[n2]
@@ -204,7 +209,7 @@ class Matcher:
         return True
 
     def same_value_list(self, list1, list2):
-        '''Match two lists of variables (either a string or ValueInfoProto)'''
+        """Match two lists of variables (either a string or ValueInfoProto)"""
         if len(list1) != len(list2):
             return False
         for x, y in zip(list1, list2):
@@ -213,12 +218,12 @@ class Matcher:
         return True
 
     def same_sub_graph(self, g1, g2):
-        '''Match two sub-graphs.'''
+        """Match two sub-graphs."""
         sub_graph_matcher = Matcher(g1, g2, self)
         return sub_graph_matcher.same_graph()
 
     def same_graph(self):
-        '''Match two sub-graphs.'''
+        """Match two sub-graphs."""
         g1 = self.fg1
         g2 = self.fg2
         if not same_repeated(g1.input, g2.input, same_value_info):
@@ -234,7 +239,7 @@ class Matcher:
         return True
 
     def same_function(self):
-        '''Match (top-level) two functions.'''
+        """Match (top-level) two functions."""
 
         # Ok for function names/domain to be different.
 
@@ -249,7 +254,7 @@ class Matcher:
             # Assumes each domain has only one entry in a valid FunctionProto
             return {entry.domain: entry.version for entry in f.opset_import}
 
-        if (imports(self.fg1) != imports(self.fg2)):
+        if imports(self.fg1) != imports(self.fg2):
             return False
 
         # Now do a specific form of isomorphism check: Both must compute the same
@@ -274,20 +279,19 @@ class Matcher:
 
 
 def isomorphic(fg1, fg2):
-    '''
+    """
     Checks that two function/graph bodies are isomorphic.
     Assumes that the inputs are valid FunctionProto/GraphProto.
     Use a separate check to verify that the inputs satisfy
     FunctionProto/GraphProto requirements (like no duplicate attributes).
-    '''
+    """
     matcher = Matcher(fg1, fg2, None)
     if isinstance(fg1, onnx.FunctionProto):
         if not isinstance(fg2, onnx.FunctionProto):
             raise TypeError("Both inputs must be same type (function or graph)")
         return matcher.same_function()
-    elif isinstance(fg1, onnx.GraphProto):
+    if isinstance(fg1, onnx.GraphProto):
         if not isinstance(fg2, onnx.GraphProto):
             raise TypeError("Both inputs must be same type (function or graph)")
         return matcher.same_graph()
-    else:
-        raise TypeError("Inputs must be either a FunctionProto or GraphProto")
+    raise TypeError("Inputs must be either a FunctionProto or GraphProto")

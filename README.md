@@ -2,20 +2,6 @@
 
 ONNXScript is a subset of Python that can be used to author ONNX functions (as well as ONNX models).
 
-## Contributing
-
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
-
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
 ## Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
@@ -26,7 +12,7 @@ Any use of third-party trademarks or logos are subject to those third-party's po
 
 ## Installation steps
 
-```
+```bash
 pip install onnx onnxruntime
 git clone https://github.com/microsoft/onnx-script.git
 pip install -e .
@@ -36,20 +22,22 @@ A note to use experimental ONNX and ORT packages:
 
 Some of onnx-script functionalities depend on changes in ONNX that are not in official ONNX package yet.
 In order to work with those functionalities, one needs to:
-```
+
+```bash
 pip uninstall onnx onnxruntime
 pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html onnx-function-experiment
 pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html ort-function-experiment-nightly
 ```
 
 With experimental ONNX, one can write a script function with optional attributes. Examples are in [onnxfns1A.py](https://github.com/microsoft/onnx-script/blob/main/onnxscript/test/models/onnxfns1A.py). To validate that experimental features are enabled:
-```
+
+```bash
 pytest onnxscript\test\functions\onnxfns1A_test.py
 ```
 
 ## Run unit tests
 
-```
+```bash
 pytest onnxscript/test
 ```
 
@@ -78,7 +66,7 @@ from onnxscript import script
 from onnxscript.onnx_types import INT64, FLOAT
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript.opset15 as op
+from onnxscript.onnx_opset import opset15 as op
 
 # We use the script decorator to indicate that this is meant to be translated to ONNX.
 @script()
@@ -127,5 +115,43 @@ More examples can be found in folder [docs/examples](docs/examples).
 
 ## Contributing
 
+This project welcomes contributions and suggestions.  Most contributions require you to agree to a
+Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
+the rights to use your contribution. For details, visit [Microsoft CLA](https://cla.opensource.microsoft.com).
+
+When you submit a pull request, a CLA bot will automatically determine whether you need to provide
+a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
+provided by the bot. You will only need to do this once across all repos using our CLA.
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+**Unit Test**
+
 Every change impacting the converter or the eager evaluation must be unit tested with
 class `OnnxScriptTestCase` to ensure both systems do return the same results with the same inputs.
+
+**Code Style**
+
+We use flake8, black, isort, and mypy to check code format. You can find their configuration in .flake8 and pyproject.toml, and 
+
+run `auto-formatter` by:
+
+```bash
+./tools/lint.sh
+```
+
+and run `check` by:
+
+```bash
+./tools/style.sh
+```
+
+optional check:
+
+```bash
+./tools/style_optional.sh
+```
+
+NOTE: mypy and pylint needs to be manually address
