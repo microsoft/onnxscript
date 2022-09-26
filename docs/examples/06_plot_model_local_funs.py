@@ -17,8 +17,8 @@ included in the generated model.
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
-from onnxscript.values import Opset
 from onnxscript.utils import proto2text
+from onnxscript.values import Opset
 
 # A dummy opset used for model-local functions
 local = Opset("local", 1)
