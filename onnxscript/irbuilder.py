@@ -178,6 +178,7 @@ class Function:
         self.attr_protos = []
         self.functions = {}
         self.docstring = ""
+        self.graph_attributes = {}
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
@@ -227,6 +228,9 @@ class Function:
         except (TypeError, AttributeError) as e:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[opf.name] = proto
+
+    def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
+        self.graph_attributes[name] = graph
 
     def to_model_proto(self, functions=None, io_types=None, **kwargs):
         """

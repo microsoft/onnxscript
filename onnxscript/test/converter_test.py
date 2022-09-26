@@ -300,8 +300,10 @@ class TestConverter(TestBase):
 
     def test_cast_like(self):
         from onnxscript.test.models import cast_like
-
         self.validate_expansion(cast_like)
+
+    def test_graph_attr(self):
+        from onnxscript.test.models import graph_attr
 
     def test_opset_import(self):
         from onnxscript.test.models import different_opset

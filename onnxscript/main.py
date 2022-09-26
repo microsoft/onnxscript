@@ -99,6 +99,16 @@ def script(opset=None, default_opset=None, **kwargs):
     return transform
 
 
+def graph(parent : values.OnnxFunction):
+    def transform(f):
+        try:
+            f.graph_proto = parent.function_ir.graph_attributes[f.__name__]
+        except KeyError:
+            raise ValueError(f"Graph attribute for {f.__name__} not found.")
+        return f
+    return transform
+
+
 def is_converted_fun(f):
     """
     Return True if f is a function converted by onnx-script decorator.
