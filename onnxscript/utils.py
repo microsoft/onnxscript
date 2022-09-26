@@ -23,14 +23,15 @@ except ImportError:
 
 
 def external_tensor(
-        name: str,
-        data_type: int,
-        dims: Sequence[int],
-        location: str,
-        offset: Optional[int] = None,
-        length: Optional[int] = None,
-        checksum: Optional[str] = None,
-        basepath: Optional[str] = None) -> TensorProto:
+    name: str,
+    data_type: int,
+    dims: Sequence[int],
+    location: str,
+    offset: Optional[int] = None,
+    length: Optional[int] = None,
+    checksum: Optional[str] = None,
+    basepath: Optional[str] = None,
+) -> TensorProto:
     """
     Create a TensorProto referencing externally stored tensor-data.
 
@@ -57,6 +58,7 @@ def external_tensor(
         entry = tensor.external_data.add()
         entry.key = k
         entry.value = str(v)
+
     add("location", location)
     if offset is not None:
         add("offset", int(offset))
