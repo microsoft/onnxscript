@@ -13,11 +13,11 @@ import numpy
 import onnx
 from onnx import helper
 
-# _known_modules() needs full module name
 import onnxscript
 from onnxscript import analysis, autocast, debuginfo, irbuilder, onnx_opset, onnx_types
 from onnxscript import type_annotation as ta
 from onnxscript import values
+from onnxscript.utils import proto2text
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -117,24 +117,6 @@ primop_map = {
 }
 
 
-def _known_modules():
-
-    res = {
-        "numpy": numpy,
-        "np": numpy,
-        "onnx": onnx,
-        "onnx.helper": onnx.helper,
-        "onnxscript": onnxscript,
-        "onnxscript.onnx_opset": onnxscript.onnx_opset,
-        "onnxscript.values": onnxscript.values,
-        "onnxscript.onnx_types": onnxscript.onnx_types,
-    }
-    for att in dir(onnxscript.onnx_opset):
-        if att.startswith("opset"):
-            res[f"onnxscript.onnx_opset.{att}"] = getattr(onnxscript.onnx_opset, att)
-    return res
-
-
 class ConverterExpressionKind(IntEnum):
     ANY = 0
     CONST = 1
@@ -188,15 +170,12 @@ class Converter:
         default_opset=None,
     ):
         self.ir_builder = ir_builder or irbuilder.IRBuilder()
-        self.known_modules = _known_modules()
         self.source = source
         if global_names is not None:
             # We make a copy in case function eval modifies it.
             self.globals = global_names.copy()
         self.this_module = opset
         self.default_opset_ = default_opset
-        self.stacked_test_conditions = []
-        self.break_conditions = []
 
     @property
     def default_opset(self):
@@ -261,8 +240,7 @@ class Converter:
         """
         logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
-        self.current_fn = self.outer[0]
-        self.outer.pop(0)
+        self.current_fn = self.outer.pop(0)
         self.locals.pop(0)
         return graph
 
@@ -944,6 +922,8 @@ class Converter:
                 if hasattr(node.value, "s") and isinstance(node.value.s, str):
                     # python 3.7
                     return self.translate_docstring(node)
+        if isinstance(node, ast.FunctionDef):
+            return self.translate_nested_function_def(node)
         try:
             if node.value.func.id == "print":
                 # Any call to print function are ignored.
@@ -1330,6 +1310,17 @@ class Converter:
                 )
         graph = self.exit_scope()
         return graph.to_graph_proto()
+
+    def translate_nested_function_def(self, fn: ast.FunctionDef):
+        '''
+        Translate a nested function definition.
+        '''
+        self.enter_scope(fn.name, fn)
+        self.translate_function_def(fn)
+        function_ir = self.exit_scope()
+        graph_proto, _ = function_ir.to_graph_proto() # TODO: fix this
+        print(proto2text(graph_proto))
+        return graph_proto
 
     def translate_function_def(self, fn: ast.FunctionDef):
         logger.debug("Converter:translate_function_def:%s", fn.name)
