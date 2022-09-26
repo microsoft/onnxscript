@@ -29,5 +29,3 @@ jobs:
       - name: "pytest"
         run: pytest -v onnxscript --cov=onnxscript
       - uses: codecov/codecov-action@v3
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
