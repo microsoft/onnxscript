@@ -48,19 +48,6 @@ jobs:
   enforce-style:
     name: Enforce style
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      checks: write
-      contents: write
-      deployments: none
-      id-token: write
-      issues: write
-      discussions: write
-      packages: write
-      pull-requests: write
-      repository-projects: none
-      security-events: none
-      statuses: write
     steps:
       - uses: actions/checkout@v2
       - name: Setup Python
@@ -87,19 +74,6 @@ jobs:
   optional-style:
     name: Optional style
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      checks: write
-      contents: write
-      deployments: none
-      id-token: write
-      issues: write
-      discussions: write
-      packages: write
-      pull-requests: write
-      repository-projects: none
-      security-events: none
-      statuses: write
     steps:
       - uses: actions/checkout@v2
       - name: Setup Python
