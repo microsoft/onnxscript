@@ -98,14 +98,14 @@ def _get_const_repr(const_node):
     attr = const_node.attribute[0]
     if not attr.HasField("t"):
         return None
-    tp = attr.t
-    if (tp.data_type == TensorProto.FLOAT or tp.data_type == TensorProto.INT64):
-        rank = len(tp.dims)
+    tensor_proto = attr.t
+    if tensor_proto.data_type in {TensorProto.FLOAT, TensorProto.INT64}:
+        rank = len(tensor_proto.dims)
         if rank == 0:
-            array = onnx.numpy_helper.to_array(tp).reshape(1)
+            array = onnx.numpy_helper.to_array(tensor_proto).reshape(1)
             return repr(array[0])
-        if rank == 1 and tp.dims[0] < 5:
-            return repr(list(onnx.numpy_helper.to_array(tp)))
+        if rank == 1 and tensor_proto.dims[0] < 5:
+            return repr(list(onnx.numpy_helper.to_array(tensor_proto)))
     return None
 
 
@@ -180,7 +180,7 @@ def _attribute_value(attr):
         if onnx.external_data_helper.uses_external_data(tensor_proto):
             return tensor_proto
         else:
-            return onnx.numpy_helper.to_array(attr.t)
+            return onnx.numpy_helper.to_array(tensor_proto)
     if attr.floats:
         return list(attr.floats)
     if attr.ints:
@@ -404,7 +404,8 @@ class Exporter:
 def export_template(model_onnx, template,
                     name=None, autopep_options=None,
                     function_name='main_function', clean_code=True,
-                    use_operators=False, rename=False, inline_const=False):
+                    use_operators=False, rename=False,
+                    inline_const: bool = False):
     """
     Exports an ONNX model into a code based on a template.
     :param model_onnx: string or ONNX graph
@@ -520,7 +521,8 @@ def export_template(model_onnx, template,
 
 def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
                   autopep_options=None, function_name='main', use_operators=False,
-                  clean_code=True, inline_const=False):
+                  clean_code=True,
+                  inline_const: bool = False):
     """
     Exports an ONNX model to the *python* syntax.
     :param model_onnx: string or ONNX graph
