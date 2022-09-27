@@ -105,7 +105,17 @@ class Op:
     def has_schema(self):
         return self.opschema is not None
 
+    def adapt_kwargs(self, **kwargs):
+        '''
+        Replaces function-valued attribute-values by their GraphProto representation.
+        '''
+        for k, v in kwargs.items():
+            if callable(v):
+                kwargs[k] = v.graph_proto
+        return kwargs
+
     def __call__(self, *args, **kwargs):
+        kwargs = self.adapt_kwargs(**kwargs)
         args = autocast.dynamic_cast_inputs(self.opschema, *args)
         return self.evaluator(self.opschema, *args, **kwargs)
 
@@ -133,18 +143,6 @@ class OnnxFunction(Op):
     def name(self):
         "Returns the function name."
         return self.opname
-
-    def adapt_kwargs(self, **kwargs):
-        '''
-        Replaces function-valued attribute-values by their GraphProto representation.
-        '''
-        for k, v in kwargs.items():
-            if callable(v):
-                try:
-                    kwargs[k] = self.function_ir.graph_attributes[v.__name__]
-                except KeyError:
-                    raise ValueError(f"Graph attribute for {v.__name__} not found.")
-        return kwargs
 
     def __call__(self, *args, **kwargs):
         self.adapt_kwargs(**kwargs)

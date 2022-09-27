@@ -45,6 +45,12 @@ def compute_num_outputs(schema, *args, **kwargs):
                     "Operator Split: the number of expected outputs defines the split. "
                     "This information is unknown here."
                 )
+        if schema.name == "Scan":
+            scan_body = kwargs['body']
+            return len (scan_body.output)
+        if schema.name == "Loop":
+            loop_body = kwargs['body']
+            return len (loop_body.output) - 1
     return len(schema.outputs)
 
 
