@@ -16,13 +16,13 @@ jobs:
       contents: write
       deployments: none
       id-token: write
-      issues: write
-      discussions: write
-      packages: write
+      issues: none
+      discussions: none
+      packages: none
       pull-requests: write
       repository-projects: none
       security-events: none
-      statuses: write
+      statuses: read
     steps:
       - uses: actions/checkout@v2
       - name: Setup Python
