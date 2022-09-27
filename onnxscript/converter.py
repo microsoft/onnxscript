@@ -261,6 +261,15 @@ class Converter:
             raise ValueError(info.msg(f"Unbound name: {name}."))
         return None
 
+    def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
+        '''
+        Bind given name to given GraphProto value, for use by both the converter
+        (statically) and for eager-mode execution (dynamically).
+        '''
+        self.bind(name, graph)
+        # TODO: Does not yet handle nested functions within nested functions.
+        self.current_fn.add_graph_attribute(name, graph)
+
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
         while r in self.used_vars:
@@ -431,6 +440,7 @@ class Converter:
             val = self.lookup(expr.id, debuginfo.DebugInfo(expr, self))
             if isinstance(val, values.AttrRef):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
+            return self.ir_builder.attr(attr_name, val)
         return self.ir_builder.attr(attr_name, self.eval_constant_expr(expr))
 
     def translate_docstring(self, node):
@@ -1320,7 +1330,7 @@ class Converter:
         function_ir = self.exit_scope()
         graph_proto, _ = function_ir.to_graph_proto() # TODO: fix this
         print(proto2text(graph_proto))
-        return graph_proto
+        self.add_graph_attribute(fn.name, graph_proto)
 
     def translate_function_def(self, fn: ast.FunctionDef):
         logger.debug("Converter:translate_function_def:%s", fn.name)
