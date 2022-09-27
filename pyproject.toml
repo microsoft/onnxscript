@@ -79,9 +79,7 @@ line-length = 95
 [tool.isort]
 profile = "black"
 extend_skip_glob = [
-  "onnxscript/test/models/*.py",
   "onnxscript/test/onnx_backend_test_code/*.py",
-  "onnxscript/backend/",
 ]
 
 [tool.pylint.master]
