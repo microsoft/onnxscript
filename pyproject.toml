@@ -73,15 +73,13 @@ ignore_errors = true
 [tool.black]
 target-version = ["py37", "py38", "py39", "py310"]
 # Black's extend-exclude needs to be a regex string
-extend-exclude = "/onnxscript/test|/onnxscript/backend"
+extend-exclude = "/onnxscript/test/models|/onnxscript/test/onnx_backend_test_code"
 line-length = 95
 
 [tool.isort]
 profile = "black"
 extend_skip_glob = [
-  "onnxscript/test/models/*.py",
   "onnxscript/test/onnx_backend_test_code/*.py",
-  "onnxscript/backend/",
 ]
 
 [tool.pylint.master]

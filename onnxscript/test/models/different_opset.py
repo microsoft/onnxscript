@@ -5,9 +5,10 @@
 
 from onnx import TensorProto
 from onnx.helper import make_tensor
+
 from onnxscript.main import script
-from onnxscript.onnx_types import INT64
 from onnxscript.onnx_opset import opset14, opset16
+from onnxscript.onnx_types import INT64
 
 
 @script()
