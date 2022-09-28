@@ -1,4 +1,5 @@
-"""Eager mode evaluation
+"""
+Eager mode evaluation
 =====================
 
 An *onnx-script* function can be executed directly as a Python function (for example,

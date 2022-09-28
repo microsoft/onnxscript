@@ -1,4 +1,5 @@
-"""ModelProto Properties
+"""
+ModelProto Properties
 =====================
 
 A ModelProto, in ONNX, usually stores extra information beyond the
