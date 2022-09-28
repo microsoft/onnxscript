@@ -200,10 +200,10 @@ class TestOnnxBackEnd(unittest.TestCase):
                         sess = InferenceSession(proto.SerializeToString())  # noqa B023
                     except Exception as e:
                         raise AssertionError(
-                            f"Unable to load onnx for test {te.name!r}.\n" # noqa: B023
-                            f"{proto}\n" # noqa: B023
+                            f"Unable to load onnx for test {te.name!r}.\n"  # noqa: B023
+                            f"{onnxscript.proto2text(proto)}\n"  # noqa: B023
                             f"-----\n"
-                            f"{te.onnx_model}" # noqa: B023
+                            f"{te.onnx_model}"  # noqa: B023
                         ) from e
                     if verbose > 2:
                         print("    done.")
@@ -224,7 +224,8 @@ class TestOnnxBackEnd(unittest.TestCase):
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)
                     except Exception as e:
                         raise AssertionError(
-                            f"Unable to run test {te.name!r} after conversion.\n{str(proto)}" # noqa: B023
+                            f"Unable to run test {te.name!r} after conversion.\n"  # noqa: B023
+                            f"{onnxscript.proto2text(proto)}"
                         ) from e
                     if verbose > 2:
                         print("    done.")
