@@ -60,7 +60,7 @@ intersphinx_mapping = {"https://docs.python.org/": None}
 # -- Options for Sphinx Gallery ----------------------------------------------
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
+    "python": (f"https://docs.python.org/{sys.version_info.major}", None),
     "matplotlib": ("https://matplotlib.org/", None),
     "numpy": ("https://docs.scipy.org/doc/numpy/", None),
     "onnxruntime": ("https://onnxruntime.ai/docs/api/python/", None),

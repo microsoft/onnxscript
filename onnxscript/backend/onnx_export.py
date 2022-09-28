@@ -139,7 +139,7 @@ def _translate_type(onnx_type):
                     shape.append(d.dim_param)
             if len(shape) == 0:
                 return name
-            return "%s[%s]" % (name, ",".join(shape))
+            return "{}[{}]".format(name, ",".join(shape))
         return name + "[...]"
     raise NotImplementedError("Unable to translate type %r into onnx-script type." % onnx_type)
 
@@ -286,14 +286,14 @@ class Exporter:
                 continue
             attributes.append((at.name, repr(value)))
 
-        return ", ".join("%s=%s" % (k, v) for k, v in attributes)
+        return ", ".join(f"{k}={v}" for k, v in attributes)
 
     def _python_make_node_if(self, node, opsets, indent=0):
         """
         Translates a node If into python.
         """
         sindent = "    " * indent
-        code = ["%sif %s:" % (sindent, node.input[0])]
+        code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
                 "Node %r expected two attributes not %d." % (node.op_type, len(node.attribute))
@@ -327,12 +327,12 @@ class Exporter:
         # v_initial = node.input[2]
         rows = []
         if n_iter and not cond:
-            rows.append("%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter))
+            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
         elif not n_iter and cond:
-            rows.append("%swhile %s:" % (sindent, cond))
+            rows.append(f"{sindent}while {cond}:")
         elif n_iter and cond:
-            rows.append("%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter))
-            rows.append("%s    if not %s:" % (sindent, cond))
+            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
+            rows.append(f"{sindent}    if not {cond}:")
             rows.append("%s        break" % sindent)
         else:
             raise RuntimeError(
@@ -376,7 +376,7 @@ class Exporter:
                 return self._python_make_node_loop(node, opsets, indent=indent)
             if node.op_type == "Scan":
                 return self._python_make_node_scan(node, opsets, indent=indent)
-            raise RuntimeError("Unable to export node type %r into python." % (node.op_type,))
+            raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         if any(
             map(
                 lambda att: hasattr(att, "g") and att.g and att.g.ByteSize() > 0,
@@ -401,7 +401,7 @@ class Exporter:
         }
         sindent = "    " * indent
         if self.use_operators and node.op_type in ops:
-            return "%s%s = %s" % (
+            return "{}{} = {}".format(
                 sindent,
                 self._rename_variable(node.output[0]),
                 (" %s " % ops[node.op_type]).join(map(self.lookup, node.input)),
@@ -548,7 +548,7 @@ def export_template(
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
             raise SyntaxError(
-                "The cleaned code is wrong.\n%s\n------%s" % (final, cleaned_code)
+                f"The cleaned code is wrong.\n{final}\n------{cleaned_code}"
             )
         return cleaned_code
     return final

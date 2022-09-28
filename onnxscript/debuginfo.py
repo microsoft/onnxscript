@@ -35,7 +35,7 @@ class DebugInfo:
         self.code = None if code is None else code.split("\n")
 
     def msg(self, text):
-        return "ERROR\n%s\n    %s" % (str(self), text)
+        return f"ERROR\n{str(self)}\n    {text}"
 
     def __str__(self):
         if self.code is None:

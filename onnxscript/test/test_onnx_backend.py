@@ -80,7 +80,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
 
-        import_name = "onnxscript.test.%s.%s" % (
+        import_name = "onnxscript.test.{}.{}".format(
             os.path.split(TestOnnxBackEnd.folder)[-1],
             name,
         )
@@ -88,7 +88,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             mod = importlib.import_module(import_name)
         except (SyntaxError, ImportError) as e:
             raise AssertionError(
-                "Unable to import %r (file: %r)\n----\n%s" % (import_name, filename, content)
+                f"Unable to import {import_name!r} (file: {filename!r})\n----\n{content}"
             ) from e
         fcts = {
             k: v for k, v in mod.__dict__.items() if isinstance(v, onnxscript.OnnxFunction)
