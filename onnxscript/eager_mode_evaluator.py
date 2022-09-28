@@ -99,7 +99,7 @@ def call_ort(schema, *args, **kwargs):
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
     num_outputs = compute_num_outputs(schema, *args, **kwargs)
-    outputs = ["output" + str(i) for i in range(num_outputs)]
+    outputs = [f"output{str(i)}" for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
     input_value_infos = utils.values_to_value_infos(inputs, list(args))
