@@ -10,11 +10,15 @@ protobuf<4
 sphinx
 sphinx-gallery
 pydata_sphinx_theme
+
+# Testing
 pytest!=7.1.0
 pytest-cov
 pytest-azurepipelines
 pytest-subtests
+pytest-xdist
 torch
+
 # Lint
 flake8
 mypy
