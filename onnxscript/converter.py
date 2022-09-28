@@ -32,7 +32,7 @@ logger = logging.getLogger("onnx-script")
 
 
 def not_allowed(construct):
-    return construct + "not supported."
+    return f"{construct}not supported."
 
 
 class TranslationError(Exception):
@@ -288,7 +288,7 @@ class Converter:
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
         while r in self.used_vars:
-            r = candidate + "_" + str(self.nextvar)
+            r = f"{candidate}_{str(self.nextvar)}"
             self.nextvar = self.nextvar + 1
         self.used_vars.add(r)
         return r
@@ -408,8 +408,8 @@ class Converter:
         except NameError as e:
             raise NameError(
                 debuginfo.DebugInfo(expr).msg(
-                    "Missing names, globals contains %r, locals %r."
-                    % (list(self.globals), list(locals))
+                    f"Missing names, globals contains {list(self.globals)!r}, "
+                    f"locals {list(locals)!r}."
                 )
             ) from e
 
@@ -578,14 +578,14 @@ class Converter:
                         )
                     )
                 if default_value == "end":
-                    shape_name = self.generate_unique_name(var_name + "_shape")
+                    shape_name = self.generate_unique_name(f"{var_name}_shape")
                     self.emit(
                         [shape_name],
                         values.Op(self.default_opset, "Shape"),
                         [var_name],
                         [],
                     )
-                    dim_name = self.generate_unique_name(shape_name + "_dim")
+                    dim_name = self.generate_unique_name(f"{shape_name}_dim")
                     self.emit(
                         [dim_name],
                         values.Op(self.default_opset, "Gather"),
@@ -596,7 +596,7 @@ class Converter:
                 raise RuntimeError(f"Unexpected default value {default_value!r}.")
 
             name = self.translate_expr(node_arg).name
-            reshaped = self.generate_unique_name(name + "_reshaped")
+            reshaped = self.generate_unique_name(f"{name}_reshaped")
             self.emit(
                 [reshaped],
                 values.Op(self.default_opset, "Reshape"),
@@ -632,7 +632,7 @@ class Converter:
             # A[i], i is an integer
             index = self.eval_constant_expr(node_slice)
             var_index = self.emit_const([index], "subscript_index", info)
-            tmp = self.generate_unique_name(var_name + "_gather")
+            tmp = self.generate_unique_name(f"{var_name}_gather")
             self.emit(
                 [tmp],
                 values.Op(self.default_opset, "Gather"),
@@ -711,26 +711,26 @@ class Converter:
                 squeezed_axes.append(axis)
                 index = self.translate_expr(element).name
                 starts.append(index)
-                index_1 = self.generate_unique_name(var_name + "_end")
+                index_1 = self.generate_unique_name(f"{var_name}_end")
                 self.emit([index_1], values.Op(self.default_opset, "Add"), [index, one], [])
                 ends.append(index_1)
                 axes.append(var_axis.name)
                 steps.append(one.name)
 
             attr = self.ir_builder.attr("axis", 0)
-            start_name = self.generate_unique_name(var_name + "_start")
+            start_name = self.generate_unique_name(f"{var_name}_start")
             self.emit([start_name], values.Op(self.default_opset, "Concat"), starts, [attr])
 
-            end_name = self.generate_unique_name(var_name + "_end")
+            end_name = self.generate_unique_name(f"{var_name}_end")
             self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [attr])
 
-            axes_name = self.generate_unique_name(var_name + "_axis")
+            axes_name = self.generate_unique_name(f"{var_name}_axis")
             self.emit([axes_name], values.Op(self.default_opset, "Concat"), axes, [attr])
 
-            steps_name = self.generate_unique_name(var_name + "_step")
+            steps_name = self.generate_unique_name(f"{var_name}_step")
             self.emit([steps_name], values.Op(self.default_opset, "Concat"), steps, [attr])
             if len(squeezed_axes) > 0:
-                sliced_name = self.generate_unique_name(var_name + "sliced")
+                sliced_name = self.generate_unique_name(f"{var_name}sliced")
                 self.emit(
                     [sliced_name],
                     values.Op(self.default_opset, "Slice"),
@@ -751,7 +751,7 @@ class Converter:
 
         # A[i], i is an expression equivalent to an integer
         var_index = self.translate_expr(node_slice)
-        tmp = self.generate_unique_name(var_name + "_gather")
+        tmp = self.generate_unique_name(f"{var_name}_gather")
         self.emit(
             [tmp],
             values.Op(self.default_opset, "Gather"),
@@ -827,8 +827,8 @@ class Converter:
                 val = float(node.operand.n)
             else:
                 raise TypeError(
-                    "Unable to guess constant value from type %r and attributes %r."
-                    "" % (type(node.operand), dir(node.operand))
+                    f"Unable to guess constant value from type {type(node.operand)!r} "
+                    f"and attributes {dir(node.operand)!r}."
                 )
             if op == ast.USub:
                 cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
@@ -1017,14 +1017,14 @@ class Converter:
                 if n != len(self.returntype):
                     raise SyntaxError(
                         debuginfo.DebugInfo(stmt, self).msg(
-                            "Mismatch in number of return values and types. "
-                            "Keyword 'return' cannot be used in a subgraph (test, loop). "
-                            " returntype is %r, num_outputs=%r." % (self.returntype, n)
+                            f"Mismatch in number of return values and types. Keyword "
+                            f"'return' cannot be used in a subgraph (test, loop).  "
+                            f"returntype is {self.returntype!r}, num_outputs={n!r}."
                         )
                     )
 
         def ret(exp, i, suffix):
-            ovar = self.translate_expr(exp, "return_val" + suffix).name
+            ovar = self.translate_expr(exp, f"return_val{suffix}").name
             if self.returntype is None:
                 t = None
             else:
