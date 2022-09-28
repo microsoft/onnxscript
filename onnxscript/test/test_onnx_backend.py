@@ -226,7 +226,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                     except Exception as e:
                         raise AssertionError(
                             "Unable to run test %r after conversion.\n%s"
-                            % (te.name, str(proto))
+                            % (te.name, str(proto))  # noqa: B023
                         ) from e
                     if verbose > 2:
                         print("    done.")

@@ -9,7 +9,7 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import onnx
@@ -93,14 +93,14 @@ class OnnxScriptTestCase(unittest.TestCase):
             local_function_model_proto = param.function.function_ir.to_model_proto()
             input_value_infos = []
             for i, input in enumerate(local_function_model_proto.graph.input):
-                vi = copy.deepcopy(inupt)
+                vi = copy.deepcopy(input)
                 if (
                     i < len(onnx_case_model.graph.node[0].input)
                     and onnx_case_model.graph.node[0].input[i] != ""
                 ):
                     vi.name = onnx_case_model.graph.node[0].input[i]
                 else:
-                    vi.name = inupt.name
+                    vi.name = input.name
                 input_value_infos.append(vi)
 
             output_names = [o.name for o in onnx_case_model.graph.output]
