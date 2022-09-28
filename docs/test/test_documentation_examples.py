@@ -27,9 +27,7 @@ class TestDocumentationExample(unittest.TestCase):
                 st = err.decode("ascii", errors="ignore")
                 if len(st) > 0 and "Traceback" in st:
                     raise RuntimeError(  # pylint: disable=W0707
-                        "Example '{}' (cmd: {} - exec_prefix="
-                        "'{}') failed due to\n{}"
-                        "".format(name, cmds, sys.exec_prefix, st)
+                        f"Example '{name}' (cmd: {cmds} - exec_prefix='{sys.exec_prefix}') failed due to\n{st}"
                     )
                 tested += 1
         if tested == 0:

@@ -41,5 +41,5 @@ class DebugInfo:
         if self.code is None:
             line = ""
         else:
-            line = "    -- line: " + self.code[self.lineno - 1]
+            line = f"    -- line: {self.code[self.lineno - 1]}"
         return "%s:%d%s" % (self.source, self.lineno, line)

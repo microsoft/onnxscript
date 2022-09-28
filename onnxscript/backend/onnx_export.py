@@ -117,7 +117,7 @@ def _rename_variable(name):
         # Handle graph/function input/output uniformly
         name = name.name
     if name in kwlist:
-        return "r_" + name
+        return f"r_{name}"
     if name == "":
         return None
     return name
@@ -139,9 +139,9 @@ def _translate_type(onnx_type):
                     shape.append(d.dim_param)
             if len(shape) == 0:
                 return name
-            return "{}[{}]".format(name, ",".join(shape))
-        return name + "[...]"
-    raise NotImplementedError("Unable to translate type %r into onnx-script type." % onnx_type)
+            return f"{name}[{','.join(shape)}]"
+        return f"{name}[...]"
+    raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnx-script type.")
 
 
 def _translate_signature(inputs, outputs):
@@ -152,15 +152,15 @@ def _translate_signature(inputs, outputs):
     def input_sig(inp: Union[ValueInfoProto, str]):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
-            return _rename_variable(inp.name) + ": " + _translate_type(inp.type)
+            return f"{_rename_variable(inp.name)}: {_translate_type(inp.type)}"
         else:
             # FunctionProto inputs/outputs are just strings
             return _rename_variable(inp)
 
-    result = "(" + ", ".join([input_sig(x) for x in inputs]) + ")"
+    result = f"({', '.join([input_sig(x) for x in inputs])})"
     if outputs and isinstance(outputs[0], ValueInfoProto):
-        result += " -> (" + ", ".join([_translate_type(x.type) for x in outputs]) + ")"
-    return result + ":"
+        result += f" -> ({', '.join([_translate_type(x.type) for x in outputs])})"
+    return f"{result}:"
 
 
 def _to_str(s):
@@ -188,7 +188,7 @@ def _attribute_value(attr):
         return list(attr.ints)
     if attr.strings:
         return list(map(_to_str, attr.strings))
-    raise NotImplementedError("Unable to return a value for attribute %r." % attr)
+    raise NotImplementedError(f"Unable to return a value for attribute {attr!r}.")
 
 
 def _python_make_node_name(domain, version, name, node=False):
@@ -197,8 +197,7 @@ def _python_make_node_name(domain, version, name, node=False):
             version = 1
         if not isinstance(version, int):
             raise TypeError(
-                "version must be an integer not %r for domain=%r and name=%r."
-                % (version, domain, name)
+                f"version must be an integer not {version!r} for domain={domain!r} and name={name!r}."
             )
         if domain == "":
             return "opset%d.%s" % (version, name)
@@ -244,8 +243,7 @@ class Exporter:
         if output_names is not None:
             for fr, to in zip(graph.output, output_names):
                 code.append(
-                    "%s%s = %s"
-                    % (sindent, self._rename_variable(to), self._rename_variable(fr.name))
+                    f"{sindent}{self._rename_variable(to)} = {self._rename_variable(fr.name)}"
                 )
         final = "\n".join(code)
         return final
@@ -255,21 +253,14 @@ class Exporter:
         for at in node.attribute:
             value = _attribute_value(at)
             if isinstance(value, str):
-                attributes.append((at.name, "%r" % value))
+                attributes.append((at.name, f"{value!r}"))
                 continue
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
-                    text = 'make_tensor("value", %s, dims=[], vals=[%r])' "" % (
-                        onnx_dtype,
-                        value.tolist(),
-                    )
+                    text = f"make_tensor(\"value\", {onnx_dtype}, dims=[], vals=[{value.tolist()!r}])"
                 else:
-                    text = 'make_tensor("value", %s, dims=%r, vals=%r)' "" % (
-                        onnx_dtype,
-                        list(value.shape),
-                        value.ravel().tolist(),
-                    )
+                    text = f"make_tensor(\"value\", {onnx_dtype}, dims={list(value.shape)!r}, vals={value.ravel().tolist()!r})"
                 attributes.append((at.name, text))
                 continue
             if isinstance(value, TensorProto):
@@ -279,9 +270,9 @@ class Exporter:
                 text += f"{repr(name)}, {value.data_type}, {repr(list(value.dims))}"
                 text += f", {repr(metadata.location)}"
                 if metadata.offset:
-                    text += ", offset=" + repr(metadata.offset)
+                    text += f", offset={repr(metadata.offset)}"
                 if metadata.length:
-                    text += ", length=" + repr(metadata.length)
+                    text += f", length={repr(metadata.length)}"
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -296,7 +287,7 @@ class Exporter:
         code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
-                "Node %r expected two attributes not %d." % (node.op_type, len(node.attribute))
+                f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}."
             )
         atts = node.attribute
         if atts[0].name == "else_branch":
@@ -308,7 +299,7 @@ class Exporter:
                 then_branch, opsets, indent=indent + 1, output_names=node.output
             )
         )
-        code.append("%selse:" % sindent)
+        code.append(f"{sindent}else:")
         code.append(
             self._python_make_node_graph(
                 else_branch, opsets, indent=indent + 1, output_names=node.output
@@ -333,11 +324,10 @@ class Exporter:
         elif n_iter and cond:
             rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
             rows.append(f"{sindent}    if not {cond}:")
-            rows.append("%s        break" % sindent)
+            rows.append(f"{sindent}        break")
         else:
             raise RuntimeError(
-                "Unable to export loop type %r into python because there is no "
-                "stop condition." % (node.op_type,)
+                f"Unable to export loop type {node.op_type!r} into python because there is no stop condition."
             )
         rows.append(
             self._python_make_node_graph(
@@ -383,7 +373,7 @@ class Exporter:
                 node.attribute,
             )
         ):
-            raise RuntimeError("Unable to export node type %r into python." % node.op_type)
+            raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         ops = {
             "Add": "+",
             "Sub": "-",
@@ -401,17 +391,13 @@ class Exporter:
         }
         sindent = "    " * indent
         if self.use_operators and node.op_type in ops:
-            return "{}{} = {}".format(
-                sindent,
-                self._rename_variable(node.output[0]),
-                (" %s " % ops[node.op_type]).join(map(self.lookup, node.input)),
-            )
+            return f"{sindent}{self._rename_variable(node.output[0])} = {(' %s ' % ops[node.op_type]).join(map(self.lookup, node.input))}"
         name = _python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True
         )
         attributes_str = self._python_make_node_make_attribute_str(node)
         if len(node.input) > 0 and len(attributes_str) > 0:
-            attributes_str = ", " + attributes_str
+            attributes_str = f", {attributes_str}"
         output_names = []
         for i, o in enumerate(node.output):
             if o in ("", None):
@@ -543,7 +529,7 @@ def export_template(
 
     final += "\n"
     if "\nreturn" in final:
-        raise SyntaxError("The produced code is wrong.\n%s" % final)
+        raise SyntaxError(f"The produced code is wrong.\n{final}")
     if clean_code:
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
@@ -599,7 +585,7 @@ def export2python(
         model_onnx = onnx.load(model_onnx)
 
     if not isinstance(model_onnx, (ModelProto, FunctionProto)):
-        raise TypeError("The function expects a ModelProto not %r." % type(model_onnx))
+        raise TypeError(f"The function expects a ModelProto not {type(model_onnx)!r}.")
     code = export_template(
         model_onnx,
         template=_template_python,

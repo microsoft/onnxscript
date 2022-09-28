@@ -76,14 +76,11 @@ class TestOnnxBackEnd(unittest.TestCase):
             init = os.path.join(TestOnnxBackEnd.folder, "__init__.py")
             with open(init, "w"):
                 pass
-        filename = os.path.join(TestOnnxBackEnd.folder, name + ".py")
+        filename = os.path.join(TestOnnxBackEnd.folder, f"{name}.py")
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
 
-        import_name = "onnxscript.test.{}.{}".format(
-            os.path.split(TestOnnxBackEnd.folder)[-1],
-            name,
-        )
+        import_name = f"onnxscript.test.{os.path.split(TestOnnxBackEnd.folder)[-1]}.{name}"
         try:
             mod = importlib.import_module(import_name)
         except (SyntaxError, ImportError) as e:
@@ -144,7 +141,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                 success += 1
                 if verbose > 1:
                     print("  convert into python")
-                code = export2python(te.onnx_model, function_name="bck_" + te.name)
+                code = export2python(te.onnx_model, function_name=f"bck_{te.name}")
                 self.assertIn("@script()", code)
                 self.assertIn(f"def bck_{te.name}(", code)
                 if verbose > 1:
@@ -161,7 +158,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                     # support something like 'while i < n and cond:'
                     continue
                 fcts = self.verify(te.name, code)
-                main = fcts["bck_" + te.name]
+                main = fcts[f"bck_{te.name}"]
                 self.assertFalse(main is None)
                 proto = main.to_model_proto()
                 # opset may be different when an binary operator is used.
@@ -202,8 +199,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         sess = InferenceSession(proto.SerializeToString())
                     except Exception as e:
                         raise AssertionError(
-                            "Unable to load onnx for test %r.\n%s\n-----\n%s"
-                            % (te.name, str(proto), str(te.onnx_model))
+                            f"Unable to load onnx for test {te.name!r}.\n{str(proto)}\n-----\n{str(te.onnx_model)}"
                         ) from e
                     if verbose > 2:
                         print("    done.")
@@ -224,8 +220,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)
                     except Exception as e:
                         raise AssertionError(
-                            "Unable to run test %r after conversion.\n%s"
-                            % (te.name, str(proto))
+                            f"Unable to run test {te.name!r} after conversion.\n{str(proto)}"
                         ) from e
                     if verbose > 2:
                         print("    done.")
