@@ -334,7 +334,8 @@ class Exporter:
             rows.append(f"{sindent}        break")
         else:
             raise RuntimeError(
-                f"Unable to export loop type {node.op_type!r} into python because there is no stop condition."
+                f"Unable to export loop type {node.op_type!r} into python because "
+                "there is no stop condition."
             )
         rows.append(
             self._python_make_node_graph(
@@ -398,7 +399,10 @@ class Exporter:
         }
         sindent = "    " * indent
         if self.use_operators and node.op_type in ops:
-            return f"{sindent}{self._rename_variable(node.output[0])} = {(' %s ' % ops[node.op_type]).join(map(self.lookup, node.input))}"
+            return (
+                f"{sindent}{self._rename_variable(node.output[0])} = "
+                f"{(' %s ' % ops[node.op_type]).join(map(self.lookup, node.input))}"
+            )
         name = _python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True
         )
@@ -408,7 +412,7 @@ class Exporter:
         output_names = []
         for i, o in enumerate(node.output):
             if o in ("", None):
-                output_names.append("_%d" % i)
+                output_names.append(f"_{i}")
             else:
                 output_names.append(self._rename_variable(o))
 
