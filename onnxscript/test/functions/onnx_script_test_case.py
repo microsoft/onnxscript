@@ -60,8 +60,8 @@ class OnnxScriptTestCase(unittest.TestCase):
     ) -> ModelProto:
         local_function_proto = param.function.function_ir.to_function_proto("")
         if not onnx_case_model:
-            input_names = ["input_" + str(i) for i in range(len(param.input))]
-            output_names = ["output_" + str(i) for i in range(len(param.output))]
+            input_names = [f"input_{str(i)}" for i in range(len(param.input))]
+            output_names = [f"output_{str(i)}" for i in range(len(param.output))]
             input_value_infos = utils.values_to_value_infos(input_names, param.input)
         elif len(onnx_case_model.graph.input) == len(local_function_proto.input) and all(
             [i != "" for i in onnx_case_model.graph.input]

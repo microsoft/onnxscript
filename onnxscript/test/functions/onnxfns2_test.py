@@ -10,7 +10,7 @@ from onnxscript.test.models import onnxfns2
 class TestOnnxFns(OnnxScriptTestCase):
     @classmethod
     def setUpClass(cls):
-        super(TestOnnxFns, cls).setUpClass()
+        super().setUpClass()
         cls.rtol = 1e-05
 
     @unittest.skipIf(

@@ -27,7 +27,7 @@ def convert_file(script):
 def to_single_model_proto(model, input_py_file: str, output_onnx_file: Optional[str] = None):
     if not output_onnx_file:
         prefix, _ = os.path.splitext(input_py_file)
-        output_onnx_file = prefix + ".onnx"
+        output_onnx_file = f"{prefix}.onnx"
 
     fnlist = convert_file(input_py_file)
 
