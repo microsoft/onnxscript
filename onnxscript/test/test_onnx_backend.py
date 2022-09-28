@@ -200,10 +200,10 @@ class TestOnnxBackEnd(unittest.TestCase):
                         sess = InferenceSession(proto.SerializeToString())  # noqa B023
                     except Exception as e:
                         raise AssertionError(
-                            f"Unable to load onnx for test {te.name!r}.\n"
-                            f"{proto}\n"
+                            f"Unable to load onnx for test {te.name!r}.\n" # noqa: B023
+                            f"{proto}\n" # noqa: B023
                             f"-----\n"
-                            f"{te.onnx_model}"
+                            f"{te.onnx_model}" # noqa: B023
                         ) from e
                     if verbose > 2:
                         print("    done.")
@@ -224,7 +224,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)
                     except Exception as e:
                         raise AssertionError(
-                            f"Unable to run test {te.name!r} after conversion.\n{str(proto)}"
+                            f"Unable to run test {te.name!r} after conversion.\n{str(proto)}" # noqa: B023
                         ) from e
                     if verbose > 2:
                         print("    done.")
@@ -254,7 +254,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         return [output]
 
                     try:
-                        te.run(lambda obj: main, exec_main)  # noqa B023
+                        te.run(lambda obj: main, exec_main)  # noqa: B023
                     except eager_mode_evaluator.EagerModeError as e:
                         # Does not work.
                         if verbose > 0:
