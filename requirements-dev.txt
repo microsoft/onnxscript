@@ -20,4 +20,5 @@ flake8
 mypy
 black
 isort[colors]
-
+dlint
+flake8-bugbear
