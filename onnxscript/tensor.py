@@ -10,8 +10,7 @@ from onnxscript import onnx_opset
 
 
 class Tensor:
-    """
-    An implementation of ONNX Tensors, based on a wrapper around numpy arrays.
+    """An implementation of ONNX Tensors, based on a wrapper around numpy arrays.
     Serves to define overloaded ops with an ONNX/ONNXScript semantics.
     """
 

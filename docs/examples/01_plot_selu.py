@@ -1,5 +1,4 @@
-"""
-Generating a FunctionProto
+"""Generating a FunctionProto
 ==========================
 
 The example below shows how we can define Selu as a function in onnxscript.

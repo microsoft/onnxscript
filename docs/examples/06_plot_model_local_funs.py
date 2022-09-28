@@ -1,5 +1,4 @@
-"""
-Model Local Functions
+"""Model Local Functions
 =====================
 
 A model in ONNX may contain model-local functions. When converting an *onnxscript*

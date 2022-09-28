@@ -1,5 +1,4 @@
-"""
-Generating a ModelProto
+"""Generating a ModelProto
 =======================
 
 This example demonstrates the use of *onnx-script* to define an ONNX model.

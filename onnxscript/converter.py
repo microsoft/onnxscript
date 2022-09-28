@@ -157,11 +157,11 @@ class ConverterExpression:
 
 
 class Converter:
-    """
-    Main class to translate python code into ONNX operators.
+    """Main class to translate python code into ONNX operators.
 
-    :param ir_builder: convert AST node into ONNX structures,
-        if None, class :class:`onnxscript.irbuilder.IRBuilder` is used
+    Args:
+        ir_builder: convert AST node into ONNX structures, if None,
+            class :class:`onnxscript.irbuilder.IRBuilder` is used
 
     The class uses logger `onnx-script`. Logging can be enabled with the following code:
 
@@ -248,8 +248,7 @@ class Converter:
     """
 
     def enter_scope(self, name, parent_node):
-        """
-        Enter a control-flow block (a loop body or if-then-else branch).
+        """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
         """
         self.outer.insert(0, self.current_fn)
@@ -258,9 +257,7 @@ class Converter:
         logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
-        """
-        Exit from a control-flow block (a loop body or if-then-else branch).
-        """
+        """Exit from a control-flow block (a loop body or if-then-else branch)."""
         logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
         self.current_fn = self.outer[0]
@@ -389,8 +386,7 @@ class Converter:
         return False
 
     def eval_constant_expr(self, expr):
-        """
-        Evaluates a sub-expression that is assumed to represent a constant value.
+        """Evaluates a sub-expression that is assumed to represent a constant value.
         The expression can refer only to global names (inherited from the scope
         where the script is evaluated) and cannot refer to local names defined
         within the script.) Further, these expressions are assumed to be constants.
@@ -443,8 +439,7 @@ class Converter:
         )
 
     def translate_attr(self, attr_name, expr):
-        """
-        Translate an attribute-value specification of the form `attr_name=<expr>`
+        """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
         into an ONNX attribute value, or
@@ -469,8 +464,7 @@ class Converter:
         )
 
     def translate_expr(self, node, target="tmp"):
-        """
-        Expression-translation generates "IR statements/nodes" that compute the value of
+        """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
         """
@@ -510,8 +504,7 @@ class Converter:
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
     def translate_opt_expr(self, node, target="tmp"):
-        """
-        Translation of an expression where "None" is permitted (eg., for an optional argument)
+        """Translation of an expression where "None" is permitted (eg., for an optional argument)
         None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
         """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
@@ -519,8 +512,7 @@ class Converter:
         return self.translate_expr(node, target)
 
     def translate_subscript_expr(self, node):
-        """
-        List of supported syntaxes is below.
+        """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
         ::
@@ -762,8 +754,7 @@ class Converter:
         return values.Op(self.default_opset, "Squeeze"), [tmp, axis.name], []
 
     def translate_call_expr(self, node):
-        """
-        Translates a call-expression.
+        """Translates a call-expression.
         For now, the handling of positional and named arguments is slightly different
         from standard Python. We implicitly map named arguments to ONNX attributes, and
         positional arguments to ONNX inputs.
@@ -918,8 +909,7 @@ class Converter:
         fail(debuginfo.DebugInfo(node, self).msg("Invalid callee"))
 
     def translate_stmt(self, node, index_of_stmt=None):
-        """
-        Statement translation: A single Python statement is mapped into a
+        """Statement translation: A single Python statement is mapped into a
         sequence of IR statements.
         """
         if isinstance(node, ast.Assign):
@@ -1287,9 +1277,7 @@ class Converter:
         )
 
     def translate_block(self, stmts, name, live_defs, parent_stmt=None):
-        """
-        Translation of a statement-block to GraphProto attribute.
-        """
+        """Translation of a statement-block to GraphProto attribute."""
         info_stmt = stmts[0] if len(stmts) > 0 else parent_stmt
         self.enter_scope(name, None)
         for s in stmts:

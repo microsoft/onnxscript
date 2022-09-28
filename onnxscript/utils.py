@@ -32,18 +32,20 @@ def external_tensor(
     checksum: Optional[str] = None,
     basepath: Optional[str] = None,
 ) -> TensorProto:
-    """
-    Create a TensorProto referencing externally stored tensor-data.
+    """Create a TensorProto referencing externally stored tensor-data.
 
-    :param      name:        name of the tensor
-    :param      data_type:   data type of tensor element
-    :param      dims:        shape of the tensor
-    :param      location:    location of the external file (relative path)
-    :param      offset:      offset in the file where the tensor-data starts
-    :param      length:      number of bytes containing the data
-    :param      checksum:    SHA1 digest of the file
-    :param      basepath:    basepath combined with location to form the full path
-    :return:                 TensorProto
+    Args:
+        name: name of the tensor
+        data_type: data type of tensor element
+        dims: shape of the tensor
+        location: location of the external file (relative path)
+        offset: offset in the file where the tensor-data starts
+        length: number of bytes containing the data
+        checksum: SHA1 digest of the file
+        basepath: basepath combined with location to form the full path
+
+    Returns:
+        TensorProto
 
     See https://github.com/onnx/onnx/blob/main/docs/ExternalData.md for more details.
     """
@@ -72,9 +74,7 @@ def external_tensor(
 
 
 def value_to_type_proto(val):
-    """
-    Return the ONNX type of a python-value.
-    """
+    """Return the ONNX type of a python-value."""
     if isinstance(val, (np.ndarray, tensor.Tensor)):
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
         shape = val.shape
@@ -98,8 +98,7 @@ def value_to_type_proto(val):
 
 
 def values_to_value_infos(names, values):
-    """
-    Create a list of ValueInfoProto representing a list of names and a corresponding
+    """Create a list of ValueInfoProto representing a list of names and a corresponding
     list of values, skipping any None values.
     """
     return [

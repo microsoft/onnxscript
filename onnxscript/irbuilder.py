@@ -25,8 +25,7 @@ def format(list, prefix, sep, suffix, formatter=str):
 
 
 def select_ir_version(version, domain=""):
-    """
-    Selects the corresponding ir_version knowning the opset version
+    """Selects the corresponding ir_version knowning the opset version
     for the main ONNX domain.
     """
     if domain == "":
@@ -75,15 +74,19 @@ class Var:
         return self.name + " : " + str(self.typeinfo)
 
     def to_value_info(self, enforce_typed=False, default_type=None):
-        """
-        Converts the content of this class into :class:`onnx.ValueInfoProto`.
+        """Converts the content of this class into :class:`onnx.ValueInfoProto`.
 
-        :param enforce_typed: if True, the function raises an exception if
-            the type of an input or output is not specified (no annotation)
-            unless *io_types* defined a default value to use
-        :param default_type: defines a default value for missing input and output type,
-            this is only used if *enforce_typed* is True
-        :return: an instance of :class:`onnx.ValueInfoProto`
+        Args:
+            enforce_typed: if True, the function raises an exception if
+                the type of an input or output is not specified (no
+                annotation) unless *io_types* defined a default value to
+                use
+            default_type: defines a default value for missing input and
+                output type, this is only used if *enforce_typed* is
+                True
+
+        Returns:
+            an instance of :class:`onnx.ValueInfoProto`
         """
         if self.typeinfo is None:
             if enforce_typed:
@@ -229,17 +232,21 @@ class Function:
         self.functions[opf.name] = proto
 
     def to_model_proto(self, functions=None, io_types=None, **kwargs):
-        """
-        Converts the content of this class into a `onnx.ModelProto`.
+        """Converts the content of this class into a `onnx.ModelProto`.
 
-        :param functions: list of functions to include in the model,
-            by default, all functions called at least once are included
-        :param io_types: many functions are written without any type specification
-            so they can be type agnostic. However, ModelProto requires the inputs
-            and outputs to be strongly typed. When an input or an output has no type,
-            this default value is used.
-        :param kwargs: additional parameters given to function :func:`onnx.helper.make_model`
-        :return: an instance of :class:`onnx.ModelProto`
+        Args:
+            functions: list of functions to include in the model, by
+                default, all functions called at least once are included
+            io_types: many functions are written without any type
+                specification so they can be type agnostic. However,
+                ModelProto requires the inputs and outputs to be
+                strongly typed. When an input or an output has no type,
+                this default value is used.
+            **kwargs: additional parameters given to function
+                :func:`onnx.helper.make_model`
+
+        Returns:
+            an instance of :class:`onnx.ModelProto`
         """
         graph, sub_functions = self.to_graph_proto(enforce_typed=True, io_types=io_types)
         if functions is None:
@@ -278,15 +285,19 @@ class Function:
         )
 
     def to_graph_proto(self, enforce_typed=False, io_types=None):
-        """
-        Converts the content of this class into a `onnx.GraphProto`.
+        """Converts the content of this class into a `onnx.GraphProto`.
 
-        :param enforce_typed: if True, the function raises an exception if
-            the type of an input or output is not specified (no annotation)
-            unless *io_types* defined a default value to use
-        :param io_types: defines a default value for missing input and output type,
-            this is only used if *enforce_typed* is True
-        :return: an instance of :class:`onnx.GraphProto`
+        Args:
+            enforce_typed: if True, the function raises an exception if
+                the type of an input or output is not specified (no
+                annotation) unless *io_types* defined a default value to
+                use
+            io_types: defines a default value for missing input and
+                output type, this is only used if *enforce_typed* is
+                True
+
+        Returns:
+            an instance of :class:`onnx.GraphProto`
         """
         sub_functions = {}
         for s in self.stmts:
@@ -320,11 +331,11 @@ class Function:
         return func_opset_imports
 
     def to_function_proto(self, domain):
-        """
-        Converts a function into a *FunctionProto* after it is parsed
+        """Converts a function into a *FunctionProto* after it is parsed
         by the converter.
 
-        .. warning:: About default values
+        Warning:
+            About default values
 
             Default values for attributes are introduced in onnx==1.13.0.
             If an earlier version of onnx is installed, it ignores the default

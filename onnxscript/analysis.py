@@ -36,7 +36,8 @@ def used_vars(expr):
 
 def local_defs(lhs):
     """Utility function to return set of assigned/defined
-    variables in the lhs of an assignment statement."""
+    variables in the lhs of an assignment statement.
+    """
 
     def get_id(e):
         assert isinstance(e, ast.Name), "Only simple assignments supported."
@@ -48,8 +49,7 @@ def local_defs(lhs):
 
 
 def defs(stmt):
-    """
-    Return the set of all variables that may be defined (assigned to) in an
+    """Return the set of all variables that may be defined (assigned to) in an
     execution of input stmt.
     """
 
@@ -81,8 +81,7 @@ def defs(stmt):
 
 
 def do_liveness_analysis(fun, converter):
-    """
-    Perform liveness analysis of the given function-ast. The results of the
+    """Perform liveness analysis of the given function-ast. The results of the
     analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
     and `s.live_out`.
     """
@@ -158,8 +157,7 @@ def do_liveness_analysis(fun, converter):
 
 
 def exposed_uses(stmts, converter):
-    """
-    Return the set of variables that are used before being defined by given block.
+    """Return the set of variables that are used before being defined by given block.
     In essence, this identifies the "inputs" to a given code-block.
     For example, consider the following code-block:
     ::

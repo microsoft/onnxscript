@@ -36,9 +36,7 @@ def get_ast(f):
 
 
 def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=None):
-    """
-    Check that a function falls into the ONNXScript subset of Python.
-    """
+    """Check that a function falls into the ONNXScript subset of Python."""
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
@@ -52,11 +50,13 @@ def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=
 
 
 def script(opset=None, default_opset=None, **kwargs):
-    """
-    Main decorator. Declares a function as an onnx function.
+    """Main decorator. Declares a function as an onnx function.
 
-    :param opset: opset the function belongs to (see :ref:`l-api-opsets`)
-    :return: an instance of :class:`onnxscript.values.OnnxFunction`
+    Args:
+        opset: opset the function belongs to (see :ref:`l-api-opsets`)
+
+    Returns:
+        an instance of :class:`onnxscript.values.OnnxFunction`
 
     Example:
 
@@ -105,9 +105,7 @@ def script(opset=None, default_opset=None, **kwargs):
 
 
 def is_converted_fun(f):
-    """
-    Return True if f is a function converted by onnx-script decorator.
-    """
+    """Return True if f is a function converted by onnx-script decorator."""
     return isinstance(f, onnxscript.OnnxFunction)
 
 
