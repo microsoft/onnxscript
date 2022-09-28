@@ -5,6 +5,7 @@
 
 from onnxscript.main import graph as graphattr
 from onnxscript import script
+from onnxscript.utils import proto2text
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, BOOL, INT64
 
@@ -21,7 +22,9 @@ def CumulativeSum(X):
     all_sum, cumulative_sum = op.Scan (0, X, body=Sum, num_scan_inputs=1)
     return cumulative_sum
 
-model = CumulativeSum.to_model_proto()
+model = CumulativeSum.to_model_proto(input_type=[FLOAT['N']], output_type=[FLOAT['N']])
+
+print (proto2text(model))
 
 # X = np.array([1, 2, 3, 4, 5], dtype=np.int32)
 # Y = CumulativeSum(X)
