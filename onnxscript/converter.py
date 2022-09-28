@@ -11,7 +11,7 @@ from enum import IntEnum
 
 import numpy
 import onnx
-from onnx import helper
+from onnx import helper, numpy_helper
 
 # _known_modules() needs full module name
 import onnxscript
@@ -72,6 +72,8 @@ def py_type_to_onnx_type(pytype: type, info: debuginfo.DebugInfo):
 
 
 def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: debuginfo.DebugInfo):
+    if isinstance(pyvalue, numpy.ndarray):
+        return numpy_helper.from_array(pyvalue, tensor_name)
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(info.msg("Cannot convert an empty list to tensor"))
@@ -321,7 +323,7 @@ class Converter:
         return self.emit_const(val, target if target else "tmp", info)
 
     def py_var_to_onnx_var(self, py_var, info):
-        return self.to_onnx_var(self.lookup(py_var, info), info=info)
+        return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self.current_fn, docstring)

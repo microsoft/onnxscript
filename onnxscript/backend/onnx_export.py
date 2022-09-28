@@ -7,16 +7,16 @@ from typing import Union
 
 import numpy
 import onnx
-from onnx import FunctionProto, ModelProto, ValueInfoProto, numpy_helper
+from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_node
 
-from ..onnx_types import ParametricTensor
+from onnxscript.onnx_types import ParametricTensor
 
 _template_python = '''
 import numpy
 from onnx import TensorProto
 from onnx.helper import make_tensor
-from onnxscript import script
+from onnxscript import script, external_tensor
 from onnxscript.values import Opset
 {% if unique_types %}
 from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
@@ -86,6 +86,29 @@ kwlist = {
 }
 
 
+def _get_const_repr(const_node):
+    '''
+    Given an ONNX Constant-op node, returns a string representation of
+    the constant-value in ONNXScript, if a compact representation is possible.
+    Returns None otherwise.
+    Supports only FLOAT/INT64 values and scalars and small rank-1 tensors.
+    This needs to be reconciled with the ONNXScript converter.
+    '''
+    assert const_node.op_type == 'Constant', "Expected a constant node"
+    attr = const_node.attribute[0]
+    if not attr.HasField("t"):
+        return None
+    tensor_proto = attr.t
+    if tensor_proto.data_type in {TensorProto.FLOAT, TensorProto.INT64}:
+        rank = len(tensor_proto.dims)
+        if rank == 0:
+            array = onnx.numpy_helper.to_array(tensor_proto).reshape(1)
+            return repr(array[0])
+        if rank == 1 and tensor_proto.dims[0] < 5:
+            return repr(list(onnx.numpy_helper.to_array(tensor_proto)))
+    return None
+
+
 def _rename_variable(name):
     """
     Renames all names equal to a python keyword.
@@ -153,7 +176,11 @@ def _attribute_value(attr):
     if attr.HasField("s"):
         return _to_str(attr.s)
     if attr.HasField("t"):
-        return numpy_helper.to_array(attr.t)
+        tensor_proto = attr.t
+        if onnx.external_data_helper.uses_external_data(tensor_proto):
+            return tensor_proto
+        else:
+            return onnx.numpy_helper.to_array(tensor_proto)
     if attr.floats:
         return list(attr.floats)
     if attr.ints:
@@ -183,9 +210,11 @@ class Exporter:
     Class used for recursive traversal of Proto structures.
     '''
 
-    def __init__(self, use_operators=False, rename_function=None) -> None:
+    def __init__(self, use_operators=False, rename_function=None, inline_const=False) -> None:
         self.use_operators = use_operators
         self._rename_variable = rename_function or _rename_variable
+        self.inline_const = inline_const
+        self.constants = {}
 
     def _rename_variable_s(self, name):
         """
@@ -208,7 +237,9 @@ class Exporter:
             raise NotImplementedError(
                 "Unable to convert sparse_initilizer into python.")
         for node in graph.node:
-            code.append(self._python_make_node(node, opsets, indent=indent))
+            pynode = self._python_make_node(node, opsets, indent=indent)
+            if pynode:
+                code.append(pynode)
         if output_names is not None:
             for fr, to in zip(graph.output, output_names):
                 code.append(
@@ -235,6 +266,18 @@ class Exporter:
                         'make_tensor("value", %s, dims=%r, vals=%r)'
                         '' % (onnx_dtype, list(value.shape),
                               value.ravel().tolist()))
+                attributes.append((at.name, text))
+                continue
+            if isinstance(value, TensorProto):
+                metadata = onnx.external_data_helper.ExternalDataInfo(value)
+                name = value.name or "value"
+                text = "external_tensor("
+                text += f"{repr(name)}, {value.data_type}, {repr(list(value.dims))}"
+                text += f", {repr(metadata.location)}"
+                if metadata.offset:
+                    text += ", offset=" + repr(metadata.offset)
+                if metadata.length:
+                    text += ", length=" + repr(metadata.length)
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -299,11 +342,22 @@ class Exporter:
         """
         raise NotImplementedError()
 
+    def lookup(self, var):
+        if (var in self.constants):
+            return self.constants[var]
+        else:
+            return self._rename_variable_s(var)
+
     def _python_make_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):
             node = onnx_node['onnx_node']
         else:
             node = onnx_node
+        if self.inline_const and node.op_type == "Constant":
+            val = _get_const_repr(node)
+            if val is not None:
+                self.constants[node.output[0]] = str(val)
+                return ""
         if node.op_type in {'If', 'Loop', 'Scan'}:
             # If, Loop, Scan
             if node.op_type == 'If':
@@ -326,7 +380,7 @@ class Exporter:
         if self.use_operators and node.op_type in ops:
             return "%s%s = %s" % (
                 sindent, self._rename_variable(node.output[0]),
-                (" %s " % ops[node.op_type]).join(map(self._rename_variable, node.input)))
+                (" %s " % ops[node.op_type]).join(map(self.lookup, node.input)))
         name = _python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True)
         attributes_str = self._python_make_node_make_attribute_str(node)
@@ -341,7 +395,7 @@ class Exporter:
 
         text = [sindent, ", ".join(output_names), " = ", name,
                 '(',
-                ', '.join(map(self._rename_variable_s, node.input)),
+                ', '.join(map(self.lookup, node.input)),
                 attributes_str,
                 ')']
         return "".join(text)
@@ -350,7 +404,8 @@ class Exporter:
 def export_template(model_onnx, template,
                     name=None, autopep_options=None,
                     function_name='main_function', clean_code=True,
-                    use_operators=False, rename=False):
+                    use_operators=False, rename=False,
+                    inline_const: bool = False):
     """
     Exports an ONNX model into a code based on a template.
     :param model_onnx: string or ONNX graph
@@ -360,6 +415,7 @@ def export_template(model_onnx, template,
     :param function_name: main function name in the code
     :param clean_code: clean the code
     :param rename: rename variable name to get shorter names
+    :param inline_const: replace ONNX constants inline if compact
     :return: python code
     """
     # delayed import to avoid raising an exception if not installed.
@@ -389,7 +445,7 @@ def export_template(model_onnx, template,
         def rename_variable(name):
             return _rename_variable(name)
 
-    exporter = Exporter(use_operators, rename_function=rename_variable)
+    exporter = Exporter(use_operators, rename_variable, inline_const)
 
     # containers
     context = {'main_model': model_onnx,
@@ -464,7 +520,9 @@ def export_template(model_onnx, template,
 
 
 def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
-                  autopep_options=None, function_name='main', use_operators=False):
+                  autopep_options=None, function_name='main', use_operators=False,
+                  clean_code=True,
+                  inline_const: bool = False):
     """
     Exports an ONNX model to the *python* syntax.
     :param model_onnx: string or ONNX graph
@@ -475,6 +533,8 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
     :param rename: rename the names to get shorter names
     :param autopep_options: :epkg:`autopep8` options
     :param function_name: main function name
+    :param clean_code: clean the code
+    :param inline_const: replace ONNX constants inline if compact
     :return: python code
     The following example shows what a python code creating a graph
     implementing the KMeans would look like.
@@ -500,6 +560,7 @@ def export2python(model_onnx, opset=None, verbose=True, name=None, rename=False,
             "The function expects a ModelProto not %r." % type(model_onnx))
     code = export_template(model_onnx, template=_template_python,
                            name=name, autopep_options=autopep_options,
-                           clean_code=True, function_name=function_name,
-                           use_operators=use_operators, rename=rename)
+                           clean_code=clean_code, function_name=function_name,
+                           use_operators=use_operators, rename=rename,
+                           inline_const=inline_const)
     return code
