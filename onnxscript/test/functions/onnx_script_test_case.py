@@ -93,14 +93,14 @@ class OnnxScriptTestCase(unittest.TestCase):
             local_function_model_proto = param.function.function_ir.to_model_proto()
             input_value_infos = []
             for i, input in enumerate(local_function_model_proto.graph.input):
-                vi = copy.deepcopy(local_function_model_proto.graph.input[i])
+                vi = copy.deepcopy(inupt)
                 if (
                     i < len(onnx_case_model.graph.node[0].input)
                     and onnx_case_model.graph.node[0].input[i] != ""
                 ):
                     vi.name = onnx_case_model.graph.node[0].input[i]
                 else:
-                    vi.name = local_function_model_proto.graph.input[i].name
+                    vi.name = inupt.name
                 input_value_infos.append(vi)
 
             output_names = [o.name for o in onnx_case_model.graph.output]
@@ -201,7 +201,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         rtol: float = None,
         atol: float = None,
         skip_eager_test: bool = False,
-        skip_test_names: List[str] = [],
+        skip_test_names: Optional[List[str]] = None,
         **attrs: Any,
     ) -> None:
         """
@@ -217,9 +217,11 @@ class OnnxScriptTestCase(unittest.TestCase):
             attrs (Any): default attributes of the function node.
 
         """
+        if skip_test_names is None:
+            skip_test_names = []
 
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
-        for i, case in enumerate(cases):
+        for case in cases:
             if len(case.model.graph.node) != 1:
                 raise ValueError(
                     "run_onnx_test only \

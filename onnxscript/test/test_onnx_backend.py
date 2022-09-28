@@ -199,11 +199,12 @@ class TestOnnxBackEnd(unittest.TestCase):
                     if verbose > 2:
                         print("    load ONNX")
                     try:
-                        sess = InferenceSession(proto.SerializeToString())
+                        # FIXME(#137): Fix B023 flake8 errors
+                        sess = InferenceSession(proto.SerializeToString())  # noqa B023
                     except Exception as e:
                         raise AssertionError(
                             "Unable to load onnx for test %r.\n%s\n-----\n%s"
-                            % (te.name, str(proto), str(te.onnx_model))
+                            % (te.name, str(proto), str(te.onnx_model))  # noqa B023
                         ) from e
                     if verbose > 2:
                         print("    done.")
@@ -248,14 +249,14 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("  check eager")
 
                     def exec_main(f, *inputs):
-                        assert id(f) == id(main)
+                        assert id(f) == id(main)  # noqa B023
                         output = f(*inputs)
                         if isinstance(output, tuple):
                             return list(output)
                         return [output]
 
                     try:
-                        te.run(lambda obj: main, exec_main)
+                        te.run(lambda obj: main, exec_main)  # noqa B023
                     except eager_mode_evaluator.EagerModeError as e:
                         # Does not work.
                         if verbose > 0:
