@@ -199,7 +199,10 @@ class TestOnnxBackEnd(unittest.TestCase):
                         sess = InferenceSession(proto.SerializeToString())
                     except Exception as e:
                         raise AssertionError(
-                            f"Unable to load onnx for test {te.name!r}.\n{str(proto)}\n-----\n{str(te.onnx_model)}"
+                            f"Unable to load onnx for test {te.name!r}.\n"
+                            f"{proto}\n"
+                            f"-----\n"
+                            f"{te.onnx_model}"
                         ) from e
                     if verbose > 2:
                         print("    done.")

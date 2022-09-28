@@ -408,7 +408,8 @@ class Converter:
         except NameError as e:
             raise NameError(
                 debuginfo.DebugInfo(expr).msg(
-                    f"Missing names, globals contains {list(self.globals)!r}, locals {list(locals)!r}."
+                    f"Missing names, globals contains {list(self.globals)!r}, "
+                    f"locals {list(locals)!r}."
                 )
             ) from e
 
@@ -826,7 +827,8 @@ class Converter:
                 val = float(node.operand.n)
             else:
                 raise TypeError(
-                    f"Unable to guess constant value from type {type(node.operand)!r} and attributes {dir(node.operand)!r}."
+                    f"Unable to guess constant value from type {type(node.operand)!r} "
+                    f"and attributes {dir(node.operand)!r}."
                 )
             if op == ast.USub:
                 cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
@@ -1015,7 +1017,9 @@ class Converter:
                 if n != len(self.returntype):
                     raise SyntaxError(
                         debuginfo.DebugInfo(stmt, self).msg(
-                            f"Mismatch in number of return values and types. Keyword 'return' cannot be used in a subgraph (test, loop).  returntype is {self.returntype!r}, num_outputs={n!r}."
+                            f"Mismatch in number of return values and types. Keyword "
+                            f"'return' cannot be used in a subgraph (test, loop).  "
+                            f"returntype is {self.returntype!r}, num_outputs={n!r}."
                         )
                     )
 

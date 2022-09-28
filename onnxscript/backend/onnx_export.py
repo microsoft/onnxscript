@@ -197,7 +197,8 @@ def _python_make_node_name(domain, version, name, node=False):
             version = 1
         if not isinstance(version, int):
             raise TypeError(
-                f"version must be an integer not {version!r} for domain={domain!r} and name={name!r}."
+                f"version must be an integer not {version!r} for domain={domain!r} "
+                f"and name={name!r}."
             )
         if domain == "":
             return "opset%d.%s" % (version, name)
@@ -258,9 +259,15 @@ class Exporter:
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
-                    text = f"make_tensor(\"value\", {onnx_dtype}, dims=[], vals=[{value.tolist()!r}])"
+                    text = (
+                        f'make_tensor("value", {onnx_dtype}, dims=[], '
+                        f"vals=[{value.tolist()!r}])"
+                    )
                 else:
-                    text = f"make_tensor(\"value\", {onnx_dtype}, dims={list(value.shape)!r}, vals={value.ravel().tolist()!r})"
+                    text = (
+                        f'make_tensor("value", {onnx_dtype}, dims={list(value.shape)!r}, '
+                        f"vals={value.ravel().tolist()!r})"
+                    )
                 attributes.append((at.name, text))
                 continue
             if isinstance(value, TensorProto):
@@ -533,9 +540,7 @@ def export_template(
     if clean_code:
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
-            raise SyntaxError(
-                f"The cleaned code is wrong.\n{final}\n------{cleaned_code}"
-            )
+            raise SyntaxError(f"The cleaned code is wrong.\n{final}\n------{cleaned_code}")
         return cleaned_code
     return final
 
