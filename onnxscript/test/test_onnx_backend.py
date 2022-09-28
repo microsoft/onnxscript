@@ -196,13 +196,14 @@ class TestOnnxBackEnd(unittest.TestCase):
                     if verbose > 2:
                         print("    load ONNX")
                     try:
-                        sess = InferenceSession(proto.SerializeToString())
+                        # FIXME(#137): Fix B023 flake8 errors
+                        sess = InferenceSession(proto.SerializeToString())  # noqa B023
                     except Exception as e:
                         raise AssertionError(
-                            f"Unable to load onnx for test {te.name!r}.\n"
-                            f"{proto}\n"
+                            f"Unable to load onnx for test {te.name!r}.\n"  # noqa: B023
+                            f"{onnxscript.proto2text(proto)}\n"  # noqa: B023
                             f"-----\n"
-                            f"{te.onnx_model}"
+                            f"{te.onnx_model}"  # noqa: B023
                         ) from e
                     if verbose > 2:
                         print("    done.")
@@ -223,7 +224,8 @@ class TestOnnxBackEnd(unittest.TestCase):
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)
                     except Exception as e:
                         raise AssertionError(
-                            f"Unable to run test {te.name!r} after conversion.\n{str(proto)}"
+                            f"Unable to run test {te.name!r} after conversion.\n"  # noqa: B023
+                            f"{onnxscript.proto2text(proto)}"  # noqa: B023
                         ) from e
                     if verbose > 2:
                         print("    done.")
@@ -246,14 +248,14 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("  check eager")
 
                     def exec_main(f, *inputs):
-                        assert id(f) == id(main)
+                        assert id(f) == id(main)  # noqa B023
                         output = f(*inputs)
                         if isinstance(output, tuple):
                             return list(output)
                         return [output]
 
                     try:
-                        te.run(lambda obj: main, exec_main)
+                        te.run(lambda obj: main, exec_main)  # noqa: B023
                     except eager_mode_evaluator.EagerModeError as e:
                         # Does not work.
                         if verbose > 0:
