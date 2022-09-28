@@ -13,6 +13,7 @@ This example demonstrates the use of *onnx-script* to define an ONNX model.
 import numpy as np
 import onnx
 from onnxruntime import InferenceSession
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
@@ -49,7 +50,7 @@ sess = InferenceSession(model.SerializeToString())
 X = np.array([[0, 1, 2]], dtype=np.float32).T
 Y = np.array([[0.1, 1.2, 2.3]], dtype=np.float32).T
 
-got = sess.run(None, {'X': X, 'Y': Y})
+got = sess.run(None, {"X": X, "Y": Y})
 expected = ((X - Y) ** 2).sum()
 
 print(expected, got)
