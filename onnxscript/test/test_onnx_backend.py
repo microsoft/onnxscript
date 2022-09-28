@@ -225,7 +225,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                     except Exception as e:
                         raise AssertionError(
                             f"Unable to run test {te.name!r} after conversion.\n"  # noqa: B023
-                            f"{onnxscript.proto2text(proto)}"
+                            f"{onnxscript.proto2text(proto)}"  # noqa: B023
                         ) from e
                     if verbose > 2:
                         print("    done.")
