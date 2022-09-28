@@ -58,7 +58,7 @@ jobs:
         run: python setup.py sdist
 
       - name: pytest
-        run: pytest -v onnxscript --cov=onnxscript --cov-report term-missing
+        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml
 
       - name: Install package
         run: pip install .
@@ -69,3 +69,6 @@ jobs:
 
       - name: Build documentation
         run: python -m sphinx docs dist/html
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
