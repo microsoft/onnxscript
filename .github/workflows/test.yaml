@@ -58,7 +58,7 @@ jobs:
         run: python setup.py sdist
 
       - name: pytest
-        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml
+        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n auto
 
       - name: Install package
         run: pip install .
