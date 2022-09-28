@@ -402,9 +402,9 @@ class Converter:
         # TODO: assert (self.is_constant_expr(expr))
         locals = {}
         expr = ast.Expression(expr)
-        cpl = compile(expr, filename="<ast>", mode="eval")
+        cpl = compile(expr, filename="<ast>", mode="eval")  # noqa: DUO110
         try:
-            return eval(cpl, self.globals, locals)
+            return eval(cpl, self.globals, locals)  # noqa: DUO104
         except NameError as e:
             raise NameError(
                 debuginfo.DebugInfo(expr).msg(
