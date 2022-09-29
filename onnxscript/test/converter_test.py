@@ -29,7 +29,7 @@ from packaging.version import Version
 from onnxscript import OnnxFunction, script
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT, INT32, INT64
+from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.test.testutils import TestBase
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")

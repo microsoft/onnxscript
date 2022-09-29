@@ -6,10 +6,10 @@
 import io
 import logging
 import warnings
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence
 
 import onnx
-from onnx import FunctionProto, ValueInfoProto, helper
+from onnx import ValueInfoProto, helper
 from onnx.defs import onnx_opset_version
 
 import onnxscript
