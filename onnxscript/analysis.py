@@ -21,7 +21,7 @@ def get_loop_var(for_stmt, converter):
 def used_vars(expr):
     """Return set of all variables used in an expression."""
     if isinstance(expr, ast.Name):
-        return set([expr.id])
+        return {expr.id}
     if isinstance(expr, ast.Call):
         # Neither the callee-expression, nor keyword arguments are visited
         # Only args counts towards used_vars
@@ -114,7 +114,7 @@ def do_liveness_analysis(fun, converter):
             curr = live_out
             while curr != prev:
                 prev = curr
-                curr = visitBlock(stmt.body, prev).difference(set([p_loop_var]))
+                curr = visitBlock(stmt.body, prev).difference({p_loop_var})
             return curr
         if isinstance(stmt, ast.While):
             cond_vars = used_vars(stmt.test)
@@ -200,7 +200,7 @@ def exposed_uses(stmts, converter):
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved
             # for loops that execute at least once.
-            loop_var_set = set([get_loop_var(stmt, converter)])
+            loop_var_set = {get_loop_var(stmt, converter)}
             used_after_loop = live_out.difference(loop_var_set)
             used_inside_loop = visitBlock(stmt.body, set()).difference(loop_var_set)
             used_in_loop_header = used_vars(stmt.iter)

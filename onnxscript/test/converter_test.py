@@ -71,7 +71,7 @@ class TestConverter(TestBase):
             with self.subTest(f=f.name):
                 model = f.to_model_proto(io_types=FLOAT)
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".txt"), "w") as fi:
+                    with open(os.path.join(TEST_OUTPUT_DIR, f"{f.name}.txt"), "w") as fi:
                         fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")
@@ -86,7 +86,7 @@ class TestConverter(TestBase):
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f.name + ".shape.txt"), "w") as fi:
+                    with open(os.path.join(TEST_OUTPUT_DIR, f"{f.name}.shape.txt"), "w") as fi:
                         fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
@@ -101,9 +101,9 @@ class TestConverter(TestBase):
                         # was defined with FLOAT[...].
                         warnings.warn(str(e))
                     else:
-                        onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".error.onnx"))
+                        onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f"{f.name}.error.onnx"))
                         raise AssertionError("Verification of model failed.") from e
-                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f.name + ".onnx"))
+                onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f"{f.name}.onnx"))
                 fcts[f.name] = model
         return fcts
 
@@ -112,7 +112,7 @@ class TestConverter(TestBase):
         for name in functions:
             if not name.endswith("_expanded"):
                 f = functions[name]
-                name_expanded = name + "_expanded"
+                name_expanded = f"{name}_expanded"
                 if name_expanded in functions:
                     with self.subTest("Expansion test", function=name):
                         f_expanded = functions[name_expanded]
@@ -213,7 +213,7 @@ class TestConverter(TestBase):
             """Combines ReduceSum, ReduceProd."""
             sum = op.Identity(x)
             prod = op.Identity(x)
-            for i in range(N):
+            for _ in range(N):
                 sum = sum + x
                 prod = prod * x
             return sum, prod

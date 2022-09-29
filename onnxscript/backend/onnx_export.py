@@ -87,7 +87,8 @@ kwlist = {
 
 
 def _get_const_repr(const_node):
-    """Given an ONNX Constant-op node, returns a string representation of
+    """
+    Given an ONNX Constant-op node, returns a string representation of
     the constant-value in ONNXScript, if a compact representation is possible.
     Returns None otherwise.
     Supports only FLOAT/INT64 values and scalars and small rank-1 tensors.
@@ -109,19 +110,23 @@ def _get_const_repr(const_node):
 
 
 def _rename_variable(name):
-    """Renames all names equal to a python keyword."""
+    """
+    Renames all names equal to a python keyword.
+    """
     if isinstance(name, ValueInfoProto):
         # Handle graph/function input/output uniformly
         name = name.name
     if name in kwlist:
-        return "r_" + name
+        return f"r_{name}"
     if name == "":
         return None
     return name
 
 
 def _translate_type(onnx_type):
-    """Converts a onnx type into a type defined by *onnx-script*."""
+    """
+    Converts a onnx type into a type defined by *onnx-script*.
+    """
     if onnx_type.HasField("tensor_type"):
         typ = ParametricTensor.types[onnx_type.tensor_type.elem_type]
         name = repr(typ)
@@ -134,26 +139,28 @@ def _translate_type(onnx_type):
                     shape.append(d.dim_param)
             if len(shape) == 0:
                 return name
-            return "%s[%s]" % (name, ",".join(shape))
-        return name + "[...]"
-    raise NotImplementedError("Unable to translate type %r into onnx-script type." % onnx_type)
+            return f"{name}[{','.join(shape)}]"
+        return f"{name}[...]"
+    raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnx-script type.")
 
 
 def _translate_signature(inputs, outputs):
-    """Produce the script-functions signature."""
+    """
+    Produce the script-functions signature.
+    """
 
     def input_sig(inp: Union[ValueInfoProto, str]):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
-            return _rename_variable(inp.name) + ": " + _translate_type(inp.type)
+            return f"{_rename_variable(inp.name)}: {_translate_type(inp.type)}"
         else:
             # FunctionProto inputs/outputs are just strings
             return _rename_variable(inp)
 
-    result = "(" + ", ".join([input_sig(x) for x in inputs]) + ")"
+    result = f"({', '.join([input_sig(x) for x in inputs])})"
     if outputs and isinstance(outputs[0], ValueInfoProto):
-        result += " -> (" + ", ".join([_translate_type(x.type) for x in outputs]) + ")"
-    return result + ":"
+        result += f" -> ({', '.join([_translate_type(x.type) for x in outputs])})"
+    return f"{result}:"
 
 
 def _to_str(s):
@@ -181,7 +188,7 @@ def _attribute_value(attr):
         return list(attr.ints)
     if attr.strings:
         return list(map(_to_str, attr.strings))
-    raise NotImplementedError("Unable to return a value for attribute %r." % attr)
+    raise NotImplementedError(f"Unable to return a value for attribute {attr!r}.")
 
 
 def _python_make_node_name(domain, version, name, node=False):
@@ -190,8 +197,8 @@ def _python_make_node_name(domain, version, name, node=False):
             version = 1
         if not isinstance(version, int):
             raise TypeError(
-                "version must be an integer not %r for domain=%r and name=%r."
-                % (version, domain, name)
+                f"version must be an integer not {version!r} for domain={domain!r} "
+                f"and name={name!r}."
             )
         if domain == "":
             return "opset%d.%s" % (version, name)
@@ -200,7 +207,9 @@ def _python_make_node_name(domain, version, name, node=False):
 
 
 class Exporter:
-    """Class used for recursive traversal of Proto structures."""
+    """
+    Class used for recursive traversal of Proto structures.
+    """
 
     def __init__(self, use_operators=False, rename_function=None, inline_const=False) -> None:
         self.use_operators = use_operators
@@ -209,11 +218,15 @@ class Exporter:
         self.constants = {}
 
     def _rename_variable_s(self, name):
-        """Renames all names equal to a python keyword."""
+        """
+        Renames all names equal to a python keyword.
+        """
         return str(self._rename_variable(name))
 
     def _python_make_node_graph(self, graph, opsets, indent=0, output_names=None):
-        """Translates a GraphProto into python."""
+        """
+        Translates a GraphProto into python.
+        """
         code = []
         sindent = "    " * indent
         if hasattr(graph, "initializer"):
@@ -231,8 +244,7 @@ class Exporter:
         if output_names is not None:
             for fr, to in zip(graph.output, output_names):
                 code.append(
-                    "%s%s = %s"
-                    % (sindent, self._rename_variable(to), self._rename_variable(fr.name))
+                    f"{sindent}{self._rename_variable(to)} = {self._rename_variable(fr.name)}"
                 )
         final = "\n".join(code)
         return final
@@ -242,20 +254,19 @@ class Exporter:
         for at in node.attribute:
             value = _attribute_value(at)
             if isinstance(value, str):
-                attributes.append((at.name, "%r" % value))
+                attributes.append((at.name, f"{value!r}"))
                 continue
             if isinstance(value, numpy.ndarray):
                 onnx_dtype = at.t.data_type
                 if len(value.shape) == 0:
-                    text = 'make_tensor("value", %s, dims=[], vals=[%r])' "" % (
-                        onnx_dtype,
-                        value.tolist(),
+                    text = (
+                        f'make_tensor("value", {onnx_dtype}, dims=[], '
+                        f"vals=[{value.tolist()!r}])"
                     )
                 else:
-                    text = 'make_tensor("value", %s, dims=%r, vals=%r)' "" % (
-                        onnx_dtype,
-                        list(value.shape),
-                        value.ravel().tolist(),
+                    text = (
+                        f'make_tensor("value", {onnx_dtype}, dims={list(value.shape)!r}, '
+                        f"vals={value.ravel().tolist()!r})"
                     )
                 attributes.append((at.name, text))
                 continue
@@ -266,22 +277,24 @@ class Exporter:
                 text += f"{repr(name)}, {value.data_type}, {repr(list(value.dims))}"
                 text += f", {repr(metadata.location)}"
                 if metadata.offset:
-                    text += ", offset=" + repr(metadata.offset)
+                    text += f", offset={repr(metadata.offset)}"
                 if metadata.length:
-                    text += ", length=" + repr(metadata.length)
+                    text += f", length={repr(metadata.length)}"
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
 
-        return ", ".join("%s=%s" % (k, v) for k, v in attributes)
+        return ", ".join(f"{k}={v}" for k, v in attributes)
 
     def _python_make_node_if(self, node, opsets, indent=0):
-        """Translates a node If into python."""
+        """
+        Translates a node If into python.
+        """
         sindent = "    " * indent
-        code = ["%sif %s:" % (sindent, node.input[0])]
+        code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
-                "Node %r expected two attributes not %d." % (node.op_type, len(node.attribute))
+                f"Node {node.op_type!r} expected two attributes not {len(node.attribute)}."
             )
         atts = node.attribute
         if atts[0].name == "else_branch":
@@ -293,7 +306,7 @@ class Exporter:
                 then_branch, opsets, indent=indent + 1, output_names=node.output
             )
         )
-        code.append("%selse:" % sindent)
+        code.append(f"{sindent}else:")
         code.append(
             self._python_make_node_graph(
                 else_branch, opsets, indent=indent + 1, output_names=node.output
@@ -302,7 +315,9 @@ class Exporter:
         return "\n".join(code)
 
     def _python_make_node_loop(self, node, opsets, indent=0):
-        """Translates a node Loop into python."""
+        """
+        Translates a node Loop into python.
+        """
         body = node.attribute[0].g
         sindent = "    " * indent
         n_iter = self._rename_variable(node.input[0])
@@ -310,17 +325,17 @@ class Exporter:
         # v_initial = node.input[2]
         rows = []
         if n_iter and not cond:
-            rows.append("%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter))
+            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
         elif not n_iter and cond:
-            rows.append("%swhile %s:" % (sindent, cond))
+            rows.append(f"{sindent}while {cond}:")
         elif n_iter and cond:
-            rows.append("%sfor %s in range(%s):" % (sindent, body.input[0].name, n_iter))
-            rows.append("%s    if not %s:" % (sindent, cond))
-            rows.append("%s        break" % sindent)
+            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
+            rows.append(f"{sindent}    if not {cond}:")
+            rows.append(f"{sindent}        break")
         else:
             raise RuntimeError(
-                "Unable to export loop type %r into python because there is no "
-                "stop condition." % (node.op_type,)
+                f"Unable to export loop type {node.op_type!r} into python because "
+                "there is no stop condition."
             )
         rows.append(
             self._python_make_node_graph(
@@ -330,7 +345,9 @@ class Exporter:
         return "\n".join(rows)
 
     def _python_make_node_scan(self, node, opsets, indent=0):
-        """Translates a node Scan into python."""
+        """
+        Translates a node Scan into python.
+        """
         raise NotImplementedError()
 
     def lookup(self, var):
@@ -357,14 +374,14 @@ class Exporter:
                 return self._python_make_node_loop(node, opsets, indent=indent)
             if node.op_type == "Scan":
                 return self._python_make_node_scan(node, opsets, indent=indent)
-            raise RuntimeError("Unable to export node type %r into python." % (node.op_type,))
+            raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         if any(
             map(
                 lambda att: hasattr(att, "g") and att.g and att.g.ByteSize() > 0,
                 node.attribute,
             )
         ):
-            raise RuntimeError("Unable to export node type %r into python." % node.op_type)
+            raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         ops = {
             "Add": "+",
             "Sub": "-",
@@ -382,21 +399,20 @@ class Exporter:
         }
         sindent = "    " * indent
         if self.use_operators and node.op_type in ops:
-            return "%s%s = %s" % (
-                sindent,
-                self._rename_variable(node.output[0]),
-                (" %s " % ops[node.op_type]).join(map(self.lookup, node.input)),
+            return (
+                f"{sindent}{self._rename_variable(node.output[0])} = "
+                f"{(' %s ' % ops[node.op_type]).join(map(self.lookup, node.input))}"
             )
         name = _python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True
         )
         attributes_str = self._python_make_node_make_attribute_str(node)
         if len(node.input) > 0 and len(attributes_str) > 0:
-            attributes_str = ", " + attributes_str
+            attributes_str = f", {attributes_str}"
         output_names = []
         for i, o in enumerate(node.output):
             if o in ("", None):
-                output_names.append("_%d" % i)
+                output_names.append(f"_{i}")
             else:
                 output_names.append(self._rename_variable(o))
 
@@ -424,20 +440,17 @@ def export_template(
     rename=False,
     inline_const: bool = False,
 ):
-    """Exports an ONNX model into a code based on a template.
-
-    Args:
-        model_onnx: string or ONNX graph
-        template: exporting template
-        name: to overwrite onnx name
-        autopep_options: :epkg:`autopep8` options
-        function_name: main function name in the code
-        clean_code: clean the code
-        rename: rename variable name to get shorter names
-        inline_const: replace ONNX constants inline if compact
-
-    Returns:
-        python code
+    """
+    Exports an ONNX model into a code based on a template.
+    :param model_onnx: string or ONNX graph
+    :param template: exporting template
+    :param name: to overwrite onnx name
+    :param autopep_options: :epkg:`autopep8` options
+    :param function_name: main function name in the code
+    :param clean_code: clean the code
+    :param rename: rename variable name to get shorter names
+    :param inline_const: replace ONNX constants inline if compact
+    :return: python code
     """
     # delayed import to avoid raising an exception if not installed.
     import autopep8
@@ -527,13 +540,11 @@ def export_template(
 
     final += "\n"
     if "\nreturn" in final:
-        raise SyntaxError("The produced code is wrong.\n%s" % final)
+        raise SyntaxError(f"The produced code is wrong.\n{final}")
     if clean_code:
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
-            raise SyntaxError(
-                "The cleaned code is wrong.\n%s\n------%s" % (final, cleaned_code)
-            )
+            raise SyntaxError(f"The cleaned code is wrong.\n{final}\n------{cleaned_code}")
         return cleaned_code
     return final
 
@@ -550,22 +561,19 @@ def export2python(
     clean_code=True,
     inline_const: bool = False,
 ):
-    """Exports an ONNX model to the *python* syntax.
-
-    Args:
-        model_onnx: string or ONNX graph
-        opset: opset to export to (None to select the one from the
-            graph)
-        verbose: inserts prints
-        name: to overwrite onnx name
-        rename: rename the names to get shorter names
-        autopep_options: :epkg:`autopep8` options
-        function_name: main function name
-        clean_code: clean the code
-        inline_const: replace ONNX constants inline if compact
-
-    Returns:
-        python code
+    """
+    Exports an ONNX model to the *python* syntax.
+    :param model_onnx: string or ONNX graph
+    :param opset: opset to export to
+        (None to select the one from the graph)
+    :param verbose: inserts prints
+    :param name: to overwrite onnx name
+    :param rename: rename the names to get shorter names
+    :param autopep_options: :epkg:`autopep8` options
+    :param function_name: main function name
+    :param clean_code: clean the code
+    :param inline_const: replace ONNX constants inline if compact
+    :return: python code
     The following example shows what a python code creating a graph
     implementing the KMeans would look like.
     .. runpython::
@@ -586,7 +594,7 @@ def export2python(
         model_onnx = onnx.load(model_onnx)
 
     if not isinstance(model_onnx, (ModelProto, FunctionProto)):
-        raise TypeError("The function expects a ModelProto not %r." % type(model_onnx))
+        raise TypeError(f"The function expects a ModelProto not {type(model_onnx)!r}.")
     code = export_template(
         model_onnx,
         template=_template_python,

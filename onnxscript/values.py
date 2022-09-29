@@ -31,7 +31,7 @@ class Opset:
         existing = cls.cache.get(key)
         if existing:
             return existing
-        instance = super(Opset, cls).__new__(cls)
+        instance = super().__new__(cls)
         instance.domain = domain
         instance.version = version
         instance.function_defs = {}

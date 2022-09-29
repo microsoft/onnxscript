@@ -60,7 +60,7 @@ intersphinx_mapping = {"https://docs.python.org/": None}
 # -- Options for Sphinx Gallery ----------------------------------------------
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
+    "python": (f"https://docs.python.org/{sys.version_info.major}", None),
     "matplotlib": ("https://matplotlib.org/", None),
     "numpy": ("https://docs.scipy.org/doc/numpy/", None),
     "onnxruntime": ("https://onnxruntime.ai/docs/api/python/", None),
@@ -71,6 +71,6 @@ sphinx_gallery_conf = {
     "gallery_dirs": ["auto_examples"],
     "capture_repr": ("_repr_html_", "__repr__"),
     "ignore_repr_types": r"matplotlib.text|matplotlib.axes",
-    "filename_pattern": re.escape(os.sep) + "[0-9]*_?plot_",
+    "filename_pattern": f"{re.escape(os.sep)}[0-9]*_?plot_",
     "within_subsection_order": sphinx_gallery.sorting.FileNameSortKey,
 }

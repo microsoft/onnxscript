@@ -71,7 +71,7 @@ class Var:
         return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
 
     def typed_str(self):
-        return self.name + " : " + str(self.typeinfo)
+        return f"{self.name} : {str(self.typeinfo)}"
 
     def to_value_info(self, enforce_typed=False, default_type=None):
         """Converts the content of this class into :class:`onnx.ValueInfoProto`.
@@ -120,7 +120,7 @@ class Attr:
 
     def __str__(self):
         if self.attr_proto.HasField("ref_attr_name"):
-            return self.attr_proto.name + " = @" + self.attr_proto.ref_attr_name
+            return f"{self.attr_proto.name} = @{self.attr_proto.ref_attr_name}"
         # self.name + " = " + self.value
         return helper.printable_attribute(self.attr_proto)
 
@@ -148,8 +148,8 @@ class Stmt:
 
         args = format(self.args, "(", ", ", ")", opt_var_to_str)
         module = str(self.module)
-        callee = module + "." + self.opname if (module != "") else self.opname
-        return lhs + " = " + callee + " " + attrs + args
+        callee = f"{module}.{self.opname}" if (module != "") else self.opname
+        return f"{lhs} = {callee} {attrs}{args}"
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -188,7 +188,7 @@ class Function:
         inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return self.name + " " + attrs + attr_protos + inputs + " => " + outputs + stmts
+        return f"{self.name} {attrs}{attr_protos}{inputs} => {outputs}{stmts}"
 
     def append_docstring(self, docstring):
         self.docstring += docstring
