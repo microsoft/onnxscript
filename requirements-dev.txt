@@ -17,6 +17,7 @@ pytest-cov
 pytest-azurepipelines
 pytest-subtests
 pytest-xdist
+parameterized
 torch
 
 # Lint
