@@ -155,11 +155,10 @@ class TestConverter(TestBase):
         def square(x):
             return op.Mul(x, x)
 
-        with self.assertRaises(TypeError) as cm:
-            # checking that the function raises an exception when types are not defined.
-            square.to_model_proto()
-        self.assertIn("square:2", str(cm.exception))
-        self.assertIn("Variable x is missing", str(cm.exception))
+        model = square.to_model_proto()
+        x_value_info = model.graph.input[0]
+        self.assertFalse(x_value_info.HasField("type"))
+
         model = square.to_model_proto(io_types=FLOAT)
         sess = onnxruntime.InferenceSession(model.SerializeToString())
         x = np.array([5, 6], dtype=np.float32)
