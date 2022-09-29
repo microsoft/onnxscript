@@ -13,23 +13,20 @@ import unittest
 import warnings
 
 import numpy as np
+from numpy.testing import assert_almost_equal
+from packaging.version import Version
+
 import onnx
 import onnxruntime
-from numpy.testing import assert_almost_equal
 from onnx import TensorProto
 from onnx.helper import make_tensor, printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
-from onnxruntime.capi.onnxruntime_pybind11_state import (
-    Fail,
-    InvalidArgument,
-    InvalidGraph,
-)
-from packaging.version import Version
-
+from onnxruntime.capi.onnxruntime_pybind11_state import (Fail, InvalidArgument,
+                                                         InvalidGraph)
 from onnxscript import OnnxFunction, script
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT, INT64, INT32
+from onnxscript.onnx_types import FLOAT, INT32, INT64
 from onnxscript.test.testutils import TestBase
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")

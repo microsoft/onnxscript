@@ -10,14 +10,14 @@ import typing
 from enum import IntEnum
 
 import numpy
-import onnx
-from onnx import helper, numpy_helper
 
+import onnx
 import onnxscript
-from onnxscript import analysis, autocast, debuginfo, irbuilder, onnx_opset, onnx_types
+from onnx import helper, numpy_helper
+from onnxscript import (analysis, autocast, debuginfo, irbuilder, onnx_opset,
+                        onnx_types)
 from onnxscript import type_annotation as ta
 from onnxscript import values
-
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:

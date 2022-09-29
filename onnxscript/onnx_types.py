@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 from typing import Union
+
 import onnx
 import onnx.helper
 

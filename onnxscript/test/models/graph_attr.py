@@ -3,9 +3,10 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from onnxscript import script, graph
+from onnxscript import graph, script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import BOOL, INT64
+
 
 @script()
 def cumulative_sum(X: INT64['N']):
@@ -31,4 +32,3 @@ def sum_to(X):
     zero = op.Constant(value_int=0)
     _, result = op.Loop (X, None, zero, body=LoopBody)
     return result
-
