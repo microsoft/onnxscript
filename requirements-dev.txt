@@ -10,15 +10,21 @@ protobuf<4
 sphinx
 sphinx-gallery
 pydata_sphinx_theme
+
+# Testing
 pytest!=7.1.0
 pytest-cov
 pytest-azurepipelines
 pytest-subtests
+pytest-xdist
+parameterized
 torch
+
 # Lint
-flake8
-mypy
-black
-isort[colors]
-dlint
-flake8-bugbear
+flake8>=5.0.4
+mypy>=0.981
+black>=22.8.0
+isort>=5.10.1
+colorama>=0.4.5
+dlint>=0.13.0
+flake8-bugbear>=22.9.23
