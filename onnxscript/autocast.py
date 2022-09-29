@@ -5,8 +5,8 @@ from onnxscript import tensor, values
 
 
 def cast_inputs(get_type_info, cast, opschema, *args):
-    """
-    Uses schema specification to support a limited form of auto-casting.
+    """Uses schema specification to support a limited form of auto-casting.
+
     * Scalars are promoted to tensors.
     * Further. they are cast to the required type when used in ops with other
     tensor inputs that are required to be of same type.

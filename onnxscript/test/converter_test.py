@@ -210,9 +210,7 @@ class TestConverter(TestBase):
     def test_docstring(self):
         @script()
         def sumprod(x: FLOAT["N"], N: INT64) -> (FLOAT["N"], FLOAT["N"]):  # noqa: F821
-            """
-            Combines ReduceSum, ReduceProd.
-            """
+            """Combines ReduceSum, ReduceProd."""
             sum = op.Identity(x)
             prod = op.Identity(x)
             for _ in range(N):
@@ -269,9 +267,7 @@ class TestConverter(TestBase):
         self.validate_save(onnxfns2, shape_inference=False)
 
     def test_none_as_input(self):
-        """
-        Test that use of None as an actual parameter is accepted.
-        """
+        """Test that use of None as an actual parameter is accepted."""
 
         @script()
         def clipmax(x: FLOAT, max: FLOAT):  # noqa: F821

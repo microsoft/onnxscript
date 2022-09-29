@@ -24,9 +24,7 @@ from onnxscript.test.models import type_double
 
 
 def print_code(code, begin=1):
-    """
-    Returns the code with line number.
-    """
+    """Returns the code with line number."""
     rows = code.split("\n")
     return "\n".join("%03d %s" % (i + begin, s) for i, s in enumerate(rows))
 

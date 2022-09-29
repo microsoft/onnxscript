@@ -204,8 +204,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         skip_test_names: Optional[List[str]] = None,
         **attrs: Any,
     ) -> None:
-        """
-        Run ONNX test cases with an onnxscript.OnnxFunction.
+        """Run ONNX test cases with an onnxscript.OnnxFunction.
         The function shall have test cases in ONNX repo.
         For example: in onnx/test/case/node.
         Test case models and data are used to do converter and eager mode test.

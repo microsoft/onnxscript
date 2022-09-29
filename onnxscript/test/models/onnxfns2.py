@@ -53,9 +53,7 @@ def ReduceLogSumExp(data, axes: List[int], keepdims: int):
 
 @script()
 def Hardmax(X, axis: int):
-    """
-    Hardmax is similar to ArgMax, with the result being encoded OneHot style.
-    """
+    """Hardmax is similar to ArgMax, with the result being encoded OneHot style."""
     argmax = op.ArgMax(X, axis=axis, keepdims=False)
     # Get the size of input X along specified axis
     # Unfortunately, we cannot say `end=axis+1`.
