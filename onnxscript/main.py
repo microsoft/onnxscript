@@ -104,13 +104,13 @@ def script(opset=None, default_opset=None, **kwargs):
     return transform
 
 
-def graph(parent : values.OnnxFunction):
-    '''A parametric decorator used to annotate nested-functions that are used
+def graph(parent: values.OnnxFunction):
+    """A parametric decorator used to annotate nested-functions that are used
     as graph-attributes.
 
     Args:
         parent: Outer-level function.
-    
+
     Returns:
         A decorator that returns its input function, but attaches a graph_proto
         attribute representing the input function. The translation is not
@@ -140,13 +140,15 @@ def graph(parent : values.OnnxFunction):
             all_sum, result = op.Scan (zero, X, body=Sum, num_scan_inputs=1)
             return result
 
-    '''
+    """
+
     def transform(f):
         try:
             f.graph_proto = parent.function_ir.graph_attributes[f.__name__]
         except KeyError:
             raise ValueError(f"Graph attribute for {f.__name__} not found.")
         return f
+
     return transform
 
 

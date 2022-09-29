@@ -298,6 +298,7 @@ class TestConverter(TestBase):
 
     def test_cast_like(self):
         from onnxscript.test.models import cast_like
+
         self.validate_expansion(cast_like)
 
     def test_opset_import(self):
@@ -527,12 +528,15 @@ class TestConverter(TestBase):
             session = onnxruntime.InferenceSession(model.SerializeToString())
             output = session.run(None, {"X": input})[0]
         except Exception as e:
-            raise AssertionError(f"Unable to execute cumulative_sum model due to {e!r}.") from e
+            raise AssertionError(
+                f"Unable to execute cumulative_sum model due to {e!r}."
+            ) from e
         np.testing.assert_equal(output, expected)
 
         # Test running model in eager mode
         output = cumulative_sum(input)
         np.testing.assert_equal(output, expected)
+
 
 if __name__ == "__main__":
     # import logging

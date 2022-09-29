@@ -261,10 +261,10 @@ class Converter:
         return None
 
     def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
-        '''
+        """
         Bind given name to given GraphProto value, for use by both the converter
         (statically) and for eager-mode execution (dynamically).
-        '''
+        """
         self.bind(name, graph)
         # TODO: Does not yet handle nested functions within nested functions.
         self.current_fn.add_graph_attribute(name, graph)
@@ -1314,9 +1314,9 @@ class Converter:
         return graph.to_graph_and_functions()
 
     def translate_nested_function_def(self, fn: ast.FunctionDef):
-        '''
+        """
         Translate a nested function definition.
-        '''
+        """
         self.enter_scope(fn.name, fn)
         self.translate_function_def(fn)
         function_ir = self.exit_scope()

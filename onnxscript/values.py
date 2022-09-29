@@ -105,9 +105,9 @@ class Op:
         return self.opschema is not None
 
     def adapt_kwargs(self, **kwargs):
-        '''
+        """
         Replaces function-valued attribute-values by their GraphProto representation.
-        '''
+        """
         for k, v in kwargs.items():
             if callable(v):
                 kwargs[k] = v.graph_proto

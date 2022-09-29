@@ -222,12 +222,14 @@ class Function:
     def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
         self.graph_attributes[name] = graph
 
-    def to_model_proto(self,
+    def to_model_proto(
+        self,
         functions=None,
-        io_types: Optional[ONNXType]=None,
-        input_types: Optional[Sequence[ONNXType]]=None,
-        output_types: Optional[Sequence[ONNXType]]=None,
-        **kwargs):
+        io_types: Optional[ONNXType] = None,
+        input_types: Optional[Sequence[ONNXType]] = None,
+        output_types: Optional[Sequence[ONNXType]] = None,
+        **kwargs,
+    ):
         """Converts the content of this class into a `onnx.ModelProto`.
 
         Args:
