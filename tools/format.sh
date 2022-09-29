@@ -3,9 +3,9 @@
 cd "$(git rev-parse --show-toplevel)"
 
 echo -e "\nblack reformatting..."
-black onnxscript --color
+black . --color
 echo -e "\nblack done!"
 
 echo -e "\nisort reformatting..."
-isort onnxscript --color
+isort . --color
 echo -e "\nisort done!"

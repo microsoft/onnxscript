@@ -8,13 +8,13 @@ and export it.
 **This is preliminary. Proto extensions are required to fully support LibProto.**
 """
 
-from onnxscript import script, export_onnx_lib
+from onnxscript import export_onnx_lib, script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.values import Opset
 
 #%%
 # The domain/version of the library functions defined below
-opset = Opset('com.mydomain', 1)
+opset = Opset("com.mydomain", 1)
 
 
 #%%
