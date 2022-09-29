@@ -145,7 +145,6 @@ class OnnxFunction(Op):
         return self.opname
 
     def __call__(self, *args, **kwargs):
-        self.adapt_kwargs(**kwargs)
         if len(args) == 0:
             # Operator Constant, it is usually called within a function.
             return self._libcall(**kwargs)
