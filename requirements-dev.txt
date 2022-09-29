@@ -24,5 +24,6 @@ flake8
 mypy
 black
 isort
+colorama
 dlint
 flake8-bugbear
