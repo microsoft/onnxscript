@@ -10,12 +10,11 @@ import typing
 from enum import IntEnum
 
 import numpy
-
 import onnx
-import onnxscript
 from onnx import helper, numpy_helper
-from onnxscript import (analysis, autocast, debuginfo, irbuilder, onnx_opset,
-                        onnx_types)
+
+import onnxscript
+from onnxscript import analysis, autocast, debuginfo, irbuilder, onnx_opset, onnx_types
 from onnxscript import type_annotation as ta
 from onnxscript import values
 

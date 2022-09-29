@@ -13,16 +13,19 @@ import unittest
 import warnings
 
 import numpy as np
-from numpy.testing import assert_almost_equal
-from packaging.version import Version
-
 import onnx
 import onnxruntime
+from numpy.testing import assert_almost_equal
 from onnx import TensorProto
 from onnx.helper import make_tensor, printable_graph
 from onnx.onnx_cpp2py_export.checker import ValidationError
-from onnxruntime.capi.onnxruntime_pybind11_state import (Fail, InvalidArgument,
-                                                         InvalidGraph)
+from onnxruntime.capi.onnxruntime_pybind11_state import (
+    Fail,
+    InvalidArgument,
+    InvalidGraph,
+)
+from packaging.version import Version
+
 from onnxscript import OnnxFunction, script
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
