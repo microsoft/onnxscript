@@ -17,7 +17,7 @@ import onnxscript
 from onnxscript import analysis, autocast, debuginfo, irbuilder, onnx_opset, onnx_types
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript.utils import proto2text
+
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -1329,7 +1329,6 @@ class Converter:
         self.translate_function_def(fn)
         function_ir = self.exit_scope()
         graph_proto = function_ir.to_graph_proto()
-        print(proto2text(graph_proto))
         self.add_graph_attribute(fn.name, graph_proto)
 
     def translate_function_def(self, fn: ast.FunctionDef):

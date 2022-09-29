@@ -6,10 +6,10 @@
 import io
 import logging
 import warnings
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
 
 import onnx
-from onnx import helper, ValueInfoProto, TypeProto
+from onnx import helper, ValueInfoProto, FunctionProto
 from onnx.defs import onnx_opset_version
 
 import onnxscript
@@ -221,7 +221,8 @@ class Function:
     def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
         self.graph_attributes[name] = graph
 
-    def to_model_proto(self, functions=None,
+    def to_model_proto(self,
+        functions=None,
         io_types: Optional[ONNXType]=None,
         input_types: Optional[Sequence[ONNXType]]=None,
         output_types: Optional[Sequence[ONNXType]]=None,

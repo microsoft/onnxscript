@@ -100,6 +100,42 @@ def script(opset=None, default_opset=None, **kwargs):
 
 
 def graph(parent : values.OnnxFunction):
+    '''A parametric decorator used to annotate nested-functions that are used
+    as graph-attributes.
+
+    Args:
+        parent: Outer-level function.
+    
+    Returns:
+        A decorator that returns its input function, but attaches a graph_proto
+        attribute representing the input function. The translation is not
+        done at this time, but previously when the outer-level function
+        was translated to an OnnxFunction. The decorator just looks up
+        and retrieves the GraphProto representation previously generated.
+
+    Example:
+
+    ::
+
+        @script()
+        def cumulative_sum(X: INT64['N']):
+
+            # Translation of cumulative_sum by @script will also translate Sum
+            # into a GraphProto, which will be stored in the OnnxFunction generated
+            # for cumulative_sum. At run-time (in eager-mode), the @graph decorator
+            # retrieves the pre-computed GraphProto and attaches it to the Sum function.
+            @graph(parent=cumulative_sum)
+            def Sum(sum_in, next):
+                sum_out = sum_in + next
+                scan_out = op.Identity(sum_out)
+                return sum_out, scan_out
+            zero = op.Constant(value_int=0)
+            # The call to higher-order operator Scan below uses the above function
+            # Sum as a graph-attribute.
+            all_sum, result = op.Scan (zero, X, body=Sum, num_scan_inputs=1)
+            return result
+
+    '''
     def transform(f):
         try:
             f.graph_proto = parent.function_ir.graph_attributes[f.__name__]

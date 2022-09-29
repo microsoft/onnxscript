@@ -302,9 +302,6 @@ class TestConverter(TestBase):
         from onnxscript.test.models import cast_like
         self.validate_expansion(cast_like)
 
-    def test_graph_attr(self):
-        from onnxscript.test.models import graph_attr
-
     def test_opset_import(self):
         from onnxscript.test.models import different_opset
 
@@ -538,8 +535,6 @@ class TestConverter(TestBase):
         # Test running model in eager mode
         output = cumulative_sum(input)
         np.testing.assert_equal(output, expected)
-
-
 
 if __name__ == "__main__":
     # import logging

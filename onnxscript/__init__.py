@@ -6,7 +6,7 @@
 import sys
 
 from .backend.onnx_export import export2python as proto2python
-from .main import export_onnx_lib, script
+from .main import export_onnx_lib, script, graph
 from .values import OnnxFunction
 
 if sys.version_info[0:2] >= (3, 8):
