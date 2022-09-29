@@ -14,8 +14,8 @@ from onnxscript import autocast, debuginfo, eager_mode_evaluator, tensor
 
 
 class Opset:
-    """
-    Represents an ONNX Opset, which consists of a domain name, a version.
+    """Represents an ONNX Opset, which consists of a domain name, a version.
+
     It also contains a set of operations. This represents an Opset defined
     in the ONNX schema registry and the operations are retrieved from the
     ONNX schema registry. It also stores function definitions created for
@@ -31,7 +31,7 @@ class Opset:
         existing = cls.cache.get(key)
         if existing:
             return existing
-        instance = super(Opset, cls).__new__(cls)
+        instance = super().__new__(cls)
         instance.domain = domain
         instance.version = version
         instance.function_defs = {}
@@ -82,8 +82,7 @@ class Opset:
 
 
 class Op:
-    """
-    Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
+    """Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
     """
 
@@ -121,14 +120,15 @@ class Op:
 
 
 class OnnxFunction(Op):
-    """
-    Represents an ONNX op for which a function-body has been defined in onnxscript.
+    """Represents an ONNX op for which a function-body has been defined in onnxscript.
 
-    :param opset: opset the function belongs to
-    :param pyfun: python function
-    :param irfun: python code parsed by class :class:`onnxscript.converter.Converter`
-    :param source: source code used to generate the function
-    :param kwargs: additional properties used to construct a ModelProto
+    Args:
+        opset: opset the function belongs to
+        pyfun: python function
+        irfun: python code parsed by class
+            :class:`onnxscript.converter.Converter`
+        source: source code used to generate the function
+        kwargs: additional properties used to construct a ModelProto
     """
 
     def __init__(self, opset, pyfun, irfun, source, kwargs):
@@ -184,8 +184,7 @@ class OnnxFunction(Op):
         raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def _libcall(self, *args, **kwargs):
-        """
-        This method must be called when a function decoracted with `script`
+        """This method must be called when a function decoracted with `script`
         calls another one decorated with `script`.
         """
         new_args = []
@@ -234,8 +233,8 @@ class OnnxFunction(Op):
 
 
 class Value:
-    """
-    A Value is used to represent information about named variables used in a script.
+    """A Value is used to represent information about named variables used in a script.
+
     At translation-time, the (local) variables of a script, including its parameters,
     are bound to a Value.
 
@@ -280,7 +279,8 @@ class Value:
 
 class AttrRef(Value):
     def __init__(self, name: str, typeinfo: type or List, info: debuginfo.DebugInfo) -> None:
-        """
+        """Initializes AttrRef.
+
         Arguments:
             name: name of the attribute-parameter
             typeinfo: type annotation of the attribute.
@@ -310,7 +310,8 @@ class Dynamic(Value):
     def __init__(
         self, val: str, kind: DynamicKind, info: debuginfo.DebugInfo, typeinfo=None
     ) -> None:
-        """
+        """Initializes Dynamic.
+
         Arguments:
             val: the name of the ONNX variable used to represent this value
             kind: the DynamicKind of this variable

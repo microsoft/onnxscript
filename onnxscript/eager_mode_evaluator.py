@@ -29,8 +29,7 @@ def _rename_io(prefix, i, arg):
 
 
 def compute_num_outputs(schema, *args, **kwargs):
-    """
-    Returns the number of outputs expected.
+    """Returns the number of outputs expected.
     TODO: Use ONNX type inference to replace the special-case handling below.
     """
     if schema.domain == "":
@@ -68,9 +67,7 @@ def _cache_(model, providers):
 
 
 def os_to_ort_value(v):
-    """
-    Converts an onnxscript encoding of an ONNX value into the encoding used by ORT.
-    """
+    """Converts an onnxscript encoding of an ONNX value into the encoding used by ORT."""
     if isinstance(v, tensor.Tensor):
         return v.value
     if isinstance(v, list):
@@ -79,13 +76,13 @@ def os_to_ort_value(v):
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
         return v
+    if isinstance(v, np.ndarray):
+        return v
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
 def ort_to_os_value(v):
-    """
-    Converts an ORT encoding of an ONNX value into the encoding used by onnxscript.
-    """
+    """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
     if isinstance(v, list):
@@ -103,7 +100,7 @@ def call_ort(schema, *args, **kwargs):
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
     num_outputs = compute_num_outputs(schema, *args, **kwargs)
-    outputs = ["output" + str(i) for i in range(num_outputs)]
+    outputs = [f"output{str(i)}" for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, **kwargs)
     input_value_infos = utils.values_to_value_infos(inputs, list(args))

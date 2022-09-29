@@ -36,9 +36,7 @@ class TensorType:
 
 
 class ParametricTensor:
-    """
-    Defines a dense tensor of any shape.
-    """
+    """Defines a dense tensor of any shape."""
 
     types = {}
 

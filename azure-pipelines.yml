@@ -38,8 +38,7 @@ steps:
   displayName: 'Use Python $(python.version)'
 
 - script: |
-    python -m pip install --upgrade pip
-    python -m pip install --upgrade setuptools
+    python -m pip install --upgrade pip setuptools wheel
     python -m pip install -r requirements-dev.txt
   displayName: 'Install dependencies'
 

@@ -90,7 +90,7 @@ def Softsign(X):
     return X / (one + op.Abs(X))
 
 
-from onnxscript.onnx_types import FLOAT, BOOL
+from onnxscript.onnx_types import BOOL, FLOAT
 
 
 @script()

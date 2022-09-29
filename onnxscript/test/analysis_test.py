@@ -5,9 +5,7 @@ from onnxscript import analysis, converter, main
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
-    """
-    Visitor class to flatten the results of liveness analysis in a pre-order traversal.
-    """
+    """Visitor class to flatten the results of liveness analysis in a pre-order traversal."""
 
     def __init__(self) -> None:
         super().__init__()

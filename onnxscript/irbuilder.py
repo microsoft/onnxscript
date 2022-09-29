@@ -27,8 +27,7 @@ def format(list, prefix, sep, suffix, formatter=str):
 
 
 def select_ir_version(version, domain=""):
-    """
-    Selects the corresponding ir_version knowning the opset version
+    """Selects the corresponding ir_version knowning the opset version
     for the main ONNX domain.
     """
     if domain == "":
@@ -74,16 +73,18 @@ class Var:
         return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
 
     def typed_str(self):
-        return self.name + " : " + str(self.typeinfo)
+        return f"{self.name} : {str(self.typeinfo)}"
 
     def to_value_info(self, use_default_type: bool = True):
         """
         Converts the content of this class into :class:`onnx.ValueInfoProto`.
 
-        :param use_default_type: if True, use a default type if an explicit type
-            is not known. Otherwise, returns a ValueInfoProto without type.
+        Args:
+            use_default_type: if True, use a default type if an explicit type
+                is not known. Otherwise, returns a ValueInfoProto without type.
 
-        :return: an instance of :class:`onnx.ValueInfoProto`
+        Returns:
+            an instance of :class:`onnx.ValueInfoProto`
         """
         if self.name is None:
             raise ValueError(self.info.msg("name cannot be None."))
@@ -106,7 +107,7 @@ class Attr:
 
     def __str__(self):
         if self.attr_proto.HasField("ref_attr_name"):
-            return self.attr_proto.name + " = @" + self.attr_proto.ref_attr_name
+            return f"{self.attr_proto.name} = @{self.attr_proto.ref_attr_name}"
         # self.name + " = " + self.value
         return helper.printable_attribute(self.attr_proto)
 
@@ -134,8 +135,8 @@ class Stmt:
 
         args = format(self.args, "(", ", ", ")", opt_var_to_str)
         module = str(self.module)
-        callee = module + "." + self.opname if (module != "") else self.opname
-        return lhs + " = " + callee + " " + attrs + args
+        callee = f"{module}.{self.opname}" if (module != "") else self.opname
+        return f"{lhs} = {callee} {attrs}{args}"
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -175,7 +176,7 @@ class Function:
         inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return self.name + " " + attrs + attr_protos + inputs + " => " + outputs + stmts
+        return f"{self.name} {attrs}{attr_protos}{inputs} => {outputs}{stmts}"
 
     def append_docstring(self, docstring):
         self.docstring += docstring
@@ -227,19 +228,20 @@ class Function:
         input_types: Optional[Sequence[ONNXType]]=None,
         output_types: Optional[Sequence[ONNXType]]=None,
         **kwargs):
-        """
-        Converts the content of this class into a `onnx.ModelProto`.
+        """Converts the content of this class into a `onnx.ModelProto`.
 
-        :param functions: list of functions to include in the model,
-            by default, all functions called at least once are included
-        :param io_types: When specified, all the inputs/outputs of the model
-            are set to be of this type.
-        :param input_types: When specified, all the inputs of the model
-            are set to be of the corresponding type in this list.
-        :param output_types: When specified, all the outputs of the model
-            are set to be of the corresponding type in this list.
-        :param kwargs: additional parameters given to function :func:`onnx.helper.make_model`
-        :return: an instance of :class:`onnx.ModelProto`
+        Args:
+            functions: list of functions to include in the model,
+                by default, all functions called at least once are included
+            io_types: When specified, all the inputs/outputs of the model
+                are set to be of this type.
+            input_types: When specified, all the inputs of the model
+                are set to be of the corresponding type in this list.
+            output_types: When specified, all the outputs of the model
+                are set to be of the corresponding type in this list.
+            kwargs: additional parameters given to function :func:`onnx.helper.make_model`
+        Returns:
+            an instance of :class:`onnx.ModelProto`
         """
         graph, sub_functions = self.to_graph_and_functions(use_default_type=False)
         if io_types is not None:
@@ -295,10 +297,12 @@ class Function:
         Converts the content of this class into a `onnx.GraphProto` and
         a list of `onnx.FunctionProto`.
 
-        :param use_default_type: if True, the function uses a default type
-            for inputs and outputs that do not have a type
+        Args:
+            use_default_type: if True, the function uses a default type
+                for inputs and outputs that do not have a type
 
-        :return: a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
+        Return:
+            a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
         """
         sub_functions = {}
         for s in self.stmts:
@@ -344,11 +348,11 @@ class Function:
         return func_opset_imports
 
     def to_function_proto(self, domain):
-        """
-        Converts a function into a *FunctionProto* after it is parsed
+        """Converts a function into a *FunctionProto* after it is parsed
         by the converter.
 
-        .. warning:: About default values
+        Warning:
+            About default values
 
             Default values for attributes are introduced in onnx==1.13.0.
             If an earlier version of onnx is installed, it ignores the default

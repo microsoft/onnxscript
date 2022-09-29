@@ -36,9 +36,7 @@ def get_ast(f):
 
 
 def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=None):
-    """
-    Check that a function falls into the ONNXScript subset of Python.
-    """
+    """Check that a function falls into the ONNXScript subset of Python."""
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
     # converter
@@ -52,11 +50,13 @@ def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=
 
 
 def script(opset=None, default_opset=None, **kwargs):
-    """
-    Main decorator. Declares a function as an onnx function.
+    """Main decorator. Declares a function as an onnx function.
 
-    :param opset: opset the function belongs to (see :ref:`l-api-opsets`)
-    :return: an instance of :class:`onnxscript.values.OnnxFunction`
+    Args:
+        opset: opset the function belongs to (see :ref:`l-api-opsets`)
+
+    Returns:
+        an instance of :class:`onnxscript.values.OnnxFunction`
 
     Example:
 
@@ -88,10 +88,15 @@ def script(opset=None, default_opset=None, **kwargs):
     def transform(f):
         if inspect.isfunction(f):
             src, ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
+            # The script should be compiled using the globals/locals at the definition site.
+            # This allows the script to reference names defined outside the script,
+            # which is used for a few different purposes.
+            # The following is an approximate solution that works for normal use.
             module = inspect.getmodule(f)
-            result = script_check(
-                ast, opset, module.__dict__.copy(), src, default_opset=default_opset
-            )
+            closure = inspect.getclosurevars(f)
+            env = module.__dict__.copy()
+            env.update(closure.nonlocals)
+            result = script_check(ast, opset, env, src, default_opset=default_opset)
             # TODO: add transformations.
             return onnxscript.OnnxFunction(opset, f, result, src, kwargs)
         raise TypeError("The ONNXScript decorator should be applied to functions only.")
@@ -146,9 +151,7 @@ def graph(parent : values.OnnxFunction):
 
 
 def is_converted_fun(f):
-    """
-    Return True if f is a function converted by onnx-script decorator.
-    """
+    """Return True if f is a function converted by onnx-script decorator."""
     return isinstance(f, onnxscript.OnnxFunction)
 
 

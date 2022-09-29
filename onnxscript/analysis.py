@@ -21,7 +21,7 @@ def get_loop_var(for_stmt, converter):
 def used_vars(expr):
     """Return set of all variables used in an expression."""
     if isinstance(expr, ast.Name):
-        return set([expr.id])
+        return {expr.id}
     if isinstance(expr, ast.Call):
         # The callee-expression is not visited
         # TODO: handle graph-valued attributes, which may contain uses of variables.
@@ -36,7 +36,8 @@ def used_vars(expr):
 
 def local_defs(lhs):
     """Utility function to return set of assigned/defined
-    variables in the lhs of an assignment statement."""
+    variables in the lhs of an assignment statement.
+    """
 
     def get_id(e):
         assert isinstance(e, ast.Name), "Only simple assignments supported."
@@ -48,8 +49,7 @@ def local_defs(lhs):
 
 
 def defs(stmt):
-    """
-    Return the set of all variables that may be defined (assigned to) in an
+    """Return the set of all variables that may be defined (assigned to) in an
     execution of input stmt.
     """
 
@@ -81,8 +81,7 @@ def defs(stmt):
 
 
 def do_liveness_analysis(fun, converter):
-    """
-    Perform liveness analysis of the given function-ast. The results of the
+    """Perform liveness analysis of the given function-ast. The results of the
     analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
     and `s.live_out`.
     """
@@ -115,7 +114,7 @@ def do_liveness_analysis(fun, converter):
             curr = live_out
             while curr != prev:
                 prev = curr
-                curr = visitBlock(stmt.body, prev).difference(set([p_loop_var]))
+                curr = visitBlock(stmt.body, prev).difference({p_loop_var})
             return curr
         if isinstance(stmt, ast.While):
             cond_vars = used_vars(stmt.test)
@@ -160,8 +159,7 @@ def do_liveness_analysis(fun, converter):
 
 
 def exposed_uses(stmts, converter):
-    """
-    Return the set of variables that are used before being defined by given block.
+    """Return the set of variables that are used before being defined by given block.
     In essence, this identifies the "inputs" to a given code-block.
     For example, consider the following code-block:
     ::
@@ -204,7 +202,7 @@ def exposed_uses(stmts, converter):
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved
             # for loops that execute at least once.
-            loop_var_set = set([get_loop_var(stmt, converter)])
+            loop_var_set = {get_loop_var(stmt, converter)}
             used_after_loop = live_out.difference(loop_var_set)
             used_inside_loop = visitBlock(stmt.body, set()).difference(loop_var_set)
             used_in_loop_header = used_vars(stmt.iter)

@@ -11,8 +11,7 @@ def default_equality_op(x, y):
 
 
 def same_optional(field, obj1, obj2, equals=default_equality_op):
-    """
-    Check two proto object have same value for optional field.
+    """Check two proto object have same value for optional field.
     This is restricted to simple field types where == comparison is sufficient.
     """
     if obj1.HasField(field):
@@ -145,14 +144,11 @@ def ioname(x):
 
 
 class Matcher:
-    """
-    An isomorphism matcher for two functions or two graphs.
-    """
+    """An isomorphism matcher for two functions or two graphs."""
 
     def __init__(self, fg1, fg2, outer_scope) -> None:
         def defmap(f):
-            """
-            Compute a map from variables v to their definition-sites.
+            """Compute a map from variables v to their definition-sites.
             A definition-site (n, i) indicates the i-th output of n-th node
             The special value (-1, i) is used to indicate the i-th input of a function/graph.
             """
@@ -279,8 +275,7 @@ class Matcher:
 
 
 def isomorphic(fg1, fg2):
-    """
-    Checks that two function/graph bodies are isomorphic.
+    """Checks that two function/graph bodies are isomorphic.
     Assumes that the inputs are valid FunctionProto/GraphProto.
     Use a separate check to verify that the inputs satisfy
     FunctionProto/GraphProto requirements (like no duplicate attributes).

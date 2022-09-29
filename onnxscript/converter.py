@@ -11,7 +11,7 @@ from enum import IntEnum
 
 import numpy
 import onnx
-from onnx import helper
+from onnx import helper, numpy_helper
 
 import onnxscript
 from onnxscript import analysis, autocast, debuginfo, irbuilder, onnx_opset, onnx_types
@@ -32,7 +32,7 @@ logger = logging.getLogger("onnx-script")
 
 
 def not_allowed(construct):
-    return construct + "not supported."
+    return f"{construct}not supported."
 
 
 class TranslationError(Exception):
@@ -72,6 +72,8 @@ def py_type_to_onnx_type(pytype: type, info: debuginfo.DebugInfo):
 
 
 def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: debuginfo.DebugInfo):
+    if isinstance(pyvalue, numpy.ndarray):
+        return numpy_helper.from_array(pyvalue, tensor_name)
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(info.msg("Cannot convert an empty list to tensor"))
@@ -137,11 +139,11 @@ class ConverterExpression:
 
 
 class Converter:
-    """
-    Main class to translate python code into ONNX operators.
+    """Main class to translate python code into ONNX operators.
 
-    :param ir_builder: convert AST node into ONNX structures,
-        if None, class :class:`onnxscript.irbuilder.IRBuilder` is used
+    Args:
+        ir_builder: convert AST node into ONNX structures, if None,
+            class :class:`onnxscript.irbuilder.IRBuilder` is used
 
     The class uses logger `onnx-script`. Logging can be enabled with the following code:
 
@@ -225,8 +227,7 @@ class Converter:
     """
 
     def enter_scope(self, name, parent_node):
-        """
-        Enter a control-flow block (a loop body or if-then-else branch).
+        """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
         """
         self.outer.insert(0, self.current_fn)
@@ -235,9 +236,7 @@ class Converter:
         logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
 
     def exit_scope(self):
-        """
-        Exit from a control-flow block (a loop body or if-then-else branch).
-        """
+        """Exit from a control-flow block (a loop body or if-then-else branch)."""
         logger.debug("Converter:exit_scope:%d", len(self.locals))
         graph = self.current_fn
         self.current_fn = self.outer.pop(0)
@@ -273,7 +272,7 @@ class Converter:
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
         while r in self.used_vars:
-            r = candidate + "_" + str(self.nextvar)
+            r = f"{candidate}_{str(self.nextvar)}"
             self.nextvar = self.nextvar + 1
         self.used_vars.add(r)
         return r
@@ -308,7 +307,7 @@ class Converter:
         return self.emit_const(val, target if target else "tmp", info)
 
     def py_var_to_onnx_var(self, py_var, info):
-        return self.to_onnx_var(self.lookup(py_var, info), info=info)
+        return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self.current_fn, docstring)
@@ -374,8 +373,7 @@ class Converter:
         return False
 
     def eval_constant_expr(self, expr):
-        """
-        Evaluates a sub-expression that is assumed to represent a constant value.
+        """Evaluates a sub-expression that is assumed to represent a constant value.
         The expression can refer only to global names (inherited from the scope
         where the script is evaluated) and cannot refer to local names defined
         within the script.) Further, these expressions are assumed to be constants.
@@ -387,14 +385,14 @@ class Converter:
         # TODO: assert (self.is_constant_expr(expr))
         locals = {}
         expr = ast.Expression(expr)
-        cpl = compile(expr, filename="<ast>", mode="eval")
+        cpl = compile(expr, filename="<ast>", mode="eval")  # noqa: DUO110
         try:
-            return eval(cpl, self.globals, locals)
+            return eval(cpl, self.globals, locals)  # noqa: DUO104
         except NameError as e:
             raise NameError(
                 debuginfo.DebugInfo(expr).msg(
-                    "Missing names, globals contains %r, locals %r."
-                    % (list(self.globals), list(locals))
+                    f"Missing names, globals contains {list(self.globals)!r}, "
+                    f"locals {list(locals)!r}."
                 )
             ) from e
 
@@ -428,8 +426,7 @@ class Converter:
         )
 
     def translate_attr(self, attr_name, expr):
-        """
-        Translate an attribute-value specification of the form `attr_name=<expr>`
+        """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
         into an ONNX attribute value, or
@@ -455,8 +452,7 @@ class Converter:
         )
 
     def translate_expr(self, node, target="tmp"):
-        """
-        Expression-translation generates "IR statements/nodes" that compute the value of
+        """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
         """
@@ -496,17 +492,17 @@ class Converter:
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
     def translate_opt_expr(self, node, target="tmp"):
-        """
-        Translation of an expression where "None" is permitted (eg., for an optional argument)
-        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        """Translation of an expression where "None" is permitted.
+
+        (eg., for an optional argument)
+        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
             return ConverterExpression(None, ConverterExpressionKind.ANY)
         return self.translate_expr(node, target)
 
     def translate_subscript_expr(self, node):
-        """
-        List of supported syntaxes is below.
+        """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
         ::
@@ -564,14 +560,14 @@ class Converter:
                         )
                     )
                 if default_value == "end":
-                    shape_name = self.generate_unique_name(var_name + "_shape")
+                    shape_name = self.generate_unique_name(f"{var_name}_shape")
                     self.emit(
                         [shape_name],
                         values.Op(self.default_opset, "Shape"),
                         [var_name],
                         [],
                     )
-                    dim_name = self.generate_unique_name(shape_name + "_dim")
+                    dim_name = self.generate_unique_name(f"{shape_name}_dim")
                     self.emit(
                         [dim_name],
                         values.Op(self.default_opset, "Gather"),
@@ -582,7 +578,7 @@ class Converter:
                 raise RuntimeError(f"Unexpected default value {default_value!r}.")
 
             name = self.translate_expr(node_arg).name
-            reshaped = self.generate_unique_name(name + "_reshaped")
+            reshaped = self.generate_unique_name(f"{name}_reshaped")
             self.emit(
                 [reshaped],
                 values.Op(self.default_opset, "Reshape"),
@@ -618,7 +614,7 @@ class Converter:
             # A[i], i is an integer
             index = self.eval_constant_expr(node_slice)
             var_index = self.emit_const([index], "subscript_index", info)
-            tmp = self.generate_unique_name(var_name + "_gather")
+            tmp = self.generate_unique_name(f"{var_name}_gather")
             self.emit(
                 [tmp],
                 values.Op(self.default_opset, "Gather"),
@@ -697,26 +693,26 @@ class Converter:
                 squeezed_axes.append(axis)
                 index = self.translate_expr(element).name
                 starts.append(index)
-                index_1 = self.generate_unique_name(var_name + "_end")
+                index_1 = self.generate_unique_name(f"{var_name}_end")
                 self.emit([index_1], values.Op(self.default_opset, "Add"), [index, one], [])
                 ends.append(index_1)
                 axes.append(var_axis.name)
                 steps.append(one.name)
 
             attr = self.ir_builder.attr("axis", 0)
-            start_name = self.generate_unique_name(var_name + "_start")
+            start_name = self.generate_unique_name(f"{var_name}_start")
             self.emit([start_name], values.Op(self.default_opset, "Concat"), starts, [attr])
 
-            end_name = self.generate_unique_name(var_name + "_end")
+            end_name = self.generate_unique_name(f"{var_name}_end")
             self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [attr])
 
-            axes_name = self.generate_unique_name(var_name + "_axis")
+            axes_name = self.generate_unique_name(f"{var_name}_axis")
             self.emit([axes_name], values.Op(self.default_opset, "Concat"), axes, [attr])
 
-            steps_name = self.generate_unique_name(var_name + "_step")
+            steps_name = self.generate_unique_name(f"{var_name}_step")
             self.emit([steps_name], values.Op(self.default_opset, "Concat"), steps, [attr])
             if len(squeezed_axes) > 0:
-                sliced_name = self.generate_unique_name(var_name + "sliced")
+                sliced_name = self.generate_unique_name(f"{var_name}sliced")
                 self.emit(
                     [sliced_name],
                     values.Op(self.default_opset, "Slice"),
@@ -737,7 +733,7 @@ class Converter:
 
         # A[i], i is an expression equivalent to an integer
         var_index = self.translate_expr(node_slice)
-        tmp = self.generate_unique_name(var_name + "_gather")
+        tmp = self.generate_unique_name(f"{var_name}_gather")
         self.emit(
             [tmp],
             values.Op(self.default_opset, "Gather"),
@@ -748,8 +744,7 @@ class Converter:
         return values.Op(self.default_opset, "Squeeze"), [tmp, axis.name], []
 
     def translate_call_expr(self, node):
-        """
-        Translates a call-expression.
+        """Translates a call-expression.
         For now, the handling of positional and named arguments is slightly different
         from standard Python. We implicitly map named arguments to ONNX attributes, and
         positional arguments to ONNX inputs.
@@ -813,8 +808,8 @@ class Converter:
                 val = float(node.operand.n)
             else:
                 raise TypeError(
-                    "Unable to guess constant value from type %r and attributes %r."
-                    "" % (type(node.operand), dir(node.operand))
+                    f"Unable to guess constant value from type {type(node.operand)!r} "
+                    f"and attributes {dir(node.operand)!r}."
                 )
             if op == ast.USub:
                 cst = ast.Constant(-val, lineno=node.lineno, col_offset=node.col_offset)
@@ -904,8 +899,7 @@ class Converter:
         fail(debuginfo.DebugInfo(node, self).msg("Invalid callee"))
 
     def translate_stmt(self, node, index_of_stmt=None):
-        """
-        Statement translation: A single Python statement is mapped into a
+        """Statement translation: A single Python statement is mapped into a
         sequence of IR statements.
         """
         if isinstance(node, ast.Assign):
@@ -1005,14 +999,14 @@ class Converter:
                 if n != len(self.returntype):
                     raise SyntaxError(
                         debuginfo.DebugInfo(stmt, self).msg(
-                            "Mismatch in number of return values and types. "
-                            "Keyword 'return' cannot be used in a subgraph (test, loop). "
-                            " returntype is %r, num_outputs=%r." % (self.returntype, n)
+                            f"Mismatch in number of return values and types. Keyword "
+                            f"'return' cannot be used in a subgraph (test, loop).  "
+                            f"returntype is {self.returntype!r}, num_outputs={n!r}."
                         )
                     )
 
         def ret(exp, i, suffix):
-            ovar = self.translate_expr(exp, "return_val" + suffix).name
+            ovar = self.translate_expr(exp, f"return_val{suffix}").name
             if self.returntype is None:
                 t = None
             else:
@@ -1275,9 +1269,7 @@ class Converter:
         )
 
     def translate_block(self, stmts, name, live_defs, parent_stmt=None):
-        """
-        Translation of a statement-block to GraphProto attribute.
-        """
+        """Translation of a statement-block to GraphProto attribute."""
         info_stmt = stmts[0] if len(stmts) > 0 else parent_stmt
         self.enter_scope(name, None)
         for s in stmts:

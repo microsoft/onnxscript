@@ -2,6 +2,7 @@
 import numpy as np
 from onnx import TensorProto
 from onnx.helper import make_tensor
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
@@ -9,8 +10,7 @@ from onnxscript.onnx_types import FLOAT, INT64
 
 @script()
 def hann_window(window_length):
-    """
-    Returns
+    """Returns
     :math:`\\omega_n = \\sin^2\\left( \\frac{\\pi n}{N-1} \\right)`
     where *N* is the window length.
     """
@@ -27,8 +27,7 @@ def hann_window(window_length):
 
 @script()
 def hamming_window(window_length, alpha, beta):
-    """
-    Returns
+    """Returns
     :math:`\\omega_n = \\alpha - \\beta \\cos \\left( \\frac{\\pi n}{N-1} \\right)`
     where *N* is the window length.
 
@@ -47,8 +46,7 @@ def hamming_window(window_length, alpha, beta):
 
 @script()
 def blackman_window(window_length):
-    """
-    Returns
+    """Returns
     :math:`\\omega_n = 0.42 - 0.5 \\cos \\left( \\frac{2\\pi n}{N-1} \\right) +
     0.8 \\cos \\left( \\frac{4\\pi n}{N-1} \\right)`
     where *N* is the window length.
@@ -70,9 +68,7 @@ def blackman_window(window_length):
 
 @script()
 def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
-    """
-    Switches two axis. The function assumes `axis1 < axis2`.
-    """
+    """Switches two axis. The function assumes `axis1 < axis2`."""
     zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
     shape = op.Shape(x)
@@ -124,8 +120,7 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
 def dft_last_axis(
     x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=False, normalize=False
 ) -> FLOAT[...]:
-    """
-    See PR https://github.com/onnx/onnx/pull/3741/.
+    """See PR https://github.com/onnx/onnx/pull/3741/.
 
     *Part 1*
 
@@ -143,14 +138,17 @@ def dft_last_axis(
     Part 2 merges the real and imaginary parts into one single matrix
     where the last axis indicates whether it is the real or the imaginary part.
 
-    :param x: float tensor, the last dimension is the complex one,
-        if has 1 or 2 elements, 1 if the tensor is real and does not
-        have any imaginary part, 2 if the tensor is complex
-    :param fft_length: length of the FFT
-    :param onesided: if True, returns a truncated result `[:fft_length//2]`
-    :param inverse: returns FFT or the inverse of FFT
-    :param normalize: normalizes the result
-    :return: tensor
+    Args:
+        x: float tensor, the last dimension is the complex one, if has 1
+            or 2 elements, 1 if the tensor is real and does not have any
+            imaginary part, 2 if the tensor is complex
+        fft_length: length of the FFT
+        onesided: if True, returns a truncated result `[:fft_length//2]`
+        inverse: returns FFT or the inverse of FFT
+        normalize: normalizes the result
+
+    Returns:
+        tensor
     """
 
     # Part 1
@@ -299,8 +297,7 @@ def dft_inv(
     inverse=False,
     normalize=False,
 ) -> FLOAT[...]:
-    """
-    Applies one dimension FFT.
+    """Applies one dimension FFT.
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
@@ -330,8 +327,8 @@ def dft_inv(
 def dft(
     x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], inverse=False, onesided=False
 ) -> FLOAT[...]:
-    """
-    Applies one dimensional FFT.
+    """Applies one dimensional FFT.
+
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
@@ -348,8 +345,8 @@ def stft(
     window: FLOAT["N"],
     onesided=False,
 ) -> FLOAT[...]:
-    """
-    Applies one dimensional FFT with window weights.
+    """Applies one dimensional FFT with window weights.
+
     torch defines the number of frames as:
     `n_frames = 1 + (len - n_fft) / hop_length`.
     """
@@ -418,9 +415,7 @@ def istft(
     window: FLOAT["N"],
     onesided=False,
 ) -> FLOAT[...]:
-    """
-    Reverses of `stft`.
-    """
+    """Reverses of `stft`."""
     zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
     two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))

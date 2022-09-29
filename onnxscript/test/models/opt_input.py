@@ -1,9 +1,11 @@
 from typing import Optional
+
 from onnx import TensorProto
+from onnx.helper import make_tensor
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
-from onnx.helper import make_tensor
 
 # Design choices for optional input:
 # Consider the layer-normalization function, which has an optional Bias input.

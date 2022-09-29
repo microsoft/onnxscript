@@ -3,10 +3,11 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from onnxscript import script
-from onnxscript.onnx_types import INT64
-from onnxscript.onnx_opset import opset15 as op
 from typing import List
+
+from onnxscript import script
+from onnxscript.onnx_opset import opset15 as op
+from onnxscript.onnx_types import INT64
 
 # TODO: Need to verify definitions below.
 # Behavior for integral types is not explicitly described in ONNX spec.
@@ -52,9 +53,7 @@ def ReduceLogSumExp(data, axes: List[int], keepdims: int):
 
 @script()
 def Hardmax(X, axis: int):
-    """
-    Hardmax is similar to ArgMax, with the result being encoded OneHot style.
-    """
+    """Hardmax is similar to ArgMax, with the result being encoded OneHot style."""
     argmax = op.ArgMax(X, axis=axis, keepdims=False)
     # Get the size of input X along specified axis
     # Unfortunately, we cannot say `end=axis+1`.

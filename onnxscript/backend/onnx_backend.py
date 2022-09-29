@@ -18,12 +18,12 @@ from onnxscript.backend import onnx_export
 
 
 def assert_almost_equal_string(expected, value):
-    """
-    Compares two arrays knowing they contain strings.
+    """Compares two arrays knowing they contain strings.
     Raises an exception if the test fails.
 
-    :param expected: expected array
-    :param value: value
+    Args:
+        expected: expected array
+        value: value
     """
 
     def is_float(x):  # pylint: disable=unused-argument
@@ -41,15 +41,15 @@ def assert_almost_equal_string(expected, value):
 
 
 class OnnxBackendTest:
-    """
-    Definition of a backend test. It starts with a folder,
+    """Definition of a backend test. It starts with a folder,
     in this folder, one onnx file must be there, then a subfolder
     for each test to run with this model.
 
-    :param folder: test folder
-    :param onnx_path: onnx file
-    :param onnx_model: loaded onnx file
-    :param tests: list of test
+    Args:
+        folder: test folder
+        onnx_path: onnx file
+        onnx_model: loaded onnx file
+        tests: list of test
     """
 
     @staticmethod
@@ -143,15 +143,15 @@ class OnnxBackendTest:
         return len(self.tests)
 
     def _compare_results(self, index, i, e, o, decimal=None):
-        """
-        Compares the expected output and the output produced
+        """Compares the expected output and the output produced
         by the runtime. Raises an exception if not equal.
 
-        :param index: test index
-        :param i: output index
-        :param e: expected output
-        :param o: output
-        :param decimal: precision
+        Args:
+            index: test index
+            i: output index
+            e: expected output
+            o: output
+            decimal: precision
         """
         if isinstance(e, numpy.ndarray):
             if isinstance(o, numpy.ndarray):
@@ -200,16 +200,16 @@ class OnnxBackendTest:
         return False
 
     def run(self, load_fct, run_fct, index=None, decimal=None):
-        """
-        Executes a tests or all tests if index is None.
+        """Executes a tests or all tests if index is None.
         The function crashes if the tests fails.
 
-        :param load_fct: loading function, takes a loaded onnx graph,
-            and returns an object
-        :param run_fct: running function, takes the result of previous
-            function, the inputs, and returns the outputs
-        :param index: index of the test to run or all.
-        :param decimal: requested precision to compare results
+        Args:
+            load_fct: loading function, takes a loaded onnx graph, and
+                returns an object
+            run_fct: running function, takes the result of previous
+                function, the inputs, and returns the outputs
+            index: index of the test to run or all.
+            decimal: requested precision to compare results
         """
         if index is None:
             for i in range(len(self)):
@@ -241,10 +241,10 @@ class OnnxBackendTest:
                 self._compare_results(index, i, e, o, decimal=decimal)
 
     def to_python(self):
-        """
-        Returns a python code equivalent to the ONNX test.
+        """Returns a python code equivalent to the ONNX test.
 
-        :return: code
+        Returns:
+            code
         """
 
         rows = []
@@ -260,11 +260,11 @@ class OnnxBackendTest:
         for test in self.tests:
             rows.append("xs = [")
             for inp in test["inputs"]:
-                rows.append(textwrap.indent(repr(inp) + ",", "    " * 2))
+                rows.append(textwrap.indent(f"{repr(inp)},", "    " * 2))
             rows.append("]")
             rows.append("ys = [")
             for out in test["outputs"]:
-                rows.append(textwrap.indent(repr(out) + ",", "    " * 2))
+                rows.append(textwrap.indent(f"{repr(out)},", "    " * 2))
             rows.append("]")
             rows.append("feeds = {n: x for n, x in zip(oinf.input_names, xs)}")
             rows.append("got = oinf.run(feeds)")
@@ -284,16 +284,18 @@ class OnnxBackendTest:
 
 
 def enumerate_onnx_tests(series, fct_filter=None):
-    """
-    Collects test from a sub folder of `onnx/backend/test`.
+    """Collects test from a sub folder of `onnx/backend/test`.
     Works as an enumerator to start processing them
     without waiting or storing too much of them.
 
-    :param series: which subfolder to load, possible values:
-        (`'node'`, ...)
-    :param fct_filter: function `lambda testname: boolean`
-        to load or skip the test, None for all
-    :return: list of @see cl OnnxBackendTest
+    Args:
+        series: which subfolder to load, possible values: (`'node'`,
+            ...)
+        fct_filter: function `lambda testname: boolean` to load or skip
+            the test, None for all
+
+    Returns:
+        list of @see cl OnnxBackendTest
     """
     root = os.path.dirname(backend_folder)
     sub = os.path.join(root, "data", series)

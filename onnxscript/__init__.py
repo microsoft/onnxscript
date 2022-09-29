@@ -7,6 +7,7 @@ import sys
 
 from .backend.onnx_export import export2python as proto2python
 from .main import export_onnx_lib, script, graph
+from .utils import external_tensor, proto2text
 from .values import OnnxFunction
 
 if sys.version_info[0:2] >= (3, 8):
@@ -23,4 +24,12 @@ except importlib_metadata.PackageNotFoundError:
     __version__ = None
 
 
-__all__ = ["script", "export_onnx_lib", "OnnxFunction", "proto2python"]
+__all__ = [
+    "script",
+    "export_onnx_lib",
+    "OnnxFunction",
+    "proto2python",
+    "proto2text",
+    "external_tensor",
+    "graph",
+]

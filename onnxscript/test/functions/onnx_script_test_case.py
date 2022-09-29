@@ -9,7 +9,7 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import onnx
@@ -60,8 +60,8 @@ class OnnxScriptTestCase(unittest.TestCase):
     ) -> ModelProto:
         local_function_proto = param.function.function_ir.to_function_proto("")
         if not onnx_case_model:
-            input_names = ["input_" + str(i) for i in range(len(param.input))]
-            output_names = ["output_" + str(i) for i in range(len(param.output))]
+            input_names = [f"input_{str(i)}" for i in range(len(param.input))]
+            output_names = [f"output_{str(i)}" for i in range(len(param.output))]
             input_value_infos = utils.values_to_value_infos(input_names, param.input)
         elif len(onnx_case_model.graph.input) == len(local_function_proto.input) and all(
             [i != "" for i in onnx_case_model.graph.input]
@@ -93,14 +93,14 @@ class OnnxScriptTestCase(unittest.TestCase):
             local_function_model_proto = param.function.function_ir.to_model_proto()
             input_value_infos = []
             for i, input in enumerate(local_function_model_proto.graph.input):
-                vi = copy.deepcopy(local_function_model_proto.graph.input[i])
+                vi = copy.deepcopy(input)
                 if (
                     i < len(onnx_case_model.graph.node[0].input)
                     and onnx_case_model.graph.node[0].input[i] != ""
                 ):
                     vi.name = onnx_case_model.graph.node[0].input[i]
                 else:
-                    vi.name = local_function_model_proto.graph.input[i].name
+                    vi.name = input.name
                 input_value_infos.append(vi)
 
             output_names = [o.name for o in onnx_case_model.graph.output]
@@ -201,11 +201,10 @@ class OnnxScriptTestCase(unittest.TestCase):
         rtol: float = None,
         atol: float = None,
         skip_eager_test: bool = False,
-        skip_test_names: List[str] = [],
+        skip_test_names: Optional[List[str]] = None,
         **attrs: Any,
     ) -> None:
-        """
-        Run ONNX test cases with an onnxscript.OnnxFunction.
+        """Run ONNX test cases with an onnxscript.OnnxFunction.
         The function shall have test cases in ONNX repo.
         For example: in onnx/test/case/node.
         Test case models and data are used to do converter and eager mode test.
@@ -217,9 +216,11 @@ class OnnxScriptTestCase(unittest.TestCase):
             attrs (Any): default attributes of the function node.
 
         """
+        if skip_test_names is None:
+            skip_test_names = []
 
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
-        for i, case in enumerate(cases):
+        for case in cases:
             if len(case.model.graph.node) != 1:
                 raise ValueError(
                     "run_onnx_test only \

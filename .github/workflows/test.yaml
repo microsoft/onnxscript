@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Python310-onnx:
+          - python-version: "3.10"
+            onnx_standard: true
+            test_examples: true
+          # Python39-onnx:
+          - python-version: "3.9"
+            onnx_standard: true
+            test_examples: false
+          # Python39-expe:
+          - python-version: "3.9"
+            onnx_standard: false
+            test_examples: false
+          # Python38-expe:
+          - python-version: "3.8"
+            onnx_standard: false
+            test_examples: false
+          # Python37-expe:
+          - python-version: "3.7"
+            onnx_standard: false
+            test_examples: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+
+      - name: Install standard onnx
+        if: ${{ matrix.onnx_standard }}
+        run: |
+          python -m pip uninstall -y onnx-function-experiment
+          python -m pip uninstall -y ort-function-experiment-nightly
+          python -m pip install onnx onnxruntime
+
+      - name: Make package
+        run: python setup.py sdist
+
+      - name: pytest
+        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n auto
+
+      - name: Install package
+        run: pip install .
+
+      - name: Test examples
+        if: ${{ matrix.test_examples }}
+        run: pytest -v docs/test
+
+      - name: Build documentation
+        run: python -m sphinx docs dist/html
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
