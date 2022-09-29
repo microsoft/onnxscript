@@ -504,8 +504,10 @@ class Converter:
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
     def translate_opt_expr(self, node, target="tmp"):
-        """Translation of an expression where "None" is permitted (eg., for an optional argument)
-        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9
+        """Translation of an expression where "None" is permitted.
+
+        (eg., for an optional argument)
+        None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
             return ConverterExpression(None, ConverterExpressionKind.ANY)
