@@ -23,7 +23,7 @@ torch
 flake8
 mypy
 black
-isort
+isort>=5.10.1
 colorama==0.4.5
 dlint
 flake8-bugbear
