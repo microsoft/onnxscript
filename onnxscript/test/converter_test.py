@@ -155,10 +155,13 @@ class TestConverter(TestBase):
         def square(x):
             return op.Mul(x, x)
 
+        # Converting "square" to a ModelProto will generate an incomplete ModelProto,
+        # with input-type undefined.
         model = square.to_model_proto()
         x_value_info = model.graph.input[0]
         self.assertFalse(x_value_info.HasField("type"))
 
+        # Specify input-types in the call to to_model_proto to generate complete ModelProto.
         model = square.to_model_proto(io_types=FLOAT)
         sess = onnxruntime.InferenceSession(model.SerializeToString())
         x = np.array([5, 6], dtype=np.float32)
