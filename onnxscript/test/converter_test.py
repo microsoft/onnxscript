@@ -29,7 +29,7 @@ from packaging.version import Version
 from onnxscript import OnnxFunction, script
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT, INT64
+from onnxscript.onnx_types import FLOAT, INT64, INT32
 from onnxscript.test.testutils import TestBase
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -519,6 +519,26 @@ class TestConverter(TestBase):
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
         self.check_failure(f2, "`?::-1` cannot be expressed with ONNX")
+
+    def test_graph_attr_scan(self):
+        from onnxscript.test.models.graph_attr import cumulative_sum
+
+        input = np.array([1, 2, 3, 4, 5], dtype=np.int64)
+        expected = np.array([1, 3, 6, 10, 15], dtype=np.int64)
+
+        # Test running model with ONNX Runtime
+        model = cumulative_sum.to_model_proto()
+        try:
+            session = onnxruntime.InferenceSession(model.SerializeToString())
+            output = session.run(None, {"X": input})[0]
+        except Exception as e:
+            raise AssertionError(f"Unable to execute cumulative_sum model due to {e!r}.") from e
+        np.testing.assert_equal(output, expected)
+
+        # Test running model in eager mode
+        output = cumulative_sum(input)
+        np.testing.assert_equal(output, expected)
+
 
 
 if __name__ == "__main__":

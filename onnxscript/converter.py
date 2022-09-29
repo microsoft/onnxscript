@@ -1263,7 +1263,7 @@ class Converter:
             self.py_var_to_onnx_var(pv, debuginfo.DebugInfo(loop_stmt, self))
             for pv in loop_state_vars
         ]
-        graph, sub_functions = body.to_graph_proto()
+        graph, sub_functions = body.to_graph_and_functions()
         attrs = [self.ir_builder.attr("body", graph)]
         return self.emit_loop(
             outputs,
@@ -1319,7 +1319,7 @@ class Converter:
                     self.current_fn, ovar, typeinfo, debuginfo.DebugInfo(info_stmt, self)
                 )
         graph = self.exit_scope()
-        return graph.to_graph_proto()
+        return graph.to_graph_and_functions()
 
     def translate_nested_function_def(self, fn: ast.FunctionDef):
         '''
@@ -1328,7 +1328,7 @@ class Converter:
         self.enter_scope(fn.name, fn)
         self.translate_function_def(fn)
         function_ir = self.exit_scope()
-        graph_proto, _ = function_ir.to_graph_proto() # TODO: fix this
+        graph_proto = function_ir.to_graph_proto()
         print(proto2text(graph_proto))
         self.add_graph_attribute(fn.name, graph_proto)
 

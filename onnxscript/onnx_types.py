@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+from typing import Union
 import onnx
 import onnx.helper
 
@@ -87,3 +88,6 @@ UINT64 = ParametricTensor(onnx.TensorProto.UINT64)
 COMPLEX64 = ParametricTensor(onnx.TensorProto.COMPLEX64)
 COMPLEX128 = ParametricTensor(onnx.TensorProto.COMPLEX128)
 BFLOAT16 = ParametricTensor(onnx.TensorProto.BFLOAT16)
+
+# TODO: add type annotations for the other ONNX types (Optional, Sequence, Map)
+ONNXType = Union[TensorType, ParametricTensor]
