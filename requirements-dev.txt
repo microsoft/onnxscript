@@ -23,6 +23,6 @@ torch
 flake8
 mypy
 black
-isort[colors]
+isort
 dlint
 flake8-bugbear
