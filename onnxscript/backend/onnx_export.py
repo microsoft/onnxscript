@@ -87,8 +87,7 @@ kwlist = {
 
 
 def _get_const_repr(const_node):
-    """
-    Given an ONNX Constant-op node, returns a string representation of
+    """Given an ONNX Constant-op node, returns a string representation of
     the constant-value in ONNXScript, if a compact representation is possible.
     Returns None otherwise.
     Supports only FLOAT/INT64 values and scalars and small rank-1 tensors.
@@ -110,9 +109,7 @@ def _get_const_repr(const_node):
 
 
 def _rename_variable(name):
-    """
-    Renames all names equal to a python keyword.
-    """
+    """Renames all names equal to a python keyword."""
     if isinstance(name, ValueInfoProto):
         # Handle graph/function input/output uniformly
         name = name.name
@@ -124,9 +121,7 @@ def _rename_variable(name):
 
 
 def _translate_type(onnx_type):
-    """
-    Converts a onnx type into a type defined by *onnx-script*.
-    """
+    """Converts a onnx type into a type defined by *onnx-script*."""
     if onnx_type.HasField("tensor_type"):
         typ = ParametricTensor.types[onnx_type.tensor_type.elem_type]
         name = repr(typ)
@@ -145,9 +140,7 @@ def _translate_type(onnx_type):
 
 
 def _translate_signature(inputs, outputs):
-    """
-    Produce the script-functions signature.
-    """
+    """Produce the script-functions signature."""
 
     def input_sig(inp: Union[ValueInfoProto, str]):
         if isinstance(inp, ValueInfoProto):
@@ -207,9 +200,7 @@ def _python_make_node_name(domain, version, name, node=False):
 
 
 class Exporter:
-    """
-    Class used for recursive traversal of Proto structures.
-    """
+    """Class used for recursive traversal of Proto structures."""
 
     def __init__(self, use_operators=False, rename_function=None, inline_const=False) -> None:
         self.use_operators = use_operators
@@ -218,15 +209,11 @@ class Exporter:
         self.constants = {}
 
     def _rename_variable_s(self, name):
-        """
-        Renames all names equal to a python keyword.
-        """
+        """Renames all names equal to a python keyword."""
         return str(self._rename_variable(name))
 
     def _python_make_node_graph(self, graph, opsets, indent=0, output_names=None):
-        """
-        Translates a GraphProto into python.
-        """
+        """Translates a GraphProto into python."""
         code = []
         sindent = "    " * indent
         if hasattr(graph, "initializer"):
@@ -287,9 +274,7 @@ class Exporter:
         return ", ".join(f"{k}={v}" for k, v in attributes)
 
     def _python_make_node_if(self, node, opsets, indent=0):
-        """
-        Translates a node If into python.
-        """
+        """Translates a node If into python."""
         sindent = "    " * indent
         code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
@@ -315,9 +300,7 @@ class Exporter:
         return "\n".join(code)
 
     def _python_make_node_loop(self, node, opsets, indent=0):
-        """
-        Translates a node Loop into python.
-        """
+        """Translates a node Loop into python."""
         body = node.attribute[0].g
         sindent = "    " * indent
         n_iter = self._rename_variable(node.input[0])
@@ -345,9 +328,7 @@ class Exporter:
         return "\n".join(rows)
 
     def _python_make_node_scan(self, node, opsets, indent=0):
-        """
-        Translates a node Scan into python.
-        """
+        """Translates a node Scan into python."""
         raise NotImplementedError()
 
     def lookup(self, var):
@@ -440,17 +421,20 @@ def export_template(
     rename=False,
     inline_const: bool = False,
 ):
-    """
-    Exports an ONNX model into a code based on a template.
-    :param model_onnx: string or ONNX graph
-    :param template: exporting template
-    :param name: to overwrite onnx name
-    :param autopep_options: :epkg:`autopep8` options
-    :param function_name: main function name in the code
-    :param clean_code: clean the code
-    :param rename: rename variable name to get shorter names
-    :param inline_const: replace ONNX constants inline if compact
-    :return: python code
+    """Exports an ONNX model into a code based on a template.
+
+    Args:
+        model_onnx: string or ONNX graph
+        template: exporting template
+        name: to overwrite onnx name
+        autopep_options: :epkg:`autopep8` options
+        function_name: main function name in the code
+        clean_code: clean the code
+        rename: rename variable name to get shorter names
+        inline_const: replace ONNX constants inline if compact
+
+    Returns:
+        python code
     """
     # delayed import to avoid raising an exception if not installed.
     import autopep8
@@ -561,19 +545,22 @@ def export2python(
     clean_code=True,
     inline_const: bool = False,
 ):
-    """
-    Exports an ONNX model to the *python* syntax.
-    :param model_onnx: string or ONNX graph
-    :param opset: opset to export to
-        (None to select the one from the graph)
-    :param verbose: inserts prints
-    :param name: to overwrite onnx name
-    :param rename: rename the names to get shorter names
-    :param autopep_options: :epkg:`autopep8` options
-    :param function_name: main function name
-    :param clean_code: clean the code
-    :param inline_const: replace ONNX constants inline if compact
-    :return: python code
+    """Exports an ONNX model to the *python* syntax.
+
+    Args:
+        model_onnx: string or ONNX graph
+        opset: opset to export to (None to select the one from the
+            graph)
+        verbose: inserts prints
+        name: to overwrite onnx name
+        rename: rename the names to get shorter names
+        autopep_options: :epkg:`autopep8` options
+        function_name: main function name
+        clean_code: clean the code
+        inline_const: replace ONNX constants inline if compact
+
+    Returns:
+        python code
     The following example shows what a python code creating a graph
     implementing the KMeans would look like.
     .. runpython::
