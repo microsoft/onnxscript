@@ -1313,9 +1313,7 @@ class Converter:
         return graph.to_graph_and_functions()
 
     def translate_nested_function_def(self, fn: ast.FunctionDef):
-        """
-        Translate a nested function definition.
-        """
+        """Translate a nested function definition."""
         self.enter_scope(fn.name, fn)
         self.translate_function_def(fn)
         function_ir = self.exit_scope()
