@@ -162,7 +162,9 @@ class TestConverter(TestBase):
         self.assertFalse(x_value_info.HasField("type"))
 
         # Specify input-types in the call to to_model_proto to generate complete ModelProto.
-        model = square.to_model_proto(io_types=FLOAT)
+        model = square.to_model_proto(io_types=FLOAT["N"])
+        # Or, use input_types and output_types, as below, for the more general case.
+        model = square.to_model_proto(input_types=[FLOAT["N"]], output_types=[FLOAT["N"]])
         sess = onnxruntime.InferenceSession(model.SerializeToString())
         x = np.array([5, 6], dtype=np.float32)
         got = sess.run(None, {"x": x})
