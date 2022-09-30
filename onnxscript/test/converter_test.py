@@ -150,25 +150,36 @@ class TestConverter(TestBase):
 
         self.assertIn("square:3", str(e.exception))
 
-    def test_run_ort(self):
+    def test_model_generation(self):
         @script()
-        def square(x):
-            return op.Mul(x, x)
+        def cast_add(x, y):
+            return op.Mul(x, op.CastLike(y, x))
 
-        # Converting "square" to a ModelProto will generate an incomplete ModelProto,
-        # with input-type undefined.
-        model = square.to_model_proto()
+        # Converting "cast_add" to a ModelProto will generate an incomplete ModelProto,
+        # with input-types undefined (since the script has no type-annotation).
+        model = cast_add.to_model_proto()
         x_value_info = model.graph.input[0]
         self.assertFalse(x_value_info.HasField("type"))
 
         # Specify input-types in the call to to_model_proto to generate complete ModelProto.
-        model = square.to_model_proto(io_types=FLOAT["N"])
+        model = cast_add.to_model_proto(io_types=FLOAT["N"])
+        x_value_info = model.graph.input[0]
+        y_value_info = model.graph.input[1]
+        output_value_info = model.graph.output[0]
+        self.assertEqual(x_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(y_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(output_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+
         # Or, use input_types and output_types, as below, for the more general case.
-        model = square.to_model_proto(input_types=[FLOAT["N"]], output_types=[FLOAT["N"]])
-        sess = onnxruntime.InferenceSession(model.SerializeToString())
-        x = np.array([5, 6], dtype=np.float32)
-        got = sess.run(None, {"x": x})
-        self.assertEqual((x * x).tolist(), got[0].tolist())
+        model = cast_add.to_model_proto(
+            input_types=[FLOAT["N"], INT64["N"]], output_types=[FLOAT["N"]]
+        )
+        x_value_info = model.graph.input[0]
+        y_value_info = model.graph.input[1]
+        output_value_info = model.graph.output[0]
+        self.assertEqual(x_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(y_value_info.type.tensor_type.elem_type, TensorProto.INT64)
+        self.assertEqual(output_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
 
     def test_onnxfns1(self):
         from onnxscript.test.models import onnxfns1
