@@ -21,7 +21,7 @@ def cumulative_sum(X: INT64['N']):
     return result
 
 @script()
-def sum_to(X):
+def sum_to(X: INT64):
     '''Test use of a nested-function as a graph-attribute, using the Loop operator.'''
     @graph(parent=sum_to)
     def LoopBody(i: INT64, cond: BOOL, sum_in: INT64):

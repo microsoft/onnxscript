@@ -516,26 +516,32 @@ class TestConverter(TestBase):
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
         self.check_failure(f2, "`?::-1` cannot be expressed with ONNX")
 
+    def check_run(self, onnxfn, inputs, expected_output):
+        # Test by converting to model and running with ORT
+        model = onnxfn.to_model_proto()
+        session = onnxruntime.InferenceSession(model.SerializeToString())
+        input_names = [x.name for x in model.graph.input]
+        input_dict = {x: value for (x, value) in zip(input_names, inputs)}
+        output = session.run(None, input_dict)[0]
+        np.testing.assert_equal(output, expected_output)
+
+        # Test running model in eager mode
+        output = onnxfn(*inputs)
+        np.testing.assert_equal(output, expected_output)
+
     def test_graph_attr_scan(self):
         from onnxscript.test.models.graph_attr import cumulative_sum
 
-        input = np.array([1, 2, 3, 4, 5], dtype=np.int64)
-        expected = np.array([1, 3, 6, 10, 15], dtype=np.int64)
+        inputs = [np.array([1, 2, 3, 4, 5], dtype=np.int64)]
+        expected_output = np.array([1, 3, 6, 10, 15], dtype=np.int64)
+        self.check_run(cumulative_sum, inputs, expected_output)
 
-        # Test running model with ONNX Runtime
-        model = cumulative_sum.to_model_proto()
-        try:
-            session = onnxruntime.InferenceSession(model.SerializeToString())
-            output = session.run(None, {"X": input})[0]
-        except Exception as e:
-            raise AssertionError(
-                f"Unable to execute cumulative_sum model due to {e!r}."
-            ) from e
-        np.testing.assert_equal(output, expected)
+    def test_graph_attr_loop(self):
+        from onnxscript.test.models.graph_attr import sum_to
 
-        # Test running model in eager mode
-        output = cumulative_sum(input)
-        np.testing.assert_equal(output, expected)
+        inputs = [np.array(6, dtype=np.int64)]
+        expected_output = np.array([0, 1, 3, 6, 10, 15], dtype=np.int64)
+        self.check_run(sum_to, inputs, expected_output)
 
 
 if __name__ == "__main__":
