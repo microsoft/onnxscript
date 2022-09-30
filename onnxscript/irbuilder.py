@@ -303,7 +303,7 @@ class Function:
             use_default_type: if True, the function uses a default type
                 for inputs and outputs that do not have a type
 
-        Return:
+        Returns:
             a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
         """
         sub_functions = {}
@@ -322,10 +322,12 @@ class Function:
         """
         Converts the content of this class into a `onnx.GraphProto`.
 
-        :param use_default_type: if True, the function uses a default type
-            for inputs and outputs that do not have a type
+        Args:
+            use_default_type: if True, the function uses a default type
+                for inputs and outputs that do not have a type
 
-        :return: an instance of :class:`onnx.GraphProto`
+        Returns:
+            an instance of :class:`onnx.GraphProto`
         """
         graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
         return graph
