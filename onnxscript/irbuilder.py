@@ -294,8 +294,7 @@ class Function:
         )
 
     def to_graph_and_functions(self, use_default_type: bool = True):
-        """
-        Converts the content of this class into a `onnx.GraphProto` and
+        """Converts the content of this class into a `onnx.GraphProto` and
         a list of `onnx.FunctionProto`.
 
         Args:
