@@ -104,12 +104,9 @@ def script(opset=None, default_opset=None, **kwargs):
     return transform
 
 
-def graph(parent: values.OnnxFunction):
+def graph():
     """A parametric decorator used to annotate nested-functions that are used
     as graph-attributes.
-
-    Args:
-        parent: Outer-level function.
 
     Returns:
         A decorator that returns its input function, but attaches a graph_proto
@@ -141,12 +138,16 @@ def graph(parent: values.OnnxFunction):
             return result
 
     """
+    # This is a bit fragile. We want to get the ONNXFunction object representing
+    # the "parent" from the execution stack.
+    import sys
+
+    eager_mode_fr = sys._getframe(2)
+    onnx_function = eager_mode_fr.f_locals["self"]
+    graph_attributes = onnx_function.function_ir.graph_attributes
 
     def transform(f):
-        try:
-            f.graph_proto = parent.function_ir.graph_attributes[f.__name__]
-        except KeyError:
-            raise ValueError(f"Graph attribute for {f.__name__} not found.")
+        f.graph_proto = graph_attributes[f.__name__]
         return f
 
     return transform

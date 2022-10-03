@@ -11,7 +11,7 @@ from onnxscript.onnx_types import BOOL, INT64
 @script()
 def cumulative_sum(X: INT64['N']):
     '''Test use of a nested-function as a graph-attribute, using the Scan operator.'''
-    @graph(parent=cumulative_sum)
+    @graph()
     def Sum(sum_in, next):
         sum_out = sum_in + next
         scan_out = op.Identity(sum_out)
@@ -23,7 +23,7 @@ def cumulative_sum(X: INT64['N']):
 @script()
 def sum_to(X: INT64):
     '''Test use of a nested-function as a graph-attribute, using the Loop operator.'''
-    @graph(parent=sum_to)
+    @graph()
     def LoopBody(i: INT64, cond: BOOL, sum_in: INT64):
         cond_out = op.Identity(cond)
         sum_out = sum_in + i
