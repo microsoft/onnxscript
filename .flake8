@@ -7,7 +7,11 @@ max-line-length = 95
 # W503 talks about operator formatting which is too opinionated.
 # E203 is need to support black formatting.
 # https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html
-extend-ignore = E203, W503
+# D1 is for missing docstrings, which is not yet enforced.
+# D415 Ignore "First line should end with a period, question mark, or exclamation point"
+# D202 Too strict. No blank lines allowed after function docstring
+# D205 Too strict. "1 blank line required between summary line and description"
+extend-ignore = E203, W503, D1, D202, D205, D415,
 exclude =
   .git,
   __pycache__,

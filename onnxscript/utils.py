@@ -49,7 +49,6 @@ def external_tensor(
 
     See https://github.com/onnx/onnx/blob/main/docs/ExternalData.md for more details.
     """
-
     tensor = TensorProto()
     tensor.name = name
     tensor.data_type = data_type
