@@ -110,3 +110,8 @@ disable = [
   "attribute-defined-outside-init", # TODO: mostly in onnxscript/converter.py
   "redefined-builtin",              # TODO: should we avoid redefined-builtin?
 ]
+
+[tool.pydocstyle]
+convention = "google"
+# Ignore all D1xx errors
+add-ignore = ["D1"]
