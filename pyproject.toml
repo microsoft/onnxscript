@@ -114,4 +114,4 @@ disable = [
 [tool.pydocstyle]
 convention = "google"
 # Ignore all D1xx errors
-add-ignore = ["D1"]
+add-ignore = ["D1", "D202", "D205", "D415"]
