@@ -76,8 +76,7 @@ class Var:
         return f"{self.name} : {str(self.typeinfo)}"
 
     def to_value_info(self, use_default_type: bool = True):
-        """
-        Converts the content of this class into :class:`onnx.ValueInfoProto`.
+        """Converts the content of this class into :class:`onnx.ValueInfoProto`.
 
         Args:
             use_default_type: if True, use a default type if an explicit type
@@ -295,8 +294,7 @@ class Function:
         )
 
     def to_graph_and_functions(self, use_default_type: bool = True):
-        """
-        Converts the content of this class into a `onnx.GraphProto` and
+        """Converts the content of this class into a `onnx.GraphProto` and
         a list of `onnx.FunctionProto`.
 
         Args:
