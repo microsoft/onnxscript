@@ -10,7 +10,7 @@ from onnxscript.onnx_types import BOOL, INT64
 
 @script()
 def cumulative_sum(X: INT64['N']):
-    '''Test use of a nested-function as a graph-attribute, using the Scan operator.'''
+    """Test use of a nested-function as a graph-attribute, using the Scan operator."""
     @graph(parent=cumulative_sum)
     def Sum(sum_in, next):
         sum_out = sum_in + next
