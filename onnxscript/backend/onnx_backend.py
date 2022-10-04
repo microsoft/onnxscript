@@ -194,10 +194,8 @@ class OnnxBackendTest:
             raise NotImplementedError(f"Comparison not implemented for type {type(e)!r}.")
 
     def is_random(self):
-        """Returns whether test is random."""
-        if "bernoulli" in self.folder:
-            return True
-        return False
+        """Returns whether the test is random."""
+        return "bernoulli" in self.folder
 
     def run(self, load_fct, run_fct, index=None, decimal=None):
         """Executes a tests or all tests if index is None.
