@@ -122,20 +122,7 @@ def _rename_variable(name):
 
 def _translate_type(onnx_type):
     """Converts a onnx type into a type defined by *onnx-script*."""
-    if onnx_type.HasField("tensor_type"):
-        name = onnxscript.onnx_types.get_repr(onnx_type.tensor_type.elem_type)
-        if onnx_type.tensor_type.HasField("shape"):
-            shape = []
-            for d in onnx_type.tensor_type.shape.dim:
-                if d.HasField("dim_value"):
-                    shape.append(str(d.dim_value))
-                else:
-                    shape.append(d.dim_param)
-            if len(shape) == 0:
-                return name
-            return f"{name}[{','.join(shape)}]"
-        return f"{name}[...]"
-    raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnx-script type.")
+    return onnxscript.onnx_types.onnx_type_to_os_type_repr(onnx_type)
 
 
 def _translate_signature(inputs, outputs):
