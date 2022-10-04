@@ -5,25 +5,7 @@
 
 import onnx
 import onnx.helper
-
-
-class TensorType:
-    # Reference implementation placeholder
-    # represents a generic ONNX tensor type
-    def __init__(self, dtype=onnx.TensorProto.UNDEFINED, shape=None) -> None:
-        self.dtype = dtype
-        self.shape = shape
-
-    def __str__(self) -> str:
-        shapestr = str(self.shape) if self.shape else "[...]"
-        return onnx.TensorProto.DataType.Name(self.dtype) + shapestr
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(dtype={self.dtype!r}, shape={self.shape!r})"
-
-    def to_type_proto(self):
-        # TODO: handle None
-        return onnx.helper.make_tensor_type_proto(self.dtype, self.shape)
+from typing import Union, Tuple, Optional
 
 
 # Utilities used to create parametrized type-annotations for tensors.
@@ -33,41 +15,49 @@ class TensorType:
 #    x : FLOAT['M', 'N'] (a tensor of rank 2 of unknown dimensions, with symbolic names)
 #    x : FLOAT[128, 1024] (a tensor of rank 2 of known dimensions)
 
+DimType = Union[int, str, type(None)]
+
+def check_dim(dim):
+    if not isinstance(dim, (int, str, type(None))):
+        raise TypeError(f"Invalid dimension {dim}")
+
+ShapeType = Union[Tuple[DimType], DimType, type(Ellipsis)]
+
+def check_shape(shape):
+    if isinstance(shape, tuple):
+        for dim in shape:
+            check_dim(dim)
+    elif shape != Ellipsis:
+        check_dim(shape)
 
 class ParametricTensor:
-    """Defines a dense tensor of any shape."""
+    """Representation of a tensor type."""
 
-    types = {}
-
-    def __init__(self, dtype) -> None:
+    def __init__(self, dtype, shape : Optional[ShapeType] = None) -> None:
         self.dtype = dtype
-        ParametricTensor.types[dtype] = self
+        self.shape = shape
+        if shape is not None:
+            check_shape(shape)
 
-    def __getitem__(self, shape):
-        def mk_dim(dim):  # pylint: disable=unused-variable # TODO: why?
-            r = onnx.TensorShapeProto.Dimension()
-            if isinstance(dim, int):
-                r.dim_value = dim
-            elif isinstance(dim, str):
-                r.dim_param = dim
-            elif dim is not None:
-                raise TypeError("Invalid dimension")
-            return r
-
-        if isinstance(shape, tuple):
-            s = shape
-        elif shape == Ellipsis:
-            s = None
-        else:
-            s = [shape]
-        return TensorType(self.dtype, s)
+    def __getitem__(self, shape: Optional[ShapeType]):
+        if shape is None:
+            # Treat FLOAT[NONE] as 1-dimensional tensor with unknown dimension
+            shape = (None,)
+        return ParametricTensor(self.dtype, shape)
 
     def to_type_proto(self):
-        return onnx.helper.make_tensor_type_proto(self.dtype, ())
+        if self.shape is None:
+            shape = ()
+        elif self.shape is Ellipsis:
+            shape = None
+        elif isinstance(self.shape, tuple):
+            shape = self.shape
+        else:
+            shape = [self.shape]
+        return onnx.helper.make_tensor_type_proto(self.dtype, shape)
 
     def __repr__(self) -> str:
         return onnx.TensorProto.DataType.Name(self.dtype)
-
 
 FLOAT = ParametricTensor(onnx.TensorProto.FLOAT)
 UINT8 = ParametricTensor(onnx.TensorProto.UINT8)
@@ -85,3 +75,6 @@ UINT64 = ParametricTensor(onnx.TensorProto.UINT64)
 COMPLEX64 = ParametricTensor(onnx.TensorProto.COMPLEX64)
 COMPLEX128 = ParametricTensor(onnx.TensorProto.COMPLEX128)
 BFLOAT16 = ParametricTensor(onnx.TensorProto.BFLOAT16)
+
+def get_repr(onnx_dtype):
+    return onnx.TensorProto.DataType.Name(onnx_dtype)

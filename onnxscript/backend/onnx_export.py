@@ -10,7 +10,7 @@ import onnx
 from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_node
 
-from onnxscript.onnx_types import ParametricTensor
+import onnxscript.onnx_types
 
 _template_python = '''
 import numpy
@@ -123,8 +123,7 @@ def _rename_variable(name):
 def _translate_type(onnx_type):
     """Converts a onnx type into a type defined by *onnx-script*."""
     if onnx_type.HasField("tensor_type"):
-        typ = ParametricTensor.types[onnx_type.tensor_type.elem_type]
-        name = repr(typ)
+        name = onnxscript.onnx_types.get_repr(onnx_type.tensor_type.elem_type)
         if onnx_type.tensor_type.HasField("shape"):
             shape = []
             for d in onnx_type.tensor_type.shape.dim:
