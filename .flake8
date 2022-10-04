@@ -8,11 +8,8 @@ max-line-length = 95
 # E203 is need to support black formatting.
 # https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html
 # Dxx ignores are for pydocstyle. It should mirror the [tool.pydocstyle] section in
-# pyproject.toml. Mirrored here for flake8-docstring support.
-# D1 is for missing docstrings, which is not yet enforced.
-# D202 Too strict. No blank lines allowed after function docstring
-# D205 Too strict. "1 blank line required between summary line and description"
-# D415 Ignore "First line should end with a period, question mark, or exclamation point"
+# pyproject.toml. Mirrored here for flake8-docstring support. See pyproject.toml for
+# reasons for disabling.
 extend-ignore = E203, W503, D1, D202, D205, D415
 exclude =
   .git,
