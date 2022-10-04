@@ -214,10 +214,9 @@ class OnnxScriptTestCase(unittest.TestCase):
             function: the function to be tested.
             rtol: relative tolerance. Defaults to None.
             atol: absolute tolerance. Defaults to None.
-            skip_eager_test: not to run eager test if Ture.
+            skip_eager_test: not to run eager test if True.
             skip_test_names: to skip these tests.
             attrs: default attributes of the function node.
-
         """
         if skip_test_names is None:
             skip_test_names = set()
