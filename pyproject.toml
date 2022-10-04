@@ -113,5 +113,8 @@ disable = [
 
 [tool.pydocstyle]
 convention = "google"
-# Ignore all D1xx errors
+# D1 is for missing docstrings, which is not yet enforced.
+# D202 Too strict. "No blank lines allowed after function docstring"
+# D205 Too strict. "1 blank line required between summary line and description"
+# D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
 add-ignore = ["D1", "D202", "D205", "D415"]
