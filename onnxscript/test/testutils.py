@@ -43,7 +43,7 @@ def to_function_or_graph(testcase):
 
 class TestBase(unittest.TestCase):
     def validate(self, fn):
-        """validate script function translation"""
+        """Validate script function translation."""
         return fn.to_function_proto()
 
     def assertSame(self, fn1, fn2):

@@ -140,7 +140,7 @@ class OnnxFunction(Op):
 
     @property
     def name(self):
-        "Returns the function name."
+        """Returns the function name."""
         return self.opname
 
     def __call__(self, *args, **kwargs):
@@ -152,7 +152,7 @@ class OnnxFunction(Op):
         return self._usercall(*args, **kwargs)
 
     def _usercall(self, *args, **kwargs):
-        "Eager mode"
+        """Eager mode"""
         new_args = []
         for i, a in enumerate(args):
             if isinstance(a, np.ndarray):
@@ -213,11 +213,11 @@ class OnnxFunction(Op):
         raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
 
     def to_function_proto(self, domain=None):
-        "Converts the function into :class:`onnx.FunctionProto`."
+        """Converts the function into :class:`onnx.FunctionProto`."""
         return self.function_ir.to_function_proto(domain or self.opset)
 
     def to_model_proto(self, **kwargs):
-        "Converts the function into :class:`onnx.ModelProto`."
+        """Converts the function into :class:`onnx.ModelProto`."""
         if self.function_ir.attrs:
             raise ValueError("A function with attributes cannot be exported as a model.")
         # Note: The function must also have monomorphic type annotation for inputs/outputs

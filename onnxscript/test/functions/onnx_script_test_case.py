@@ -9,7 +9,7 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, List, Optional, Union
+from typing import Any, Collection, Optional, Union
 
 import numpy as np
 import onnx
@@ -198,26 +198,30 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_onnx_test(
         self,
         function: onnxscript.OnnxFunction,
-        rtol: float = None,
-        atol: float = None,
+        rtol: Optional[float] = None,
+        atol: Optional[float] = None,
         skip_eager_test: bool = False,
-        skip_test_names: Optional[List[str]] = None,
+        skip_test_names: Optional[Collection[str]] = None,
         **attrs: Any,
     ) -> None:
         """Run ONNX test cases with an onnxscript.OnnxFunction.
-        The function shall have test cases in ONNX repo.
+
+        The function should have test cases in ONNX repo.
         For example: in onnx/test/case/node.
         Test case models and data are used to do converter and eager mode test.
 
-        Arguments:
-            function (onnxscript.OnnxFunction): the function to be tested.
-            skip_eager_test (bool): not to run eager test if Ture.
-            skip_test_names (List[str]): to skip these tests.
-            attrs (Any): default attributes of the function node.
-
+        Args:
+            function: the function to be tested.
+            rtol: relative tolerance. Defaults to None.
+            atol: absolute tolerance. Defaults to None.
+            skip_eager_test: not to run eager test if True.
+            skip_test_names: to skip these tests.
+            attrs: default attributes of the function node.
         """
         if skip_test_names is None:
-            skip_test_names = []
+            skip_test_names = set()
+        else:
+            skip_test_names = set(skip_test_names)
 
         cases = self._filter_test_case_by_op_type(function.function_ir.name)
         for case in cases:
