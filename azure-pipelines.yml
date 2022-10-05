@@ -69,7 +69,3 @@ steps:
           pytest -v docs/test
       fi
   displayName: 'Test examples'
-
-- script: |
-    python -m sphinx docs dist/html
-  displayName: 'documentation'
