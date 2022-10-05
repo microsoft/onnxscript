@@ -16,10 +16,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         include:
-          # Python311-onnx:
-          - python-version: "3.11"
-            onnx_standard: true
-            test_examples: true
           # Python310-onnx:
           - python-version: "3.10"
             onnx_standard: true
