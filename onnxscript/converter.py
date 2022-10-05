@@ -868,7 +868,7 @@ class Converter:
                 return val
             fail(
                 debuginfo.DebugInfo(node).msg(
-                    f"'{node.id}' is not an instance of type Opset but {type(node)}."
+                    f"'{node.id}' is not an instance of type Opset but {type(val)}."
                 )
             )
         elif isinstance(node, ast.Attribute):
