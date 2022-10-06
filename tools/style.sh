@@ -13,7 +13,7 @@ err=0
 trap 'err=1' ERR
 
 echo -e "\n::group:: ===> check flake8..."
-flake8 onnxscript
+flake8 --docstring-convention google onnxscript/
 echo -e "::endgroup::"
 
 echo -e "\n::group:: ===> check isort..."

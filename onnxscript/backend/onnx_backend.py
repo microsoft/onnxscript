@@ -103,7 +103,7 @@ class OnnxBackendTest:
         return res
 
     def __repr__(self):
-        "usual"
+        """Usual"""
         return f"{self.__class__.__name__}({self.folder!r})"
 
     def __init__(self, folder):
@@ -135,11 +135,11 @@ class OnnxBackendTest:
 
     @property
     def name(self):
-        "Returns the test name."
+        """Returns the test name."""
         return os.path.split(self.folder)[-1]
 
     def __len__(self):
-        "Returns the number of tests."
+        """Returns the number of tests."""
         return len(self.tests)
 
     def _compare_results(self, index, i, e, o, decimal=None):
@@ -194,10 +194,8 @@ class OnnxBackendTest:
             raise NotImplementedError(f"Comparison not implemented for type {type(e)!r}.")
 
     def is_random(self):
-        "Tells if a test is random or not."
-        if "bernoulli" in self.folder:
-            return True
-        return False
+        """Returns whether the test is random."""
+        return "bernoulli" in self.folder
 
     def run(self, load_fct, run_fct, index=None, decimal=None):
         """Executes a tests or all tests if index is None.
