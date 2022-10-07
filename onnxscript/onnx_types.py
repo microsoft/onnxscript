@@ -24,7 +24,7 @@ def check_dim(dim):
         raise TypeError(f"Invalid dimension {dim}")
 
 
-ShapeType = Union[Tuple[DimType], DimType, type(Ellipsis)]
+ShapeType = Union[Tuple[DimType, ...], DimType, type(Ellipsis)]
 
 
 def check_shape(shape):
@@ -52,7 +52,7 @@ class TensorType:
             shape = (None,)
         return TensorType(self.dtype, shape)
 
-    def to_type_proto(self):
+    def to_type_proto(self) -> onnx.TypeProto:
         if self.shape is None:
             shape = ()  # "FLOAT" is treated as a scalar
         elif self.shape is Ellipsis:
@@ -82,7 +82,7 @@ COMPLEX128 = TensorType(onnx.TensorProto.COMPLEX128)
 BFLOAT16 = TensorType(onnx.TensorProto.BFLOAT16)
 
 
-def onnx_type_to_os_type_repr(onnx_type: onnx.TypeProto):
+def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
     """Converts an onnx type into the string representation of the type in *onnx-script*.
     Args:
         onnx_type: an instance of onnx TypeProto

@@ -122,7 +122,7 @@ def _rename_variable(name):
 
 def _translate_type(onnx_type):
     """Converts a onnx type into a type defined by *onnx-script*."""
-    return onnxscript.onnx_types.onnx_type_to_os_type_repr(onnx_type)
+    return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type)
 
 
 def _translate_signature(inputs, outputs):
