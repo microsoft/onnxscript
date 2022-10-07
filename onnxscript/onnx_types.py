@@ -89,6 +89,9 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
 
     Returns:
         The string representation of the type in onnx-script
+        
+    Raises:
+        ...
     """
     if onnx_type.HasField("tensor_type"):
         elem_type = onnx_type.tensor_type.elem_type
