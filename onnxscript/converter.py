@@ -260,8 +260,7 @@ class Converter:
         return None
 
     def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
-        """
-        Bind given name to given GraphProto value, for use by both the converter
+        """Bind given name to given GraphProto value, for use by both the converter
         (statically) and for eager-mode execution (dynamically).
         """
         self.bind(name, graph)

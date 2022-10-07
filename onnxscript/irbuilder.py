@@ -317,8 +317,7 @@ class Function:
         return graph, sub_functions
 
     def to_graph_proto(self, use_default_type: bool = True):
-        """
-        Converts the content of this class into a `onnx.GraphProto`.
+        """Converts the content of this class into a `onnx.GraphProto`.
 
         Args:
             use_default_type: if True, the function uses a default type

@@ -126,7 +126,7 @@ def graph():
             # into a GraphProto, which will be stored in the OnnxFunction generated
             # for cumulative_sum. At run-time (in eager-mode), the @graph decorator
             # retrieves the pre-computed GraphProto and attaches it to the Sum function.
-            @graph(parent=cumulative_sum)
+            @graph()
             def Sum(sum_in, next):
                 sum_out = sum_in + next
                 scan_out = op.Identity(sum_out)
@@ -139,11 +139,17 @@ def graph():
 
     """
     # This is a bit fragile. We want to get the ONNXFunction object representing
-    # the "parent" from the execution stack.
+    # the outer-scope ONNXScript function from the execution stack. The caller of
+    # @graph is the original script function (cumulative_sum in the above example),
+    # and the caller of that function is the wrapper function/method in the
+    # corresponding OnnxFunction object.
+    # Currently, there is no support for eager-mode execution of nested functions,
+    # so we don't need to handle doubly nested functions (e.g., a function defined
+    # inside Sum in the above example).
     import sys
 
-    eager_mode_fr = sys._getframe(2)
-    onnx_function = eager_mode_fr.f_locals["self"]
+    eager_mode_frame = sys._getframe(2)
+    onnx_function = eager_mode_frame.f_locals["self"]
     graph_attributes = onnx_function.function_ir.graph_attributes
 
     def transform(f):

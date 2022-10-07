@@ -32,3 +32,15 @@ def sum_to(X: INT64):
     zero = op.Constant(value_int=0)
     _, result = op.Loop (X, None, zero, body=LoopBody)
     return result
+
+@script()
+def sum_to_error(X: INT64):
+    """Test omitted @graph annotation error."""
+    def LoopBody(i: INT64, cond: BOOL, sum_in: INT64):
+        cond_out = op.Identity(cond)
+        sum_out = sum_in + i
+        scan_out = op.Identity(sum_out)
+        return cond_out, sum_out, scan_out
+    zero = op.Constant(value_int=0)
+    _, result = op.Loop (X, None, zero, body=LoopBody)
+    return result

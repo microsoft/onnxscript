@@ -556,6 +556,14 @@ class TestConverter(TestBase):
         expected_output = np.array([0, 1, 3, 6, 10, 15], dtype=np.int64)
         self.check_run(sum_to, inputs, expected_output)
 
+    def test_graph_attr_loop_error(self):
+        from onnxscript.test.models.graph_attr import sum_to_error
+
+        input = np.array(6, dtype=np.int64)
+        with self.assertRaises(ValueError) as exc:
+            sum_to_error(input)
+        self.assertIn("@graph", str(exc.exception))
+
 
 if __name__ == "__main__":
     # import logging
