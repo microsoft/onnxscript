@@ -89,7 +89,7 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
 
     Returns:
         The string representation of the type in onnx-script
-        
+
     Raises:
         ...
     """
