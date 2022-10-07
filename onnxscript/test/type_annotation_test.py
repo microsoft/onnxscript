@@ -63,6 +63,9 @@ class TypeAnnotationTester(TestBase):
         """
         self.assertSameGraph(unknown_rank, unknown_rank_txt)
 
+        with self.assertRaises(ValueError):
+            FLOAT[10][20]  # Invalid usage.
+
 
 if __name__ == "__main__":
     unittest.main()
