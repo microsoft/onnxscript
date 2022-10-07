@@ -560,9 +560,8 @@ class TestConverter(TestBase):
         from onnxscript.test.models.graph_attr import sum_to_error
 
         input = np.array(6, dtype=np.int64)
-        with self.assertRaises(ValueError) as exc:
+        with self.assertRaisesRegex(ValueError, "@graph"):
             sum_to_error(input)
-        self.assertIn("@graph", str(exc.exception))
 
 
 if __name__ == "__main__":

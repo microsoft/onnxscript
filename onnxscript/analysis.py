@@ -214,6 +214,8 @@ def exposed_uses(stmts, converter):
             used_in_loop_header = used_vars(stmt.test)
             return used_inside_loop | used_in_loop_header | live_out
         if isinstance(stmt, ast.Break):
+            # Currently, we assume that break statements are only allowed as the last
+            # statement in a loop, as "if cond: break".
             return live_out
         raise ValueError(
             debuginfo.DebugInfo(stmt, converter).msg(
