@@ -150,21 +150,36 @@ class TestConverter(TestBase):
 
         self.assertIn("square:3", str(e.exception))
 
-    def test_run_ort(self):
+    def test_model_generation(self):
         @script()
-        def square(x):
-            return op.Mul(x, x)
+        def cast_add(x, y):
+            return op.Mul(x, op.CastLike(y, x))
 
-        with self.assertRaises(TypeError) as cm:
-            # checking that the function raises an exception when types are not defined.
-            square.to_model_proto()
-        self.assertIn("square:2", str(cm.exception))
-        self.assertIn("Variable x is missing", str(cm.exception))
-        model = square.to_model_proto(io_types=FLOAT)
-        sess = onnxruntime.InferenceSession(model.SerializeToString())
-        x = np.array([5, 6], dtype=np.float32)
-        got = sess.run(None, {"x": x})
-        self.assertEqual((x * x).tolist(), got[0].tolist())
+        # Converting "cast_add" to a ModelProto will generate an incomplete ModelProto,
+        # with input-types undefined (since the script has no type-annotation).
+        model = cast_add.to_model_proto()
+        x_value_info = model.graph.input[0]
+        self.assertFalse(x_value_info.HasField("type"))
+
+        # Specify input-types in the call to to_model_proto to generate complete ModelProto.
+        model = cast_add.to_model_proto(io_types=FLOAT["N"])
+        x_value_info = model.graph.input[0]
+        y_value_info = model.graph.input[1]
+        output_value_info = model.graph.output[0]
+        self.assertEqual(x_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(y_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(output_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+
+        # Or, use input_types and output_types, as below, for the more general case.
+        model = cast_add.to_model_proto(
+            input_types=[FLOAT["N"], INT64["N"]], output_types=[FLOAT["N"]]
+        )
+        x_value_info = model.graph.input[0]
+        y_value_info = model.graph.input[1]
+        output_value_info = model.graph.output[0]
+        self.assertEqual(x_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(y_value_info.type.tensor_type.elem_type, TensorProto.INT64)
+        self.assertEqual(output_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
 
     def test_onnxfns1(self):
         from onnxscript.test.models import onnxfns1
@@ -513,6 +528,40 @@ class TestConverter(TestBase):
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
         self.check_failure(f2, "`?::-1` cannot be expressed with ONNX")
+
+    def check_run(self, onnxfn, inputs, expected_output):
+        # Test by converting to model and running with ORT
+        model = onnxfn.to_model_proto()
+        session = onnxruntime.InferenceSession(model.SerializeToString())
+        input_names = [x.name for x in model.graph.input]
+        input_dict = {x: value for (x, value) in zip(input_names, inputs)}
+        output = session.run(None, input_dict)[0]
+        np.testing.assert_equal(output, expected_output)
+
+        # Test running model in eager mode
+        output = onnxfn(*inputs)
+        np.testing.assert_equal(output, expected_output)
+
+    def test_graph_attr_scan(self):
+        from onnxscript.test.models.graph_attr import cumulative_sum
+
+        inputs = [np.array([1, 2, 3, 4, 5], dtype=np.int64)]
+        expected_output = np.array([1, 3, 6, 10, 15], dtype=np.int64)
+        self.check_run(cumulative_sum, inputs, expected_output)
+
+    def test_graph_attr_loop(self):
+        from onnxscript.test.models.graph_attr import sum_to
+
+        inputs = [np.array(6, dtype=np.int64)]
+        expected_output = np.array([0, 1, 3, 6, 10, 15], dtype=np.int64)
+        self.check_run(sum_to, inputs, expected_output)
+
+    def test_graph_attr_loop_error(self):
+        from onnxscript.test.models.graph_attr import sum_to_error
+
+        input = np.array(6, dtype=np.int64)
+        with self.assertRaisesRegex(ValueError, "@graph"):
+            sum_to_error(input)
 
 
 if __name__ == "__main__":

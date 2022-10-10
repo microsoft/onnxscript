@@ -6,14 +6,16 @@
 import io
 import logging
 import warnings
+from typing import Optional, Sequence
 
 import onnx
-from onnx import helper
+from onnx import ValueInfoProto, helper
 from onnx.defs import onnx_opset_version
 
 import onnxscript
 from onnxscript import type_annotation as ta
 from onnxscript import values
+from onnxscript.onnx_types import ONNXType
 
 # A simple IR (Function, Stmt, Attr, Var):
 
@@ -73,41 +75,25 @@ class Var:
     def typed_str(self):
         return f"{self.name} : {str(self.typeinfo)}"
 
-    def to_value_info(self, enforce_typed=False, default_type=None):
+    def to_value_info(self, use_default_type: bool = True):
         """Converts the content of this class into :class:`onnx.ValueInfoProto`.
 
         Args:
-            enforce_typed: if True, the function raises an exception if
-                the type of an input or output is not specified (no
-                annotation) unless *io_types* defined a default value to
-                use
-            default_type: defines a default value for missing input and
-                output type, this is only used if *enforce_typed* is
-                True
+            use_default_type: if True, use a default type if an explicit type
+                is not known. Otherwise, returns a ValueInfoProto without type.
 
         Returns:
             an instance of :class:`onnx.ValueInfoProto`
         """
-        if self.typeinfo is None:
-            if enforce_typed:
-                if default_type is None:
-                    raise TypeError(
-                        self.info.msg(
-                            f"Variable {self.name} is missing an annotation and default_type "
-                            f"is not specified."
-                        )
-                    )
-                return helper.make_value_info(self.name, default_type.to_type_proto())
-            return helper.make_value_info(self.name, Type().to_type_proto())
-        tp = self.typeinfo.to_type_proto()
-        # if (not tp.tensor_type.HasField('shape')):
-        #     # TODO: temporary patch to export a function as a graph
-        #     tp = helper.make_tensor_type_proto(tp.tensor_type.elem_type, [10])
         if self.name is None:
             raise ValueError(self.info.msg("name cannot be None."))
-        if tp is None:
-            raise ValueError(self.info.msg("tp cannot be None."))
-        return helper.make_value_info(self.name, tp)
+        value_info_proto = ValueInfoProto()
+        value_info_proto.name = self.name
+        if self.typeinfo is not None:
+            value_info_proto.type.CopyFrom(self.typeinfo.to_type_proto())
+        elif use_default_type:
+            value_info_proto.type.CopyFrom(Type().to_type_proto())
+        return value_info_proto
 
 
 def opt_var_to_str(x):
@@ -181,6 +167,7 @@ class Function:
         self.attr_protos = []
         self.functions = {}
         self.docstring = ""
+        self.graph_attributes = {}
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
@@ -231,24 +218,46 @@ class Function:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[opf.name] = proto
 
-    def to_model_proto(self, functions=None, io_types=None, **kwargs):
+    def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
+        self.graph_attributes[name] = graph
+
+    def to_model_proto(
+        self,
+        functions=None,
+        io_types: Optional[ONNXType] = None,
+        input_types: Optional[Sequence[ONNXType]] = None,
+        output_types: Optional[Sequence[ONNXType]] = None,
+        **kwargs,
+    ):
         """Converts the content of this class into a `onnx.ModelProto`.
 
         Args:
-            functions: list of functions to include in the model, by
-                default, all functions called at least once are included
-            io_types: many functions are written without any type
-                specification so they can be type agnostic. However,
-                ModelProto requires the inputs and outputs to be
-                strongly typed. When an input or an output has no type,
-                this default value is used.
-            **kwargs: additional parameters given to function
-                :func:`onnx.helper.make_model`
-
+            functions: list of functions to include in the model,
+                by default, all functions called at least once are included
+            io_types: When specified, all the inputs/outputs of the model
+                are set to be of this type.
+            input_types: When specified, all the inputs of the model
+                are set to be of the corresponding type in this list.
+            output_types: When specified, all the outputs of the model
+                are set to be of the corresponding type in this list.
+            kwargs: additional parameters given to function :func:`onnx.helper.make_model`
         Returns:
             an instance of :class:`onnx.ModelProto`
         """
-        graph, sub_functions = self.to_graph_proto(enforce_typed=True, io_types=io_types)
+        graph, sub_functions = self.to_graph_and_functions(use_default_type=False)
+        if io_types is not None:
+            for input in graph.input:
+                if not input.HasField("type"):
+                    input.type.CopyFrom(io_types.to_type_proto())
+            for output in graph.output:
+                if not output.HasField("type"):
+                    output.type.CopyFrom(io_types.to_type_proto())
+        if input_types is not None:
+            for input, type in zip(graph.input, input_types):
+                input.type.CopyFrom(type.to_type_proto())
+        if output_types is not None:
+            for output, type in zip(graph.output, output_types):
+                output.type.CopyFrom(type.to_type_proto())
         if functions is None:
             functions = sub_functions.values()
         else:
@@ -284,20 +293,16 @@ class Function:
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def to_graph_proto(self, enforce_typed=False, io_types=None):
-        """Converts the content of this class into a `onnx.GraphProto`.
+    def to_graph_and_functions(self, use_default_type: bool = True):
+        """Converts the content of this class into a `onnx.GraphProto` and
+        a list of `onnx.FunctionProto`.
 
         Args:
-            enforce_typed: if True, the function raises an exception if
-                the type of an input or output is not specified (no
-                annotation) unless *io_types* defined a default value to
-                use
-            io_types: defines a default value for missing input and
-                output type, this is only used if *enforce_typed* is
-                True
+            use_default_type: if True, the function uses a default type
+                for inputs and outputs that do not have a type
 
         Returns:
-            an instance of :class:`onnx.GraphProto`
+            a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
         """
         sub_functions = {}
         for s in self.stmts:
@@ -306,10 +311,23 @@ class Function:
         graph = helper.make_graph(
             [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,
-            [x.to_value_info(enforce_typed, default_type=io_types) for x in self.inputs],
-            [y.to_value_info(enforce_typed, default_type=io_types) for y in self.outputs],
+            [x.to_value_info(use_default_type) for x in self.inputs],
+            [y.to_value_info(use_default_type) for y in self.outputs],
         )
         return graph, sub_functions
+
+    def to_graph_proto(self, use_default_type: bool = True):
+        """Converts the content of this class into a `onnx.GraphProto`.
+
+        Args:
+            use_default_type: if True, the function uses a default type
+                for inputs and outputs that do not have a type
+
+        Returns:
+            an instance of :class:`onnx.GraphProto`
+        """
+        graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
+        return graph
 
     def get_opset_import(self):
         func_opset_imports = {}

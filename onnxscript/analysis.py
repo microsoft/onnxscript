@@ -23,8 +23,8 @@ def used_vars(expr):
     if isinstance(expr, ast.Name):
         return {expr.id}
     if isinstance(expr, ast.Call):
-        # Neither the callee-expression, nor keyword arguments are visited
-        # Only args counts towards used_vars
+        # The callee-expression is not visited
+        # TODO: handle graph-valued attributes, which may contain uses of variables.
         children = expr.args
     else:
         children = ast.iter_child_nodes(expr)
@@ -138,6 +138,8 @@ def do_liveness_analysis(fun, converter):
             if hasattr(stmt.value, "s") and isinstance(stmt.value.s, str):
                 # python 3.7
                 return live_out
+        if isinstance(stmt, ast.FunctionDef):
+            return live_out
         try:
             if stmt.value.func.id == "print":
                 # Any call to print function are ignored.
@@ -212,6 +214,8 @@ def exposed_uses(stmts, converter):
             used_in_loop_header = used_vars(stmt.test)
             return used_inside_loop | used_in_loop_header | live_out
         if isinstance(stmt, ast.Break):
+            # Currently, we assume that break statements are only allowed as the last
+            # statement in a loop, as "if cond: break".
             return live_out
         raise ValueError(
             debuginfo.DebugInfo(stmt, converter).msg(

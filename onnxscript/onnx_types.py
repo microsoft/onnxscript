@@ -110,3 +110,7 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
             return f"{name}[{','.join(shape)}]"
         return f"{name}[...]"
     raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnx-script type.")
+
+
+# Currently, only tensor types are supported. Need to expand support for other ONNX types.
+ONNXType = TensorType

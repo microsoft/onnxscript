@@ -6,7 +6,7 @@
 import sys
 
 from .backend.onnx_export import export2python as proto2python
-from .main import export_onnx_lib, script
+from .main import export_onnx_lib, graph, script
 from .utils import external_tensor, proto2text
 from .values import OnnxFunction
 
@@ -31,4 +31,5 @@ __all__ = [
     "proto2python",
     "proto2text",
     "external_tensor",
+    "graph",
 ]

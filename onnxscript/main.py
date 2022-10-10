@@ -104,6 +104,61 @@ def script(opset=None, default_opset=None, **kwargs):
     return transform
 
 
+def graph():
+    """A parametric decorator used to annotate nested-functions that are used
+    as graph-attributes.
+
+    Returns:
+        A decorator that returns its input function, but attaches a graph_proto
+        attribute representing the input function. The translation is not
+        done at this time, but previously when the outer-level function
+        was translated to an OnnxFunction. The decorator just looks up
+        and retrieves the GraphProto representation previously generated.
+
+    Example:
+
+    ::
+
+        @script()
+        def cumulative_sum(X: INT64['N']):
+
+            # Translation of cumulative_sum by @script will also translate Sum
+            # into a GraphProto, which will be stored in the OnnxFunction generated
+            # for cumulative_sum. At run-time (in eager-mode), the @graph decorator
+            # retrieves the pre-computed GraphProto and attaches it to the Sum function.
+            @graph()
+            def Sum(sum_in, next):
+                sum_out = sum_in + next
+                scan_out = op.Identity(sum_out)
+                return sum_out, scan_out
+            zero = op.Constant(value_int=0)
+            # The call to higher-order operator Scan below uses the above function
+            # Sum as a graph-attribute.
+            all_sum, result = op.Scan (zero, X, body=Sum, num_scan_inputs=1)
+            return result
+
+    """
+    # This is a bit fragile. We want to get the ONNXFunction object representing
+    # the outer-scope ONNXScript function from the execution stack. The caller of
+    # @graph is the original script function (cumulative_sum in the above example),
+    # and the caller of that function is the wrapper function/method in the
+    # corresponding OnnxFunction object.
+    # Currently, there is no support for eager-mode execution of nested functions,
+    # so we don't need to handle doubly nested functions (e.g., a function defined
+    # inside Sum in the above example).
+    import sys
+
+    eager_mode_frame = sys._getframe(2)
+    onnx_function = eager_mode_frame.f_locals["self"]
+    graph_attributes = onnx_function.function_ir.graph_attributes
+
+    def transform(f):
+        f.graph_proto = graph_attributes[f.__name__]
+        return f
+
+    return transform
+
+
 def is_converted_fun(f):
     """Return True if f is a function converted by onnx-script decorator."""
     return isinstance(f, onnxscript.OnnxFunction)
