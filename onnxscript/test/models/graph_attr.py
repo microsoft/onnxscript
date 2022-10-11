@@ -44,3 +44,15 @@ def sum_to_error(X: INT64):
     zero = op.Constant(value_int=0)
     _, result = op.Loop (X, None, zero, body=LoopBody)
     return result
+
+@script()
+def loop_add(X: INT64['N'], M: INT64):
+    """Test use of a nested-function as a graph-attribute, with references to
+    outer scope variables."""
+    @graph()
+    def LoopBody(i: INT64, cond: BOOL, sum_in: INT64['N']):
+        cond_out = op.Identity(cond)
+        sum_out = sum_in + X
+        return cond_out, sum_out
+    result = op.Loop (M, None, X, body=LoopBody)
+    return result

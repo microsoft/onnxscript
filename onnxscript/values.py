@@ -104,22 +104,24 @@ class Op:
     def has_schema(self):
         return self.opschema is not None
 
-    def adapt_kwargs(self, **kwargs):
+    def adapt_kwargs(self, kwargs):
         """Replaces function-valued attribute-values by their GraphProto representation."""
+        closure_vars = []
         for k, v in kwargs.items():
             if isinstance(v, irbuilder.Function):
                 kwargs[k] = v.to_graph_proto()
+                closure_vars.extend(v.outer_scope_variables)
             elif callable(v):
                 raise ValueError(
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
                     "attribute. Did you forget to decorate it with @graph?"
                 )
-        return kwargs
+        return kwargs, closure_vars
 
     def __call__(self, *args, **kwargs):
-        kwargs = self.adapt_kwargs(**kwargs)
+        kwargs, closure_vars = self.adapt_kwargs(kwargs)
         args = autocast.dynamic_cast_inputs(self.opschema, *args)
-        return self.evaluator(self.opschema, *args, **kwargs)
+        return self.evaluator(self.opschema, args, kwargs)
 
 
 class OnnxFunction(Op):

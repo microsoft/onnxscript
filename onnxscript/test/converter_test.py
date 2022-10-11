@@ -563,6 +563,14 @@ class TestConverter(TestBase):
         with self.assertRaisesRegex(ValueError, "@graph"):
             sum_to_error(input)
 
+    def test_loop_outer_scope(self):
+        from onnxscript.test.models.graph_attr import loop_add
+
+        input_x = np.array([1, 2, 3], dtype=np.int64)
+        input_m = np.array(3, dtype=np.int64)
+        inputs = [input_x, input_m]
+        expected_output = np.array([4, 8, 12], dtype=np.int64)
+        self.check_run(loop_add, inputs, expected_output)
 
 if __name__ == "__main__":
     # import logging

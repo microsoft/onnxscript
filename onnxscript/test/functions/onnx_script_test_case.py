@@ -62,7 +62,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         if not onnx_case_model:
             input_names = [f"input_{str(i)}" for i in range(len(param.input))]
             output_names = [f"output_{str(i)}" for i in range(len(param.output))]
-            input_value_infos = utils.values_to_value_infos(input_names, param.input)
+            input_value_infos = utils.values_to_value_infos(zip(input_names, param.input))
         elif len(onnx_case_model.graph.input) == len(local_function_proto.input) and all(
             [i != "" for i in onnx_case_model.graph.input]
         ):
@@ -70,7 +70,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             # can run with onnx test case data
             input_names = [i.name for i in onnx_case_model.graph.input]
             output_names = [o.name for o in onnx_case_model.graph.output]
-            input_value_infos = utils.values_to_value_infos(input_names, param.input)
+            input_value_infos = utils.values_to_value_infos(zip(input_names, param.input))
         else:
             # in an onnx test case, an optional input with missing input data
             # is dropped, if it is a tailing input, and otherwise the input is named "".
@@ -105,7 +105,7 @@ class OnnxScriptTestCase(unittest.TestCase):
 
             output_names = [o.name for o in onnx_case_model.graph.output]
 
-        output_value_infos = utils.values_to_value_infos(output_names, param.output)
+        output_value_infos = utils.values_to_value_infos(zip(output_names, param.output))
 
         return utils.make_model_from_function_proto(
             local_function_proto,

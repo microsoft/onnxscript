@@ -96,13 +96,13 @@ def value_to_type_proto(val):
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
 
-def values_to_value_infos(names, values):
-    """Create a list of ValueInfoProto representing a list of names and a corresponding
-    list of values, skipping any None values.
+def values_to_value_infos(name_values):
+    """Create a list of ValueInfoProto from a list of (name, value) pairs,
+    skipping any None values.
     """
     return [
         onnx.helper.make_value_info(name, value_to_type_proto(val))
-        for (name, val) in zip(names, values)
+        for (name, val) in name_values
         if val is not None
     ]
 
