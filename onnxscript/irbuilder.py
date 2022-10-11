@@ -167,7 +167,7 @@ class Function:
         self.attr_protos = []
         self.functions = {}
         self.docstring = ""
-        self.graph_attributes = {}
+        self.nested_functions = {}  # a dictionary of nested function-definitions
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
@@ -218,8 +218,8 @@ class Function:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
         self.functions[opf.name] = proto
 
-    def add_graph_attribute(self, name: str, graph: onnx.GraphProto):
-        self.graph_attributes[name] = graph
+    def add_nested_function(self, fun):
+        self.nested_functions[fun.name] = fun
 
     def to_model_proto(
         self,

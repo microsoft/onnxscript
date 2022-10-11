@@ -10,7 +10,7 @@ from typing import Any, List, _GenericAlias
 import numpy as np
 import onnx
 
-from onnxscript import autocast, debuginfo, eager_mode_evaluator, tensor
+from onnxscript import autocast, debuginfo, eager_mode_evaluator, tensor, irbuilder
 
 
 class Opset:
@@ -107,14 +107,13 @@ class Op:
     def adapt_kwargs(self, **kwargs):
         """Replaces function-valued attribute-values by their GraphProto representation."""
         for k, v in kwargs.items():
-            if callable(v):
-                if hasattr(v, "graph_proto"):
-                    kwargs[k] = v.graph_proto
-                else:
-                    raise ValueError(
-                        f"Error: function-valued attribute {v.__name__} has no graph_proto"
-                        "attribute. Did you forget to decorate it with @graph?"
-                    )
+            if isinstance(v, irbuilder.Function):
+                kwargs[k] = v.to_graph_proto()
+            elif callable(v):
+                raise ValueError(
+                    f"Error: function-valued attribute {v.__name__} has no graph_proto"
+                    "attribute. Did you forget to decorate it with @graph?"
+                )
         return kwargs
 
     def __call__(self, *args, **kwargs):

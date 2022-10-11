@@ -265,7 +265,7 @@ class Converter:
         """
         self.bind(name, graph)
         # TODO: Does not yet handle nested functions within nested functions.
-        self.current_fn.add_graph_attribute(name, graph)
+        self.current_fn.add_nested_function(name, graph)
 
     def generate_unique_name(self, candidate="tmp"):
         r = candidate
@@ -435,6 +435,8 @@ class Converter:
             val = self.lookup(expr.id, debuginfo.DebugInfo(expr, self))
             if isinstance(val, values.AttrRef):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
+            if isinstance(val, irbuilder.Function):
+                val = val.to_graph_proto()
             return self.ir_builder.attr(attr_name, val)
         return self.ir_builder.attr(attr_name, self.eval_constant_expr(expr))
 
@@ -1316,8 +1318,11 @@ class Converter:
         self.enter_scope(fn.name, fn)
         self.translate_function_def(fn)
         function_ir = self.exit_scope()
-        graph_proto = function_ir.to_graph_proto()
-        self.add_graph_attribute(fn.name, graph_proto)
+        outer_scope_vars = analysis.outer_scope_variables(fn, self)
+        function_ir.outer_scope_variables = [(var, self.lookup(var, debuginfo.DebugInfo(fn, self))) for var in outer_scope_vars]
+        self.bind(fn.name, function_ir)
+        # TODO: Does not yet handle nested functions within nested functions.
+        self.current_fn.add_nested_function(function_ir)
 
     def translate_function_def(self, fn: ast.FunctionDef):
         logger.debug("Converter:translate_function_def:%s", fn.name)

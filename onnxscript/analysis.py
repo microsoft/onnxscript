@@ -227,13 +227,27 @@ def exposed_uses(stmts, converter):
 
     return visitBlock(stmts, set())
 
+def outer_scope_variables(fun: ast.FunctionDef, converter):
+    """Return the set of outer-scope variables used in a nested function.
+    
+    Args:
+        fun: The function-ast to analyze.
+        converter: The converter object.
+    
+    Returns:
+        A set of variable names (strings).
+    """
+    assert isinstance(fun, ast.FunctionDef)
+    used_vars = exposed_uses(fun.body, converter)
+    inputs = [x.arg for x in fun.args.args]
+    return used_vars.difference(inputs)
+
 def resolve_names(fun: ast.FunctionDef, converter):
     """Perform name resolution for the given function-ast.
 
     Args:
         fun: The function-ast to perform name resolution on.
         converter: The converter object.
-    
     """
 
     def resolve(expr: ast.expr, bindings):
