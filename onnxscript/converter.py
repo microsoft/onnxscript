@@ -394,35 +394,6 @@ class Converter:
                 )
             ) from e
 
-    def eval_attr(self, node):
-        if isinstance(node, ast.Num):
-            return node.n
-        if isinstance(node, ast.Str):
-            return node.s
-        if isinstance(node, ast.NameConstant):
-            if not isinstance(node.value, bool):
-                raise ValueError(
-                    debuginfo.DebugInfo(node, self).msg(
-                        f"Unsupported NameConstant attribute: {node.value}."
-                    )
-                )
-            return 1 if node.value else 0
-        if isinstance(node, ast.List):
-            return [self.eval_attr(x) for x in node.elts]
-        if isinstance(node, (ast.Call, ast.Attribute, ast.UnaryOp)):
-            try:
-                return self.eval_constant_expr(node)
-            except NameError as e:
-                raise NameError(
-                    debuginfo.DebugInfo(node, self).msg(
-                        f"Unable to evaluate a constant in node type {type(node)} "
-                        f"due to {str(e)}."
-                    )
-                ) from e
-        raise ValueError(
-            debuginfo.DebugInfo(node).msg(f"Unsupported attribute type '{type(node)!r}'.")
-        )
-
     def translate_attr(self, attr_name, expr):
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
