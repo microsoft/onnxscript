@@ -163,13 +163,12 @@ class OnnxFunction(Op):
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
-        with OnnxFunction.eager_mode_context(self):
-            if len(args) == 0:
-                # Operator Constant, it is usually called within a function.
-                return self._libcall(**kwargs)
-            if isinstance(args[0], tensor.Tensor):
-                return self._libcall(*args, **kwargs)
-            return self._usercall(*args, **kwargs)
+        if len(args) == 0:
+            # Operator Constant, it is usually called within a function.
+            return self._libcall(**kwargs)
+        if isinstance(args[0], tensor.Tensor):
+            return self._libcall(*args, **kwargs)
+        return self._usercall(*args, **kwargs)
 
     def _usercall(self, *args, **kwargs):
         """Eager mode"""
@@ -248,21 +247,6 @@ class OnnxFunction(Op):
         # Merge kwargs specified in script-decorator with those specified in this call.
         merged_kw_args = {**self.kwargs, **kwargs}
         return self.function_ir.to_model_proto(**merged_kw_args)
-
-    # We maintain a stack of eager-mode executions of onnxscript functions currently active.
-    stack = []
-
-    @staticmethod
-    def current_context():
-        return OnnxFunction.stack[-1]
-
-    @contextmanager
-    def eager_mode_context(self):
-        OnnxFunction.stack.append(self)
-        try:
-            yield None
-        finally:
-            OnnxFunction.stack.pop(-1)
 
 
 class Value:
