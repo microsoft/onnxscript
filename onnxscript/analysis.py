@@ -4,8 +4,8 @@
 # --------------------------------------------------------------------------
 
 import ast
-from typing import Sequence
 from collections import ChainMap
+from typing import Sequence
 
 from onnxscript import debuginfo
 
@@ -227,13 +227,14 @@ def exposed_uses(stmts, converter):
 
     return visitBlock(stmts, set())
 
+
 def outer_scope_variables(fun: ast.FunctionDef, converter):
     """Return the set of outer-scope variables used in a nested function.
-    
+
     Args:
         fun: The function-ast to analyze.
         converter: The converter object.
-    
+
     Returns:
         A set of variable names (strings).
     """
@@ -241,6 +242,7 @@ def outer_scope_variables(fun: ast.FunctionDef, converter):
     used_vars = exposed_uses(fun.body, converter)
     inputs = [x.arg for x in fun.args.args]
     return used_vars.difference(inputs)
+
 
 def resolve_names(fun: ast.FunctionDef, converter):
     """Perform name resolution for the given function-ast.
@@ -255,12 +257,12 @@ def resolve_names(fun: ast.FunctionDef, converter):
             if expr.id in bindings:
                 expr.resolved = bindings[expr.id]
             else:
-                print (f"Warning: unresolved name {expr.id}")
+                print(f"Warning: unresolved name {expr.id}")
             return
         if isinstance(expr, ast.Call):
-            pass # TODO: handle attributes
+            pass  # TODO: handle attributes
         for child in ast.iter_child_nodes(expr):
-            resolve(child, bindings)        
+            resolve(child, bindings)
 
     def update(bindings, lhs):
         if isinstance(lhs, ast.Name):
@@ -271,9 +273,7 @@ def resolve_names(fun: ast.FunctionDef, converter):
                 update(bindings, elt)
             return
         raise ValueError(
-            debuginfo.DebugInfo(lhs, converter).msg(
-                f"Unsupported lhs type {type(lhs)!r}."
-            )
+            debuginfo.DebugInfo(lhs, converter).msg(f"Unsupported lhs type {type(lhs)!r}.")
         )
 
     def visit_block(block: Sequence[ast.stmt], bindings):
@@ -283,10 +283,10 @@ def resolve_names(fun: ast.FunctionDef, converter):
     def visit(stmt: ast.stmt, bindings):
         if isinstance(stmt, ast.Assign):
             resolve(stmt.value, bindings)
-            update (bindings, stmt.targets[0])
+            update(bindings, stmt.targets[0])
         elif isinstance(stmt, ast.AnnAssign):
             resolve(stmt.value, bindings)
-            update (bindings, stmt.target)
+            update(bindings, stmt.target)
         elif isinstance(stmt, ast.Return):
             resolve(stmt.value, bindings)
         elif isinstance(stmt, ast.If):

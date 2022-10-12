@@ -572,6 +572,7 @@ class TestConverter(TestBase):
         expected_output = np.array([4, 8, 12], dtype=np.int64)
         self.check_run(loop_add, inputs, expected_output)
 
+
 if __name__ == "__main__":
     # import logging
     # logging.basicConfig(level=logging.DEBUG)

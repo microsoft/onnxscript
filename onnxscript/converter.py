@@ -1290,7 +1290,9 @@ class Converter:
         self.translate_function_def(fn)
         function_ir = self.exit_scope()
         outer_scope_vars = analysis.outer_scope_variables(fn, self)
-        function_ir.outer_scope_variables = [(var, self.lookup(var, debuginfo.DebugInfo(fn, self))) for var in outer_scope_vars]
+        function_ir.outer_scope_variables = [
+            (var, self.lookup(var, debuginfo.DebugInfo(fn, self))) for var in outer_scope_vars
+        ]
         self.bind(fn.name, function_ir)
         # TODO: Does not yet handle nested functions within nested functions.
         self.current_fn.add_nested_function(function_ir)

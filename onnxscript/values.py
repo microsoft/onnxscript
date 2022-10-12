@@ -3,17 +3,17 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from contextlib import contextmanager
-import logging
 import dataclasses
+import logging
 import types
+from contextlib import contextmanager
 from enum import IntFlag
 from typing import Any, List, _GenericAlias
 
 import numpy as np
 import onnx
 
-from onnxscript import autocast, debuginfo, eager_mode_evaluator, tensor, irbuilder
+from onnxscript import autocast, debuginfo, eager_mode_evaluator, irbuilder, tensor
 
 
 class Opset:
@@ -127,11 +127,14 @@ class Op:
         args = autocast.dynamic_cast_inputs(self.opschema, *args)
         return self.evaluator(self.opschema, args, kwargs, closure)
 
+
 @dataclasses.dataclass(repr=False, eq=False)
 class OnnxClosure:
     """Represents a nested function used as a graph-valued attribute for an ONNX op call."""
+
     function_ir: irbuilder.Function
     frame: types.FrameType
+
 
 class OnnxFunction(Op):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
@@ -144,6 +147,7 @@ class OnnxFunction(Op):
         source: source code used to generate the function
         kwargs: additional properties used to construct a ModelProto
     """
+
     def __init__(self, opset, pyfun, irfun, source, kwargs):
         opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
@@ -245,7 +249,7 @@ class OnnxFunction(Op):
         merged_kw_args = {**self.kwargs, **kwargs}
         return self.function_ir.to_model_proto(**merged_kw_args)
 
-    # We maintain a stack of eager-mode executions of onnxscript functions currently active. 
+    # We maintain a stack of eager-mode executions of onnxscript functions currently active.
     stack = []
 
     @staticmethod

@@ -10,8 +10,9 @@ class TestNameResolution(unittest.TestCase):
             z = x + 1
             w = y + 2
             return z + w
+
         ast = main.get_ast(f)
-        analysis.resolve_names(ast, converter.Converter()  )
+        analysis.resolve_names(ast, converter.Converter())
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
