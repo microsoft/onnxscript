@@ -148,12 +148,13 @@ def graph():
     # inside Sum in the above example).
     import sys
 
-    eager_mode_frame = sys._getframe(2)
-    onnx_function = eager_mode_frame.f_locals["self"]
+    function_frame = sys._getframe(1)
+    wrapper_frame = sys._getframe(2)
+    onnx_function = wrapper_frame.f_locals["self"]
     nested_functions = onnx_function.function_ir.nested_functions
 
     def transform(f):
-        return nested_functions[f.__name__]
+        return values.OnnxClosure(nested_functions[f.__name__], function_frame)
 
     return transform
 

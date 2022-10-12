@@ -5,6 +5,8 @@
 
 from contextlib import contextmanager
 import logging
+import dataclasses
+import types
 from enum import IntFlag
 from typing import Any, List, _GenericAlias
 
@@ -107,23 +109,29 @@ class Op:
 
     def adapt_kwargs(self, kwargs):
         """Replaces function-valued attribute-values by their GraphProto representation."""
-        closure_vars = []
+        closure = {}
         for k, v in kwargs.items():
-            if isinstance(v, irbuilder.Function):
-                kwargs[k] = v.to_graph_proto()
-                closure_vars.extend(v.outer_scope_variables)
+            if isinstance(v, OnnxClosure):
+                kwargs[k] = v.function_ir.to_graph_proto()
+                for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                    closure[onnxvar.value] = v.frame.f_locals[pyvar]
             elif callable(v):
                 raise ValueError(
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
                     "attribute. Did you forget to decorate it with @graph?"
                 )
-        return kwargs, closure_vars
+        return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        kwargs, closure_vars = self.adapt_kwargs(kwargs)
+        kwargs, closure = self.adapt_kwargs(kwargs)
         args = autocast.dynamic_cast_inputs(self.opschema, *args)
-        return self.evaluator(self.opschema, args, kwargs)
+        return self.evaluator(self.opschema, args, kwargs, closure)
 
+@dataclasses.dataclass(repr=False, eq=False)
+class OnnxClosure:
+    """Represents a nested function used as a graph-valued attribute for an ONNX op call."""
+    function_ir: irbuilder.Function
+    frame: types.FrameType
 
 class OnnxFunction(Op):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
