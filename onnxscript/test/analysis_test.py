@@ -5,17 +5,6 @@ from onnxscript import analysis, converter, main
 from onnxscript.onnx_opset import opset15 as op
 
 
-class TestNameResolution(unittest.TestCase):
-    def test_name_resolution(self):
-        def f(x, y):
-            z = x + 1
-            w = y + 2
-            return z + w
-
-        ast = main.get_ast(f)
-        analysis.resolve_names(ast, converter.Converter())
-
-
 class AnalysisResultsVisitor(ast.NodeVisitor):
     """Visitor class to flatten the results of liveness analysis in a pre-order traversal."""
 
