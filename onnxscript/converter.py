@@ -409,7 +409,8 @@ class Converter:
                     if current.value != previous.value:
                         self.fail(
                             expr,
-                            f"Outer scope variable {pyvar} referenced by function {expr.id} modified.",
+                            f"Outer scope variable {pyvar} referenced by function "
+                            f"{expr.id} modified."
                         )
 
                 # Create GraphProto attribute

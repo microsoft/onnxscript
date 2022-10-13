@@ -26,7 +26,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 from packaging.version import Version
 
-from onnxscript import OnnxFunction, script
+from onnxscript import OnnxFunction, script, graph
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
