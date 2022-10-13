@@ -21,16 +21,18 @@ def get_loop_var(for_stmt, converter):
 
 
 def used_vars(expr):
-    """Return set of all variables used in an expression."""
+    """Return set of all variables used, including function names, in an expression."""
     if isinstance(expr, ast.Name):
         return {expr.id}
+    result = set()
     if isinstance(expr, ast.Call):
         # The callee-expression is not visited
-        # TODO: handle graph-valued attributes, which may contain uses of variables.
         children = expr.args
+        for keyword in expr.keywords:
+            if isinstance(keyword.value, ast.Name):
+                result.add(keyword.value.id)
     else:
         children = ast.iter_child_nodes(expr)
-    result = set()
     for c in children:
         result = result | used_vars(c)
     return result
@@ -218,6 +220,11 @@ def exposed_uses(stmts, converter):
         if isinstance(stmt, ast.Break):
             # Currently, we assume that break statements are only allowed as the last
             # statement in a loop, as "if cond: break".
+            return live_out
+        if isinstance(stmt, ast.FunctionDef):
+            if stmt.name in live_out:
+                live_out.remove(stmt.name)
+                live_out = live_out | outer_scope_variables(stmt, converter)
             return live_out
         raise ValueError(
             debuginfo.DebugInfo(stmt, converter).msg(

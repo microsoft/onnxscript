@@ -573,6 +573,7 @@ class TestConverter(TestBase):
         self.check_run(loop_add, inputs, expected_output)
 
     def test_outer_scope_redefinition(self):
+        '''Test that outer scope variables used in a function are not redefined.'''
         with self.assertRaisesRegex(Exception, "Outer scope variable"):
             @script()
             def redefine(X):
