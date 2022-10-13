@@ -572,6 +572,16 @@ class TestConverter(TestBase):
         expected_output = np.array([4, 8, 12], dtype=np.int64)
         self.check_run(loop_add, inputs, expected_output)
 
+    def test_outer_scope_redefinition(self):
+        with self.assertRaisesRegex(Exception, "Outer scope variable"):
+            @script()
+            def redefine(X):
+                Temp = op.Neg(X)
+                @graph()
+                def inner():
+                    return op.Add(X, Temp)
+                Temp = op.Abs(X)
+                return op.DummyOp(body=inner)
 
 if __name__ == "__main__":
     # import logging
