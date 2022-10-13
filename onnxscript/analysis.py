@@ -4,8 +4,6 @@
 # --------------------------------------------------------------------------
 
 import ast
-from collections import ChainMap
-from typing import Sequence
 
 from onnxscript import debuginfo
 
