@@ -133,6 +133,11 @@ class OnnxClosure:
     """Represents a nested function used as a graph-valued attribute for an ONNX op call."""
 
     function_ir: irbuilder.Function
+
+    # frame is python's stack-frame for the execution of top-level
+    # script function (in eager-mode). It is used to get the current
+    # value of outer-scope variables referred to inside this nested
+    # function/GraphProto.
     frame: types.FrameType
 
 
