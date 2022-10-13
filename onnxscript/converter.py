@@ -407,7 +407,10 @@ class Converter:
                 for pyvar, previous in val.outer_scope_variables:
                     current = self.lookup(pyvar, debuginfo.DebugInfo(expr, self))
                     if current.value != previous.value:
-                        self.fail(expr, f"Outer scope variable {pyvar} referenced by function {expr.id} modified.")
+                        self.fail(
+                            expr,
+                            f"Outer scope variable {pyvar} referenced by function {expr.id} modified.",
+                        )
 
                 # Create GraphProto attribute
                 val = val.to_graph_proto()
