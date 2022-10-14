@@ -117,6 +117,8 @@ def call_ort(schema, args, kwargs, implicit_args={}):
         opset_imports=[opset_id],
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
+    model = onnx.shape_inference.infer_shapes(model)
+    onnx.checker.check_model(model)
     try:
         sess = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:

@@ -12,7 +12,7 @@ from typing import Any, List, _GenericAlias
 import numpy as np
 import onnx
 
-from onnxscript import autocast, debuginfo, eager_mode_evaluator, irbuilder, tensor
+from onnxscript import autocast, debuginfo, eager_mode_evaluator, irbuilder, tensor, evaluator
 
 
 class Opset:
@@ -122,9 +122,7 @@ class Op:
         return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        kwargs, closure = self.adapt_kwargs(kwargs)
-        args = autocast.dynamic_cast_inputs(self.opschema, *args)
-        return self.evaluator(self.opschema, args, kwargs, closure)
+        return evaluator.instance().eval(self.opschema, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -138,6 +136,8 @@ class OnnxClosure:
     # value of outer-scope variables referred to inside this nested
     # function/GraphProto.
     frame: types.FrameType
+
+    function: Any
 
 
 class OnnxFunction(Op):

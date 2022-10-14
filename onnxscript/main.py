@@ -154,7 +154,7 @@ def graph():
     nested_functions = onnx_function.function_ir.nested_functions
 
     def transform(f):
-        return values.OnnxClosure(nested_functions[f.__name__], function_frame)
+        return values.OnnxClosure(nested_functions[f.__name__], function_frame, f)
 
     return transform
 
