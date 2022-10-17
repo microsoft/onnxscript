@@ -92,7 +92,8 @@ def ort_to_os_value(v):
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def call_ort(schema, args, kwargs, implicit_args={}):
+def call_ort(schema, args, kwargs, implicit_args=None):
+    implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
     args = [os_to_ort_value(x) for x in args]
     implicit_args = {k: os_to_ort_value(v) for k, v in implicit_args.items()}
