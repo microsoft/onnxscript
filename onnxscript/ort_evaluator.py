@@ -1,6 +1,5 @@
 from typing import Optional
 
-from sympy import fu
 from onnxscript import evaluator, eager_mode_evaluator, values, onnx_opset
 
 def id(schema):
@@ -9,12 +8,26 @@ def id(schema):
 class ORTEvaluator(evaluator.Evaluator):
     """Evaluates ONNX ops using ONNX Runtime."""
 
+    def _eval(self, schema, inputs, attributes, closure):
+        return eager_mode_evaluator.call_ort(schema, inputs, attributes, closure)
+    
+class ORTMixedEvaluator(ORTEvaluator):
+    """Evaluates ONNX ops using ONNX Runtime, unless an overriding python implementation
+    is registered. This is useful for higher-order ops such as Scan and SequenceMap,
+    allowing for python-based debugging."""
+
     def __init__(self) -> None:
         super().__init__()
         self._python_ops = {}
+    
+    def use_graph_attribute(self, schema):
+        return id(schema) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
-        return eager_mode_evaluator.call_ort(schema, inputs, attributes, closure)
+        if id(schema) in self._python_ops:
+            return self._python_ops[id(schema)](inputs, attributes)
+        else:
+            return super()._eval(schema, inputs, attributes, closure)
     
     def register(self, opset: Optional[values.Opset] = None):
         opset = opset or onnx_opset.default_opset
@@ -24,35 +37,7 @@ class ORTEvaluator(evaluator.Evaluator):
             return function
         return decorator
 
-    def adapt_attributes(self, schema, attributes):
-        """Transform attributes (in-place) to the expected format for the evaluator.
-        
-        Returns a closure that can be used to evaluate graph-valued attributes."""
-        pymode = id(schema) in self._python_ops
-        closure = {}
-        for k, v in attributes.items():
-            if isinstance(v, values.OnnxClosure):
-                if pymode:
-                    attributes[k] = v.function
-                else:
-                    attributes[k] = v.function_ir.to_graph_proto()
-                    for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                        closure[onnxvar.value] = v.frame.f_locals[pyvar]
-            elif callable(v):
-                raise ValueError(
-                    f"Error: function-valued attribute {v.__name__} has no graph_proto"
-                    "attribute. Did you forget to decorate it with @graph?"
-                )
-        return closure
-
-    def eval(self, schema, inputs, attributes):
-        inputs = self.adapt_inputs(schema, inputs)
-        closure = self.adapt_attributes(schema, attributes)
-        if id(schema) in self._python_ops:
-            return self._python_ops[id(schema)](inputs, attributes)
-        return self._eval(schema, inputs, attributes, closure)
-
-ort_evaluator = ORTEvaluator()
+ort_evaluator = ORTMixedEvaluator()
 
 evaluator.set_instance(ort_evaluator) # TODO: move this to a better place
 

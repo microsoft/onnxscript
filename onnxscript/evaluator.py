@@ -3,7 +3,13 @@ from abc import ABC, abstractmethod
 from onnxscript import autocast, values
 
 class Evaluator(ABC):
-    """Base class for evaluation of ONNX ops."""
+    """Base class for evaluation of ONNX ops.
+    
+    The execution of onnxscript functions in eager-mode is dispatched to an Evaluator
+    instance (or, more precisely, to the eval method of the Evaluator instance).
+    The evaluator is expected to transform the input/output/attribute representation
+    supported by onnxscript to those expected by a particular backend.
+    """
 
     def eval(self, schema, inputs, attributes):
         closure = self.adapt_attributes(schema, attributes)
@@ -21,12 +27,16 @@ class Evaluator(ABC):
         """Transform attributes (in-place) to the expected format for the evaluator.
         
         Returns a closure that can be used to evaluate graph-valued attributes."""
+        use_graph_attribute = self.use_graph_attribute(schema)
         closure = {}
         for k, v in attributes.items():
             if isinstance(v, values.OnnxClosure):
-                attributes[k] = v.function_ir.to_graph_proto()
-                for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                    closure[onnxvar.value] = v.frame.f_locals[pyvar]
+                if use_graph_attribute:
+                    attributes[k] = v.function_ir.to_graph_proto()
+                    for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                        closure[onnxvar.value] = v.frame.f_locals[pyvar]
+                else:
+                    attributes[k] = v.function
             elif callable(v):
                 raise ValueError(
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
@@ -34,6 +44,9 @@ class Evaluator(ABC):
                 )
         return closure
     
+    def use_graph_attribute(self, schema):
+        return True
+
     @abstractmethod
     def _eval(self, schema, inputs, attributes, closure):
         pass
