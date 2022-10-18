@@ -37,3 +37,7 @@ if onnx_opset_version() >= 17:
     opset17 = values.Opset("", 17)
 
 default_opset = values.Opset("", onnx_opset_version())
+
+onnxml1 = values.Opset("ai.onnx.ml", 1)
+onnxml2 = values.Opset("ai.onnx.ml", 2)
+onnxml3 = values.Opset("ai.onnx.ml", 3)
