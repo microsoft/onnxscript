@@ -116,7 +116,7 @@ class Op:
                     closure[onnxvar.value] = v.frame.f_locals[pyvar]
             elif callable(v):
                 raise ValueError(
-                    f"Error: function-valued attribute {v.__name__} has no graph_proto"
+                    f"Error: function-valued attribute {v.__name__!r} has no graph_proto"
                     "attribute. Did you forget to decorate it with @graph?"
                 )
         return kwargs, closure

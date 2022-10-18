@@ -410,7 +410,7 @@ class Converter:
                         self.fail(
                             expr,
                             f"Outer scope variable {pyvar} referenced by function "
-                            f"{expr.id} modified."
+                            f"{expr.id!r} modified.",
                         )
 
                 # Create GraphProto attribute
