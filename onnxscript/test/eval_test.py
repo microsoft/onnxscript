@@ -21,7 +21,7 @@ class EvaluatorTest(unittest.TestCase):
             return seq2
         
         x = np.array([0.0, 1.0], dtype=np.float32)
-        output = seq_map[ort_evaluator](input)
+        output = seq_map[ort_evaluator](x)
         expected = [t*t for t in [x, x+1, x+2]]
         np.testing.assert_equal(output, expected)
 
