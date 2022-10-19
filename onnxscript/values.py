@@ -165,6 +165,18 @@ class OnnxFunction(Op):
         """Returns the function name."""
         return self.opname
 
+    def __getitem__(self, instance):
+        '''Returns a lambda to evaluate function using given evaluator instance.
+        
+        Usage:
+           script_fun(X) executes the function using the default evaluator instance.
+           script_fun[instance](X) executes the function using the given evaluator instance.
+        '''
+        def fun(*args, **kwargs):
+            with evaluator.using_instance(instance):
+                return self.__call__(*args, **kwargs)
+        return fun
+
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
         if len(args) == 0:

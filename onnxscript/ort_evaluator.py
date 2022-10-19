@@ -39,8 +39,6 @@ class ORTMixedEvaluator(ORTEvaluator):
 
 ort_evaluator = ORTMixedEvaluator()
 
-evaluator.set_instance(ort_evaluator) # TODO: move this to a better place
-
 @ort_evaluator.register()
 def SequenceMap(inputs, attributes):
     """Evaluates a SequenceMap op."""

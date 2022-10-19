@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 
 from onnxscript import autocast, values
 
@@ -51,6 +52,8 @@ class Evaluator(ABC):
     def _eval(self, schema, inputs, attributes, closure):
         pass
 
+# Used to control the default evaluator instance. A simple approach for now.
+
 instance_ = None
 
 def instance():
@@ -61,3 +64,13 @@ def set_instance(instance):
     """Sets the current Evaluator instance."""
     global instance_
     instance_ = instance
+
+@contextmanager
+def using_instance(instance):
+    """Context manager that temporarily sets the current Evaluator instance."""
+    old_instance = instance_
+    set_instance(instance)
+    try:
+        yield
+    finally:
+        set_instance(old_instance)
