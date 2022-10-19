@@ -66,9 +66,9 @@ must be installed:
 ```bash
 pip uninstall onnx onnxruntime
 
-pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html onnx-function-experiment
+pip install --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html onnx-function-experiment
 
-pip install --pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html ort-function-experiment-nightly
+pip install --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html ort-function-experiment-nightly
 ```
 
 With experimental ONNX, one can write a script function with optional
