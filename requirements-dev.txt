@@ -2,9 +2,9 @@ autopep8
 click
 numpy==1.21.5
 matplotlib
---pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnx-function-experiment.html
+--pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html
 onnx-function-experiment
---pre -f https://onnxruntimepackages.blob.core.windows.net/$web/onnxruntime-function-experiment.html
+--pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html
 ort-function-experiment-nightly
 protobuf<4
 sphinx
