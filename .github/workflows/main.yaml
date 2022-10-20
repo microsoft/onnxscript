@@ -83,7 +83,7 @@ jobs:
         uses: codecov/codecov-action@v3
 
       - name: Build documentation
-        if: ${{ matrix.test_examples }}
+        if: and(${{ matrix.test_examples }}, eq('${{ matrix.os }}', 'ubuntu-latest'))
         run: python -m sphinx docs dist/html > stdout_stderror.log 2>&1
       - name: Check whether previous build docs succeeded
         if: and(${{ matrix.test_examples }}, eq('${{ matrix.os }}', 'ubuntu-latest'))
