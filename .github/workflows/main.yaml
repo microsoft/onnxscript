@@ -95,4 +95,14 @@ jobs:
       - name: Install package
         run: pip install .
       - name: Build documentation
-        run: python -m sphinx docs dist/html
+        run: python -m sphinx docs dist/html > stdout_stderror.log 2>&1
+      - name: Check whether previous build docs succeeded
+        run: |
+          cat stdout_stderror.log
+          if grep -F "build succeeded" stdout_stderror.log
+          then
+            echo "Build succeeded."
+          else
+            echo "Build failed."
+            exit 1
+          fi
