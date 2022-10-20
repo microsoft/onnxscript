@@ -1,6 +1,5 @@
 autopep8
 click
-onnx
 numpy==1.21.5
 matplotlib
 protobuf<4
