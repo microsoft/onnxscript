@@ -21,6 +21,7 @@ try:
     # It's onnxscript and onnx-script now. That way, we can use __package__ here.
     __version__ = importlib_metadata.version("onnx-script")
 except importlib_metadata.PackageNotFoundError:
+    # This should not happen.
     __version__ = None
 
 

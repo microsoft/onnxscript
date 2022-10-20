@@ -14,7 +14,7 @@ import onnxscript
 project = "onnx-script"
 copyright = "2022, onnx"
 author = "onnx"
-version = onnxscript.__version__
+version = onnxscript.__version__ or "0.1"
 release = version
 
 # -- General configuration ---------------------------------------------------
