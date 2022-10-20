@@ -19,24 +19,29 @@ jobs:
         include:
           - name: python310-onnx
             python-version: "3.10"
-            onnx_standard: "1"
-            test_examples: "1"
+            onnx_standard: true
+            onnx_exp: false
+            test_examples: true
           - name: python39-onnx
             python-version: "3.9"
-            onnx_standard: "1"
-            test_examples: "0"
+            onnx_standard: true
+            onnx_exp: false
+            test_examples: false
           - name: python39-expe
             python-version: "3.9"
-            onnx_standard: "0"
-            test_examples: "0"
+            onnx_standard: false
+            onnx_exp: true
+            test_examples: false
           - name: python38-expe
             python-version: "3.8"
-            onnx_standard: "0"
-            test_examples: "0"
+            onnx_standard: false
+            onnx_exp: true
+            test_examples: false
           - name: python37-expe
             python-version: "3.7"
-            onnx_standard: "0"
-            test_examples: "0"
+            onnx_standard: false
+            onnx_exp: true
+            test_examples: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -52,12 +57,12 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Install standard onnx
-        if: eq(${{ matrix.onnx_standard }}, "1")
+        if: ${{ matrix.onnx_standard }}
         run: |
           python -m pip install onnx onnxruntime
 
       - name: Install experimental onnx
-        if: eq(${{ matrix.onnx_standard }}, "0")
+        if: ${{ matrix.onnx_exp }}
         run: |
           python -m pip install -r requirements-dev-experiment.txt
 
