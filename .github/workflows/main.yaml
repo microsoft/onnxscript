@@ -82,6 +82,22 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
 
+      - name: Build documentation
+        if: ${{ matrix.test_examples }}
+        run: python -m sphinx docs dist/html > stdout_stderror.log 2>&1
+      - name: Check whether previous build docs succeeded
+        if: ${{ matrix.test_examples }}
+        run: |
+          cat stdout_stderror.log
+          if grep -F "build succeeded" stdout_stderror.log
+          then
+            echo "Build succeeded."
+          else
+            echo "Build failed."
+            exit 1
+          fi
+
+
   build_docs:
     strategy:
       fail-fast: false
