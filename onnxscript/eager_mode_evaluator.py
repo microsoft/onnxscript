@@ -92,9 +92,11 @@ def ort_to_os_value(v):
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def call_ort(schema, *args, **kwargs):
+def call_ort(schema, args, kwargs, implicit_args=None):
+    implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
     args = [os_to_ort_value(x) for x in args]
+    implicit_args = {k: os_to_ort_value(v) for k, v in implicit_args.items()}
 
     # Construct ONNX model with a single op call:
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
@@ -103,10 +105,13 @@ def call_ort(schema, *args, **kwargs):
     outputs = [f"output{str(i)}" for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)
-    input_value_infos = utils.values_to_value_infos(inputs, list(args))
+    input_value_infos = utils.values_to_value_infos(zip(inputs, args))
+    implicit_value_infos = utils.values_to_value_infos(implicit_args.items())
     output_value_infos = [onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
 
-    graph = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
+    graph = onnx.helper.make_graph(
+        [node], "node_graph", input_value_infos + implicit_value_infos, output_value_infos
+    )
     opset_id = onnx.helper.make_opsetid(schema.domain, schema.since_version)
     model = onnx.helper.make_model(
         graph,
@@ -122,6 +127,7 @@ def call_ort(schema, *args, **kwargs):
         ) from e
 
     session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
+    session_run_input.update(implicit_args)
 
     try:
         result = sess.run(None, session_run_input)

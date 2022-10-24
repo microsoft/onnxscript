@@ -3,14 +3,16 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import dataclasses
 import logging
+import types
 from enum import IntFlag
 from typing import Any, List, _GenericAlias
 
 import numpy as np
 import onnx
 
-from onnxscript import autocast, debuginfo, eager_mode_evaluator, tensor
+from onnxscript import autocast, debuginfo, eager_mode_evaluator, irbuilder, tensor
 
 
 class Opset:
@@ -104,23 +106,38 @@ class Op:
     def has_schema(self):
         return self.opschema is not None
 
-    def adapt_kwargs(self, **kwargs):
+    def adapt_kwargs(self, kwargs):
         """Replaces function-valued attribute-values by their GraphProto representation."""
+        closure = {}
         for k, v in kwargs.items():
-            if callable(v):
-                if hasattr(v, "graph_proto"):
-                    kwargs[k] = v.graph_proto
-                else:
-                    raise ValueError(
-                        f"Error: function-valued attribute {v.__name__} has no graph_proto"
-                        "attribute. Did you forget to decorate it with @graph?"
-                    )
-        return kwargs
+            if isinstance(v, OnnxClosure):
+                kwargs[k] = v.function_ir.to_graph_proto()
+                for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                    closure[onnxvar.value] = v.frame.f_locals[pyvar]
+            elif callable(v):
+                raise ValueError(
+                    f"Error: function-valued attribute {v.__name__!r} has no graph_proto"
+                    "attribute. Did you forget to decorate it with @graph?"
+                )
+        return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        kwargs = self.adapt_kwargs(**kwargs)
+        kwargs, closure = self.adapt_kwargs(kwargs)
         args = autocast.dynamic_cast_inputs(self.opschema, *args)
-        return self.evaluator(self.opschema, *args, **kwargs)
+        return self.evaluator(self.opschema, args, kwargs, closure)
+
+
+@dataclasses.dataclass(repr=False, eq=False)
+class OnnxClosure:
+    """Represents a nested function used as a graph-valued attribute for an ONNX op call."""
+
+    function_ir: irbuilder.Function
+
+    # frame is python's stack-frame for the execution of top-level
+    # script function (in eager-mode). It is used to get the current
+    # value of outer-scope variables referred to inside this nested
+    # function/GraphProto.
+    frame: types.FrameType
 
 
 class OnnxFunction(Op):
@@ -149,6 +166,7 @@ class OnnxFunction(Op):
         return self.opname
 
     def __call__(self, *args, **kwargs):
+        """Implements an eager-mode execution of an onnxscript function."""
         if len(args) == 0:
             # Operator Constant, it is usually called within a function.
             return self._libcall(**kwargs)

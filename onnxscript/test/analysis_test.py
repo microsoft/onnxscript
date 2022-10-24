@@ -2,6 +2,7 @@ import ast
 import unittest
 
 from onnxscript import analysis, converter, main
+from onnxscript.onnx_opset import opset15 as op
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
@@ -137,6 +138,24 @@ class TestExposedUses(unittest.TestCase):
             return tmp
 
         self.assertUses(f, {"x", "y"})
+
+    def test_called_function(self):
+        def f(x, y):
+            def nested():
+                return y
+
+            return op.Dummy(x, body=nested)
+
+        self.assertUses(f, {"x", "y"})
+
+    def test_uncalled_function(self):
+        def f(x, y):
+            def nested():
+                return y
+
+            return op.Dummy(x)
+
+        self.assertUses(f, {"x"})
 
 
 if __name__ == "__main__":
