@@ -14,7 +14,7 @@ import onnxscript
 project = "onnx-script"
 copyright = "2022, onnx"
 author = "onnx"
-version = onnxscript.__version__
+version = onnxscript.__version__ or "0.1"
 release = version
 
 # -- General configuration ---------------------------------------------------
@@ -46,7 +46,7 @@ pygments_style = "default"
 html_static_path = ["_static"]
 html_theme = "pydata_sphinx_theme"
 html_theme_path = ["_static"]
-html_logo = "_static/logo_main.png"
+html_logo = os.path.join(os.path.dirname(__file__), "_static/logo_main.png")
 
 # -- Options for graphviz ----------------------------------------------------
 
