@@ -17,7 +17,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 
 import onnxscript
-from onnxscript import eager_mode_evaluator
+from onnxscript import evaluator
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
 from onnxscript.backend.onnx_export import export2python
 from onnxscript.test.models import type_double
@@ -254,7 +254,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
                     try:
                         te.run(lambda obj: main, exec_main)  # noqa: B023
-                    except eager_mode_evaluator.EagerModeError as e:
+                    except evaluator.EagerModeError as e:
                         # Does not work.
                         if verbose > 0:
                             print("ERROR: ", e)

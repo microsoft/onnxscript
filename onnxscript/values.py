@@ -121,9 +121,9 @@ class Op:
         return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        from onnxscript import eager_mode_evaluator
+        from onnxscript import evaluator
 
-        return eager_mode_evaluator.eval(self.opschema, args, kwargs)
+        return evaluator.eval(self.opschema, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -175,9 +175,9 @@ class OnnxFunction(Op):
         """
 
         def fun(*args, **kwargs):
-            from onnxscript import eager_mode_evaluator
+            from onnxscript import evaluator
 
-            with eager_mode_evaluator.using_instance(instance):
+            with evaluator.using_instance(instance):
                 return self.__call__(*args, **kwargs)
 
         return fun
