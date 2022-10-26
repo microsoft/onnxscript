@@ -4,6 +4,9 @@
 # --------------------------------------------------------------------------
 
 import pprint
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from typing import Optional
 
 import numpy as np
 import onnx
@@ -15,7 +18,62 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 
-from onnxscript import irbuilder, tensor, utils
+from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
+
+
+class Evaluator(ABC):
+    """Base class for evaluation of ONNX ops.
+
+    The execution of onnxscript functions in eager-mode is dispatched to an Evaluator
+    instance (or, more precisely, to the eval method of the Evaluator instance).
+    The evaluator is expected to transform the input/output/attribute representation
+    supported by onnxscript to those expected by a particular backend.
+    """
+
+    def eval(self, schema, inputs, attributes):
+        closure = self.adapt_attributes(schema, attributes)
+        inputs = self.adapt_inputs(schema, inputs)
+        return self._eval(schema, inputs, attributes, closure)
+
+    def adapt_inputs(self, schema, inputs):
+        """Transform inputs to the expected format for the evaluator.
+
+        Enables some syntactic sugar, such as the use of Python scalars,
+        in a manner consistent with the translator. See autocast.py for details.
+        """
+        return autocast.dynamic_cast_inputs(schema, *inputs)
+
+    def adapt_attributes(self, schema, attributes):
+        """Transform attributes (in-place) to the expected format for the evaluator.
+
+        Returns a closure that can be used to evaluate graph-valued attributes.
+        """
+        use_graph_attribute = self.use_graph_attribute(schema)
+        closure = {}
+        for k, v in attributes.items():
+            if isinstance(v, values.OnnxClosure):
+                if use_graph_attribute:
+                    attributes[k] = v.function_ir.to_graph_proto()
+                    for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                        closure[onnxvar.value] = v.frame.f_locals[pyvar]
+                else:
+                    attributes[k] = v.function
+            elif callable(v):
+                raise ValueError(
+                    f"Error: function-valued attribute {v.__name__} has no graph_proto"
+                    "attribute. Did you forget to decorate it with @graph?"
+                )
+        return closure
+
+    def use_graph_attribute(self, schema):
+        return True
+
+    @abstractmethod
+    def _eval(self, schema, inputs, attributes, closure):
+        pass
+
+
+# Utilities for evaluation using ORT:
 
 
 class EagerModeError(RuntimeError):
@@ -118,6 +176,8 @@ def call_ort(schema, args, kwargs, implicit_args=None):
         opset_imports=[opset_id],
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
+    model = onnx.shape_inference.infer_shapes(model)
+    # onnx.checker.check_model(model)
     try:
         sess = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:
@@ -144,3 +204,99 @@ def call_ort(schema, args, kwargs, implicit_args=None):
     # Map ORT output values to the onnxscript representation-type.
     cast_result = [ort_to_os_value(x) for x in result]
     return cast_result[0] if len(cast_result) == 1 else cast_result
+
+
+def id(schema):
+    return schema.name, schema.domain, schema.since_version
+
+
+class ORTEvaluator(Evaluator):
+    """Evaluates ONNX ops using ONNX Runtime."""
+
+    def _eval(self, schema, inputs, attributes, closure):
+        return call_ort(schema, inputs, attributes, closure)
+
+
+ort_evaluator = ORTEvaluator()
+
+
+class ORTMixedEvaluator(ORTEvaluator):
+    """Evaluates ONNX ops using ONNX Runtime, unless an overriding python implementation
+    is registered. This is useful for higher-order ops such as Scan and SequenceMap,
+    allowing for python-based debugging.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._python_ops = {}
+
+    def use_graph_attribute(self, schema):
+        return id(schema) not in self._python_ops
+
+    def _eval(self, schema, inputs, attributes, closure):
+        if id(schema) in self._python_ops:
+            return self._python_ops[id(schema)](inputs, attributes)
+        else:
+            return super()._eval(schema, inputs, attributes, closure)
+
+    def register(self, opset: Optional[values.Opset] = None):
+        opset = opset or onnx_opset.default_opset
+
+        def decorator(function):
+            schema = opset[function.__name__]
+            self._python_ops[id(schema)] = function
+            return function
+
+        return decorator
+
+
+ort_mixed_evaluator = ORTMixedEvaluator()
+
+
+@ort_mixed_evaluator.register()
+def SequenceMap(inputs, attributes):
+    """Evaluates a SequenceMap op."""
+    fun = attributes["body"]
+
+    def get_input_of(input_index, iter_num):
+        input = inputs[input_index]
+        if isinstance(input, list):
+            return input[iter_num]
+        return input
+
+    def get_input(iter_num):
+        return [get_input_of(input_index, iter_num) for input_index in range(len(inputs))]
+
+    return [fun(*(get_input(i))) for i in range(len(inputs[0]))]
+
+
+# Used to control the default evaluator instance. A simple approach for now.
+
+instance_ = None
+
+
+def instance():
+    """Returns the default Evaluator instance."""
+    return instance_ or ort_evaluator
+
+
+def set_instance(instance):
+    """Sets the current Evaluator instance."""
+    global instance_
+    instance_ = instance
+
+
+@contextmanager
+def using_instance(instance):
+    """Context manager that temporarily switches the default evaluator."""
+    old_instance = instance_
+    set_instance(instance)
+    try:
+        yield
+    finally:
+        set_instance(old_instance)
+
+
+def eval(schema, inputs, attributes):
+    """Evaluate using current default evaluator"""
+    return instance().eval(schema, inputs, attributes)
