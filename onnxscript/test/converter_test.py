@@ -26,7 +26,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 from packaging.version import Version
 
-from onnxscript import OnnxFunction, script
+from onnxscript import OnnxFunction, graph, script
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
@@ -562,6 +562,30 @@ class TestConverter(TestBase):
         input = np.array(6, dtype=np.int64)
         with self.assertRaisesRegex(ValueError, "@graph"):
             sum_to_error(input)
+
+    def test_loop_outer_scope(self):
+        from onnxscript.test.models.graph_attr import loop_add
+
+        input_x = np.array([1, 2, 3], dtype=np.int64)
+        input_m = np.array(3, dtype=np.int64)
+        inputs = [input_x, input_m]
+        expected_output = np.array([4, 8, 12], dtype=np.int64)
+        self.check_run(loop_add, inputs, expected_output)
+
+    def test_outer_scope_redefinition(self):
+        """Test that outer scope variables used in a function are not redefined."""
+        with self.assertRaisesRegex(Exception, "Outer scope variable"):
+
+            @script()
+            def redefine(X):
+                Temp = op.Neg(X)
+
+                @graph()
+                def inner():
+                    return op.Add(X, Temp)
+
+                Temp = op.Abs(X)
+                return op.DummyOp(body=inner)
 
 
 if __name__ == "__main__":
