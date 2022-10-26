@@ -24,7 +24,6 @@ except importlib_metadata.PackageNotFoundError:
     __version__ = None
 
 
-
 __all__ = [
     "script",
     "export_onnx_lib",

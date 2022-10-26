@@ -18,12 +18,12 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 
-from onnxscript import irbuilder, tensor, utils, autocast, values, onnx_opset
+from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
 
 class Evaluator(ABC):
     """Base class for evaluation of ONNX ops.
-    
+
     The execution of onnxscript functions in eager-mode is dispatched to an Evaluator
     instance (or, more precisely, to the eval method of the Evaluator instance).
     The evaluator is expected to transform the input/output/attribute representation
@@ -34,17 +34,17 @@ class Evaluator(ABC):
         closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)
         return self._eval(schema, inputs, attributes, closure)
-    
+
     def adapt_inputs(self, schema, inputs):
-        '''Transform inputs to the expected format for the evaluator.
-        
-        Enables some syntactic sugar, such as the use of Python scalars, 
-        in a manner consistent with the translator. See autocast.py for details.'''
+        """Transform inputs to the expected format for the evaluator.
+
+        Enables some syntactic sugar, such as the use of Python scalars,
+        in a manner consistent with the translator. See autocast.py for details."""
         return autocast.dynamic_cast_inputs(schema, *inputs)
-    
+
     def adapt_attributes(self, schema, attributes):
         """Transform attributes (in-place) to the expected format for the evaluator.
-        
+
         Returns a closure that can be used to evaluate graph-valued attributes."""
         use_graph_attribute = self.use_graph_attribute(schema)
         closure = {}
@@ -62,7 +62,7 @@ class Evaluator(ABC):
                     "attribute. Did you forget to decorate it with @graph?"
                 )
         return closure
-    
+
     def use_graph_attribute(self, schema):
         return True
 
@@ -70,7 +70,9 @@ class Evaluator(ABC):
     def _eval(self, schema, inputs, attributes, closure):
         pass
 
+
 # Utilities for evaluation using ORT:
+
 
 class EagerModeError(RuntimeError):
     pass
@@ -173,7 +175,7 @@ def call_ort(schema, args, kwargs, implicit_args=None):
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
     model = onnx.shape_inference.infer_shapes(model)
-    onnx.checker.check_model(model)
+    # onnx.checker.check_model(model)
     try:
         sess = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:
@@ -205,13 +207,16 @@ def call_ort(schema, args, kwargs, implicit_args=None):
 def id(schema):
     return schema.name, schema.domain, schema.since_version
 
+
 class ORTEvaluator(Evaluator):
     """Evaluates ONNX ops using ONNX Runtime."""
 
     def _eval(self, schema, inputs, attributes, closure):
         return call_ort(schema, inputs, attributes, closure)
 
+
 ort_evaluator = ORTEvaluator()
+
 
 class ORTMixedEvaluator(ORTEvaluator):
     """Evaluates ONNX ops using ONNX Runtime, unless an overriding python implementation
@@ -221,7 +226,7 @@ class ORTMixedEvaluator(ORTEvaluator):
     def __init__(self) -> None:
         super().__init__()
         self._python_ops = {}
-    
+
     def use_graph_attribute(self, schema):
         return id(schema) not in self._python_ops
 
@@ -230,28 +235,35 @@ class ORTMixedEvaluator(ORTEvaluator):
             return self._python_ops[id(schema)](inputs, attributes)
         else:
             return super()._eval(schema, inputs, attributes, closure)
-    
+
     def register(self, opset: Optional[values.Opset] = None):
         opset = opset or onnx_opset.default_opset
+
         def decorator(function):
             schema = opset[function.__name__]
             self._python_ops[id(schema)] = function
             return function
+
         return decorator
 
+
 ort_mixed_evaluator = ORTMixedEvaluator()
+
 
 @ort_mixed_evaluator.register()
 def SequenceMap(inputs, attributes):
     """Evaluates a SequenceMap op."""
     fun = attributes["body"]
+
     def get_input_of(input_index, iter_num):
         input = inputs[input_index]
         if isinstance(input, list):
             return input[iter_num]
         return input
+
     def get_input(iter_num):
         return [get_input_of(input_index, iter_num) for input_index in range(len(inputs))]
+
     return [fun(*(get_input(i))) for i in range(len(inputs[0]))]
 
 
@@ -259,14 +271,17 @@ def SequenceMap(inputs, attributes):
 
 instance_ = None
 
+
 def instance():
     """Returns the default Evaluator instance."""
     return instance_ or ort_evaluator
+
 
 def set_instance(instance):
     """Sets the current Evaluator instance."""
     global instance_
     instance_ = instance
+
 
 @contextmanager
 def using_instance(instance):

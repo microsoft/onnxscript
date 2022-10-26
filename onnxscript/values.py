@@ -11,6 +11,7 @@ from typing import Any, List, _GenericAlias
 
 import numpy as np
 import onnx
+
 from onnxscript import autocast, debuginfo, irbuilder, tensor
 
 
@@ -121,6 +122,7 @@ class Op:
 
     def __call__(self, *args, **kwargs):
         from onnxscript import eager_mode_evaluator
+
         return eager_mode_evaluator.instance().eval(self.opschema, args, kwargs)
 
 
@@ -165,16 +167,19 @@ class OnnxFunction(Op):
         return self.opname
 
     def __getitem__(self, instance):
-        '''Returns a lambda to evaluate function using given evaluator instance.
-        
+        """Returns a lambda to evaluate function using given evaluator instance.
+
         Usage:
            script_fun(X) executes the function using the default evaluator instance.
            script_fun[instance](X) executes the function using the given evaluator instance.
-        '''
+        """
+
         def fun(*args, **kwargs):
             from onnxscript import eager_mode_evaluator
+
             with eager_mode_evaluator.using_instance(instance):
                 return self.__call__(*args, **kwargs)
+
         return fun
 
     def __call__(self, *args, **kwargs):
