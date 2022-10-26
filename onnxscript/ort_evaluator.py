@@ -10,7 +10,7 @@ class ORTEvaluator(evaluator.Evaluator):
 
     def _eval(self, schema, inputs, attributes, closure):
         return eager_mode_evaluator.call_ort(schema, inputs, attributes, closure)
-    
+
 class ORTMixedEvaluator(ORTEvaluator):
     """Evaluates ONNX ops using ONNX Runtime, unless an overriding python implementation
     is registered. This is useful for higher-order ops such as Scan and SequenceMap,
@@ -37,9 +37,9 @@ class ORTMixedEvaluator(ORTEvaluator):
             return function
         return decorator
 
-ort_evaluator = ORTMixedEvaluator()
+ort_mixed_evaluator = ORTMixedEvaluator()
 
-@ort_evaluator.register()
+@ort_mixed_evaluator.register()
 def SequenceMap(inputs, attributes):
     """Evaluates a SequenceMap op."""
     fun = attributes["body"]

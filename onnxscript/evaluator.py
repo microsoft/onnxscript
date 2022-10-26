@@ -58,6 +58,10 @@ instance_ = None
 
 def instance():
     """Returns the current Evaluator instance."""
+    global instance_
+    if not instance_:
+        from onnxscript.ort_evaluator import ORTEvaluator
+        instance_ = ORTEvaluator()
     return instance_
 
 def set_instance(instance):
