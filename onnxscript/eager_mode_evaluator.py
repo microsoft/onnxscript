@@ -295,3 +295,8 @@ def using_instance(instance):
         yield
     finally:
         set_instance(old_instance)
+
+
+def eval(schema, inputs, attributes):
+    """Evaluate using current default evaluator"""
+    return instance().eval(schema, inputs, attributes)

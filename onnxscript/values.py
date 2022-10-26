@@ -121,9 +121,9 @@ class Op:
         return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        kwargs, closure = self.adapt_kwargs(kwargs)
-        args = autocast.dynamic_cast_inputs(self.opschema, *args)
-        return self.evaluator(self.opschema, args, kwargs, closure)
+        from onnxscript import eager_mode_evaluator
+
+        return eager_mode_evaluator.eval(self.opschema, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)
