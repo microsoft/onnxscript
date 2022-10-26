@@ -6,7 +6,7 @@ import numpy as np
 from onnxscript import script, graph
 from onnxscript.onnx_opset import opset17 as op
 from onnxscript.onnx_types import FLOAT
-from onnxscript.ort_evaluator import ort_mixed_evaluator
+from onnxscript import eager_mode_evaluator
 
 
 class EvaluatorTest(unittest.TestCase):
@@ -21,7 +21,7 @@ class EvaluatorTest(unittest.TestCase):
             return seq2
         
         x = np.array([0.0, 1.0], dtype=np.float32)
-        output = seq_map[ort_mixed_evaluator](x)
+        output = seq_map[eager_mode_evaluator.ort_mixed_evaluator](x)
         expected = [t*t for t in [x, x+1, x+2]]
         np.testing.assert_equal(output, expected)
 

@@ -11,8 +11,7 @@ from typing import Any, List, _GenericAlias
 
 import numpy as np
 import onnx
-
-from onnxscript import autocast, debuginfo, eager_mode_evaluator, irbuilder, tensor, evaluator
+from onnxscript import autocast, debuginfo, irbuilder, tensor
 
 
 class Opset:
@@ -93,7 +92,6 @@ class Op:
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
-        self.evaluator = eager_mode_evaluator.call_ort
 
     def is_single_op(self):
         return isinstance(self.opname, str)
@@ -122,7 +120,8 @@ class Op:
         return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        return evaluator.instance().eval(self.opschema, args, kwargs)
+        from onnxscript import eager_mode_evaluator
+        return eager_mode_evaluator.instance().eval(self.opschema, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -173,7 +172,8 @@ class OnnxFunction(Op):
            script_fun[instance](X) executes the function using the given evaluator instance.
         '''
         def fun(*args, **kwargs):
-            with evaluator.using_instance(instance):
+            from onnxscript import eager_mode_evaluator
+            with eager_mode_evaluator.using_instance(instance):
                 return self.__call__(*args, **kwargs)
         return fun
 
