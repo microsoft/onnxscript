@@ -10,11 +10,11 @@ from onnxscript.onnx_types import FLOAT
 class EvaluatorTest(unittest.TestCase):
     def test_mixed_evaluator(self):
         @script()
-        def seq_map(x: FLOAT["N"]):
+        def seq_map(x: FLOAT["N"]):  # noqa: F821
             seq1 = op.SequenceConstruct(x, x + 1, x + 2)
 
             @graph()
-            def square(y: FLOAT["N"]) -> FLOAT["N"]:
+            def square(y: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
                 return op.Mul(y, y)
 
             seq2 = op.SequenceMap(seq1, body=square)

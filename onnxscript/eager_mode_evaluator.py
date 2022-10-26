@@ -39,13 +39,15 @@ class Evaluator(ABC):
         """Transform inputs to the expected format for the evaluator.
 
         Enables some syntactic sugar, such as the use of Python scalars,
-        in a manner consistent with the translator. See autocast.py for details."""
+        in a manner consistent with the translator. See autocast.py for details.
+        """
         return autocast.dynamic_cast_inputs(schema, *inputs)
 
     def adapt_attributes(self, schema, attributes):
         """Transform attributes (in-place) to the expected format for the evaluator.
 
-        Returns a closure that can be used to evaluate graph-valued attributes."""
+        Returns a closure that can be used to evaluate graph-valued attributes.
+        """
         use_graph_attribute = self.use_graph_attribute(schema)
         closure = {}
         for k, v in attributes.items():
@@ -221,7 +223,8 @@ ort_evaluator = ORTEvaluator()
 class ORTMixedEvaluator(ORTEvaluator):
     """Evaluates ONNX ops using ONNX Runtime, unless an overriding python implementation
     is registered. This is useful for higher-order ops such as Scan and SequenceMap,
-    allowing for python-based debugging."""
+    allowing for python-based debugging.
+    """
 
     def __init__(self) -> None:
         super().__init__()
