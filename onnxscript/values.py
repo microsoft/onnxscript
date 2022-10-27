@@ -177,7 +177,7 @@ class OnnxFunction(Op):
         def fun(*args, **kwargs):
             from onnxscript import evaluator
 
-            with evaluator.using_instance(instance):
+            with evaluator.default_as(instance):
                 return self.__call__(*args, **kwargs)
 
         return fun

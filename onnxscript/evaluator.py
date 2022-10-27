@@ -272,31 +272,31 @@ def SequenceMap(inputs, attributes):
 
 # Used to control the default evaluator instance. A simple approach for now.
 
-instance_ = None
+default_ = ort_evaluator
 
 
-def instance():
-    """Returns the default Evaluator instance."""
-    return instance_ or ort_evaluator
+def default():
+    """Returns the default Evaluator default."""
+    return default_
 
 
-def set_instance(instance):
-    """Sets the current Evaluator instance."""
-    global instance_
-    instance_ = instance
+def set_default(default):
+    """Sets the current Evaluator default."""
+    global default_
+    default_ = default
 
 
 @contextmanager
-def using_instance(instance):
+def default_as(temp_default):
     """Context manager that temporarily switches the default evaluator."""
-    old_instance = instance_
-    set_instance(instance)
+    old_default = default_
+    set_default(temp_default)
     try:
         yield
     finally:
-        set_instance(old_instance)
+        set_default(old_default)
 
 
 def eval(schema, inputs, attributes):
     """Evaluate using current default evaluator"""
-    return instance().eval(schema, inputs, attributes)
+    return default().eval(schema, inputs, attributes)
