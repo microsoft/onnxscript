@@ -39,6 +39,8 @@ def check_shape(shape):
 class TensorType:
     """ONNX Script representation of a tensor type."""
 
+    default_instance: Optional["TensorType"] = None
+
     def __init__(self, dtype, shape: Optional[ShapeType] = None) -> None:
         self.dtype = dtype
         self.shape = shape
@@ -53,6 +55,13 @@ class TensorType:
             shape = (None,)
         return TensorType(self.dtype, shape)
 
+    def __class_getitem__(cls, shape: Optional[ShapeType]):
+        if cls.default_instance is None:
+            raise TypeError(f"{cls} does not specify a default_instance.")
+        # pylint erroneously flags with unsubscriptable-object if
+        # using subscript notation (cls.default_instance[shape]):
+        return cls.default_instance.__getitem__(shape)
+
     def to_type_proto(self) -> onnx.TypeProto:
         if self.shape is None:
             shape = ()  # "FLOAT" is treated as a scalar
@@ -65,22 +74,94 @@ class TensorType:
         return onnx.helper.make_tensor_type_proto(self.dtype, shape)
 
 
-FLOAT = TensorType(onnx.TensorProto.FLOAT)
-UINT8 = TensorType(onnx.TensorProto.UINT8)
-INT8 = TensorType(onnx.TensorProto.INT8)
-UINT16 = TensorType(onnx.TensorProto.UINT16)
-INT16 = TensorType(onnx.TensorProto.INT16)
-INT32 = TensorType(onnx.TensorProto.INT32)
-INT64 = TensorType(onnx.TensorProto.INT64)
-STRING = TensorType(onnx.TensorProto.STRING)
-BOOL = TensorType(onnx.TensorProto.BOOL)
-FLOAT16 = TensorType(onnx.TensorProto.FLOAT16)
-DOUBLE = TensorType(onnx.TensorProto.DOUBLE)
-UINT32 = TensorType(onnx.TensorProto.UINT32)
-UINT64 = TensorType(onnx.TensorProto.UINT64)
-COMPLEX64 = TensorType(onnx.TensorProto.COMPLEX64)
-COMPLEX128 = TensorType(onnx.TensorProto.COMPLEX128)
-BFLOAT16 = TensorType(onnx.TensorProto.BFLOAT16)
+class _BuiltinTensorType:
+    def __init__(self, tensor_proto: onnx.TensorProto):
+        self.tensor_proto = tensor_proto
+
+    def __call__(self, cls):
+        cls.default_instance = TensorType(self.tensor_proto)
+        cls.to_type_proto = cls.default_instance.to_type_proto
+        return cls
+
+
+@_BuiltinTensorType(onnx.TensorProto.FLOAT)
+class FLOAT(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.UINT8)
+class UINT8(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.INT8)
+class INT8(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.UINT16)
+class UINT16(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.INT16)
+class INT16(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.INT32)
+class INT32(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.INT64)
+class INT64(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.STRING)
+class STRING(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.BOOL)
+class BOOL(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.FLOAT16)
+class FLOAT16(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.DOUBLE)
+class DOUBLE(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.UINT32)
+class UINT32(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.UINT64)
+class UINT64(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.COMPLEX64)
+class COMPLEX64(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.COMPLEX128)
+class COMPLEX128(TensorType):
+    pass
+
+
+@_BuiltinTensorType(onnx.TensorProto.BFLOAT16)
+class BFLOAT16(TensorType):
+    pass
 
 
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
