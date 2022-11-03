@@ -3,9 +3,9 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import abc
+import contextlib
 import pprint
-from abc import ABC, abstractmethod
-from contextlib import contextmanager
 from typing import Optional
 
 import numpy as np
@@ -21,7 +21,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
 
-class Evaluator(ABC):
+class Evaluator(abc.ABC):
     """Base class for evaluation of ONNX ops.
 
     The execution of onnxscript functions in eager-mode is dispatched to an Evaluator
@@ -76,7 +76,7 @@ class Evaluator(ABC):
     def use_graph_attribute(self, schema):
         return True
 
-    @abstractmethod
+    @abc.abstractmethod
     def _eval(self, schema, inputs, attributes, closure):
         pass
 
@@ -280,24 +280,24 @@ def SequenceMap(inputs, attributes):
 
 # Used to control the default evaluator instance. A simple approach for now.
 
-default_ = ort_evaluator
+_default_evaluator = ort_evaluator
 
 
-def default():
+def default() -> Evaluator:
     """Returns the default Evaluator default."""
-    return default_
+    return _default_evaluator
 
 
-def set_default(default):
+def set_default(default: Evaluator) -> None:
     """Sets the current Evaluator default."""
-    global default_
-    default_ = default
+    global _default_evaluator
+    _default_evaluator = default
 
 
-@contextmanager
-def default_as(temp_default):
+@contextlib.contextmanager
+def default_as(temp_default: Evaluator):
     """Context manager that temporarily switches the default evaluator."""
-    old_default = default_
+    old_default = _default_evaluator
     set_default(temp_default)
     try:
         yield
