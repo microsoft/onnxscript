@@ -33,7 +33,8 @@ class Evaluator(ABC):
     def eval(self, schema, inputs, attributes):
         closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)
-        return self._eval(schema, inputs, attributes, closure)
+        outputs = self._eval(schema, inputs, attributes, closure)
+        return self.adapt_outputs(schema, outputs)
 
     def adapt_inputs(self, schema, inputs):
         """Transform inputs to the expected format for the evaluator.
@@ -64,6 +65,13 @@ class Evaluator(ABC):
                     "attribute. Did you forget to decorate it with @graph?"
                 )
         return closure
+
+    def adapt_outputs(self, schema, outputs):
+        """Adapt evaluator's output to convention used in onnxscript.
+
+        Onnxscript uses a tuple/sequence only when number of outputs > 1.
+        """
+        return outputs[0] if len(outputs) == 1 else outputs
 
     def use_graph_attribute(self, schema):
         return True
@@ -202,11 +210,10 @@ def call_ort(schema, args, kwargs, implicit_args=None):
         ) from e
 
     # Map ORT output values to the onnxscript representation-type.
-    cast_result = [ort_to_os_value(x) for x in result]
-    return cast_result[0] if len(cast_result) == 1 else cast_result
+    return [ort_to_os_value(x) for x in result]
 
 
-def id(schema):
+def schema_id(schema):
     return schema.name, schema.domain, schema.since_version
 
 
@@ -231,11 +238,12 @@ class ORTMixedEvaluator(ORTEvaluator):
         self._python_ops = {}
 
     def use_graph_attribute(self, schema):
-        return id(schema) not in self._python_ops
+        return schema_id(schema) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
-        if id(schema) in self._python_ops:
-            return self._python_ops[id(schema)](inputs, attributes)
+        schemaid = schema_id(schema)
+        if schemaid in self._python_ops:
+            return self._python_ops[schemaid](inputs, attributes)
         else:
             return super()._eval(schema, inputs, attributes, closure)
 
@@ -244,7 +252,7 @@ class ORTMixedEvaluator(ORTEvaluator):
 
         def decorator(function):
             schema = opset[function.__name__]
-            self._python_ops[id(schema)] = function
+            self._python_ops[schema_id(schema)] = function
             return function
 
         return decorator
