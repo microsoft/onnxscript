@@ -26,10 +26,10 @@ from .onnx_opset import (
     opset16,
     opset17,
     opset18,
+    opset_ai_onnx_ml1,
+    opset_ai_onnx_ml2,
+    opset_ai_onnx_ml3,
     default_opset,
-    onnxml1,
-    onnxml2,
-    onnxml3,
 )
 
 from .onnx_types import (
@@ -99,8 +99,8 @@ __all__ = [
     "opset16",
     "opset17",
     "opset18",
+    "opset_ai_onnx_ml1",
+    "opset_ai_onnx_ml2",
+    "opset_ai_onnx_ml3",
     "default_opset",
-    "onnxml1",
-    "onnxml2",
-    "onnxml3",
 ]
