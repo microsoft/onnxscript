@@ -8,7 +8,7 @@ from onnxscript.onnx_types import FLOAT
 
 
 class EvaluatorTest(unittest.TestCase):
-    def test_mixed_evaluator(self):
+    def test_evaluator(self):
         @script()
         def seq_map(x: FLOAT["N"]):  # noqa: F821
             seq1 = op.SequenceConstruct(x, x + 1, x + 2)
@@ -21,8 +21,18 @@ class EvaluatorTest(unittest.TestCase):
             return seq2
 
         x = np.array([0.0, 1.0], dtype=np.float32)
-        output = seq_map[evaluator.ort_mixed_evaluator](x)
         expected = [t * t for t in [x, x + 1, x + 2]]
+
+        # Test using (current) default evaluator
+        output = seq_map(x)
+        np.testing.assert_equal(output, expected)
+
+        # Test using ort-mixed-evaluator
+        output = seq_map[evaluator.ort_mixed_evaluator](x)
+        np.testing.assert_equal(output, expected)
+
+        # Test using ort-evaluator
+        output = seq_map[evaluator.ort_evaluator](x)
         np.testing.assert_equal(output, expected)
 
 

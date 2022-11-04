@@ -209,7 +209,9 @@ class OnnxFunction(Op):
         if isinstance(res, (list, tuple)):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, tensor.Tensor):
+                if isinstance(r, np.ndarray):
+                    unwrapped.append(r)
+                elif isinstance(r, tensor.Tensor):
                     unwrapped.append(r.value)
                 else:
                     raise TypeError(
