@@ -12,6 +12,7 @@ from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
 
 import numpy as np
 import onnx
+from onnx.defs import OpSchema
 
 from onnxscript import debuginfo, irbuilder, tensor
 
@@ -79,6 +80,17 @@ class Opset:
                 f"{fun.name}: Already defined."
             )
         self.function_defs[fun.name] = fun
+
+    def _prepare_inputs(self, _: OpSchema, *inputs):
+        """Trims 'None' values from the end of the inputs list. This is used to support
+        omitting optional inputs when no more required inputs follow to prepare a valid call
+        against the Op. Used by the static opset code generator.
+        """
+        # TODO: validate the op schema as 'None' values are removed?
+        input_list = list(inputs)
+        while input_list and input_list[-1] is None:
+            del input_list[-1]
+        return input_list
 
 
 # ONNX ops
