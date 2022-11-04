@@ -191,6 +191,7 @@ def call_ort(schema, args, kwargs, implicit_args=None):
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             f"Unable to create onnxruntime InferenceSession "
+            f"for executing {schema.domain}.{schema.name} op "
             f"with onnx model\n{utils.proto2text(model)}"
         ) from e
 
