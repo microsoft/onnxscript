@@ -8,7 +8,7 @@ import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
 
 import numpy as np
 import onnx
@@ -27,10 +27,10 @@ class Opset:
     Only a single instance of Opset is created for a given (domain, version) pair.
     """
 
-    cache: dict[tuple[str, int], Opset] = {}
+    cache: dict[tuple[type, str, int], Opset] = {}
 
     def __new__(cls, domain: str, version: int):
-        key = (domain, version)
+        key = (cls, domain, version)
         existing = cls.cache.get(key)
         if existing:
             return existing
@@ -41,12 +41,12 @@ class Opset:
         cls.cache[key] = instance
         return instance
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.domain!r}, {self.version!r})"
-
-    def __init__(self, domain: str, version: int):
+    def __init__(self, domain: Optional[str] = None, version: Optional[int] = None):
         # Nothing to do. Object is initialized by __new__
         pass
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.domain!r}, {self.version!r})"
 
     def __getitem__(self, opname):
         try:
