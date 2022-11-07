@@ -45,7 +45,7 @@ ONNX models and functions:
   and there is a Python-only reference runtime for ONNX underway that
   will also be supported.
 
-  Note that the runtime is intended to help understand and debug function definitions. Performance is not a goal here.
+  Note that the runtime is intended to help understand and debug function definitions. Performance is *not* a goal here.
 
 ## Installing ONNX Script
 
