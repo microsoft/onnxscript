@@ -32,6 +32,8 @@ def select_ir_version(version, domain=""):
     """
     if domain == "":
         domain = "ai.onnx"
+    if (domain, version) not in helper.OP_SET_ID_VERSION_MAP:
+        return max(v for k, v in helper.OP_SET_ID_VERSION_MAP.items() if k[0] == "ai.onnx")
     return helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
