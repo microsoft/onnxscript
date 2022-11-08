@@ -381,7 +381,9 @@ class TestOnnxSignal(OnnxScriptTestCase):
             import torch  # pylint: disable=import-outside-toplevel
         except ImportError as e:
             raise ImportError("torch is not installed.") from e
-        torch_113 = dv.StrictVersion(torch.__version__.split("+")[0]) >= dv.StrictVersion("1.13")
+        torch_113 = dv.StrictVersion(torch.__version__.split("+")[0]) >= dv.StrictVersion(
+            "1.13"
+        )
 
         xs = [
             ("hp2", np.arange(24).astype(np.float32).reshape((3, 8)), 6, 2, 2),
@@ -444,14 +446,18 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     elif len(x_.shape) == 1:
                         assert_allclose(x_, t_istft, atol=1e-4)
                     else:
-                        raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
+                        raise NotImplementedError(
+                            f"Not implemented when shape is {x_.shape!r}."
+                        )
                 else:
                     if len(x_.shape) == 2:
                         assert_allclose(x_[:, :-1], t_istft, atol=1e-4)
                     elif len(x_.shape) == 1:
                         assert_allclose(x_[:-1], t_istft, atol=1e-4)
                     else:
-                        raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
+                        raise NotImplementedError(
+                            f"Not implemented when shape is {x_.shape!r}."
+                        )
 
             info["expected"] = expected
             info["expected_shape"] = expected.shape
