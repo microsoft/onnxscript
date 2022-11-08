@@ -12,7 +12,7 @@ from typing import Any, List, _GenericAlias
 import numpy as np
 import onnx
 
-from onnxscript import autocast, debuginfo, eager_mode_evaluator, irbuilder, tensor
+from onnxscript import debuginfo, irbuilder, tensor
 
 
 class Opset:
@@ -93,7 +93,6 @@ class Op:
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
-        self.evaluator = eager_mode_evaluator.call_ort
 
     def is_single_op(self):
         return isinstance(self.opname, str)
@@ -122,9 +121,9 @@ class Op:
         return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        kwargs, closure = self.adapt_kwargs(kwargs)
-        args = autocast.dynamic_cast_inputs(self.opschema, *args)
-        return self.evaluator(self.opschema, args, kwargs, closure)
+        from onnxscript import evaluator
+
+        return evaluator.eval(self.opschema, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -138,6 +137,8 @@ class OnnxClosure:
     # value of outer-scope variables referred to inside this nested
     # function/GraphProto.
     frame: types.FrameType
+
+    function: Any
 
 
 class OnnxFunction(Op):
@@ -164,6 +165,22 @@ class OnnxFunction(Op):
     def name(self):
         """Returns the function name."""
         return self.opname
+
+    def __getitem__(self, instance):
+        """Returns a lambda to evaluate function using given evaluator instance.
+
+        Usage:
+           script_fun(X) executes the function using the default evaluator instance.
+           script_fun[instance](X) executes the function using the given evaluator instance.
+        """
+
+        def fun(*args, **kwargs):
+            from onnxscript import evaluator
+
+            with evaluator.default_as(instance):
+                return self.__call__(*args, **kwargs)
+
+        return fun
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
@@ -192,7 +209,9 @@ class OnnxFunction(Op):
         if isinstance(res, (list, tuple)):
             unwrapped = []
             for i, r in enumerate(res):
-                if isinstance(r, tensor.Tensor):
+                if isinstance(r, np.ndarray):
+                    unwrapped.append(r)
+                elif isinstance(r, tensor.Tensor):
                     unwrapped.append(r.value)
                 else:
                     raise TypeError(
