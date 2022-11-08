@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import distutils.version as dv
 import unittest
 import warnings
 
 import numpy as np
-from numpy.testing import assert_almost_equal
+from numpy.testing import assert_allclose
 from onnxruntime.capi.onnxruntime_pybind11_state import RuntimeException
 
 from onnxscript.test.functions.onnx_script_test_case import (
@@ -149,7 +150,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 we = np.array([1] * le[0], dtype=np.float32)
                 expected1 = self._fft(c, le)
                 expected2 = self._cfft(x, le)
-                assert_almost_equal(expected1, expected2)
+                assert_allclose(expected1, expected2)
                 with self.subTest(
                     c_shape=c.shape,
                     le=list(le),
@@ -210,7 +211,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     nax = np.array([ax], dtype=np.int64)
                     expected1 = self._fft(c, le, axis=ax)
                     expected2 = self._cfft(x, le, axis=ax)
-                    assert_almost_equal(expected1, expected2)
+                    assert_allclose(expected1, expected2)
                     with self.subTest(
                         c_shape=c.shape,
                         le=list(le),
@@ -273,7 +274,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                     nax = np.array([ax], dtype=np.int64)
                     expected1 = self._ifft(c, le, axis=ax)
                     expected2 = self._cifft(x, le, axis=ax)
-                    assert_almost_equal(expected1, expected2)
+                    assert_allclose(expected1, expected2)
                     with self.subTest(
                         c_shape=c.shape,
                         le=list(le),
@@ -376,6 +377,13 @@ class TestOnnxSignal(OnnxScriptTestCase):
         return ft.numpy()
 
     def test_dft_rstft_istft(self):
+        try:
+            import torch  # pylint: disable=import-outside-toplevel
+        except ImportError as e:
+            raise ImportError("torch is not installed.") from e
+        torch_113 = dv.StrictVersion(torch.__version__.split("+")[0]) >= dv.StrictVersion(
+            "1.13"
+        )
 
         xs = [
             ("hp2", np.arange(24).astype(np.float32).reshape((3, 8)), 6, 2, 2),
@@ -428,16 +436,28 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 except AssertionError as e:
                     raise AssertionError(f"Issue with {info!r}.") from e
 
-            # istft (imaginary part is null but still returned by istft)
-            ix = self._complex2float(c_expected)
-            expected = np.concatenate((x, np.zeros(x.shape, dtype=x.dtype)), axis=-1)
-            t_istft = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
-            if len(x_.shape) == 2:
-                assert_almost_equal(x_[:, :-1], t_istft, decimal=4)
-            elif len(x_.shape) == 1:
-                assert_almost_equal(x_[:-1], t_istft, decimal=4)
-            else:
-                raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
+                # istft (imaginary part is null but still returned by istft)
+                ix = self._complex2float(c_expected)
+                expected = np.concatenate((x, np.zeros(x.shape, dtype=x.dtype)), axis=-1)
+                t_istft = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
+                if torch_113:
+                    if len(x_.shape) == 2:
+                        assert_allclose(x_, t_istft, atol=1e-4)
+                    elif len(x_.shape) == 1:
+                        assert_allclose(x_, t_istft, atol=1e-4)
+                    else:
+                        raise NotImplementedError(
+                            f"Not implemented when shape is {x_.shape!r}."
+                        )
+                else:
+                    if len(x_.shape) == 2:
+                        assert_allclose(x_[:, :-1], t_istft, atol=1e-4)
+                    elif len(x_.shape) == 1:
+                        assert_allclose(x_[:-1], t_istft, atol=1e-4)
+                    else:
+                        raise NotImplementedError(
+                            f"Not implemented when shape is {x_.shape!r}."
+                        )
 
             info["expected"] = expected
             info["expected_shape"] = expected.shape
