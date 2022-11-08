@@ -51,18 +51,19 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements-dev.txt
 
-      - name: version
-        run: |
-          python -c "import numpy;print('numpy', numpy.__version__)"
-          python -c "import onnx;print('onnx', onnx.__version__)"
-          python -c "import onnxruntime;print('onnxruntime', onnxruntime.__version__)"
-
       - name: Install standard onnx
         if: ${{ matrix.onnx_standard }}
         run: |
           python -m pip uninstall -y onnx-function-experiment
           python -m pip uninstall -y ort-function-experiment-nightly
           python -m pip install onnx onnxruntime
+
+      - name: versions
+        run: |
+          python -c "import numpy;print('numpy', numpy.__version__)"
+          python -c "import onnx;print('onnx', onnx.__version__)"
+          python -c "import onnxruntime;print('onnxruntime', onnxruntime.__version__)"
+          python -c "import torch;print('torch', torch.__version__)"
 
       - name: Make package
         run: python setup.py sdist
@@ -98,6 +99,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements-dev.txt
+      - name: versions
+        run: |
+          python -c "import numpy;print('numpy', numpy.__version__)"
+          python -c "import onnx;print('onnx', onnx.__version__)"
+          python -c "import onnxruntime;print('onnxruntime', onnxruntime.__version__)"
+          python -c "import torch;print('torch', torch.__version__)"
       - name: Install package
         run: pip install .
       - name: Build documentation

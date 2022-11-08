@@ -428,16 +428,16 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 except AssertionError as e:
                     raise AssertionError(f"Issue with {info!r}.") from e
 
-            # istft (imaginary part is null but still returned by istft)
-            ix = self._complex2float(c_expected)
-            expected = np.concatenate((x, np.zeros(x.shape, dtype=x.dtype)), axis=-1)
-            t_istft = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
-            if len(x_.shape) == 2:
-                assert_allclose(x_[:, :-1], t_istft, atol=1e-4)
-            elif len(x_.shape) == 1:
-                assert_allclose(x_[:-1], t_istft, atol=1e-4)
-            else:
-                raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
+                # istft (imaginary part is null but still returned by istft)
+                ix = self._complex2float(c_expected)
+                expected = np.concatenate((x, np.zeros(x.shape, dtype=x.dtype)), axis=-1)
+                t_istft = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
+                if len(x_.shape) == 2:
+                    assert_allclose(x_[:, :-1], t_istft, atol=1e-4)
+                elif len(x_.shape) == 1:
+                    assert_allclose(x_[:-1], t_istft, atol=1e-4)
+                else:
+                    raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
 
             info["expected"] = expected
             info["expected_shape"] = expected.shape
