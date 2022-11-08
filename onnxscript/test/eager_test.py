@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import distutils.version as dv
 import unittest
 import warnings
 
@@ -376,6 +377,11 @@ class TestOnnxSignal(OnnxScriptTestCase):
         return ft.numpy()
 
     def test_dft_rstft_istft(self):
+        try:
+            import torch  # pylint: disable=import-outside-toplevel
+        except ImportError as e:
+            raise ImportError("torch is not installed.") from e
+        torch_113 = dv.StrictVersion(torch.__version__.split("+")[0]) >= dv.StrictVersion("1.13")
 
         xs = [
             ("hp2", np.arange(24).astype(np.float32).reshape((3, 8)), 6, 2, 2),
@@ -432,12 +438,20 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 ix = self._complex2float(c_expected)
                 expected = np.concatenate((x, np.zeros(x.shape, dtype=x.dtype)), axis=-1)
                 t_istft = self._istft(c_expected, le[0], window=window, hop_length=hpv[0])
-                if len(x_.shape) == 2:
-                    assert_allclose(x_[:, :-1], t_istft, atol=1e-4)
-                elif len(x_.shape) == 1:
-                    assert_allclose(x_[:-1], t_istft, atol=1e-4)
+                if torch_113:
+                    if len(x_.shape) == 2:
+                        assert_allclose(x_, t_istft, atol=1e-4)
+                    elif len(x_.shape) == 1:
+                        assert_allclose(x_, t_istft, atol=1e-4)
+                    else:
+                        raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
                 else:
-                    raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
+                    if len(x_.shape) == 2:
+                        assert_allclose(x_[:, :-1], t_istft, atol=1e-4)
+                    elif len(x_.shape) == 1:
+                        assert_allclose(x_[:-1], t_istft, atol=1e-4)
+                    else:
+                        raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
 
             info["expected"] = expected
             info["expected_shape"] = expected.shape
