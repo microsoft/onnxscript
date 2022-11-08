@@ -51,6 +51,12 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements-dev.txt
 
+      - name: version
+        run: |
+          python -c "import numpy;print('numpy', numpy.__version__)"
+          python -c "import onnx;print('onnx', onnx.__version__)"
+          python -c "import onnxruntime;print('onnxruntime', onnxruntime.__version__)"
+
       - name: Install standard onnx
         if: ${{ matrix.onnx_standard }}
         run: |
