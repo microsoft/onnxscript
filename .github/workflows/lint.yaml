@@ -58,32 +58,25 @@ jobs:
           python -m pip install onnx onnxruntime
           # install packages
           python -m pip install -e .
-      - name: Run style.sh
+          lintrunner init
+      - name: Run lintrunner on all files
         run: |
-          bash tools/style.sh
-  optional-style:
-    name: Optional style
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v4.1.0
+          set +e
+          if ! lintrunner --force-color --all-files --tee-json=lint.json; then
+              echo ""
+              echo -e "\e[1m\e[36mYou can reproduce these results locally by using \`lintrunner\`.\e[0m"
+              exit 1
+          fi
+      - name: Produce SARIF
+        if: always()
+        run: |
+          python .lintrunner/convert_to_sarif.py --input lint.json --output lintrunner.sarif
+      - name: Upload SARIF file
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v2
         with:
-          # Version range or exact version of Python to use, using SemVer's version range syntax. Reads from .python-version if unset.
-          python-version: "3.10"
-      - name: Install ONNXScript
-        run: |
-          # The code is from azure-pipelines.yml
-          # Install dependencies
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade setuptools
-          python -m pip install -q -r requirements-dev.txt
-          # Install ONNX
-          python -m pip uninstall -y onnx-function-experiment
-          python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install onnx onnxruntime
-          # install packages
-          python -m pip install -e .
-      - name: Run style_optional.sh
-        run: |
-          bash tools/style_optional.sh
+          # Path to SARIF file relative to the root of the repository
+          sarif_file: lintrunner.sarif
+          category: lintrunner
+          checkout_path: ${{ github.workspace }}
