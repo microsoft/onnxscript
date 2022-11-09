@@ -26,7 +26,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 from packaging.version import Version
 
-from onnxscript import OnnxFunction, graph, script
+from onnxscript import OnnxFunction, graph, script, tensor
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
@@ -546,7 +546,10 @@ class TestConverter(TestBase):
         np.testing.assert_equal(output, expected_output)
 
         # Test running model in eager mode
-        output = onnxfn._usercall(*inputs)
+        output = onnxfn(*inputs)
+        if isinstance(output, tensor.Tensor):
+            # unwrap Tensor wrapper
+            output = output.value
         np.testing.assert_equal(output, expected_output)
 
     def test_graph_attr_scan(self):
