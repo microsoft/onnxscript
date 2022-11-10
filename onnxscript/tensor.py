@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 import numpy as np
-from onnx import TensorProto
+from onnx import TensorProto, helper
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 
 from onnxscript import onnx_opset
@@ -36,6 +36,10 @@ class Tensor:
     @property
     def onnx_dtype(self):
         return NP_TYPE_TO_TENSOR_TYPE[self.dtype]
+
+    def type_proto(self, with_shape: bool = True):
+        shape = self.shape if with_shape else None
+        return helper.make_tensor_type_proto(self.onnx_dtype, shape)
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value!r})"
