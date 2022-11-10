@@ -396,7 +396,7 @@ def stft(
     weights = op.Reshape(window, window_shape)
     weighted_new_x = op.Mul(new_x, weights)
 
-    result = dft._libcall(weighted_new_x, fft_length, last_axis, onesided, False)
+    result = dft(weighted_new_x, fft_length, last_axis, onesided, False)
 
     # final transpose -3, -2
     two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))
@@ -404,7 +404,7 @@ def stft(
     dim = op.Shape(op.Shape(result))
     ax1 = op.Sub(dim, three)
     ax2 = op.Sub(dim, two)
-    return switch_axes._libcall(result, ax1, ax2)
+    return switch_axes(result, ax1, ax2)
 
 
 @script()
@@ -442,7 +442,7 @@ def istft(
         frame_x = op.Squeeze(op.Slice(x, begin, end, axisf), axisf)
 
         # ifft
-        ift = dft._libcall(frame_x, fft_length, mone, onesided, True)
+        ift = dft(frame_x, fft_length, mone, onesided, True)
         n_dims = op.Shape(op.Shape(ift))
 
         # real part
