@@ -182,6 +182,8 @@ class OnnxFunction(Op):
                 new_args.append(tensor.Tensor(a))
             elif isinstance(a, bool):
                 new_args.append(tensor.Tensor(np.array(a)))
+            elif isinstance(a, int):
+                new_args.append(a)
             else:
                 raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
         res = self.function(*new_args, **kwargs)
