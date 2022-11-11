@@ -8,6 +8,7 @@ import logging
 import sys
 import typing
 from enum import IntEnum
+from typing import NoReturn
 
 import numpy
 import onnx
@@ -43,7 +44,7 @@ def warn(msg):
     logger.warning(msg)
 
 
-def fail(msg):
+def fail(msg) -> NoReturn:
     raise TranslationError(msg)
 
 
@@ -215,7 +216,7 @@ class Converter:
         self.used_vars = set()
         self.locals = [{}]
 
-    def fail(self, node, message: str):
+    def fail(self, node, message: str) -> NoReturn:
         fail(debuginfo.DebugInfo(node, self).msg(message))
 
     """
@@ -844,7 +845,7 @@ class Converter:
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
-        if isinstance(node, ast.Attribute) and getattr(node, "attr", None) != "_libcall":
+        if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
             opname = node.attr
@@ -852,13 +853,8 @@ class Converter:
                 return values.Op(module, node.attr)
             warn(f"'{opname}' is not a known op in '{str(module)}'")
             return values.Op(module, node.attr)
-        if isinstance(node, ast.Name) or (
-            isinstance(node, ast.Attribute) and getattr(node, "attr", None) == "_libcall"
-        ):
-            if isinstance(node, ast.Name):
-                function_name = node.id
-            else:
-                function_name = node.value.id
+        if isinstance(node, ast.Name):
+            function_name = node.id
             found = self.lookup(
                 function_name, debuginfo.DebugInfo(node, self), raise_exception=False
             )
