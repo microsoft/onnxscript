@@ -342,7 +342,7 @@ class Converter:
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
     def emit_copy(self, original_var: str, suggested_name: str) -> str:
-        '''Emits a copy statement, using the ONNX Identity operator.'''
+        """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
         self.emit([new_var], values.Op(self.default_opset, "Identity"), [original_var], [])
         return new_var
@@ -1264,6 +1264,10 @@ class Converter:
             if pvar in self.current_scope():
                 pv_val = self.current_scope()[pvar]
                 output = self.to_onnx_var(pv_val, pvar)
+                if output not in self.current_fn.assigned_names:
+                    # To return an outer-scope variable, an ONNX Graph has to
+                    # use an explicit copy via Identity.
+                    output = self.emit_copy(output, pvar)
                 self.ir_builder.add_output(
                     self.current_fn,
                     output,

@@ -157,6 +157,11 @@ class Stmt:
             n.attribute.append(a.attr_proto)
         return n
 
+    @property
+    def output_names(self) -> Sequence[str]:
+        """Returns the list of variables assigned to by this statement."""
+        return [str(x) for x in self.result]
+
 
 class Function:
     def __init__(self, name, domain="") -> None:
@@ -170,6 +175,11 @@ class Function:
         self.functions = {}
         self.docstring = ""
         self.nested_functions = {}  # a dictionary of nested function-definitions
+
+    @property
+    def assigned_names(self) -> Sequence[str]:
+        """Returns the list of variables assigned to by this function."""
+        return [v for stmt in self.stmts for v in stmt.output_names]
 
     def __str__(self):
         attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
