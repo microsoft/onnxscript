@@ -39,6 +39,15 @@ def LeakyRelu(input, negative_slope: float = 0.01, inplace: bool = False):
     return op.Where(input < zero, negative_slope * input, input)
 
 
+@script()
+def FuncWithStr(input, negative_slope: float = 0.01, mode: str = "foo"):
+    if mode == "foo":
+        return input
+    else:
+        zero = op.CastLike(0, input)
+        negative_slope = op.CastLike(negative_slope, input)
+        return op.Where(input < zero, negative_slope * input, input)
+
 def run_op_sample(
     skip_ops: AbstractSet[str] | None = None, target: str | None = None
 ) -> None:
@@ -55,7 +64,7 @@ def run_op_sample(
                     device="cpu", dtype=dtype, requires_grad=False
                 )
             ):
-                print(i, ": ", sample)
+                # print(i, ": ", sample)
 
                 inputs = (
                     sample.input,
@@ -65,8 +74,8 @@ def run_op_sample(
                 torch_out = op_info.op(*inputs, **sample.kwargs)
                 onnx_out = LeakyRelu(*inputs_np, **sample.kwargs)
 
-                print("torch_out: ", torch_out)
-                print("onnx_out: ", onnx_out)
+                # print("torch_out: ", torch_out)
+                # print("onnx_out: ", onnx_out)
 
                 np.testing.assert_allclose(torch_out, onnx_out)
 
@@ -75,7 +84,9 @@ def main():
     result = LeakyRelu(np.array([-2, -1, 0, 1, 2, 3, 4, 5], dtype=np.float32), negative_slope=0.1)
     print(result)
     print(type(result))
-    run_op_sample()
+    # run_op_sample()
+    # print(LeakyRelu.to_function_proto())
+    print(FuncWithStr.to_function_proto())
 
 
 # profiler.stop()
