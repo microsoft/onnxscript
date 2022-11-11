@@ -26,10 +26,11 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 from packaging.version import Version
 
-from onnxscript import OnnxFunction, graph, script
+from onnxscript import OnnxFunction, graph, script, tensor
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
+from onnxscript.test.functions.onnx_script_test_case import FunctionTestParams
 from onnxscript.test.testutils import TestBase
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -117,6 +118,12 @@ class TestConverter(TestBase):
                     with self.subTest("Expansion test", function=name):
                         f_expanded = functions[name_expanded]
                         self.assertSame(f, f_expanded)
+
+    def validate_run(self, script_tests):
+        for key, val in script_tests.__dict__.items():
+            if isinstance(val, FunctionTestParams):
+                with self.subTest(name=key):
+                    self.check_run(val.function, val.input, val.output[0])
 
     def test_eager_op(self):
         from onnxscript.test.models import eager_op
@@ -540,6 +547,9 @@ class TestConverter(TestBase):
 
         # Test running model in eager mode
         output = onnxfn(*inputs)
+        if isinstance(output, tensor.Tensor):
+            # unwrap Tensor wrapper
+            output = output.value
         np.testing.assert_equal(output, expected_output)
 
     def test_graph_attr_scan(self):
@@ -586,6 +596,11 @@ class TestConverter(TestBase):
 
                 Temp = op.Abs(X)
                 return op.DummyOp(body=inner)
+
+    def test_attr(self):
+        from onnxscript.test.functions import attr_test
+
+        self.validate_run(attr_test)
 
 
 if __name__ == "__main__":
