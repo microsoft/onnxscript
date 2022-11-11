@@ -39,7 +39,7 @@ def LeakyRelu(input, negative_slope: float = 0.01, inplace: bool = False):
     return op.Where(input < zero, negative_slope * input, input)
 
 
-def produce_op_sample(
+def run_op_sample(
     skip_ops: AbstractSet[str] | None = None, target: str | None = None
 ) -> None:
     skip_ops = skip_ops or set()
@@ -68,12 +68,14 @@ def produce_op_sample(
                 print("torch_out: ", torch_out)
                 print("onnx_out: ", onnx_out)
 
+                np.testing.assert_allclose(torch_out, onnx_out)
+
 def main():
 
     result = LeakyRelu(np.array([-2, -1, 0, 1, 2, 3, 4, 5], dtype=np.float32), negative_slope=0.1)
     print(result)
     print(type(result))
-    produce_op_sample()
+    run_op_sample()
 
 
 # profiler.stop()
