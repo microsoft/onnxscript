@@ -8,6 +8,7 @@ import logging
 import sys
 import typing
 from enum import IntEnum
+from typing import NoReturn
 
 import numpy
 import onnx
@@ -43,7 +44,7 @@ def warn(msg):
     logger.warning(msg)
 
 
-def fail(msg):
+def fail(msg) -> NoReturn:
     raise TranslationError(msg)
 
 
@@ -215,7 +216,7 @@ class Converter:
         self.used_vars = set()
         self.locals = [{}]
 
-    def fail(self, node, message: str):
+    def fail(self, node, message: str) -> NoReturn:
         fail(debuginfo.DebugInfo(node, self).msg(message))
 
     """
