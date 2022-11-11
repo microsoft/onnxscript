@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         name: [python310-onnx, python39-onnx, python39-expe, python38-expe, python37-expe]
         include:
           - name: python310-onnx
