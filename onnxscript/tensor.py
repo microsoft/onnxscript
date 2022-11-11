@@ -41,13 +41,13 @@ class Tensor:
         return f"{self.__class__.__name__}({self.value!r})"
 
     def __bool__(self) -> bool:
-        return bool(self.value)
+        return self.value.__bool__()
 
     def __int__(self) -> int:
-        return int(self.value)
+        return self.value.__int__()
 
     def __float__(self) -> float:
-        return float(self.value)
+        return self.value.__float__()
 
     def __index__(self) -> int:
         return self.value.__index__()
