@@ -4,7 +4,7 @@ from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 
-from .testutils import TestBase
+from .common.testutils import TestBase
 
 
 class LoopOpTester(TestBase):
