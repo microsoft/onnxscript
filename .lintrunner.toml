@@ -1,0 +1,145 @@
+# Configuration for lintrunner https://github.com/suo/lintrunner
+
+[[linter]]
+code = 'FLAKE8'
+include_patterns = [
+    '**/*.py',
+    '**/*.pyi',
+]
+exclude_patterns = [
+    '.git/**',
+    '.lintrunner/**',
+    'docs/**',
+]
+command = [
+    'python3',
+    '.lintrunner/flake8_linter.py',
+    '--docstring-convention=google',
+    '--',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python3',
+    '.lintrunner/pip_init.py',
+    '--dry-run={{DRYRUN}}',
+    'flake8==5.0.4',
+    'flake8-bugbear==22.10.27',
+    'flake8-pyi==22.10.0',
+    'dlint==0.13.0',
+    'toml==0.10.2',  # Needed for pydocstrings to parse pyproject.toml
+    'flake8-docstrings==1.6.0',
+]
+
+# [[linter]]
+# code = 'MYPY'
+# include_patterns = [
+#     'onnxscript/**/*.py',
+#     'onnxscript/**/*.pyi',
+# ]
+# exclude_patterns = [
+# ]
+# command = [
+#     'python3',
+#     '.lintrunner/mypy_linter.py',
+#     '--config=pyproject.toml',
+#     '--',
+#     '@{{PATHSFILE}}'
+# ]
+# init_command = [
+#     'python3',
+#     '.lintrunner/pip_init.py',
+#     '--dry-run={{DRYRUN}}',
+# ]
+
+[[linter]]
+code = 'NOQA'
+include_patterns = ['**/*.py', '**/*.pyi']
+exclude_patterns = []
+command = [
+    'python3',
+    '.lintrunner/grep_linter.py',
+    '--pattern=# noqa([^:]|$)',
+    '--linter-name=NOQA',
+    '--error-name=unqualified noqa',
+    """--error-description=\
+        This line has an unqualified `noqa`; \
+        please convert it to `noqa: XXXX`\
+    """,
+    '--',
+    '@{{PATHSFILE}}'
+]
+
+[[linter]]
+code = 'NEWLINE'
+include_patterns=['**']
+exclude_patterns=[]
+command = [
+    'python3',
+    '.lintrunner/newlines_linter.py',
+    '--',
+    '@{{PATHSFILE}}',
+]
+is_formatter = true
+
+[[linter]]
+code = 'SPACES'
+include_patterns = ['**']
+exclude_patterns = []
+command = [
+    'python3',
+    '.lintrunner/grep_linter.py',
+    '--pattern=[[:blank:]]$',
+    '--linter-name=SPACES',
+    '--error-name=trailing spaces',
+    '--replace-pattern=s/[[:blank:]]+$//',
+    """--error-description=\
+        This line has trailing spaces; please remove them.\
+    """,
+    '--',
+    '@{{PATHSFILE}}'
+]
+
+[[linter]]
+code = 'TABS'
+include_patterns = ['**']
+exclude_patterns = [
+    '.lintrunner.toml',
+]
+command = [
+    'python3',
+    '.lintrunner/grep_linter.py',
+    # @lint-ignore TXT2
+    '--pattern=	',
+    '--linter-name=TABS',
+    '--error-name=saw some tabs',
+    '--replace-pattern=s/\t/    /',
+    """--error-description=\
+        This line has tabs; please replace them with spaces.\
+    """,
+    '--',
+    '@{{PATHSFILE}}'
+]
+
+[[linter]]
+code = 'BLACK-ISORT'
+include_patterns = [
+    '**/*.py',
+]
+exclude_patterns = [
+    'onnxscript/test/models/**',
+    'onnxscript/test/onnx_backend_test_code/**',
+]
+command = [
+    'python3',
+    '.lintrunner/black_isort_linter.py',
+    '--',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python3',
+    '.lintrunner/pip_init.py',
+    '--dry-run={{DRYRUN}}',
+    'black==22.10.0',
+    'isort==5.10.1',
+]
+is_formatter = true

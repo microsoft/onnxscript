@@ -273,7 +273,7 @@ class OnnxBackendTest:
         code = "\n".join(rows)
         final = "\n".join([f"def {self.name}(self):", textwrap.indent(code, "    ")])
         try:
-            from pyquickhelper.pycode.code_helper import (  # pylint: disable=import-outside-toplevel # noqa E501
+            from pyquickhelper.pycode.code_helper import (  # pylint: disable=import-outside-toplevel # noqa: E501
                 remove_extra_spaces_and_pep8,
             )
         except ImportError:  # pragma: no cover
