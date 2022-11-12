@@ -143,3 +143,24 @@ init_command = [
     'isort==5.10.1',
 ]
 is_formatter = true
+
+[[linter]]
+code = 'PYLINT'
+include_patterns = [
+    '**/*.py',
+]
+exclude_patterns = [
+]
+command = [
+    'python3',
+    '.lintrunner/pylint_linter.py',
+    '--rcfile=pyproject.toml',
+    '--',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python3',
+    '.lintrunner/pip_init.py',
+    '--dry-run={{DRYRUN}}',
+    'pylint==2.15.5',
+]

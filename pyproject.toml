@@ -90,25 +90,28 @@ ignore-paths = [
 
 [tool.pylint.messages_control]
 disable = [
-  "missing-docstring",
-  "import-error",
-  "no-member",
-  "line-too-long",
+  "attribute-defined-outside-init", # TODO: mostly in onnxscript/converter.py
+  "cyclic-import",
+  "duplicate-code",
   "fixme",
-  "too-few-public-methods",
-  "no-name-in-module",
+  "format",
+  "import-error",
   "invalid-name",                   # TODO: Add naming guidance and enable this check.
-  "too-many-locals",
+  "line-too-long",
+  "missing-docstring",
+  "no-member",
+  "no-name-in-module",
+  "redefined-builtin",              # TODO: should we avoid redefined-builtin?
+  "too-few-public-methods",
   "too-many-arguments",
-  "too-many-statements",            # TODO: we should work on these: too-many-xxx series
-  "too-many-instance-attributes",
   "too-many-branches",
+  "too-many-function-args",
+  "too-many-instance-attributes",
   "too-many-lines",
+  "too-many-locals",
   "too-many-public-methods",
   "too-many-return-statements",
-  "too-many-function-args",
-  "attribute-defined-outside-init", # TODO: mostly in onnxscript/converter.py
-  "redefined-builtin",              # TODO: should we avoid redefined-builtin?
+  "too-many-statements",            # TODO: we should work on these: too-many-xxx series
 ]
 
 [tool.pydocstyle]
