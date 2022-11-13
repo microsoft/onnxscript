@@ -22,3 +22,4 @@ torch
 
 # Lint
 lintrunner
+lintrunner_adapters
