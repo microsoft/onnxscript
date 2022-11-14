@@ -321,6 +321,11 @@ class TestConverter(TestBase):
 
         self.validate_expansion(cast_like)
 
+    def test_identity(self):
+        from onnxscript.test.models import identity
+
+        self.validate_expansion(identity)
+
     def test_opset_import(self):
         from onnxscript.test.models import different_opset
 
