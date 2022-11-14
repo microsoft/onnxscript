@@ -71,14 +71,16 @@ def py_type_to_onnx_type(pytype: type, info: debuginfo.DebugInfo):
     fail(info.msg(f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(tensor_name: str, pyvalue, converter, info: debuginfo.DebugInfo):
+def pyvalue_to_tensor(
+    tensor_name: str, pyvalue, converter, info: debuginfo.DebugInfo
+):  # pylint: disable=unused-argument
     if isinstance(pyvalue, numpy.ndarray):
         return numpy_helper.from_array(pyvalue, tensor_name)
     if isinstance(pyvalue, list):
         if len(pyvalue) == 0:
             fail(info.msg("Cannot convert an empty list to tensor"))
         pytype = type(pyvalue[0])
-        if not all([isinstance(e, pytype) for e in pyvalue]):
+        if not all(isinstance(e, pytype) for e in pyvalue):
             fail(info.msg("Cannot convert an list with elements of different types to tensor"))
         return helper.make_tensor(
             tensor_name,
@@ -219,16 +221,13 @@ class Converter:
     def fail(self, node, message: str) -> NoReturn:
         fail(debuginfo.DebugInfo(node, self).msg(message))
 
-    """
-    Name resolution and namescopes: This component handles the following aspects:
-    * Name-scopes are different in Python and the generated ONNX:
-      - Control-flow blocks (a loop body or the then-or-else block of an if-stmt)
-        form part of the same name-scope in Python, but will be mapped to a nested
-        name-scope (as a sub-graph) in ONNX.
-    * Script-time name-value tracking: Name lookup during script-time returns
-      statically-known information about the value the name will have at runtime.
-    """
-
+    # Name resolution and namescopes: This component handles the following aspects:
+    # * Name-scopes are different in Python and the generated ONNX:
+    #   - Control-flow blocks (a loop body or the then-or-else block of an if-stmt)
+    #     form part of the same name-scope in Python, but will be mapped to a nested
+    #     name-scope (as a sub-graph) in ONNX.
+    # * Script-time name-value tracking: Name lookup during script-time returns
+    #   statically-known information about the value the name will have at runtime.
     def enter_scope(self, name, parent_node):
         """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
@@ -363,7 +362,7 @@ class Converter:
                 ast.Str,
             ),
         ):
-            return all([self.is_constant_expr(c) for c in ast.iter_child_nodes(node)])
+            return all(self.is_constant_expr(c) for c in ast.iter_child_nodes(node))
         return False
 
     def eval_constant_expr(self, expr):
@@ -1342,7 +1341,7 @@ class Converter:
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)
             if isinstance(returntype, tuple):
-                assert all([ta.is_valid(t) for t in returntype])
+                assert all(ta.is_valid(t) for t in returntype)
                 self.returntype = returntype
             else:
                 assert ta.is_valid(returntype)
