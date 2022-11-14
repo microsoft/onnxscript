@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - 'gh/**/base' # ghstack base branches
   pull_request:
 
   # Allows you to run this workflow manually from the Actions tab
@@ -59,10 +61,9 @@ jobs:
 
       - name: versions
         run: |
-          python -c "import numpy;print('numpy', numpy.__version__)"
-          python -c "import onnx;print('onnx', onnx.__version__)"
-          python -c "import onnxruntime;print('onnxruntime', onnxruntime.__version__)"
-          python -c "import torch;print('torch', torch.__version__)"
+          pip list | grep numpy
+          pip list | grep onnx
+          pip list | grep torch
 
       - name: Make package
         run: python setup.py sdist
