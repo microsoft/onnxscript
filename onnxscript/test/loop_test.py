@@ -1,10 +1,11 @@
+import numpy as np
 import unittest
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 
-from .testutils import TestBase
+from onnxscript.test.testutils import TestBase
 
 
 class LoopOpTester(TestBase):
@@ -21,6 +22,11 @@ class LoopOpTester(TestBase):
             return sum, prod
 
         self.validate(sumprod)
+        x = np.array([2])
+        M = 3
+        sum, prod = sumprod(x, M)
+        assert(sum==np.array([8]) and prod==np.array([16]))
+        
 
     def test_loop_bound(self):
         """Test with an expression for loop bound."""
