@@ -423,7 +423,7 @@ def export_template(
         python code
     """
     # delayed import to avoid raising an exception if not installed.
-    import autopep8
+    import autopep8  # pylint: disable=import-outside-toplevel
 
     # unique_function_domain_version
     unique_function_domain_version = set()
@@ -433,7 +433,7 @@ def export_template(
     unique_function_domain_version = list(sorted(unique_function_domain_version))
 
     if rename:
-        variable_names = dict()
+        variable_names = {}
 
         def rename_variable(name):
             var_name = _rename_variable(name)
@@ -453,9 +453,9 @@ def export_template(
     # containers
     context = {
         "main_model": model_onnx,
-        "python_make_node": exporter._python_make_node,
-        "python_make_node_graph": exporter._python_make_node_graph,
-        "python_make_node_name": _python_make_node_name,
+        "python_make_node": exporter._python_make_node,  # pylint: disable=protected-access  # noqa: E501
+        "python_make_node_graph": exporter._python_make_node_graph,  # pylint: disable=protected-access  # noqa: E501
+        "python_make_node_name": _python_make_node_name,  # pylint: disable=protected-access  # noqa: E501
         "unique_function_domain_version": unique_function_domain_version,
         "rename": rename_variable,
         "translate_sig": _translate_signature,
@@ -501,7 +501,10 @@ def export_template(
         context["doc_string"] = ""
 
     # First rendering to detect any unused or replaced initializer.
+    # pylint: disable=import-outside-toplevel
     from jinja2 import Template  # delayed import
+
+    # pylint: enable=import-outside-toplevel
 
     template = Template(template)
     final = template.render(
@@ -521,8 +524,8 @@ def export_template(
 
 def export2python(
     model_onnx,
-    opset=None,
-    verbose=True,
+    opset=None,  # pylint: disable=unused-argument
+    verbose=True,  # pylint: disable=unused-argument
     name=None,
     rename=False,
     autopep_options=None,

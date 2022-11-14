@@ -64,7 +64,7 @@ class TypeAnnotationTester(TestBase):
         self.assertSameGraph(unknown_rank, unknown_rank_txt)
 
         with self.assertRaises(ValueError):
-            FLOAT[10][20]  # Invalid usage.
+            FLOAT[10][20]  # Invalid usage. pylint: disable=pointless-statement
 
 
 if __name__ == "__main__":

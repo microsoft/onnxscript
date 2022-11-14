@@ -14,12 +14,16 @@ from onnx.helper import make_sequence_type_proto, make_tensor_type_proto
 from onnxscript import tensor
 
 # print utility unavailable in ONNX 1.12 or earlier:
+# pylint: disable=unused-import, ungrouped-imports
 try:
-    from onnx.printer import to_text as proto2text  # pylint: disable=unused-import
+    from onnx.printer import to_text as proto2text
 except ImportError:
 
     def proto2text(x):  # pylint: disable=unused-argument
         return "<print utility unavailable>"
+
+
+# pylint: enable=unused-import, ungrouped-imports
 
 
 def external_tensor(
@@ -49,14 +53,14 @@ def external_tensor(
 
     See https://github.com/onnx/onnx/blob/main/docs/ExternalData.md for more details.
     """
-    tensor = TensorProto()
-    tensor.name = name
-    tensor.data_type = data_type
-    tensor.dims.extend(dims)
-    tensor.data_location = TensorProto.EXTERNAL
+    tensor_proto = TensorProto()
+    tensor_proto.name = name
+    tensor_proto.data_type = data_type
+    tensor_proto.dims.extend(dims)
+    tensor_proto.data_location = TensorProto.EXTERNAL
 
     def add(k, v):
-        entry = tensor.external_data.add()
+        entry = tensor_proto.external_data.add()
         entry.key = k
         entry.value = str(v)
 
@@ -69,7 +73,7 @@ def external_tensor(
         add("checksum", checksum)
     if basepath is not None:
         add("basepath", basepath)
-    return tensor
+    return tensor_proto
 
 
 def value_to_type_proto(val):
