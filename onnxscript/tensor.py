@@ -37,14 +37,20 @@ class Tensor:
     def onnx_dtype(self):
         return NP_TYPE_TO_TENSOR_TYPE[self.dtype]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.value!r})"
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self.value.__bool__()
 
-    def __int__(self):
+    def __int__(self) -> int:
         return self.value.__int__()
+
+    def __float__(self) -> float:
+        return self.value.__float__()
+
+    def __index__(self) -> int:
+        return self.value.__index__()
 
     def __getitem__(self, index):
         op = self._opset

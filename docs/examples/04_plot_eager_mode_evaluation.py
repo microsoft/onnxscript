@@ -20,7 +20,7 @@ from onnxscript.onnx_types import FLOAT
 @script()
 def linear(
     A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]
-) -> FLOAT["N", "M"]:  # noqa F821
+) -> FLOAT["N", "M"]:  # noqa: F821
     T1 = op.MatMul(A, W)
     T2 = op.Add(T1, Bias)
     Y = op.Relu(T2)
