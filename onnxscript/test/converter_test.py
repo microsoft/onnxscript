@@ -30,8 +30,8 @@ from onnxscript import OnnxFunction, graph, script, tensor
 from onnxscript.converter import Converter, TranslationError
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.test.functions.onnx_script_test_case import FunctionTestParams
 from onnxscript.test.common.testutils import TestBase
+from onnxscript.test.functions.onnx_script_test_case import FunctionTestParams
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
