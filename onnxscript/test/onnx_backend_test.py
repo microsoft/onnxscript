@@ -195,7 +195,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("    load ONNX")
                     try:
                         # FIXME(#137): Fix B023 flake8 errors
-                        sess = InferenceSession(proto.SerializeToString())  # noqa B023
+                        sess = InferenceSession(proto.SerializeToString())  # noqa: B023
                     except Exception as e:
                         raise AssertionError(
                             f"Unable to load onnx for test {te.name!r}.\n"  # noqa: B023
@@ -246,7 +246,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("  check eager")
 
                     def exec_main(f, *inputs):
-                        assert id(f) == id(main)  # noqa B023
+                        assert id(f) == id(main)  # noqa: B023
                         output = f(*inputs)
                         if isinstance(output, tuple):
                             return list(output)
