@@ -38,7 +38,7 @@ The following toy example illustrates how to use onnxscript.
     @script()
     def MatmulAdd(X, Wt, Bias):
         return op.MatMul(X, Wt) + Bias
-    
+
 
 The decorator parses the code of the function and converts it into an intermediate
 representation. If it fails, it produces an error message indicating the line where
