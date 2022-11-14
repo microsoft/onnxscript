@@ -21,16 +21,18 @@ class TestDocumentationExample(unittest.TestCase):
                 print(f"run {name!r}")
             with self.subTest(folder=folder, name=name):
                 cmds = [sys.executable, "-u", os.path.join(folder, name)]
-                p = subprocess.Popen(cmds, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                res = p.communicate()
-                _, err = res
-                st = err.decode("ascii", errors="ignore")
-                if len(st) > 0 and "Traceback" in st:
-                    raise RuntimeError(  # pylint: disable=W0707
-                        f"Example '{name}' (cmd: {cmds} - exec_prefix='{sys.exec_prefix}') "
-                        f"failed due to\n{st}"
-                    )
-                tested += 1
+                with subprocess.Popen(
+                    cmds, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                ) as p:
+                    res = p.communicate()
+                    _, err = res
+                    st = err.decode("ascii", errors="ignore")
+                    if len(st) > 0 and "Traceback" in st:
+                        raise RuntimeError(  # pylint: disable=W0707
+                            f"Example '{name}' (cmd: {cmds} - exec_prefix='{sys.exec_prefix}') "
+                            f"failed due to\n{st}"
+                        )
+                    tested += 1
         if tested == 0:
             raise RuntimeError(f"No example was tested in folder {folder}.")
 

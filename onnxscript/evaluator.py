@@ -66,14 +66,14 @@ class Evaluator(abc.ABC):
                 )
         return closure
 
-    def adapt_outputs(self, schema, outputs):
+    def adapt_outputs(self, schema, outputs):  # pylint: disable=unused-argument
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
         """
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def use_graph_attribute(self, schema):
+    def use_graph_attribute(self, schema):  # pylint: disable=unused-argument
         return True
 
     @abc.abstractmethod
@@ -281,7 +281,7 @@ def SequenceMap(inputs, attributes):
 
 # Used to control the default evaluator instance. A simple approach for now.
 
-_default_evaluator = ort_evaluator
+_default_evaluator: Evaluator = ort_evaluator
 
 
 def default() -> Evaluator:
@@ -289,10 +289,10 @@ def default() -> Evaluator:
     return _default_evaluator
 
 
-def set_default(default: Evaluator) -> None:
+def set_default(new_default: Evaluator) -> None:
     """Sets the current Evaluator default."""
-    global _default_evaluator
-    _default_evaluator = default
+    global _default_evaluator  # pylint: disable=global-statement
+    _default_evaluator = new_default
 
 
 @contextlib.contextmanager

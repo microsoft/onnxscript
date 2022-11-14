@@ -2,9 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+# pylint disable: protected-access
 
 import ast
 import inspect
+import sys
 import textwrap
 
 import onnx.helper
@@ -146,10 +148,9 @@ def graph():
     # Currently, there is no support for eager-mode execution of nested functions,
     # so we don't need to handle doubly nested functions (e.g., a function defined
     # inside Sum in the above example).
-    import sys
 
-    function_frame = sys._getframe(1)
-    wrapper_frame = sys._getframe(2)
+    function_frame = sys._getframe(1)  # pylint: disable=protected-access
+    wrapper_frame = sys._getframe(2)  # pylint: disable=protected-access
     onnx_function = wrapper_frame.f_locals["self"]
     nested_functions = onnx_function.function_ir.nested_functions
 

@@ -121,7 +121,7 @@ class Op:
         return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        from onnxscript import evaluator
+        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
         return evaluator.eval(self.opschema, args, kwargs)
 
@@ -175,7 +175,7 @@ class OnnxFunction(Op):
         """
 
         def fun(*args, **kwargs):
-            from onnxscript import evaluator
+            from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
             with evaluator.default_as(instance):
                 return self.__call__(*args, **kwargs)
