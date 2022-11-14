@@ -1,0 +1,32 @@
+# Relax pylint for lintrunner
+
+[tool.pylint.messages_control]
+disable = [
+  "attribute-defined-outside-init", # TODO: mostly in onnxscript/converter.py
+  "cell-var-from-loop",             # Bugbear B023
+  "consider-using-f-string",
+  "cyclic-import",
+  "duplicate-code",
+  "eval-used",                      # Dlint DUO104
+  "fixme",
+  "format",
+  "import-error",
+  "invalid-name",                   # TODO: Add naming guidance and enable this check.
+  "line-too-long",
+  "missing-docstring",
+  "no-else-return",
+  "no-member",
+  "no-name-in-module",
+  "redefined-builtin",              # TODO: should we avoid redefined-builtin?
+  "too-few-public-methods",
+  "too-many-arguments",
+  "too-many-boolean-expressions",
+  "too-many-branches",
+  "too-many-function-args",
+  "too-many-instance-attributes",
+  "too-many-lines",
+  "too-many-locals",
+  "too-many-public-methods",
+  "too-many-return-statements",
+  "too-many-statements",            # TODO: we should work on these: too-many-xxx series
+]

@@ -244,6 +244,6 @@ def outer_scope_variables(fun: ast.FunctionDef, converter):
         A set of variable names (strings).
     """
     assert isinstance(fun, ast.FunctionDef)
-    used_vars = exposed_uses(fun.body, converter)
+    used_vars_ = exposed_uses(fun.body, converter)
     inputs = [x.arg for x in fun.args.args]
-    return used_vars.difference(inputs)
+    return used_vars_.difference(inputs)

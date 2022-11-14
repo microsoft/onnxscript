@@ -68,5 +68,3 @@ The following are some of the limitations and open issues of the current impleme
     where `X` is a tensor will fail under standard Python execution, but is
     translated into a tensor addition operation, with the constant `1` being
     promoted to a tensor.
-
-

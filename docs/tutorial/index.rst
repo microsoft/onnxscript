@@ -76,7 +76,7 @@ Thus, in the example below, ``alpha`` is treated as an attribute parameter (beca
 type annotation).
 
 .. literalinclude:: examples/leakyrelu.py
-    
+
 As illustrated in the above example, when an attribute-parameter is used in a context
 requiring a value-parameter, the converter will automatically convert the attribute
 into a tensor-value. Specifically, in the sub-expression ``alpha * X``, the attribute
@@ -109,4 +109,3 @@ any more.
 Third example mixes both types of loops.
 
 .. literalinclude:: examples/forwhileloop.py
-

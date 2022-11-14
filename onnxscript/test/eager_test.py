@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import distutils.version as dv
+# FIXME: Remove reference to the deprecated distutils module
+import distutils.version as dv  # pylint: disable=deprecated-module
 import unittest
 import warnings
 
@@ -381,9 +382,9 @@ class TestOnnxSignal(OnnxScriptTestCase):
             import torch  # pylint: disable=import-outside-toplevel
         except ImportError as e:
             raise ImportError("torch is not installed.") from e
-        torch_113 = dv.StrictVersion(torch.__version__.split("+")[0]) >= dv.StrictVersion(
-            "1.13"
-        )
+        torch_113 = dv.StrictVersion(
+            torch.__version__.split("+", maxsplit=1)[0]
+        ) >= dv.StrictVersion("1.13")
 
         xs = [
             ("hp2", np.arange(24).astype(np.float32).reshape((3, 8)), 6, 2, 2),

@@ -61,7 +61,7 @@ Some ONNX Script features depend on changes to ONNX that are not yet
 available in a released ONNX package.
 
 To enable support for these features, experimental dependency packages
-must be installed: 
+must be installed:
 
 ```bash
 pip uninstall onnx onnxruntime
@@ -153,24 +153,18 @@ return the same results with the same inputs.
 
 ### Coding Style
 
-We use `flake8`, `black`, `isort`, and `mypy` to check code formatting.
-See [.flake8](.flake8) and [pyproject.toml](pyproject.toml), and run the
-`auto-formatter` with: 
+We use `flake8`, `black`, `isort`, and `mypy` to check code formatting and use `lintrunner` to run all linters.
+See [.flake8](.flake8) and [pyproject.toml](pyproject.toml), and run
+`lintrunner` with:
 
 ```bash
-tools/format.sh
+lintrunner
 ```
 
-And run `check` with:
+And fix formatting issues with:
 
 ```bash
-tools/style.sh
-```
-
-Optional check with:
-
-```bash
-tools/style_optional.sh
+lintrunner -a
 ```
 
 ## Contributing
@@ -202,8 +196,8 @@ or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any addi
 
 ## Trademarks
 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
+trademarks or logos is subject to and must follow
 [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos is subject to those third-party's policies.
