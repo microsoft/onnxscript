@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - gh/*/base # ghstack base branches
   pull_request:
     branches: ["main"]
 
