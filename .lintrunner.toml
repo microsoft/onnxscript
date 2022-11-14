@@ -167,3 +167,37 @@ init_command = [
     'isort==5.10.1',
 ]
 is_formatter = true
+
+[[linter]]
+code = 'PYLINT'
+include_patterns = [
+    '**/*.py',
+]
+exclude_patterns = [
+    'onnxscript/test/models/**',
+    'onnxscript/test/onnx_backend_test_code/**',
+    'docs/examples/**',
+    'docs/tutorial/examples/**',
+    'onnxscript/test/functions/**',
+    'onnxscript/test/models/**',
+    'onnxscript/test/converter_test.py',
+]
+command = [
+    'python3',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pylint_linter',
+    '--rcfile=pyproject_pylint.toml',
+    '--',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python3',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
+    '--dry-run={{DRYRUN}}',
+    'pylint==2.15.5',
+]

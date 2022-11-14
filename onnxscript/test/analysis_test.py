@@ -141,7 +141,7 @@ class TestExposedUses(unittest.TestCase):
 
     def test_called_function(self):
         def f(x, y):
-            def nested():
+            def nested():  # pylint: disable=unused-variable
                 return y
 
             return op.Dummy(x, body=nested)
@@ -150,7 +150,7 @@ class TestExposedUses(unittest.TestCase):
 
     def test_uncalled_function(self):
         def f(x, y):
-            def nested():
+            def nested():  # pylint: disable=unused-variable
                 return y
 
             return op.Dummy(x)

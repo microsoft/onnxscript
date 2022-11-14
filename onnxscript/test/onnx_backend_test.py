@@ -68,11 +68,11 @@ class TestOnnxBackEnd(unittest.TestCase):
             done += 1
         self.assertEqual(done, 1)
 
-    def verify(self, name, content, more_context=None):
+    def verify(self, name, content, more_context=None):  # pylint: disable=unused-argument
         if not os.path.exists(TestOnnxBackEnd.folder):
             os.mkdir(TestOnnxBackEnd.folder)
             init = os.path.join(TestOnnxBackEnd.folder, "__init__.py")
-            with open(init, "w"):
+            with open(init, "w", encoding="utf-8"):
                 pass
         filename = os.path.join(TestOnnxBackEnd.folder, f"{name}.py")
         with open(filename, "w", encoding="utf-8") as f:
@@ -190,7 +190,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         )
 
                 # check converted onnx
-                def load_fct(obj):
+                def load_fct(_):
                     if verbose > 2:
                         print("    load ONNX")
                     try:

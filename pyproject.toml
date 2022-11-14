@@ -82,19 +82,15 @@ extend_skip_glob = [
   "onnxscript/test/onnx_backend_test_code/*.py",
 ]
 
-[tool.pylint.master]
-ignore-paths = [
-  "^onnxscript/test/models/",
-  "^onnxscript/test/onnx_backend_test_code/",
-]
-
 [tool.pylint.messages_control]
+# This list is for vscode. Add new disables in pyproject_pylint.toml for lintrunner
+# Exclude patterns should be modified in .lintrunner.toml
 disable = [
   "format",
   "import-error",
   "invalid-name",                   # TODO: Add naming guidance and enable this check.
   "line-too-long",
-  "missing-docstring",
+  "no-name-in-module",
 ]
 
 [tool.pydocstyle]
