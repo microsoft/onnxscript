@@ -6,7 +6,6 @@ on:
       - main
       - 'gh/**/base' # ghstack base branches
   pull_request:
-    branches: ["main"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -16,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         name: [python310-onnx, python39-onnx, python39-expe, python38-expe, python37-expe]
         include:
           - name: python310-onnx
