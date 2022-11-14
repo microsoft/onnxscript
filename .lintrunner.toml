@@ -13,14 +13,20 @@ exclude_patterns = [
 ]
 command = [
     'python3',
-    '.lintrunner/flake8_linter.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'flake8_linter',
     '--docstring-convention=google',
     '--',
     '@{{PATHSFILE}}'
 ]
 init_command = [
     'python3',
-    '.lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     'flake8==5.0.4',
     'flake8-bugbear==22.10.27',
@@ -57,7 +63,10 @@ include_patterns = ['**/*.py', '**/*.pyi']
 exclude_patterns = []
 command = [
     'python3',
-    '.lintrunner/grep_linter.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'grep_linter',
     '--pattern=# noqa([^:]|$)',
     '--linter-name=NOQA',
     '--error-name=unqualified noqa',
@@ -75,7 +84,10 @@ include_patterns=['**']
 exclude_patterns=[]
 command = [
     'python3',
-    '.lintrunner/newlines_linter.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'newlines_linter',
     '--',
     '@{{PATHSFILE}}',
 ]
@@ -87,7 +99,10 @@ include_patterns = ['**']
 exclude_patterns = []
 command = [
     'python3',
-    '.lintrunner/grep_linter.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'grep_linter',
     '--pattern=[[:blank:]]$',
     '--linter-name=SPACES',
     '--error-name=trailing spaces',
@@ -107,7 +122,10 @@ exclude_patterns = [
 ]
 command = [
     'python3',
-    '.lintrunner/grep_linter.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'grep_linter',
     # @lint-ignore TXT2
     '--pattern=	',
     '--linter-name=TABS',
@@ -131,13 +149,19 @@ exclude_patterns = [
 ]
 command = [
     'python3',
-    '.lintrunner/black_isort_linter.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'black_isort_linter',
     '--',
     '@{{PATHSFILE}}'
 ]
 init_command = [
     'python3',
-    '.lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     'black==22.10.0',
     'isort==5.10.1',

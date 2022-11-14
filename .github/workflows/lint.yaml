@@ -70,7 +70,7 @@ jobs:
       - name: Produce SARIF
         if: always()
         run: |
-          python .lintrunner/convert_to_sarif.py --input lint.json --output lintrunner.sarif
+          python -m lintrunner_adapters to-sarif lint.json lintrunner.sarif
       - name: Upload SARIF file
         if: always()
         continue-on-error: true
