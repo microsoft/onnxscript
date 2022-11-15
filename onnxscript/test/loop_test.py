@@ -26,8 +26,7 @@ class LoopOpTester(testutils.TestBase):
         sum, prod = sumprod(x, M)
         self.assertEqual(sum, np.array([8]))
         self.assertEqual(prod, np.array([16]))
-    
-    
+
     def test_loop_bound(self):
         """Test with an expression for loop bound."""
 
