@@ -7,7 +7,6 @@ import unittest
 
 import numpy as np
 import parameterized
-from onnxruntime.capi.onnxruntime_pybind11_state import RuntimeException
 
 from onnxscript.test.common import onnx_script_test_case
 from onnxscript.test.models import signal_dft
