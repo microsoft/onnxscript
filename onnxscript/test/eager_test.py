@@ -471,8 +471,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 except (AssertionError, RuntimeException) as e:
                     # Not fully implemented.
                     warnings.warn(
-                        "Issue with %s due to %s."
-                        % (
+                        "Issue with {} due to {}.".format(
                             str(info).split("\n", maxsplit=1),
                             str(e).split("\n", maxsplit=1)[0],
                         )
@@ -547,8 +546,7 @@ class TestOnnxSignal(OnnxScriptTestCase):
                 except (AssertionError, RuntimeException) as e:
                     # Not fully implemented.
                     warnings.warn(
-                        "Issue with %r due to %s."
-                        % (
+                        "Issue with {} due to {}.".format(
                             str(info).split("\n", maxsplit=1),
                             str(e).split("\n", maxsplit=1)[0],
                         )
