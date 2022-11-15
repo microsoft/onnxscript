@@ -4,10 +4,10 @@ import unittest
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.test.testutils import TestBase
+from onnxscript.test.common import testutils
 
 
-class LoopOpTester(TestBase):
+class LoopOpTester(testutils.TestBase):
     def test_loop(self):
         """Basic loop test."""
 
@@ -26,7 +26,8 @@ class LoopOpTester(TestBase):
         sum, prod = sumprod(x, M)
         self.assertEqual(sum, np.array([8]))
         self.assertEqual(prod, np.array([16]))
-
+    
+    
     def test_loop_bound(self):
         """Test with an expression for loop bound."""
 
