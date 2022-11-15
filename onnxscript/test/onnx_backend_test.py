@@ -26,7 +26,7 @@ from onnxscript.test.models import type_double
 def print_code(code, begin=1):
     """Returns the code with line number."""
     rows = code.split("\n")
-    return "\n".join("%03d %s" % (i + begin, s) for i, s in enumerate(rows))
+    return "\n".join(f"{int(i + begin):03} {s}" for i, s in enumerate(rows))
 
 
 class TestOnnxBackEnd(unittest.TestCase):
@@ -180,13 +180,11 @@ class TestOnnxBackEnd(unittest.TestCase):
                     ):
                         # unexpected behaviour for old opsets
                         raise AssertionError(
-                            "Incompatible ir_version %d != %d\n%s\n-----\n%s"
-                            % (
-                                te.onnx_model.ir_version,
-                                proto.ir_version,
-                                te.onnx_model,
-                                proto,
-                            )
+                            f"Incompatible ir_version {(te.onnx_model.ir_version)} !="
+                            f" {(proto.ir_version)}\n"
+                            f"{te.onnx_model}\n"
+                            f"-----\n"
+                            f"{proto}"
                         )
 
                 # check converted onnx
@@ -212,11 +210,12 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("    run ONNX")
                         for i, inp in enumerate(inputs):
                             if inp is None:
-                                print("    input %d: None" % i)
+                                print(f"    input {int(i)}: None")
                             else:
                                 print(
-                                    "    input %d: dtype=%r shape=%r %r"
-                                    % (i, inp.dtype, inp.shape, inp.ravel().tolist())
+                                    f"    input {int(i)}: "
+                                    f"dtype={inp.dtype!r} shape={inp.shape!r}"
+                                    f"{inp.ravel().tolist()!r}"
                                 )
                     try:
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)
