@@ -180,8 +180,8 @@ def _python_make_node_name(domain, version, name, node=False):
                 f"and name={name!r}."
             )
         if domain == "":
-            return "opset%d.%s" % (version, name)
-        return "%s%d.%s" % (domain.replace(".", "_"), version, name)
+            return f"opset{version}.{name}"
+        return f"{domain.replace('.', '_')}{version}.{name}"
     return name
 
 
@@ -368,7 +368,7 @@ class Exporter:
         if self.use_operators and node.op_type in ops:
             return (
                 f"{sindent}{self._rename_variable(node.output[0])} = "
-                f"{(' %s ' % ops[node.op_type]).join(map(self.lookup, node.input))}"
+                f"{(f' {ops[node.op_type]} ').join(map(self.lookup, node.input))}"
             )
         name = _python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True

@@ -1017,11 +1017,11 @@ class Converter:
         test = self.translate_expr(stmt.test, "cond").name
         lineno = debuginfo.DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
-            stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt
+            stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
         )
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
-            stmt.orelse, "elseGraph_%d" % lineno, live_defs, parent_stmt=stmt
+            stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
         )
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 

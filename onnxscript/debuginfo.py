@@ -42,4 +42,4 @@ class DebugInfo:
             line = ""
         else:
             line = f"    -- line: {self.code[self.lineno - 1]}"
-        return "%s:%d%s" % (self.source, self.lineno, line)
+        return f"{self.source}:{int(self.lineno)}{line}"
