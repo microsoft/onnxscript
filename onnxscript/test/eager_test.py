@@ -4,7 +4,6 @@
 import distutils.version as dv  # pylint: disable=deprecated-module
 import itertools
 import unittest
-import warnings
 
 import numpy as np
 import parameterized
@@ -114,33 +113,6 @@ def _stft(
     return ft.numpy(), tr.astype(np.float32)
 
 
-def _istft(
-    y,
-    fft_length,
-    window,
-    axis=-1,  # pylint: disable=unused-argument
-    center=False,
-    onesided=False,
-    hop_length=None,
-):
-    try:
-        import torch  # pylint: disable=import-outside-toplevel
-    except ImportError as e:
-        raise ImportError("torch is not installed.") from e
-
-    ft = torch.istft(
-        torch.from_numpy(y),
-        n_fft=fft_length,
-        hop_length=hop_length,
-        win_length=fft_length,
-        window=torch.from_numpy(window),
-        center=center,
-        onesided=onesided,
-        return_complex=True,
-    )
-    return ft.numpy()
-
-
 class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
     @parameterized.parameterized.expand(
         itertools.product(
@@ -154,35 +126,24 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             [4, 5, 6],
         )
     )
-    @unittest.skip(
-        reason="Eager mode fails due to: "
-        "ValueError: The truth value of an array with more than one element "
-        "is ambiguous. Use a.any() or a.all()",
-    )
     def test_dft_rfft_last_axis(self, onesided: bool, x_: np.ndarray, s: int):
 
         x = x_[..., np.newaxis]
         le = np.array([s], dtype=np.int64)
-        we = np.array([1] * le[0], dtype=np.float32)
         expected = _fft(x_, le)
         if onesided:
             slices = [slice(0, a) for a in expected.shape]
             slices[-2] = slice(0, expected.shape[-2] // 2 + expected.shape[-2] % 2)
-            expected = expected[slices]
+            expected = expected[tuple(slices)]
             case = onnx_script_test_case.FunctionTestParams(
-                signal_dft.dft_last_axis, [x, le, we, True], [expected]
+                signal_dft.dft_last_axis, [x, le, True], [expected]
             )
         else:
             case = onnx_script_test_case.FunctionTestParams(
-                signal_dft.dft_last_axis, [x, le, we], [expected]
+                signal_dft.dft_last_axis, [x, le], [expected]
             )
         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
-    @unittest.skip(
-        reason="Eager mode fails due to: "
-        "ValueError: The truth value of an array with more than one element "
-        "is ambiguous. Use a.any() or a.all()",
-    )
     def test_dft_cfft_last_axis(self):
 
         xs = [
@@ -214,7 +175,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                     weights=we,
                 ):
                     case = onnx_script_test_case.FunctionTestParams(
-                        signal_dft.dft_last_axis, [x, le, we, False], [expected1]
+                        signal_dft.dft_last_axis, [x, le, False], [expected1]
                     )
                     self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
@@ -223,9 +184,8 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             [
                 np.arange(5).astype(np.float32),
                 np.arange(10).astype(np.float32).reshape((2, -1)),
-                # FIXME(#192): test times out
-                # np.arange(30).astype(np.float32).reshape((2, 3, -1)),
-                np.arange(60).astype(np.float32).reshape((2, 3, 2, -1)),
+                np.arange(30).astype(np.float32).reshape((2, 3, -1)),
+                np.arange(36).astype(np.float32).reshape((2, 3, 2, -1)),
             ],
             [4, 5, 6],
         )
@@ -399,7 +359,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             ("D2", np.arange(60).astype(np.float32).reshape((6, -1)), 6, 5, 1),
         ]
     )
-    def test_dft_rstft_istft(self, name: str, x_: np.ndarray, s: int, fs: int, hp: int):
+    def test_dft_rstft(self, name: str, x_: np.ndarray, s: int, fs: int, hp: int):
         try:
             import torch  # pylint: disable=import-outside-toplevel
         except ImportError as e:
@@ -418,7 +378,6 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             c_expected, expected = _stft(x_, le[0], window=window, hop_length=hpv[0])
         except RuntimeError:
             self.skipTest("Unable to validate with torch.")
-        i_expected = _istft(c_expected, le[0], window=window, hop_length=hpv[0])
         info = dict(
             name=name,
             x_shape=x.shape,
@@ -438,119 +397,6 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             self.run_eager_test(case, rtol=1e-3, atol=1e-3)
         except AssertionError as e:
             raise AssertionError(f"Issue with {info!r}.") from e
-
-        # istft (imaginary part is null but still returned by istft)
-        ix = _complex2float(c_expected)
-        expected = np.concatenate((x, np.zeros(x.shape, dtype=x.dtype)), axis=-1)
-        t_istft = _istft(c_expected, le[0], window=window, hop_length=hpv[0])
-        if torch_113:
-            if len(x_.shape) == 2:
-                np.testing.assert_allclose(x_, t_istft, atol=1e-4)
-            elif len(x_.shape) == 1:
-                np.testing.assert_allclose(x_, t_istft, atol=1e-4)
-            else:
-                raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
-        else:
-            if len(x_.shape) == 2:
-                np.testing.assert_allclose(x_[:, :-1], t_istft, atol=1e-4)
-            elif len(x_.shape) == 1:
-                np.testing.assert_allclose(x_[:-1], t_istft, atol=1e-4)
-            else:
-                raise NotImplementedError(f"Not implemented when shape is {x_.shape!r}.")
-
-        # istft
-        info["expected"] = expected
-        info["expected_shape"] = expected.shape
-        info["i_expected_shape"] = i_expected.shape
-        info["ix_shape"] = ix.shape
-        case = onnx_script_test_case.FunctionTestParams(
-            signal_dft.istft, [ix, le, hpv, window], [expected]
-        )
-        try:
-            self.run_eager_test(case, rtol=1e-4, atol=1e-4)
-        except (AssertionError, RuntimeException) as e:
-            # Not fully implemented.
-            self.skipTest(
-                "Issue with {} due to {}.".format(
-                    str(info).split("\n", maxsplit=1),
-                    str(e).split("\n", maxsplit=1)[0],
-                )
-            )
-
-    @parameterized.parameterized.expand(
-        [
-            ("A0", np.arange(5).astype(np.float32), 5, 1, 1),
-            ("A1", np.arange(5).astype(np.float32), 4, 2, 1),
-            ("A2", np.arange(5).astype(np.float32), 6, 1, 1),
-            ("B0", np.arange(10).astype(np.float32).reshape((2, -1)), 5, 1, 1),
-            ("B1", np.arange(10).astype(np.float32).reshape((2, -1)), 4, 2, 1),
-            ("B2", np.arange(10).astype(np.float32).reshape((2, -1)), 6, 1, 1),
-            ("C0", np.arange(30).astype(np.float32).reshape((6, -1)), 5, 1, 1),
-            ("C1", np.arange(30).astype(np.float32).reshape((6, -1)), 4, 2, 1),
-            ("C2", np.arange(30).astype(np.float32).reshape((6, -1)), 6, 1, 1),
-            ("D0", np.arange(60).astype(np.float32).reshape((6, -1)), 5, 6, 1),
-            ("D1", np.arange(60).astype(np.float32).reshape((6, -1)), 4, 7, 1),
-            # FIXME(#192): test times out
-            # ("D2", np.arange(60).astype(np.float32).reshape((6, -1)), 6, 5, 1),
-        ]
-    )
-    def test_dft_cstft_istft(self, name: str, xy_: np.ndarray, s: int, fs: int, hp: int):
-
-        r_ = xy_
-        i_ = xy_ / 10
-        c_ = r_ + 1j * i_
-        x = _complex2float(c_)
-        le = np.array([s], dtype=np.int64)
-        fsv = np.array([fs], dtype=np.int64)
-        hpv = np.array([hp], dtype=np.int64)
-        window = signal_dft.blackman_window(le)
-        window[:] = (np.arange(window.shape[0]) + 1).astype(window.dtype)
-        try:
-            c_expected, expected = _stft(c_, le[0], window=window)
-        except RuntimeError:
-            self.skipTest("Unable to validate with torch.")
-
-        i_expected = _istft(c_expected, le[0], window=window)
-        info = dict(
-            name=name,
-            x_shape=x.shape,
-            le=list(le),
-            hp=hp,
-            fs=fs,
-            expected_shape=expected.shape,
-            window_shape=window.shape,
-        )
-
-        # stft
-        # x, fft_length, hop_length, n_frames, window, onesided=False
-        case = onnx_script_test_case.FunctionTestParams(
-            signal_dft.stft, [x, le, hpv, fsv, window], [expected]
-        )
-        try:
-            self.run_eager_test(case, rtol=1e-4, atol=1e-4)
-        except AssertionError as e:
-            raise AssertionError(f"Issue with {info!r}.") from e
-
-        # istft
-        ix = _complex2float(c_expected)
-        expected = x
-        info["expected"] = expected
-        info["expected_shape"] = expected.shape
-        info["i_expected_shape"] = i_expected.shape
-        info["ix_shape"] = ix.shape
-        case = onnx_script_test_case.FunctionTestParams(
-            signal_dft.istft, [ix, le, hpv, window], [expected]
-        )
-        try:
-            self.run_eager_test(case, rtol=1e-4, atol=1e-4)
-        except (AssertionError, RuntimeException) as e:
-            # Not fully implemented.
-            warnings.warn(
-                "Issue with {} due to {}.".format(
-                    str(info).split("\n", maxsplit=1),
-                    str(e).split("\n", maxsplit=1)[0],
-                )
-            )
 
 
 if __name__ == "__main__":
