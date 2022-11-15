@@ -6,12 +6,12 @@
 import unittest
 
 import numpy as np
-from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
 
+from onnxscript.test.common import onnx_script_test_case
 from onnxscript.test.models import if_statement
 
 
-class TestOnnxIf(OnnxScriptTestCase):
+class TestOnnxIf(onnx_script_test_case.OnnxScriptTestCase):
     def test_if(self):
         n = 8
         np.random.seed(0)
@@ -34,7 +34,9 @@ class TestOnnxIf(OnnxScriptTestCase):
             dtype=np.float32,
         )
 
-        cases = [FunctionTestParams(if_statement.maxsum, [a, b], [expected])]
+        cases = [
+            onnx_script_test_case.FunctionTestParams(if_statement.maxsum, [a, b], [expected])
+        ]
         for case in cases:
             # FAIL : Node () Op (local_function) [TypeInferenceError]
             # GraphProto attribute inferencing is not enabled

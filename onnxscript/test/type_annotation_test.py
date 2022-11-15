@@ -8,10 +8,10 @@ import unittest
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
-from onnxscript.test.testutils import TestBase
+from onnxscript.test.common import testutils
 
 
-class TypeAnnotationTester(TestBase):
+class TypeAnnotationTester(testutils.TestBase):
     def test_type_annotation(self):
         """Test type annotations."""
 

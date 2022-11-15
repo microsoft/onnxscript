@@ -340,6 +340,12 @@ class Converter:
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
+    def emit_copy(self, original_var: str, suggested_name: str) -> str:
+        """Emits a copy statement, using the ONNX Identity operator."""
+        new_var = self.generate_unique_name(suggested_name)
+        self.emit([new_var], values.Op(self.default_opset, "Identity"), [original_var], [])
+        return new_var
+
     def is_constant_expr(self, node):
         if isinstance(node, ast.UnaryOp):
             if self.is_constant_expr(node.operand):
@@ -979,15 +985,21 @@ class Converter:
                     )
 
         def ret(exp, i, suffix):
-            ovar = self.translate_expr(exp, f"return_val{suffix}").name
+            preferred_name = f"return_val{suffix}"
+            return_var = self.translate_expr(exp, preferred_name).name
+            val = self.lookup(return_var, debuginfo.DebugInfo(exp, self), False)
+            if val and val.kind == values.DynamicKind.Input:
+                # In ONNX, a graph-input cannot be an output of the graph.
+                # We need to insert a copy.
+                return_var = self.emit_copy(return_var, preferred_name)
             if self.returntype is None:
                 t = None
             else:
                 t = self.returntype[i]
             self.ir_builder.add_output(
-                self.current_fn, ovar, t, debuginfo.DebugInfo(stmt, self)
+                self.current_fn, return_var, t, debuginfo.DebugInfo(stmt, self)
             )
-            return ovar
+            return return_var
 
         val = stmt.value
         assert val is not None, "Return statement without return-value not supported."
@@ -1005,11 +1017,11 @@ class Converter:
         test = self.translate_expr(stmt.test, "cond").name
         lineno = debuginfo.DebugInfo(stmt, self).lineno
         thenGraph, sub_fct_then = self.translate_block(
-            stmt.body, "thenGraph_%d" % lineno, live_defs, parent_stmt=stmt
+            stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
         )
         thenAttr = self.ir_builder.attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
-            stmt.orelse, "elseGraph_%d" % lineno, live_defs, parent_stmt=stmt
+            stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
         )
         elseAttr = self.ir_builder.attr("else_branch", elseGraph)
 
@@ -1251,6 +1263,10 @@ class Converter:
             if pvar in self.current_scope():
                 pv_val = self.current_scope()[pvar]
                 output = self.to_onnx_var(pv_val, pvar)
+                if output not in self.current_fn.assigned_names:
+                    # To return an outer-scope variable, an ONNX Graph has to
+                    # use an explicit copy via Identity.
+                    output = self.emit_copy(output, pvar)
                 self.ir_builder.add_output(
                     self.current_fn,
                     output,

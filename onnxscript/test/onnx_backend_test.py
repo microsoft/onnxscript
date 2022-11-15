@@ -7,8 +7,8 @@ import importlib
 import os
 import unittest
 
+import onnxruntime as ort
 from onnx.helper import __file__ as onnx_file
-from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -26,7 +26,7 @@ from onnxscript.test.models import type_double
 def print_code(code, begin=1):
     """Returns the code with line number."""
     rows = code.split("\n")
-    return "\n".join("%03d %s" % (i + begin, s) for i, s in enumerate(rows))
+    return "\n".join(f"{int(i + begin):03} {s}" for i, s in enumerate(rows))
 
 
 class TestOnnxBackEnd(unittest.TestCase):
@@ -48,7 +48,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     @staticmethod
     def load_fct(obj):
-        return InferenceSession(obj.SerializeToString())
+        return ort.InferenceSession(obj.SerializeToString())
 
     @staticmethod
     def run_fct(obj, *inputs):
@@ -180,13 +180,11 @@ class TestOnnxBackEnd(unittest.TestCase):
                     ):
                         # unexpected behaviour for old opsets
                         raise AssertionError(
-                            "Incompatible ir_version %d != %d\n%s\n-----\n%s"
-                            % (
-                                te.onnx_model.ir_version,
-                                proto.ir_version,
-                                te.onnx_model,
-                                proto,
-                            )
+                            f"Incompatible ir_version {(te.onnx_model.ir_version)} !="
+                            f" {(proto.ir_version)}\n"
+                            f"{te.onnx_model}\n"
+                            f"-----\n"
+                            f"{proto}"
                         )
 
                 # check converted onnx
@@ -195,7 +193,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("    load ONNX")
                     try:
                         # FIXME(#137): Fix B023 flake8 errors
-                        sess = InferenceSession(proto.SerializeToString())  # noqa: B023
+                        session = ort.InferenceSession(proto.SerializeToString())  # noqa: B023
                     except Exception as e:
                         raise AssertionError(
                             f"Unable to load onnx for test {te.name!r}.\n"  # noqa: B023
@@ -205,18 +203,19 @@ class TestOnnxBackEnd(unittest.TestCase):
                         ) from e
                     if verbose > 2:
                         print("    done.")
-                    return sess
+                    return session
 
                 def run_fct(obj, *inputs):
                     if verbose > 2:
                         print("    run ONNX")
                         for i, inp in enumerate(inputs):
                             if inp is None:
-                                print("    input %d: None" % i)
+                                print(f"    input {i}: None")
                             else:
                                 print(
-                                    "    input %d: dtype=%r shape=%r %r"
-                                    % (i, inp.dtype, inp.shape, inp.ravel().tolist())
+                                    f"    input {i}: "
+                                    f"dtype={inp.dtype!r} shape={inp.shape!r}"
+                                    f"{inp.ravel().tolist()!r}"
                                 )
                     try:
                         res = TestOnnxBackEnd.run_fct(obj, *inputs)

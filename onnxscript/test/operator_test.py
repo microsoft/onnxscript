@@ -5,15 +5,15 @@
 
 import unittest
 
-from onnx import helper
+import onnx.helper
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
-from onnxscript.test.testutils import TestBase
+from onnxscript.test.common import testutils
 
 
-class TestConverter(TestBase):
+class TestConverter(testutils.TestBase):
     def test_plus_op(self):
         """Test that + is translated to Add op."""
         # TODO: pass default opset as parameter to @script
@@ -32,7 +32,7 @@ class TestConverter(TestBase):
 
         @script()
         def explicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
-            one = op.Constant(value=helper.make_tensor("one", 1, [], [1.0]))
+            one = op.Constant(value=onnx.helper.make_tensor("one", 1, [], [1.0]))
             one_cast = op.CastLike(one, A)
             return op.Add(A, one_cast)
 

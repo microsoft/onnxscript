@@ -10,8 +10,7 @@ from typing import Optional
 
 import numpy as np
 import onnx
-from onnx import TypeProto
-from onnxruntime import InferenceSession
+import onnxruntime as ort
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -127,9 +126,9 @@ def _cache_(model, providers):
     key = serialized, tuple(providers)
     if key in _cache_models:
         return _cache_models[key]
-    sess = InferenceSession(serialized, providers=providers)
-    _cache_models[key] = sess
-    return sess
+    session = ort.InferenceSession(serialized, providers=providers)
+    _cache_models[key] = session
+    return session
 
 
 def os_to_ort_value(v):
@@ -173,7 +172,9 @@ def call_ort(schema, args, kwargs, implicit_args=None):
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)
     input_value_infos = utils.values_to_value_infos(zip(inputs, args))
     implicit_value_infos = utils.values_to_value_infos(implicit_args.items())
-    output_value_infos = [onnx.helper.make_value_info(name, TypeProto()) for name in outputs]
+    output_value_infos = [
+        onnx.helper.make_value_info(name, onnx.TypeProto()) for name in outputs
+    ]
 
     graph = onnx.helper.make_graph(
         [node], "node_graph", input_value_infos + implicit_value_infos, output_value_infos
@@ -187,7 +188,7 @@ def call_ort(schema, args, kwargs, implicit_args=None):
     model = onnx.shape_inference.infer_shapes(model)
     # onnx.checker.check_model(model)
     try:
-        sess = _cache_(model, ["CPUExecutionProvider"])
+        session = _cache_(model, ["CPUExecutionProvider"])
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             f"Unable to create onnxruntime InferenceSession "
@@ -199,7 +200,7 @@ def call_ort(schema, args, kwargs, implicit_args=None):
     session_run_input.update(implicit_args)
 
     try:
-        result = sess.run(None, session_run_input)
+        result = session.run(None, session_run_input)
     except (RuntimeError, Fail) as e:
         raise RuntimeError(
             f"Unable to execute model operator {schema.name!r} due to {e!r}"

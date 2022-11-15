@@ -18,7 +18,7 @@ import onnxruntime
 from numpy.testing import assert_almost_equal
 from onnx import TensorProto
 from onnx.helper import make_tensor, printable_graph
-from onnx.onnx_cpp2py_export.checker import ValidationError
+from onnx.onnx_cpp2py_export import checker
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -26,18 +26,16 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 from packaging.version import Version
 
-from onnxscript import OnnxFunction, graph, script, tensor
-from onnxscript.converter import Converter, TranslationError
+from onnxscript import OnnxFunction, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.test.functions.onnx_script_test_case import FunctionTestParams
-from onnxscript.test.testutils import TestBase
+from onnxscript.test.common import onnx_script_test_case, testutils
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 
 
-class TestConverter(TestBase):
+class TestConverter(testutils.TestBase):
     def validate(self, script):
         if isinstance(script, types.ModuleType):
             fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
@@ -94,7 +92,7 @@ class TestConverter(TestBase):
                             f.write(printable_graph(fct))
                 try:
                     onnx.checker.check_model(model)
-                except ValidationError as e:
+                except checker.ValidationError as e:
                     if "Field 'shape' of 'type' is required but missing" in str(
                         e
                     ) or "Field 'shape' of type is required but missing" in str(e):
@@ -121,7 +119,7 @@ class TestConverter(TestBase):
 
     def validate_run(self, script_tests):
         for key, val in script_tests.__dict__.items():
-            if isinstance(val, FunctionTestParams):
+            if isinstance(val, onnx_script_test_case.FunctionTestParams):
                 with self.subTest(name=key):
                     self.check_run(val.function, val.input, val.output[0])
 
@@ -134,16 +132,16 @@ class TestConverter(TestBase):
 
         onx = test_functions["eager_op"]
         self.assertIn('name: "fmod"', str(onx))
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {"X": x})[0]
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [0.0, 0.5, -0.5])
         # numpy fmod and operator % disagree on this example
         res = eager_op.eager_op(x)
         self.assertEqual(res.tolist(), [0.0, 0.5, -0.5])
 
         onx = test_functions["eager_abs"]
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {"X": x})[0]
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [1, 6, 3])
         res = eager_op.eager_abs(x)
         self.assertEqual(res.tolist(), [1, 6, 3])
@@ -321,6 +319,11 @@ class TestConverter(TestBase):
 
         self.validate_expansion(cast_like)
 
+    def test_identity(self):
+        from onnxscript.test.models import identity
+
+        self.validate_expansion(identity)
+
     def test_opset_import(self):
         from onnxscript.test.models import different_opset
 
@@ -348,8 +351,8 @@ class TestConverter(TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        sess = onnxruntime.InferenceSession(f.SerializeToString())
-        result = sess.run(None, {"A": A})[0]
+        session = onnxruntime.InferenceSession(f.SerializeToString())
+        result = session.run(None, {"A": A})[0]
         assert_almost_equal(eager_mode, result)
 
         f = test_functions["make_sequence_tensor_accumulated"]
@@ -359,8 +362,8 @@ class TestConverter(TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        sess = onnxruntime.InferenceSession(f.SerializeToString())
-        result = sess.run(None, {"A": A})[0]
+        session = onnxruntime.InferenceSession(f.SerializeToString())
+        result = session.run(None, {"A": A})[0]
         assert_almost_equal(eager_mode, result)
 
     def test_loops_break(self):
@@ -373,13 +376,13 @@ class TestConverter(TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond"]
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
-        y = sess.run(None, {"A": x})[0]
+        y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
         self.assertEqual(y.tolist(), [0.0, 46.0, 92.0])
         x = np.array([0, 1, -2], dtype=np.float32)
-        y = sess.run(None, {"A": x})[0]
+        y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0, 11, -22])
         self.assertEqual(y.tolist(), [0, 11, -22])
 
@@ -393,9 +396,9 @@ class TestConverter(TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond_only"]
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
-        y = sess.run(None, {"A": x})[0]
+        y = session.run(None, {"A": x})[0]
         self.assertEqual(y.tolist(), [0, 10, -20])
         res = loops_while.loop_range_cond_only(x)
         self.assertEqual(res.tolist(), [0, 10, -20])
@@ -432,9 +435,9 @@ class TestConverter(TestBase):
                 return
             with self.subTest(name=name):
                 onx = test_functions[name]
-                sess = onnxruntime.InferenceSession(onx.SerializeToString())
+                session = onnxruntime.InferenceSession(onx.SerializeToString())
                 try:
-                    y = sess.run(None, {"A": x})[0]
+                    y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
                         f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
@@ -486,9 +489,9 @@ class TestConverter(TestBase):
         def check_function(x, name, expected, eager=True):
             with self.subTest(name=name):
                 onx = test_functions[name]
-                sess = onnxruntime.InferenceSession(onx.SerializeToString())
+                session = onnxruntime.InferenceSession(onx.SerializeToString())
                 try:
-                    y = sess.run(None, {"A": x})[0]
+                    y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
                         f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
@@ -508,10 +511,12 @@ class TestConverter(TestBase):
         global_names = globals().copy()
         top_level_ast = ast.parse(source)
         f_ast = top_level_ast.body[0]
-        cvt = Converter(opset=op, global_names=global_names, source=source, default_opset=op)
+        cvt = converter.Converter(
+            opset=op, global_names=global_names, source=source, default_opset=op
+        )
         try:
             cvt.top_level_stmt(f_ast)
-        except TranslationError as e:
+        except converter.TranslationError as e:
             if msg not in str(e):
                 raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
             return
@@ -604,7 +609,4 @@ class TestConverter(TestBase):
 
 
 if __name__ == "__main__":
-    # import logging
-    # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_getitem()
     unittest.main(verbosity=2)
