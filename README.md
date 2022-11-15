@@ -154,18 +154,35 @@ return the same results with the same inputs.
 ### Coding Style
 
 We use `flake8`, `black`, `isort`, and `mypy` to check code formatting and use `lintrunner` to run all linters.
-See [.flake8](.flake8) and [pyproject.toml](pyproject.toml), and run
-`lintrunner` with:
+You can install the dependencies and initialize with
+
+```sh
+pip install lintrunner lintrunner-adapters
+lintrunner init
+```
+
+This will install lintrunner on your system and download all the necessary dependencies to run linters locally.
+If you want to see what lintrunner init will install, run `lintrunner init --dry-run`.
+
+To lint local changes:
 
 ```bash
 lintrunner
 ```
 
-And fix formatting issues with:
+To lint all files:
+
+```bash
+lintrunner --all-files
+```
+
+To format files:
 
 ```bash
 lintrunner -a
 ```
+
+To read more about lintrunner, see [wiki](https://github.com/pytorch/pytorch/wiki/lintrunner)
 
 ## Contributing
 
