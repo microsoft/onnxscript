@@ -197,7 +197,7 @@ class OnnxFunction(Op):
         for i, a in enumerate(args):
             if isinstance(a, np.ndarray):
                 new_args.append(tensor.Tensor(a))
-            elif isinstance(a, bool):
+            elif isinstance(a, (bool, int, float)):
                 new_args.append(tensor.Tensor(np.array(a)))
             else:
                 raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")

@@ -9,8 +9,8 @@ from onnxscript import tensor
 
 class TestTensor(unittest.TestCase):
     def test_scalar_tensor_supports_python_range(self):
-        x = tensor.Tensor(np.array(1))
-        self.assertEqual(list(range(x)), [0])
+        x = tensor.Tensor(np.array(3))
+        self.assertEqual(range(x), range(3))
 
     def test_scalar_tensor_supports_int_conversion(self):
         x = tensor.Tensor(np.array(1))
