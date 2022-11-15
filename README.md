@@ -182,7 +182,9 @@ To format files:
 lintrunner -a
 ```
 
-To read more about lintrunner, see [wiki](https://github.com/pytorch/pytorch/wiki/lintrunner)
+To read more about lintrunner, see [wiki](https://github.com/pytorch/pytorch/wiki/lintrunner).
+To update an existing linting rule or create a new one, modify `.lintrunner.toml` or create a
+new adapter following examples in https://github.com/justinchuby/lintrunner-adapters.
 
 ## Contributing
 
