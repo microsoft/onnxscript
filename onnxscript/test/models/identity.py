@@ -43,3 +43,19 @@ def control_flow_id1_expanded(A: FLOAT[...], flag: BOOL) -> FLOAT[...]:
     else:
         y = op.Abs(A)
     return y
+
+@script()
+def loop_id(A: FLOAT[...], N: BOOL) -> FLOAT[...]:
+    B = op.Identity(A)
+    for i in range(N):
+        B = A  # treat as op.Identity(A)
+        A = A + 1
+    return A + B
+
+@script()
+def loop_id_expanded(A: FLOAT[...], N: BOOL) -> FLOAT[...]:
+    B = op.Identity(A)
+    for i in range(N):
+        B = op.Identity(A)
+        A = A + 1
+    return A + B
