@@ -7,8 +7,8 @@ import importlib
 import os
 import unittest
 
+import onnxruntime as ort
 from onnx.helper import __file__ as onnx_file
-from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -48,7 +48,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     @staticmethod
     def load_fct(obj):
-        return InferenceSession(obj.SerializeToString())
+        return ort.InferenceSession(obj.SerializeToString())
 
     @staticmethod
     def run_fct(obj, *inputs):
@@ -193,7 +193,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("    load ONNX")
                     try:
                         # FIXME(#137): Fix B023 flake8 errors
-                        sess = InferenceSession(proto.SerializeToString())  # noqa: B023
+                        session = ort.InferenceSession(proto.SerializeToString())  # noqa: B023
                     except Exception as e:
                         raise AssertionError(
                             f"Unable to load onnx for test {te.name!r}.\n"  # noqa: B023
@@ -203,17 +203,17 @@ class TestOnnxBackEnd(unittest.TestCase):
                         ) from e
                     if verbose > 2:
                         print("    done.")
-                    return sess
+                    return session
 
                 def run_fct(obj, *inputs):
                     if verbose > 2:
                         print("    run ONNX")
                         for i, inp in enumerate(inputs):
                             if inp is None:
-                                print(f"    input {int(i)}: None")
+                                print(f"    input {i}: None")
                             else:
                                 print(
-                                    f"    input {int(i)}: "
+                                    f"    input {i}: "
                                     f"dtype={inp.dtype!r} shape={inp.shape!r}"
                                     f"{inp.ravel().tolist()!r}"
                                 )
