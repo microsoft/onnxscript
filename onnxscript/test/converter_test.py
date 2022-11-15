@@ -134,16 +134,16 @@ class TestConverter(TestBase):
 
         onx = test_functions["eager_op"]
         self.assertIn('name: "fmod"', str(onx))
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {"X": x})[0]
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [0.0, 0.5, -0.5])
         # numpy fmod and operator % disagree on this example
         res = eager_op.eager_op(x)
         self.assertEqual(res.tolist(), [0.0, 0.5, -0.5])
 
         onx = test_functions["eager_abs"]
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
-        y = sess.run(None, {"X": x})[0]
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [1, 6, 3])
         res = eager_op.eager_abs(x)
         self.assertEqual(res.tolist(), [1, 6, 3])
@@ -353,8 +353,8 @@ class TestConverter(TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        sess = onnxruntime.InferenceSession(f.SerializeToString())
-        result = sess.run(None, {"A": A})[0]
+        session = onnxruntime.InferenceSession(f.SerializeToString())
+        result = session.run(None, {"A": A})[0]
         assert_almost_equal(eager_mode, result)
 
         f = test_functions["make_sequence_tensor_accumulated"]
@@ -364,8 +364,8 @@ class TestConverter(TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        sess = onnxruntime.InferenceSession(f.SerializeToString())
-        result = sess.run(None, {"A": A})[0]
+        session = onnxruntime.InferenceSession(f.SerializeToString())
+        result = session.run(None, {"A": A})[0]
         assert_almost_equal(eager_mode, result)
 
     def test_loops_break(self):
@@ -378,13 +378,13 @@ class TestConverter(TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond"]
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
-        y = sess.run(None, {"A": x})[0]
+        y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
         self.assertEqual(y.tolist(), [0.0, 46.0, 92.0])
         x = np.array([0, 1, -2], dtype=np.float32)
-        y = sess.run(None, {"A": x})[0]
+        y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0, 11, -22])
         self.assertEqual(y.tolist(), [0, 11, -22])
 
@@ -398,9 +398,9 @@ class TestConverter(TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond_only"]
-        sess = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = onnxruntime.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
-        y = sess.run(None, {"A": x})[0]
+        y = session.run(None, {"A": x})[0]
         self.assertEqual(y.tolist(), [0, 10, -20])
         res = loops_while.loop_range_cond_only(x)
         self.assertEqual(res.tolist(), [0, 10, -20])
@@ -437,9 +437,9 @@ class TestConverter(TestBase):
                 return
             with self.subTest(name=name):
                 onx = test_functions[name]
-                sess = onnxruntime.InferenceSession(onx.SerializeToString())
+                session = onnxruntime.InferenceSession(onx.SerializeToString())
                 try:
-                    y = sess.run(None, {"A": x})[0]
+                    y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
                         f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
@@ -491,9 +491,9 @@ class TestConverter(TestBase):
         def check_function(x, name, expected, eager=True):
             with self.subTest(name=name):
                 onx = test_functions[name]
-                sess = onnxruntime.InferenceSession(onx.SerializeToString())
+                session = onnxruntime.InferenceSession(onx.SerializeToString())
                 try:
-                    y = sess.run(None, {"A": x})[0]
+                    y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
                         f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."

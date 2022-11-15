@@ -14,9 +14,9 @@ from typing import Any, Collection, Optional, Union
 import numpy as np
 import onnx
 import onnx.backend.test.case.node as node_test
+import onnxruntime as ort
 from onnx import ModelProto
 from onnx.onnx_cpp2py_export.checker import ValidationError
-from onnxruntime import InferenceSession
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -175,13 +175,13 @@ class OnnxScriptTestCase(unittest.TestCase):
                     for vi, t in zip(model.graph.input, param.input)
                 }
         try:
-            sess = InferenceSession(
+            session = ort.InferenceSession(
                 model.SerializeToString(), providers=["CPUExecutionProvider"]
             )
         except (Fail, InvalidArgument, InvalidGraph) as e:
             raise AssertionError(f"Unable to load model\n{str(model)}") from e
         # input['input_2'] = None
-        actual = sess.run(None, input)
+        actual = session.run(None, input)
         np.testing.assert_allclose(actual, param.output, rtol=self.rtol)
 
     def run_eager_test(
