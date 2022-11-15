@@ -5,13 +5,13 @@
 
 import unittest
 
-from onnx.defs import onnx_opset_version
+import onnx
 
 import onnxscript.onnx_opset as mod_opset
-from onnxscript.test.testutils import TestBase
+from onnxscript.test.common import testutils
 
 
-class TestOpset(TestBase):
+class TestOpset(testutils.TestBase):
     def test_opset15(self):
         op = mod_opset.opset15
         self.assertEqual(op.domain, "")
@@ -23,11 +23,11 @@ class TestOpset(TestBase):
         self.assertEqual(op.version, 16)
 
     def test_opset_last(self):
-        v = onnx_opset_version()
-        name = f"opset{v}"
+        version = onnx.defs.onnx_opset_version()
+        name = f"opset{version}"
         opset = getattr(mod_opset, name)
         self.assertEqual(opset.domain, "")
-        self.assertEqual(opset.version, v)
+        self.assertEqual(opset.version, version)
 
 
 if __name__ == "__main__":

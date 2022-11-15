@@ -15,8 +15,7 @@ import numpy as np
 import onnx
 import onnx.backend.test.case.node as node_test
 import onnxruntime as ort
-from onnx import ModelProto
-from onnx.onnx_cpp2py_export.checker import ValidationError
+from onnx.onnx_cpp2py_export import checker
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -50,21 +49,23 @@ class OnnxScriptTestCase(unittest.TestCase):
         cls.rtol = 1e-7
         try:
             # experimental version
+            # pylint: disable=no-value-for-parameter
             cls.all_test_cases = node_test.collect_testcases()
+            # pylint: enable=no-value-for-parameter
         except TypeError:
             # official version
             cls.all_test_cases = node_test.collect_testcases(None)
 
     def _create_model_from_param(
-        self, param: FunctionTestParams, onnx_case_model: ModelProto
-    ) -> ModelProto:
+        self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto
+    ) -> onnx.ModelProto:
         local_function_proto = param.function.function_ir.to_function_proto("")
         if not onnx_case_model:
             input_names = [f"input_{str(i)}" for i in range(len(param.input))]
             output_names = [f"output_{str(i)}" for i in range(len(param.output))]
             input_value_infos = utils.values_to_value_infos(zip(input_names, param.input))
         elif len(onnx_case_model.graph.input) == len(local_function_proto.input) and all(
-            [i != "" for i in onnx_case_model.graph.input]
+            i != "" for i in onnx_case_model.graph.input
         ):
             # we want to create a model that onnx_test_runner
             # can run with onnx test case data
@@ -128,7 +129,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         return test_cases
 
     def run_converter_test(
-        self, param: FunctionTestParams, onnx_case_model: ModelProto = None
+        self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto = None
     ):
         # we need the latest version in onnx.ai domain
         # to build a function
@@ -138,7 +139,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             model = param.function.function_ir.to_model_proto(producer_name="call_clip")
         try:
             onnx.checker.check_model(model)
-        except ValidationError as e:
+        except checker.ValidationError as e:
             if "Field 'shape' of 'type' is required but missing" in str(
                 e
             ) or "Field 'shape' of type is required but missing" in str(e):

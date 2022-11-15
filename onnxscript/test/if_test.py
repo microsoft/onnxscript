@@ -7,10 +7,10 @@ import unittest
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.test.testutils import TestBase
+from onnxscript.test.common import testutils
 
 
-class IfOpTester(TestBase):
+class IfOpTester(testutils.TestBase):
     def test_no_else(self):
         """Basic test for if-then without else."""
         # TODO: pass default opset as parameter to @script

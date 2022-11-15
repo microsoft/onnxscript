@@ -18,7 +18,7 @@ import onnxruntime
 from numpy.testing import assert_almost_equal
 from onnx import TensorProto
 from onnx.helper import make_tensor, printable_graph
-from onnx.onnx_cpp2py_export.checker import ValidationError
+from onnx.onnx_cpp2py_export import checker
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -26,18 +26,16 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 from packaging.version import Version
 
-from onnxscript import OnnxFunction, graph, script, tensor
-from onnxscript.converter import Converter, TranslationError
+from onnxscript import OnnxFunction, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.test.functions.onnx_script_test_case import FunctionTestParams
-from onnxscript.test.testutils import TestBase
+from onnxscript.test.common import onnx_script_test_case, testutils
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
 
 
-class TestConverter(TestBase):
+class TestConverter(testutils.TestBase):
     def validate(self, script):
         if isinstance(script, types.ModuleType):
             fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
@@ -94,7 +92,7 @@ class TestConverter(TestBase):
                             f.write(printable_graph(fct))
                 try:
                     onnx.checker.check_model(model)
-                except ValidationError as e:
+                except checker.ValidationError as e:
                     if "Field 'shape' of 'type' is required but missing" in str(
                         e
                     ) or "Field 'shape' of type is required but missing" in str(e):
@@ -121,7 +119,7 @@ class TestConverter(TestBase):
 
     def validate_run(self, script_tests):
         for key, val in script_tests.__dict__.items():
-            if isinstance(val, FunctionTestParams):
+            if isinstance(val, onnx_script_test_case.FunctionTestParams):
                 with self.subTest(name=key):
                     self.check_run(val.function, val.input, val.output[0])
 
@@ -513,10 +511,12 @@ class TestConverter(TestBase):
         global_names = globals().copy()
         top_level_ast = ast.parse(source)
         f_ast = top_level_ast.body[0]
-        cvt = Converter(opset=op, global_names=global_names, source=source, default_opset=op)
+        cvt = converter.Converter(
+            opset=op, global_names=global_names, source=source, default_opset=op
+        )
         try:
             cvt.top_level_stmt(f_ast)
-        except TranslationError as e:
+        except converter.TranslationError as e:
             if msg not in str(e):
                 raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
             return
@@ -609,7 +609,4 @@ class TestConverter(TestBase):
 
 
 if __name__ == "__main__":
-    # import logging
-    # logging.basicConfig(level=logging.DEBUG)
-    # TestConverter().test_getitem()
     unittest.main(verbosity=2)
