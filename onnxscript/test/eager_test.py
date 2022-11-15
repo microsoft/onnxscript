@@ -358,11 +358,6 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         ]
     )
     def test_dft_rstft(self, name: str, x_: np.ndarray, s: int, fs: int, hp: int):
-        try:
-            import torch  # noqa:F401
-        except ImportError as e:
-            raise ImportError("torch is not installed.") from e
-
         x = x_[..., np.newaxis]
         le = np.array([s], dtype=np.int64)
         fsv = np.array([fs], dtype=np.int64)
