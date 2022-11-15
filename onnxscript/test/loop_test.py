@@ -3,10 +3,10 @@ import unittest
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.test.common.testutils import TestBase
+from onnxscript.test.common import testutils
 
 
-class LoopOpTester(TestBase):
+class LoopOpTester(testutils.TestBase):
     def test_loop(self):
         """Basic loop test."""
 

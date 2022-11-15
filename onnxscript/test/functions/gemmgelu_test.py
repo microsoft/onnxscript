@@ -7,10 +7,11 @@ import unittest
 
 import gemmgelu
 import numpy as np
-from onnx_script_test_case import FunctionTestParams, OnnxScriptTestCase
+
+from onnxscript.test.common import onnx_script_test_case
 
 
-class TestGemmGelu(OnnxScriptTestCase):
+class TestGemmGelu(onnx_script_test_case.OnnxScriptTestCase):
     def test_gemmgelu(self):
         np.random.seed(0)
         m = 2
@@ -54,7 +55,9 @@ class TestGemmGelu(OnnxScriptTestCase):
             dtype=np.float32,
         )
 
-        cases = [FunctionTestParams(gemmgelu.gemmgelu, [a, w, b], [expected])]
+        cases = [
+            onnx_script_test_case.FunctionTestParams(gemmgelu.gemmgelu, [a, w, b], [expected])
+        ]
         for case in cases:
             self.run_converter_test(case)
             self.run_eager_test(case)

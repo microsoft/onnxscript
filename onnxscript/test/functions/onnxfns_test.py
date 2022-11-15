@@ -7,7 +7,7 @@ import unittest
 
 import onnx
 
-from onnxscript.test.functions import onnx_script_test_case
+from onnxscript.test.common import onnx_script_test_case
 from onnxscript.test.models import onnxfns1
 
 
