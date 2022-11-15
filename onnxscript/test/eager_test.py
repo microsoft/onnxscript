@@ -83,7 +83,7 @@ def _stft(
     hop_length=None,
 ):
     try:
-        import torch  # noqa
+        import torch  # pylint: disable=W0611
     except ImportError as e:
         raise ImportError("torch is not installed.") from e
     ft = torch.stft(
@@ -359,7 +359,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
     )
     def test_dft_rstft(self, name: str, x_: np.ndarray, s: int, fs: int, hp: int):
         try:
-            import torch  # noqa
+            import torch  # pylint: disable=W0611
         except ImportError as e:
             raise ImportError("torch is not installed.") from e
 
