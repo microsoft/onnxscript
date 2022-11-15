@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# FIXME: Remove reference to the deprecated distutils module
-import distutils.version as dv  # pylint: disable=deprecated-module
 import itertools
 import unittest
 
@@ -363,9 +361,6 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
             import torch  # pylint: disable=import-outside-toplevel
         except ImportError as e:
             raise ImportError("torch is not installed.") from e
-        torch_113 = dv.StrictVersion(
-            torch.__version__.split("+", maxsplit=1)[0]
-        ) >= dv.StrictVersion("1.13")
 
         x = x_[..., np.newaxis]
         le = np.array([s], dtype=np.int64)
@@ -374,7 +369,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         window = signal_dft.blackman_window(le)
         window[:] = (np.arange(window.shape[0]) + 1).astype(window.dtype)
         try:
-            c_expected, expected = _stft(x_, le[0], window=window, hop_length=hpv[0])
+            _, expected = _stft(x_, le[0], window=window, hop_length=hpv[0])
         except RuntimeError:
             self.skipTest("Unable to validate with torch.")
         info = dict(
