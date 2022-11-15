@@ -1233,6 +1233,8 @@ class Converter:
         )
         for pv in loop_state_vars:
             ov = self.py_var_to_onnx_var(pv, debuginfo.DebugInfo(loop_stmt, self))
+            if ov not in self.current_fn.assigned_names:
+                ov = self.emit_copy(ov, pv)
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
             self.ir_builder.add_output(
