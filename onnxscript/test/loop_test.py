@@ -1,5 +1,6 @@
-import numpy as np
 import unittest
+
+import numpy as np
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
