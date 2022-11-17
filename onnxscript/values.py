@@ -8,7 +8,7 @@ import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, Type, Union, _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, _GenericAlias  # type: ignore[attr-defined]
 
 import numpy as np
 import onnx
