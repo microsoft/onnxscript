@@ -2,12 +2,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+from __future__ import annotations
 
 import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, List, _GenericAlias
+from typing import Any, Type, Union, _GenericAlias  # type: ignore[attr-defined]
 
 import numpy as np
 import onnx
@@ -26,24 +27,24 @@ class Opset:
     Only a single instance of Opset is created for a given (domain, version) pair.
     """
 
-    cache = {}
+    cache: dict[tuple[str, int], Opset] = {}
 
-    def __new__(cls, domain, version):
+    def __new__(cls, domain: str, version: int):
         key = (domain, version)
         existing = cls.cache.get(key)
         if existing:
             return existing
         instance = super().__new__(cls)
-        instance.domain = domain
-        instance.version = version
-        instance.function_defs = {}
+        instance.domain = domain  # type: ignore[assignment]
+        instance.version = version  # type: ignore[assignment]
+        instance.function_defs = {}  # type: ignore[assignment]
         cls.cache[key] = instance
         return instance
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.domain!r}, {self.version!r})"
 
-    def __init__(self, domain, version) -> None:
+    def __init__(self, domain: str, version: int):
         # Nothing to do. Object is initialized by __new__
         pass
 
@@ -61,7 +62,7 @@ class Opset:
             return False
 
     def __str__(self) -> str:
-        return self.domain
+        return self.domain  # type: ignore[no-any-return]
 
     def __getattr__(self, attr: str):
         try:
@@ -107,7 +108,7 @@ class Op:
 
     def adapt_kwargs(self, kwargs):
         """Replaces function-valued attribute-values by their GraphProto representation."""
-        closure = {}
+        closure: dict[str, Any] = {}
         for k, v in kwargs.items():
             if isinstance(v, OnnxClosure):
                 kwargs[k] = v.function_ir.to_graph_proto()
@@ -318,7 +319,9 @@ class Value:
 
 
 class AttrRef(Value):
-    def __init__(self, name: str, typeinfo: type or List, info: debuginfo.DebugInfo) -> None:
+    def __init__(
+        self, name: str, typeinfo: Union[Type, list[Type]], info: debuginfo.DebugInfo
+    ) -> None:
         """Initializes AttrRef.
 
         Arguments:

@@ -43,6 +43,15 @@ include_patterns = [
     'onnxscript/**/*.pyi',
 ]
 exclude_patterns = [
+    # FIXME: Fix typing annotations in these files
+    'onnxscript/converter.py',
+    'onnxscript/evaluator.py',
+    'onnxscript/libfunctions.py',
+    'onnxscript/onnx_types.py',
+    'onnxscript/test/evaluator_test.py',
+    'onnxscript/test/external_tensor_test.py',
+    'onnxscript/test/type_annotation_test.py',
+    'onnxscript/test/functions/**',
 ]
 command = [
     'python3',
@@ -61,6 +70,7 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
+    'mypy==0.991',
 ]
 
 [[linter]]

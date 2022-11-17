@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import ast
 import unittest
+from typing import Any
 
 from onnxscript import analysis, converter, main
 from onnxscript.onnx_opset import opset15 as op
@@ -10,7 +13,7 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
     def __init__(self) -> None:
         super().__init__()
-        self.results = []
+        self.results: list[Any] = []
 
     def generic_visit(self, node):
         if hasattr(node, "live_in"):

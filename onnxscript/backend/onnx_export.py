@@ -2,8 +2,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+from __future__ import annotations
 
-from typing import Union
+from typing import Any, Union
 
 import numpy
 import onnx
@@ -192,7 +193,7 @@ class Exporter:
         self.use_operators = use_operators
         self._rename_variable = rename_function or _rename_variable
         self.inline_const = inline_const
-        self.constants = {}
+        self.constants: dict[Any] = {}
 
     def _rename_variable_s(self, name):
         """Renames all names equal to a python keyword."""
@@ -430,10 +431,10 @@ def export_template(
     if hasattr(model_onnx, "functions"):
         for f in model_onnx.functions:
             unique_function_domain_version.add((f.domain, 1))
-    unique_function_domain_version = list(sorted(unique_function_domain_version))
+    unique_function_domain_version_sorted = list(sorted(unique_function_domain_version))
 
     if rename:
-        variable_names = {}
+        variable_names: dict[str, str] = {}
 
         def rename_variable(name):
             var_name = _rename_variable(name)
@@ -456,7 +457,7 @@ def export_template(
         "python_make_node": exporter._python_make_node,  # pylint: disable=protected-access  # noqa: E501
         "python_make_node_graph": exporter._python_make_node_graph,  # pylint: disable=protected-access  # noqa: E501
         "python_make_node_name": _python_make_node_name,  # pylint: disable=protected-access  # noqa: E501
-        "unique_function_domain_version": unique_function_domain_version,
+        "unique_function_domain_version": unique_function_domain_version_sorted,
         "rename": rename_variable,
         "translate_sig": _translate_signature,
     }

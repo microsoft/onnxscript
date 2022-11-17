@@ -6,9 +6,8 @@
 import ast
 import logging
 import sys
-import typing
 from enum import IntEnum
-from typing import NoReturn
+from typing import Any, Dict, List, NoReturn, Optional, Union
 
 import numpy
 import onnx
@@ -21,9 +20,9 @@ from onnxscript import values
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
-    ast_Subscript = ast.Subscript
+    _ast_Subscript = ast.Subscript
 else:
-    ast_Subscript = (ast.Subscript, ast.Index)
+    _ast_Subscript = Union[ast.Subscript, ast.Index]
 
 logger = logging.getLogger("onnx-script")
 
@@ -127,9 +126,7 @@ class ConverterExpressionKind(IntEnum):
 
 
 class ConverterExpression:
-    def __init__(
-        self, name: typing.Union[str, typing.List[str]], kind: ConverterExpressionKind
-    ):
+    def __init__(self, name: Optional[Union[str, List[str]]], kind: ConverterExpressionKind):
         self.name = name
         self.kind = kind
 
@@ -216,7 +213,7 @@ class Converter:
         self.current_fn = None
         self.nextvar = 0
         self.used_vars = set()
-        self.locals = [{}]
+        self.locals: List[Dict[Any, Any]] = [{}]
 
     def fail(self, node, message: str) -> NoReturn:
         fail(debuginfo.DebugInfo(node, self).msg(message))
@@ -262,7 +259,8 @@ class Converter:
             raise ValueError(info.msg(f"Unbound name: {name}."))
         return None
 
-    def generate_unique_name(self, candidate="tmp"):
+    def generate_unique_name(self, candidate: str = "tmp") -> str:
+        # TODO(justinchuby): Can we reduce the O complexity of this function?
         r = candidate
         while r in self.used_vars:
             r = f"{candidate}_{str(self.nextvar)}"
@@ -279,7 +277,7 @@ class Converter:
             attrname = "value_int"
         elif pytype is str:
             attrname = "value_string"
-        elif pytype is typing.List[int]:
+        elif pytype is List[int]:
             attrname = "value_ints"
         else:
             fail(debuginfo.DebugInfo(val, self).msg(f"Unsupported attribute type {pytype!r}."))
@@ -450,7 +448,7 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
-        elif isinstance(node, ast_Subscript):
+        elif isinstance(node, _ast_Subscript):
             r = self.translate_subscript_expr(node)
         elif self.is_constant_expr(node):
             r = self.emit_const(
@@ -917,7 +915,7 @@ class Converter:
             debuginfo.DebugInfo(node, self).msg(f"Unsupported statement type {type(node)!r}.")
         )
 
-    def translate_assign_stmt(self, stmt: typing.Union[ast.Assign, ast.AnnAssign]):
+    def translate_assign_stmt(self, stmt: Union[ast.Assign, ast.AnnAssign]):
         def assign(lhs, rhs):
             info = debuginfo.DebugInfo(lhs, self)
             if isinstance(lhs, ast.Name):
@@ -1061,7 +1059,7 @@ class Converter:
             sub_functions=sub_functions,
         )
 
-    def translate_loop_stmt(self, loop_stmt: typing.Union[ast.For, ast.While]):
+    def translate_loop_stmt(self, loop_stmt: Union[ast.For, ast.While]):
         # loop-variable
         if isinstance(loop_stmt, ast.For):
             if not isinstance(loop_stmt.target, ast.Name):
