@@ -22,7 +22,7 @@ use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
     _ast_Subscript = ast.Subscript
 else:
-    ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]
+    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]
 
 logger = logging.getLogger("onnx-script")
 
