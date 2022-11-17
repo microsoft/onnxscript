@@ -2,11 +2,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+from __future__ import annotations
 
 import io
 import logging
 import warnings
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -164,17 +165,19 @@ class Stmt:
 
 
 class Function:
-    def __init__(self, name, domain="") -> None:
+    def __init__(self, name, domain: str = "") -> None:
         self.domain = domain
         self.name = name
-        self.inputs = []
-        self.outputs = []
-        self.stmts = []
-        self.attrs = []
-        self.attr_protos = []
-        self.functions = {}
-        self.docstring = ""
-        self.nested_functions = {}  # a dictionary of nested function-definitions
+        self.inputs: list[Any] = []
+        self.outputs: list[Any] = []
+        self.stmts: list[Any] = []
+        self.attrs: list[Any] = []
+        self.attr_protos: list[Any] = []
+        self.functions: dict[str, Any] = {}
+        self.docstring: str = ""
+        # a dictionary of nested function-definitions
+        self.nested_functions: dict[str, Any] = {}
+        self.outer_scope_variables: dict[Any, Any] = {}
 
     @property
     def assigned_names(self) -> Sequence[str]:

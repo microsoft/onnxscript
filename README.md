@@ -182,6 +182,9 @@ To format files:
 lintrunner -a
 ```
 
+Use `--output oneline` to produce a compact list of lint errors, useful when
+there are many errors to fix.
+
 To read more about lintrunner, see [wiki](https://github.com/pytorch/pytorch/wiki/lintrunner).
 To update an existing linting rule or create a new one, modify `.lintrunner.toml` or create a
 new adapter following examples in https://github.com/justinchuby/lintrunner-adapters.

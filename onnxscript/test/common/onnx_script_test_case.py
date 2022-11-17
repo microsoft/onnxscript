@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-
+from __future__ import annotations
 
 import copy
 import dataclasses
@@ -29,12 +29,16 @@ from onnxscript import utils
 @dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
     function: onnxscript.OnnxFunction
-    input: Union[list, dict]
-    output: list
-    attrs: dict = None
+    input: Union[list[Any], dict[str, Any]]
+    output: list[Any]
+    attrs: Optional[dict[str, Any]] = None
 
 
 class OnnxScriptTestCase(unittest.TestCase):
+    local_function_opset_version: int
+    atol: float
+    rtol: float
+
     @classmethod
     def setUpClass(cls):
         # A function (and node) in a model tells its domain, not version.
@@ -44,17 +48,17 @@ class OnnxScriptTestCase(unittest.TestCase):
         # Before ONNX IR (or FunctionIR) being updated
         # for FunctionProto to have version number we
         # need to put a default version number here to workaround the problem.
-        cls.local_function_opset_version = 1
-        cls.atol = 1e-7
-        cls.rtol = 1e-7
+        cls.local_function_opset_version = 1  # type: ignore[attr-defined]
+        cls.atol = 1e-7  # type: ignore[attr-defined]
+        cls.rtol = 1e-7  # type: ignore[attr-defined]
         try:
             # experimental version
             # pylint: disable=no-value-for-parameter
-            cls.all_test_cases = node_test.collect_testcases()
+            cls.all_test_cases = node_test.collect_testcases()  # type: ignore[attr-defined]
             # pylint: enable=no-value-for-parameter
         except TypeError:
             # official version
-            cls.all_test_cases = node_test.collect_testcases(None)
+            cls.all_test_cases = node_test.collect_testcases(None)  # type: ignore[attr-defined]
 
     def _create_model_from_param(
         self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto
@@ -119,7 +123,7 @@ class OnnxScriptTestCase(unittest.TestCase):
     def _filter_test_case_by_op_type(self, op_type):
         test_cases = [
             case
-            for case in self.all_test_cases
+            for case in self.all_test_cases  # type: ignore[attr-defined]
             if (
                 case.kind == "node"
                 and len(case.model.graph.node) == 1
@@ -129,7 +133,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         return test_cases
 
     def run_converter_test(
-        self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto = None
+        self, param: FunctionTestParams, onnx_case_model: Optional[onnx.ModelProto] = None
     ):
         # we need the latest version in onnx.ai domain
         # to build a function
@@ -186,7 +190,10 @@ class OnnxScriptTestCase(unittest.TestCase):
         np.testing.assert_allclose(actual, param.output, rtol=self.rtol)
 
     def run_eager_test(
-        self, param: FunctionTestParams, rtol: float = None, atol: float = None
+        self,
+        param: FunctionTestParams,
+        rtol: Optional[float] = None,
+        atol: Optional[float] = None,
     ):
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(

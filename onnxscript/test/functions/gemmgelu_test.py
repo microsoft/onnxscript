@@ -5,10 +5,10 @@
 
 import unittest
 
-import gemmgelu
 import numpy as np
 
 from onnxscript.test.common import onnx_script_test_case
+from onnxscript.test.functions import gemmgelu
 
 
 class TestGemmGelu(onnx_script_test_case.OnnxScriptTestCase):
