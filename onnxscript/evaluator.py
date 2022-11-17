@@ -6,7 +6,7 @@
 import abc
 import contextlib
 import pprint
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import onnx
@@ -118,7 +118,7 @@ def compute_num_outputs(schema, *args, **kwargs):
     return len(schema.outputs)
 
 
-_cache_models = {}
+_cache_models: dict[Any, ort.InferenceSession] = {}
 
 
 def _cache_(model, providers):
@@ -237,7 +237,7 @@ class ORTMixedEvaluator(ORTEvaluator):
 
     def __init__(self) -> None:
         super().__init__()
-        self._python_ops = {}
+        self._python_ops: dict[Any, Any] = {}
 
     def use_graph_attribute(self, schema):
         return schema_id(schema) not in self._python_ops

@@ -35,6 +35,10 @@ class FunctionTestParams:
 
 
 class OnnxScriptTestCase(unittest.TestCase):
+    local_function_opset_version: int
+    atol: float
+    rtol: float
+
     @classmethod
     def setUpClass(cls):
         # A function (and node) in a model tells its domain, not version.
@@ -119,7 +123,7 @@ class OnnxScriptTestCase(unittest.TestCase):
     def _filter_test_case_by_op_type(self, op_type):
         test_cases = [
             case
-            for case in self.all_test_cases
+            for case in self.all_test_cases  # type: ignore[attr-defined]
             if (
                 case.kind == "node"
                 and len(case.model.graph.node) == 1

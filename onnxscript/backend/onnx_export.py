@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import numpy
 import onnx
@@ -109,11 +109,12 @@ def _get_const_repr(const_node):
     return None
 
 
-def _rename_variable(name):
+def _rename_variable(name: Union[ValueInfoProto, str]) -> Optional[str]:
     """Renames all names equal to a python keyword."""
     if isinstance(name, ValueInfoProto):
         # Handle graph/function input/output uniformly
         name = name.name
+    assert isinstance(name, str)
     if name in kwlist:
         return f"r_{name}"
     if name == "":
@@ -193,7 +194,7 @@ class Exporter:
         self.use_operators = use_operators
         self._rename_variable = rename_function or _rename_variable
         self.inline_const = inline_const
-        self.constants: dict[Any] = {}
+        self.constants: dict[str, str] = {}
 
     def _rename_variable_s(self, name):
         """Renames all names equal to a python keyword."""
@@ -377,7 +378,7 @@ class Exporter:
         attributes_str = self._python_make_node_make_attribute_str(node)
         if len(node.input) > 0 and len(attributes_str) > 0:
             attributes_str = f", {attributes_str}"
-        output_names = []
+        output_names: list[Any] = []
         for i, o in enumerate(node.output):
             if o in ("", None):
                 output_names.append(f"_{i}")
@@ -441,6 +442,7 @@ def export_template(
             if var_name in variable_names:
                 return variable_names[var_name]
             new_name = f"v{len(variable_names) + 1}"
+            assert var_name is not None
             variable_names[var_name] = new_name
             return new_name
 

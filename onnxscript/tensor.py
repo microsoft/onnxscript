@@ -82,12 +82,12 @@ class Tensor:
                 to_squeeze.append(axis_)
             else:
                 raise TypeError(f"Unexpected type {type(s)}: slice or int expected.")
-        indices_ = np.array(indices_, dtype=np.int64).T
-        starts = Tensor(indices_[0])
-        ends = Tensor(indices_[1])
-        axis_ = Tensor(indices_[2])
-        steps = Tensor(indices_[3])
-        result = op.Slice(self, starts, ends, axis_, steps)
+        indices = np.array(indices_, dtype=np.int64).T
+        starts = Tensor(indices[0])
+        ends = Tensor(indices[1])
+        axis = Tensor(indices[2])
+        steps = Tensor(indices[3])
+        result = op.Slice(self, starts, ends, axis, steps)
         if len(to_squeeze) > 0:
             result = Tensor(np.squeeze(result.value, axis=tuple(to_squeeze)))
         return result

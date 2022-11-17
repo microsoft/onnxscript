@@ -35,9 +35,9 @@ class Opset:
         if existing:
             return existing
         instance = super().__new__(cls)
-        instance.domain = domain  # type: ignore[assignment]
-        instance.version = version  # type: ignore[assignment]
-        instance.function_defs = {}  # type: ignore[assignment]
+        instance.domain = domain  # type: ignore[attr-defined]
+        instance.version = version  # type: ignore[attr-defined]
+        instance.function_defs = {}  # type: ignore[attr-defined]
         cls.cache[key] = instance
         return instance
 
@@ -320,7 +320,7 @@ class Value:
 
 class AttrRef(Value):
     def __init__(
-        self, name: str, typeinfo: Union[Type, list[Type]], info: debuginfo.DebugInfo
+        self, name: str, typeinfo: _GenericAlias, info: debuginfo.DebugInfo
     ) -> None:
         """Initializes AttrRef.
 

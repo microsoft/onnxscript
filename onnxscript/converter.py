@@ -22,7 +22,7 @@ use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
     _ast_Subscript = ast.Subscript
 else:
-    _ast_Subscript = Union[ast.Subscript, ast.Index]
+    ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]
 
 logger = logging.getLogger("onnx-script")
 
@@ -380,7 +380,8 @@ class Converter:
         function.)
         """
         # TODO: assert (self.is_constant_expr(expr))
-        locals = {}
+        # TODO: Refine types
+        locals: dict[Any, Any] = {}
         expr = ast.Expression(expr)
         cpl = compile(expr, filename="<ast>", mode="eval")  # noqa: DUO110
         try:

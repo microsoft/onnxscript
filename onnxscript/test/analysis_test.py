@@ -17,11 +17,11 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
     def generic_visit(self, node):
         if hasattr(node, "live_in"):
-            self.results.append(node.live_in)
+            self.results.append(node.live_in)  # type: ignore
         ast.NodeVisitor.generic_visit(self, node)
         if isinstance(node, (ast.For, ast.While)):
             last = node.body[-1]
-            self.results.append(last.live_out)
+            self.results.append(last.live_out)  # type: ignore
 
 
 class TestLivenessAnalysis(unittest.TestCase):

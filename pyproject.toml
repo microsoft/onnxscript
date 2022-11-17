@@ -39,6 +39,7 @@ universal = true
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
 
 [tool.mypy]
+follow_imports = "skip"
 strict_optional = true
 warn_return_any = true
 warn_no_return = true
@@ -61,6 +62,7 @@ module = [
   "onnx.*",
   "onnxruntime.*",
   "autopep8.*",
+  "parameterized.*",
 ]
 ignore_missing_imports = true
 

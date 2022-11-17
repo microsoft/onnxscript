@@ -20,8 +20,9 @@ def cli():
 
 
 def convert_file(script):
+    # FIXME: convert_file is not defined in Converter
     convert = converter.Converter()
-    return convert.convert_file(script)
+    return convert.convert_file(script)  # type: ignore[attr-defined]
 
 
 def to_single_model_proto(model, input_py_file: str, output_onnx_file: Optional[str] = None):

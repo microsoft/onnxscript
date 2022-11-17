@@ -177,7 +177,7 @@ class Function:
         self.docstring: str = ""
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, Any] = {}
-        self.outer_scope_variables: dict[str, Any] = {}
+        self.outer_scope_variables: dict[Any, Any] = {}
 
     @property
     def assigned_names(self) -> Sequence[str]:
