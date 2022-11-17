@@ -319,9 +319,7 @@ class Value:
 
 
 class AttrRef(Value):
-    def __init__(
-        self, name: str, typeinfo: _GenericAlias, info: debuginfo.DebugInfo
-    ) -> None:
+    def __init__(self, name: str, typeinfo: _GenericAlias, info: debuginfo.DebugInfo) -> None:
         """Initializes AttrRef.
 
         Arguments:
