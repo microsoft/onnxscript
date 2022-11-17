@@ -9,7 +9,7 @@ import textwrap
 
 import numpy
 import onnx
-from numpy import object as dtype_object
+from numpy import object as dtype_object  # type: ignore
 from numpy.testing import assert_almost_equal
 from onnx.backend.test import __file__ as backend_folder
 from onnx.numpy_helper import to_array, to_list
@@ -244,9 +244,8 @@ class OnnxBackendTest:
         Returns:
             code
         """
-
         rows = []
-        code = onnx_export.export2onnx(self.onnx_model)
+        code = onnx_export.export2onnx(self.onnx_model)  # type: ignore[attr-defined]
         lines = code.split("\n")
         lines = [
             line
@@ -272,13 +271,7 @@ class OnnxBackendTest:
             rows.append("")
         code = "\n".join(rows)
         final = "\n".join([f"def {self.name}(self):", textwrap.indent(code, "    ")])
-        try:
-            from pyquickhelper.pycode.code_helper import (  # pylint: disable=import-outside-toplevel # noqa: E501
-                remove_extra_spaces_and_pep8,
-            )
-        except ImportError:  # pragma: no cover
-            return final
-        return remove_extra_spaces_and_pep8(final, aggressive=True)
+        return final
 
 
 def enumerate_onnx_tests(series, fct_filter=None):

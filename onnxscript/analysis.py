@@ -2,8 +2,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+from __future__ import annotations
 
 import ast
+from typing import Any
 
 from onnxscript import debuginfo
 
@@ -30,7 +32,7 @@ def used_vars(expr):
             if isinstance(keyword.value, ast.Name):
                 result.add(keyword.value.id)
     else:
-        children = ast.iter_child_nodes(expr)
+        children = ast.iter_child_nodes(expr)  # type: ignore[assignment]
     for c in children:
         result = result | used_vars(c)
     return result
@@ -56,7 +58,7 @@ def defs(stmt):
     """
 
     def block_defs(block):
-        result = set()
+        result: set[Any] = set()
         for s in block:
             result = result | defs(s)
         return result
@@ -155,7 +157,7 @@ def do_liveness_analysis(fun, converter):
         )
 
     assert isinstance(fun, ast.FunctionDef)
-    live = set()
+    live: set[Any] = set()
     for s in reversed(fun.body):
         live = visit(s, live)
 
@@ -199,7 +201,7 @@ def exposed_uses(stmts, converter):
             and isinstance(stmt.value, ast.Call)
         ):
             f = stmt.value.func
-            if f.id == "print":
+            if f.id == "print":  # type: ignore[attr-defined]
                 return live_out
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved

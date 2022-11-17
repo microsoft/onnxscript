@@ -164,8 +164,7 @@ class Matcher:
         self.defmap2 = defmap(fg2)
         self.fg1 = fg1
         self.fg2 = fg2
-        self.node_mapping = {}
-        self.outer_scope_checks = []
+        self.node_mapping: dict[onnx.NodeProto, onnx.NodeProto] = {}
         self.outer_scope = outer_scope
 
     def same_value(self, var1, var2):

@@ -41,16 +41,16 @@ class Tensor:
         return f"{self.__class__.__name__}({self.value!r})"
 
     def __bool__(self) -> bool:
-        return self.value.__bool__()
+        return bool(self.value)
 
     def __int__(self) -> int:
-        return self.value.__int__()
+        return int(self.value)
 
     def __float__(self) -> float:
-        return self.value.__float__()
+        return float(self.value)
 
     def __index__(self) -> int:
-        return self.value.__index__()
+        return self.value.__index__()  # type: ignore[no-any-return]
 
     def __getitem__(self, index):
         op = self._opset
@@ -69,20 +69,20 @@ class Tensor:
             # Treat 1-dimensional slicing A[i:j] as generic n-dimensional case A[i:j,...]
             index = (index,)
         shape = self.shape
-        indices = []
+        indices_ = []
         to_squeeze = []
-        for axis, s in enumerate(index):
+        for axis_, s in enumerate(index):
             if isinstance(s, slice):
                 if s.step is None or s.step > 0:
-                    indices.append([s.start or 0, s.stop or shape[axis], axis, s.step or 1])
+                    indices_.append([s.start or 0, s.stop or shape[axis_], axis_, s.step or 1])
                 else:
-                    indices.append([s.start or (shape[axis] - 1), s.stop, axis, s.step])
+                    indices_.append([s.start or (shape[axis_] - 1), s.stop, axis_, s.step])
             elif isinstance(s, int):
-                indices.append([s, s + 1, axis, 1])
-                to_squeeze.append(axis)
+                indices_.append([s, s + 1, axis_, 1])
+                to_squeeze.append(axis_)
             else:
                 raise TypeError(f"Unexpected type {type(s)}: slice or int expected.")
-        indices = np.array(indices, dtype=np.int64).T
+        indices = np.array(indices_, dtype=np.int64).T
         starts = Tensor(indices[0])
         ends = Tensor(indices[1])
         axis = Tensor(indices[2])

@@ -2,8 +2,8 @@
 # Please move this into pyproject.toml, when it does.
 
 [flake8]
-max-line-length = 95
-### DEFAULT IGNORES FOR 4-space INDENTED PROJECTS ###
+max-line-length = 120  # 120 is a hard limit. Black keeps lines generally at 88.
+
 # W503 talks about operator formatting which is too opinionated.
 # E203 is need to support black formatting.
 # https://black.readthedocs.io/en/stable/guides/using_black_with_other_tools.html
