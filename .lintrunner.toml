@@ -36,26 +36,32 @@ init_command = [
     'flake8-docstrings==1.6.0',
 ]
 
-# [[linter]]
-# code = 'MYPY'
-# include_patterns = [
-#     'onnxscript/**/*.py',
-#     'onnxscript/**/*.pyi',
-# ]
-# exclude_patterns = [
-# ]
-# command = [
-#     'python3',
-#     '.lintrunner/mypy_linter.py',
-#     '--config=pyproject.toml',
-#     '--',
-#     '@{{PATHSFILE}}'
-# ]
-# init_command = [
-#     'python3',
-#     '.lintrunner/pip_init.py',
-#     '--dry-run={{DRYRUN}}',
-# ]
+[[linter]]
+code = 'MYPY'
+include_patterns = [
+    'onnxscript/**/*.py',
+    'onnxscript/**/*.pyi',
+]
+exclude_patterns = [
+]
+command = [
+    'python3',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'mypy_linter',
+    '--config=pyproject.toml',
+    '--',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python3',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
+    '--dry-run={{DRYRUN}}',
+]
 
 [[linter]]
 code = 'NOQA'
