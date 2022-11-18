@@ -1231,6 +1231,13 @@ class Converter:
         )
         for pv in loop_state_vars:
             ov = self.py_var_to_onnx_var(pv, debuginfo.DebugInfo(loop_stmt, self))
+            if ov not in self.current_fn.assigned_names:
+                # When converting the loop-body into a graph, we need to handle
+                # identity assignments of the form "x = y" inside the loop body
+                # specially if y represents a value computed outside the loop body.
+                # In this case, we create a copy of y, treating the statement as
+                # shorthand for "x = op.Identity(y)".
+                ov = self.emit_copy(ov, pv)
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
             self.ir_builder.add_output(
