@@ -183,26 +183,32 @@ class OnnxFunction(Op):
 
         return fun
 
-    def wrap(self, input):
+    def wrap(self, inputs):
         """Adapts inputs into representation used by onnxscript eager mode.
         
         This primarily adds an onnxscript Tensor wrapper around numpy arrays.
         But it also provides promotion of scalars into tensors as a convenience.
         Need to revisit whether this secondary convenience feature is worthwhile.
         """
-        if isinstance(input, np.ndarray):
-            return tensor.Tensor(input)
-        elif isinstance(input, tensor.Tensor):
-            return input
-        elif isinstance(input, (bool, int, float)):
-            return tensor.Tensor(np.array(input))
-        elif input is None:
-            return None
-        elif isinstance(input, list):
-            return [self.wrap(elt) for elt in input]
-        elif isinstance(input, tuple):
-            return tuple([self.wrap(elt) for elt in input])
-        raise TypeError(f"Unexpected input type {type(input)}.")
+        has_array = False
+        def do_unwrap(input):
+            if isinstance(input, np.ndarray):
+                nonlocal has_array
+                has_array = True
+                return tensor.Tensor(input)
+            elif isinstance(input, tensor.Tensor):
+                return input
+            elif isinstance(input, (bool, int, float)):
+                return tensor.Tensor(np.array(input))
+            elif input is None:
+                return None
+            elif isinstance(input, list):
+                return [do_unwrap for elt in input]
+            elif isinstance(input, tuple):
+                return tuple([do_unwrap(elt) for elt in input])
+            raise TypeError(f"Unexpected input type {type(input)}.")
+        result = do_unwrap(inputs)
+        return result, has_array
 
     def unwrap(self, output):
         """Unwraps Tensor wrapper around numpy arrays."""
@@ -220,15 +226,9 @@ class OnnxFunction(Op):
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
-        libcall = False
-        if len(args) == 0:
-            # Operator Constant, it is usually called within a function.
-            libcall = True
-        elif isinstance(args[0], tensor.Tensor):
-            libcall = True
-        new_args = self.wrap(args)
+        new_args, has_array = self.wrap(args)
         result = self.function(*new_args, **kwargs)
-        return result if libcall else self.unwrap(result)
+        return self.unwrap(result) if has_array else result
 
     def to_function_proto(self, domain=None):
         """Converts the function into :class:`onnx.FunctionProto`."""
