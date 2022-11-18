@@ -183,77 +183,47 @@ class OnnxFunction(Op):
 
         return fun
 
+    def wrap(self, inputs):
+        """Adapts inputs into representation used by onnxscript eager mode."""
+        def adapt(x):
+            if isinstance(x, np.ndarray):
+                return tensor.Tensor(x)
+            elif isinstance(x, tensor.Tensor):
+                return x
+            elif isinstance(x, (bool, int, float)):
+                return tensor.Tensor(np.array(x))
+            elif x is None:
+                return None
+            elif isinstance(x, list):
+                return [adapt(elt) for elt in x]
+            raise TypeError(f"Unexpected input type {type(x)}.")
+        return [adapt(x) for x in inputs]
+
+    def unwrap(self, output):
+        """Unwraps Tensor wrapper around numpy arrays."""
+        if isinstance(output, tensor.Tensor):
+            return output.value
+        elif output is None:
+            return None
+        elif isinstance(output, list):
+            return [self.unwrap(elt) for elt in output]
+        elif isinstance(output, tuple):
+            return tuple([self.unwrap(elt) for elt in output])
+        elif isinstance(output, np.ndarray):
+            return output
+        raise TypeError(f"Unexpected type {type(output)}.")
+
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
+        libcall = False
         if len(args) == 0:
             # Operator Constant, it is usually called within a function.
-            return self._libcall(**kwargs)
-        if isinstance(args[0], tensor.Tensor):
-            return self._libcall(*args, **kwargs)
-        return self._usercall(*args, **kwargs)
-
-    def _usercall(self, *args, **kwargs):
-        """Eager mode"""
-        new_args = []
-        for i, a in enumerate(args):
-            if isinstance(a, np.ndarray):
-                new_args.append(tensor.Tensor(a))
-            elif isinstance(a, (bool, int, float)):
-                new_args.append(tensor.Tensor(np.array(a)))
-            else:
-                raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
-        res = self.function(*new_args, **kwargs)
-        if isinstance(res, np.ndarray):
-            return res
-        if isinstance(res, tensor.Tensor):
-            return res.value
-        if isinstance(res, (list, tuple)):
-            unwrapped = []
-            for i, r in enumerate(res):
-                if isinstance(r, np.ndarray):
-                    unwrapped.append(r)
-                elif isinstance(r, tensor.Tensor):
-                    unwrapped.append(r.value)
-                else:
-                    raise TypeError(
-                        f"Unexpected output type {type(r)} for an output {i} "
-                        f"in function {self.function!r}."
-                    )
-            if isinstance(res, tuple):
-                return tuple(unwrapped)
-            return unwrapped
-        raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
-
-    def _libcall(self, *args, **kwargs):
-        """This method must be called when a function decoracted with `script`
-        calls another one decorated with `script`.
-        """
-        new_args = []
-        for i, a in enumerate(args):
-            if isinstance(a, tensor.Tensor):
-                new_args.append(a)
-            elif isinstance(a, bool):
-                # TODO: default values for function parameters
-                # are not properly handled yet. This section
-                # should disappear.
-                new_args.append(tensor.Tensor(np.array(a)))
-            else:
-                raise TypeError(f"Unexpected input type {type(a)} for an input {i}.")
-        res = self.function(*new_args, **kwargs)
-        if isinstance(res, tensor.Tensor):
-            return res
-        if isinstance(res, tuple):
-            unwrapped = []
-            for i, r in enumerate(res):
-                if isinstance(r, tensor.Tensor):
-                    unwrapped.append(r)
-                else:
-                    raise TypeError(
-                        f"Unexpected output type {type(r)} for an output {i} "
-                        f"in function {self.function!r}."
-                    )
-            return tuple(unwrapped)
-        raise TypeError(f"Unexpected output type {type(res)} in function {self.function!r}.")
+            libcall = True
+        elif isinstance(args[0], tensor.Tensor):
+            libcall = True
+        new_args = self.wrap(args)
+        result = self.function(*new_args, **kwargs)
+        return result if libcall else self.unwrap(result)
 
     def to_function_proto(self, domain=None):
         """Converts the function into :class:`onnx.FunctionProto`."""
