@@ -183,21 +183,26 @@ class OnnxFunction(Op):
 
         return fun
 
-    def wrap(self, inputs):
-        """Adapts inputs into representation used by onnxscript eager mode."""
-        def adapt(x):
-            if isinstance(x, np.ndarray):
-                return tensor.Tensor(x)
-            elif isinstance(x, tensor.Tensor):
-                return x
-            elif isinstance(x, (bool, int, float)):
-                return tensor.Tensor(np.array(x))
-            elif x is None:
-                return None
-            elif isinstance(x, list):
-                return [adapt(elt) for elt in x]
-            raise TypeError(f"Unexpected input type {type(x)}.")
-        return [adapt(x) for x in inputs]
+    def wrap(self, input):
+        """Adapts inputs into representation used by onnxscript eager mode.
+        
+        This primarily adds an onnxscript Tensor wrapper around numpy arrays.
+        But it also provides promotion of scalars into tensors as a convenience.
+        Need to revisit whether this secondary convenience feature is worthwhile.
+        """
+        if isinstance(input, np.ndarray):
+            return tensor.Tensor(input)
+        elif isinstance(input, tensor.Tensor):
+            return input
+        elif isinstance(input, (bool, int, float)):
+            return tensor.Tensor(np.array(input))
+        elif input is None:
+            return None
+        elif isinstance(input, list):
+            return [self.wrap(elt) for elt in input]
+        elif isinstance(input, tuple):
+            return tuple([self.wrap(elt) for elt in input])
+        raise TypeError(f"Unexpected input type {type(input)}.")
 
     def unwrap(self, output):
         """Unwraps Tensor wrapper around numpy arrays."""
