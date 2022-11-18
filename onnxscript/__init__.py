@@ -7,6 +7,24 @@ import sys
 
 from .backend.onnx_export import export2python as proto2python
 from .main import export_onnx_lib, graph, script
+from .onnx_types import (
+    BFLOAT16,
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
 from .utils import external_tensor, proto2text
 from .values import OnnxFunction
 
@@ -23,24 +41,6 @@ try:
 except importlib_metadata.PackageNotFoundError:
     __version__ = None  # type: ignore[assignment]
 
-from .onnx_types import (
-    FLOAT,
-    UINT8,
-    INT8,
-    UINT16,
-    INT16,
-    INT32,
-    INT64,
-    STRING,
-    BOOL,
-    FLOAT16,
-    DOUBLE,
-    UINT32,
-    UINT64,
-    COMPLEX64,
-    COMPLEX128,
-    BFLOAT16,
-)
 
 __all__ = [
     "script",
