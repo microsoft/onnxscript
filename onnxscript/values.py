@@ -185,13 +185,25 @@ class OnnxFunction(Op):
 
     def wrap(self, inputs):
         """Adapts inputs into representation used by onnxscript eager mode.
-        
-        This primarily adds an onnxscript Tensor wrapper around numpy arrays.
-        But it also provides promotion of scalars into tensors as a convenience.
-        Need to revisit whether this secondary convenience feature is worthwhile.
+
+        This does the following transformations:
+        * It adds an onnxscript Tensor wrapper around numpy arrays, which
+        allows the use of overloaded operators like + to be controlled by onnxscript.
+        * It also provides a promotion of scalars into tensors as a convenience.
+        This is needed to complement the similar promotion supported by the
+        onnxscript converter (for example, when an attribute is promoted and used
+        as an input argument).
+
+        Args:
+            inputs: a list/tuple of inputs to an ONNX function
+
+        Returns:
+            a pair (wrapped_inputs, flag) where flag indicates whether any numpy array
+            was wrapped into a Tensor.
         """
         has_array = False
-        def do_unwrap(input):
+
+        def do_wrap(input):
             if isinstance(input, np.ndarray):
                 nonlocal has_array
                 has_array = True
@@ -203,15 +215,24 @@ class OnnxFunction(Op):
             elif input is None:
                 return None
             elif isinstance(input, list):
-                return [do_unwrap for elt in input]
+                return [do_wrap for elt in input]
             elif isinstance(input, tuple):
-                return tuple([do_unwrap(elt) for elt in input])
+                return tuple([do_wrap(elt) for elt in input])
             raise TypeError(f"Unexpected input type {type(input)}.")
-        result = do_unwrap(inputs)
+
+        result = do_wrap(inputs)
         return result, has_array
 
     def unwrap(self, output):
-        """Unwraps Tensor wrapper around numpy arrays."""
+        """Unwraps Tensor wrapper around numpy arrays.
+
+        Args:
+            output: output of an ONNX function, which can be either a single
+                onnx value or a list/tuple of onnx values.
+
+        Returns:
+            unwrapped output
+        """
         if isinstance(output, tensor.Tensor):
             return output.value
         elif output is None:
