@@ -26,18 +26,10 @@ opset11 = values.Opset("", 11)
 opset12 = values.Opset("", 12)
 opset13 = values.Opset("", 13)
 opset14 = values.Opset("", 14)
-
-if onnx_opset_version() >= 15:
-    opset15 = values.Opset("", 15)
-
-if onnx_opset_version() >= 16:
-    opset16 = values.Opset("", 16)
-
-if onnx_opset_version() >= 17:
-    opset17 = values.Opset("", 17)
-
-if onnx_opset_version() >= 18:
-    opset18 = values.Opset("", 18)
+opset15 = values.Opset("", 15)
+opset16 = values.Opset("", 16)
+opset17 = values.Opset("", 17)
+opset18 = values.Opset("", 18)
 
 default_opset = values.Opset("", onnx_opset_version())
 
