@@ -142,6 +142,70 @@ class OnnxClosure:
     function: Any
 
 
+def adapt_to_eager_mode(inputs):
+    """Adapts inputs into representation used by onnxscript eager mode.
+
+    This does the following transformations:
+    * It adds an onnxscript Tensor wrapper around numpy arrays, which
+    allows the use of overloaded operators like + to be controlled by onnxscript.
+    * It also provides a promotion of scalars into tensors as a convenience.
+    This is needed to complement the similar promotion supported by the
+    onnxscript converter (for example, when an attribute is promoted and used
+    as an input argument).
+
+    Args:
+        inputs: a list/tuple of inputs to an ONNX function
+
+    Returns:
+        a pair (wrapped_inputs, flag) where flag indicates whether any numpy array
+        was wrapped into a Tensor.
+    """
+    has_array = False
+
+    def adapt(input):
+        if isinstance(input, np.ndarray):
+            nonlocal has_array
+            has_array = True
+            return tensor.Tensor(input)
+        elif isinstance(input, tensor.Tensor):
+            return input
+        elif isinstance(input, (bool, int, float)):
+            return tensor.Tensor(np.array(input))
+        elif input is None:
+            return None
+        elif isinstance(input, list):
+            return [adapt(elt) for elt in input]
+        elif isinstance(input, tuple):
+            return tuple(adapt(elt) for elt in input)
+        raise TypeError(f"Unexpected input type {type(input)}.")
+
+    result = adapt(inputs)
+    return result, has_array
+
+
+def adapt_to_user_mode(output):
+    """Unwraps Tensor wrapper around numpy arrays.
+
+    Args:
+        output: output of an ONNX function, which can be either a single
+            onnx value or a list/tuple of onnx values.
+
+    Returns:
+        unwrapped output
+    """
+    if isinstance(output, tensor.Tensor):
+        return output.value
+    elif output is None:
+        return None
+    elif isinstance(output, list):
+        return [adapt_to_user_mode(elt) for elt in output]
+    elif isinstance(output, tuple):
+        return tuple(adapt_to_user_mode(elt) for elt in output)
+    elif isinstance(output, np.ndarray):
+        return output
+    raise TypeError(f"Unexpected type {type(output)}.")
+
+
 class OnnxFunction(Op):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
 
@@ -183,73 +247,19 @@ class OnnxFunction(Op):
 
         return fun
 
-    def wrap(self, inputs):
-        """Adapts inputs into representation used by onnxscript eager mode.
-
-        This does the following transformations:
-        * It adds an onnxscript Tensor wrapper around numpy arrays, which
-        allows the use of overloaded operators like + to be controlled by onnxscript.
-        * It also provides a promotion of scalars into tensors as a convenience.
-        This is needed to complement the similar promotion supported by the
-        onnxscript converter (for example, when an attribute is promoted and used
-        as an input argument).
-
-        Args:
-            inputs: a list/tuple of inputs to an ONNX function
-
-        Returns:
-            a pair (wrapped_inputs, flag) where flag indicates whether any numpy array
-            was wrapped into a Tensor.
-        """
-        has_array = False
-
-        def do_wrap(input):
-            if isinstance(input, np.ndarray):
-                nonlocal has_array
-                has_array = True
-                return tensor.Tensor(input)
-            elif isinstance(input, tensor.Tensor):
-                return input
-            elif isinstance(input, (bool, int, float)):
-                return tensor.Tensor(np.array(input))
-            elif input is None:
-                return None
-            elif isinstance(input, list):
-                return [do_wrap for elt in input]
-            elif isinstance(input, tuple):
-                return tuple([do_wrap(elt) for elt in input])
-            raise TypeError(f"Unexpected input type {type(input)}.")
-
-        result = do_wrap(inputs)
-        return result, has_array
-
-    def unwrap(self, output):
-        """Unwraps Tensor wrapper around numpy arrays.
-
-        Args:
-            output: output of an ONNX function, which can be either a single
-                onnx value or a list/tuple of onnx values.
-
-        Returns:
-            unwrapped output
-        """
-        if isinstance(output, tensor.Tensor):
-            return output.value
-        elif output is None:
-            return None
-        elif isinstance(output, list):
-            return [self.unwrap(elt) for elt in output]
-        elif isinstance(output, tuple):
-            return tuple([self.unwrap(elt) for elt in output])
-        elif isinstance(output, np.ndarray):
-            return output
-        raise TypeError(f"Unexpected type {type(output)}.")
-
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
-        new_args, has_array = self.wrap(args)
+        new_args, has_array = adapt_to_eager_mode(args)
         result = self.function(*new_args, **kwargs)
-        return self.unwrap(result) if has_array else result
+
+        # We use a heuristic to decide whether to return output values as
+        # numpy arrays or tensor.Tensors. If the function has at least one
+        # numpy array as input, we return numpy arrays. Otherwise, we return
+        # tensor.Tensors. We could use a user-specified flag to control this
+        # or explicitly track whether this is a top-level function-call or
+        # a nested function-call.
+
+        return adapt_to_user_mode(result) if has_array else result
 
     def to_function_proto(self, domain=None):
         """Converts the function into :class:`onnx.FunctionProto`."""
