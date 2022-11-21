@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint disable: protected-access
+from __future__ import annotations
 
 import ast
 import inspect
