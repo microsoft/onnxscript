@@ -39,7 +39,7 @@ version = {attr = "onnxscript.__version__"}
 exclude = ["onnxscript.test.*"]
 
 [tool.setuptools.package-data]
-onnx-script = ["py.typed"]
+onnxscript = ["py.typed"]
 onnx = ["py.typed"]
 
 
