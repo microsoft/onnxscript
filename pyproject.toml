@@ -36,7 +36,7 @@ test = ["flake8", "mypy", "black", "isort[colors]", "pylint"]
 version = {attr = "onnxscript.__version__"}
 
 [tool.setuptools.packages.find]
-exclude = ["my_package.test.*"]
+exclude = ["onnxscript.test.*"]
 
 [tool.setuptools.package-data]
 onnx-script = ["py.typed"]
