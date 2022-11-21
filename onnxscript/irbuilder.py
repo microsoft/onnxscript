@@ -7,7 +7,7 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -239,9 +239,9 @@ class Function:
     def to_model_proto(
         self,
         functions=None,
-        io_types: ONNXType | None = None,
-        input_types: Sequence[ONNXType] | None = None,
-        output_types: Sequence[ONNXType] | None = None,
+        io_types: Optional[ONNXType] = None,
+        input_types: Optional[Sequence[ONNXType]] = None,
+        output_types: Optional[Sequence[ONNXType]] = None,
         **kwargs,
     ):
         """Converts the content of this class into a `onnx.ModelProto`.

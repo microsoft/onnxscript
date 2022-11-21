@@ -9,7 +9,7 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, Collection
+from typing import Any, Collection, Optional
 
 import numpy as np
 import onnx
@@ -31,7 +31,7 @@ class FunctionTestParams:
     function: onnxscript.OnnxFunction
     input: list[Any] | dict[str, Any]
     output: list[Any]
-    attrs: dict[str, Any] | None = None
+    attrs: Optional[dict[str, Any]] = None
 
 
 class OnnxScriptTestCase(unittest.TestCase):
@@ -133,7 +133,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         return test_cases
 
     def run_converter_test(
-        self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto | None = None
+        self, param: FunctionTestParams, onnx_case_model: Optional[onnx.ModelProto] = None
     ):
         # we need the latest version in onnx.ai domain
         # to build a function
@@ -192,8 +192,8 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_eager_test(
         self,
         param: FunctionTestParams,
-        rtol: float | None = None,
-        atol: float | None = None,
+        rtol: Optional[float] = None,
+        atol: Optional[float] = None,
     ):
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
@@ -206,10 +206,10 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_onnx_test(
         self,
         function: onnxscript.OnnxFunction,
-        rtol: float | None = None,
-        atol: float | None = None,
+        rtol: Optional[float] = None,
+        atol: Optional[float] = None,
         skip_eager_test: bool = False,
-        skip_test_names: Collection[str] | None = None,
+        skip_test_names: Optional[Collection[str]] = None,
         **attrs: Any,
     ) -> None:
         """Run ONNX test cases with an onnxscript.OnnxFunction.

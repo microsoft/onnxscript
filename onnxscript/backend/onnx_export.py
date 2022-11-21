@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy
 import onnx
@@ -109,7 +109,7 @@ def _get_const_repr(const_node):
     return None
 
 
-def _rename_variable(name: ValueInfoProto | str) -> str | None:
+def _rename_variable(name: ValueInfoProto | str) -> Optional[str]:
     """Renames all names equal to a python keyword."""
     if isinstance(name, ValueInfoProto):
         # Handle graph/function input/output uniformly
