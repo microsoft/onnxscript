@@ -17,7 +17,7 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
     def generic_visit(self, node):
         if hasattr(node, "live_in"):
-            self.results.append(node.live_in)  # type: ignore
+            self.results.append(node.live_in)
         ast.NodeVisitor.generic_visit(self, node)
         if isinstance(node, (ast.For, ast.While)):
             last = node.body[-1]

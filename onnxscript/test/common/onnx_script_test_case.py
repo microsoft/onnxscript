@@ -9,7 +9,7 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, Collection, Optional, Union
+from typing import Any, Collection, Optional
 
 import numpy as np
 import onnx
@@ -29,7 +29,7 @@ from onnxscript import utils
 @dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
     function: onnxscript.OnnxFunction
-    input: Union[list[Any], dict[str, Any]]
+    input: list[Any] | dict[str, Any]
     output: list[Any]
     attrs: Optional[dict[str, Any]] = None
 
@@ -48,9 +48,9 @@ class OnnxScriptTestCase(unittest.TestCase):
         # Before ONNX IR (or FunctionIR) being updated
         # for FunctionProto to have version number we
         # need to put a default version number here to workaround the problem.
-        cls.local_function_opset_version = 1  # type: ignore[attr-defined]
-        cls.atol = 1e-7  # type: ignore[attr-defined]
-        cls.rtol = 1e-7  # type: ignore[attr-defined]
+        cls.local_function_opset_version = 1
+        cls.atol = 1e-7
+        cls.rtol = 1e-7
         try:
             # experimental version
             # pylint: disable=no-value-for-parameter
