@@ -141,8 +141,9 @@ class OnnxClosure:
 
     function: Any
 
+# EagerModeInput = tensor.Tensor | list['EagerModeInput'] | tuple['EagerModeInput', ...] | None
 
-def adapt_to_eager_mode(inputs):
+def _adapt_to_eager_mode(inputs):
     """Adapts inputs into representation used by onnxscript eager mode.
 
     This does the following transformations:
@@ -183,7 +184,7 @@ def adapt_to_eager_mode(inputs):
     return result, has_array
 
 
-def adapt_to_user_mode(output):
+def _adapt_to_user_mode(output):
     """Unwraps Tensor wrapper around numpy arrays.
 
     Args:
@@ -198,9 +199,9 @@ def adapt_to_user_mode(output):
     elif output is None:
         return None
     elif isinstance(output, list):
-        return [adapt_to_user_mode(elt) for elt in output]
+        return [_adapt_to_user_mode(elt) for elt in output]
     elif isinstance(output, tuple):
-        return tuple(adapt_to_user_mode(elt) for elt in output)
+        return tuple(_adapt_to_user_mode(elt) for elt in output)
     elif isinstance(output, np.ndarray):
         return output
     raise TypeError(f"Unexpected type {type(output)}.")
@@ -249,7 +250,7 @@ class OnnxFunction(Op):
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
-        new_args, has_array = adapt_to_eager_mode(args)
+        new_args, has_array = _adapt_to_eager_mode(args)
         result = self.function(*new_args, **kwargs)
 
         # We use a heuristic to decide whether to return output values as
@@ -259,7 +260,7 @@ class OnnxFunction(Op):
         # or explicitly track whether this is a top-level function-call or
         # a nested function-call.
 
-        return adapt_to_user_mode(result) if has_array else result
+        return _adapt_to_user_mode(result) if has_array else result
 
     def to_function_proto(self, domain=None):
         """Converts the function into :class:`onnx.FunctionProto`."""
