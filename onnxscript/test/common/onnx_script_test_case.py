@@ -9,7 +9,7 @@ import dataclasses
 import numbers
 import unittest
 import warnings
-from typing import Any, Collection, Optional, Union
+from typing import Any, Collection
 
 import numpy as np
 import onnx
@@ -29,9 +29,9 @@ from onnxscript import utils
 @dataclasses.dataclass(repr=False, eq=False)
 class FunctionTestParams:
     function: onnxscript.OnnxFunction
-    input: Union[list[Any], dict[str, Any]]
+    input: list[Any] | dict[str, Any]
     output: list[Any]
-    attrs: Optional[dict[str, Any]] = None
+    attrs: dict[str, Any] | None = None
 
 
 class OnnxScriptTestCase(unittest.TestCase):
@@ -48,9 +48,9 @@ class OnnxScriptTestCase(unittest.TestCase):
         # Before ONNX IR (or FunctionIR) being updated
         # for FunctionProto to have version number we
         # need to put a default version number here to workaround the problem.
-        cls.local_function_opset_version = 1  # type: ignore[attr-defined]
-        cls.atol = 1e-7  # type: ignore[attr-defined]
-        cls.rtol = 1e-7  # type: ignore[attr-defined]
+        cls.local_function_opset_version = 1
+        cls.atol = 1e-7
+        cls.rtol = 1e-7
         try:
             # experimental version
             # pylint: disable=no-value-for-parameter
@@ -133,7 +133,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         return test_cases
 
     def run_converter_test(
-        self, param: FunctionTestParams, onnx_case_model: Optional[onnx.ModelProto] = None
+        self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto | None = None
     ):
         # we need the latest version in onnx.ai domain
         # to build a function
@@ -192,8 +192,8 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_eager_test(
         self,
         param: FunctionTestParams,
-        rtol: Optional[float] = None,
-        atol: Optional[float] = None,
+        rtol: float | None = None,
+        atol: float | None = None,
     ):
         actual = param.function(*param.input, **(param.attrs or {}))
         np.testing.assert_allclose(
@@ -206,10 +206,10 @@ class OnnxScriptTestCase(unittest.TestCase):
     def run_onnx_test(
         self,
         function: onnxscript.OnnxFunction,
-        rtol: Optional[float] = None,
-        atol: Optional[float] = None,
+        rtol: float | None = None,
+        atol: float | None = None,
         skip_eager_test: bool = False,
-        skip_test_names: Optional[Collection[str]] = None,
+        skip_test_names: Collection[str] | None = None,
         **attrs: Any,
     ) -> None:
         """Run ONNX test cases with an onnxscript.OnnxFunction.

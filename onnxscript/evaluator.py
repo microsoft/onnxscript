@@ -7,7 +7,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import pprint
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import onnx
@@ -250,7 +250,7 @@ class ORTMixedEvaluator(ORTEvaluator):
         else:
             return super()._eval(schema, inputs, attributes, closure)
 
-    def register(self, opset: Optional[values.Opset] = None):
+    def register(self, opset: values.Opset | None = None):
         opset = opset or onnx_opset.default_opset
 
         def decorator(function):
