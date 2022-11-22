@@ -8,14 +8,7 @@ import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import (  # type: ignore[attr-defined]
-    Any,
-    List,
-    Optional,
-    Tuple,
-    Union,
-    _GenericAlias,
-)
+from typing import Any, _GenericAlias
 
 import numpy as np
 import onnx
@@ -149,21 +142,25 @@ class OnnxClosure:
     function: Any
 
 
-UserModeValue = Union[Optional[np.ndarray], List["UserModeValue"], Tuple["UserModeValue", ...]]
+UserModeValue = Any
+EagerModeValue = Any
+ExtendedModeValue = Any
 
-EagerModeValue = Union[
-    Optional["tensor.Tensor"], List["EagerModeValue"], Tuple["EagerModeValue", ...]
-]
+# UserModeValue = Union[Optional[np.ndarray], List["UserModeValue"], Tuple["UserModeValue", ...]]
 
-ExtendedModeValue = Union[
-    Optional["tensor.Tensor"],
-    List["ExtendedModeValue"],
-    Tuple["ExtendedModeValue", ...],
-    np.ndarray,
-    int,
-    float,
-    bool,
-]
+# EagerModeValue = Union[
+#     Optional["tensor.Tensor"], List["EagerModeValue"], Tuple["EagerModeValue", ...]
+# ]
+
+# ExtendedModeValue = Union[
+#     Optional["tensor.Tensor"],
+#     List["ExtendedModeValue"],
+#     Tuple["ExtendedModeValue", ...],
+#     np.ndarray,
+#     int,
+#     float,
+#     bool,
+# ]
 
 
 def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
