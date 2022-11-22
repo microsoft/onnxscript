@@ -8,7 +8,7 @@ import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, _GenericAlias, Optional, Union  # type: ignore[attr-defined]
 
 import numpy as np
 import onnx
@@ -141,9 +141,27 @@ class OnnxClosure:
 
     function: Any
 
-# EagerModeInput = tensor.Tensor | list['EagerModeInput'] | tuple['EagerModeInput', ...] | None
 
-def _adapt_to_eager_mode(inputs):
+UserModeValue = Union[
+    Optional[np.ndarray], list["UserModeValue"], tuple["UserModeValue", ...]
+]
+
+EagerModeValue = Union[
+    Optional["tensor.Tensor"], list["EagerModeValue"], tuple["EagerModeValue", ...]
+]
+
+ExtendedModeValue = Union[
+    Optional["tensor.Tensor"],
+    list["ExtendedModeValue"],
+    tuple["ExtendedModeValue", ...],
+    np.ndarray,
+    int,
+    float,
+    bool,
+]
+
+
+def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
     """Adapts inputs into representation used by onnxscript eager mode.
 
     This does the following transformations:
@@ -163,7 +181,7 @@ def _adapt_to_eager_mode(inputs):
     """
     has_array = False
 
-    def adapt(input):
+    def adapt(input: ExtendedModeValue) -> EagerModeValue:
         if isinstance(input, np.ndarray):
             nonlocal has_array
             has_array = True
@@ -184,7 +202,7 @@ def _adapt_to_eager_mode(inputs):
     return result, has_array
 
 
-def _adapt_to_user_mode(output):
+def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
     """Unwraps Tensor wrapper around numpy arrays.
 
     Args:
