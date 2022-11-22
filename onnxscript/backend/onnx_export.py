@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import numpy
 import onnx
@@ -109,7 +109,7 @@ def _get_const_repr(const_node):
     return None
 
 
-def _rename_variable(name: Union[ValueInfoProto, str]) -> Optional[str]:
+def _rename_variable(name: ValueInfoProto | str) -> Optional[str]:
     """Renames all names equal to a python keyword."""
     if isinstance(name, ValueInfoProto):
         # Handle graph/function input/output uniformly
@@ -130,7 +130,7 @@ def _translate_type(onnx_type):
 def _translate_signature(inputs, outputs):
     """Produce the script-functions signature."""
 
-    def input_sig(inp: Union[ValueInfoProto, str]):
+    def input_sig(inp: ValueInfoProto | str):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
             return f"{_rename_variable(inp.name)}: {_translate_type(inp.type)}"

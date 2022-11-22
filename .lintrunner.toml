@@ -34,6 +34,7 @@ init_command = [
     'dlint==0.13.0',
     'toml==0.10.2',  # Needed for pydocstrings to parse pyproject.toml
     'flake8-docstrings==1.6.0',
+    'flake8-future-annotations==1.0.0',
 ]
 
 [[linter]]
