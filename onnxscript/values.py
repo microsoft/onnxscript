@@ -8,7 +8,14 @@ import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, _GenericAlias, Optional, Union  # type: ignore[attr-defined]
+from typing import (  # type: ignore[attr-defined]
+    Any,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    _GenericAlias,
+)
 
 import numpy as np
 import onnx
@@ -142,18 +149,16 @@ class OnnxClosure:
     function: Any
 
 
-UserModeValue = Union[
-    Optional[np.ndarray], list["UserModeValue"], tuple["UserModeValue", ...]
-]
+UserModeValue = Union[Optional[np.ndarray], List["UserModeValue"], Tuple["UserModeValue", ...]]
 
 EagerModeValue = Union[
-    Optional["tensor.Tensor"], list["EagerModeValue"], tuple["EagerModeValue", ...]
+    Optional["tensor.Tensor"], List["EagerModeValue"], Tuple["EagerModeValue", ...]
 ]
 
 ExtendedModeValue = Union[
     Optional["tensor.Tensor"],
-    list["ExtendedModeValue"],
-    tuple["ExtendedModeValue", ...],
+    List["ExtendedModeValue"],
+    Tuple["ExtendedModeValue", ...],
     np.ndarray,
     int,
     float,
