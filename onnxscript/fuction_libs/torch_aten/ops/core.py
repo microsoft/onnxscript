@@ -22,8 +22,8 @@ def atenop(name):
 
 
 # TODO: put this in nn
-@atenop("aten::relu6")
-def Relu6(self):
+@atenop("aten::relu")
+def Relu(self):
     zero = op.CastLike(0, self)
     return op.Max(self, zero)
 

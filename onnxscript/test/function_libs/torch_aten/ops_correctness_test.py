@@ -149,7 +149,7 @@ def add_decorate_info(
 # Ops to be tested for numerical consistency between onnx and pytorch
 OPINFO_FUNCTION_MAPPING = {
     "nn.functional.elu": core_ops.Elu,
-    "nn.functional.relu6": core_ops.Relu6,
+    "nn.functional.relu": core_ops.Relu,
     "nn.functional.selu": core_ops.Selu,
 }
 
