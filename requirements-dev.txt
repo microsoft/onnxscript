@@ -20,6 +20,7 @@ pytest-xdist
 parameterized
 torch
 expecttest
+pyyaml
 
 # Lint
 lintrunner
