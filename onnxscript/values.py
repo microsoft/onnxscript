@@ -14,7 +14,7 @@ import numpy as np
 import onnx
 from onnx.defs import OpSchema
 
-from onnxscript import irbuilder, sourceinfo, tensor
+from onnxscript import evaluator, irbuilder, sourceinfo, tensor
 
 
 class Opset:
@@ -134,8 +134,6 @@ class Op:
         return kwargs, closure
 
     def __call__(self, *args, **kwargs):
-        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
-
         return evaluator.eval(self.opschema, args, kwargs)
 
 
@@ -268,13 +266,11 @@ class OnnxFunction(Op):
         """Returns a lambda to evaluate function using given evaluator instance.
 
         Usage:
-           script_fun(X) executes the function using the default evaluator instance.
-           script_fun[instance](X) executes the function using the given evaluator instance.
+            script_fun(X) executes the function using the default evaluator instance.
+            script_fun[instance](X) executes the function using the given evaluator instance.
         """
 
         def fun(*args, **kwargs):
-            from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
-
             with evaluator.default_as(instance):
                 return self.__call__(*args, **kwargs)
 
