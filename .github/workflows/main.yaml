@@ -17,17 +17,18 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
-          - python311-onnx
+          # - python311-onnx
+          # TODO: Enable python311 when onnx is updated
           - python310-onnx
           - python39-onnx
           - python39-expe
           - python38-expe
           - python37-expe
         include:
-          - name: python311-onnx
-            python-version: "3.11"
-            onnx_standard: true
-            test_examples: true
+          # - name: python311-onnx
+          #   python-version: "3.11"
+          #   onnx_standard: true
+          #   test_examples: true
           - name: python310-onnx
             python-version: "3.10"
             onnx_standard: true
