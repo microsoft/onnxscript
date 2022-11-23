@@ -16,8 +16,18 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        name: [python310-onnx, python39-onnx, python39-expe, python38-expe, python37-expe]
+        name:
+          - python311-onnx
+          - python310-onnx
+          - python39-onnx
+          - python39-expe
+          - python38-expe
+          - python37-expe
         include:
+          - name: python311-onnx
+            python-version: "3.11"
+            onnx_standard: true
+            test_examples: true
           - name: python310-onnx
             python-version: "3.10"
             onnx_standard: true
@@ -42,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4.2.0
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -64,9 +74,6 @@ jobs:
           pip list | grep numpy
           pip list | grep onnx
           pip list | grep torch
-
-      - name: Make package
-        run: python setup.py sdist
 
       - name: pytest
         run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n auto
@@ -90,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4.2.0
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
           cache: pip
