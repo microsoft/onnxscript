@@ -13,7 +13,7 @@ from typing import Any, _GenericAlias  # type: ignore[attr-defined]
 import numpy as np
 import onnx
 
-from onnxscript import debuginfo, irbuilder, tensor
+from onnxscript import irbuilder, sourceinfo, tensor
 
 
 class Opset:
@@ -300,13 +300,13 @@ class OnnxFunction(Op):
         return self.function_ir.to_model_proto(**merged_kw_args)
 
 
-class Value:
-    """A Value is used to represent information about named variables used in a script.
+class SymbolValue:
+    """Represents script-time value information about named variables used in a script.
 
     At translation-time, the (local) variables of a script, including its parameters,
-    are bound to a Value.
+    are bound to a SymbolValue.
 
-    Values fall into the following categories:
+    SymbolValues fall into the following categories:
 
     AttrRef: Function parameters of attribute-kind, also mapped to ONNX attributes
 
@@ -326,27 +326,23 @@ class Value:
     has a Dynamic value.
 
     Scripts may also contain references to global variables, but the translator
-    does not associate a Value with them. The python value of global variables
+    does not associate a SymbolValue with them. The python value of global variables
     is used directly in the translation, and such global variables are intended
     to be used for limited purposes, namely:
     * To identify an opset
     * To represent constant-values, translated into ONNX constants.
     """
 
-    def __init__(self, val: Any, info: debuginfo.DebugInfo) -> None:
-        if not isinstance(info, debuginfo.DebugInfo):
+    def __init__(self, info: sourceinfo.SourceInfo) -> None:
+        if not isinstance(info, sourceinfo.SourceInfo):
             raise TypeError(f"info must be of debuginfo.DebugInfo not {type(info)!r}.")
-        if val is None:
-            raise ValueError(info.msg("val cannot be None."))
-        self.value = val
         self.info = info
 
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.value!r})"
 
-
-class AttrRef(Value):
-    def __init__(self, name: str, typeinfo: _GenericAlias, info: debuginfo.DebugInfo) -> None:
+class AttrRef(SymbolValue):
+    def __init__(
+        self, name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
+    ) -> None:
         """Initializes AttrRef.
 
         Arguments:
@@ -355,15 +351,13 @@ class AttrRef(Value):
                 op's attributes in ONNX are usually single type or list of single type.
             info: for debugging use.
         """
-        super().__init__(name, info)
+        super().__init__(info)
+        self.value = name
         self.typeinfo = typeinfo
         if not isinstance(typeinfo, (type, _GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
             raise TypeError(f"Expecting a type not f{type(typeinfo)} for typeinfo.")
         self.typeinfo = typeinfo
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.value!r}, {self.typeinfo!r})"
 
 
 class DynamicKind(IntFlag):
@@ -374,9 +368,9 @@ class DynamicKind(IntFlag):
     Loop = 8
 
 
-class Dynamic(Value):
+class Dynamic(SymbolValue):
     def __init__(
-        self, val: str, kind: DynamicKind, info: debuginfo.DebugInfo, typeinfo=None
+        self, val: str, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
     ) -> None:
         """Initializes Dynamic.
 
@@ -386,14 +380,8 @@ class Dynamic(Value):
             info: source-location information for error-messages/debugging
             typeinfo: type-information for the value
         """
-        super().__init__(val, info)
+        super().__init__(info)
         assert isinstance(kind, DynamicKind)
+        self.value = val
         self.kind = kind
         self.typeinfo = typeinfo
-
-    def __repr__(self):
-        if self.typeinfo is None:
-            return f"{self.__class__.__name__}({self.value!r}, {self.kind!r})"
-        return (
-            f"{self.__class__.__name__}({self.value}, {self.kind}, typeinfo={self.typeinfo})"
-        )

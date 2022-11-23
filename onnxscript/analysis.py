@@ -7,13 +7,13 @@ from __future__ import annotations
 import ast
 from typing import Any
 
-from onnxscript import debuginfo
+from onnxscript import sourceinfo
 
 
 def get_loop_var(for_stmt, converter):
     if not isinstance(for_stmt.target, ast.Name):
         raise ValueError(
-            debuginfo.DebugInfo(for_stmt, converter).msg(
+            sourceinfo.SourceInfo(for_stmt, converter).msg(
                 "For loop target must be a single variable."
             )
         )
@@ -151,7 +151,7 @@ def do_liveness_analysis(fun, converter):
         except (TypeError, AttributeError):
             pass
         raise ValueError(
-            debuginfo.DebugInfo(stmt, converter).msg(
+            sourceinfo.SourceInfo(stmt, converter).msg(
                 f"Unsupported statement type {type(stmt)!r}."
             )
         )
@@ -227,7 +227,7 @@ def exposed_uses(stmts, converter):
                 live_out = live_out | outer_scope_variables(stmt, converter)
             return live_out
         raise ValueError(
-            debuginfo.DebugInfo(stmt, converter).msg(
+            sourceinfo.SourceInfo(stmt, converter).msg(
                 f"Unsupported statement type {type(stmt)!r}."
             )
         )

@@ -4,12 +4,18 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
+import ast
 import pprint
-import sys
 
 
-class DebugInfo:
-    def __init__(self, lineno, source="string", code=None):
+class SourceInfo:
+    """Information about onnxscript source fragment, used for diagnostic messages."""
+
+    def __init__(self, ast_node: ast.AST, source, code=None):
+        from onnxscript.converter import Converter
+
+        assert isinstance(ast_node, ast.AST)
+        assert isinstance(source, Converter)
         if hasattr(source, "source"):
             code = source.source
             current_fn = getattr(source, "current_fn", None)
@@ -17,20 +23,13 @@ class DebugInfo:
                 source = getattr(source.current_fn, "name", None)
             else:
                 source = None
-        if hasattr(lineno, "lineno"):
-            self.ast_obj = lineno
-            self.lineno = lineno.lineno
-        elif isinstance(lineno, int):
-            self.ast_obj = None
-            self.lineno = lineno
-        elif sys.version_info[:2] < (3, 9):
-            # python 3.8 and below
-            self.ast_obj = None
-            self.lineno = 1
+        if hasattr(ast_node, "lineno"):
+            self.ast_obj = ast_node
+            self.lineno = ast_node.lineno
         else:
             raise NotImplementedError(
-                f"Unable to extract debug information from type {type(lineno)!r}, "
-                f"attributes={pprint.pformat(lineno.__dict__)}."
+                f"Unable to extract debug information from type {type(ast_node)!r}, "
+                f"attributes={pprint.pformat(ast_node.__dict__)}."
             )
         self.source = source
         self.code = None if code is None else code.split("\n")
