@@ -6,6 +6,7 @@ from typing import Any
 
 from onnxscript import analysis, converter, main
 from onnxscript.onnx_opset import opset15 as op
+from onnxscript.sourceinfo import formatter
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
@@ -26,8 +27,8 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
-        ast = main.get_ast(fun)  # pylint: disable=redefined-outer-name
-        analysis.do_liveness_analysis(ast, converter.Converter())
+        source, ast = main.get_src_and_ast(fun)  # pylint: disable=redefined-outer-name
+        analysis.do_liveness_analysis(ast, formatter(source))
         visitor = AnalysisResultsVisitor()
         visitor.visit(ast)
         return visitor.results
@@ -96,8 +97,8 @@ class TestLivenessAnalysis(unittest.TestCase):
 
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
-        ast = main.get_ast(f)  # pylint: disable=redefined-outer-name
-        result = analysis.exposed_uses(ast.body, converter.Converter())
+        source, ast = main.get_src_and_ast(f)  # pylint: disable=redefined-outer-name
+        result = analysis.exposed_uses(ast.body, formatter(source))
         self.assertEqual(result, set(expected))
 
     def test_basic(self):

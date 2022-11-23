@@ -1071,7 +1071,7 @@ class Converter:
         else:
             self.fail(loop_stmt, f"Unexpected loop type {type(loop_stmt)!r}.")
         # analyze loop body
-        exposed_uses = analysis.exposed_uses(loop_stmt.body, self)
+        exposed_uses = analysis.exposed_uses(loop_stmt.body, self.message)
         vars_def_in_loop = analysis.defs(loop_stmt.body)
         loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
         scan_outputs = set()  # TODO
@@ -1250,7 +1250,7 @@ class Converter:
         self.enter_scope(fn.name, fn)
         self.translate_function_def(fn)
         function_ir = self.exit_scope()
-        outer_scope_vars = analysis.outer_scope_variables(fn, self)
+        outer_scope_vars = analysis.outer_scope_variables(fn, self.message)
         function_ir.outer_scope_variables = [
             (var, self.lookup(var, self.source_of(fn))) for var in outer_scope_vars
         ]
@@ -1310,7 +1310,7 @@ class Converter:
     def top_level_stmt(self, stmt):
         if isinstance(stmt, ast.FunctionDef):
             self.init_function_translation()
-            analysis.do_liveness_analysis(stmt, self)
+            analysis.do_liveness_analysis(stmt, self.message)
             fn_ir = self.translate_function_def(stmt)
             fn_ir.debug_print()
             self.this_module.add_function_def(fn_ir)

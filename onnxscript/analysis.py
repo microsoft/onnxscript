@@ -5,22 +5,18 @@
 from __future__ import annotations
 
 import ast
-from typing import Any
+from typing import Any, Sequence, Set
 
 from onnxscript import sourceinfo
 
 
-def get_loop_var(for_stmt, converter):
+def get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
     if not isinstance(for_stmt.target, ast.Name):
-        raise ValueError(
-            sourceinfo.SourceInfo(for_stmt, converter).msg(
-                "For loop target must be a single variable."
-            )
-        )
+        raise ValueError(formatter(for_stmt, "For loop target must be a single variable."))
     return for_stmt.target.id
 
 
-def used_vars(expr):
+def used_vars(expr: ast.expr) -> Set[str]:
     """Return set of all variables used, including function names, in an expression."""
     if isinstance(expr, ast.Name):
         return {expr.id}
@@ -38,7 +34,7 @@ def used_vars(expr):
     return result
 
 
-def local_defs(lhs):
+def local_defs(lhs: ast.Name | ast.Tuple) -> Set[str]:
     """Utility function to return set of assigned/defined
     variables in the lhs of an assignment statement.
     """
@@ -52,7 +48,7 @@ def local_defs(lhs):
     return {get_id(lhs)}
 
 
-def defs(stmt):
+def defs(stmt: ast.stmt) -> Set[str]:
     """Return the set of all variables that may be defined (assigned to) in an
     execution of input stmt.
     """
@@ -84,7 +80,7 @@ def defs(stmt):
     raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
 
 
-def do_liveness_analysis(fun, converter):
+def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
     """Perform liveness analysis of the given function-ast. The results of the
     analysis are stored directly with each statement-ast `s` as attributes `s.live_in`
     and `s.live_out`.
@@ -113,7 +109,7 @@ def do_liveness_analysis(fun, converter):
             live2 = visitBlock(stmt.orelse, live_out)
             return live1 | live2 | used_vars(stmt.test)
         if isinstance(stmt, ast.For):
-            p_loop_var = get_loop_var(stmt, converter)
+            p_loop_var = get_loop_var(stmt, formatter)
             prev = None
             curr = live_out
             while curr != prev:
@@ -150,11 +146,7 @@ def do_liveness_analysis(fun, converter):
                 return live_out
         except (TypeError, AttributeError):
             pass
-        raise ValueError(
-            sourceinfo.SourceInfo(stmt, converter).msg(
-                f"Unsupported statement type {type(stmt)!r}."
-            )
-        )
+        raise ValueError(formatter(stmt, f"Unsupported statement type {type(stmt)!r}."))
 
     assert isinstance(fun, ast.FunctionDef)
     live: set[Any] = set()
@@ -162,7 +154,7 @@ def do_liveness_analysis(fun, converter):
         live = visit(s, live)
 
 
-def exposed_uses(stmts, converter):
+def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
     """Return the set of variables that are used before being defined by given block.
     In essence, this identifies the "inputs" to a given code-block.
     For example, consider the following code-block:
@@ -206,7 +198,7 @@ def exposed_uses(stmts, converter):
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved
             # for loops that execute at least once.
-            loop_var_set = {get_loop_var(stmt, converter)}
+            loop_var_set = {get_loop_var(stmt, formatter)}
             used_after_loop = live_out.difference(loop_var_set)
             used_inside_loop = visitBlock(stmt.body, set()).difference(loop_var_set)
             used_in_loop_header = used_vars(stmt.iter)
@@ -224,28 +216,26 @@ def exposed_uses(stmts, converter):
         if isinstance(stmt, ast.FunctionDef):
             if stmt.name in live_out:
                 live_out.remove(stmt.name)
-                live_out = live_out | outer_scope_variables(stmt, converter)
+                live_out = live_out | outer_scope_variables(stmt, formatter)
             return live_out
         raise ValueError(
-            sourceinfo.SourceInfo(stmt, converter).msg(
-                f"Unsupported statement type {type(stmt)!r}."
-            )
+            formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
         )
 
     return visitBlock(stmts, set())
 
 
-def outer_scope_variables(fun: ast.FunctionDef, converter):
+def outer_scope_variables(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
     """Return the set of outer-scope variables used in a nested function.
 
     Args:
         fun: The function-ast to analyze.
-        converter: The converter object.
+        formatter: The formatter object.
 
     Returns:
         A set of variable names (strings).
     """
     assert isinstance(fun, ast.FunctionDef)
-    used_vars_ = exposed_uses(fun.body, converter)
+    used_vars_ = exposed_uses(fun.body, formatter)
     inputs = [x.arg for x in fun.args.args]
     return used_vars_.difference(inputs)
