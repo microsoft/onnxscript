@@ -69,11 +69,11 @@ def xfail(
     dtypes: Optional[Collection[torch.dtype]] = None,
     reason: Optional[str] = None,
 ):
-    """Expects a OpInfo test to fail.
+    """Expects an OpInfo test to fail.
 
     Args:
         op_name: The name of the operator.
-        variant_name: The name of the variant.
+        variant_name: Optional OpInfo variant_test_name.
         dtypes: The dtypes to expect the failure.
         reason: The reason for the failure.
     """
@@ -95,13 +95,13 @@ def skip(
     dtypes: Optional[Collection[torch.dtype]] = None,
     reason: Optional[str] = None,
 ):
-    """Skips a test case in OpInfo.
+    """Skips an OpInfo test.
 
     Args:
         op_name: The name of the operator.
-        variant_name: The name of the variant.
-        dtypes: The dtypes to expect the failure.
-        reason: The reason for the failure.
+        variant_name: Optional OpInfo variant_test_name.
+        dtypes: The dtypes to skip.
+        reason: The reason for skipping.
     """
     if reason is None:
         raise ValueError("Please specify a reason.")
