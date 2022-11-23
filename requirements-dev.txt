@@ -19,6 +19,7 @@ pytest-subtests
 pytest-xdist
 parameterized
 torch
+expecttest
 
 # Lint
 lintrunner
