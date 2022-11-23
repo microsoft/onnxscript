@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import ast
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 
 class SourceInfo:
@@ -34,9 +34,12 @@ class SourceInfo:
         function_name = self.function_name or ""
         return f"{function_name}:{int(self.lineno)}{line}"
 
+
 Formatter = Callable[[ast.AST, str], str]
 
+
 def formatter(source_code: Optional[str]) -> Formatter:
-    def format (node: ast.AST, message: str) -> str:
+    def format(node: ast.AST, message: str) -> str:
         return SourceInfo(node, source_code).msg(message)
+
     return format

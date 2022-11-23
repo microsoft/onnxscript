@@ -218,9 +218,7 @@ def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
                 live_out.remove(stmt.name)
                 live_out = live_out | outer_scope_variables(stmt, formatter)
             return live_out
-        raise ValueError(
-            formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
-        )
+        raise ValueError(formatter(stmt, f"Unsupported statement type {type(stmt)!r}."))
 
     return visitBlock(stmts, set())
 
