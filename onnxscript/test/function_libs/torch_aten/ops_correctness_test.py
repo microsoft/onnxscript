@@ -147,12 +147,13 @@ def add_decorate_info(
 # Modify this section ##########################################################
 
 # Ops to be tested for numerical consistency between onnx and pytorch
-# TODO(justinchuby): Support variant_test_name
 OPINFO_FUNCTION_MAPPING = {
     "nn.functional.elu": core_ops.Elu,
     "nn.functional.relu6": core_ops.Relu6,
     "nn.functional.selu": core_ops.Selu,
 }
+
+TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail(
@@ -176,7 +177,7 @@ class TestOutputConsistency(unittest.TestCase):
         np.random.seed(42)
 
     @common_device_type.ops(
-        [info for info in OPS_DB if info.name in set(OPINFO_FUNCTION_MAPPING)],
+        [info for info in OPS_DB if info.name in TESTED_OPS],
         allowed_dtypes=SUPPORTED_DTYPES,
     )
     @add_decorate_info(
