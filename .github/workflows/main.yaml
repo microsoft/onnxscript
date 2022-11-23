@@ -59,7 +59,7 @@ jobs:
           cache-dependency-path: "**/requirements-dev.txt"
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade pip setuptools wheel build
           python -m pip install -r requirements-dev.txt
 
       - name: Install standard onnx
@@ -84,6 +84,9 @@ jobs:
       - name: Test examples
         if: ${{ matrix.test_examples }}
         run: pytest -v docs/test
+
+      - name: Build package
+        run: python -m build
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
