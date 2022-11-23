@@ -15,10 +15,9 @@ import onnx
 from onnx import helper, numpy_helper
 
 import onnxscript
-from onnxscript import analysis, autocast, irbuilder, onnx_opset, onnx_types
+from onnxscript import analysis, autocast, irbuilder, onnx_opset, onnx_types, sourceinfo
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript import sourceinfo
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -216,7 +215,7 @@ class Converter:
         self.locals: List[Dict[Any, Any]] = [{}]
 
     def source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
-        return sourceinfo.SourceInfo(node, self)
+        return sourceinfo.SourceInfo(node, self.source, self.current_fn.name)
 
     def message(self, node: ast.AST, error_msg: str) -> str:
         """Constructs an error message containing source information about an ast node."""

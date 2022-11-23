@@ -6,40 +6,31 @@ from __future__ import annotations
 
 import ast
 import pprint
+from typing import Optional
 
 
 class SourceInfo:
     """Information about onnxscript source fragment, used for diagnostic messages."""
 
-    def __init__(self, ast_node: ast.AST, source, code=None):
-        from onnxscript.converter import Converter
-
-        assert isinstance(ast_node, ast.AST)
-        assert isinstance(source, Converter)
-        if hasattr(source, "source"):
-            code = source.source
-            current_fn = getattr(source, "current_fn", None)
-            if current_fn is not None:
-                source = getattr(source.current_fn, "name", None)
-            else:
-                source = None
-        if hasattr(ast_node, "lineno"):
-            self.ast_obj = ast_node
-            self.lineno = ast_node.lineno
-        else:
-            raise NotImplementedError(
-                f"Unable to extract debug information from type {type(ast_node)!r}, "
-                f"attributes={pprint.pformat(ast_node.__dict__)}."
-            )
-        self.source = source
-        self.code = None if code is None else code.split("\n")
+    def __init__(
+        self,
+        ast_node: ast.AST,
+        code: Optional[str] = None,
+        function_name: Optional[str] = None,
+    ):
+        self.ast_node = ast_node
+        self.code = code
+        self.function_name = function_name
+        self.lineno = ast_node.lineno
 
     def msg(self, text):
         return f"ERROR\n{str(self)}\n    {text}"
 
     def __str__(self):
-        if self.code is None:
-            line = ""
+        if self.code:
+            lines = self.code.split("\n")
+            line = f" ...{lines[self.lineno - 1]}"
         else:
-            line = f"    -- line: {self.code[self.lineno - 1]}"
-        return f"{self.source}:{int(self.lineno)}{line}"
+            line = ""
+        function_name = self.function_name or ""
+        return f"{function_name}:{int(self.lineno)}{line}"

@@ -335,24 +335,24 @@ class SymbolValue:
 
     def __init__(self, info: sourceinfo.SourceInfo) -> None:
         if not isinstance(info, sourceinfo.SourceInfo):
-            raise TypeError(f"info must be of debuginfo.DebugInfo not {type(info)!r}.")
+            raise TypeError(f"info must be of type sourceinfo.SourceInfo not {type(info)!r}.")
         self.info = info
 
 
 class AttrRef(SymbolValue):
     def __init__(
-        self, name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
+        self, attr_name: str, typeinfo: _GenericAlias, info: sourceinfo.SourceInfo
     ) -> None:
         """Initializes AttrRef.
 
         Arguments:
-            name: name of the attribute-parameter
+            attr_name: name of the attribute-parameter
             typeinfo: type annotation of the attribute.
                 op's attributes in ONNX are usually single type or list of single type.
             info: for debugging use.
         """
         super().__init__(info)
-        self.value = name
+        self.value = attr_name
         self.typeinfo = typeinfo
         if not isinstance(typeinfo, (type, _GenericAlias)):
             # typing._GenericAlias for List[int] and List[str], etc.
@@ -370,18 +370,18 @@ class DynamicKind(IntFlag):
 
 class Dynamic(SymbolValue):
     def __init__(
-        self, val: str, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
+        self, onnx_var: str, kind: DynamicKind, info: sourceinfo.SourceInfo, typeinfo=None
     ) -> None:
         """Initializes Dynamic.
 
         Arguments:
-            val: the name of the ONNX variable used to represent this value
+            onnx_var: the name of the ONNX variable used to represent this value
             kind: the DynamicKind of this variable
             info: source-location information for error-messages/debugging
             typeinfo: type-information for the value
         """
         super().__init__(info)
         assert isinstance(kind, DynamicKind)
-        self.value = val
+        self.value = onnx_var
         self.kind = kind
         self.typeinfo = typeinfo
