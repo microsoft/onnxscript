@@ -262,7 +262,7 @@ class OnnxFunction(Op):
         """Returns the function name."""
         return self.opname
 
-    def __getitem__(self, instance):
+    def __getitem__(self, instance: evaluator.Evaluator):
         """Returns a lambda to evaluate function using given evaluator instance.
 
         Usage:
