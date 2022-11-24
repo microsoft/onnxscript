@@ -34,7 +34,7 @@ def used_vars(expr: ast.expr) -> Set[str]:
     return result
 
 
-def local_defs(lhs: ast.Name | ast.Tuple) -> Set[str]:
+def local_defs(lhs: ast.expr) -> Set[str]:
     """Utility function to return set of assigned/defined
     variables in the lhs of an assignment statement.
     """
@@ -53,7 +53,7 @@ def defs(stmt: ast.stmt) -> Set[str]:
     execution of input stmt.
     """
 
-    def block_defs(block):
+    def block_defs(block: Sequence[ast.stmt]) -> Set[str]:
         result: set[Any] = set()
         for s in block:
             result = result | defs(s)
@@ -86,14 +86,14 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
     and `s.live_out`.
     """
 
-    def visit(stmt, live_out):
+    def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
         stmt.live_out = live_out
         live = do_visit(stmt, live_out)
         stmt.live_in = live
         return live
 
-    def do_visit(stmt, live_out):
-        def visitBlock(block, live_out):
+    def do_visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
+        def visitBlock(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
             for s in reversed(block):
                 live_out = visit(s, live_out)
             return live_out
@@ -171,12 +171,12 @@ def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
     (in the first statement). Hence x is included in the exposed_uses.
     """
 
-    def visitBlock(block, live_out):
+    def visitBlock(block: Sequence[ast.stmt], live_out: Set[str]) -> Set[str]:
         for stmt in reversed(block):
             live_out = visit(stmt, live_out)
         return live_out
 
-    def visit(stmt, live_out):
+    def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
         if isinstance(stmt, ast.Assign):
             return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
         if isinstance(stmt, ast.AnnAssign):
