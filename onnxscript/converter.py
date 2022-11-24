@@ -829,6 +829,7 @@ class Converter:
 
     def translate_opset_expr(self, node) -> values.Opset:
         """Return an Opset"""
+        # pylint: disable=R1710
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, self.source_of(node), raise_exception=False)
             if isinstance(val, values.Opset):
@@ -841,6 +842,7 @@ class Converter:
 
     def translate_callee_expr(self, node) -> values.Op:
         """Return an Op"""
+        # pylint: disable=R1710
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
