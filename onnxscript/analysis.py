@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import ast
-from typing import Any, Sequence, Set
+from typing import Any, Optional, Sequence, Set
 
 from onnxscript import sourceinfo
 
@@ -16,8 +16,10 @@ def get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
     return for_stmt.target.id
 
 
-def used_vars(expr: ast.expr) -> Set[str]:
+def used_vars(expr: Optional[ast.expr]) -> Set[str]:
     """Return set of all variables used, including function names, in an expression."""
+    if expr is None:
+        return set()
     if isinstance(expr, ast.Name):
         return {expr.id}
     result = set()
@@ -72,7 +74,7 @@ def defs(stmt: ast.stmt) -> Set[str]:
     if isinstance(stmt, ast.Break):
         return set()
     try:
-        if stmt.value.func.id == "print":
+        if stmt.value.func.id == "print":  # type: ignore[attr-defined]
             # Any call to print function are ignored.
             return set()
     except (TypeError, AttributeError):
@@ -87,9 +89,9 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
     """
 
     def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
-        stmt.live_out = live_out
+        stmt.live_out = live_out  # type: ignore[attr-defined]
         live = do_visit(stmt, live_out)
-        stmt.live_in = live
+        stmt.live_in = live  # type: ignore[attr-defined]
         return live
 
     def do_visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
@@ -141,7 +143,7 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
         if isinstance(stmt, ast.FunctionDef):
             return live_out
         try:
-            if stmt.value.func.id == "print":
+            if stmt.value.func.id == "print":  # type: ignore[attr-defined]
                 # Any call to print function are ignored.
                 return live_out
         except (TypeError, AttributeError):
