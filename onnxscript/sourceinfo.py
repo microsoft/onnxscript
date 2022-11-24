@@ -22,10 +22,10 @@ class SourceInfo:
         self.function_name = function_name
         self.lineno = ast_node.lineno
 
-    def msg(self, text):
+    def msg(self, text: str) -> str:
         return f"ERROR\n{str(self)}\n    {text}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.code:
             lines = self.code.split("\n")
             line = f" ...{lines[self.lineno - 1]}"
