@@ -840,9 +840,8 @@ class Converter:
         else:
             self.fail(node, "Invalid opset expression.")
 
-    def translate_callee_expr(self, node) -> values.Op:
-        """Return an Op"""
-        # pylint: disable=R1710
+    def translate_callee_expr(self, node) -> values.Op:  # pylint: disable=R1710
+        """Return an Op"""       
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
