@@ -827,9 +827,8 @@ class Converter:
     def translate_name_expr(self, node):
         return self.py_var_to_onnx_var(node.id, self.source_of(node))
 
-    def translate_opset_expr(self, node) -> values.Opset:
+    def translate_opset_expr(self, node) -> values.Opset:  # pylint: disable=R1710
         """Return an Opset"""
-        # pylint: disable=R1710
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, self.source_of(node), raise_exception=False)
             if isinstance(val, values.Opset):
@@ -841,7 +840,7 @@ class Converter:
             self.fail(node, "Invalid opset expression.")
 
     def translate_callee_expr(self, node) -> values.Op:  # pylint: disable=R1710
-        """Return an Op"""       
+        """Return an Op"""
         if isinstance(node, ast.Attribute):
             module = self.translate_opset_expr(node.value)
             self.set_default_opset(module, node)
