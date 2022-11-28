@@ -3689,7 +3689,8 @@ class Opset11(Opset10):
          `indices` is treated as a (q-1)-dimensional tensor of k-tuples, where each k-tuple is a partial-index into `data`.
         Hence, k can be a value at most the rank of `data`. When k equals rank(data), each update entry specifies an
         update to a single element of the tensor. When k is less than rank(data) each update entry specifies an
-        update to a slice of the tensor.
+        update to a slice of the tensor. Index values are allowed to be negative, as per the usual
+        convention for counting backwards from the end, but are expected in the valid range.
 
         `updates` is treated as a (q-1)-dimensional tensor of replacement-slice-values. Thus, the
         first (q-1) dimensions of updates.shape must match the first (q-1) dimensions of indices.shape.
@@ -4237,7 +4238,7 @@ class Opset11(Opset10):
         dimension. If the value passed to start or end is larger than the `n` (the
         number of elements in this dimension), it represents `n`. For slicing to the
         end of a dimension with unknown size, it is recommended to pass in `INT_MAX`
-        when sclicing forward and 'INT_MIN' when slicing backward.
+        when slicing forward and 'INT_MIN' when slicing backward.
         If a negative value is passed for step, it represents slicing backward.
         However step value cannot be 0.
         If `axes` are omitted, they are set to `[0, ..., ndim-1]`.

@@ -295,6 +295,22 @@ class Opset13(Opset12):
         For example, a 64-bit float 3.1415926459 may be round to a 32-bit float 3.141592. Similarly, converting
         an integer 36 to Boolean may produce 1 because we truncate bits which can't be stored in the targeted type.
 
+        In more detail, the conversion among numerical types should follow these rules:
+
+        * Casting from floating point to:
+          * floating point: +/- infinity if OOR (out of range).
+          * fixed point: undefined if OOR.
+          * bool: +/- 0.0 to False; all else to True.
+        * Casting from fixed point to:
+          * floating point: +/- infinity if OOR. (+ infinity in the case of uint)
+          * fixed point: when OOR, discard higher bits and reinterpret (with respect to two's complement representation for
+        signed types). For example, 200 (int16) -> -56 (int8).
+          * bool: zero to False; nonzero to True.
+        * Casting from bool to:
+          * floating point: `{1.0, 0.0}`.
+          * fixed point: `{1, 0}`.
+          * bool: no change.
+
 
         Args:
             input: (differentiable) Input tensor to be cast.
@@ -3392,9 +3408,9 @@ class Opset13(Opset12):
             keepdims: Keep the reduced dimension or not, default 1 means keep reduced
                 dimension.
 
-            noop_with_empty_axes: Defines behaviour if 'axes' is empty. Default
-                behaviour with 'false' is to reduce all axes. When axes is empty and
-                this attribute is set to true, input tensor will not be reduced,and the
+            noop_with_empty_axes: Defines behavior if 'axes' is empty. Default behavior
+                with 'false' is to reduce all axes. When axes is empty and this
+                attribute is set to true, input tensor will not be reduced,and the
                 output tensor would be equivalent to input tensor.
         """
 
@@ -3945,7 +3961,8 @@ class Opset13(Opset12):
          `indices` is treated as a (q-1)-dimensional tensor of k-tuples, where each k-tuple is a partial-index into `data`.
         Hence, k can be a value at most the rank of `data`. When k equals rank(data), each update entry specifies an
         update to a single element of the tensor. When k is less than rank(data) each update entry specifies an
-        update to a slice of the tensor.
+        update to a slice of the tensor. Index values are allowed to be negative, as per the usual
+        convention for counting backwards from the end, but are expected in the valid range.
 
         `updates` is treated as a (q-1)-dimensional tensor of replacement-slice-values. Thus, the
         first (q-1) dimensions of updates.shape must match the first (q-1) dimensions of indices.shape.

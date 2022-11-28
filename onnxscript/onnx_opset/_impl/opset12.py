@@ -779,7 +779,8 @@ class Opset12(Opset11):
                 defaults to 0 along start and end of each spatial axis.
 
             storage_order: The storage order of the tensor. 0 is row major, and 1 is
-                column major.
+                column major. This attribute is used only to convert an n-tuple index
+                value into a single integer value for producing the second output.
 
             strides: Stride along each spatial axis. If not present, the stride defaults
                 to 1 along each spatial axis.

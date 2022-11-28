@@ -113,35 +113,40 @@ class Opset16(Opset15):
             UINT64,
             UINT8,
         ],
-        grid: Union[
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
+        grid: Union[DOUBLE, FLOAT, FLOAT16],
         align_corners: int = 0,
         mode: str = "bilinear",
         padding_mode: str = "zeros",
-    ) -> Union[DOUBLE, FLOAT, FLOAT16]:
+    ) -> Union[
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    ]:
         r"""[🌐 GridSample(16)](https://onnx.ai/onnx/operators/onnx__GridSample.html#gridsample-16 "Online Documentation")
 
 
-        Given an `input` and a flow-field `grid`, computes the `output` using `input` values and pixel locations from `grid`.
-        Currently, only spatial (4-D) inputs are supported. For `input` with shape (N, C, H, W) and `grid` with shape (N, H_out, W_out, 2),
-        the `output` will have shape (N, C, H_out, W_out).
-        For each output location `output[N, C, H_out, W_out]`, the size-2 vector `grid[N, H_out, W_out]` specifies `input` pixel locations `x` and `y`,
-        which are used to interpolate the output value `output[N, C, H_out, W_out]`.
+        Given an input `X` and a flow-field `grid`, computes the output `Y` using `X` values and pixel locations from `grid`.
+        Currently, only spatial (4-D) inputs are supported. For input `X` with shape (N, C, H, W) and `grid` with shape (N, H_out, W_out, 2),
+        the output `Y` will have shape (N, C, H_out, W_out).
+
+        The tensor `X` contains values at centers of square pixels in a H by W 2-dimensional image.
+        The tensor `grid` describes normalized positions where the output `Y` is to be computed
+        using a specified interpolation method (the mode) and a padding mode (for grid positions falling outside the 2-dimensional image).
+
+        Elements in `grid[N, H_out, W_out]` are size-2 vectors specifying positions in the 2-dimensional space of `X`.
+        They are used to interpolate output values of `Y[N, C, H_out, W_out]`.
 
         The GridSample operator is often used in doing grid generator and sampler in the [Spatial Transformer Networks](https://arxiv.org/abs/1506.02025).
         See also in [torch.nn.functional.grid_sample](https://pytorch.org/docs/master/generated/torch.nn.functional.grid_sample.html#torch-nn-functional-grid-sample).
@@ -180,7 +185,26 @@ class Opset16(Opset15):
         """
 
         schema = get_schema("GridSample", 16, "")
-        op: Callable[..., Union[DOUBLE, FLOAT, FLOAT16]] = Op(self, "GridSample", schema)
+        op: Callable[
+            ...,
+            Union[
+                BOOL,
+                COMPLEX128,
+                COMPLEX64,
+                DOUBLE,
+                FLOAT,
+                FLOAT16,
+                INT16,
+                INT32,
+                INT64,
+                INT8,
+                STRING,
+                UINT16,
+                UINT32,
+                UINT64,
+                UINT8,
+            ],
+        ] = Op(self, "GridSample", schema)
         return op(
             *self._prepare_inputs(schema, X, grid),
             align_corners=align_corners,
@@ -1417,13 +1441,11 @@ class Opset16(Opset15):
         is produced by creating a copy of the input `data`, and then updating its value
         to values specified by `updates` at specific index positions specified by
         `indices`. Its output shape is the same as the shape of `data`.
-
         For each entry in `updates`, the target index in `data` is obtained by combining
         the corresponding entry in `indices` with the index of the entry itself: the
         index-value for dimension = axis is obtained from the value of the corresponding
         entry in `indices` and the index-value for dimension != axis is obtained from the
         index of the entry itself.
-
         `reduction` allows specification of an optional reduction operation, which is applied to all values in `updates`
         tensor into `output` at the specified `indices`.
         In cases where `reduction` is set to "none", indices should not have duplicate entries: that is, if idx1 != idx2,
@@ -1449,9 +1471,7 @@ class Opset16(Opset15):
               output[i][indices[i][j]] *= updates[i][j] if axis = 1,
 
 
-
         This operator is the inverse of GatherElements. It is similar to Torch's Scatter operation.
-
         Example 1:
         ::
 
@@ -1599,14 +1619,14 @@ class Opset16(Opset15):
         and `updates` tensor of rank q + r - indices.shape[-1] - 1. The output of the operation
         is produced by creating a copy of the input `data`, and then updating its value to values
         specified by `updates` at specific index positions specified by `indices`. Its output shape
-        is the same as the shape of `data`. Note that `indices` should not have duplicate entries.
-        That is, two or more `updates` for the same index-location is not supported.
+        is the same as the shape of `data`.
 
         `indices` is an integer tensor. Let k denote indices.shape[-1], the last dimension in the shape of `indices`.
          `indices` is treated as a (q-1)-dimensional tensor of k-tuples, where each k-tuple is a partial-index into `data`.
         Hence, k can be a value at most the rank of `data`. When k equals rank(data), each update entry specifies an
         update to a single element of the tensor. When k is less than rank(data) each update entry specifies an
-        update to a slice of the tensor.
+        update to a slice of the tensor. Index values are allowed to be negative, as per the usual
+        convention for counting backwards from the end, but are expected in the valid range.
 
         `updates` is treated as a (q-1)-dimensional tensor of replacement-slice-values. Thus, the
         first (q-1) dimensions of updates.shape must match the first (q-1) dimensions of indices.shape.
@@ -1617,12 +1637,10 @@ class Opset16(Opset15):
         of shapes.
 
         The `output` is calculated via the following equation:
-
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
                 output[indices[idx]] = updates[idx]
-
         The order of iteration in the above loop is not specified.
         In particular, indices should not have duplicate entries: that is, if idx1 != idx2, then indices[idx1] != indices[idx2].
         This ensures that the output value does not depend on the iteration order.
@@ -1632,21 +1650,16 @@ class Opset16(Opset15):
         In cases where `reduction` is set to "none", indices should not have duplicate entries: that is, if idx1 != idx2,
         then indices[idx1] != indices[idx2]. This ensures that the output value does not depend on the iteration order.
         When `reduction` is set to "add", `output` is calculated as follows:
-
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
                 output[indices[idx]] += updates[idx]
-
         When `reduction` is set to "mul", `output` is calculated as follows:
-
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
                 output[indices[idx]] *= updates[idx]
-
         This operator is the inverse of GatherND.
-
         Example 1:
         ::
 
@@ -1654,7 +1667,6 @@ class Opset16(Opset15):
               indices = [[4], [3], [1], [7]]
               updates = [9, 10, 11, 12]
               output  = [1, 11, 3, 10, 9, 6, 7, 12]
-
 
 
         Example 2:
