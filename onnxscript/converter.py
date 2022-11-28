@@ -896,12 +896,8 @@ class Converter:
                     return self.translate_docstring(node)
         if isinstance(node, ast.FunctionDef):
             return self.translate_nested_function_def(node)
-        try:
-            if node.value.func.id == "print":
-                # Any call to print function are ignored.
-                return None
-        except (TypeError, AttributeError):
-            pass
+        if analysis.is_print_call(node):
+            return None
         raise ValueError(self.message(node, f"Unsupported statement type {type(node)!r}."))
 
     def translate_assign_stmt(self, stmt: Union[ast.Assign, ast.AnnAssign]):

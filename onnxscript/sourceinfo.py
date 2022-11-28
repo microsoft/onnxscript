@@ -1,7 +1,10 @@
 # -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+
+"""Source code information used for diagnostic messages."""
+
 from __future__ import annotations
 
 import ast

@@ -27,10 +27,10 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
-        source, ast = main.get_src_and_ast(fun)  # pylint: disable=redefined-outer-name
-        analysis.do_liveness_analysis(ast, formatter(source))
+        source, parse_tree = main.get_src_and_ast(fun)
+        analysis.do_liveness_analysis(parse_tree, formatter(source))
         visitor = AnalysisResultsVisitor()
-        visitor.visit(ast)
+        visitor.visit(parse_tree)
         return visitor.results
 
     def assertLiveness(self, fun, expected):
@@ -97,8 +97,8 @@ class TestLivenessAnalysis(unittest.TestCase):
 
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
-        source, ast = main.get_src_and_ast(f)  # pylint: disable=redefined-outer-name
-        result = analysis.exposed_uses(ast.body, formatter(source))
+        source, parse_tree = main.get_src_and_ast(f)
+        result = analysis.exposed_uses(parse_tree.body, formatter(source))
         self.assertEqual(result, set(expected))
 
     def test_basic(self):

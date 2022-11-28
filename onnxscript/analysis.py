@@ -10,6 +10,15 @@ from typing import Any, Optional, Sequence, Set
 from onnxscript import sourceinfo
 
 
+def is_print_call(stmt: ast.stmt) -> bool:
+    """Return True if the statement is a call to the print function."""
+    if isinstance(stmt, ast.Expr):
+        if isinstance(stmt.value, ast.Call):
+            if isinstance(stmt.value.func, ast.Name):
+                return stmt.value.func.id == "print"
+    return False
+
+
 def get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
     if not isinstance(for_stmt.target, ast.Name):
         raise ValueError(formatter(for_stmt, "For loop target must be a single variable."))
@@ -73,12 +82,8 @@ def defs(stmt: ast.stmt) -> Set[str]:
         return block_defs(stmt)
     if isinstance(stmt, ast.Break):
         return set()
-    try:
-        if stmt.value.func.id == "print":  # type: ignore[attr-defined]
-            # Any call to print function are ignored.
-            return set()
-    except (TypeError, AttributeError):
-        pass
+    if is_print_call(stmt):
+        return set()
     raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
 
 
@@ -142,12 +147,8 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
                 return live_out
         if isinstance(stmt, ast.FunctionDef):
             return live_out
-        try:
-            if stmt.value.func.id == "print":  # type: ignore[attr-defined]
-                # Any call to print function are ignored.
-                return live_out
-        except (TypeError, AttributeError):
-            pass
+        if is_print_call(stmt):
+            return live_out
         raise ValueError(formatter(stmt, f"Unsupported statement type {type(stmt)!r}."))
 
     assert isinstance(fun, ast.FunctionDef)
@@ -189,14 +190,8 @@ def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
-        if (
-            isinstance(stmt, ast.Expr)
-            and hasattr(stmt, "value")
-            and isinstance(stmt.value, ast.Call)
-        ):
-            f = stmt.value.func
-            if f.id == "print":  # type: ignore[attr-defined]
-                return live_out
+        if is_print_call(stmt):
+            return live_out
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved
             # for loops that execute at least once.
