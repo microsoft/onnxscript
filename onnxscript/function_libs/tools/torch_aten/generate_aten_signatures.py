@@ -1,14 +1,15 @@
 """Generates the ATen signatures for the ONNX ATen operator set using torch.ops."""
 from __future__ import annotations
+
 import argparse
 import sys
 from typing import Any
 
-import pygen as cg
 import torchgen.gen
 import torchgen.model
 import yaml
 
+import opgen.pygen as cg
 
 # BaseTy = Enum(
 #     "BaseTy",
