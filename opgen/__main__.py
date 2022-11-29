@@ -30,8 +30,7 @@ with open(opsets_path.joinpath("__init__.py"), "w", encoding="utf-8"):
 
 builder = OpsetsBuilder(".".join(module_base_names), MIN_REQUIRED_ONNX_OPSET_VERSION)
 paths = builder.write(repo_root)
-subprocess.check_call(["black", "--quiet", *paths])
-subprocess.check_call(["isort", "--quiet", *paths])
+subprocess.check_call(["lintrunner", "-v", "-a", "--skip", "SPACES", *paths])
 
 print(f"Generated Ops: {builder.all_ops_count}")
 
