@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
-from typing import Any
+from typing import Any, Sequence
 
 import torchgen.gen
 import torchgen.model
@@ -38,16 +38,6 @@ def parse_native_functions_yaml(yaml_path: str) -> tuple[Any, Any]:
     return parsed.native_functions, parsed.backend_indices
 
 
-DIM_NAMES = (
-    "M",
-    "N",
-    "S",
-    "T",
-    "U",
-    "V",
-)
-
-
 def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     assert isinstance(arg.type, torchgen.model.ListType), f"arg: {arg}"
     arg_type = arg_type_to_str(arg.type)
@@ -60,9 +50,7 @@ def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
         arg_type = arg_type.upper()
     if arg.type.size is None:
         return cg.TypeRef(None, arg_type, cg.EllipsisTypeRef())
-    return cg.TypeRef(
-        None, arg_type, *[cg.TypeRef(None, f'"{DIM_NAMES[i]}"') for i in range(arg.type.size)]
-    )
+    return cg.TypeRef(None, arg_type, *[cg.TypeRef(None, f"{arg.type.size}")])
 
 
 def arg_type_to_str(arg_type: torchgen.model.Type) -> str:
@@ -78,6 +66,8 @@ def arg_type_to_str(arg_type: torchgen.model.Type) -> str:
         return "int"
     elif arg_type.is_base_ty_like(torchgen.model.BaseTy.bool):
         return "bool"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.str):
+        return "str"
     elif arg_type.is_base_ty_like(torchgen.model.BaseTy.ScalarType):
         return "int"
     else:
@@ -120,6 +110,22 @@ def format_default_value(default: str) -> str:
         assert isinstance(default_val, list)
         return repr(tuple(default_val))
     return default
+
+
+def create_return_type(returns: Sequence[torchgen.model.Return]) -> cg.TypeRef:
+    """Returns the Python type for the return value of the given function."""
+    if not returns:
+        return cg.BuiltinTypeRef("Any")
+    return_nodes = []
+    for return_val in returns:
+        return_type = return_val.type
+        return_node = cg.TypeRef(None, arg_type_to_str(return_type))
+        if return_type.is_nullable():
+            return_node = cg.TypeRef(None, "Optional", return_node)
+        return_nodes.append(return_node)
+    if len(return_nodes) == 1:
+        return return_nodes[0]
+    return cg.BuiltinTypeRef("tuple", *return_nodes)
 
 
 def create_signature(func: torchgen.model.NativeFunction) -> Any:
@@ -168,8 +174,8 @@ def create_signature(func: torchgen.model.NativeFunction) -> Any:
     return cg.FunctionDef(
         op_name,
         *py_args,
-        return_type=None,  # TODO: Add return type
-        body=[cg.Raise(cg.Call(cg.Name("NotImplementedError")))],  # type: ignore[arg-type]
+        return_type=create_return_type(func.func.returns),
+        body=[cg.Raise(cg.Call(cg.Name("NotImplementedError")))],  # type: ignore[list-item]
     )
 
 
