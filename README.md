@@ -90,11 +90,10 @@ pytest onnxscript/test
 ```python
 from onnx import TensorProto
 from onnx.helper import make_tensor
-from onnxscript import script
-from onnxscript.onnx_types import INT64, FLOAT
+from onnxscript import script, INT64, FLOAT
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript.onnx_opset import opset15 as op
+from onnxscript import opset15 as op
 
 # We use the script decorator to indicate that
 # this is meant to be translated to ONNX.

@@ -3,12 +3,15 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from enum import Enum
 from textwrap import TextWrapper, dedent
 from typing import (
     Any,
     Callable,
+    Generic,
     Iterable,
     Optional,
     Set,
@@ -21,6 +24,7 @@ from typing import (
 
 T = TypeVar("T")
 TNode = TypeVar("TNode", bound="Node")
+TExpr = TypeVar("TExpr", bound="Expr")
 NoneType = type(None)
 
 
@@ -90,6 +94,8 @@ NodePredicate.always = NodePredicate()
 
 
 class Node(ABC):
+    # pylint: disable=W0212
+
     def __init__(self):
         self._role: Optional[Role] = None
         self._parent: Optional[Node] = None
@@ -97,6 +103,8 @@ class Node(ABC):
         self._next_sibling: Optional[Node] = None
         self._first_child: Optional[Node] = None
         self._last_child: Optional[Node] = None
+        self.leading_trivia: Optional[str] = None
+        self.trailing_trivia: Optional[str] = None
 
     @property
     def qual_name(self) -> str:
@@ -148,7 +156,7 @@ class Node(ABC):
 
     def get_children(self, predicate: NodePredicate) -> Iterable["Node"]:
         _assert_instance(predicate, NodePredicate)
-        yield from filter(lambda c: predicate.matches(c), self.children)
+        yield from filter(predicate.matches, self.children)
 
     def get_children_in_role(self, role: Role):
         _assert_instance(role, Role)
@@ -350,19 +358,19 @@ class Constant(Expr):
         self._dispatch_visit(visitor.visit_constant)
 
 
-class ExprList(Expr, ABC):
+class ExprList(Expr, Generic[TExpr], ABC):
     class Roles:
         Elements = Role("ExprList.Elements")
 
-    def __init__(self, *elements: Expr):
+    def __init__(self, *elements: TExpr):
         super().__init__()
         self.append_children(elements, ExprList.Roles.Elements)
 
     @property
-    def elements(self) -> Iterable["Expr"]:
+    def elements(self) -> Iterable[TExpr]:
         return self.get_children_in_role(ExprList.Roles.Elements)
 
-    def append_element(self, element: Expr):
+    def append_element(self, element: TExpr):
         _assert_instance(element, Expr)
         self.append_child(element, ExprList.Roles.Elements)
 
@@ -412,6 +420,22 @@ class Subscript(Expr):
         self._dispatch_visit(visitor.visit_subscript)
 
 
+class Starred(Expr):
+    class Roles:
+        Expr = Role("Starred.Expr")
+
+    def __init__(self, expr: Expr):
+        super().__init__()
+        self.append_child(expr, Starred.Roles.Expr)
+
+    @property
+    def expr(self):
+        return first(self.get_children_in_role(Starred.Roles.Expr))
+
+    def accept(self, visitor: "Visitor"):
+        self._dispatch_visit(visitor.visit_starred)
+
+
 class Call(Expr):
     class Roles:
         Func = Role("Call.Func")
@@ -435,6 +459,29 @@ class Call(Expr):
         self._dispatch_visit(visitor.visit_call)
 
 
+class Lambda(Expr):
+    class Roles:
+        Args = Role("Lambda.Args")
+        Body = Role("Lambda.Body")
+
+    def __init__(self, body: Expr, *args: Arg):
+        super().__init__()
+        _assert_instance(body, Expr)
+        self.append_child(body, Lambda.Roles.Body)
+        self.append_children(args, Lambda.Roles.Args)
+
+    @property
+    def body(self) -> Expr:
+        return first(self.get_children_in_role(Lambda.Roles.Body))
+
+    @property
+    def args(self) -> Iterable["Expr"]:
+        return self.get_children_in_role(Lambda.Roles.Args)
+
+    def accept(self, visitor: "Visitor"):
+        self._dispatch_visit(visitor.visit_lambda)
+
+
 class TupleExpr(ExprList):
     def accept(self, visitor: "Visitor"):
         self._dispatch_visit(visitor.visit_tuple_expr)
@@ -450,14 +497,50 @@ class SetExpr(ExprList):
         self._dispatch_visit(visitor.visit_set_expr)
 
 
+class DictElem(Expr):
+    class Roles:
+        Key = Role("DictElem.Key")
+        Value = Role("DictElem.Value")
+
+    def __init__(self, key: Expr, value: Expr):
+        super().__init__()
+        _assert_instance(key, Expr)
+        _assert_instance(value, Expr)
+        self.append_child(key, DictElem.Roles.Key)
+        self.append_child(value, DictElem.Roles.Value)
+
+    @property
+    def key(self) -> Expr:
+        return first(self.get_children_in_role(DictElem.Roles.Key))
+
+    @property
+    def value(self) -> Expr:
+        return first(self.get_children_in_role(DictElem.Roles.Value))
+
+    def accept(self, visitor: "Visitor"):
+        self._dispatch_visit(visitor.visit_dict_elem)
+
+
+class DictExpr(ExprList[DictElem]):
+    def accept(self, visitor: "Visitor"):
+        self._dispatch_visit(visitor.visit_dict_expr)
+
+
 class TypeRef(Expr):
     class Roles:
         TypeArgs = Role("TypeRef.TypeArgs")
 
-    def __init__(self, module: Optional[str], name: str, *typeargs: "TypeRef"):
+    def __init__(
+        self,
+        module: Optional[str],
+        name: str,
+        *typeargs: "TypeRef",
+        default_value: Optional[Constant] = None,
+    ):
         super().__init__()
         self.module = module
         self.name = name
+        self.default_value = default_value or Constant(None)
         self.imported_by: Optional["ImportBase"] = None
         self.append_children(typeargs, TypeRef.Roles.TypeArgs)
 
@@ -485,8 +568,8 @@ class TypeRef(Expr):
 
 
 class BuiltinTypeRef(TypeRef):
-    def __init__(self, name: str, *typeargs: "TypeRef"):
-        super().__init__(None, name, *typeargs)
+    def __init__(self, name: str, *typeargs: "TypeRef", **kwargs):
+        super().__init__(None, name, *typeargs, **kwargs)
 
 
 class NoneTypeRef(BuiltinTypeRef):
@@ -496,22 +579,22 @@ class NoneTypeRef(BuiltinTypeRef):
 
 class BoolTypeRef(BuiltinTypeRef):
     def __init__(self):
-        super().__init__("bool")
+        super().__init__("bool", default_value=Constant(bool()))
 
 
 class IntTypeRef(BuiltinTypeRef):
     def __init__(self):
-        super().__init__("int")
+        super().__init__("int", default_value=Constant(int()))
 
 
 class FloatTypeRef(BuiltinTypeRef):
     def __init__(self):
-        super().__init__("float")
+        super().__init__("float", default_value=Constant(float()))
 
 
 class ComplexTypeRef(BuiltinTypeRef):
     def __init__(self):
-        super().__init__("complex")
+        super().__init__("complex", default_value=Constant(complex()))
 
 
 class StrTypeRef(BuiltinTypeRef):
@@ -524,7 +607,20 @@ class BytesTypeRef(BuiltinTypeRef):
         super().__init__("bytes")
 
 
+class EllipsisTypeRef(BuiltinTypeRef):
+    def __init__(self):
+        super().__init__("...")
+
+
 class TypingRefs(ABC):
+    @abstractmethod
+    def __init__(self):
+        pass
+
+    class Any(TypeRef):
+        def __init__(self):
+            super().__init__("typing", "Any")
+
     class Union(TypeRef):
         def __init__(self, *typeargs: TypeRef):
             super().__init__("typing", "Union", *typeargs)
@@ -545,9 +641,17 @@ class TypingRefs(ABC):
         def __init__(self, *typeargs: TypeRef):
             super().__init__("typing", "Mapping", *typeargs)
 
+    class List(TypeRef):
+        def __init__(self, *typeargs: TypeRef):
+            super().__init__("typing", "List", *typeargs)
+
     class Annotation(TypeRef):
         def __init__(self, *typeargs: TypeRef):
             super().__init__("typing", "Annotation", *typeargs)
+
+    class Callable(TypeRef):
+        def __init__(self, *typeargs: TypeRef):
+            super().__init__("typing", "Callable", *typeargs)
 
 
 class Arg(Node):
@@ -579,6 +683,10 @@ class Arg(Node):
     @property
     def default_value(self) -> Optional[Expr]:
         return first_or_none(self.get_children_in_role(Arg.Roles.DefaultValue))
+
+    @default_value.setter
+    def default_value(self, value: Optional[Expr]):
+        self._set_single_child(value, Arg.Roles.DefaultValue)
 
     @property
     def has_default_value(self) -> bool:
@@ -632,7 +740,7 @@ class FunctionDef(BlockStmt):
         name: str,
         *args: Arg,
         return_type: Optional[TypeRef] = None,
-        body: Union[Stmt, Iterable[Stmt]] = [],
+        body: Union[Stmt, Iterable[Stmt]] = (),
         doc: Optional[str] = None,
     ):
         super().__init__()
@@ -656,7 +764,7 @@ class FunctionDef(BlockStmt):
 
     @return_type.setter
     def return_type(self, return_type: Optional[TypeRef]):
-        return self._set_single_child(return_type, FunctionDef.Roles.ReturnType)
+        self._set_single_child(return_type, FunctionDef.Roles.ReturnType)
 
     @property
     def body(self) -> Iterable[Stmt]:
@@ -675,7 +783,7 @@ class ClassDef(BlockStmt):
         Bases = Role("ClassDef.Bases")
         Body = Role("ClassDef.Body")
 
-    def __init__(self, name: str, *body: Stmt, bases: Union[TypeRef, Iterable[TypeRef]] = []):
+    def __init__(self, name: str, *body: Stmt, bases: Union[TypeRef, Iterable[TypeRef]] = ()):
         super().__init__()
         self.name = name
         self.append_children(bases, ClassDef.Roles.Bases)
@@ -705,6 +813,17 @@ class ClassDef(BlockStmt):
 
 
 class Return(Stmt):
+    class Roles:
+        Expr = Role("Return.Expr")
+
+    def __init__(self, expr: Expr):
+        super().__init__()
+        self.append_child(expr, Return.Roles.Expr)
+
+    @property
+    def expr(self):
+        return self._get_single_child(Return.Roles.Expr)
+
     def accept(self, visitor: "Visitor"):
         self._dispatch_visit(visitor.visit_return)
 
@@ -727,7 +846,7 @@ class Assign(Stmt):
 
     @target.setter
     def target(self, expr: Optional[Expr]):
-        return self._set_single_child(expr, Assign.Roles.Target)
+        self._set_single_child(expr, Assign.Roles.Target)
 
     @property
     def value(self) -> Optional[Expr]:
@@ -735,7 +854,7 @@ class Assign(Stmt):
 
     @value.setter
     def value(self, expr: Optional[Expr]):
-        return self._set_single_child(expr, Assign.Roles.Value)
+        self._set_single_child(expr, Assign.Roles.Value)
 
     @property
     def type(self) -> Optional[TypeRef]:
@@ -743,7 +862,7 @@ class Assign(Stmt):
 
     @type.setter
     def type(self, expr: Optional[TypeRef]):
-        return self._set_single_child(expr, Assign.Roles.Type)
+        self._set_single_child(expr, Assign.Roles.Type)
 
     def accept(self, visitor: "Visitor"):
         self._dispatch_visit(visitor.visit_assign)
@@ -772,7 +891,7 @@ class If(BlockStmt):
 
     @condition.setter
     def condition(self, expr: Optional[Expr]):
-        return self._set_single_child(expr, If.Roles.Condition)
+        self._set_single_child(expr, If.Roles.Condition)
 
     @property
     def true_body(self) -> Iterable[Stmt]:
@@ -816,9 +935,8 @@ class ImportBase(Stmt, ABC):
     class Roles:
         Names = Role("ImportBase.Names")
 
-    def __init__(self, *names: Alias, typecheck_ignore: bool = False):
+    def __init__(self, *names: Alias):
         super().__init__()
-        self.typecheck_ignore = typecheck_ignore
         self.append_children(names, ImportBase.Roles.Names)
 
     @property
@@ -832,14 +950,8 @@ class Import(ImportBase):
 
 
 class ImportFrom(ImportBase):
-    def __init__(
-        self,
-        module: str,
-        *names: Alias,
-        level: Optional[int] = None,
-        typecheck_ignore: bool = False,
-    ):
-        super().__init__(*names, typecheck_ignore=typecheck_ignore)
+    def __init__(self, module: str, *names: Alias, level: Optional[int] = None):
+        super().__init__(*names)
         self.module = module
         self.level = level
 
@@ -874,6 +986,8 @@ class VisitKind(Enum):
 
 
 class Visitor:
+    # pylint: disable=W0613
+
     def __init__(self):
         self.visit_kind = VisitKind.NONE
         self.node_stack = []
@@ -907,8 +1021,14 @@ class Visitor:
     def visit_subscript(self, subscript: Subscript) -> Optional[bool]:
         return self.visit_expr(subscript)
 
+    def visit_starred(self, starred: Starred) -> Optional[bool]:
+        return self.visit_expr(starred)
+
     def visit_call(self, call: Call) -> Optional[bool]:
         return self.visit_expr(call)
+
+    def visit_lambda(self, lambda_: Lambda) -> Optional[bool]:
+        return self.visit_expr(lambda_)
 
     def visit_expr_list(self, expr_list: ExprList) -> Optional[bool]:
         return self.visit_expr(expr_list)
@@ -924,6 +1044,12 @@ class Visitor:
 
     def visit_set_expr(self, set: SetExpr) -> Optional[bool]:
         return self.visit_expr_list(set)
+
+    def visit_dict_elem(self, elem: DictElem) -> Optional[bool]:
+        return self.visit_expr(elem)
+
+    def visit_dict_expr(self, dict: DictExpr) -> Optional[bool]:
+        return self.visit_expr_list(dict)
 
     def visit_typeref(self, typeref: TypeRef) -> Optional[bool]:
         return self.visit_expr(typeref)
@@ -1049,7 +1175,7 @@ class ImportAdjuster(FixupVisitor):
         ):
             import_from = import_
             for imported_name in filter(
-                lambda i: i.name == typeref.name or i.alias == typeref.name, import_.names
+                lambda i: i.name in (typeref.name, typeref.name), import_.names
             ):
                 adjust_typeref(imported_name.alias)
                 return True
@@ -1096,8 +1222,15 @@ class NodeWriter(Visitor, ABC):
         self._indent_level = 0
         self._last_char = ""
 
+    def enter(self, node: Node):
+        super().enter(node)
+        if node.leading_trivia:
+            self.write(node.leading_trivia)
+
     def finish(self, node: Node):
         super().finish(node)
+        if node.trailing_trivia:
+            self.write(node.trailing_trivia)
         if self._options.insert_final_newline and len(self.node_stack) == 0:
             self.write("\n")
 
@@ -1172,14 +1305,10 @@ class PythonWriter(NodeWriter):
     def visit_import(self, import_: Import):
         self.write("import ")
         self.dispatch_write(", ", import_.names)
-        if import_.typecheck_ignore:
-            self.write("# type: ignore")
 
     def visit_importfrom(self, importfrom: ImportFrom):
         self.write(f"from {importfrom.module} import ")
         self.dispatch_write(", ", importfrom.names)
-        if importfrom.typecheck_ignore:
-            self.write("# type: ignore")
 
     def visit_typeref(self, typeref: TypeRef):
         if typeref.module and len(typeref.module) > 0:
@@ -1192,6 +1321,8 @@ class PythonWriter(NodeWriter):
             self.write("]")
 
     def visit_arg(self, arg: Arg):
+        if arg.is_vararg:
+            self.write("*")
         self.write(arg.name)
         if arg.type:
             self.write(": ")
@@ -1222,18 +1353,36 @@ class PythonWriter(NodeWriter):
         subscript.slice.accept(self)
         self.write("]")
 
+    def visit_starred(self, starred: Starred):
+        self.write("*")
+        starred.expr.accept(self)
+
     def visit_call(self, call: Call):
         call.func.accept(self)
         self.dispatch_write(", ", call.args, prefix="(", suffix=")")
 
+    def visit_lambda(self, lambda_: Lambda):
+        self.write("lambda ")
+        self.dispatch_write(", ", lambda_.args)
+        self.write(": ")
+        lambda_.body.accept(self)
+
     def visit_tuple_expr(self, tuple: TupleExpr):
-        self.dispatch_write(", ", tuple.elements, prefix="(", suffix=")")
+        self.dispatch_write(", ", tuple.elements, prefix="(", suffix=",)")
 
     def visit_list_expr(self, list: ListExpr):
         self.dispatch_write(", ", list.elements, prefix="[", suffix="]")
 
-    def visit_set_expr(self, list: ListExpr):
-        self.dispatch_write(", ", list.elements, prefix="{", suffix="}")
+    def visit_set_expr(self, set: ListExpr):
+        self.dispatch_write(", ", set.elements, prefix="{", suffix="}")
+
+    def visit_dict_elem(self, elem: DictElem):
+        elem.key.accept(self)
+        self.write(": ")
+        elem.value.accept(self)
+
+    def visit_dict_expr(self, dict: DictExpr):
+        self.dispatch_write(", ", dict.elements, prefix="{", suffix="}")
 
     def visit_pass(self, pass_: Pass):
         self.write("pass")
@@ -1281,11 +1430,11 @@ class PythonWriter(NodeWriter):
         self.write(":\n")
         self.indent()
         if functiondef.doc:
-            self.write('"""\n')
+            self.write('r"""')
             for line in dedent(functiondef.doc).splitlines():
                 self.write(line)
                 self.write("\n")
-            self.write('"""\n')
+            self.write('"""\n\n')
         self.dispatch_write("\n", functiondef.body)
         self.dedent()
 
@@ -1299,6 +1448,10 @@ class PythonWriter(NodeWriter):
         self.indent()
         self.dispatch_write("\n\n", classdef.body)
         self.dedent()
+
+    def visit_return(self, return_: Return):
+        self.write("return ")
+        return_.expr.accept(self)
 
 
 class DocCommentBuilder(Visitor):
