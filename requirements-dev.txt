@@ -11,10 +11,6 @@ sphinx<=5.3.0
 sphinx-gallery
 pydata_sphinx_theme
 
-# ATen lib
-typing_extensions
-beartype
-
 # Testing
 pytest!=7.1.0
 pytest-cov
@@ -23,8 +19,6 @@ pytest-subtests
 pytest-xdist
 parameterized
 torch
-expecttest
-pyyaml
 
 # Lint
 lintrunner
