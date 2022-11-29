@@ -2,7 +2,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+
 from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 from onnx import TensorProto
@@ -21,7 +24,7 @@ class Tensor:
             raise TypeError(f"Unexpected type {type(nparray)}. It must be a numpy array.")
         self._nparray = nparray
 
-        self._opset = opset or onnx_opset.default_opset
+        self._opset: Any = opset or onnx_opset.default_opset
 
     @property
     def value(self):
