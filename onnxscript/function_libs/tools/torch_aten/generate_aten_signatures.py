@@ -2,38 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import sys
-from typing import Any
+from typing import Any, Sequence
 
 import torchgen.gen
 import torchgen.model
 import yaml
 
 import opgen.pygen as cg
-
-# BaseTy = Enum(
-#     "BaseTy",
-#     (
-#         "Generator",
-#         "ScalarType",
-#         "Tensor",
-#         "int",
-#         "Dimname",
-#         "DimVector",
-#         "float",
-#         "str",
-#         "bool",
-#         "Layout",
-#         "Device",
-#         "Scalar",
-#         "MemoryFormat",
-#         "QScheme",
-#         "Storage",
-#         "Stream",
-#         "SymInt",
-#         "ConstQuantizerPtr",
-#     ),
-# )
 
 
 def load_native_function_yaml(yaml_path: str):
@@ -42,6 +19,7 @@ def load_native_function_yaml(yaml_path: str):
     with open(yaml_path, encoding="utf-8") as f:
         all_functions = yaml.safe_load(f)
     valid_tags = set()
+    # Mark all tags as valid, since we don't want to validate them.
     for func in all_functions:
         if "tags" not in func:
             continue
@@ -51,6 +29,7 @@ def load_native_function_yaml(yaml_path: str):
 
 
 def parse_native_functions_yaml(yaml_path: str) -> tuple[Any, Any]:
+    """Parses the native_functions.yaml file."""
     yaml_str, valid_tags = load_native_function_yaml(yaml_path)
     yaml_struct = yaml.load(yaml_str, Loader=torchgen.gen.LineLoader)
     parsed = torchgen.gen.parse_native_yaml_struct(
@@ -59,24 +38,50 @@ def parse_native_functions_yaml(yaml_path: str) -> tuple[Any, Any]:
     return parsed.native_functions, parsed.backend_indices
 
 
-def get_argument_type(arg: torchgen.model.Argument) -> cg.TypeRef:
-    # TODO: Handel scalar type
-    optional = arg.type.is_nullable()
-    if arg.type.is_base_ty_like(torchgen.model.BaseTy.Tensor):
-        inner_type = cg.TypeRef(None, "Tensor")
-    elif arg.type.is_base_ty_like(torchgen.model.BaseTy.SymInt):
-        # TODO(justinchuby): Make sure this is a scalar
-        inner_type = cg.TypeRef(None, "INT64")
-    elif arg.type.is_base_ty_like(torchgen.model.BaseTy.float):
-        inner_type = cg.TypeRef(None, "float")
-    elif arg.type.is_base_ty_like(torchgen.model.BaseTy.int):
-        inner_type = cg.TypeRef(None, "int")
-    elif arg.type.is_base_ty_like(torchgen.model.BaseTy.bool):
-        inner_type = cg.TypeRef(None, "bool")
-    else:
-        inner_type = cg.TypeRef(None, "Any")
+def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
+    assert isinstance(arg.type, torchgen.model.ListType), f"arg: {arg}"
+    arg_type = arg_type_to_str(arg.type)
+    if arg_type in {
+        "float",
+        "int",
+        "bool",
+    }:
+        # Convert python type to onnx tensor types
+        arg_type = arg_type.upper()
+    if arg.type.size is None:
+        return cg.TypeRef(None, arg_type, cg.EllipsisTypeRef())
+    return cg.TypeRef(None, arg_type, *[cg.TypeRef(None, f"{arg.type.size}")])
 
-    if optional:
+
+def arg_type_to_str(arg_type: torchgen.model.Type) -> str:
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.Tensor):
+        return "TensorType"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.SymInt):
+        return "INT64"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.Scalar):
+        return "TensorType"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.float):
+        return "float"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.int):
+        return "int"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.bool):
+        return "bool"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.str):
+        return "str"
+    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.ScalarType):
+        return "int"
+    else:
+        return "Any"
+
+
+def get_argument_type(arg: torchgen.model.Argument) -> cg.TypeRef:
+    """Returns the Python type for the given argument."""
+    if isinstance(arg.type, torchgen.model.ListType):
+        inner_type = create_list_type(arg)
+    else:
+        inner_type = cg.TypeRef(None, arg_type_to_str(arg.type))
+
+    if arg.type.is_nullable():
         return cg.TypeRef(None, "Optional", inner_type)
     return inner_type
 
@@ -95,7 +100,32 @@ def get_op_name(func: torchgen.model.NativeFunction) -> str:
     if func.func.name.overload_name:
         return f"{func.func.name.name.base}_{func.func.name.overload_name}"
 
-    return func.func.name.name.base
+    return func.func.name.name.base  # type: ignore[no-any-return]
+
+
+def format_default_value(default: str) -> str:
+    if default.startswith("[") and default.endswith("]"):
+        # Convert list to tuple
+        default_val = ast.literal_eval(default)
+        assert isinstance(default_val, list)
+        return repr(tuple(default_val))
+    return default
+
+
+def create_return_type(returns: Sequence[torchgen.model.Return]) -> cg.TypeRef:
+    """Returns the Python type for the return value of the given function."""
+    if not returns:
+        return cg.BuiltinTypeRef("Any")
+    return_nodes = []
+    for return_val in returns:
+        return_type = return_val.type
+        return_node = cg.TypeRef(None, arg_type_to_str(return_type))
+        if return_type.is_nullable():
+            return_node = cg.TypeRef(None, "Optional", return_node)
+        return_nodes.append(return_node)
+    if len(return_nodes) == 1:
+        return return_nodes[0]
+    return cg.BuiltinTypeRef("tuple", *return_nodes)
 
 
 def create_signature(func: torchgen.model.NativeFunction) -> Any:
@@ -119,7 +149,9 @@ def create_signature(func: torchgen.model.NativeFunction) -> Any:
         cg.Arg(
             arg.name,
             get_argument_type(arg),
-            default_value=cg.ThunkExpr(arg.default) if arg.default is not None else None,
+            default_value=cg.ThunkExpr(format_default_value(arg.default))
+            if arg.default is not None
+            else None,
         )
         for arg in args
     ]
@@ -133,7 +165,7 @@ def create_signature(func: torchgen.model.NativeFunction) -> Any:
             cg.Arg(
                 kwarg.name,
                 get_argument_type(kwarg),
-                default_value=cg.ThunkExpr(kwarg.default or "None"),
+                default_value=cg.ThunkExpr(format_default_value(kwarg.default or "None")),
                 is_kwarg=True,
             )
             for kwarg in kwargs
@@ -142,12 +174,8 @@ def create_signature(func: torchgen.model.NativeFunction) -> Any:
     return cg.FunctionDef(
         op_name,
         *py_args,
-        return_type=None,  # TODO: Add return type
-        body=[
-            cg.Raise(
-                cg.ThunkExpr("NotImplementedError"),
-            )
-        ],
+        return_type=create_return_type(func.func.returns),
+        body=[cg.Raise(cg.Call(cg.Name("NotImplementedError")))],  # type: ignore[list-item]
     )
 
 
@@ -161,6 +189,7 @@ def main(args: argparse.Namespace) -> None:
         py_tree = create_signature(func)
         py_tree.accept(cg.PythonWriter(sys.stdout))
         print()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
