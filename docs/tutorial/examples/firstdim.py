@@ -1,5 +1,4 @@
-from onnxscript import script
-from onnxscript.onnx_opset import opset15 as op
+from onnxscript import script, opset15 as op
 
 
 @script()

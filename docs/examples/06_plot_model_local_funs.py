@@ -14,10 +14,7 @@ included in the generated model.
 #%%
 # First, let us define an ONNXScript function that calls other ONNXScript functions.
 
-from onnxscript import script
-from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT
-from onnxscript.utils import proto2text
+from onnxscript import script, opset15 as op, FLOAT, proto2text
 from onnxscript.values import Opset
 
 # A dummy opset used for model-local functions

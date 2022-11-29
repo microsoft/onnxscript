@@ -10,7 +10,7 @@ from onnxscript import script
 
 #%%
 # First, import the ONNX opset used to define the function.
-from onnxscript.onnx_opset import opset15 as op
+from onnxscript import opset15 as op
 
 #%%
 # Next, define Selu as an ONNXScript function.

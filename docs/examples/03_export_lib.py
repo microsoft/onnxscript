@@ -8,8 +8,7 @@ and export it.
 **This is preliminary. Proto extensions are required to fully support LibProto.**
 """
 
-from onnxscript import export_onnx_lib, script
-from onnxscript.onnx_opset import opset15 as op
+from onnxscript import export_onnx_lib, script, opset15 as op
 from onnxscript.values import Opset
 
 #%%

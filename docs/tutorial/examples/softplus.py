@@ -1,7 +1,7 @@
 from onnxscript import script
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript.onnx_opset import opset15 as op
+from onnxscript import opset15 as op
 
 
 # We use the script decorator to indicate that the following function is meant
