@@ -198,18 +198,6 @@ def aten_elu(
     return op.Elu(self, alpha=alpha)
 
 
-def aten_elu__int(
-    self: IntType,
-    alpha: float = 1.0,
-    scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
-    input_scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
-) -> TensorType:
-    # TODO(justinchuby): Move the type casting logic to exporter?
-    # del scale
-    # del input_scale
-    return op.Elu(op.Cast(self, to=onnxscript.FLOAT), alpha=alpha)
-
-
 def aten_elu_backward(
     grad_output: TensorType,
     alpha: float,
