@@ -14,8 +14,7 @@ graph-valued attributes, as shown in the example below:
 
 ::
 
-    from onnxscript import script
-    from onnxscript.onnx_opset import opset15 as op
+    from onnxscript import script, opset15 as op
 
     @script()
     def CumulativeSum(X):
@@ -43,8 +42,7 @@ ONNX perspective, the two assignments to *g* represent two distinct tensors
 
 ::
 
-    from onnxscript import script
-    from onnxscript.onnx_opset import opset15 as op
+    from onnxscript import script, opset15 as op
 
     @script()
     def CumulativeSum(X):
