@@ -1,7 +1,7 @@
 from onnx import TensorProto, helper
 
+from onnxscript import opset15 as op
 from onnxscript import script
-from onnxscript.onnx_opset import opset15 as op
 
 script_const = helper.make_tensor("scalar_half", TensorProto.FLOAT, (), [0.5])
 

@@ -14,10 +14,9 @@ import numpy as np
 import onnx
 from onnxruntime import InferenceSession
 
-from onnxscript import script
-from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT
-from onnxscript.utils import proto2text
+from onnxscript import FLOAT
+from onnxscript import opset15 as op
+from onnxscript import proto2text, script
 
 
 @script()
