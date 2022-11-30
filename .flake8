@@ -18,3 +18,6 @@ exclude =
   .eggs,
   **test/models/*.py,
   **onnx_backend_test_code/*.py,
+
+per-file-ignores =
+  onnxscript/function_libs/torch_aten/ops/*:E501
