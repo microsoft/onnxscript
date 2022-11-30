@@ -4,8 +4,9 @@ import ast
 import unittest
 from typing import Any
 
-from onnxscript import analysis, converter, main
+from onnxscript import analysis, main
 from onnxscript.onnx_opset import opset15 as op
+from onnxscript.sourceinfo import formatter
 
 
 class AnalysisResultsVisitor(ast.NodeVisitor):
@@ -26,10 +27,10 @@ class AnalysisResultsVisitor(ast.NodeVisitor):
 
 class TestLivenessAnalysis(unittest.TestCase):
     def analyze(self, fun):
-        ast = main.get_ast(fun)  # pylint: disable=redefined-outer-name
-        analysis.do_liveness_analysis(ast, converter.Converter())
+        source, parse_tree = main.get_src_and_ast(fun)
+        analysis.do_liveness_analysis(parse_tree, formatter(source))
         visitor = AnalysisResultsVisitor()
-        visitor.visit(ast)
+        visitor.visit(parse_tree)
         return visitor.results
 
     def assertLiveness(self, fun, expected):
@@ -96,8 +97,8 @@ class TestLivenessAnalysis(unittest.TestCase):
 
 class TestExposedUses(unittest.TestCase):
     def assertUses(self, f, expected):
-        ast = main.get_ast(f)  # pylint: disable=redefined-outer-name
-        result = analysis.exposed_uses(ast.body, converter.Converter())
+        source, parse_tree = main.get_src_and_ast(f)
+        result = analysis.exposed_uses(parse_tree.body, formatter(source))
         self.assertEqual(result, set(expected))
 
     def test_basic(self):

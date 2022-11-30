@@ -97,6 +97,9 @@ class OpsetsBuilder:
         self._make_init_module()
         self._make_imports()
 
+    def _log_unsupported(self, error: UnsupportedOpError):
+        self.unsupported_ops.setdefault(error.message, []).append(error)
+
     def _make_opset_modules(self):
         domains = {}
         schemas: list[OpSchema] = sorted(
@@ -109,6 +112,10 @@ class OpsetsBuilder:
             domain: str = schema.domain
             version: int = schema.since_version
             domain_opsets = domains.setdefault(domain, {})
+
+            if schema.deprecated:
+                self._log_unsupported(UnsupportedOpError(qualname, "deprecated"))
+                continue
 
             if version in domain_opsets:
                 opset = domain_opsets[version]
@@ -153,8 +160,7 @@ class OpsetsBuilder:
             except NotImplementedError as error:
                 if not isinstance(error, UnsupportedOpError):
                     error = UnsupportedOpError(qualname, str(error))
-                unsupported_set = self.unsupported_ops.setdefault(error.message, [])
-                unsupported_set.append(error)
+                self._log_unsupported(error)
 
         for module in self.all_modules:
             module.accept(cg.DocCommentBuilder())
