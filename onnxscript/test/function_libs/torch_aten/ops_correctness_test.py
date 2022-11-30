@@ -12,7 +12,8 @@ from torch.testing._internal import common_device_type, common_methods_invocatio
 from torch.testing._internal.opinfo import core as opinfo_core
 
 import onnxscript
-from onnxscript.fuction_libs.torch_aten.ops import core as core_ops
+from onnxscript.function_libs.torch_aten.ops import core as core_ops
+from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 
 SUPPORTED_DTYPES = (
     # Boolean
@@ -148,9 +149,9 @@ def add_decorate_info(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 OPINFO_FUNCTION_MAPPING = {
-    "nn.functional.elu": core_ops.Elu,
-    "nn.functional.relu": core_ops.Relu,
-    "nn.functional.selu": core_ops.Selu,
+    "nn.functional.elu": nn_ops.aten_elu,
+    "nn.functional.relu6": nn_ops.aten_relu6,
+    "nn.functional.selu": core_ops.aten_selu,
 }
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)

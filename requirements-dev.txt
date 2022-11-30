@@ -14,6 +14,7 @@ pydata_sphinx_theme
 # ATen lib
 typing_extensions
 beartype
+types-PyYAML
 
 # Testing
 pytest!=7.1.0
