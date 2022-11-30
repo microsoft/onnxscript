@@ -11,6 +11,9 @@ sphinx<=5.3.0
 sphinx-gallery
 pydata_sphinx_theme
 
+# ATen lib
+types-PyYAML
+
 # Testing
 pytest!=7.1.0
 pytest-cov
