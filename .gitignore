@@ -88,6 +88,7 @@ dmypy.json
 
 # VSCode
 .vscode/
+!.vscode/extensions.json
 
 # Generated files
 onnxscript/test/models/testoutputs/*
