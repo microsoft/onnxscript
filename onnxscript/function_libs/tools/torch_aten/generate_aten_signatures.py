@@ -62,11 +62,6 @@ def arg_type_to_str(arg_type: torchgen.model.Type, default: Optional[str] = None
     elif arg_type.is_base_ty_like(torchgen.model.BaseTy.SymInt):
         return "INT64"
     elif arg_type.is_base_ty_like(torchgen.model.BaseTy.Scalar):
-        # Decide the type based on the default value.
-        if default is None:
-            return "float"
-        if isinstance(ast.literal_eval(default), int):
-            return "int"
         return "float"
     elif arg_type.is_base_ty_like(torchgen.model.BaseTy.float):
         return "float"
@@ -101,6 +96,8 @@ def get_argument_type(arg: torchgen.model.Argument) -> cg.TypeRef:
 
     if arg.type.is_nullable():
         return cg.TypingRefs.Optional(inner_node)
+    if arg.default is not None and parse_default_value(arg) is None:
+        return cg.TypingRefs.Optional(inner_node)
     return inner_node
 
 
@@ -126,17 +123,33 @@ def get_op_name(func: torchgen.model.NativeFunction) -> str:
     return f"{func.namespace}_{name}"
 
 
-def format_default_value(default: str) -> str:
+def parse_default_value(arg: torchgen.model.Argument) -> Any:
+    default = arg.default
+    assert default is not None, f"arg: {arg}"
     if default.startswith("[") and default.endswith("]"):
         # Convert list to tuple
         default_val = ast.literal_eval(default)
         assert isinstance(default_val, list)
-        return repr(tuple(default_val))
+        if not default_val:
+            # Empty list is represented as None.
+            return None
+        return tuple(default_val)
+    # Special case for reduction=Mean
+    if default == "Mean":
+        return 1
+
     try:
-        return repr(ast.literal_eval(default))
+        value = ast.literal_eval(default)
+        if isinstance(value, int):
+            # Expand the value to a tuple if the type is a list.
+            if isinstance(arg.type, torchgen.model.ListType):
+                if arg.type.size is not None:
+                    return (value,) * arg.type.size
+                return (value,)
+        return value
     except ValueError:
-        # Treat it as a string. E.g "Mean" -> "Mean"
-        return f'"{default.lower()}"'
+        # Treat it as a string.
+        return default.lower()
 
 
 def create_return_type(returns: Sequence[torchgen.model.Return]) -> cg.TypeRef:
@@ -184,23 +197,21 @@ def create_signature(func: torchgen.model.NativeFunction) -> cg.FunctionDef:
         cg.Arg(
             format_arg_name(arg),
             get_argument_type(arg),
-            default_value=cg.ThunkExpr(format_default_value(arg.default))
+            default_value=cg.Constant(parse_default_value(arg))
             if arg.default is not None
             else None,
         )
         for arg in args
     ]
     if kwargs:
+        # Arguments after this point are keyword-only.
         py_args += [
-            # Arguments after this point are keyword-only.
-            cg.Arg(
-                "*",
-            )
-        ] + [
             cg.Arg(
                 format_arg_name(kwarg),
                 get_argument_type(kwarg),
-                default_value=cg.ThunkExpr(format_default_value(kwarg.default or "None")),
+                default_value=cg.Constant(parse_default_value(kwarg))
+                if kwarg.default is not None
+                else None,
                 is_kwarg=True,
             )
             for kwarg in kwargs
@@ -210,7 +221,10 @@ def create_signature(func: torchgen.model.NativeFunction) -> cg.FunctionDef:
         op_name,
         *py_args,
         return_type=create_return_type(func.func.returns),
-        body=[cg.Raise(cg.Call(cg.Name("NotImplementedError")))],  # type: ignore[list-item]
+        body=[
+            cg.ThunkStmt(f"# {func.func}"),
+            cg.Raise(cg.Call(cg.Name("NotImplementedError"))),  # type: ignore[list-item]
+        ],
     )
 
 
@@ -263,6 +277,7 @@ def main(args: argparse.Namespace) -> None:
         sorted_functions = sorted(module_functions.items(), key=lambda x: x[0])
         py_module = create_onnx_function_module([func for _, func in sorted_functions])
         py_module.accept(cg.ImportAdjuster())
+        py_module.accept(cg.DocCommentBuilder())
         output_path = os.path.join(args.outdir, f"{module_name}.py")
 
         print(f"Generating {output_path}")

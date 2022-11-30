@@ -14,6 +14,8 @@ from onnxscript import TensorType
 
 
 def aten_sparse_sampled_addmm(
-    self: TensorType, mat1: TensorType, mat2: TensorType, *, beta: int = 1, alpha: int = 1
+    self: TensorType, mat1: TensorType, mat2: TensorType, beta: float = 1, alpha: float = 1
 ) -> TensorType:
+    # sparse_sampled_addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
+
     raise NotImplementedError()
