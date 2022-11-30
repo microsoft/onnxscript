@@ -12,9 +12,9 @@ The example below illustrates this. We first define an *onnx-script* function:
 """
 import numpy as np
 
+from onnxscript import FLOAT
+from onnxscript import opset15 as op
 from onnxscript import script
-from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT
 
 
 @script()
