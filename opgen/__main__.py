@@ -1,4 +1,7 @@
-#!/usr/bin/env python
+# --------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
 
 import subprocess
 from os import makedirs
@@ -37,8 +40,8 @@ print(f"Generated Ops: {builder.all_ops_count}")
 
 if len(builder.unsupported_ops) > 0:
     print("Unsupported Ops:")
-    for key, errors in sorted(builder.unsupported_ops.items()):
-        print(f"  error: {key}:")
-        for error in errors:
-            print(f"    - {error.op}")
-            print(f"      {error.op.docuri}")
+    for key, unsupported_ops in sorted(builder.unsupported_ops.items()):
+        print(f"  reason: {key}:")
+        for unsupported_op in unsupported_ops:
+            print(f"    - {unsupported_op.op}")
+            print(f"      {unsupported_op.op.docuri}")

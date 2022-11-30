@@ -4,8 +4,7 @@ The modules are named after the torch module names for grouping:
 
 - core
 - nn
-- linalg
-- special
 - fft
 - vision
+- etc.
 """
