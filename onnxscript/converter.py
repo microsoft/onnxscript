@@ -183,7 +183,7 @@ class Converter:
     def default_opset(self):
         if self.default_opset_ is None:
             raise RuntimeError(
-                "Default_opset must be specified in script for functions "
+                "default_opset must be specified in script for functions "
                 "that do not contain any use of an ONNX opset."
             )
         return self.default_opset_
