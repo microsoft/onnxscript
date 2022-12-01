@@ -15,7 +15,7 @@ import onnx
 from onnx import helper, numpy_helper
 
 import onnxscript
-from onnxscript import analysis, autocast, irbuilder, onnx_opset, onnx_types, sourceinfo
+from onnxscript import analysis, autocast, irbuilder, onnx_types, sourceinfo
 from onnxscript import type_annotation as ta
 from onnxscript import values
 
@@ -182,14 +182,10 @@ class Converter:
     @property
     def default_opset(self):
         if self.default_opset_ is None:
-            if self.current_fn is None:
-                raise RuntimeError("Unable to return a default opset, None was detected yet.")
-            warn(
-                f"No default opset was defined or detected in function "
-                f"{self.current_fn.name!r}, the converter uses opset 15."
+            raise RuntimeError(
+                "Default_opset must be specified in script for functions "
+                "that do not contain any use of an ONNX opset."
             )
-
-            return onnx_opset.opset15
         return self.default_opset_
 
     def set_default_opset(self, opset, node):
@@ -205,6 +201,23 @@ class Converter:
                 )
         else:
             self.default_opset_ = opset
+
+    def find_onnx_opset(self, node: ast.AST) -> Optional[values.Opset]:
+        """Find the (first) ONNX opset used in the function, if any."""
+        # Search for a Call expression of form "op.OpName(...)"
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Attribute):
+                opset_expr = node.func.value
+                if isinstance(opset_expr, ast.Name):
+                    if opset_expr.id in self.globals:
+                        opset = self.globals[opset_expr.id]
+                        if isinstance(opset, values.Opset) and opset.domain == "":
+                            return opset
+        for child in ast.iter_child_nodes(node):
+            res = self.find_onnx_opset(child)
+            if res is not None:
+                return res
+        return None
 
     def init_function_translation(self):
         """Initialize self for translating a new (top-level) function."""
@@ -1303,9 +1316,13 @@ class Converter:
             self.translate_stmt(s, index_of_stmt=i)
         return self.current_fn
 
-    def top_level_stmt(self, stmt):
+    def top_level_stmt(self, stmt: ast.FunctionDef):
         if isinstance(stmt, ast.FunctionDef):
             self.init_function_translation()
+            if self.default_opset_ is None:
+                opset = self.find_onnx_opset(stmt)
+                if opset:
+                    self.set_default_opset(opset, stmt)
             analysis.do_liveness_analysis(stmt, self.message)
             fn_ir = self.translate_function_def(stmt)
             fn_ir.debug_print()

@@ -27,7 +27,7 @@ def l2norm(X):
 
 @script(opset)
 def square_loss(X, Y):
-    return l2norm(X - Y)
+    return l2norm(op.Sub(X, Y))
 
 
 #%%
