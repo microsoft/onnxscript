@@ -174,10 +174,10 @@ class IRFunction:
         self.stmts: list[Any] = []
         self.attrs: list[Any] = []  # attribute parameters
         self.attr_protos: list[Any] = []  # attribute parameters with default value
-        self.functions: dict[str, onnx.FunctionProto] = {}
+        self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
-        self.nested_functions: dict[str, Any] = {}
+        self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
 
     @property
@@ -220,26 +220,26 @@ class IRFunction:
                         st.write(helper.printable_graph(attr.attr_proto.g))
                         st.write("\n")
 
-    def append_function(self, opf):
-        for name, fct in opf.function_ir.functions.items():
-            if name in self.functions:
+    def add_called_function(self, opf):
+        for name, fct in opf.function_ir.called_functions.items():
+            if name in self.called_functions:
                 continue
-            self.functions[name] = fct
-        if opf.name in self.functions:
+            self.called_functions[name] = fct
+        if opf.name in self.called_functions:
             # Already added.
             return
         try:
             proto = opf.to_function_proto(opf.opset)
         except (TypeError, AttributeError) as e:
             raise TypeError(f"Issue with type f{type(opf)}.") from e
-        self.functions[opf.name] = proto
+        self.called_functions[opf.name] = proto
 
-    def add_nested_function(self, fun):
+    def add_nested_function(self, fun: "IRFunction") -> None:
         self.nested_functions[fun.name] = fun
 
     def to_model_proto(
         self,
-        functions=None,
+        called_functions=None,
         io_types: Optional[ONNXType] = None,
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
@@ -323,7 +323,7 @@ class IRFunction:
         sub_functions = {}
         for s in self.stmts:
             sub_functions.update(s.functions)
-        sub_functions.update(self.functions)
+        sub_functions.update(self.called_functions)
         graph = helper.make_graph(
             [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,

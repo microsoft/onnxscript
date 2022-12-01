@@ -853,7 +853,7 @@ class Converter:
             function_name = node.id
             found = self.lookup(function_name, self.source_of(node), raise_exception=False)
             if isinstance(found, onnxscript.OnnxFunction):
-                self.current_fn.append_function(found)
+                self.current_fn.add_called_function(found)
                 return found
             if isinstance(found, values.Op):
                 return found
