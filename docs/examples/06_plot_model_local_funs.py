@@ -23,7 +23,7 @@ from onnxscript.values import Opset
 local = Opset("local", 1)
 
 
-@script(local)
+@script(local, default_opset=op)
 def diff_square(x, y):
     diff = x - y
     return diff * diff
