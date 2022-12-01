@@ -23,14 +23,13 @@ from onnxscript.onnx_types import ONNXType
 logger = logging.getLogger("onnx-script")
 
 
-def format(list, prefix, sep, suffix, formatter=str):
-    return prefix + sep.join([formatter(x) for x in list]) + suffix
+def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=str):
+    """Formats a sequence of objects into a string."""
+    return prefix + sep.join([formatter(x) for x in seq]) + suffix
 
 
-def select_ir_version(version, domain=""):
-    """Selects the corresponding ir_version knowning the opset version
-    for the main ONNX domain.
-    """
+def select_ir_version(version: int, domain: str =""):
+    """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
     if (domain, version) not in helper.OP_SET_ID_VERSION_MAP:
@@ -99,7 +98,7 @@ class Var:
         return value_info_proto
 
 
-def opt_var_to_str(x):
+def _opt_var_to_str(x):
     return "" if x is None else str(x)
 
 
@@ -133,9 +132,9 @@ class Stmt:
         lhs = ", ".join(self.result)
         attrs = ""
         if self.attrs:
-            attrs = format(self.attrs, "<", ", ", ">")
+            attrs = _format(self.attrs, "<", ", ", ">")
 
-        args = format(self.args, "(", ", ", ")", opt_var_to_str)
+        args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
         module = str(self.module)
         callee = f"{module}.{self.opname}" if (module != "") else self.opname
         return f"{lhs} = {callee} {attrs}{args}"
@@ -149,7 +148,7 @@ class Stmt:
             raise TypeError(f"Unexpected type {type(self.module)!r} for self.module.")
         n = helper.make_node(
             self.opname,
-            [opt_var_to_str(x) for x in self.args],
+            [_opt_var_to_str(x) for x in self.args],
             [str(x) for x in self.result],
             domain=self.module.domain,
             name=name,
@@ -185,11 +184,11 @@ class Function:
         return [v for stmt in self.stmts for v in stmt.output_names]
 
     def __str__(self):
-        attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
-        attr_protos = format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
-        inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
-        outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
-        stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
+        attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
+        attr_protos = _format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
+        inputs = _format([x.typed_str() for x in self.inputs], "(", ", ", ")")
+        outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
+        stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return f"{self.name} {attrs}{attr_protos}{inputs} => {outputs}{stmts}"
 
     def append_docstring(self, docstring):
