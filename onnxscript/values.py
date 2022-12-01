@@ -143,7 +143,7 @@ class Op:
 class OnnxClosure:
     """Represents a nested function used as a graph-valued attribute for an ONNX op call."""
 
-    function_ir: irbuilder.Function
+    function_ir: irbuilder.IRFunction
 
     # frame is python's stack-frame for the execution of top-level
     # script function (in eager-mode). It is used to get the current

@@ -7,7 +7,7 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Dict, Tuple
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -163,16 +163,18 @@ class Stmt:
         return [str(x) for x in self.result]
 
 
-class Function:
-    def __init__(self, name, domain: str = "") -> None:
+class IRFunction:
+    """Represents a function in the IR."""
+
+    def __init__(self, name: str, domain: str = "") -> None:
         self.domain = domain
         self.name = name
         self.inputs: list[Any] = []
         self.outputs: list[Any] = []
         self.stmts: list[Any] = []
-        self.attrs: list[Any] = []
-        self.attr_protos: list[Any] = []
-        self.functions: dict[str, Any] = {}
+        self.attrs: list[Any] = []  # attribute parameters
+        self.attr_protos: list[Any] = []  # attribute parameters with default value
+        self.functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, Any] = {}
@@ -242,8 +244,8 @@ class Function:
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
         **kwargs,
-    ):
-        """Converts the content of this class into a `onnx.ModelProto`.
+    ) -> onnx.ModelProto:
+        """Converts this instance into a `onnx.ModelProto`.
 
         Args:
             functions: list of functions to include in the model,
@@ -307,9 +309,9 @@ class Function:
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def to_graph_and_functions(self, use_default_type: bool = True):
-        """Converts the content of this class into a `onnx.GraphProto` and
-        a list of `onnx.FunctionProto`.
+    def to_graph_and_functions(self, use_default_type: bool = True) -> Tuple[onnx.GraphProto, Dict[str, onnx.FunctionProto]]:
+        """Converts this instance into a `onnx.GraphProto` and a map from
+        function-name to `onnx.FunctionProto`.
 
         Args:
             use_default_type: if True, the function uses a default type
@@ -330,8 +332,8 @@ class Function:
         )
         return graph, sub_functions
 
-    def to_graph_proto(self, use_default_type: bool = True):
-        """Converts the content of this class into a `onnx.GraphProto`.
+    def to_graph_proto(self, use_default_type: bool = True) -> onnx.GraphProto:
+        """Converts this instance into a `onnx.GraphProto`.
 
         Args:
             use_default_type: if True, the function uses a default type
@@ -343,7 +345,7 @@ class Function:
         graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
         return graph
 
-    def get_opset_import(self):
+    def get_opset_import(self) -> Dict[str, int]:
         func_opset_imports = {}
         for s in self.stmts:
             if s.module.domain not in func_opset_imports:
@@ -352,9 +354,6 @@ class Function:
                 # TODO: this conflict is caused by assigning the default version to
                 # literal operators. Not to extend this PR too much,
                 # it needs to be fixed in another PR.
-                # raise RuntimeError(
-                #     ff"There is a version conflict in domain: {s.module.domain!r},\
-                #         with {self.name!r}.")
                 warnings.warn(
                     f"There is a version conflict in domain: {s.module.domain!r}, "
                     f"with {self.name!r}.",
@@ -362,14 +361,13 @@ class Function:
                 )
         return func_opset_imports
 
-    def to_function_proto(self, domain):
-        """Converts a function into a *FunctionProto* after it is parsed
-        by the converter.
+    def to_function_proto(self, domain: str) -> onnx.FunctionProto:
+        """Converts this instance into a `onnx.FunctionProto`.
 
         Warning:
             About default values
 
-            Default values for attributes are introduced in onnx==1.13.0.
+            Default values for attributes are an experimental feature in ONNX.
             If an earlier version of onnx is installed, it ignores the default
             values of the function arguments.
         """
@@ -429,7 +427,7 @@ class IRBuilder:
     def new_function(self, name, domain="", register=False):
         if register and (domain, name) in self.functions:
             raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
-        fct = Function(name, domain)
+        fct = IRFunction(name, domain)
         if register:
             self.functions[domain, name] = fct
         return fct
@@ -458,7 +456,7 @@ class IRBuilder:
         fn.append_output(v)
 
     def attr(self, attrname, attrval):
-        if isinstance(attrval, Function):
+        if isinstance(attrval, IRFunction):
             attrval = str(attrval)  # TODO
         return Attr(helper.make_attribute(attrname, attrval))
 

@@ -413,7 +413,7 @@ class Converter:
             val = self.lookup(expr.id, self.source_of(expr))
             if isinstance(val, values.AttrRef):
                 return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
-            if isinstance(val, irbuilder.Function):
+            if isinstance(val, irbuilder.IRFunction):
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
                 for pyvar, previous in val.outer_scope_variables:
