@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'gh/**/base' # ghstack base branches
   pull_request:
 
 jobs:
