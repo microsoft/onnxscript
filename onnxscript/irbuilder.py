@@ -7,7 +7,7 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Optional, Sequence, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -29,7 +29,7 @@ def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=st
     return prefix + sep.join([formatter(x) for x in seq]) + suffix
 
 
-def select_ir_version(version: int, domain: str =""):
+def select_ir_version(version: int, domain: str = ""):
     """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
@@ -112,7 +112,15 @@ class IRAttribute:
 
 
 class IRStmt:
-    def __init__(self, result: Sequence[str], module: values.Opset, opname: str, args: Sequence[Optional[str]], attrs: Sequence[IRAttribute], sub_functions=None) -> None:
+    def __init__(
+        self,
+        result: Sequence[str],
+        module: values.Opset,
+        opname: str,
+        args: Sequence[Optional[str]],
+        attrs: Sequence[IRAttribute],
+        sub_functions=None,
+    ) -> None:
         if not isinstance(module, values.Opset):
             raise TypeError(f"Unexpected type {type(module)} for module.")
         if not isinstance(opname, str):
@@ -307,7 +315,9 @@ class IRFunction:
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def to_graph_and_functions(self, use_default_type: bool = True) -> Tuple[onnx.GraphProto, Dict[str, onnx.FunctionProto]]:
+    def to_graph_and_functions(
+        self, use_default_type: bool = True
+    ) -> Tuple[onnx.GraphProto, Dict[str, onnx.FunctionProto]]:
         """Converts this instance into a `onnx.GraphProto` and a map from
         function-name to `onnx.FunctionProto`.
 
@@ -422,7 +432,7 @@ class IRBuilder:
     def __init__(self):
         self.functions = {}
 
-    def new_function(self, name: str, domain: str ="", register: bool =False):
+    def new_function(self, name: str, domain: str = "", register: bool = False):
         if register and (domain, name) in self.functions:
             raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
         fct = IRFunction(name, domain)
@@ -433,15 +443,28 @@ class IRBuilder:
     def add_docstring(self, fn: IRFunction, docstring: str):
         fn.append_docstring(docstring)
 
-    def add_stmt(self, fn: IRFunction, results: Sequence[str], module: values.Opset, opname: str, args: Sequence[Optional[str]], attrs: Sequence[IRAttribute], sub_functions=None):
+    def add_stmt(
+        self,
+        fn: IRFunction,
+        results: Sequence[str],
+        module: values.Opset,
+        opname: str,
+        args: Sequence[Optional[str]],
+        attrs: Sequence[IRAttribute],
+        sub_functions=None,
+    ) -> None:
         s = IRStmt(results, module, opname, args, attrs, sub_functions=sub_functions)
         fn.append_stmt(s)
 
-    def add_input(self, fn: IRFunction, varname: str, type: ONNXType, info: SourceInfo):
+    def add_input(
+        self, fn: IRFunction, varname: str, type: ONNXType, info: SourceInfo
+    ) -> None:
         v = IRVar(varname, type, info)
         fn.append_input(v)
 
-    def add_attr(self, fn: IRFunction, varname, type, info, default_value=None):
+    def add_attr_parameter(
+        self, fn: IRFunction, varname: str, type, info, default_value
+    ) -> None:
         if default_value is not None:
             a = IRAttribute(helper.make_attribute(varname, default_value))
             fn.add_attr_parameter(a)
@@ -449,19 +472,16 @@ class IRBuilder:
             v = IRVar(varname, type, info)  # TODO: fix this: attributes vs inputs
             fn.add_attr_parameter(v)
 
-    def add_output(self, fn: IRFunction, varname, type, info):
+    def add_output(self, fn: IRFunction, varname: str, type, info) -> None:
         v = IRVar(varname, type, info)
         fn.append_output(v)
 
-    def attr(self, attrname: str, attrval):
-        if isinstance(attrval, IRFunction):
-            attrval = str(attrval)  # TODO
+    def make_attr(self, attrname: str, attrval: Any) -> IRAttribute:
         return IRAttribute(helper.make_attribute(attrname, attrval))
 
-    def attr_ref(self, attrname: str, refname: str, pytype):
+    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttribute:
         a = onnx.AttributeProto()
         a.name = attrname
         a.ref_attr_name = refname
-        a.type = ta.pytype_to_attrtype_map[pytype]
+        a.type = ta.pytype_to_attrtype(pytype)
         return IRAttribute(a)
-        # TODO: attr_type?

@@ -4,29 +4,37 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional, Sequence, get_args, get_origin
 
 import onnx
 
-pytype_to_attrtype_map = {
+_pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
-    List[  # pylint: disable=unhashable-member # TODO: Need change
-        int
-    ]: onnx.AttributeProto.INTS,
 }
 
+_listtype_to_attrtype_map = {
+    float: onnx.AttributeProto.FLOATS,
+    int: onnx.AttributeProto.INTS,
+    str: onnx.AttributeProto.STRINGS,
+}
 
-def is_attr(typeinfo):
-    return typeinfo in {
-        float,
-        int,
-        str,
-        List[float],  # pylint: disable=unhashable-member # TODO: Need change
-        List[int],  # pylint: disable=unhashable-member # TODO: Need change
-        List[str],  # pylint: disable=unhashable-member # TODO: Need change
-    }
+_list_constructors = {list, List, Sequence}
+
+
+def pytype_to_attrtype(pytype: type) -> Optional[onnx.AttributeProto.AttributeType]:
+    if pytype in _pytype_to_attrtype_map:
+        return _pytype_to_attrtype_map[pytype]
+    if get_origin(pytype) in _list_constructors:
+        elt_type = get_args(pytype)[0]
+        if elt_type in _listtype_to_attrtype_map:
+            return _listtype_to_attrtype_map[elt_type]
+    return None
+
+
+def is_attr(pytype: type):
+    return pytype_to_attrtype(pytype) is not None
 
 
 def is_tensor(typeinfo):
