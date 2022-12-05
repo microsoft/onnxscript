@@ -10,7 +10,7 @@ from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import BOOL, FLOAT, INT64
 
 
-@script()
+@script(default_opset=op)
 def id1(A: FLOAT[...]) -> FLOAT[...]:
     return A  # treat as op.Identity(A)
 
@@ -18,7 +18,7 @@ def id1(A: FLOAT[...]) -> FLOAT[...]:
 def id1_expanded(A: FLOAT[...]) -> FLOAT[...]:
     return op.Identity(A)
 
-@script()
+@script(default_opset=op)
 def id2(A: FLOAT[...]) -> FLOAT[...]:
     B = A
     return B  # treat as op.Identity(B) == op.Identity(A)

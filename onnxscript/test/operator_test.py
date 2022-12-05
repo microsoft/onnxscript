@@ -16,8 +16,8 @@ from onnxscript.test.common import testutils
 class TestConverter(testutils.TestBase):
     def test_plus_op(self):
         """Test that + is translated to Add op."""
-        # TODO: pass default opset as parameter to @script
-        @script()
+
+        @script(default_opset=op)
         def plus1(x, y):
             return x + y
 
