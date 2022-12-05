@@ -268,8 +268,8 @@ class OnnxFunction(Op):
         """Returns a lambda to evaluate function using given evaluator instance.
 
         Usage:
-           script_fun(X) executes the function using the default evaluator instance.
-           script_fun[instance](X) executes the function using the given evaluator instance.
+            script_fun(X) executes the function using the default evaluator instance.
+            script_fun[instance](X) executes the function using the given evaluator instance.
         """
 
         def fun(*args, **kwargs):

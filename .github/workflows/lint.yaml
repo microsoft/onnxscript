@@ -4,22 +4,19 @@ on:
   push:
     branches:
       - main
+      - 'gh/**/base' # ghstack base branches
   pull_request:
 
 jobs:
-  lint-python:
-    name: Lint Python
+  optional-lint:
+    name: Optional Lint
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v4.1.0
-        with:
-          python-version: "3.10"
-      - name: misspell # Check spellings as well
+      - uses: actions/checkout@v3
+      - name: misspell # Check spelling
         uses: reviewdog/action-misspell@v1
         with:
           github_token: ${{ secrets.github_token }}
@@ -39,9 +36,9 @@ jobs:
     name: Enforce style
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Setup Python
-        uses: actions/setup-python@v4.1.0
+        uses: actions/setup-python@v4
         with:
           # Version range or exact version of Python to use, using SemVer's version range syntax. Reads from .python-version if unset.
           python-version: "3.10"
