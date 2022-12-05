@@ -1299,8 +1299,6 @@ class Converter:
                 self.ir_builder.add_attr_parameter(
                     self.current_fn,
                     x.arg,
-                    typeinfo,
-                    self.source_of(x),
                     default_value,
                 )
                 self.bind(x.arg, values.AttrRef(x.arg, typeinfo, self.source_of(x)))

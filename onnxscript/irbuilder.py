@@ -59,6 +59,8 @@ class IRTensorType(IRType):
 
 
 class IRVar:
+    """A variable (representing a formal parameter)."""
+
     def __init__(self, varname: str, typeinfo: IRType, sourceinfo: SourceInfo) -> None:
         if not isinstance(varname, str):
             raise ValueError(f"varname must be a string not {type(varname)!r}.")
@@ -173,8 +175,8 @@ class IRFunction:
         self.inputs: list[IRVar] = []
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
-        self.attrs: list[Any] = []  # attribute parameters
-        self.attr_protos: list[Any] = []  # attribute parameters with default value
+        self.attrs: list[str] = []  # attribute parameters
+        self.attr_protos: list[onnx.AttributeProto] = []  # attribute parameters with default value
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
@@ -206,7 +208,7 @@ class IRFunction:
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
-    def add_attr_parameter(self, attr: Union[IRVar, IRAttributeValue]) -> None:
+    def add_attr_parameter(self, attr: Union[str, IRAttributeValue]) -> None:
         if isinstance(attr, IRAttributeValue):
             self.attr_protos.append(attr)
         else:
@@ -395,9 +397,9 @@ class IRFunction:
         # list, default values are removed.
         # TODO: remove this when onnx==1.13.0 is released.
         if hasattr(onnx.FunctionProto, "attribute_proto"):
-            atts = [a.name for a in self.attrs]
+            atts = self.attrs
         else:
-            atts = [a.name for a in self.attrs] + [a.attr_proto.name for a in self.attr_protos]
+            atts = self.attrs + [a.attr_proto.name for a in self.attr_protos]
 
         f = helper.make_function(
             self.domain,
@@ -451,14 +453,13 @@ class IRBuilder:
         fn.append_input(v)
 
     def add_attr_parameter(
-        self, fn: IRFunction, varname: str, type, info, default_value
+        self, fn: IRFunction, varname: str, default_value
     ) -> None:
         if default_value is not None:
             a = IRAttributeValue(helper.make_attribute(varname, default_value))
             fn.add_attr_parameter(a)
         else:
-            v = IRVar(varname, type, info)  # TODO: fix this: attributes vs inputs
-            fn.add_attr_parameter(v)
+            fn.add_attr_parameter(varname)
 
     def add_output(self, fn: IRFunction, varname: str, type, info) -> None:
         v = IRVar(varname, type, info)
