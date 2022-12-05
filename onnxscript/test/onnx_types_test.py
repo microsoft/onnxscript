@@ -22,8 +22,8 @@ from onnxscript.onnx_types import (
 
 class TestOnnxTypes(unittest.TestCase):
     def test_instantiation(self):
-        with self.assertRaises(NotImplementedError):
-            TensorType()
+        # with self.assertRaises(NotImplementedError):
+        #     TensorType()
         with self.assertRaises(NotImplementedError):
             FLOAT()
         with self.assertRaises(NotImplementedError):
