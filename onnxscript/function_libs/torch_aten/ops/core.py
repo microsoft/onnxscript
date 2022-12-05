@@ -14,7 +14,7 @@ from typing import Any, Optional, Sequence
 
 from onnxscript import INT64, TensorType
 from onnxscript.function_libs.torch_aten.typing import TFloat
-from onnxscript.onnx_opset import opset18 as op
+from onnxscript.onnx_opset import default_opset as op
 
 
 def aten_abs(self: TensorType) -> TensorType:
