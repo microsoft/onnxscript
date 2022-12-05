@@ -11,7 +11,13 @@ import unittest
 
 from parameterized import parameterized
 
-from onnxscript.onnx_types import DOUBLE, FLOAT, DType, TensorType, tensor_type_registry
+from onnxscript.onnx_types import (
+    DOUBLE,
+    FLOAT,
+    DType,
+    TensorType,
+    _tensor_type_registry,
+)
 
 
 class TestOnnxTypes(unittest.TestCase):
@@ -23,7 +29,7 @@ class TestOnnxTypes(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             FLOAT[...]()
 
-    @parameterized.expand(tensor_type_registry.items())
+    @parameterized.expand(_tensor_type_registry.items())
     def test_type_properties(self, dtype: DType, tensor_type: TensorType):
         self.assertEqual(tensor_type.dtype, dtype)
         self.assertIsNone(tensor_type.shape)
@@ -32,13 +38,13 @@ class TestOnnxTypes(unittest.TestCase):
         self.assertEqual(tensor_type[1, 2, 3].shape, (1, 2, 3))
         self.assertEqual(tensor_type[1, 2, 3].dtype, dtype)
 
-    @parameterized.expand([(dtype,) for dtype in tensor_type_registry])
+    @parameterized.expand([(dtype,) for dtype in _tensor_type_registry])
     def test_dtype_bound_to_subclass(self, dtype: DType):
         with self.assertRaises(ValueError):
             type(f"InvalidTensorTypeSubclass_{dtype}", (TensorType,), {}, dtype=dtype)
 
     def test_shaped_doesnt_reshape(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             FLOAT[1][...]  # pylint: disable=pointless-statement
 
     @parameterized.expand(
