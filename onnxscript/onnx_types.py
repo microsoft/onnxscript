@@ -53,7 +53,7 @@ class _WithOnnxType:
         return onnx.helper.make_tensor_type_proto(cls.dtype, shape)
 
 
-class TensorType(type):
+class TensorType(_WithOnnxType, type):
     """ONNX Script representation of a tensor type supporting shape annotations.
 
     A scalar-tensor of rank 0:
