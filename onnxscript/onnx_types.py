@@ -53,7 +53,7 @@ class _WithOnnxType:
         return onnx.helper.make_tensor_type_proto(cls.dtype, shape)
 
 
-class TensorType(type, _WithOnnxType):
+class TensorType(type):
     """ONNX Script representation of a tensor type supporting shape annotations.
 
     A scalar-tensor of rank 0:
@@ -80,7 +80,7 @@ class TensorType(type, _WithOnnxType):
     dtype: ClassVar[DType]
     shape: ClassVar[Optional[ShapeType]] = None
 
-    def __getitem__(cls, shape: Optional[ShapeType]) -> TensorType:
+    def __getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
         if cls.shape is not None:
             raise ValueError("Invalid usage: shape already specified.")
         if shape is None:
@@ -101,82 +101,82 @@ class TensorType(type, _WithOnnxType):
 
 
 # pylint: disable=abstract-method,too-many-function-args
-class FLOAT(metaclass=TensorType):
+class FLOAT(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.FLOAT
     shape = None
 
 
-class UINT8(metaclass=TensorType):
+class UINT8(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.UINT8
     shape = None
 
 
-class INT8(metaclass=TensorType):
+class INT8(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.INT8
     shape = None
 
 
-class UINT16(metaclass=TensorType):
+class UINT16(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.UINT16
     shape = None
 
 
-class INT16(metaclass=TensorType):
+class INT16(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.INT16
     shape = None
 
 
-class INT32(metaclass=TensorType):
+class INT32(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.INT32
     shape = None
 
 
-class INT64(metaclass=TensorType):
+class INT64(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.INT64
     shape = None
 
 
-class STRING(metaclass=TensorType):
+class STRING(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.STRING
     shape = None
 
 
-class BOOL(metaclass=TensorType):
+class BOOL(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.BOOL
     shape = None
 
 
-class FLOAT16(metaclass=TensorType):
+class FLOAT16(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.FLOAT16
     shape = None
 
 
-class DOUBLE(metaclass=TensorType):
+class DOUBLE(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.DOUBLE
     shape = None
 
 
-class UINT32(metaclass=TensorType):
+class UINT32(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.UINT32
     shape = None
 
 
-class UINT64(metaclass=TensorType):
+class UINT64(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.UINT64
     shape = None
 
 
-class COMPLEX64(metaclass=TensorType):
+class COMPLEX64(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.COMPLEX64
     shape = None
 
 
-class COMPLEX128(metaclass=TensorType):
+class COMPLEX128(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.COMPLEX128
     shape = None
 
 
-class BFLOAT16(metaclass=TensorType):
+class BFLOAT16(_WithOnnxType, metaclass=TensorType):
     dtype = onnx.TensorProto.BFLOAT16
     shape = None
 
