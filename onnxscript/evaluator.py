@@ -7,18 +7,16 @@ from __future__ import annotations
 import abc
 import contextlib
 import pprint
+import typing
 from typing import Any, Optional
 
 import numpy as np
 import onnx
-import onnxruntime as ort
-from onnxruntime.capi.onnxruntime_pybind11_state import (
-    Fail,
-    InvalidArgument,
-    InvalidGraph,
-)
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
+
+if typing.TYPE_CHECKING:
+    import onnxruntime as ort
 
 
 class Evaluator(abc.ABC):
@@ -123,6 +121,8 @@ _cache_models: dict[Any, ort.InferenceSession] = {}
 
 
 def _cache_(model, providers):
+    import onnxruntime as ort  # pylint: disable=import-outside-toplevel
+
     serialized = model.SerializeToString()
     key = serialized, tuple(providers)
     if key in _cache_models:
@@ -159,6 +159,12 @@ def ort_to_os_value(v):
 
 
 def call_ort(schema, args, kwargs, implicit_args=None):
+    from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
+        Fail,
+        InvalidArgument,
+        InvalidGraph,
+    )
+
     implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
     args = [os_to_ort_value(x) for x in args]
