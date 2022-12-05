@@ -329,8 +329,7 @@ class Converter:
         self.ir_builder.add_stmt(
             self.current_fn,
             outputs,
-            callee.opset,
-            callee.opname,
+            callee,
             inputs,
             attrs,
             sub_functions,

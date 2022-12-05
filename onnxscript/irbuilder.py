@@ -100,7 +100,8 @@ def _opt_var_to_str(x):
     return "" if x is None else str(x)
 
 
-class IRAttribute:
+class IRAttributeValue:
+    """An attribute value (representing an actual parameter)."""
     def __init__(self, attrproto) -> None:
         self.attr_proto = attrproto
 
@@ -115,19 +116,15 @@ class IRStmt:
     def __init__(
         self,
         result: Sequence[str],
-        module: values.Opset,
-        opname: str,
+        callee: values.Op,
         args: Sequence[Optional[str]],
-        attrs: Sequence[IRAttribute],
+        attrs: Sequence[IRAttributeValue],
         sub_functions=None,
     ) -> None:
-        if not isinstance(module, values.Opset):
-            raise TypeError(f"Unexpected type {type(module)} for module.")
-        if not isinstance(opname, str):
-            raise TypeError(f"Unexpected type {type(opname)} for opname.")
+        if not isinstance(callee, values.Op):
+            raise TypeError(f"Unexpected type {type(callee)} for callee.")
         self.result = result
-        self.module = module
-        self.opname = opname
+        self.callee = callee
         self.args = args
         self.attrs = attrs
         self.functions = sub_functions or {}
@@ -141,8 +138,8 @@ class IRStmt:
             attrs = _format(self.attrs, "<", ", ", ">")
 
         args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
-        module = str(self.module)
-        callee = f"{module}.{self.opname}" if (module != "") else self.opname
+        opset = str(self.callee.opset)
+        callee = f"{opset}.{self.opname}" if (opset != "") else self.opname
         return f"{lhs} = {callee} {attrs}{args}"
 
     def debug_print(self):
@@ -150,13 +147,11 @@ class IRStmt:
             logger.debug("%s: %s", type(self), str(self))
 
     def to_node_proto(self, node_name: str) -> onnx.NodeProto:
-        if not isinstance(self.module.domain, str):
-            raise TypeError(f"Unexpected type {type(self.module)!r} for self.module.")
         n = helper.make_node(
-            self.opname,
+            self.callee.opname,
             [_opt_var_to_str(x) for x in self.args],
             [str(x) for x in self.result],
-            domain=self.module.domain,
+            domain=self.callee.opset.domain,
             name=node_name,
         )
         for a in self.attrs:
@@ -211,8 +206,8 @@ class IRFunction:
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
-    def add_attr_parameter(self, attr: Union[IRVar, IRAttribute]) -> None:
-        if isinstance(attr, IRAttribute):
+    def add_attr_parameter(self, attr: Union[IRVar, IRAttributeValue]) -> None:
+        if isinstance(attr, IRAttributeValue):
             self.attr_protos.append(attr)
         else:
             self.attrs.append(attr)
@@ -295,8 +290,8 @@ class IRFunction:
 
         opsets = {}
         for n in self.stmts:
-            if n.module.domain not in opsets:
-                opsets[n.module.domain] = n.module.version
+            if n.callee.opset.domain not in opsets:
+                opsets[n.callee.opset.domain] = n.callee.opset.version
         if "" not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
@@ -356,14 +351,11 @@ class IRFunction:
     def get_opset_import(self) -> Dict[str, int]:
         func_opset_imports = {}
         for s in self.stmts:
-            if s.module.domain not in func_opset_imports:
-                func_opset_imports[s.module.domain] = s.module.version
-            elif func_opset_imports[s.module.domain] != s.module.version:
-                # TODO: this conflict is caused by assigning the default version to
-                # literal operators. Not to extend this PR too much,
-                # it needs to be fixed in another PR.
+            if s.callee.opset.domain not in func_opset_imports:
+                func_opset_imports[s.callee.opset.domain] = s.callee.opset.version
+            elif func_opset_imports[s.callee.opset.domain] != s.callee.opset.version:
                 warnings.warn(
-                    f"There is a version conflict in domain: {s.module.domain!r}, "
+                    f"There is a version conflict in domain: {s.callee.opset.domain!r}, "
                     f"with {self.name!r}.",
                     category=UserWarning,
                 )
@@ -372,12 +364,9 @@ class IRFunction:
     def to_function_proto(self, domain: str) -> onnx.FunctionProto:
         """Converts this instance into a `onnx.FunctionProto`.
 
-        Warning:
-            About default values
-
-            Default values for attributes are an experimental feature in ONNX.
-            If an earlier version of onnx is installed, it ignores the default
-            values of the function arguments.
+        Note: Default values for attributes are an experimental feature in ONNX.
+        Conversion ignores default values for attributes if the ONNX version installed
+        doesn't support it.
         """
         opsets = self.get_opset_import()
         if domain != "":
@@ -447,13 +436,12 @@ class IRBuilder:
         self,
         fn: IRFunction,
         results: Sequence[str],
-        module: values.Opset,
-        opname: str,
+        callee: values.Op,
         args: Sequence[Optional[str]],
-        attrs: Sequence[IRAttribute],
+        attrs: Sequence[IRAttributeValue],
         sub_functions=None,
     ) -> None:
-        s = IRStmt(results, module, opname, args, attrs, sub_functions=sub_functions)
+        s = IRStmt(results, callee, args, attrs, sub_functions=sub_functions)
         fn.append_stmt(s)
 
     def add_input(
@@ -466,7 +454,7 @@ class IRBuilder:
         self, fn: IRFunction, varname: str, type, info, default_value
     ) -> None:
         if default_value is not None:
-            a = IRAttribute(helper.make_attribute(varname, default_value))
+            a = IRAttributeValue(helper.make_attribute(varname, default_value))
             fn.add_attr_parameter(a)
         else:
             v = IRVar(varname, type, info)  # TODO: fix this: attributes vs inputs
@@ -476,12 +464,12 @@ class IRBuilder:
         v = IRVar(varname, type, info)
         fn.append_output(v)
 
-    def make_attr(self, attrname: str, attrval: Any) -> IRAttribute:
-        return IRAttribute(helper.make_attribute(attrname, attrval))
+    def make_attr(self, attrname: str, attrval: Any) -> IRAttributeValue:
+        return IRAttributeValue(helper.make_attribute(attrname, attrval))
 
-    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttribute:
+    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
         a = onnx.AttributeProto()
         a.name = attrname
         a.ref_attr_name = refname
         a.type = ta.pytype_to_attrtype(pytype)
-        return IRAttribute(a)
+        return IRAttributeValue(a)
