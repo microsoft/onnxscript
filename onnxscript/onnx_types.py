@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-from abc import ABC
 from typing import ClassVar, Optional, Tuple, Union
 
 import onnx
@@ -16,7 +15,7 @@ DType = onnx.TensorProto.DataType
 DimType = Union[int, str, type(None)]
 
 
-def check_dim(dim):
+def _check_dim(dim):
     if not isinstance(dim, (int, str, type(None))):
         raise TypeError(f"Invalid dimension {dim}")
 
@@ -24,19 +23,19 @@ def check_dim(dim):
 ShapeType = Union[Tuple[DimType, ...], DimType, type(Ellipsis)]
 
 
-def check_shape(shape):
+def _check_shape(shape):
     if isinstance(shape, tuple):
         for dim in shape:
-            check_dim(dim)
+            _check_dim(dim)
     elif shape != Ellipsis:
-        check_dim(shape)
+        _check_dim(shape)
 
 
-tensor_type_registry: dict[DType, TensorType] = {}
+_tensor_type_registry: dict[DType, TensorType] = {}
 _tensor_type_shape_cache: dict[DType, TensorType] = {}
 
 
-class TensorType(ABC):
+class TensorType(type):
     """ONNX Script representation of a tensor type supporting shape annotations.
 
     A scalar-tensor of rank 0:
@@ -66,21 +65,24 @@ class TensorType(ABC):
     def __new__(cls):
         raise NotImplementedError("TensorTypes cannot be instantiated")
 
+    def __init__(cls):
+        raise NotImplementedError("TensorTypes cannot be instantiated")
+
     def __init_subclass__(cls, dtype: DType, shape: Optional[ShapeType] = None):
         cls.dtype = dtype
         cls.shape = shape
         if shape is None:
-            existing_cls = tensor_type_registry.get(dtype)
+            existing_cls = _tensor_type_registry.get(dtype)
             if existing_cls is not None:
                 raise ValueError(
                     f"Invalid usage: subclass {existing_cls!r} "
                     f"already defined for dtype={dtype}"
                 )
-            tensor_type_registry[dtype] = cls
+            _tensor_type_registry[dtype] = cls
         else:
-            check_shape(shape)
+            _check_shape(shape)
 
-    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+    def __getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
         if cls.shape is not None:
             raise ValueError("Invalid usage: shape already specified.")
         if shape is None:
@@ -106,68 +108,88 @@ class TensorType(ABC):
         return onnx.helper.make_tensor_type_proto(cls.dtype, shape)
 
 
+# pylint: disable=abstract-method,too-many-function-args
 class FLOAT(TensorType, dtype=onnx.TensorProto.FLOAT):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class UINT8(TensorType, dtype=onnx.TensorProto.UINT8):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class INT8(TensorType, dtype=onnx.TensorProto.INT8):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class UINT16(TensorType, dtype=onnx.TensorProto.UINT16):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class INT16(TensorType, dtype=onnx.TensorProto.INT16):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class INT32(TensorType, dtype=onnx.TensorProto.INT32):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class INT64(TensorType, dtype=onnx.TensorProto.INT64):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class STRING(TensorType, dtype=onnx.TensorProto.STRING):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class BOOL(TensorType, dtype=onnx.TensorProto.BOOL):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class FLOAT16(TensorType, dtype=onnx.TensorProto.FLOAT16):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class DOUBLE(TensorType, dtype=onnx.TensorProto.DOUBLE):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class UINT32(TensorType, dtype=onnx.TensorProto.UINT32):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class UINT64(TensorType, dtype=onnx.TensorProto.UINT64):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class COMPLEX64(TensorType, dtype=onnx.TensorProto.COMPLEX64):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class COMPLEX128(TensorType, dtype=onnx.TensorProto.COMPLEX128):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
 
 
 class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
-    pass
+    def __class_getitem__(cls, shape: Optional[ShapeType]) -> type[TensorType]:
+        return super().__getitem__(cls, shape)
+
+
+# pylint: enable=abstract-method,too-many-function-args
 
 
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
