@@ -64,6 +64,7 @@ command = [
     'run',
     'mypy_linter',
     '--config=pyproject.toml',
+    '--show-disable',
     '--',
     '@{{PATHSFILE}}'
 ]
@@ -128,6 +129,7 @@ command = [
     'run',
     'pylint_linter',
     '--rcfile=pyproject_pylint.toml',
+    '--show-disable',
     '--',
     '@{{PATHSFILE}}'
 ]
@@ -139,4 +141,29 @@ init_command = [
     'pip_init',
     '--dry-run={{DRYRUN}}',
     'pylint==2.15.5',
+]
+
+[[linter]]
+code = 'EDITORCONFIG-CHECKER'
+include_patterns = ['**']
+exclude_patterns = [
+    '**/*.ipynb',
+]
+command = [
+    'python',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'editorconfig_checker_linter',
+    '--',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
+    '--dry-run={{DRYRUN}}',
+    'editorconfig-checker==2.6.2',
 ]
