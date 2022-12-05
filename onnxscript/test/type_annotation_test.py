@@ -11,7 +11,7 @@ from onnxscript.onnx_types import FLOAT
 from onnxscript.test.common import testutils
 
 
-class TypeAnnotationTester(testutils.TestBase):
+class TypeAnnotationTest(testutils.TestBase):
     def test_type_annotation(self):
         """Test type annotations."""
 
@@ -63,7 +63,7 @@ class TypeAnnotationTester(testutils.TestBase):
         """
         self.assertSameGraph(unknown_rank, unknown_rank_txt)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             FLOAT[10][20]  # Invalid usage. pylint: disable=pointless-statement
 
 
