@@ -16,7 +16,7 @@ from beartype.vale import Is
 from typing_extensions import Annotated
 
 from onnxscript import INT64, TensorType
-from onnxscript.function_libs.torch_aten.typing import FloatType
+from onnxscript.function_libs.torch_aten.typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 
 
@@ -186,11 +186,11 @@ def aten_cross_entropy_loss(
 
 
 def aten_elu(
-    self: FloatType,
+    self: TFloat,
     alpha: float = 1.0,
     scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
     input_scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
-) -> TensorType:
+) -> TFloat:
     # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
 
     # del scale
@@ -779,7 +779,7 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-def aten_relu6(self: FloatType) -> FloatType:
+def aten_relu6(self: TFloat) -> TFloat:
     # relu6(Tensor self) -> Tensor
 
     # TODO(justinchuby): Create a shortcut for creating constants
