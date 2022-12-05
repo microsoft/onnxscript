@@ -40,12 +40,12 @@ def FastGeluGrad(dY, X):
     return dY * grad
 
 
-@script()
+@script(default_opset=op)
 def SigmoidGrad(dY, Y):
     dX = dY * Y * (1.0 - Y)
     return dX
 
 
-@script()
+@script(default_opset=op)
 def TanhGrad(dY, Y):
     return dY * (1.0 - Y * Y)
