@@ -183,7 +183,7 @@ all_opsets = {
         1,
     ): opset_ai_onnx_preview_training1,
 }
-default_opset: Opset14 = all_opsets[
+default_opset: Opset18 = all_opsets[
     (
         "",
         onnx_opset_version(),
