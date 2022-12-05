@@ -104,6 +104,7 @@ def _opt_var_to_str(x):
 
 class IRAttributeValue:
     """An attribute value (representing an actual parameter)."""
+
     def __init__(self, attrproto) -> None:
         self.attr_proto = attrproto
 
@@ -176,7 +177,9 @@ class IRFunction:
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         self.attrs: list[str] = []  # attribute parameters
-        self.attr_protos: list[onnx.AttributeProto] = []  # attribute parameters with default value
+        self.attr_protos: list[
+            onnx.AttributeProto
+        ] = []  # attribute parameters with default value
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
@@ -452,9 +455,7 @@ class IRBuilder:
         v = IRVar(varname, type, info)
         fn.append_input(v)
 
-    def add_attr_parameter(
-        self, fn: IRFunction, varname: str, default_value
-    ) -> None:
+    def add_attr_parameter(self, fn: IRFunction, varname: str, default_value) -> None:
         if default_value is not None:
             a = IRAttributeValue(helper.make_attribute(varname, default_value))
             fn.add_attr_parameter(a)
