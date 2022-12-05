@@ -62,7 +62,7 @@ class TensorType(Type):
 
 
 class Var:
-    def __init__(self, varname, typeinfo, info) -> None:
+    def __init__(self, varname, typeinfo: ONNXType, info) -> None:
         if not isinstance(varname, str):
             raise ValueError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
