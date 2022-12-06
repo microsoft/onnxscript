@@ -7,13 +7,12 @@
 
 from __future__ import annotations
 
-from typing import Union, TypeVar
+from typing import TypeVar, Union
 
-from onnxscript import DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64
-
+from onnxscript import DOUBLE, FLOAT, FLOAT16, INT8, INT16, INT32, INT64
 
 FloatType = Union[FLOAT16, FLOAT, DOUBLE]
-IntType = Union[INT16, INT32, INT64]
+IntType = Union[INT8, INT16, INT32, INT64]
 
 TFloat = TypeVar("TFloat", bound=FloatType)
 TInt = TypeVar("TInt", bound=IntType)
