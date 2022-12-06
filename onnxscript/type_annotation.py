@@ -20,7 +20,7 @@ _listtype_to_attrtype_map = {
     str: onnx.AttributeProto.STRINGS,
 }
 
-_list_constructors = {list, typing.List, typing.Sequence}
+_list_constructors = [list, typing.List, typing.Sequence]
 
 def _get_origin(t: type) -> typing.Optional[type]:
     """Substitute for typing.get_origin of Python 3.8+
@@ -33,7 +33,7 @@ def _get_origin(t: type) -> typing.Optional[type]:
     elif hasattr(t, "__origin__"):
         return t.__origin__
     else:
-        None
+        return None
 
 
 def _get_element_type(t: type) -> type:

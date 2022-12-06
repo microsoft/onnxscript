@@ -52,7 +52,7 @@ class IRType:
 class IRTensorType(IRType):
     def __init__(self, elem_type: onnx.TensorProto.DataType) -> None:
         super().__init__()
-        self.tensor_type.elem_type = elem_type
+        self.onnx_type.tensor_type.elem_type = elem_type
 
     def __repr__(self) -> str:
         return f"IRTensorType({self.onnx_type.tensor_type.elem_type})"
@@ -142,7 +142,7 @@ class IRStmt:
 
         args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
         opset = str(self.callee.opset)
-        callee = f"{opset}.{self.opname}" if (opset != "") else self.opname
+        callee = f"{opset}.{opset.opname}" if (opset != "") else opset.opname
         return f"{lhs} = {callee} {attrs}{args}"
 
     def debug_print(self):
