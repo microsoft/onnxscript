@@ -22,4 +22,4 @@ torch
 
 # Lint
 lintrunner
-lintrunner_adapters
+lintrunner_adapters>=0.3
