@@ -141,8 +141,9 @@ class IRStmt:
             attrs = _format(self.attrs, "<", ", ", ">")
 
         args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
-        opset = str(self.callee.opset)
-        callee = f"{opset}.{opset.opname}" if (opset != "") else opset.opname
+        domain = self.callee.opset.domain
+        opname = self.callee.opname
+        callee = f"{domain}.{opname}" if (domain != "") else opname
         return f"{lhs} = {callee} {attrs}{args}"
 
     def debug_print(self):
@@ -235,7 +236,7 @@ class IRFunction:
             # Already added.
             return
         try:
-            proto = fun.to_function_proto(fun.opset)
+            proto = fun.to_function_proto()
         except (TypeError, AttributeError) as e:
             raise TypeError(f"Issue with type f{type(fun)}.") from e
         self.called_functions[fun.name] = proto
@@ -328,17 +329,17 @@ class IRFunction:
         Returns:
             a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
         """
-        sub_functions = {}
+        called_functions: Dict[str, onnx.FunctionProto] = {}
         for s in self.stmts:
-            sub_functions.update(s.functions)
-        sub_functions.update(self.called_functions)
+            called_functions.update(s.functions)
+        called_functions.update(self.called_functions)
         graph = helper.make_graph(
             [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,
             [x.to_value_info(use_default_type) for x in self.inputs],
             [y.to_value_info(use_default_type) for y in self.outputs],
         )
-        return graph, sub_functions
+        return graph, called_functions
 
     def to_graph_proto(self, use_default_type: bool = True) -> onnx.GraphProto:
         """Converts this instance into a `onnx.GraphProto`.
@@ -366,7 +367,7 @@ class IRFunction:
                 )
         return func_opset_imports
 
-    def to_function_proto(self, domain: str) -> onnx.FunctionProto:
+    def to_function_proto(self) -> onnx.FunctionProto:
         """Converts this instance into a `onnx.FunctionProto`.
 
         Note: Default values for attributes are an experimental feature in ONNX.
@@ -374,14 +375,6 @@ class IRFunction:
         doesn't support it.
         """
         opsets = self.get_opset_import()
-        if domain != "":
-            if domain.domain in opsets and opsets[domain.domain] != domain.version:
-                raise RuntimeError(
-                    f"There is a version conflict in domain: {domain.domain!r}."
-                )
-            opsets[domain.domain] = domain.version
-        else:
-            opsets = opsets.copy()
         nodes = [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)]
         for n in nodes:
             if n.domain not in opsets:

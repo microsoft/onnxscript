@@ -294,9 +294,9 @@ class OnnxFunction(Op):
 
         return _adapt_to_user_mode(result) if has_array else result
 
-    def to_function_proto(self, domain=None):
+    def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
-        return self.function_ir.to_function_proto(domain or self.opset)
+        return self.function_ir.to_function_proto()
 
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""
