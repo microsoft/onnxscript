@@ -33,7 +33,6 @@ from .onnx_opset import (
 )
 
 from .onnx_types import (
-    TensorType,
     BFLOAT16,
     FLOAT16,
     FLOAT,
@@ -66,7 +65,6 @@ __all__ = [
     "proto2text",
     "external_tensor",
     "graph",
-    "TensorType",
     "BFLOAT16",
     "FLOAT16",
     "FLOAT",
