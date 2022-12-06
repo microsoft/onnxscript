@@ -15,6 +15,8 @@ import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 
+import onnxruntime.capi.onnxruntime_pybind11_state
+
 SUPPORTED_DTYPES = (
     # Boolean
     torch.bool,
@@ -227,12 +229,18 @@ class TestOutputConsistency(unittest.TestCase):
                 kwargs=repr(cpu_sample.kwargs),
             ):
                 input_numpy = [x.numpy() for x in inputs if isinstance(x, torch.Tensor)]
-                function_output = scripted_function(*input_numpy, **cpu_sample.kwargs)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
+                try:
+                    function_output = scripted_function(*input_numpy, **cpu_sample.kwargs)
+                except onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented:
+                    self.skipTest(
+                        f"ONNX Runtime doesn't support running {op.name} with dtype {dtype}",
+                    )
 
-                np.testing.assert_allclose(
-                    function_output,
-                    torch_output.numpy(),
+                # Use torch testing to ensure dtypes and shapes match
+                torch.testing.assert_close(
+                    torch.tensor(function_output),
+                    torch_output,
                 )
 
 
