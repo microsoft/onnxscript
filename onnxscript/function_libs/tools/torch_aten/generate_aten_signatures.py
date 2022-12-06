@@ -12,7 +12,7 @@ import logging
 import os
 import textwrap
 import typing
-from typing import Any, Optional, Sequence
+from typing import Any, Sequence
 
 import torchgen.gen
 import torchgen.model
@@ -48,13 +48,14 @@ def parse_native_functions_yaml(yaml_path: str) -> tuple[Any, Any]:
 
 def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     assert isinstance(arg.type, torchgen.model.ListType), f"arg: {arg}"
-    arg_type = arg_type_to_str(arg.type, default=arg.default)
+    arg_type = arg_type_to_str(arg.type)
     if type_is_builtin(arg_type):
         return cg.TypingRefs.Sequence(cg.BuiltinTypeRef(arg_type))
     if arg_type == "TensorType":
         return cg.TypingRefs.Sequence(cg.TypeRef("onnxscript", "TensorType"))
     return cg.TypeRef("onnxscript", arg_type)
-    # TODO: Enable this once we have better typing support for generics.
+
+    # TODO(justinchuby): Enable this when generics are better supported
     # if arg.type.size is None:
     #     # INT64[...]
     #     return cg.TypeRef("onnxscript", arg_type, cg.EllipsisTypeRef())
@@ -62,7 +63,7 @@ def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     # return cg.TypeRef("onnxscript", arg_type, *[cg.TypeRef(None, f"{arg.type.size}")])
 
 
-def arg_type_to_str(arg_type: torchgen.model.Type, default: Optional[str] = None) -> str:
+def arg_type_to_str(arg_type: torchgen.model.Type) -> str:
     if arg_type.is_base_ty_like(torchgen.model.BaseTy.Tensor):
         return "TensorType"
     elif arg_type.is_base_ty_like(torchgen.model.BaseTy.SymInt):
@@ -94,7 +95,7 @@ def get_argument_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     if isinstance(arg.type, torchgen.model.ListType):
         inner_node = create_list_type(arg)
     else:
-        arg_type_str = arg_type_to_str(arg.type, default=arg.default)
+        arg_type_str = arg_type_to_str(arg.type)
         if type_is_builtin(arg_type_str):
             inner_node = cg.BuiltinTypeRef(arg_type_str)
         else:
@@ -257,6 +258,10 @@ def copyright_header() -> str:
         # Copyright (c) Microsoft Corporation. All rights reserved.
         # Licensed under the MIT License.
         {dashline}
+        # mypy: disable-error-code=misc
+        # mypy: disable-error-code=type-arg
+        # mypy: disable-error-code=valid-type
+        # mypy: disable-error-code=assignment
         """
     )
 
