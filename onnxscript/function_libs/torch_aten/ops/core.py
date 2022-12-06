@@ -57,8 +57,9 @@ def aten_adaptive_max_pool1d(
 
 def aten_add(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
-
-    raise NotImplementedError()
+    if alpha != 1:
+        other = op.Mul(other, alpha)
+    return op.Add(self, other)
 
 
 def aten_addbmm(
@@ -3107,7 +3108,16 @@ def aten_msort(self: TensorType) -> TensorType:
 def aten_mul(self: TensorType, other: TensorType) -> TensorType:
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Mul(self, other)
+
+
+def aten_mul_bool(self: TensorType, other: TensorType) -> TensorType:
+    """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
+
+    # TODO(justinchuby): Handle cases where type reconcilation is not enough,
+    # since different ONNX operators are used based on different data types.
+
+    return op.And(self, other)
 
 
 def aten_multinomial(
@@ -4337,7 +4347,10 @@ def aten_stft(
 def aten_sub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    if alpha != 1:
+        other = op.Mul(other, alpha)
+
+    return op.Sub(self, other)
 
 
 def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:

@@ -7,6 +7,7 @@ import unittest
 from typing import Callable, Collection, Iterable, Optional, Sequence
 
 import numpy as np
+import onnxruntime.capi.onnxruntime_pybind11_state
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -156,14 +157,19 @@ def add_decorate_info(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 OPINFO_FUNCTION_MAPPING = {
+    "add": core_ops.aten_add,
+    "mul": core_ops.aten_mul,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    "sub": core_ops.aten_sub,
 }
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
+    xfail("add", dtypes=BOOL_TYPES, reason="Add is not defined on bool tensors"),
+    xfail("mul", dtypes=BOOL_TYPES, reason="Mul is not defined on bool tensors"),
     xfail(
         "nn.functional.elu",
         dtypes=dtypes_except(torch.float16, torch.float32),
@@ -179,6 +185,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=dtypes_except(torch.float16, torch.float32),
         reason="ONNX Runtime doesn't support float64 for Selu",
     ),
+    xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
 )
 # END OF SECTION TO MODIFY #####################################################
 
