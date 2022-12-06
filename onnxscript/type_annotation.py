@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import List, Optional, Sequence, get_args, get_origin
+import typing
 
 import onnx
 
@@ -20,14 +20,37 @@ _listtype_to_attrtype_map = {
     str: onnx.AttributeProto.STRINGS,
 }
 
-_list_constructors = {list, List, Sequence}
+_list_constructors = {list, typing.List, typing.Sequence}
+
+def _get_origin(t: type) -> typing.Optional[type]:
+    """Substitute for typing.get_origin of Python 3.8+
+    
+    Note that the input t must be one of the valid types permitted for
+    an input/attribute by ONNX Script.
+    """
+    if hasattr(typing, "get_origin"):
+        return typing.get_origin(t)
+    elif hasattr(t, "__origin__"):
+        return t.__origin__
+    else:
+        None
 
 
-def pytype_to_attrtype(pytype: type) -> Optional[onnx.AttributeProto.AttributeType]:
+def _get_element_type(t: type) -> type:
+    """Returns the element type for a list or sequence type."""
+    if hasattr(typing, "get_args"):
+        return typing.get_args(t)[0]
+    elif hasattr(t, "__args__"):
+        return t.__args__[0]
+    else:
+        raise ValueError(f"Cannot get element type from {t}")
+
+
+def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.AttributeType]:
     if pytype in _pytype_to_attrtype_map:
         return _pytype_to_attrtype_map[pytype]
-    if get_origin(pytype) in _list_constructors:
-        elt_type = get_args(pytype)[0]
+    if _get_origin(pytype) in _list_constructors:
+        elt_type = _get_element_type(pytype)
         if elt_type in _listtype_to_attrtype_map:
             return _listtype_to_attrtype_map[elt_type]
     return None
