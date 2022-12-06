@@ -22,9 +22,10 @@ _listtype_to_attrtype_map = {
 
 _list_constructors = [list, typing.List, typing.Sequence]
 
+
 def _get_origin(t: type) -> typing.Optional[type]:
     """Substitute for typing.get_origin of Python 3.8+
-    
+
     Note that the input t must be one of the valid types permitted for
     an input/attribute by ONNX Script.
     """
