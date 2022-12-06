@@ -2,6 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+# mypy: disable-error-code=misc
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=valid-type
+# mypy: disable-error-code=assignment
 """torch.ops.aten operators under the `nn` module.
 
 - No inplace operators.
@@ -786,7 +791,7 @@ def aten_reflection_pad3d_backward(
 def aten_relu6(self: TFloat) -> TensorType:
     # relu6(Tensor self) -> Tensor
 
-    return op.Min(op.Relu(self), op.Constant(value_float=6.0))
+    return op.Min(op.Relu(self), op.Constant(value_float=6.0))  # type: ignore[arg-type]
 
 
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:

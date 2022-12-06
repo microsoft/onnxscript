@@ -2,6 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+# mypy: disable-error-code=misc
+# mypy: disable-error-code=arg-type
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=valid-type
+# mypy: disable-error-code=assignment
 """torch.ops.aten operators under the `core` module.
 
 - No inplace operators.
@@ -12,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-from onnxscript import INT64, TensorType
+from onnxscript import BOOL, INT64, TensorType
 from onnxscript.function_libs.torch_aten.typing import TFloat
 from onnxscript.onnx_opset import default_opset as op
 
@@ -55,10 +60,10 @@ def aten_adaptive_max_pool1d(
     raise NotImplementedError()
 
 
-def aten_add(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+def aten_add(self, other, alpha: float = 1) -> TensorType:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     if alpha != 1:
-        other = op.Mul(other, alpha)
+        other = op.Mul(other, alpha)  # type: ignore[arg-type]
     return op.Add(self, other)
 
 
@@ -3105,13 +3110,13 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_mul(self: TensorType, other: TensorType) -> TensorType:
+def aten_mul(self, other) -> TensorType:
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.Mul(self, other)
 
 
-def aten_mul_bool(self: TensorType, other: TensorType) -> TensorType:
+def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
 
     # TODO(justinchuby): Handle cases where type reconcilation is not enough,
@@ -4344,11 +4349,11 @@ def aten_stft(
     raise NotImplementedError()
 
 
-def aten_sub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+def aten_sub(self, other, alpha: float = 1) -> TensorType:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     if alpha != 1:
-        other = op.Mul(other, alpha)
+        other = op.Mul(other, alpha)  # type: ignore[arg-type]
 
     return op.Sub(self, other)
 
