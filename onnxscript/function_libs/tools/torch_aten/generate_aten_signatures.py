@@ -51,9 +51,15 @@ def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     arg_type = arg_type_to_str(arg.type, default=arg.default)
     if type_is_builtin(arg_type):
         return cg.TypingRefs.Sequence(cg.BuiltinTypeRef(arg_type))
-    if arg.type.size is None:
-        return cg.TypeRef("onnxscript", arg_type, cg.EllipsisTypeRef())
-    return cg.TypeRef("onnxscript", arg_type, *[cg.TypeRef(None, f"{arg.type.size}")])
+    if arg_type == "TensorType":
+        return cg.TypingRefs.Sequence(cg.TypeRef("onnxscript", "TensorType"))
+    return cg.TypeRef("onnxscript", arg_type)
+    # TODO: Enable this once we have better typing support for generics.
+    # if arg.type.size is None:
+    #     # INT64[...]
+    #     return cg.TypeRef("onnxscript", arg_type, cg.EllipsisTypeRef())
+    # # INT64[3]
+    # return cg.TypeRef("onnxscript", arg_type, *[cg.TypeRef(None, f"{arg.type.size}")])
 
 
 def arg_type_to_str(arg_type: torchgen.model.Type, default: Optional[str] = None) -> str:
@@ -107,14 +113,18 @@ def should_generate_signature(func: torchgen.model.NativeFunction) -> bool:
         return False
     if func.func.name.name.inplace:
         return False
-    if func.func.name.overload_name:
+    if func.func.name.overload_name and func.func.name.overload_name != "Tensor":
         # Ignore overloads for now.
+        # Some ops only have overloaded versions, like aten::add.Tensor. And we
+        # want to generate the aten::add op.
         return False
     return True
 
 
 def get_op_name(func: torchgen.model.NativeFunction) -> str:
-    if func.func.name.overload_name:
+    if func.func.name.overload_name and func.func.name.overload_name != "Tensor":
+        # Do not include the overload name if it is "Tensor", since ops like
+        # aten::add.Tensor is what we want for aten::add.
         name = f"{func.func.name.name.base}_{func.func.name.overload_name}"
     else:
         name = f"{func.func.name.name.base}"

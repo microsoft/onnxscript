@@ -15,13 +15,13 @@ from typing import Optional, Sequence
 from onnxscript import INT64, TensorType
 
 
-def aten_adaptive_avg_pool2d(self: TensorType, output_size: INT64[2]) -> TensorType:
+def aten_adaptive_avg_pool2d(self: TensorType, output_size: INT64) -> TensorType:
     # adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_adaptive_avg_pool3d(self: TensorType, output_size: INT64[3]) -> TensorType:
+def aten_adaptive_avg_pool3d(self: TensorType, output_size: INT64) -> TensorType:
     # adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor
 
     raise NotImplementedError()
@@ -142,7 +142,7 @@ def aten_binary_cross_entropy_backward(
 
 def aten_col2im(
     self: TensorType,
-    output_size: INT64[2],
+    output_size: INT64,
     kernel_size: Sequence[int],
     dilation: Sequence[int],
     padding: Sequence[int],
@@ -159,7 +159,7 @@ def aten_conv_depthwise3d(
     kernel_size: Sequence[int],
     bias: Optional[TensorType],
     stride: Sequence[int],
-    padding: INT64[3],
+    padding: INT64,
     dilation: Sequence[int],
 ) -> TensorType:
     # conv_depthwise3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias, int[3] stride, SymInt[3] padding, int[3] dilation) -> Tensor
@@ -201,7 +201,7 @@ def aten_elu_backward(
     raise NotImplementedError()
 
 
-def aten_flatten_dense_tensors(tensors: TensorType[...]) -> TensorType:
+def aten_flatten_dense_tensors(tensors: Sequence[TensorType]) -> TensorType:
     # flatten_dense_tensors(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
@@ -712,7 +712,7 @@ def aten_one_hot(self: TensorType, num_classes: int = -1) -> TensorType:
 
 
 def aten_pad(
-    self: TensorType, pad: INT64[...], mode: str = "constant", value: Optional[float] = None
+    self: TensorType, pad: INT64, mode: str = "constant", value: Optional[float] = None
 ) -> TensorType:
     # pad(Tensor self, SymInt[] pad, str mode="constant", float? value=None) -> Tensor
 
@@ -720,49 +720,49 @@ def aten_pad(
 
 
 def aten_pad_sequence(
-    sequences: TensorType[...], batch_first: bool = False, padding_value: float = 0.0
+    sequences: Sequence[TensorType], batch_first: bool = False, padding_value: float = 0.0
 ) -> TensorType:
     # pad_sequence(Tensor[] sequences, bool batch_first=False, float padding_value=0.0) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_reflection_pad1d(self: TensorType, padding: INT64[2]) -> TensorType:
+def aten_reflection_pad1d(self: TensorType, padding: INT64) -> TensorType:
     # reflection_pad1d(Tensor self, SymInt[2] padding) -> Tensor
 
     raise NotImplementedError()
 
 
 def aten_reflection_pad1d_backward(
-    grad_output: TensorType, self: TensorType, padding: INT64[2]
+    grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
     # reflection_pad1d_backward(Tensor grad_output, Tensor self, SymInt[2] padding) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_reflection_pad2d(self: TensorType, padding: INT64[4]) -> TensorType:
+def aten_reflection_pad2d(self: TensorType, padding: INT64) -> TensorType:
     # reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor
 
     raise NotImplementedError()
 
 
 def aten_reflection_pad2d_backward(
-    grad_output: TensorType, self: TensorType, padding: INT64[4]
+    grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
     # reflection_pad2d_backward(Tensor grad_output, Tensor self, SymInt[4] padding) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_reflection_pad3d(self: TensorType, padding: INT64[6]) -> TensorType:
+def aten_reflection_pad3d(self: TensorType, padding: INT64) -> TensorType:
     # reflection_pad3d(Tensor self, SymInt[6] padding) -> Tensor
 
     raise NotImplementedError()
 
 
 def aten_reflection_pad3d_backward(
-    grad_output: TensorType, self: TensorType, padding: INT64[6]
+    grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
     # reflection_pad3d_backward(Tensor grad_output, Tensor self, SymInt[6] padding) -> Tensor
 
@@ -775,42 +775,42 @@ def aten_relu6(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_replication_pad1d(self: TensorType, padding: INT64[2]) -> TensorType:
+def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
     # replication_pad1d(Tensor self, SymInt[2] padding) -> Tensor
 
     raise NotImplementedError()
 
 
 def aten_replication_pad1d_backward(
-    grad_output: TensorType, self: TensorType, padding: INT64[2]
+    grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
     # replication_pad1d_backward(Tensor grad_output, Tensor self, SymInt[2] padding) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_replication_pad2d(self: TensorType, padding: INT64[4]) -> TensorType:
+def aten_replication_pad2d(self: TensorType, padding: INT64) -> TensorType:
     # replication_pad2d(Tensor self, SymInt[4] padding) -> Tensor
 
     raise NotImplementedError()
 
 
 def aten_replication_pad2d_backward(
-    grad_output: TensorType, self: TensorType, padding: INT64[4]
+    grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
     # replication_pad2d_backward(Tensor grad_output, Tensor self, SymInt[4] padding) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_replication_pad3d(self: TensorType, padding: INT64[6]) -> TensorType:
+def aten_replication_pad3d(self: TensorType, padding: INT64) -> TensorType:
     # replication_pad3d(Tensor self, SymInt[6] padding) -> Tensor
 
     raise NotImplementedError()
 
 
 def aten_replication_pad3d_backward(
-    grad_output: TensorType, self: TensorType, padding: INT64[6]
+    grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
     # replication_pad3d_backward(Tensor grad_output, Tensor self, SymInt[6] padding) -> Tensor
 
@@ -868,7 +868,7 @@ def aten_slow_conv3d(
     kernel_size: Sequence[int],
     bias: Optional[TensorType] = None,
     stride: Sequence[int] = (1, 1, 1),
-    padding: INT64[3] = (0, 0, 0),
+    padding: INT64 = (0, 0, 0),
 ) -> TensorType:
     # slow_conv3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0) -> Tensor
 
@@ -881,7 +881,7 @@ def aten_slow_conv3d_forward(
     kernel_size: Sequence[int],
     bias: Optional[TensorType],
     stride: Sequence[int],
-    padding: INT64[3],
+    padding: INT64,
 ) -> TensorType:
     # slow_conv3d_forward(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias, int[3] stride, SymInt[3] padding) -> Tensor
 
@@ -894,7 +894,7 @@ def aten_slow_conv_dilated2d(
     kernel_size: Sequence[int],
     bias: Optional[TensorType] = None,
     stride: Sequence[int] = (1, 1),
-    padding: INT64[2] = (0, 0),
+    padding: INT64 = (0, 0),
     dilation: Sequence[int] = (1, 1),
 ) -> TensorType:
     # slow_conv_dilated2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, SymInt[2] padding=0, int[2] dilation=1) -> Tensor
@@ -908,7 +908,7 @@ def aten_slow_conv_dilated3d(
     kernel_size: Sequence[int],
     bias: Optional[TensorType] = None,
     stride: Sequence[int] = (1, 1, 1),
-    padding: INT64[3] = (0, 0, 0),
+    padding: INT64 = (0, 0, 0),
     dilation: Sequence[int] = (1, 1, 1),
 ) -> TensorType:
     # slow_conv_dilated3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0, int[3] dilation=1) -> Tensor
@@ -922,8 +922,8 @@ def aten_slow_conv_transpose2d(
     kernel_size: Sequence[int],
     bias: Optional[TensorType] = None,
     stride: Sequence[int] = (1, 1),
-    padding: INT64[2] = (0, 0),
-    output_padding: INT64[2] = (0, 0),
+    padding: INT64 = (0, 0),
+    output_padding: INT64 = (0, 0),
     dilation: Sequence[int] = (1, 1),
 ) -> TensorType:
     # slow_conv_transpose2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, SymInt[2] padding=0, SymInt[2] output_padding=0, int[2] dilation=1) -> Tensor
@@ -937,8 +937,8 @@ def aten_slow_conv_transpose3d(
     kernel_size: Sequence[int],
     bias: Optional[TensorType] = None,
     stride: Sequence[int] = (1, 1, 1),
-    padding: INT64[3] = (0, 0, 0),
-    output_padding: INT64[3] = (0, 0, 0),
+    padding: INT64 = (0, 0, 0),
+    output_padding: INT64 = (0, 0, 0),
     dilation: Sequence[int] = (1, 1, 1),
 ) -> TensorType:
     # slow_conv_transpose3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0, SymInt[3] output_padding=0, int[3] dilation=1) -> Tensor
@@ -1025,7 +1025,9 @@ def aten_thnn_conv2d(
     raise NotImplementedError()
 
 
-def aten_unflatten_dense_tensors(flat: TensorType, tensors: TensorType[...]) -> TensorType:
+def aten_unflatten_dense_tensors(
+    flat: TensorType, tensors: Sequence[TensorType]
+) -> TensorType:
     # unflatten_dense_tensors(Tensor flat, Tensor[] tensors) -> Tensor[]
 
     raise NotImplementedError()
@@ -1033,7 +1035,7 @@ def aten_unflatten_dense_tensors(flat: TensorType, tensors: TensorType[...]) -> 
 
 def aten_upsample_bicubic2d(
     self: TensorType,
-    output_size: INT64[2],
+    output_size: INT64,
     align_corners: bool,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
@@ -1045,8 +1047,8 @@ def aten_upsample_bicubic2d(
 
 def aten_upsample_bicubic2d_backward(
     grad_output: TensorType,
-    output_size: INT64[2],
-    input_size: INT64[4],
+    output_size: INT64,
+    input_size: INT64,
     align_corners: bool,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
@@ -1058,7 +1060,7 @@ def aten_upsample_bicubic2d_backward(
 
 def aten_upsample_bilinear2d(
     self: TensorType,
-    output_size: INT64[2],
+    output_size: INT64,
     align_corners: bool,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
@@ -1070,8 +1072,8 @@ def aten_upsample_bilinear2d(
 
 def aten_upsample_bilinear2d_backward(
     grad_output: TensorType,
-    output_size: INT64[2],
-    input_size: INT64[4],
+    output_size: INT64,
+    input_size: INT64,
     align_corners: bool,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
@@ -1082,10 +1084,7 @@ def aten_upsample_bilinear2d_backward(
 
 
 def aten_upsample_linear1d(
-    self: TensorType,
-    output_size: INT64[1],
-    align_corners: bool,
-    scales: Optional[float] = None,
+    self: TensorType, output_size: INT64, align_corners: bool, scales: Optional[float] = None
 ) -> TensorType:
     # upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor
 
@@ -1094,8 +1093,8 @@ def aten_upsample_linear1d(
 
 def aten_upsample_linear1d_backward(
     grad_output: TensorType,
-    output_size: INT64[1],
-    input_size: INT64[3],
+    output_size: INT64,
+    input_size: INT64,
     align_corners: bool,
     scales: Optional[float] = None,
 ) -> TensorType:
@@ -1105,7 +1104,7 @@ def aten_upsample_linear1d_backward(
 
 
 def aten_upsample_nearest1d(
-    self: TensorType, output_size: INT64[1], scales: Optional[float] = None
+    self: TensorType, output_size: INT64, scales: Optional[float] = None
 ) -> TensorType:
     # upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor
 
@@ -1114,8 +1113,8 @@ def aten_upsample_nearest1d(
 
 def aten_upsample_nearest1d_backward(
     grad_output: TensorType,
-    output_size: INT64[1],
-    input_size: INT64[3],
+    output_size: INT64,
+    input_size: INT64,
     scales: Optional[float] = None,
 ) -> TensorType:
     # upsample_nearest1d_backward(Tensor grad_output, SymInt[1] output_size, SymInt[3] input_size, float? scales=None) -> Tensor
@@ -1125,7 +1124,7 @@ def aten_upsample_nearest1d_backward(
 
 def aten_upsample_nearest2d(
     self: TensorType,
-    output_size: INT64[2],
+    output_size: INT64,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
@@ -1136,8 +1135,8 @@ def aten_upsample_nearest2d(
 
 def aten_upsample_nearest2d_backward(
     grad_output: TensorType,
-    output_size: INT64[2],
-    input_size: INT64[4],
+    output_size: INT64,
+    input_size: INT64,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
@@ -1148,7 +1147,7 @@ def aten_upsample_nearest2d_backward(
 
 def aten_upsample_nearest3d(
     self: TensorType,
-    output_size: INT64[3],
+    output_size: INT64,
     scales_d: Optional[float] = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
@@ -1160,8 +1159,8 @@ def aten_upsample_nearest3d(
 
 def aten_upsample_nearest3d_backward(
     grad_output: TensorType,
-    output_size: INT64[3],
-    input_size: INT64[5],
+    output_size: INT64,
+    input_size: INT64,
     scales_d: Optional[float] = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
@@ -1173,7 +1172,7 @@ def aten_upsample_nearest3d_backward(
 
 def aten_upsample_trilinear3d(
     self: TensorType,
-    output_size: INT64[3],
+    output_size: INT64,
     align_corners: bool,
     scales_d: Optional[float] = None,
     scales_h: Optional[float] = None,
@@ -1186,8 +1185,8 @@ def aten_upsample_trilinear3d(
 
 def aten_upsample_trilinear3d_backward(
     grad_output: TensorType,
-    output_size: INT64[3],
-    input_size: INT64[5],
+    output_size: INT64,
+    input_size: INT64,
     align_corners: bool,
     scales_d: Optional[float] = None,
     scales_h: Optional[float] = None,

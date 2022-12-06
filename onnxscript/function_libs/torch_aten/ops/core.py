@@ -53,6 +53,12 @@ def aten_adaptive_max_pool1d(
     raise NotImplementedError()
 
 
+def aten_add(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+    # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_addbmm(
     self: TensorType, batch1: TensorType, batch2: TensorType, beta: float = 1, alpha: float = 1
 ) -> TensorType:
@@ -141,7 +147,7 @@ def aten_align_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_align_tensors(tensors: TensorType[...]) -> TensorType:
+def aten_align_tensors(tensors: Sequence[TensorType]) -> TensorType:
     # align_tensors(Tensor[] tensors) -> Tensor[]
 
     raise NotImplementedError()
@@ -197,6 +203,12 @@ def aten_aminmax(
     self: TensorType, dim: Optional[int] = None, keepdim: bool = False
 ) -> tuple[TensorType, TensorType]:
     # aminmax(Tensor self, *, int? dim=None, bool keepdim=False) -> (Tensor min, Tensor max)
+
+    raise NotImplementedError()
+
+
+def aten_and(self: TensorType, other: TensorType) -> TensorType:
+    # __and__.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -290,10 +302,7 @@ def aten_argwhere(self: TensorType) -> TensorType:
 
 
 def aten_as_strided(
-    self: TensorType,
-    size: INT64[...],
-    stride: INT64[...],
-    storage_offset: Optional[INT64] = None,
+    self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
 ) -> TensorType:
     # as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)
 
@@ -301,10 +310,7 @@ def aten_as_strided(
 
 
 def aten_as_strided_copy(
-    self: TensorType,
-    size: INT64[...],
-    stride: INT64[...],
-    storage_offset: Optional[INT64] = None,
+    self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
 ) -> TensorType:
     # as_strided_copy(Tensor self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor
 
@@ -314,8 +320,8 @@ def aten_as_strided_copy(
 def aten_as_strided_scatter(
     self: TensorType,
     src: TensorType,
-    size: INT64[...],
-    stride: INT64[...],
+    size: INT64,
+    stride: INT64,
     storage_offset: Optional[INT64] = None,
 ) -> TensorType:
     # as_strided_scatter(Tensor self, Tensor src, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor
@@ -549,8 +555,38 @@ def aten_binomial(
     raise NotImplementedError()
 
 
+def aten_bitwise_and(self: TensorType, other: TensorType) -> TensorType:
+    # bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_bitwise_left_shift(self: TensorType, other: TensorType) -> TensorType:
+    # bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_bitwise_not(self: TensorType) -> TensorType:
     # bitwise_not(Tensor self) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_bitwise_or(self: TensorType, other: TensorType) -> TensorType:
+    # bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_bitwise_right_shift(self: TensorType, other: TensorType) -> TensorType:
+    # bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_bitwise_xor(self: TensorType, other: TensorType) -> TensorType:
+    # bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -561,7 +597,7 @@ def aten_blackman_window(window_length: int) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_block_diag(tensors: TensorType[...]) -> TensorType:
+def aten_block_diag(tensors: Sequence[TensorType]) -> TensorType:
     # block_diag(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
@@ -573,14 +609,22 @@ def aten_bmm(self: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_broadcast_tensors(tensors: TensorType[...]) -> TensorType:
+def aten_broadcast_tensors(tensors: Sequence[TensorType]) -> TensorType:
     # broadcast_tensors(Tensor[] tensors) -> Tensor[]
 
     raise NotImplementedError()
 
 
-def aten_broadcast_to(self: TensorType, size: INT64[...]) -> TensorType:
+def aten_broadcast_to(self: TensorType, size: INT64) -> TensorType:
     # broadcast_to(Tensor(a) self, SymInt[] size) -> Tensor(a)
+
+    raise NotImplementedError()
+
+
+def aten_bucketize(
+    self: TensorType, boundaries: TensorType, out_int32: bool = False, right: bool = False
+) -> TensorType:
+    # bucketize.Tensor(Tensor self, Tensor boundaries, *, bool out_int32=False, bool right=False) -> Tensor
 
     raise NotImplementedError()
 
@@ -591,13 +635,13 @@ def aten_can_cast(from_: int, to: int) -> bool:
     raise NotImplementedError()
 
 
-def aten_cartesian_prod(tensors: TensorType[...]) -> TensorType:
+def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     # cartesian_prod(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_cat(tensors: TensorType[...], dim: int = 0) -> TensorType:
+def aten_cat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
 
     raise NotImplementedError()
@@ -635,7 +679,7 @@ def aten_celu(self: TensorType, alpha: float = 1.0) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_chain_matmul(matrices: TensorType[...]) -> TensorType:
+def aten_chain_matmul(matrices: Sequence[TensorType]) -> TensorType:
     # chain_matmul(Tensor[] matrices) -> Tensor
 
     raise NotImplementedError()
@@ -739,7 +783,7 @@ def aten_col_indices_copy(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_column_stack(tensors: TensorType[...]) -> TensorType:
+def aten_column_stack(tensors: Sequence[TensorType]) -> TensorType:
     # column_stack(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
@@ -759,13 +803,13 @@ def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_concat(tensors: TensorType[...], dim: int = 0) -> TensorType:
+def aten_concat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
     # concat(Tensor[] tensors, int dim=0) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_concatenate(tensors: TensorType[...], dim: int = 0) -> TensorType:
+def aten_concatenate(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
     # concatenate(Tensor[] tensors, int dim=0) -> Tensor
 
     raise NotImplementedError()
@@ -783,7 +827,7 @@ def aten_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_constant_pad_nd(self: TensorType, pad: INT64[...], value: float = 0) -> TensorType:
+def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0) -> TensorType:
     # constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor
 
     raise NotImplementedError()
@@ -873,10 +917,10 @@ def aten_convolution(
     weight: TensorType,
     bias: Optional[TensorType],
     stride: Sequence[int],
-    padding: INT64[...],
+    padding: INT64,
     dilation: Sequence[int],
     transposed: bool,
-    output_padding: INT64[...],
+    output_padding: INT64,
     groups: int,
 ) -> TensorType:
     # convolution(Tensor input, Tensor weight, Tensor? bias, int[] stride, SymInt[] padding, int[] dilation, bool transposed, SymInt[] output_padding, int groups) -> Tensor
@@ -890,10 +934,10 @@ def aten_convolution_backward(
     weight: TensorType,
     bias_sizes: Optional[INT64],
     stride: Sequence[int],
-    padding: INT64[...],
+    padding: INT64,
     dilation: Sequence[int],
     transposed: bool,
-    output_padding: INT64[...],
+    output_padding: INT64,
     groups: int,
     output_mask: Sequence[bool],
 ) -> tuple[TensorType, TensorType, TensorType]:
@@ -937,6 +981,12 @@ def aten_convolution_overrideable(
 
 def aten_copy(self: TensorType, src: TensorType, non_blocking: bool = False) -> TensorType:
     # copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_copysign(self: TensorType, other: TensorType) -> TensorType:
+    # copysign.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -1010,6 +1060,20 @@ def aten_crow_indices(self: TensorType) -> TensorType:
 
 def aten_crow_indices_copy(self: TensorType) -> TensorType:
     # crow_indices_copy(Tensor self) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_ctc_loss(
+    log_probs: TensorType,
+    targets: TensorType,
+    input_lengths: TensorType,
+    target_lengths: TensorType,
+    blank: int = 0,
+    reduction: int = 1,
+    zero_infinity: bool = False,
+) -> TensorType:
+    # ctc_loss.Tensor(Tensor log_probs, Tensor targets, Tensor input_lengths, Tensor target_lengths, int blank=0, int reduction=Mean, bool zero_infinity=False) -> Tensor
 
     raise NotImplementedError()
 
@@ -1249,7 +1313,7 @@ def aten_diagonal(
 
 
 def aten_diagonal_backward(
-    grad_output: TensorType, input_sizes: INT64[...], offset: int, dim1: int, dim2: int
+    grad_output: TensorType, input_sizes: INT64, offset: int, dim1: int, dim2: int
 ) -> TensorType:
     # diagonal_backward(Tensor grad_output, SymInt[] input_sizes, int offset, int dim1, int dim2) -> Tensor
 
@@ -1296,6 +1360,18 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_div(self: TensorType, other: TensorType) -> TensorType:
+    # div.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_divide(self: TensorType, other: TensorType) -> TensorType:
+    # divide.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_dot(self: TensorType, tensor: TensorType) -> TensorType:
     # dot(Tensor self, Tensor tensor) -> Tensor
 
@@ -1308,14 +1384,14 @@ def aten_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_dstack(tensors: TensorType[...]) -> TensorType:
+def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
     # dstack(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
 
 
 def aten_einsum(
-    equation: str, tensors: TensorType[...], path: Optional[int] = None
+    equation: str, tensors: Sequence[TensorType], path: Optional[int] = None
 ) -> TensorType:
     # einsum(str equation, Tensor[] tensors, *, int[]? path=None) -> Tensor
 
@@ -1400,8 +1476,14 @@ def aten_empty_quantized(
     raise NotImplementedError()
 
 
-def aten_empty_strided(size: INT64[...], stride: INT64[...]) -> TensorType:
+def aten_empty_strided(size: INT64, stride: INT64) -> TensorType:
     # empty_strided(SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_eq(self: TensorType, other: TensorType) -> TensorType:
+    # eq.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -1442,7 +1524,7 @@ def aten_exp2(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_expand(self: TensorType, size: INT64[...], implicit: bool = False) -> TensorType:
+def aten_expand(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
     raise NotImplementedError()
@@ -1454,7 +1536,7 @@ def aten_expand_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_expand_copy(self: TensorType, size: INT64[...], implicit: bool = False) -> TensorType:
+def aten_expand_copy(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:
     # expand_copy(Tensor self, SymInt[] size, *, bool implicit=False) -> Tensor
 
     raise NotImplementedError()
@@ -1606,6 +1688,12 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
     raise NotImplementedError()
 
 
+def aten_fill(self: TensorType, value: TensorType) -> TensorType:
+    # fill.Tensor(Tensor self, Tensor value) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_fix(self: TensorType) -> TensorType:
     # fix(Tensor self) -> Tensor
 
@@ -1654,8 +1742,20 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_fmod(self: TensorType, other: TensorType) -> TensorType:
+    # fmod.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_frac(self: TensorType) -> TensorType:
     # frac(Tensor self) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_frexp(self: TensorType) -> tuple[TensorType, TensorType]:
+    # frexp.Tensor(Tensor self) -> (Tensor mantissa, Tensor exponent)
 
     raise NotImplementedError()
 
@@ -1674,7 +1774,7 @@ def aten_from_file(
     raise NotImplementedError()
 
 
-def aten_full(size: INT64[...], fill_value: float) -> TensorType:
+def aten_full(size: INT64, fill_value: float) -> TensorType:
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
@@ -1730,6 +1830,12 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_ge(self: TensorType, other: TensorType) -> TensorType:
+    # ge.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
     # geqrf(Tensor self) -> (Tensor a, Tensor tau)
 
@@ -1738,6 +1844,18 @@ def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
 
 def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     # ger(Tensor self, Tensor vec2) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_greater(self: TensorType, other: TensorType) -> TensorType:
+    # greater.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_greater_equal(self: TensorType, other: TensorType) -> TensorType:
+    # greater_equal.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -1832,6 +1950,12 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
+def aten_gt(self: TensorType, other: TensorType) -> TensorType:
+    # gt.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_hamming_window(window_length: int) -> TensorType:
     # hamming_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
@@ -1898,7 +2022,7 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_hstack(tensors: TensorType[...]) -> TensorType:
+def aten_hstack(tensors: Sequence[TensorType]) -> TensorType:
     # hstack(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
@@ -1934,6 +2058,12 @@ def aten_imag(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_index(self: TensorType, indices: Optional[Sequence[TensorType]]) -> TensorType:
+    # index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_index_add(
     self: TensorType, dim: int, index: TensorType, source: TensorType, alpha: float = 1
 ) -> TensorType:
@@ -1952,7 +2082,7 @@ def aten_index_copy(
 
 def aten_index_put(
     self: TensorType,
-    indices: Optional[TensorType[...]],
+    indices: Optional[Sequence[TensorType]],
     values: TensorType,
     accumulate: bool = False,
 ) -> TensorType:
@@ -1981,7 +2111,7 @@ def aten_index_select(self: TensorType, dim: int, index: TensorType) -> TensorTy
 
 
 def aten_index_select_backward(
-    grad: TensorType, self_sizes: INT64[...], dim: int, index: TensorType
+    grad: TensorType, self_sizes: INT64, dim: int, index: TensorType
 ) -> TensorType:
     # index_select_backward(Tensor grad, SymInt[] self_sizes, int dim, Tensor index) -> Tensor
 
@@ -2236,6 +2366,36 @@ def aten_lcm(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
+    # ldexp.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_le(self: TensorType, other: TensorType) -> TensorType:
+    # le.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
+    # lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_less(self: TensorType, other: TensorType) -> TensorType:
+    # less.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_less_equal(self: TensorType, other: TensorType) -> TensorType:
+    # less_equal.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_lgamma(self: TensorType) -> TensorType:
     # lgamma(Tensor self) -> Tensor
 
@@ -2364,9 +2524,15 @@ def aten_logsumexp(self: TensorType, dim: Sequence[int], keepdim: bool = False) 
     raise NotImplementedError()
 
 
+def aten_lshift(self: TensorType, other: TensorType) -> TensorType:
+    # __lshift__.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_lstm_cell(
     input: TensorType,
-    hx: TensorType[...],
+    hx: Sequence[TensorType],
     w_ih: TensorType,
     w_hh: TensorType,
     b_ih: Optional[TensorType] = None,
@@ -2384,8 +2550,8 @@ def aten_lstm_mps_backward(
     z_state: TensorType,
     cell_state_fwd: TensorType,
     input: TensorType,
-    hx: TensorType[...],
-    params: TensorType[...],
+    hx: Sequence[TensorType],
+    params: Sequence[TensorType],
     has_biases: bool,
     num_layers: int,
     dropout: float,
@@ -2394,6 +2560,12 @@ def aten_lstm_mps_backward(
     batch_first: bool,
 ) -> tuple[TensorType, TensorType, TensorType]:
     # lstm_mps_backward(Tensor grad_y, Tensor? grad_hy, Tensor? grad_cy, Tensor z_state, Tensor cell_state_fwd, Tensor input, Tensor[] hx, Tensor[] params, bool has_biases, int num_layers, float dropout, bool train, bool bidirectional, bool batch_first) -> (Tensor, Tensor[], Tensor[])
+
+    raise NotImplementedError()
+
+
+def aten_lt(self: TensorType, other: TensorType) -> TensorType:
+    # lt.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -2435,6 +2607,12 @@ def aten_margin_ranking_loss(
     reduction: int = 1,
 ) -> TensorType:
     # margin_ranking_loss(Tensor input1, Tensor input2, Tensor target, float margin=0.0, int reduction=Mean) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_masked_fill(self: TensorType, mask: TensorType, value: TensorType) -> TensorType:
+    # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
 
     raise NotImplementedError()
 
@@ -2573,7 +2751,7 @@ def aten_median(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_meshgrid(tensors: TensorType[...]) -> TensorType:
+def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
     # meshgrid(Tensor[] tensors) -> Tensor[]
 
     raise NotImplementedError()
@@ -2625,7 +2803,7 @@ def aten_miopen_convolution(
     self: TensorType,
     weight: TensorType,
     bias: Optional[TensorType],
-    padding: INT64[...],
+    padding: INT64,
     stride: Sequence[int],
     dilation: Sequence[int],
     groups: int,
@@ -2671,8 +2849,8 @@ def aten_miopen_convolution_transpose(
     self: TensorType,
     weight: TensorType,
     bias: Optional[TensorType],
-    padding: INT64[...],
-    output_padding: INT64[...],
+    padding: INT64,
+    output_padding: INT64,
     stride: Sequence[int],
     dilation: Sequence[int],
     groups: int,
@@ -2688,7 +2866,7 @@ def aten_miopen_depthwise_convolution(
     self: TensorType,
     weight: TensorType,
     bias: Optional[TensorType],
-    padding: INT64[...],
+    padding: INT64,
     stride: Sequence[int],
     dilation: Sequence[int],
     groups: int,
@@ -2702,7 +2880,7 @@ def aten_miopen_depthwise_convolution(
 
 def aten_miopen_rnn(
     input: TensorType,
-    weight: TensorType[...],
+    weight: Sequence[TensorType],
     weight_stride0: int,
     hx: TensorType,
     cx: Optional[TensorType],
@@ -2723,7 +2901,7 @@ def aten_miopen_rnn(
 
 def aten_miopen_rnn_backward(
     input: TensorType,
-    weight: TensorType[...],
+    weight: Sequence[TensorType],
     weight_stride0: int,
     weight_buf: TensorType,
     hx: TensorType,
@@ -2769,7 +2947,7 @@ def aten_mkldnn_convolution(
     self: TensorType,
     weight: TensorType,
     bias: Optional[TensorType],
-    padding: INT64[...],
+    padding: INT64,
     stride: Sequence[int],
     dilation: Sequence[int],
     groups: int,
@@ -2924,6 +3102,12 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_mul(self: TensorType, other: TensorType) -> TensorType:
+    # mul.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_multinomial(
     self: TensorType,
     num_samples: int,
@@ -2931,6 +3115,12 @@ def aten_multinomial(
     generator: Optional[str] = None,
 ) -> TensorType:
     # multinomial(Tensor self, int num_samples, bool replacement=False, *, Generator? generator=None) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_multiply(self: TensorType, other: TensorType) -> TensorType:
+    # multiply.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -3098,7 +3288,7 @@ def aten_native_group_norm_backward(
 
 def aten_native_layer_norm(
     input: TensorType,
-    normalized_shape: INT64[...],
+    normalized_shape: INT64,
     weight: Optional[TensorType],
     bias: Optional[TensorType],
     eps: float,
@@ -3111,7 +3301,7 @@ def aten_native_layer_norm(
 def aten_native_layer_norm_backward(
     grad_out: TensorType,
     input: TensorType,
-    normalized_shape: INT64[...],
+    normalized_shape: INT64,
     mean: TensorType,
     rstd: TensorType,
     weight: Optional[TensorType],
@@ -3129,6 +3319,12 @@ def aten_native_norm(self: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_ne(self: TensorType, other: TensorType) -> TensorType:
+    # ne.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_neg(self: TensorType) -> TensorType:
     # neg(Tensor self) -> Tensor
 
@@ -3141,33 +3337,31 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_new_empty(self: TensorType, size: INT64[...]) -> TensorType:
+def aten_new_empty(self: TensorType, size: INT64) -> TensorType:
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_new_empty_strided(
-    self: TensorType, size: INT64[...], stride: INT64[...]
-) -> TensorType:
+def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> TensorType:
     # new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_new_full(self: TensorType, size: INT64[...], fill_value: float) -> TensorType:
+def aten_new_full(self: TensorType, size: INT64, fill_value: float) -> TensorType:
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_new_ones(self: TensorType, size: INT64[...]) -> TensorType:
+def aten_new_ones(self: TensorType, size: INT64) -> TensorType:
     # new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_new_zeros(self: TensorType, size: INT64[...]) -> TensorType:
+def aten_new_zeros(self: TensorType, size: INT64) -> TensorType:
     # new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
@@ -3205,6 +3399,12 @@ def aten_normal(
     raise NotImplementedError()
 
 
+def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
+    # not_equal.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
     # nuclear_norm(Tensor self, bool keepdim=False) -> Tensor
 
@@ -3217,7 +3417,7 @@ def aten_numpy_T(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ones(size: INT64[...]) -> TensorType:
+def aten_ones(size: INT64) -> TensorType:
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
@@ -3225,6 +3425,12 @@ def aten_ones(size: INT64[...]) -> TensorType:
 
 def aten_ones_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_or(self: TensorType, other: TensorType) -> TensorType:
+    # __or__.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
 
@@ -3496,7 +3702,7 @@ def aten_quantized_gru_cell(
 
 def aten_quantized_lstm_cell(
     input: TensorType,
-    hx: TensorType[...],
+    hx: Sequence[TensorType],
     w_ih: TensorType,
     w_hh: TensorType,
     b_ih: TensorType,
@@ -3589,7 +3795,7 @@ def aten_rad2deg(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_rand(size: INT64[...]) -> TensorType:
+def aten_rand(size: INT64) -> TensorType:
     # rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
@@ -3601,7 +3807,7 @@ def aten_rand_like(self: TensorType, memory_format: Optional[str] = None) -> Ten
     raise NotImplementedError()
 
 
-def aten_randint(high: int, size: INT64[...]) -> TensorType:
+def aten_randint(high: int, size: INT64) -> TensorType:
     # randint(int high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
@@ -3615,7 +3821,7 @@ def aten_randint_like(
     raise NotImplementedError()
 
 
-def aten_randn(size: INT64[...]) -> TensorType:
+def aten_randn(size: INT64) -> TensorType:
     # randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
@@ -3675,6 +3881,12 @@ def aten_relu(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_remainder(self: TensorType, other: TensorType) -> TensorType:
+    # remainder.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_rename(self: TensorType, names: Optional[str]) -> TensorType:
     # rename(Tensor(a) self, Dimname[]? names) -> Tensor(a)
 
@@ -3687,13 +3899,21 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-def aten_repeat(self: TensorType, repeats: INT64[...]) -> TensorType:
+def aten_repeat(self: TensorType, repeats: INT64) -> TensorType:
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_reshape(self: TensorType, shape: INT64[...]) -> TensorType:
+def aten_repeat_interleave(
+    repeats: TensorType, output_size: Optional[int] = None
+) -> TensorType:
+    # repeat_interleave.Tensor(Tensor repeats, *, int? output_size=None) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
     raise NotImplementedError()
@@ -3713,6 +3933,12 @@ def aten_resolve_conj(self: TensorType) -> TensorType:
 
 def aten_resolve_neg(self: TensorType) -> TensorType:
     # resolve_neg(Tensor(a) self) -> Tensor(a)
+
+    raise NotImplementedError()
+
+
+def aten_result_type(tensor: TensorType, other: TensorType) -> int:
+    # result_type.Tensor(Tensor tensor, Tensor other) -> ScalarType
 
     raise NotImplementedError()
 
@@ -3787,7 +4013,7 @@ def aten_row_indices_copy(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_row_stack(tensors: TensorType[...]) -> TensorType:
+def aten_row_stack(tensors: Sequence[TensorType]) -> TensorType:
     # row_stack(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
@@ -3805,8 +4031,20 @@ def aten_rrelu(
     raise NotImplementedError()
 
 
+def aten_rshift(self: TensorType, other: TensorType) -> TensorType:
+    # __rshift__.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_rsqrt(self: TensorType) -> TensorType:
     # rsqrt(Tensor self) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_rsub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+    # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     raise NotImplementedError()
 
@@ -3821,6 +4059,19 @@ def aten_scatter_add(
     self: TensorType, dim: int, index: TensorType, src: TensorType
 ) -> TensorType:
     # scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_searchsorted(
+    sorted_sequence: TensorType,
+    self: TensorType,
+    out_int32: bool = False,
+    right: bool = False,
+    side: Optional[str] = None,
+    sorter: Optional[TensorType] = None,
+) -> TensorType:
+    # searchsorted.Tensor(Tensor sorted_sequence, Tensor self, *, bool out_int32=False, bool right=False, str? side=None, Tensor? sorter=None) -> Tensor
 
     raise NotImplementedError()
 
@@ -3841,7 +4092,7 @@ def aten_segment_reduce(
 
 
 def aten_select_backward(
-    grad_output: TensorType, input_sizes: INT64[...], dim: int, index: int
+    grad_output: TensorType, input_sizes: INT64, dim: int, index: int
 ) -> TensorType:
     # select_backward(Tensor grad_output, SymInt[] input_sizes, int dim, int index) -> Tensor
 
@@ -3908,15 +4159,39 @@ def aten_sinh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_slice(
+    self: TensorType,
+    dim: int = 0,
+    start: Optional[INT64] = None,
+    end: Optional[INT64] = None,
+    step: INT64 = 1,
+) -> TensorType:
+    # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
+
+    raise NotImplementedError()
+
+
 def aten_slice_backward(
     grad_output: TensorType,
-    input_sizes: INT64[...],
+    input_sizes: INT64,
     dim: int,
     start: INT64,
     end: INT64,
     step: INT64,
 ) -> TensorType:
     # slice_backward(Tensor grad_output, SymInt[] input_sizes, int dim, SymInt start, SymInt end, SymInt step) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_slice_copy(
+    self: TensorType,
+    dim: int = 0,
+    start: Optional[INT64] = None,
+    end: Optional[INT64] = None,
+    step: INT64 = 1,
+) -> TensorType:
+    # slice_copy.Tensor(Tensor self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor
 
     raise NotImplementedError()
 
@@ -3966,16 +4241,26 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_split_with_sizes(
-    self: TensorType, split_sizes: INT64[...], dim: int = 0
-) -> TensorType:
+def aten_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+    # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
+
+    raise NotImplementedError()
+
+
+def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+    # split_copy.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]
+
+    raise NotImplementedError()
+
+
+def aten_split_with_sizes(self: TensorType, split_sizes: INT64, dim: int = 0) -> TensorType:
     # split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]
 
     raise NotImplementedError()
 
 
 def aten_split_with_sizes_copy(
-    self: TensorType, split_sizes: INT64[...], dim: int = 0
+    self: TensorType, split_sizes: INT64, dim: int = 0
 ) -> TensorType:
     # split_with_sizes_copy(Tensor self, SymInt[] split_sizes, int dim=0) -> Tensor[]
 
@@ -4014,7 +4299,7 @@ def aten_sspaddmm(
     raise NotImplementedError()
 
 
-def aten_stack(tensors: TensorType[...], dim: int = 0) -> TensorType:
+def aten_stack(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
     # stack(Tensor[] tensors, int dim=0) -> Tensor
 
     raise NotImplementedError()
@@ -4043,6 +4328,18 @@ def aten_stft(
     return_complex: Optional[bool] = None,
 ) -> TensorType:
     # stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_sub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+    # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+    # subtract.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     raise NotImplementedError()
 
@@ -4229,7 +4526,7 @@ def aten_trace(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_trace_backward(grad: TensorType, sizes: INT64[...]) -> TensorType:
+def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     # trace_backward(Tensor grad, SymInt[] sizes) -> Tensor
 
     raise NotImplementedError()
@@ -4286,6 +4583,12 @@ def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
+def aten_true_divide(self: TensorType, other: TensorType) -> TensorType:
+    # true_divide.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_trunc(self: TensorType) -> TensorType:
     # trunc(Tensor self) -> Tensor
 
@@ -4305,7 +4608,7 @@ def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> Tenso
 
 
 def aten_unfold_backward(
-    grad_in: TensorType, input_sizes: INT64[...], dim: int, size: int, step: int
+    grad_in: TensorType, input_sizes: INT64, dim: int, size: int, step: int
 ) -> TensorType:
     # unfold_backward(Tensor grad_in, SymInt[] input_sizes, int dim, int size, int step) -> Tensor
 
@@ -4355,8 +4658,14 @@ def aten_unsafe_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType
     raise NotImplementedError()
 
 
+def aten_unsafe_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+    # unsafe_split.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]
+
+    raise NotImplementedError()
+
+
 def aten_unsafe_split_with_sizes(
-    self: TensorType, split_sizes: INT64[...], dim: int = 0
+    self: TensorType, split_sizes: INT64, dim: int = 0
 ) -> TensorType:
     # unsafe_split_with_sizes(Tensor self, SymInt[] split_sizes, int dim=0) -> Tensor[]
 
@@ -4376,7 +4685,7 @@ def aten_unsqueeze_copy(self: TensorType, dim: int) -> TensorType:
 
 
 def aten_value_selecting_reduction_backward(
-    grad: TensorType, dim: int, indices: TensorType, sizes: INT64[...], keepdim: bool
+    grad: TensorType, dim: int, indices: TensorType, sizes: INT64, keepdim: bool
 ) -> TensorType:
     # value_selecting_reduction_backward(Tensor grad, int dim, Tensor indices, SymInt[] sizes, bool keepdim) -> Tensor
 
@@ -4421,7 +4730,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_view(self: TensorType, size: INT64[...]) -> TensorType:
+def aten_view(self: TensorType, size: INT64) -> TensorType:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
     raise NotImplementedError()
@@ -4457,13 +4766,13 @@ def aten_view_as_real_copy(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_view_copy(self: TensorType, size: INT64[...]) -> TensorType:
+def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
     # view_copy(Tensor self, SymInt[] size) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_vstack(tensors: TensorType[...]) -> TensorType:
+def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
     # vstack(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
@@ -4475,7 +4784,19 @@ def aten_where(condition: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_zeros(size: INT64[...]) -> TensorType:
+def aten_xlogy(self: TensorType, other: TensorType) -> TensorType:
+    # xlogy.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_xor(self: TensorType, other: TensorType) -> TensorType:
+    # __xor__.Tensor(Tensor self, Tensor other) -> Tensor
+
+    raise NotImplementedError()
+
+
+def aten_zeros(size: INT64) -> TensorType:
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()

@@ -202,7 +202,7 @@ def aten_linalg_matrix_rank(
     raise NotImplementedError()
 
 
-def aten_linalg_multi_dot(tensors: TensorType[...]) -> TensorType:
+def aten_linalg_multi_dot(tensors: Sequence[TensorType]) -> TensorType:
     # linalg_multi_dot(Tensor[] tensors) -> Tensor
 
     raise NotImplementedError()
