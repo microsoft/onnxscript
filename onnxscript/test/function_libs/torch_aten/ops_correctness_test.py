@@ -4,9 +4,10 @@ from __future__ import annotations
 import copy
 import dataclasses
 import unittest
-from typing import Callable, Collection, Iterable, Optional, Sequence
+from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
 
 import numpy as np
+import onnxruntime.capi.onnxruntime_pybind11_state
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -15,7 +16,7 @@ import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 
-import onnxruntime.capi.onnxruntime_pybind11_state
+T = TypeVar("T")
 
 SUPPORTED_DTYPES = (
     # Boolean
@@ -65,7 +66,7 @@ class DecorateMeta:
 
     op_name: str
     variant_name: str
-    decorator: Callable
+    decorator: Callable[..., Any]
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
 
@@ -127,7 +128,7 @@ def add_decorate_info(
     test_class_name: str,
     base_test_name: str,
     skip_or_xfails: Iterable[DecorateMeta],
-):
+) -> Callable[[T], T]:
     """Decorates OpInfo tests with decorators based on the skip_or_xfails list."""
     ops_mapping = {(info.name, info.variant_test_name): info for info in all_opinfos}
     for decorate_meta in skip_or_xfails:
@@ -196,7 +197,7 @@ class TestOutputConsistency(unittest.TestCase):
         torch.manual_seed(42)
         np.random.seed(42)
 
-    @common_device_type.ops(
+    @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],
         allowed_dtypes=SUPPORTED_DTYPES,
     )
@@ -232,10 +233,12 @@ class TestOutputConsistency(unittest.TestCase):
                 torch_output = op(*inputs, **cpu_sample.kwargs)
                 try:
                     function_output = scripted_function(*input_numpy, **cpu_sample.kwargs)
+                # pylint: disable=c-extension-no-member
                 except onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented:
                     self.skipTest(
                         f"ONNX Runtime doesn't support running {op.name} with dtype {dtype}",
                     )
+                # pylint: enable=c-extension-no-member
 
                 # Use torch testing to ensure dtypes and shapes match
                 torch.testing.assert_close(

@@ -2,6 +2,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+# mypy: disable-error-code=misc
+# mypy: disable-error-code=type-arg
+# mypy: disable-error-code=valid-type
+# mypy: disable-error-code=assignment
 """torch.ops.aten operators under the `sparse` module.
 
 - No inplace operators.
