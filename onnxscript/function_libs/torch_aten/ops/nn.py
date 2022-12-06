@@ -8,6 +8,9 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+
+# pylint: disable=unused-argument
+
 from __future__ import annotations
 
 from typing import Optional, Sequence
@@ -190,7 +193,7 @@ def aten_elu(
     alpha: float = 1.0,
     scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
     input_scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
-) -> TFloat:
+) -> TensorType:
     # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
 
     # del scale
@@ -779,13 +782,11 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-def aten_relu6(self: TFloat) -> TFloat:
+# TODO(justinchuby): Use TFloat as return type
+def aten_relu6(self: TFloat) -> TensorType:
     # relu6(Tensor self) -> Tensor
 
-    # TODO(justinchuby): Create a shortcut for creating constants
-    zero = op.CastLike(op.Constant(value_float=0.0), self)
-    # zero = op.CastLike(0, self)
-    return op.Max(self, zero)
+    return op.Min(op.Relu(self), op.Constant(value_float=6.0))
 
 
 def aten_replication_pad1d(self: TensorType, padding: INT64[2]) -> TensorType:

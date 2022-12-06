@@ -49,6 +49,11 @@ FLOAT_TYPES = (
 )
 
 
+def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
+    """Returns all dtypes except the ones specified."""
+    return tuple(dtype for dtype in SUPPORTED_DTYPES if dtype not in dtypes)
+
+
 @dataclasses.dataclass
 class DecorateMeta:
     """A dataclass for storing information about a test case to skip or xfail.
@@ -158,7 +163,19 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail(
-        "nn.functional.elu", dtypes=[torch.float64], reason="ORT does not support Elu float64"
+        "nn.functional.elu",
+        dtypes=dtypes_except(torch.float16, torch.float32),
+        reason="ONNX Runtime doesn't support float64 for Elu",
+    ),
+    xfail(
+        "nn.functional.relu6",
+        dtypes=dtypes_except(torch.float16, torch.float32),
+        reason="ONNX Runtime doesn't support float64 for Relu",
+    ),
+    xfail(
+        "nn.functional.selu",
+        dtypes=dtypes_except(torch.float16, torch.float32),
+        reason="ONNX Runtime doesn't support float64 for Selu",
     ),
 )
 # END OF SECTION TO MODIFY #####################################################

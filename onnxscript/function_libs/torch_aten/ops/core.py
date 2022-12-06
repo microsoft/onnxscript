@@ -3856,7 +3856,7 @@ def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int)
     raise NotImplementedError()
 
 
-def aten_selu(self: TFloat) -> TFloat:
+def aten_selu(self: TFloat) -> TensorType:
     # selu(Tensor self) -> Tensor
 
     return op.Selu(self)
