@@ -20,11 +20,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from beartype.vale import Is
-from typing_extensions import Annotated
-
 from onnxscript import INT64
-from onnxscript.function_libs.torch_aten.typing import TFloat
 from onnxscript.onnx_opset import default_opset as op
 from onnxscript.onnx_types import TensorType
 
@@ -195,11 +191,11 @@ def aten_cross_entropy_loss(
 
 
 def aten_elu(
-    self: TFloat,
+    self,
     alpha: float = 1.0,
-    scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
-    input_scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
-) -> TensorType:
+    scale: float = 1.0,
+    input_scale: float = 1.0,
+):
     # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
 
     # del scale
@@ -789,7 +785,7 @@ def aten_reflection_pad3d_backward(
 
 
 # TODO(justinchuby): Use TFloat as return type
-def aten_relu6(self: TFloat) -> TensorType:
+def aten_relu6(self):
     # relu6(Tensor self) -> Tensor
 
     return op.Min(op.Relu(self), op.Constant(value_float=6.0))  # type: ignore[arg-type]

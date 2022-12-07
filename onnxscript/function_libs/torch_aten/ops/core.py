@@ -18,7 +18,6 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence
 
 from onnxscript import INT64
-from onnxscript.function_libs.torch_aten.typing import TFloat
 from onnxscript.onnx_opset import default_opset as op
 from onnxscript.onnx_types import TensorType
 
@@ -4113,7 +4112,7 @@ def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int)
     raise NotImplementedError()
 
 
-def aten_selu(self: TFloat) -> TensorType:
+def aten_selu(self):
     # selu(Tensor self) -> Tensor
 
     return op.Selu(self)
