@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from abc import ABC
+import abc
 from typing import ClassVar, Optional, Tuple, Union
 
 import onnx
@@ -36,7 +36,7 @@ tensor_type_registry: dict[DType, TensorType] = {}
 _tensor_type_shape_cache: dict[DType, TensorType] = {}
 
 
-class TensorType(ABC):
+class TensorType(abc.ABC):
     """ONNX Script representation of a tensor type supporting shape annotations.
 
     A scalar-tensor of rank 0:
