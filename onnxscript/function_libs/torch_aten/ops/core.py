@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-from onnxscript import INT64
+from onnxscript import BOOL, INT64
 from onnxscript.onnx_opset import default_opset as op
 from onnxscript.onnx_types import TensorType
 
@@ -60,10 +60,11 @@ def aten_adaptive_max_pool1d(
     raise NotImplementedError()
 
 
-def aten_add(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+def aten_add(self, other, alpha: float = 1) -> TensorType:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
-
-    raise NotImplementedError()
+    if alpha != 1:
+        other = op.Mul(other, alpha)  # type: ignore[arg-type]
+    return op.Add(self, other)
 
 
 def aten_addbmm(
@@ -3109,10 +3110,19 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_mul(self: TensorType, other: TensorType) -> TensorType:
+def aten_mul(self, other) -> TensorType:
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Mul(self, other)
+
+
+def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
+    """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
+
+    # TODO(justinchuby): Handle cases where type reconcilation is not enough,
+    # since different ONNX operators are used based on different data types.
+
+    return op.And(self, other)
 
 
 def aten_multinomial(
@@ -4339,10 +4349,13 @@ def aten_stft(
     raise NotImplementedError()
 
 
-def aten_sub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+def aten_sub(self, other, alpha: float = 1) -> TensorType:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    if alpha != 1:
+        other = op.Mul(other, alpha)  # type: ignore[arg-type]
+
+    return op.Sub(self, other)
 
 
 def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
