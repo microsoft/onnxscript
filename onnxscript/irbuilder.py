@@ -7,7 +7,7 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Protocol, Sequence, Tuple, Union
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -58,10 +58,15 @@ class IRTensorType(IRType):
         return f"IRTensorType({self.onnx_type.tensor_type.elem_type})"
 
 
+class IRTypeLike(Protocol):
+    def to_type_proto(self) -> onnx.TypeProto:
+        """Converts IR type representation to onnx.TypeProto"""
+
+
 class IRVar:
     """A variable (representing a formal parameter)."""
 
-    def __init__(self, varname: str, typeinfo: IRType, sourceinfo: SourceInfo) -> None:
+    def __init__(self, varname: str, typeinfo: IRTypeLike, sourceinfo: SourceInfo) -> None:
         if not isinstance(varname, str):
             raise ValueError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
@@ -443,7 +448,7 @@ class IRBuilder:
         fn.append_stmt(s)
 
     def add_input(
-        self, fn: IRFunction, varname: str, type: ONNXType, info: SourceInfo
+        self, fn: IRFunction, varname: str, type: IRTypeLike, info: SourceInfo
     ) -> None:
         v = IRVar(varname, type, info)
         fn.append_input(v)

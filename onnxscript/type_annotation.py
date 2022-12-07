@@ -8,7 +8,7 @@ import typing
 
 import onnx
 
-import onnxscript
+from onnxscript.onnx_types import TensorType
 
 _pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
@@ -69,14 +69,7 @@ def is_attr(pytype: type):
 
 
 def is_tensor(typeinfo):
-    try:
-        return isinstance(typeinfo, onnxscript.onnx_types.TensorType) or issubclass(
-            typeinfo, onnxscript.onnx_types.TensorType
-        )
-    except:
-        print("Opps")
-    # return hasattr(typeinfo, "to_type_proto")
-    # return isinstance(typeinfo, onnxscript.Tensor)  # TODO
+    return isinstance(typeinfo, TensorType) or issubclass(typeinfo, TensorType)
 
 
 def is_valid(typeinfo):
