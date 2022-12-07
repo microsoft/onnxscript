@@ -143,7 +143,7 @@ class Op:
 class OnnxClosure:
     """Represents a nested function used as a graph-valued attribute for an ONNX op call."""
 
-    function_ir: irbuilder.Function
+    function_ir: irbuilder.IRFunction
 
     # frame is python's stack-frame for the execution of top-level
     # script function (in eager-mode). It is used to get the current
@@ -294,9 +294,9 @@ class OnnxFunction(Op):
 
         return _adapt_to_user_mode(result) if has_array else result
 
-    def to_function_proto(self, domain=None):
+    def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
-        return self.function_ir.to_function_proto(domain or self.opset)
+        return self.function_ir.to_function_proto()
 
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""
