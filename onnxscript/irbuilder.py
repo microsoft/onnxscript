@@ -323,7 +323,7 @@ class IRFunction:
 
     def to_graph_and_functions(
         self, use_default_type: bool = True
-    ) -> Tuple[onnx.GraphProto, Dict[str, onnx.FunctionProto]]:
+    ) -> Tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
         """Converts this instance into a `onnx.GraphProto` and a map from
         function-name to `onnx.FunctionProto`.
 
@@ -334,7 +334,7 @@ class IRFunction:
         Returns:
             a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
         """
-        called_functions: Dict[str, onnx.FunctionProto] = {}
+        called_functions: dict[str, onnx.FunctionProto] = {}
         for s in self.stmts:
             called_functions.update(s.functions)
         called_functions.update(self.called_functions)

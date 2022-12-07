@@ -34,7 +34,7 @@ def _get_origin(t: type) -> typing.Optional[type]:
     if hasattr(typing, "get_origin"):
         return typing.get_origin(t)
     elif hasattr(t, "__origin__"):
-        return t.__origin__
+        return t.__origin__  # type: ignore[no-any-return]
     else:
         return None
 
@@ -44,7 +44,7 @@ def _get_args(t: type) -> typing.Sequence[type]:
     if hasattr(typing, "get_args"):
         return typing.get_args(t)
     elif hasattr(t, "__args__"):
-        return t.__args__
+        return t.__args__  # type: ignore[no-any-return]
     else:
         raise ValueError(f"Unsupported type annotation {t}")
 
