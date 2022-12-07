@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from onnxscript import TensorType
+from onnxscript.onnx_types import TensorType
 
 
 def aten_nested_to_padded_tensor(

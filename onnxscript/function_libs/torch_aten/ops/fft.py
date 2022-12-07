@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from onnxscript import TensorType
+from onnxscript.onnx_types import TensorType
 
 
 def aten_fft_fft(

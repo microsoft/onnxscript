@@ -14,7 +14,7 @@
 """
 from __future__ import annotations
 
-from onnxscript import TensorType
+from onnxscript.onnx_types import TensorType
 
 
 def aten_sparse_sampled_addmm(
