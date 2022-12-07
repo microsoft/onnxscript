@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # mypy: disable-error-code=misc
+# mypy: disable-error-code=arg-type
 # mypy: disable-error-code=type-arg
 # mypy: disable-error-code=valid-type
 # mypy: disable-error-code=assignment
@@ -12,11 +13,20 @@
 - All functions should not have the script() decorator. This is because
     we want to delay the compilation of the function.
 """
+
+# pylint: disable=unused-argument
+
 from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from onnxscript import INT64, TensorType
+from beartype.vale import Is
+from typing_extensions import Annotated
+
+from onnxscript import INT64
+from onnxscript.function_libs.torch_aten.typing import TFloat
+from onnxscript.onnx_opset import default_opset as op
+from onnxscript.onnx_types import TensorType
 
 
 def aten_adaptive_avg_pool2d(self: TensorType, output_size: INT64) -> TensorType:
@@ -185,11 +195,16 @@ def aten_cross_entropy_loss(
 
 
 def aten_elu(
-    self: TensorType, alpha: float = 1, scale: float = 1, input_scale: float = 1
+    self: TFloat,
+    alpha: float = 1.0,
+    scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
+    input_scale: Annotated[float, Is[lambda x: x == 1.0]] = 1.0,
 ) -> TensorType:
     # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
 
-    raise NotImplementedError()
+    # del scale
+    # del input_scale
+    return op.Elu(self, alpha=alpha)
 
 
 def aten_elu_backward(
@@ -773,10 +788,11 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-def aten_relu6(self: TensorType) -> TensorType:
+# TODO(justinchuby): Use TFloat as return type
+def aten_relu6(self: TFloat) -> TensorType:
     # relu6(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Min(op.Relu(self), op.Constant(value_float=6.0))  # type: ignore[arg-type]
 
 
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:

@@ -12,15 +12,19 @@ sphinx-gallery
 pydata_sphinx_theme
 
 # ATen lib
+beartype
 types-PyYAML
+typing_extensions
 
 # Testing
-pytest!=7.1.0
-pytest-cov
+expecttest
+parameterized
 pytest-azurepipelines
+pytest-cov
 pytest-subtests
 pytest-xdist
-parameterized
+pytest!=7.1.0
+pyyaml
 torch
 
 # Lint

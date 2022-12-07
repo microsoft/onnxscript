@@ -3,6 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # mypy: disable-error-code=misc
+# mypy: disable-error-code=arg-type
 # mypy: disable-error-code=type-arg
 # mypy: disable-error-code=valid-type
 # mypy: disable-error-code=assignment
@@ -16,7 +17,10 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-from onnxscript import INT64, TensorType
+from onnxscript import INT64
+from onnxscript.function_libs.torch_aten.typing import TFloat
+from onnxscript.onnx_opset import default_opset as op
+from onnxscript.onnx_types import TensorType
 
 
 def aten_abs(self: TensorType) -> TensorType:
@@ -4109,10 +4113,10 @@ def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int)
     raise NotImplementedError()
 
 
-def aten_selu(self: TensorType) -> TensorType:
+def aten_selu(self: TFloat) -> TensorType:
     # selu(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Selu(self)
 
 
 def aten_set_data(self: TensorType, new_data: TensorType) -> Any:
