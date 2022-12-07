@@ -63,7 +63,7 @@ class OnnxScriptTestCase(unittest.TestCase):
     def _create_model_from_param(
         self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto
     ) -> onnx.ModelProto:
-        local_function_proto = param.function.function_ir.to_function_proto("")
+        local_function_proto = param.function.function_ir.to_function_proto()
         if not onnx_case_model:
             input_names = [f"input_{str(i)}" for i in range(len(param.input))]
             output_names = [f"output_{str(i)}" for i in range(len(param.output))]
