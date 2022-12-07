@@ -23,9 +23,10 @@ from typing import Optional, Sequence
 from beartype.vale import Is
 from typing_extensions import Annotated
 
-from onnxscript import INT64, TensorType
+from onnxscript import INT64
 from onnxscript.function_libs.torch_aten.typing import TFloat
 from onnxscript.onnx_opset import default_opset as op
+from onnxscript.onnx_types import TensorType
 
 
 def aten_adaptive_avg_pool2d(self: TensorType, output_size: INT64) -> TensorType:

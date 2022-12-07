@@ -52,7 +52,7 @@ def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
     if type_is_builtin(arg_type):
         return cg.TypingRefs.Sequence(cg.BuiltinTypeRef(arg_type))
     if arg_type == "TensorType":
-        return cg.TypingRefs.Sequence(cg.TypeRef("onnxscript", "TensorType"))
+        return cg.TypingRefs.Sequence(cg.TypeRef("onnxscript.onnx_types", "TensorType"))
     return cg.TypeRef("onnxscript", arg_type)
 
     # TODO(justinchuby): Enable this when generics are better supported
@@ -98,6 +98,8 @@ def get_argument_type(arg: torchgen.model.Argument) -> cg.TypeRef:
         arg_type_str = arg_type_to_str(arg.type)
         if type_is_builtin(arg_type_str):
             inner_node = cg.BuiltinTypeRef(arg_type_str)
+        elif arg_type_str == "TensorType":
+            inner_node = cg.TypeRef("onnxscript.onnx_types", "TensorType")
         else:
             inner_node = cg.TypeRef("onnxscript", arg_type_str)
 
@@ -174,6 +176,8 @@ def create_return_type(returns: Sequence[torchgen.model.Return]) -> cg.TypeRef:
         if type_is_builtin(return_type_str):
             # Python type
             return_node: cg.TypeRef = cg.BuiltinTypeRef(return_type_str)
+        elif return_type_str == "TensorType":
+            return_node = cg.TypeRef("onnxscript.onnx_types", "TensorType")
         else:
             return_node = cg.TypeRef("onnxscript", arg_type_to_str(return_type))
         if return_type.is_nullable():
