@@ -9,9 +9,8 @@
 # mypy: disable-error-code=override
 # pylint: disable=W0221,W0222,W0237,W0246,R0901
 # --------------------------------------------------------------------------
-from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict, Tuple
 
 from onnx.defs import onnx_opset_version
 
@@ -96,7 +95,7 @@ opset_ai_onnx_ml1 = Opset_ai_onnx_ml1()
 opset_ai_onnx_ml2 = Opset_ai_onnx_ml2()
 opset_ai_onnx_ml3 = Opset_ai_onnx_ml3()
 opset_ai_onnx_preview_training1 = Opset_ai_onnx_preview_training1()
-all_opsets: dict[tuple[str, int], Any] = {
+all_opsets: Dict[Tuple[str, int], Any] = {
     (
         "",
         1,

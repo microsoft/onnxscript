@@ -637,6 +637,10 @@ class TypingRefs(ABC):
         def __init__(self, *typeargs: TypeRef):
             super().__init__("typing", "Tuple", *typeargs)
 
+    class Dict(TypeRef):
+        def __init__(self, *typeargs: TypeRef):
+            super().__init__("typing", "Dict", *typeargs)
+
     class Mapping(TypeRef):
         def __init__(self, *typeargs: TypeRef):
             super().__init__("typing", "Mapping", *typeargs)

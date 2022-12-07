@@ -212,7 +212,18 @@ class OpsetsBuilder:
                 init_module.append_body(
                     cg.Assign(cg.Name(opset_export_name), cg.Call(opset_class.make_typeref()))
                 )
-        init_module.append_body(cg.Assign(cg.Name("all_opsets"), all_opsets))
+        init_module.append_body(
+            cg.Assign(
+                cg.Name("all_opsets"),
+                all_opsets,
+                cg.TypingRefs.Dict(
+                    cg.TypingRefs.Tuple(
+                        cg.BuiltinTypeRef("str"), cg.BuiltinTypeRef("int")
+                    ),
+                    cg.TypingRefs.Any(),
+                ),
+            )
+        )
 
         default_opset = cg.Assign(
             cg.Name("default_opset"),
@@ -220,9 +231,7 @@ class OpsetsBuilder:
                 cg.Name("all_opsets"),
                 cg.TupleExpr(cg.Constant(""), cg.Call(cg.Name("onnx_opset_version"))),
             ),
-            cg.TypeRef(None, f"Opset{self.min_default_opset_version}"),
         )
-        default_opset.trailing_trivia = "  # type: ignore"
         init_module.append_body(default_opset)
 
         self.all_modules.append(init_module)
