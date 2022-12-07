@@ -7,7 +7,8 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Dict, Optional, Protocol, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing_extensions import Protocol
 
 import onnx
 from onnx import ValueInfoProto, helper
