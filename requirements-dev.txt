@@ -15,6 +15,7 @@ pydata_sphinx_theme
 beartype
 types-PyYAML
 typing_extensions
+types-PyYAML
 
 # Testing
 expecttest
