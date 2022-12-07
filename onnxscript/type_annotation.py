@@ -8,6 +8,8 @@ import typing
 
 import onnx
 
+import onnxscript
+
 _pytype_to_attrtype_map = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
@@ -37,14 +39,19 @@ def _get_origin(t: type) -> typing.Optional[type]:
         return None
 
 
+def _get_args(t: type) -> typing.Sequence[type]:
+    """Substitute for typing.get_args of Python 3.8+"""
+    if hasattr(typing, "get_args"):
+        return typing.get_args(t)
+    elif hasattr(t, "__args__"):
+        return t.__args__
+    else:
+        raise ValueError(f"Unsupported type annotation {t}")
+
+
 def _get_element_type(t: type) -> type:
     """Returns the element type for a list or sequence type."""
-    if hasattr(typing, "get_args"):
-        return typing.get_args(t)[0]
-    elif hasattr(t, "__args__"):
-        return t.__args__[0]
-    else:
-        raise ValueError(f"Cannot get element type from {t}")
+    return _get_args(t)[0]
 
 
 def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.AttributeType]:
@@ -62,9 +69,41 @@ def is_attr(pytype: type):
 
 
 def is_tensor(typeinfo):
-    return hasattr(typeinfo, "to_type_proto")
+    try:
+        return isinstance(typeinfo, onnxscript.onnx_types.TensorType) or issubclass(
+            typeinfo, onnxscript.onnx_types.TensorType
+        )
+    except:
+        print("Opps")
+    # return hasattr(typeinfo, "to_type_proto")
     # return isinstance(typeinfo, onnxscript.Tensor)  # TODO
 
 
 def is_valid(typeinfo):
     return is_attr(typeinfo) or is_tensor(typeinfo)
+
+
+def validate(typeinfo):
+    if not is_valid(typeinfo):
+        raise ValueError(f"Unsupported type annotation {typeinfo}")
+
+
+def get_return_types(typeinfo: type | typing.Sequence[type]) -> typing.Sequence[type]:
+    """Converts return-type annotation into a sequence of types.
+
+    The return type annotation can be either a single type (for a single output)
+    or a Tuple type (for multiple outputs). This function normalizes the
+    representation so that it is always a sequence of types, even for a single
+    output.
+    """
+    if isinstance(typeinfo, typing.Sequence):
+        for t in typeinfo:
+            validate(t)
+        return typeinfo
+    if _get_origin(typeinfo) == typing.Tuple:
+        result = _get_args(typeinfo)
+        for t in result:
+            validate(t)
+        return result
+    validate(typeinfo)
+    return (typeinfo,)

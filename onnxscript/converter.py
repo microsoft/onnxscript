@@ -1310,12 +1310,7 @@ class Converter:
                 )
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)
-            if isinstance(returntype, tuple):
-                assert all(ta.is_valid(t) for t in returntype)
-                self.returntype = returntype
-            else:
-                assert ta.is_valid(returntype)
-                self.returntype = (returntype,)
+            self.returntype = ta.get_return_types(returntype)
         else:
             self.returntype = None
         for i, s in enumerate(fn.body):
