@@ -27,16 +27,12 @@ _listtype_to_attrtype_map = {
 _list_constructors = [list, typing.List, typing.Sequence]
 
 
-def _get_element_type(t: type) -> type:
-    """Returns the element type for a list or sequence type."""
-    return get_args(t)[0]
-
-
 def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.AttributeType]:
     if pytype in _pytype_to_attrtype_map:
         return _pytype_to_attrtype_map[pytype]
     if get_origin(pytype) in _list_constructors:
-        elt_type = _get_element_type(pytype)
+        args = get_args(pytype)
+        elt_type = args[0]
         if elt_type in _listtype_to_attrtype_map:
             return _listtype_to_attrtype_map[elt_type]
     return None
