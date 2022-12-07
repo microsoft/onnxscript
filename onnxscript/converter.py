@@ -234,6 +234,9 @@ class Converter:
         """Constructs an error message containing source information about an ast node."""
         return self.source_of(node).msg(error_msg)
 
+    def warn(self, node: ast.AST, error_msg: str) -> None:
+        warn(self.message(node, error_msg))
+
     def fail(self, node: ast.AST, error_msg: str) -> NoReturn:
         fail(self.message(node, error_msg))
 
@@ -300,7 +303,7 @@ class Converter:
             attrname = "value_ints"
         else:
             self.fail(val, f"Unsupported attribute type {pytype!r}.")
-        return self.ir_builder.attr_ref(attrname, val.value, pytype)
+        return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
 
     def to_onnx_var(self, val, target=None, info=None):
         if isinstance(val, values.AttrRef):
@@ -326,8 +329,7 @@ class Converter:
         self.ir_builder.add_stmt(
             self.current_fn,
             outputs,
-            callee.opset,
-            callee.opname,
+            callee,
             inputs,
             attrs,
             sub_functions,
@@ -353,7 +355,7 @@ class Converter:
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
         tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
-        attr = self.ir_builder.attr("value", tensor)
+        attr = self.ir_builder.make_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
 
@@ -425,8 +427,8 @@ class Converter:
         if isinstance(expr, ast.Name):
             val = self.lookup(expr.id, self.source_of(expr))
             if isinstance(val, values.AttrRef):
-                return self.ir_builder.attr_ref(attr_name, val.value, val.typeinfo)
-            if isinstance(val, irbuilder.Function):
+                return self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+            if isinstance(val, irbuilder.IRFunction):
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
                 for pyvar, previous in val.outer_scope_variables:
@@ -440,8 +442,8 @@ class Converter:
 
                 # Create GraphProto attribute
                 val = val.to_graph_proto()
-            return self.ir_builder.attr(attr_name, val)
-        return self.ir_builder.attr(attr_name, self.eval_constant_expr(expr))
+            return self.ir_builder.make_attr(attr_name, val)
+        return self.ir_builder.make_attr(attr_name, self.eval_constant_expr(expr))
 
     def translate_docstring(self, node):
         if hasattr(node.value, "value"):
@@ -697,7 +699,7 @@ class Converter:
                 axes.append(var_axis.name)
                 steps.append(one.name)
 
-            attr = self.ir_builder.attr("axis", 0)
+            attr = self.ir_builder.make_attr("axis", 0)
             start_name = self.generate_unique_name(f"{var_name}_start")
             self.emit([start_name], values.Op(self.default_opset, "Concat"), starts, [attr])
 
@@ -768,7 +770,7 @@ class Converter:
             # attribute fmod=1 is added in that case.
             cst = self.eval_constant_expr(node.right)
             if isinstance(cst, float):
-                attr = [self.ir_builder.attr("fmod", 1)]
+                attr = [self.ir_builder.make_attr("fmod", 1)]
 
         opname = primop_map[op]
         if hasattr(node, "left"):
@@ -866,7 +868,7 @@ class Converter:
             function_name = node.id
             found = self.lookup(function_name, self.source_of(node), raise_exception=False)
             if isinstance(found, onnxscript.OnnxFunction):
-                self.current_fn.append_function(found)
+                self.current_fn.add_called_function(found)
                 return found
             if isinstance(found, values.Op):
                 return found
@@ -1008,11 +1010,11 @@ class Converter:
         thenGraph, sub_fct_then = self.translate_block(
             stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        thenAttr = self.ir_builder.attr("then_branch", thenGraph)
+        thenAttr = self.ir_builder.make_attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
             stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        elseAttr = self.ir_builder.attr("else_branch", elseGraph)
+        elseAttr = self.ir_builder.make_attr("else_branch", elseGraph)
 
         def rename(x):
             r = self.generate_unique_name(x)
@@ -1196,7 +1198,7 @@ class Converter:
             self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)) for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
-        attrs = [self.ir_builder.attr("body", graph)]
+        attrs = [self.ir_builder.make_attr("body", graph)]
         return self.emit_loop(
             outputs,
             "Loop",
@@ -1284,15 +1286,19 @@ class Converter:
                 default_value = None
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
+                if not ta.is_valid(typeinfo):
+                    self.warn(
+                        x.annotation,
+                        f"Unsupported type annotation for argument {x.arg}.",
+                    )
+                    typeinfo = None
             else:
                 # The code can only be exported as a function.
                 typeinfo = None
-            if ta.is_attr(typeinfo):
-                self.ir_builder.add_attr(
+            if typeinfo and ta.is_attr(typeinfo):
+                self.ir_builder.add_attr_parameter(
                     self.current_fn,
                     x.arg,
-                    typeinfo,
-                    self.source_of(x),
                     default_value,
                 )
                 self.bind(x.arg, values.AttrRef(x.arg, typeinfo, self.source_of(x)))
@@ -1304,12 +1310,7 @@ class Converter:
                 )
         if fn.returns:
             returntype = self.eval_constant_expr(fn.returns)
-            if isinstance(returntype, tuple):
-                assert all(ta.is_valid(t) for t in returntype)
-                self.returntype = returntype
-            else:
-                assert ta.is_valid(returntype)
-                self.returntype = (returntype,)
+            self.returntype = ta.get_return_types(returntype)
         else:
             self.returntype = None
         for i, s in enumerate(fn.body):

@@ -7,30 +7,31 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import onnx
 from onnx import ValueInfoProto, helper
 from onnx.defs import onnx_opset_version
+from typing_extensions import Protocol
 
 import onnxscript
 from onnxscript import type_annotation as ta
 from onnxscript import values
 from onnxscript.onnx_types import ONNXType
+from onnxscript.sourceinfo import SourceInfo
 
 # A simple IR (Function, Stmt, Attr, Var):
 
 logger = logging.getLogger("onnx-script")
 
 
-def format(list, prefix, sep, suffix, formatter=str):
-    return prefix + sep.join([formatter(x) for x in list]) + suffix
+def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=str):
+    """Formats a sequence of objects into a string."""
+    return prefix + sep.join([formatter(x) for x in seq]) + suffix
 
 
-def select_ir_version(version, domain=""):
-    """Selects the corresponding ir_version knowning the opset version
-    for the main ONNX domain.
-    """
+def select_ir_version(version: int, domain: str = ""):
+    """Selects a suitable ONNX ir_version for a given opset version."""
     if domain == "":
         domain = "ai.onnx"
     if (domain, version) not in helper.OP_SET_ID_VERSION_MAP:
@@ -38,7 +39,7 @@ def select_ir_version(version, domain=""):
     return helper.OP_SET_ID_VERSION_MAP[domain, version]
 
 
-class Type:
+class IRType:
     def __init__(self):
         self.onnx_type = onnx.TypeProto()
 
@@ -46,27 +47,31 @@ class Type:
         return self.onnx_type
 
     def __repr__(self) -> str:
-        return "Type()"
+        return "IRType()"
 
 
-class TensorType(Type):
-    def __init__(  # pylint: disable=super-init-not-called # TODO: why?
-        self, elem_type
-    ) -> None:
-        tp = onnx.TypeProto()
-        tp.tensor_type.elem_type = elem_type
-        self.onnx_type = tp
+class IRTensorType(IRType):
+    def __init__(self, elem_type: onnx.TensorProto.DataType) -> None:
+        super().__init__()
+        self.onnx_type.tensor_type.elem_type = elem_type
 
     def __repr__(self) -> str:
-        return f"TensorType({self.onnx_type.tensor_type.elem_type})"
+        return f"IRTensorType({self.onnx_type.tensor_type.elem_type})"
 
 
-class Var:
-    def __init__(self, varname, typeinfo, info) -> None:
+class IRTypeLike(Protocol):
+    def to_type_proto(self) -> onnx.TypeProto:
+        """Converts IR type representation to onnx.TypeProto"""
+
+
+class IRVar:
+    """A variable (representing a formal parameter)."""
+
+    def __init__(self, varname: str, typeinfo: IRTypeLike, sourceinfo: SourceInfo) -> None:
         if not isinstance(varname, str):
             raise ValueError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
-        self.info = info
+        self.info = sourceinfo
         self.typeinfo = typeinfo
 
     def __str__(self):
@@ -95,15 +100,17 @@ class Var:
         if self.typeinfo is not None:
             value_info_proto.type.CopyFrom(self.typeinfo.to_type_proto())
         elif use_default_type:
-            value_info_proto.type.CopyFrom(Type().to_type_proto())
+            value_info_proto.type.CopyFrom(IRType().to_type_proto())
         return value_info_proto
 
 
-def opt_var_to_str(x):
+def _opt_var_to_str(x):
     return "" if x is None else str(x)
 
 
-class Attr:
+class IRAttributeValue:
+    """An attribute value (representing an actual parameter)."""
+
     def __init__(self, attrproto) -> None:
         self.attr_proto = attrproto
 
@@ -114,15 +121,19 @@ class Attr:
         return helper.printable_attribute(self.attr_proto)
 
 
-class Stmt:
-    def __init__(self, result, module, opname, args, attrs, sub_functions=None) -> None:
-        if not isinstance(module, values.Opset):
-            raise TypeError(f"Unexpected type {type(module)} for module.")
-        if not isinstance(opname, str):
-            raise TypeError(f"Unexpected type {type(opname)} for opname.")
+class IRStmt:
+    def __init__(
+        self,
+        result: Sequence[str],
+        callee: values.Op,
+        args: Sequence[Optional[str]],
+        attrs: Sequence[IRAttributeValue],
+        sub_functions=None,
+    ) -> None:
+        if not isinstance(callee, values.Op):
+            raise TypeError(f"Unexpected type {type(callee)} for callee.")
         self.result = result
-        self.module = module
-        self.opname = opname
+        self.callee = callee
         self.args = args
         self.attrs = attrs
         self.functions = sub_functions or {}
@@ -133,26 +144,25 @@ class Stmt:
         lhs = ", ".join(self.result)
         attrs = ""
         if self.attrs:
-            attrs = format(self.attrs, "<", ", ", ">")
+            attrs = _format(self.attrs, "<", ", ", ">")
 
-        args = format(self.args, "(", ", ", ")", opt_var_to_str)
-        module = str(self.module)
-        callee = f"{module}.{self.opname}" if (module != "") else self.opname
+        args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
+        domain = self.callee.opset.domain
+        opname = self.callee.opname
+        callee = f"{domain}.{opname}" if (domain != "") else opname
         return f"{lhs} = {callee} {attrs}{args}"
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("%s: %s", type(self), str(self))
 
-    def to_node_proto(self, name):
-        if not isinstance(self.module.domain, str):
-            raise TypeError(f"Unexpected type {type(self.module)!r} for self.module.")
+    def to_node_proto(self, node_name: str) -> onnx.NodeProto:
         n = helper.make_node(
-            self.opname,
-            [opt_var_to_str(x) for x in self.args],
+            self.callee.opname,
+            [_opt_var_to_str(x) for x in self.args],
             [str(x) for x in self.result],
-            domain=self.module.domain,
-            name=name,
+            domain=self.callee.opset.domain,
+            name=node_name,
         )
         for a in self.attrs:
             n.attribute.append(a.attr_proto)
@@ -164,19 +174,23 @@ class Stmt:
         return [str(x) for x in self.result]
 
 
-class Function:
-    def __init__(self, name, domain: str = "") -> None:
+class IRFunction:
+    """Represents a function in the IR."""
+
+    def __init__(self, name: str, domain: str = "") -> None:
         self.domain = domain
         self.name = name
-        self.inputs: list[Any] = []
-        self.outputs: list[Any] = []
-        self.stmts: list[Any] = []
-        self.attrs: list[Any] = []
-        self.attr_protos: list[Any] = []
-        self.functions: dict[str, Any] = {}
+        self.inputs: list[IRVar] = []
+        self.outputs: list[IRVar] = []
+        self.stmts: list[IRStmt] = []
+        self.attrs: list[str] = []  # attribute parameters
+        self.attr_protos: list[
+            onnx.AttributeProto
+        ] = []  # attribute parameters with default value
+        self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
-        self.nested_functions: dict[str, Any] = {}
+        self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
 
     @property
@@ -185,30 +199,30 @@ class Function:
         return [v for stmt in self.stmts for v in stmt.output_names]
 
     def __str__(self):
-        attrs = format(self.attrs, "<", ", ", ">") if self.attrs else ""
-        attr_protos = format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
-        inputs = format([x.typed_str() for x in self.inputs], "(", ", ", ")")
-        outputs = format([x.typed_str() for x in self.outputs], "(", ", ", ")")
-        stmts = format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
+        attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
+        attr_protos = _format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
+        inputs = _format([x.typed_str() for x in self.inputs], "(", ", ", ")")
+        outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
+        stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return f"{self.name} {attrs}{attr_protos}{inputs} => {outputs}{stmts}"
 
     def append_docstring(self, docstring):
         self.docstring += docstring
 
-    def append_stmt(self, stmt):
+    def append_stmt(self, stmt: IRStmt) -> None:
         self.stmts.append(stmt)
 
-    def append_input(self, name):
+    def append_input(self, name: IRVar) -> None:
         self.inputs.append(name)
 
-    def append_output(self, name):
+    def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
-    def append_attr(self, attr):
-        self.attrs.append(attr)
-
-    def append_attr_proto(self, attr):
-        self.attr_protos.append(attr)
+    def add_attr_parameter(self, attr: Union[str, IRAttributeValue]) -> None:
+        if isinstance(attr, IRAttributeValue):
+            self.attr_protos.append(attr)
+        else:
+            self.attrs.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -219,21 +233,21 @@ class Function:
                         st.write(helper.printable_graph(attr.attr_proto.g))
                         st.write("\n")
 
-    def append_function(self, opf):
-        for name, fct in opf.function_ir.functions.items():
-            if name in self.functions:
+    def add_called_function(self, fun: values.OnnxFunction) -> None:
+        for name, fct in fun.function_ir.called_functions.items():
+            if name in self.called_functions:
                 continue
-            self.functions[name] = fct
-        if opf.name in self.functions:
+            self.called_functions[name] = fct
+        if fun.name in self.called_functions:
             # Already added.
             return
         try:
-            proto = opf.to_function_proto(opf.opset)
+            proto = fun.to_function_proto()
         except (TypeError, AttributeError) as e:
-            raise TypeError(f"Issue with type f{type(opf)}.") from e
-        self.functions[opf.name] = proto
+            raise TypeError(f"Issue with type f{type(fun)}.") from e
+        self.called_functions[fun.name] = proto
 
-    def add_nested_function(self, fun):
+    def add_nested_function(self, fun: "IRFunction") -> None:
         self.nested_functions[fun.name] = fun
 
     def to_model_proto(
@@ -243,8 +257,8 @@ class Function:
         input_types: Optional[Sequence[ONNXType]] = None,
         output_types: Optional[Sequence[ONNXType]] = None,
         **kwargs,
-    ):
-        """Converts the content of this class into a `onnx.ModelProto`.
+    ) -> onnx.ModelProto:
+        """Converts this instance into a `onnx.ModelProto`.
 
         Args:
             functions: list of functions to include in the model,
@@ -288,8 +302,8 @@ class Function:
 
         opsets = {}
         for n in self.stmts:
-            if n.module.domain not in opsets:
-                opsets[n.module.domain] = n.module.version
+            if n.callee.opset.domain not in opsets:
+                opsets[n.callee.opset.domain] = n.callee.opset.version
         if "" not in opsets:
             # No operator is using the standard opset.
             # A default value is given.
@@ -308,9 +322,11 @@ class Function:
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def to_graph_and_functions(self, use_default_type: bool = True):
-        """Converts the content of this class into a `onnx.GraphProto` and
-        a list of `onnx.FunctionProto`.
+    def to_graph_and_functions(
+        self, use_default_type: bool = True
+    ) -> Tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
+        """Converts this instance into a `onnx.GraphProto` and a map from
+        function-name to `onnx.FunctionProto`.
 
         Args:
             use_default_type: if True, the function uses a default type
@@ -319,20 +335,20 @@ class Function:
         Returns:
             a pair of a :class:`onnx.GraphProto` and list of :class:`onnx.FunctionProto`
         """
-        sub_functions = {}
+        called_functions: dict[str, onnx.FunctionProto] = {}
         for s in self.stmts:
-            sub_functions.update(s.functions)
-        sub_functions.update(self.functions)
+            called_functions.update(s.functions)
+        called_functions.update(self.called_functions)
         graph = helper.make_graph(
             [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,
             [x.to_value_info(use_default_type) for x in self.inputs],
             [y.to_value_info(use_default_type) for y in self.outputs],
         )
-        return graph, sub_functions
+        return graph, called_functions
 
-    def to_graph_proto(self, use_default_type: bool = True):
-        """Converts the content of this class into a `onnx.GraphProto`.
+    def to_graph_proto(self, use_default_type: bool = True) -> onnx.GraphProto:
+        """Converts this instance into a `onnx.GraphProto`.
 
         Args:
             use_default_type: if True, the function uses a default type
@@ -344,45 +360,27 @@ class Function:
         graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
         return graph
 
-    def get_opset_import(self):
+    def get_opset_import(self) -> Dict[str, int]:
         func_opset_imports = {}
         for s in self.stmts:
-            if s.module.domain not in func_opset_imports:
-                func_opset_imports[s.module.domain] = s.module.version
-            elif func_opset_imports[s.module.domain] != s.module.version:
-                # TODO: this conflict is caused by assigning the default version to
-                # literal operators. Not to extend this PR too much,
-                # it needs to be fixed in another PR.
-                # raise RuntimeError(
-                #     ff"There is a version conflict in domain: {s.module.domain!r},\
-                #         with {self.name!r}.")
+            if s.callee.opset.domain not in func_opset_imports:
+                func_opset_imports[s.callee.opset.domain] = s.callee.opset.version
+            elif func_opset_imports[s.callee.opset.domain] != s.callee.opset.version:
                 warnings.warn(
-                    f"There is a version conflict in domain: {s.module.domain!r}, "
+                    f"There is a version conflict in domain: {s.callee.opset.domain!r}, "
                     f"with {self.name!r}.",
                     category=UserWarning,
                 )
         return func_opset_imports
 
-    def to_function_proto(self, domain):
-        """Converts a function into a *FunctionProto* after it is parsed
-        by the converter.
+    def to_function_proto(self) -> onnx.FunctionProto:
+        """Converts this instance into a `onnx.FunctionProto`.
 
-        Warning:
-            About default values
-
-            Default values for attributes are introduced in onnx==1.13.0.
-            If an earlier version of onnx is installed, it ignores the default
-            values of the function arguments.
+        Note: Default values for attributes are an experimental feature in ONNX.
+        Conversion ignores default values for attributes if the ONNX version installed
+        doesn't support it.
         """
         opsets = self.get_opset_import()
-        if domain != "":
-            if domain.domain in opsets and opsets[domain.domain] != domain.version:
-                raise RuntimeError(
-                    f"There is a version conflict in domain: {domain.domain!r}."
-                )
-            opsets[domain.domain] = domain.version
-        else:
-            opsets = opsets.copy()
         nodes = [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)]
         for n in nodes:
             if n.domain not in opsets:
@@ -401,9 +399,9 @@ class Function:
         # list, default values are removed.
         # TODO: remove this when onnx==1.13.0 is released.
         if hasattr(onnx.FunctionProto, "attribute_proto"):
-            atts = [a.name for a in self.attrs]
+            atts = self.attrs
         else:
-            atts = [a.name for a in self.attrs] + [a.attr_proto.name for a in self.attr_protos]
+            atts = self.attrs + [a.attr_proto.name for a in self.attr_protos]
 
         f = helper.make_function(
             self.domain,
@@ -427,46 +425,52 @@ class IRBuilder:
     def __init__(self):
         self.functions = {}
 
-    def new_function(self, name, domain="", register=False):
+    def new_function(self, name: str, domain: str = "", register: bool = False):
         if register and (domain, name) in self.functions:
             raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
-        fct = Function(name, domain)
+        fct = IRFunction(name, domain)
         if register:
             self.functions[domain, name] = fct
         return fct
 
-    def add_docstring(self, fn, docstring):
+    def add_docstring(self, fn: IRFunction, docstring: str):
         fn.append_docstring(docstring)
 
-    def add_stmt(self, fn, results, module, opname, args, attrs, sub_functions=None):
-        s = Stmt(results, module, opname, args, attrs, sub_functions=sub_functions)
+    def add_stmt(
+        self,
+        fn: IRFunction,
+        results: Sequence[str],
+        callee: values.Op,
+        args: Sequence[Optional[str]],
+        attrs: Sequence[IRAttributeValue],
+        sub_functions=None,
+    ) -> None:
+        s = IRStmt(results, callee, args, attrs, sub_functions=sub_functions)
         fn.append_stmt(s)
 
-    def add_input(self, fn, varname, type, info):
-        v = Var(varname, type, info)
+    def add_input(
+        self, fn: IRFunction, varname: str, type: IRTypeLike, info: SourceInfo
+    ) -> None:
+        v = IRVar(varname, type, info)
         fn.append_input(v)
 
-    def add_attr(self, fn, varname, type, info, default_value=None):
+    def add_attr_parameter(self, fn: IRFunction, varname: str, default_value) -> None:
         if default_value is not None:
-            a = Attr(helper.make_attribute(varname, default_value))
-            fn.append_attr_proto(a)
+            a = IRAttributeValue(helper.make_attribute(varname, default_value))
+            fn.add_attr_parameter(a)
         else:
-            v = Var(varname, type, info)
-            fn.append_attr(v)
+            fn.add_attr_parameter(varname)
 
-    def add_output(self, fn, varname, type, info):
-        v = Var(varname, type, info)
+    def add_output(self, fn: IRFunction, varname: str, type, info) -> None:
+        v = IRVar(varname, type, info)
         fn.append_output(v)
 
-    def attr(self, attrname, attrval):
-        if isinstance(attrval, Function):
-            attrval = str(attrval)  # TODO
-        return Attr(helper.make_attribute(attrname, attrval))
+    def make_attr(self, attrname: str, attrval: Any) -> IRAttributeValue:
+        return IRAttributeValue(helper.make_attribute(attrname, attrval))
 
-    def attr_ref(self, attrname, refname, pytype):
+    def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
         a = onnx.AttributeProto()
         a.name = attrname
         a.ref_attr_name = refname
-        a.type = ta.pytype_to_attrtype_map[pytype]  # onnx.AttributeProto.FLOAT
-        return Attr(a)
-        # TODO: attr_type?
+        a.type = ta.pytype_to_attrtype(pytype)
+        return IRAttributeValue(a)
