@@ -12,29 +12,29 @@ from typing_extensions import get_args, get_origin
 
 from onnxscript.onnx_types import TensorType
 
-_pytype_to_attrtype_map = {
+_PYTYPE_TO_ATTRTYPE_MAP = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
 }
 
-_listtype_to_attrtype_map = {
+_LISTTYPE_TO_ATTRTYPE_MAP = {
     float: onnx.AttributeProto.FLOATS,
     int: onnx.AttributeProto.INTS,
     str: onnx.AttributeProto.STRINGS,
 }
 
-_list_constructors = [list, typing.List, typing.Sequence]
+_LIST_CONSTRUCTORS = [list, typing.List, typing.Sequence]
 
 
 def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.AttributeType]:
-    if pytype in _pytype_to_attrtype_map:
-        return _pytype_to_attrtype_map[pytype]
-    if get_origin(pytype) in _list_constructors:
+    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
+        return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
+    if get_origin(pytype) in _LIST_CONSTRUCTORS:
         args = get_args(pytype)
         elt_type = args[0]
-        if elt_type in _listtype_to_attrtype_map:
-            return _listtype_to_attrtype_map[elt_type]
+        if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
+            return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
     return None
 
 
