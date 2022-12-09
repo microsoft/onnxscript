@@ -63,10 +63,8 @@ def aten_adaptive_max_pool1d(
 def aten_add(self, other, alpha: float = 1) -> TensorType:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     if alpha != 1:
-        other_scaled = op.Mul(other, alpha)  # type: ignore[arg-type]
-    else:
-        other_scaled = other
-    return op.Add(self, other_scaled)
+        other = op.Mul(other, alpha)  # type: ignore[arg-type]
+    return op.Add(self, other)
 
 
 def aten_addbmm(
@@ -4355,11 +4353,9 @@ def aten_sub(self, other, alpha: float = 1) -> TensorType:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     if alpha != 1:
-        other_scaled = op.Mul(other, alpha)  # type: ignore[arg-type]
-    else:
-        other_scaled = other
+        other = op.Mul(other, alpha)  # type: ignore[arg-type]
 
-    return op.Sub(self, other_scaled)
+    return op.Sub(self, other)
 
 
 def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
