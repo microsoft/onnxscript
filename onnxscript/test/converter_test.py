@@ -612,8 +612,10 @@ class TestConverter(testutils.TestBase):
         def model_script(x: FLOAT[100]) -> FLOAT[100]:
             x = op.Add(x, x)
             return x
+
         proto = model_script.to_model_proto()
         onnx.shape_inference.infer_shapes(proto)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
