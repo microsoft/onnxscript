@@ -19,10 +19,20 @@ from typing import Any, Optional, Sequence
 
 import onnx.helper
 
+import onnxscript
 from onnxscript import BOOL, INT64
 from onnxscript.function_libs.torch_aten.ops import common
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+
+@onnxscript.script()
+def _ones_like(x, dtype: int):
+    """Common function for ones_like."""
+    # TODO(justinchuby): Put this in another module
+    shape = op.Shape(x)
+    one_dtype = op.Cast(1, to=dtype)
+    return op.Expand(one_dtype, shape)
 
 
 def aten_abs(self: TensorType) -> TensorType:
@@ -3462,16 +3472,14 @@ def aten_ones(size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ones_like(self, dtype: Optional[int] = None):
+def aten_ones_like(self, dtype: int = onnx.TensorProto.FLOAT):
     """ones_like.
 
-    Note: dtype is a torch enum. We need to convert it to ONNX dtype.
+    Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
+    before calling this function.
     """
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    # TODO(justinchuby): Create a helper to convert torch dtype to ONNX dtype
-    if dtype is None:
-        dtype = onnx.TensorProto.FLOAT
     return common.ones_like(self, dtype)
 
 
@@ -3948,8 +3956,7 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 def aten_repeat(self, repeats: INT64):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
-    # FIXME(justinchuby): 'common' is not an instance of type Opset but <class 'module'>.
-    shape = common.ones_like(repeats, onnx.TensorProto.INT64)
+    shape = _ones_like(repeats, onnx.TensorProto.INT64)
     expanded = op.Expand(self, shape)
     return op.Tile(expanded, repeats)
 

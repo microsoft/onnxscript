@@ -1,13 +1,12 @@
 """Commonly shared functions for the function library."""
 from __future__ import annotations
 
-import onnx.helper
-
+import onnxscript
 from onnxscript.onnx_opset import opset18 as op
 
 
-def ones_like(x, onnx_dtype: int):
+@onnxscript.script()
+def ones_like(x, dtype: int):
     shape = op.Shape(x)
-    return op.ConstantOfShape(
-        shape, value=onnx.helper.make_tensor("one", onnx_dtype, [1], [1])
-    )
+    one_dtype = op.Cast(1, to=dtype)
+    return op.Expand(one_dtype, shape)
