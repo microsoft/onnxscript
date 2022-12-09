@@ -607,6 +607,13 @@ class TestConverter(testutils.TestBase):
 
         self.validate_run(attr_test)
 
+    def test_renaming_parameter(self):
+        @script()
+        def model_script(x: FLOAT[100]) -> FLOAT[100]:
+            x = op.Add(x, x)
+            return x
+        proto = model_script.to_model_proto()
+        onnx.shape_inference.infer_shapes(proto)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
