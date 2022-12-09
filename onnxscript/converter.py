@@ -1286,7 +1286,7 @@ class Converter:
                 default_value = None
             if x.annotation:
                 typeinfo = self.eval_constant_expr(x.annotation)
-                if not ta.is_valid(typeinfo):
+                if not ta.is_valid_type(typeinfo):
                     self.warn(
                         x.annotation,
                         f"Unsupported type annotation for argument {x.arg}.",
@@ -1295,7 +1295,7 @@ class Converter:
             else:
                 # The code can only be exported as a function.
                 typeinfo = None
-            if typeinfo and ta.is_attr(typeinfo):
+            if typeinfo and ta.is_attr_type(typeinfo):
                 self.ir_builder.add_attr_parameter(
                     self.current_fn,
                     x.arg,
@@ -1304,13 +1304,24 @@ class Converter:
                 self.bind(x.arg, values.AttrRef(x.arg, typeinfo, self.source_of(x)))
             else:
                 self.ir_builder.add_input(self.current_fn, x.arg, typeinfo, self.source_of(x))
+                self.used_vars.add(x.arg)
                 self.bind(
                     x.arg,
                     values.Dynamic(x.arg, values.DynamicKind.Input, self.source_of(x)),
                 )
         if fn.returns:
-            returntype = self.eval_constant_expr(fn.returns)
-            self.returntype = ta.get_return_types(returntype)
+            type_annotation = self.eval_constant_expr(fn.returns)
+            self.returntype = ta.get_return_types(type_annotation)
+            invalid = False
+            for t in self.returntype:
+                if not ta.is_valid_type(t):
+                    self.warn(
+                        fn.returns,
+                        f"Unsupported type annotation for return value {t}.",
+                    )
+                    invalid = True
+            if invalid:
+                self.returntype = None
         else:
             self.returntype = None
         for i, s in enumerate(fn.body):
