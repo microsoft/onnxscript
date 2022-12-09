@@ -8,6 +8,7 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 
 import numpy as np
 import onnxruntime.capi.onnxruntime_pybind11_state
+import parameterized
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -156,12 +157,17 @@ def add_decorate_info(
 # Modify this section ##########################################################
 
 # Ops to be tested for numerical consistency between onnx and pytorch
-OPINFO_FUNCTION_MAPPING = {
+# Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
+OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "add": core_ops.aten_add,
+    "gt": core_ops.aten_gt,
+    "lt": core_ops.aten_lt,
     "mul": core_ops.aten_mul,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    # "repeat": core_ops.aten_repeat,
+    "round": core_ops.aten_round,
     "sub": core_ops.aten_sub,
 }
 
@@ -169,6 +175,8 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("add", dtypes=BOOL_TYPES, reason="Add is not defined on bool tensors"),
+    xfail("gt", dtypes=BOOL_TYPES, reason="Greater is not defined on bool tensors"),
+    xfail("lt", dtypes=BOOL_TYPES, reason="Less is not defined on bool tensors"),
     xfail("mul", dtypes=BOOL_TYPES, reason="Mul is not defined on bool tensors"),
     xfail(
         "nn.functional.elu",
@@ -185,12 +193,34 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=dtypes_except(torch.float16, torch.float32),
         reason="ONNX Runtime doesn't support float64 for Selu",
     ),
+    xfail(
+        "round",
+        variant_name="",
+        dtypes=dtypes_except(*FLOAT_TYPES),
+        reason="Round is not defined on non-float tensors",
+    ),
+    xfail("round", variant_name="decimals_0", reason="The ATen op does not support decimals"),
+    xfail("round", variant_name="decimals_3", reason="The ATen op does not support decimals"),
+    xfail(
+        "round", variant_name="decimals_neg_3", reason="The ATen op does not support decimals"
+    ),
     xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
 )
 # END OF SECTION TO MODIFY #####################################################
 
 
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+
+
+class TestFunctionsCompilation(unittest.TestCase):
+    """Test all functions can be compiled."""
+
+    @parameterized.parameterized.expand(
+        list(OPINFO_FUNCTION_MAPPING.items()),
+    )
+    def test_function_compiles(self, _, function):
+        compiled = onnxscript.script()(function)
+        compiled.to_function_proto()
 
 
 class TestOutputConsistency(unittest.TestCase):

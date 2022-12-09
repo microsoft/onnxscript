@@ -17,8 +17,11 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
+import onnx.helper
+
 from onnxscript import BOOL, INT64
-from onnxscript.onnx_opset import default_opset as op
+from onnxscript.function_libs.torch_aten.ops import common
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
@@ -747,16 +750,31 @@ def aten_clamp(
     raise NotImplementedError()
 
 
-def aten_clamp_max(self: TensorType, max: float) -> TensorType:
+def aten_clamp_max_scalar(self, max_):
     # clamp_max(Tensor self, Scalar max) -> Tensor
 
-    raise NotImplementedError()
+    max_ = op.CastLike(max_, self)
+    return op.Clip(self, None, max_)
 
 
-def aten_clamp_min(self: TensorType, min: float) -> TensorType:
+def aten_clamp_max_tensor(self, max_):
+    # clamp_max(Tensor self, Scalar max) -> Tensor
+
+    return op.Min(self, max_)
+
+
+def aten_clamp_min_scalar(self, min_):
     # clamp_min(Tensor self, Scalar min) -> Tensor
+    # NOTE: min_ is a rank 0 tensor.
+    # TODO(justinchuby): Specify the type constraints.
+    min_ = op.CastLike(min_, self)
+    return op.Clip(self, min_, None)
 
-    raise NotImplementedError()
+
+def aten_clamp_min_tensor(self, min_):
+    # clamp_min(Tensor self, Tensor min) -> Tensor
+    # TODO(justinchuby): Specify the type constraints.
+    return op.Max(self, min_)
 
 
 def aten_clip(
@@ -1958,10 +1976,12 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-def aten_gt(self: TensorType, other: TensorType) -> TensorType:
+def aten_gt(self, other):
     # gt.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Input spec: non bool tensor
+    # Boolean inputs can be pre-casted by policy
+    return op.Greater(self, other)
 
 
 def aten_hamming_window(window_length: int) -> TensorType:
@@ -2572,10 +2592,12 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-def aten_lt(self: TensorType, other: TensorType) -> TensorType:
+def aten_lt(self, other):
     # lt.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Input spec: non bool tensor
+    # Boolean inputs can be pre-casted by policy
+    return op.Less(self, other)
 
 
 def aten_lu_solve(self: TensorType, LU_data: TensorType, LU_pivots: TensorType) -> TensorType:
@@ -3440,10 +3462,17 @@ def aten_ones(size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ones_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+def aten_ones_like(self, dtype: Optional[int] = None):
+    """ones_like.
+
+    Note: dtype is a torch enum. We need to convert it to ONNX dtype.
+    """
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Create a helper to convert torch dtype to ONNX dtype
+    if dtype is None:
+        dtype = onnx.TensorProto.FLOAT
+    return common.ones_like(self, dtype)
 
 
 def aten_or(self: TensorType, other: TensorType) -> TensorType:
@@ -3916,10 +3945,13 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-def aten_repeat(self: TensorType, repeats: INT64) -> TensorType:
+def aten_repeat(self, repeats: INT64):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
-    raise NotImplementedError()
+    # FIXME(justinchuby): 'common' is not an instance of type Opset but <class 'module'>.
+    shape = common.ones_like(repeats, onnx.TensorProto.INT64)
+    expanded = op.Expand(self, shape)
+    return op.Tile(expanded, repeats)
 
 
 def aten_repeat_interleave(
@@ -4012,10 +4044,10 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
     raise NotImplementedError()
 
 
-def aten_round(self: TensorType) -> TensorType:
+def aten_round(self):
     # round(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Round(self)
 
 
 def aten_row_indices(self: TensorType) -> TensorType:
