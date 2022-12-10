@@ -49,7 +49,6 @@ filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
 [tool.mypy]
 follow_imports = "silent"   # TODO: Remove when we fix all the mypy errors
 strict_optional = true
-warn_return_any = true
 warn_no_return = true
 warn_unused_ignores = true
 warn_redundant_casts = true
