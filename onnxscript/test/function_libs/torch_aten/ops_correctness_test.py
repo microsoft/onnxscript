@@ -217,9 +217,7 @@ SKIP_SUBTESTS = (
         matcher=lambda sample: sample.args[0] == (),
     ),
 )
-OP_WITH_SKIPPED_SUBTESTS = frozenset(
-    meta.op_name for meta in SKIP_SUBTESTS
-)
+OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 # END OF SECTION TO MODIFY #####################################################
 

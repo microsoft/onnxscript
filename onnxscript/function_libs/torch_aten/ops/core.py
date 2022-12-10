@@ -3469,7 +3469,9 @@ def aten_ones_like(self, dtype: int = onnx.TensorProto.FLOAT):
     """
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    return common.ones_like(self, dtype)
+    shape = op.Shape(self)
+    one_dtype = op.Cast(1, to=dtype)
+    return op.Expand(one_dtype, shape)
 
 
 def aten_or(self: TensorType, other: TensorType) -> TensorType:
@@ -3942,7 +3944,7 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-def aten_repeat(self, repeats: INT64["M"]):
+def aten_repeat(self, repeats: INT64):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     # FIXME(justinchuby): When repeats.shape == [0]
@@ -3953,7 +3955,7 @@ def aten_repeat(self, repeats: INT64["M"]):
     repeats_shape = op.Shape(repeats)
     shape = op.Expand(one, repeats_shape)
     # }
-    self_expanded = op.Expand(self, shape)
+    self_expanded = op.Expand(self, shape)  # type: ignore[arg-type]
     return op.Tile(self_expanded, repeats)
 
 
