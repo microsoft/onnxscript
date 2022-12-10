@@ -1304,6 +1304,7 @@ class Converter:
                 self.bind(x.arg, values.AttrRef(x.arg, typeinfo, self.source_of(x)))
             else:
                 self.ir_builder.add_input(self.current_fn, x.arg, typeinfo, self.source_of(x))
+                self.used_vars.add(x.arg)
                 self.bind(
                     x.arg,
                     values.Dynamic(x.arg, values.DynamicKind.Input, self.source_of(x)),
