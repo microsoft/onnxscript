@@ -70,14 +70,15 @@ class DecorateMeta:
     decorator: Callable[..., Any]
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
+    matcher: Optional[Callable[[Any], bool]] = None
 
 
 def xfail(
     op_name: str,
     variant_name: str = "",
     *,
+    reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
-    reason: Optional[str] = None,
 ):
     """Expects an OpInfo test to fail.
 
@@ -87,8 +88,6 @@ def xfail(
         dtypes: The dtypes to expect the failure.
         reason: The reason for the failure.
     """
-    if reason is None:
-        raise ValueError("Please specify a reason.")
     return DecorateMeta(
         op_name=op_name,
         variant_name=variant_name,
@@ -102,8 +101,9 @@ def skip(
     op_name: str,
     variant_name: str = "",
     *,
+    reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
-    reason: Optional[str] = None,
+    matcher: Optional[Callable[[Any], Any]] = None,
 ):
     """Skips an OpInfo test.
 
@@ -112,15 +112,16 @@ def skip(
         variant_name: Optional OpInfo variant_test_name.
         dtypes: The dtypes to skip.
         reason: The reason for skipping.
+        matcher: A function that matches the test sample input. It is used only when
+            xfail is in the SKIP_SUBTESTS list.
     """
-    if reason is None:
-        raise ValueError("Please specify a reason.")
     return DecorateMeta(
         op_name=op_name,
         variant_name=variant_name,
         decorator=unittest.skip(f"Don't care: {reason}"),
         dtypes=dtypes,
         reason=reason,
+        matcher=matcher,
     )
 
 
@@ -193,7 +194,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=dtypes_except(torch.float16, torch.float32),
         reason="ONNX Runtime doesn't support float64 for Selu",
     ),
-    xfail("repeat", reason="fails when repeats is empty."),
+    # xfail("repeat", reason="fails when repeats is empty."),
     xfail(
         "round",
         variant_name="",
@@ -207,6 +208,19 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
 )
+
+
+SKIP_SUBTESTS = (
+    skip(
+        "repeat",
+        reason="repeating when input is a scalar and repeats is empty is not supported.",
+        matcher=lambda sample: sample.args[0] == (),
+    ),
+)
+OP_WITH_SKIPPED_SUBTESTS = frozenset(
+    meta.op_name for meta in SKIP_SUBTESTS
+)
+
 # END OF SECTION TO MODIFY #####################################################
 
 
@@ -238,6 +252,19 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
         return input
 
     return input
+
+
+def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
+    """Returns a reason if a test sample should be skipped."""
+    if op_name not in OP_WITH_SKIPPED_SUBTESTS:
+        return None
+    for decorator_meta in SKIP_SUBTESTS:
+        # Linear search on SKIP_SUBTESTS. That's fine because the list is small.
+        if decorator_meta.op_name == op_name:
+            assert decorator_meta.matcher is not None, "Matcher must be defined"
+            if decorator_meta.matcher(sample):
+                return decorator_meta.reason
+    return None
 
 
 class TestOutputConsistency(unittest.TestCase):
@@ -282,6 +309,9 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+                skip_reason = _should_skip_test_sample(op.name, cpu_sample)
+                if skip_reason is not None:
+                    self.skipTest(skip_reason)
                 input_numpy = [_convert_tensor_to_numpy(x) for x in inputs]
                 torch_output = op(*inputs, **cpu_sample.kwargs)
                 try:
