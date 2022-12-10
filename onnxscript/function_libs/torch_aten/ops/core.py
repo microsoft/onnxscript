@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence
 
 from onnxscript import BOOL, INT64
-from onnxscript.onnx_opset import default_opset as op
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
