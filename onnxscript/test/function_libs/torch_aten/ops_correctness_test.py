@@ -7,6 +7,7 @@ import unittest
 from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
 
 import numpy as np
+import onnx
 import onnxruntime.capi.onnxruntime_pybind11_state
 import parameterized
 import torch
@@ -161,12 +162,15 @@ def add_decorate_info(
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "add": core_ops.aten_add,
+    "clamp_max": core_ops.aten_clamp_max_tensor,
+    "clamp_min": core_ops.aten_clamp_min_tensor,
     "gt": core_ops.aten_gt,
     "lt": core_ops.aten_lt,
     "mul": core_ops.aten_mul,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    "ones_like": core_ops.aten_ones_like,
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
     "sub": core_ops.aten_sub,
@@ -225,6 +229,22 @@ OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 
+TORCH_TYPE_TO_ONNX = {
+    torch.bool: onnx.TensorProto.BOOL,
+    torch.uint8: onnx.TensorProto.UINT8,
+    torch.int8: onnx.TensorProto.INT8,
+    torch.int16: onnx.TensorProto.INT16,
+    torch.int32: onnx.TensorProto.INT32,
+    torch.int64: onnx.TensorProto.INT64,
+    torch.float16: onnx.TensorProto.FLOAT16,
+    torch.float32: onnx.TensorProto.FLOAT,
+    torch.float64: onnx.TensorProto.DOUBLE,
+    torch.complex64: onnx.TensorProto.COMPLEX64,
+    torch.complex128: onnx.TensorProto.COMPLEX128,
+    torch.bfloat16: onnx.TensorProto.BFLOAT16,
+}
+
+
 class TestFunctionsCompilation(unittest.TestCase):
     """Test all functions can be compiled."""
 
@@ -250,6 +270,21 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
         return input
 
     return input
+
+
+def _convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Converts kwargs to be compatible with ONNX Runtime.
+
+    ONNX Runtime doesn't support torch.bool, so we convert them to torch.uint8.
+    """
+    new_kwargs = {}
+    for key, value in kwargs.items():
+        if key == "device":
+            continue
+        if key == "dtype":
+            value = TORCH_TYPE_TO_ONNX[value]
+        new_kwargs[key] = value
+    return new_kwargs
 
 
 def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
@@ -310,10 +345,11 @@ class TestOutputConsistency(unittest.TestCase):
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     self.skipTest(skip_reason)
-                input_numpy = [_convert_tensor_to_numpy(x) for x in inputs]
-                torch_output = op(*inputs, **cpu_sample.kwargs)
+                input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
+                kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
+                output_torch = op(*inputs, **cpu_sample.kwargs)
                 try:
-                    function_output = scripted_function(*input_numpy, **cpu_sample.kwargs)
+                    function_output = scripted_function(*input_onnx, **kwargs_onnx)
                 # pylint: disable=c-extension-no-member
                 except onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented:
                     self.skipTest(
@@ -324,7 +360,7 @@ class TestOutputConsistency(unittest.TestCase):
                 # Use torch testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
-                    torch_output,
+                    output_torch,
                 )
 
 

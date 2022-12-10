@@ -3461,7 +3461,7 @@ def aten_ones(size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ones_like(self, dtype: int = onnx.TensorProto.FLOAT):
+def aten_ones_like(self, dtype: Optional[int] = None):
     """ones_like.
 
     Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
@@ -3470,7 +3470,10 @@ def aten_ones_like(self, dtype: int = onnx.TensorProto.FLOAT):
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     shape = op.Shape(self)
-    one_dtype = op.Cast(1, to=dtype)
+    if dtype is None:
+        one = op.CastLike(1, self)
+    else:
+        one = op.Cast(1, to=dtype)
     return op.Expand(one_dtype, shape)
 
 
