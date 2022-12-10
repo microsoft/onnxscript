@@ -19,20 +19,9 @@ from typing import Any, Optional, Sequence
 
 import onnx.helper
 
-import onnxscript
 from onnxscript import BOOL, INT64
-from onnxscript.function_libs.torch_aten.ops import common
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
-
-
-@onnxscript.script()
-def _ones_like(x, dtype: int):
-    """Common function for ones_like."""
-    # TODO(justinchuby): Put this in another module
-    shape = op.Shape(x)
-    one_dtype = op.Cast(1, to=dtype)
-    return op.Expand(one_dtype, shape)
 
 
 def aten_abs(self: TensorType) -> TensorType:
@@ -3953,12 +3942,19 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-def aten_repeat(self, repeats: INT64):
+def aten_repeat(self, repeats: INT64["M"]):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
-    shape = _ones_like(repeats, onnx.TensorProto.INT64)
-    expanded = op.Expand(self, shape)
-    return op.Tile(expanded, repeats)
+    # FIXME(justinchuby): When repeats.shape == [0]
+
+    # TODO(justinchuby): Make ones_like a function when onnxscript supports it
+    # shape = ones_like(repeats) := {
+    one = op.Constant(value_int=1)
+    repeats_shape = op.Shape(repeats)
+    shape = op.Expand(one, repeats_shape)
+    # }
+    self_expanded = op.Expand(self, shape)
+    return op.Tile(self_expanded, repeats)
 
 
 def aten_repeat_interleave(

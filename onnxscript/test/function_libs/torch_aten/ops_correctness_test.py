@@ -193,6 +193,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=dtypes_except(torch.float16, torch.float32),
         reason="ONNX Runtime doesn't support float64 for Selu",
     ),
+    xfail("repeat", reason="fails when repeats is empty."),
     xfail(
         "round",
         variant_name="",
@@ -221,6 +222,22 @@ class TestFunctionsCompilation(unittest.TestCase):
     def test_function_compiles(self, _, function):
         compiled = onnxscript.script()(function)
         compiled.to_function_proto()
+
+
+def _convert_tensor_to_numpy(input: Any) -> Any:
+    if isinstance(input, torch.Tensor):
+        return input.detach().cpu().numpy()
+    if isinstance(input, (tuple, list)):
+        if len(input) == 0:
+            return np.array((), dtype=np.int64)
+        if isinstance(input[0], torch.Tensor):
+            return [_convert_tensor_to_numpy(x) for x in input]
+        if isinstance(input[0], (int, float)):
+            # Just a tuple of numbers
+            return np.array(input)
+        return input
+
+    return input
 
 
 class TestOutputConsistency(unittest.TestCase):
@@ -265,7 +282,7 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
-                input_numpy = [x.numpy() for x in inputs if isinstance(x, torch.Tensor)]
+                input_numpy = [_convert_tensor_to_numpy(x) for x in inputs]
                 torch_output = op(*inputs, **cpu_sample.kwargs)
                 try:
                     function_output = scripted_function(*input_numpy, **cpu_sample.kwargs)
