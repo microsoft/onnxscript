@@ -170,7 +170,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
-    "ones_like": core_ops.aten_ones_like,
+    "ones_like": core_ops.aten_ones_like_dtype,
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
     "sub": core_ops.aten_sub,
@@ -180,6 +180,8 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("add", dtypes=BOOL_TYPES, reason="Add is not defined on bool tensors"),
+    xfail("clamp_max", dtypes=BOOL_TYPES, reason="Min is not defined on bool tensors"),
+    xfail("clamp_min", dtypes=BOOL_TYPES, reason="Max is not defined on bool tensors"),
     xfail("gt", dtypes=BOOL_TYPES, reason="Greater is not defined on bool tensors"),
     xfail("lt", dtypes=BOOL_TYPES, reason="Less is not defined on bool tensors"),
     xfail("mul", dtypes=BOOL_TYPES, reason="Mul is not defined on bool tensors"),
@@ -198,7 +200,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=dtypes_except(torch.float16, torch.float32),
         reason="ONNX Runtime doesn't support float64 for Selu",
     ),
-    # xfail("repeat", reason="fails when repeats is empty."),
     xfail(
         "round",
         variant_name="",
@@ -216,9 +217,25 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_SUBTESTS = (
     skip(
+        "clamp_max",
+        reason="Empty tensor not yet supported",
+        matcher=lambda sample: sample.input.size() == torch.Size([0]),
+    ),
+    skip(
+        "clamp_min",
+        reason="Empty tensor not yet supported",
+        matcher=lambda sample: sample.input.size() == torch.Size([0]),
+    ),
+    skip(
         "repeat",
-        reason="repeating when input is a scalar and repeats is empty is not supported.",
+        reason="repeating when input is a scalar and repeats is empty is not supported",
         matcher=lambda sample: sample.args[0] == (),
+    ),
+    skip(
+        "ones_like",
+        # TODO(justinchuby): Test aten_ones_like
+        reason="dtype must be provided for aten_ones_like_dtype",
+        matcher=lambda sample: "dtype" not in sample.kwargs,
     ),
 )
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
