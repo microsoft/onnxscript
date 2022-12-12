@@ -54,7 +54,9 @@ def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=
 
 
 def script(
-    opset: Optional[values.Opset] = None, default_opset: Optional[Any] = None, **kwargs: Any
+    opset: Optional[values.Opset] = None,
+    default_opset: Optional[values.Opset] = None,
+    **kwargs: Any,
 ) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction]:
     """Main decorator. Declares a function as an onnx function.
 

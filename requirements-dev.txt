@@ -25,7 +25,7 @@ pytest-subtests
 pytest-xdist
 pytest!=7.1.0
 pyyaml
-torch
+torch>=1.13
 
 # Lint
 lintrunner
