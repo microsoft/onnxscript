@@ -63,12 +63,13 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel build
           python -m pip install -r requirements-dev.txt
 
+      # TODO(#249): Fix tests for onnx 1.13
       - name: Install standard onnx
         if: ${{ matrix.onnx_standard }}
         run: |
           python -m pip uninstall -y onnx-function-experiment
           python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install onnx onnxruntime
+          python -m pip install onnx==1.12 onnxruntime
 
       - name: Versions
         run: |
