@@ -54,11 +54,11 @@ class OnnxScriptTestCase(unittest.TestCase):
         try:
             # experimental version
             # pylint: disable=no-value-for-parameter
-            cls.all_test_cases = node_test.collect_testcases()  # type: ignore[attr-defined]
+            cls.all_test_cases = node_test.collect_testcases()  # type: ignore[attr-defined,call-arg]
             # pylint: enable=no-value-for-parameter
         except TypeError:
             # official version
-            cls.all_test_cases = node_test.collect_testcases(None)  # type: ignore[attr-defined]
+            cls.all_test_cases = node_test.collect_testcases(None)  # type: ignore[attr-defined,arg-type]
 
     def _create_model_from_param(
         self, param: FunctionTestParams, onnx_case_model: onnx.ModelProto
