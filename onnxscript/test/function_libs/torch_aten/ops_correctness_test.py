@@ -156,8 +156,7 @@ def add_decorate_info(
 # Modify this section ##########################################################
 
 # Ops to be tested for numerical consistency between onnx and pytorch
-# Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
+OPINFO_FUNCTION_MAPPING = {
     "add": core_ops.aten_add,
     "mul": core_ops.aten_mul,
     "nn.functional.elu": nn_ops.aten_elu,
