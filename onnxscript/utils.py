@@ -20,7 +20,7 @@ try:
     from onnx.printer import to_text as proto2text
 except ImportError:
 
-    def proto2text(x):  # pylint: disable=unused-argument
+    def proto2text(_) -> str:  # type: ignore[misc]
         return "<print utility unavailable>"
 
 

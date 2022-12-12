@@ -207,7 +207,10 @@ class Exporter:
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
                 node = make_node(
-                    "Constant", [], [self._rename_variable(init.name)], value=init
+                    "Constant",
+                    [],
+                    [self._rename_variable(init.name)],  # type: ignore[list-item]
+                    value=init,
                 )
                 code.append(self._python_make_node(node, opsets, indent=indent))
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
