@@ -9,7 +9,6 @@ import ast
 import inspect
 import sys
 import textwrap
-from typing import Any, Callable, Optional
 
 import onnx.helper
 
@@ -53,9 +52,7 @@ def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=
     return convert.top_level_stmt(f)
 
 
-def script(
-    opset: Optional[values.Opset] = None, default_opset: Optional[Any] = None, **kwargs: Any
-) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction]:
+def script(opset=None, default_opset=None, **kwargs):
     """Main decorator. Declares a function as an onnx function.
 
     Args:
