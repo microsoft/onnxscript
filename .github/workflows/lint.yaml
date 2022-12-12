@@ -52,7 +52,7 @@ jobs:
           # Install ONNX
           python -m pip uninstall -y onnx-function-experiment
           python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install onnx onnxruntime
+          python -m pip install -r requirements-onnx.txt
           # Install packages
           python -m pip install -e .
           lintrunner init
