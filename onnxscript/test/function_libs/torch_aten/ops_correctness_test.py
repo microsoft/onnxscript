@@ -170,7 +170,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
-    "ones_like": core_ops.aten_ones_like_dtype,
+    "ones_like": core_ops.aten_ones_like,
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
     "sub": core_ops.aten_sub,
@@ -230,12 +230,6 @@ SKIP_SUBTESTS = (
         "repeat",
         reason="repeating when input is a scalar and repeats is empty is not supported",
         matcher=lambda sample: sample.args[0] == (),
-    ),
-    skip(
-        "ones_like",
-        # TODO(justinchuby): Test aten_ones_like
-        reason="dtype must be provided for aten_ones_like_dtype",
-        matcher=lambda sample: "dtype" not in sample.kwargs,
     ),
 )
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
