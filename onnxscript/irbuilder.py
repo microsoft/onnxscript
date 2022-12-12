@@ -472,5 +472,7 @@ class IRBuilder:
         a = onnx.AttributeProto()
         a.name = attrname
         a.ref_attr_name = refname
-        a.type = ta.pytype_to_attrtype(pytype)
+        type_ = ta.pytype_to_attrtype(pytype)
+        assert type_ is not None
+        a.type = type_
         return IRAttributeValue(a)
