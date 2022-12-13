@@ -739,24 +739,55 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_clamp(
-    self: TensorType, min: Optional[float] = None, max: Optional[float] = None
-) -> TensorType:
+def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Handle integer inputs
+    # FIXME(justinchuby): Enable test for this after None values are supported
+    # TODO(justinchuby): If min is greater than max torch.clamp(..., min, max)
+    # sets all elements in input to the value of max.
+    if op.OptionalHasElement(min_):
+        min_ = op.OptionalGetElement(min_)
+        min_clamp = op.CastLike(min_, self)  # type: ignore[arg-type]
+    else:
+        min_clamp = op.Constant(value_float=float("-inf"))
+
+    if op.OptionalHasElement(max_):
+        max_ = op.OptionalGetElement(max_)
+        max_clamp = op.CastLike(max_, self)  # type: ignore[arg-type]
+    else:
+        max_clamp = op.Constant(value_float=float("inf"))
+
+    # Enforce the lower and upper bounds
+    clamped = op.Max(op.Min(self, max_clamp), min_clamp)  # type: ignore[arg-type]
+    return clamped
 
 
-def aten_clamp_max(self: TensorType, max: float) -> TensorType:
+def aten_clamp_max_scalar(self, max_):
     # clamp_max(Tensor self, Scalar max) -> Tensor
 
-    raise NotImplementedError()
+    max_ = op.CastLike(max_, self)
+    return op.Clip(self, None, max_)
 
 
-def aten_clamp_min(self: TensorType, min: float) -> TensorType:
+def aten_clamp_max_tensor(self, max_):
+    # clamp_max(Tensor self, Scalar max) -> Tensor
+
+    return op.Min(self, max_)
+
+
+def aten_clamp_min_scalar(self, min_):
     # clamp_min(Tensor self, Scalar min) -> Tensor
+    # NOTE: min_ is a rank 0 tensor.
+    # TODO(justinchuby): Specify the type constraints.
+    min_ = op.CastLike(min_, self)
+    return op.Clip(self, min_, None)
 
-    raise NotImplementedError()
+
+def aten_clamp_min_tensor(self, min_):
+    # clamp_min(Tensor self, Tensor min) -> Tensor
+    # TODO(justinchuby): Specify the type constraints.
+    return op.Max(self, min_)
 
 
 def aten_clip(
@@ -1958,10 +1989,12 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-def aten_gt(self: TensorType, other: TensorType) -> TensorType:
+def aten_gt(self, other):
     # gt.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Input spec: non bool tensor
+    # Boolean inputs can be pre-casted by policy
+    return op.Greater(self, other)
 
 
 def aten_hamming_window(window_length: int) -> TensorType:
@@ -2572,10 +2605,12 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-def aten_lt(self: TensorType, other: TensorType) -> TensorType:
+def aten_lt(self, other):
     # lt.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Input spec: non bool tensor
+    # Boolean inputs can be pre-casted by policy
+    return op.Less(self, other)
 
 
 def aten_lu_solve(self: TensorType, LU_data: TensorType, LU_pivots: TensorType) -> TensorType:
@@ -3440,10 +3475,20 @@ def aten_ones(size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ones_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+def aten_ones_like(self, dtype: int = -1):
+    """ones_like.
+
+    Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
+    before calling this function.
+    """
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    shape = op.Shape(self)
+    if dtype == -1:
+        one = op.CastLike(1, self)  # type: ignore[arg-type]
+    else:
+        one = op.Cast(1, to=dtype)  # type: ignore[arg-type]
+    return op.Expand(one, shape)
 
 
 def aten_or(self: TensorType, other: TensorType) -> TensorType:
@@ -3916,10 +3961,19 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-def aten_repeat(self: TensorType, repeats: INT64) -> TensorType:
+def aten_repeat(self, repeats: INT64):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
-    raise NotImplementedError()
+    # FIXME(justinchuby): When repeats.shape == [0]
+
+    # TODO(justinchuby): Make ones_like a function when onnxscript supports it
+    # shape = ones_like(repeats) := {
+    one = op.Constant(value_int=1)
+    repeats_shape = op.Shape(repeats)
+    shape = op.Expand(one, repeats_shape)
+    # }
+    self_expanded = op.Expand(self, shape)  # type: ignore[arg-type]
+    return op.Tile(self_expanded, repeats)
 
 
 def aten_repeat_interleave(
@@ -4012,10 +4066,10 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
     raise NotImplementedError()
 
 
-def aten_round(self: TensorType) -> TensorType:
+def aten_round(self):
     # round(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Round(self)
 
 
 def aten_row_indices(self: TensorType) -> TensorType:
