@@ -183,10 +183,10 @@ class IRFunction:
         self.inputs: list[IRVar] = []
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
-        self.attrs: list[str] = []  # attribute parameters
-        self.attr_protos: list[
-            IRAttributeValue
-        ] = []  # attribute parameters with default value
+        # attribute parameters
+        self.attrs: list[str] = []
+        # attribute parameters with default value
+        self.attr_protos: list[IRAttributeValue] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
