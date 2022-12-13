@@ -162,17 +162,18 @@ def add_decorate_info(
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "add": core_ops.aten_add,
-    "clamp": core_ops.aten_clamp,
     "clamp_max": core_ops.aten_clamp_max_tensor,
     "clamp_min": core_ops.aten_clamp_min_tensor,
+    "clamp": core_ops.aten_clamp,
     "gt": core_ops.aten_gt,
     "lt": core_ops.aten_lt,
     "mul": core_ops.aten_mul,
     "nn.functional.elu": nn_ops.aten_elu,
+    "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
-    "ones": core_ops.aten_ones,
     "ones_like": core_ops.aten_ones_like,
+    "ones": core_ops.aten_ones,
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
     "sub": core_ops.aten_sub,
@@ -194,6 +195,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.elu",
         dtypes=dtypes_except(torch.float16, torch.float32),
         reason="ONNX Runtime doesn't support float64 for Elu",
+    ),
+    xfail(
+        "nn.functional.linear",
+        reason="ONNX Runtime thinks the graph is invalid",
     ),
     xfail(
         "nn.functional.relu6",
@@ -247,8 +252,7 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
-for op_name in OPINFO_FUNCTION_MAPPING:
-    assert op_name in ALL_OPS_IN_DB, f"{op_name} not in OPS_DB"
+assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
 
 
 TORCH_TYPE_TO_ONNX = {
