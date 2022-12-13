@@ -17,8 +17,6 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-import onnx
-
 from onnxscript import BOOL, INT64
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
@@ -741,12 +739,28 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_clamp(
-    self: TensorType, min: Optional[float] = None, max: Optional[float] = None
-) -> TensorType:
+def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Handle integer inputs
+    # FIXME(justinchuby): Enable test for this after None values are supported
+    # TODO(justinchuby): If min is greater than max torch.clamp(..., min, max)
+    # sets all elements in input to the value of max.
+    if op.OptionalHasElement(min_):
+        min_ = op.OptionalGetElement(min_)
+        min_clamp = op.CastLike(min_, self)  # type: ignore[arg-type]
+    else:
+        min_clamp = op.Constant(value_float=float("-inf"))
+
+    if op.OptionalHasElement(max_):
+        max_ = op.OptionalGetElement(max_)
+        max_clamp = op.CastLike(max_, self)  # type: ignore[arg-type]
+    else:
+        max_clamp = op.Constant(value_float=float("inf"))
+
+    # Enforce the lower and upper bounds
+    clamped = op.Max(op.Min(self, max_clamp), min_clamp)  # type: ignore[arg-type]
+    return clamped
 
 
 def aten_clamp_max_scalar(self, max_):

@@ -162,6 +162,7 @@ def add_decorate_info(
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "add": core_ops.aten_add,
+    # "clamp": core_ops.aten_clamp,  # TODO(justinchuby): Enable
     "clamp_max": core_ops.aten_clamp_max_tensor,
     "clamp_min": core_ops.aten_clamp_min_tensor,
     "gt": core_ops.aten_gt,
