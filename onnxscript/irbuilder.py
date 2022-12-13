@@ -183,10 +183,10 @@ class IRFunction:
         self.inputs: list[IRVar] = []
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
-        self.attrs: list[str] = []  # attribute parameters
-        self.attr_protos: list[
-            onnx.AttributeProto
-        ] = []  # attribute parameters with default value
+        # attribute parameters
+        self.attrs: list[str] = []
+        # attribute parameters with default value
+        self.attr_protos: list[IRAttributeValue] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
@@ -472,5 +472,7 @@ class IRBuilder:
         a = onnx.AttributeProto()
         a.name = attrname
         a.ref_attr_name = refname
-        a.type = ta.pytype_to_attrtype(pytype)
+        type_ = ta.pytype_to_attrtype(pytype)
+        assert type_ is not None
+        a.type = type_
         return IRAttributeValue(a)
