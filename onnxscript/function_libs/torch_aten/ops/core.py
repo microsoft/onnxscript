@@ -2680,10 +2680,10 @@ def aten_masked_select_backward(
     raise NotImplementedError()
 
 
-def aten_matmul(self: TensorType, other: TensorType) -> TensorType:
+def aten_matmul(self, other):
     # matmul(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.MatMul(self, other)
 
 
 def aten_matmul_backward(
@@ -3080,10 +3080,11 @@ def aten_mkldnn_max_pool3d_backward(
     raise NotImplementedError()
 
 
-def aten_mm(self: TensorType, mat2: TensorType) -> TensorType:
+def aten_mm(self, mat2):
     # mm(Tensor self, Tensor mat2) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Specify type conversion for uint8/int8/int16
+    return op.MatMul(self, mat2)
 
 
 def aten_mode(
@@ -4459,11 +4460,11 @@ def aten_t(self: TensorType) -> TensorType:
     # t(Tensor(a) self) -> Tensor(a)
 
     # TODO(justinchuby): Make rank a function
-    rank = op.Shape(op.Shape(self))
-    if rank == 0 or rank == 1:
+    rank = op.Shape(op.Shape(self))  # type: ignore[arg-type]
+    if rank == 0 or rank == 1:  # pylint: disable=consider-using-in
         result = self
     else:
-        result = op.Transpose(self, perm=[1, 0])
+        result = op.Transpose(self, perm=[1, 0])  # type: ignore[arg-type]
     return result
 
 

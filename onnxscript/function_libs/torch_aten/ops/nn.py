@@ -410,11 +410,12 @@ def aten_leaky_relu_backward(
 def aten_linear(input, weight, bias=None) -> TensorType:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
+    # FIXME(justinchuby): Enable the test
+    # INVALID_GRAPH : This is an invalid model.
+    # In Node, ("", OptionalHasElement, "", -1) : () -> ("output0",) ,
+    # Error Node () has input size 0 not in range [min=1, max=1]
     result = op.MatMul(input, weight)
     if op.OptionalHasElement(bias):
-        # FIXME(justinchuby): INVALID_GRAPH : This is an invalid model.
-        # In Node, ("", OptionalHasElement, "", -1) : () -> ("output0",) ,
-        # Error Node () has input size 0 not in range [min=1, max=1]
         bias = op.OptionalGetElement(bias)
         result = op.Add(result, bias)  # type: ignore[arg-type]
     return result

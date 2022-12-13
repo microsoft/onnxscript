@@ -167,6 +167,8 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "clamp": core_ops.aten_clamp,
     "gt": core_ops.aten_gt,
     "lt": core_ops.aten_lt,
+    "matmul": core_ops.aten_matmul,
+    "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.linear": nn_ops.aten_linear,
@@ -190,6 +192,16 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("clamp_min", dtypes=BOOL_TYPES, reason="Max is not defined on bool tensors"),
     xfail("gt", dtypes=BOOL_TYPES, reason="Greater is not defined on bool tensors"),
     xfail("lt", dtypes=BOOL_TYPES, reason="Less is not defined on bool tensors"),
+    xfail(
+        "matmul",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
+    xfail(
+        "mm",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
     xfail("mul", dtypes=BOOL_TYPES, reason="Mul is not defined on bool tensors"),
     xfail(
         "nn.functional.elu",
