@@ -7,7 +7,7 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -218,7 +218,7 @@ class IRFunction:
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
-    def add_attr_parameter(self, attr: Union[str, IRAttributeValue]) -> None:
+    def add_attr_parameter(self, attr: str | IRAttributeValue) -> None:
         if isinstance(attr, IRAttributeValue):
             self.attr_protos.append(attr)
         else:
@@ -324,7 +324,7 @@ class IRFunction:
 
     def to_graph_and_functions(
         self, use_default_type: bool = True
-    ) -> Tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
+    ) -> tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
         """Converts this instance into a `onnx.GraphProto` and a map from
         function-name to `onnx.FunctionProto`.
 
@@ -360,7 +360,7 @@ class IRFunction:
         graph, _ = self.to_graph_and_functions(use_default_type=use_default_type)
         return graph
 
-    def get_opset_import(self) -> Dict[str, int]:
+    def get_opset_import(self) -> dict[str, int]:
         func_opset_imports = {}
         for s in self.stmts:
             if s.callee.opset.domain not in func_opset_imports:

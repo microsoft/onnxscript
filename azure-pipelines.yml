@@ -25,6 +25,7 @@ steps:
     python -m pip install -r requirements-dev.txt
   displayName: 'Install dependencies'
 
+# TODO(#249): Fix tests for onnx 1.13
 - script: |
       if [ '$(onnx.standard)' == '1' ]
         then
