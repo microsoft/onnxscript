@@ -171,6 +171,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    "ones": core_ops.aten_ones,
     "ones_like": core_ops.aten_ones_like,
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,

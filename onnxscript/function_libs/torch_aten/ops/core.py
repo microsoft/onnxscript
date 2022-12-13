@@ -3469,10 +3469,13 @@ def aten_numpy_T(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ones(size: INT64) -> TensorType:
+def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    one = op.Constant(value_float=1)
+    if dtype != -1:
+        one = op.Cast(one, to=dtype)  # type: ignore[arg-type]
+    return op.Expand(one, size)  # type: ignore[arg-type]
 
 
 def aten_ones_like(self, dtype: int = -1):
