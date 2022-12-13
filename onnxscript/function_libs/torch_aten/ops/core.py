@@ -3463,12 +3463,6 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_numpy_T(self: TensorType) -> TensorType:
-    # numpy_T(Tensor(a) self) -> Tensor(a)
-
-    raise NotImplementedError()
-
-
 def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
@@ -4464,7 +4458,13 @@ def aten_symeig(
 def aten_t(self: TensorType) -> TensorType:
     # t(Tensor(a) self) -> Tensor(a)
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Make rank a function
+    rank = op.Shape(op.Shape(self))
+    if rank == 0 or rank == 1:
+        result = self
+    else:
+        result = op.Transpose(self, perm=[1, 0])
+    return result
 
 
 def aten_t_copy(self: TensorType) -> TensorType:
@@ -4607,6 +4607,13 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     # trace_backward(Tensor grad, SymInt[] sizes) -> Tensor
 
     raise NotImplementedError()
+
+
+def aten_transpose(self, dim0: int, dim1: int):
+    # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
+
+    # FIXME(justinchuby): onnxscript raises Unsupported expression type
+    return op.Transpose(self, [dim0, dim1])
 
 
 def aten_triangular_solve(

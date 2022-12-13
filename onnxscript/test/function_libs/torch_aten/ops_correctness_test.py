@@ -162,7 +162,7 @@ def add_decorate_info(
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "add": core_ops.aten_add,
-    # "clamp": core_ops.aten_clamp,  # TODO(justinchuby): Enable
+    "clamp": core_ops.aten_clamp,
     "clamp_max": core_ops.aten_clamp_max_tensor,
     "clamp_min": core_ops.aten_clamp_min_tensor,
     "gt": core_ops.aten_gt,
@@ -176,12 +176,15 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
     "sub": core_ops.aten_sub,
+    "t": core_ops.aten_t,
+    # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed
 }
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("add", dtypes=BOOL_TYPES, reason="Add is not defined on bool tensors"),
+    skip("clamp", reason="Enable when onnxscript errors are fixed"),
     xfail("clamp_max", dtypes=BOOL_TYPES, reason="Min is not defined on bool tensors"),
     xfail("clamp_min", dtypes=BOOL_TYPES, reason="Max is not defined on bool tensors"),
     xfail("gt", dtypes=BOOL_TYPES, reason="Greater is not defined on bool tensors"),
@@ -214,6 +217,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         "round", variant_name="decimals_neg_3", reason="The ATen op does not support decimals"
     ),
     xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
+    xfail("transpose", reason="Enable when onnxscript errors are fixed"),
 )
 
 
@@ -240,6 +244,11 @@ OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+
+ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
+# Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
+for op_name in OPINFO_FUNCTION_MAPPING:
+    assert op_name in ALL_OPS_IN_DB, f"{op_name} not in OPS_DB"
 
 
 TORCH_TYPE_TO_ONNX = {
