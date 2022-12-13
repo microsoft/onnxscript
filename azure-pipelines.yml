@@ -31,7 +31,7 @@ steps:
         then
           python -m pip uninstall -y onnx-function-experiment
           python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install onnx==1.12 onnxruntime
+          python -m pip install -r requirements-onnx.txt
       fi
   displayName: 'Install onnx'
 
