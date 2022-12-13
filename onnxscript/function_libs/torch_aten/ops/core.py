@@ -4877,13 +4877,6 @@ def aten_zeros(self, size, dtype: int = -1):
         zero = op.Constant(value=0)  # type: ignore[arg-type]
     else:
         zero = op.Cast(0, to=dtype)  # type: ignore[arg-type]
-
-    size_ = op.Size(size)
-    zero_ = op.Constant(value=0)
-
-    if size_ == zero_:
-        size = op.Constant(value_ints=[])
-
     return op.ConstantOfShape(size, zero)
 
 
