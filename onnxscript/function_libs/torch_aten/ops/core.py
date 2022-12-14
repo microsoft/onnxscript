@@ -4870,7 +4870,7 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_zeros(self, size, dtype: int = -1):
+def aten_zeros(size, dtype: int = -1):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     if dtype == -1:
