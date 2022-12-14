@@ -4450,7 +4450,7 @@ def aten_t(self: TensorType) -> TensorType:
     # t(Tensor(a) self) -> Tensor(a)
 
     # TODO(justinchuby): Make rank a function
-    rank = op.Shape(op.Shape(self))  # type: ignore[arg-type]
+    rank = op.Size(op.Shape(self))  # type: ignore[arg-type]
     if rank == 0 or rank == 1:  # pylint: disable=consider-using-in
         result = self
     else:
