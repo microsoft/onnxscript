@@ -397,6 +397,7 @@ class TestOutputConsistency(unittest.TestCase):
 
                 if dtype == torch.float32:
                     # Relax atol and rtol for float32 based on empirical results
+                    # The current most relaxed values are for aten::matmul
                     rtol = 3.7e-6
                     atol = 1.8e-5
                 else:
