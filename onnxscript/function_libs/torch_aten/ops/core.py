@@ -17,10 +17,12 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
+from onnx import TensorProto, helper
 from onnxscript import BOOL, INT64
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
+const_zero_int = helper.make_tensor("zero_tensor", TensorProto.INT64, [1], [0])
 
 def aten_abs(self: TensorType) -> TensorType:
     # abs(Tensor self) -> Tensor
@@ -4873,11 +4875,11 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
 def aten_zeros(self, size, dtype: int = -1):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    if dtype == -1:
-        zero = op.Constant(value=0)  # type: ignore[arg-type]
-    else:
-        zero = op.Cast(0, to=dtype)  # type: ignore[arg-type]
-    return op.ConstantOfShape(size, zero)
+    zero = const_zero_int
+    if dtype != -1:
+        zero = helper.make_tensor("zero", dtype, [1], [0])
+
+    return op.ConstantOfShape(size, value=zero)
 
 
 def aten_zeros_like(self, dtype: int = -1):
