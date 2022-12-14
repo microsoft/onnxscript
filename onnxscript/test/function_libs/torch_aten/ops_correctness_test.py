@@ -395,10 +395,20 @@ class TestOutputConsistency(unittest.TestCase):
                     )
                 # pylint: enable=c-extension-no-member
 
+                if dtype == torch.float32:
+                    # Relax atol and rtol for float32 based on empirical results
+                    rtol = 3.7e-6
+                    atol = 1.8e-5
+                else:
+                    rtol = None
+                    atol = None
+
                 # Use torch testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
                     output_torch,
+                    rtol=rtol,
+                    atol=atol,
                 )
 
 
