@@ -162,6 +162,8 @@ def add_decorate_info(
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "abs": core_ops.aten_abs,
+    "acos": core_ops.aten_acos,
+    "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
     "bmm": core_ops.aten_bmm,
@@ -190,6 +192,16 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("add", dtypes=BOOL_TYPES, reason="Add is not defined on bool tensors"),
+    xfail(
+        "acos",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Acos is not defined on bool or int tensors",
+    ),
+    xfail(
+        "acosh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Acosh is not defined on bool or int tensors",
+    ),
     xfail(
         "addmm",
         dtypes=[torch.uint8, torch.int8, torch.int16],
