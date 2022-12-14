@@ -785,9 +785,7 @@ def aten_clamp_min_tensor(self, min_):
     return op.Max(self, min_)
 
 
-def aten_clip(
-    self, min: Optional[float] = None, max: Optional[float] = None
-):
+def aten_clip(self, min: Optional[float] = None, max: Optional[float] = None):
     # clip(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 
     return op.Clip(self, min, max)  # type: ignore[arg-type]
@@ -1556,6 +1554,7 @@ def aten_exp2(self):
     # exp2(Tensor self) -> Tensor
 
     two = op.Constant(value_int=2)
+    two = op.CastLike(two, self)  # type: ignore[arg-type]
     return op.Pow(two, self)  # type: ignore[arg-type]
 
 
