@@ -21,7 +21,6 @@ from onnxscript import (
     INT16,
     INT32,
     INT64,
-    STRING,
     UINT8,
     UINT16,
     UINT32,
@@ -43,7 +42,6 @@ UnlessBool = Union[
     UINT16,
     UINT32,
     UINT64,
-    STRING,
     COMPLEX64,
     COMPLEX128,
 ]
