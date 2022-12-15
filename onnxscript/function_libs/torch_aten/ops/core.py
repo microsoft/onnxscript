@@ -332,22 +332,22 @@ def aten_as_strided_scatter(
     raise NotImplementedError()
 
 
-def aten_asin(self: TensorType) -> TensorType:
+def aten_asin(self):
     # asin(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Asin(self)
 
 
-def aten_asinh(self: TensorType) -> TensorType:
+def aten_asinh(self):
     # asinh(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Asinh(self)
 
 
-def aten_atan(self: TensorType) -> TensorType:
+def aten_atan(self):
     # atan(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Atan(self)
 
 
 def aten_atan2(self: TensorType, other: TensorType) -> TensorType:
@@ -356,10 +356,10 @@ def aten_atan2(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_atanh(self: TensorType) -> TensorType:
+def aten_atanh(self):
     # atanh(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Atanh(self)
 
 
 def aten_atleast_1d(self: TensorType) -> TensorType:
@@ -670,16 +670,10 @@ def aten_cdist(
     raise NotImplementedError()
 
 
-def aten_ceil(self: TensorType) -> TensorType:
+def aten_ceil(self):
     # ceil(Tensor self) -> Tensor
 
-    raise NotImplementedError()
-
-
-def aten_celu(self: TensorType, alpha: float = 1.0) -> TensorType:
-    # celu(Tensor self, Scalar alpha=1.0) -> Tensor
-
-    raise NotImplementedError()
+    return op.Ceil(self)
 
 
 def aten_chain_matmul(matrices: Sequence[TensorType]) -> TensorType:
@@ -783,14 +777,6 @@ def aten_clamp_min_tensor(self, min_):
     # clamp_min(Tensor self, Tensor min) -> Tensor
     # TODO(justinchuby): Specify the type constraints.
     return op.Max(self, min_)
-
-
-def aten_clip(
-    self: TensorType, min: Optional[float] = None, max: Optional[float] = None
-) -> TensorType:
-    # clip(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
-
-    raise NotImplementedError()
 
 
 def aten_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -1031,16 +1017,16 @@ def aten_corrcoef(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_cos(self: TensorType) -> TensorType:
+def aten_cos(self):
     # cos(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Cos(self)
 
 
-def aten_cosh(self: TensorType) -> TensorType:
+def aten_cosh(self):
     # cosh(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Cosh(self)
 
 
 def aten_cosine_embedding_loss(
@@ -1406,10 +1392,10 @@ def aten_divide(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_dot(self: TensorType, tensor: TensorType) -> TensorType:
+def aten_dot(self, tensor):
     # dot(Tensor self, Tensor tensor) -> Tensor
 
-    raise NotImplementedError()
+    return op.MatMul(self, tensor)
 
 
 def aten_dropout(input: TensorType, p: float, train: bool) -> TensorType:
@@ -1546,16 +1532,18 @@ def aten_erfinv(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_exp(self: TensorType) -> TensorType:
+def aten_exp(self):
     # exp(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Exp(self)
 
 
-def aten_exp2(self: TensorType) -> TensorType:
+def aten_exp2(self):
     # exp2(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    two = op.Constant(value_int=2)
+    two = op.CastLike(two, self)  # type: ignore[arg-type]
+    return op.Pow(two, self)  # type: ignore[arg-type]
 
 
 def aten_expand(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:
@@ -4205,22 +4193,16 @@ def aten_signbit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_sin(self: TensorType) -> TensorType:
+def aten_sin(self):
     # sin(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sin(self)
 
 
-def aten_sinc(self: TensorType) -> TensorType:
-    # sinc(Tensor self) -> Tensor
-
-    raise NotImplementedError()
-
-
-def aten_sinh(self: TensorType) -> TensorType:
+def aten_sinh(self):
     # sinh(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sinh(self)
 
 
 def aten_slice(
@@ -4483,16 +4465,16 @@ def aten_take_along_dim(
     raise NotImplementedError()
 
 
-def aten_tan(self: TensorType) -> TensorType:
+def aten_tan(self):
     # tan(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Tan(self)
 
 
-def aten_tanh(self: TensorType) -> TensorType:
+def aten_tanh(self):
     # tanh(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Tanh(self)
 
 
 def aten_tensordot(

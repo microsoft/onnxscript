@@ -150,6 +150,12 @@ def aten_binary_cross_entropy_backward(
     raise NotImplementedError()
 
 
+def aten_celu(self, alpha: float = 1.0):
+    # celu(Tensor self, Scalar alpha=1.0) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_col2im(
     self: TensorType,
     output_size: INT64,
