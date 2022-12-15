@@ -4858,13 +4858,23 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_zeros(size: INT64) -> TensorType:
+def aten_zeros(size, dtype: int = -1):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    zero = op.Constant(value_float=0)
+    if dtype != -1:
+        zero = op.Cast(zero, to=dtype)  # type: ignore[arg-type]
+
+    return op.Expand(zero, size)  # type: ignore[arg-type]
 
 
-def aten_zeros_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+def aten_zeros_like(self, dtype: int = -1):
     # zeros_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    shape = op.Shape(self)
+    if dtype == -1:
+        zero = op.CastLike(0, self)  # type: ignore[arg-type]
+    else:
+        zero = op.Cast(0, to=dtype)  # type: ignore[arg-type]
+
+    return op.Expand(zero, shape)
