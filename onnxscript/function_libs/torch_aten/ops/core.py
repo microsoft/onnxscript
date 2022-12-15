@@ -2680,10 +2680,10 @@ def aten_masked_select_backward(
     raise NotImplementedError()
 
 
-def aten_matmul(self: TensorType, other: TensorType) -> TensorType:
+def aten_matmul(self, other):
     # matmul(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.MatMul(self, other)
 
 
 def aten_matmul_backward(
@@ -3080,10 +3080,11 @@ def aten_mkldnn_max_pool3d_backward(
     raise NotImplementedError()
 
 
-def aten_mm(self: TensorType, mat2: TensorType) -> TensorType:
+def aten_mm(self, mat2):
     # mm(Tensor self, Tensor mat2) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Specify type conversion for uint8/int8/int16
+    return op.MatMul(self, mat2)
 
 
 def aten_mode(
@@ -3463,16 +3464,13 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_numpy_T(self: TensorType) -> TensorType:
-    # numpy_T(Tensor(a) self) -> Tensor(a)
-
-    raise NotImplementedError()
-
-
-def aten_ones(size: INT64) -> TensorType:
+def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    one = op.Constant(value_float=1)
+    if dtype != -1:
+        one = op.Cast(one, to=dtype)  # type: ignore[arg-type]
+    return op.Expand(one, size)  # type: ignore[arg-type]
 
 
 def aten_ones_like(self, dtype: int = -1):
@@ -4461,7 +4459,13 @@ def aten_symeig(
 def aten_t(self: TensorType) -> TensorType:
     # t(Tensor(a) self) -> Tensor(a)
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Make rank a function
+    rank = op.Size(op.Shape(self))  # type: ignore[arg-type]
+    if rank == 0 or rank == 1:  # pylint: disable=consider-using-in
+        result = self
+    else:
+        result = op.Transpose(self, perm=[1, 0])  # type: ignore[arg-type]
+    return result
 
 
 def aten_t_copy(self: TensorType) -> TensorType:
@@ -4604,6 +4608,13 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     # trace_backward(Tensor grad, SymInt[] sizes) -> Tensor
 
     raise NotImplementedError()
+
+
+def aten_transpose(self, dim0: int, dim1: int):
+    # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
+
+    # FIXME(justinchuby): onnxscript raises Unsupported expression type
+    return op.Transpose(self, [dim0, dim1])
 
 
 def aten_triangular_solve(

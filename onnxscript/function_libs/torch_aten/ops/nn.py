@@ -407,12 +407,21 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-def aten_linear(
-    input: TensorType, weight: TensorType, bias: Optional[TensorType] = None
-) -> TensorType:
+def aten_linear(input, weight, bias=None) -> TensorType:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
-    raise NotImplementedError()
+    # FIXME(justinchuby): Enable the test
+    # INVALID_GRAPH : This is an invalid model.
+    # In Node, ("", OptionalHasElement, "", -1) : () -> ("output0",) ,
+    # Error Node () has input size 0 not in range [min=1, max=1]
+
+    # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
+    # Optimizers may consider this path and replace it with Gemm
+    result = op.MatMul(input, weight)
+    if op.OptionalHasElement(bias):
+        bias = op.OptionalGetElement(bias)
+        result = op.Add(result, bias)  # type: ignore[arg-type]
+    return result
 
 
 def aten_log_sigmoid(self: TensorType) -> TensorType:
