@@ -201,7 +201,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "tanh": core_ops.aten_tanh,
     # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
     "zeros": core_ops.aten_zeros,
-    "zeros_like": core_ops.aten_zeros_like
+    "zeros_like": core_ops.aten_zeros_like,
 }
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
