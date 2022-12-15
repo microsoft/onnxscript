@@ -676,12 +676,6 @@ def aten_ceil(self):
     return op.Ceil(self)
 
 
-def aten_celu(self, alpha: float = 1.0):
-    # celu(Tensor self, Scalar alpha=1.0) -> Tensor
-
-    return op.Celu(self, alpha)
-
-
 def aten_chain_matmul(matrices: Sequence[TensorType]) -> TensorType:
     # chain_matmul(Tensor[] matrices) -> Tensor
 
@@ -783,12 +777,6 @@ def aten_clamp_min_tensor(self, min_):
     # clamp_min(Tensor self, Tensor min) -> Tensor
     # TODO(justinchuby): Specify the type constraints.
     return op.Max(self, min_)
-
-
-def aten_clip(self, min: Optional[float] = None, max: Optional[float] = None):
-    # clip(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
-
-    return op.Clip(self, min, max)  # type: ignore[arg-type]
 
 
 def aten_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
