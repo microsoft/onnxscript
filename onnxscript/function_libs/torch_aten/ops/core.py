@@ -22,28 +22,22 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-def aten_abs(self: TensorType) -> TensorType:
+def aten_abs(self):
     # abs(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Abs(self)
 
 
-def aten_absolute(self: TensorType) -> TensorType:
-    # absolute(Tensor self) -> Tensor
-
-    raise NotImplementedError()
-
-
-def aten_acos(self: TensorType) -> TensorType:
+def aten_acos(self):
     # acos(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Acos(self)
 
 
-def aten_acosh(self: TensorType) -> TensorType:
+def aten_acosh(self):
     # acosh(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Acosh(self)
 
 
 def aten_adaptive_avg_pool1d(self: TensorType, output_size: Sequence[int]) -> TensorType:
@@ -91,12 +85,13 @@ def aten_addcmul(
     raise NotImplementedError()
 
 
-def aten_addmm(
-    self: TensorType, mat1: TensorType, mat2: TensorType, beta: float = 1, alpha: float = 1
-) -> TensorType:
+def aten_addmm(self, mat1, mat2, beta: float = 1, alpha: float = 1):
     # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    mat1_mat2 = op.MatMul(mat1, mat2)
+    scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)  # type: ignore[arg-type]
+    scaled_self = op.Mul(self, beta)  # type: ignore[arg-type]
+    return op.Add(scaled_self, scaled_mat1_mat2)  # type: ignore[arg-type]
 
 
 def aten_addmv(
@@ -611,10 +606,10 @@ def aten_block_diag(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_bmm(self: TensorType, mat2: TensorType) -> TensorType:
+def aten_bmm(self, mat2):
     # bmm(Tensor self, Tensor mat2) -> Tensor
 
-    raise NotImplementedError()
+    return op.MatMul(self, mat2)
 
 
 def aten_broadcast_tensors(tensors: Sequence[TensorType]) -> TensorType:

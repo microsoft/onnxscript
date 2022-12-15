@@ -161,7 +161,12 @@ def add_decorate_info(
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
+    "abs": core_ops.aten_abs,
+    "acos": core_ops.aten_acos,
+    "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
+    "addmm": core_ops.aten_addmm,
+    "bmm": core_ops.aten_bmm,
     "clamp_max": core_ops.aten_clamp_max_tensor,
     "clamp_min": core_ops.aten_clamp_min_tensor,
     "clamp": core_ops.aten_clamp,
@@ -187,6 +192,32 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("add", dtypes=BOOL_TYPES, reason="Add is not defined on bool tensors"),
+    xfail(
+        "acos",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Acos is not defined on bool or int tensors",
+    ),
+    xfail(
+        "acosh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Acosh is not defined on bool or int tensors",
+    ),
+    xfail(
+        "addmm",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
+    xfail(
+        "addmm",
+        variant_name="decomposed",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
+    xfail(
+        "bmm",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
     skip("clamp", reason="Enable when onnxscript errors are fixed"),
     xfail("clamp_max", dtypes=BOOL_TYPES, reason="Min is not defined on bool tensors"),
     xfail("clamp_min", dtypes=BOOL_TYPES, reason="Max is not defined on bool tensors"),
