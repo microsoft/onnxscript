@@ -17,7 +17,9 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-from onnxscript import BOOL, INT64
+from onnxscript import INT64
+from onnxscript.function_libs.torch_aten.registration import torch_op
+from onnxscript.function_libs.torch_aten.typing import TBool, TUnlessBool
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -3129,13 +3131,15 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_mul(self, other) -> TensorType:
+@torch_op("aten::mul")
+def aten_mul(self: TUnlessBool, other: TUnlessBool) -> TUnlessBool:
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.Mul(self, other)
 
 
-def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
+@torch_op("aten::mul", overload=True)
+def aten_mul_bool(self: TBool, other: TBool) -> TBool:
     """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
 
     # TODO(justinchuby): Handle cases where type reconcilation is not enough,
