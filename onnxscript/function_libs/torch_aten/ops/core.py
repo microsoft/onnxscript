@@ -22,7 +22,6 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-
 def aten_abs(self):
     # abs(Tensor self) -> Tensor
 
