@@ -420,6 +420,9 @@ def aten_linear(input, weight, bias=None) -> TensorType:
     # INVALID_GRAPH : This is an invalid model.
     # In Node, ("", OptionalHasElement, "", -1) : () -> ("output0",) ,
     # Error Node () has input size 0 not in range [min=1, max=1]
+
+    # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
+    # Optimizers may consider this path and replace it with Gemm
     result = op.MatMul(input, weight)
     if op.OptionalHasElement(bias):
         bias = op.OptionalGetElement(bias)
