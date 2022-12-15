@@ -119,7 +119,7 @@ def skip(
     return DecorateMeta(
         op_name=op_name,
         variant_name=variant_name,
-        decorator=unittest.skip(f"Don't care: {reason}"),
+        decorator=unittest.skip(f"Skip: {reason}"),
         dtypes=dtypes,
         reason=reason,
         matcher=matcher,
@@ -161,37 +161,154 @@ def add_decorate_info(
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
+    "abs": core_ops.aten_abs,
+    "acos": core_ops.aten_acos,
+    "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
-    # "clamp": core_ops.aten_clamp,  # TODO(justinchuby): Enable
+    "addmm": core_ops.aten_addmm,
+    "asin": core_ops.aten_asin,
+    "asinh": core_ops.aten_asinh,
+    "atan": core_ops.aten_atan,
+    "atanh": core_ops.aten_atanh,
+    "bmm": core_ops.aten_bmm,
+    "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max_tensor,
     "clamp_min": core_ops.aten_clamp_min_tensor,
+    "clamp": core_ops.aten_clamp,
+    "cos": core_ops.aten_cos,
+    "cosh": core_ops.aten_cosh,
+    "dot": core_ops.aten_dot,
+    "exp": core_ops.aten_exp,
+    "exp2": core_ops.aten_exp2,
     "gt": core_ops.aten_gt,
     "lt": core_ops.aten_lt,
+    "matmul": core_ops.aten_matmul,
+    "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
     "nn.functional.elu": nn_ops.aten_elu,
+    "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
     "ones_like": core_ops.aten_ones_like,
+    "ones": core_ops.aten_ones,
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
+    "sin": core_ops.aten_sin,
+    "sinh": core_ops.aten_sinh,
     "sub": core_ops.aten_sub,
+    "t": core_ops.aten_t,
+    "tan": core_ops.aten_tan,
+    "tanh": core_ops.aten_tanh,
+    # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
     "zeros": core_ops.aten_zeros,
-    "zeros_like": core_ops.aten_zeros_like,
+    "zeros_like": core_ops.aten_zeros_like
 }
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("add", dtypes=BOOL_TYPES, reason="Add is not defined on bool tensors"),
+    xfail(
+        "acos",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Acos is not defined on bool or int tensors",
+    ),
+    xfail(
+        "acosh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Acosh is not defined on bool or int tensors",
+    ),
+    xfail(
+        "addmm",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+        # TODO(justinchuby): Use MatMulInteger
+    ),
+    xfail(
+        "addmm",
+        variant_name="decomposed",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
+    xfail(
+        "asin",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Asin is not defined on bool or int tensors",
+    ),
+    xfail(
+        "asinh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Asinh is not defined on bool or int tensors",
+    ),
+    xfail(
+        "atan",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Atan is not defined on bool or int tensors",
+    ),
+    xfail(
+        "atanh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Atanh is not defined on bool or int tensors",
+    ),
+    xfail(
+        "bmm",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
+    xfail(
+        "ceil",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Ceil is not defined on bool or int tensors",
+    ),
+    skip("clamp", reason="Enable when onnxscript errors are fixed"),
     xfail("clamp_max", dtypes=BOOL_TYPES, reason="Min is not defined on bool tensors"),
     xfail("clamp_min", dtypes=BOOL_TYPES, reason="Max is not defined on bool tensors"),
+    xfail(
+        "cos",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Cos is not defined on bool or int tensors",
+    ),
+    xfail(
+        "cosh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Cosh is not defined on bool or int tensors",
+    ),
+    xfail(
+        "dot",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
+    xfail(
+        "exp",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Exp is not defined on bool or int tensors",
+    ),
+    xfail(
+        "exp2",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Pow is not defined on bool or int tensors",
+    ),
     xfail("gt", dtypes=BOOL_TYPES, reason="Greater is not defined on bool tensors"),
     xfail("lt", dtypes=BOOL_TYPES, reason="Less is not defined on bool tensors"),
+    xfail(
+        "matmul",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
+    xfail(
+        "mm",
+        dtypes=[torch.uint8, torch.int8, torch.int16],
+        reason="MatMul is not defined on int16/int8/uint8 tensors",
+    ),
     xfail("mul", dtypes=BOOL_TYPES, reason="Mul is not defined on bool tensors"),
     xfail(
         "nn.functional.elu",
         dtypes=dtypes_except(torch.float16, torch.float32),
         reason="ONNX Runtime doesn't support float64 for Elu",
+    ),
+    xfail(
+        "nn.functional.linear",
+        reason="ONNX Runtime thinks the graph is invalid",
     ),
     xfail(
         "nn.functional.relu6",
@@ -214,7 +331,28 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "round", variant_name="decimals_neg_3", reason="The ATen op does not support decimals"
     ),
+    xfail(
+        "sin",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Sin is not defined on bool or int tensors",
+    ),
+    xfail(
+        "sinh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Sinh is not defined on bool or int tensors",
+    ),
     xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
+    xfail(
+        "tan",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Tan is not defined on bool or int tensors",
+    ),
+    xfail(
+        "tanh",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Tanh is not defined on bool or int tensors",
+    ),
+    xfail("transpose", reason="Enable when onnxscript errors are fixed"),
 )
 
 
@@ -241,6 +379,10 @@ OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+
+ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
+# Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
+assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
 
 
 TORCH_TYPE_TO_ONNX = {
@@ -371,10 +513,21 @@ class TestOutputConsistency(unittest.TestCase):
                     )
                 # pylint: enable=c-extension-no-member
 
+                if dtype == torch.float32:
+                    # Relax atol and rtol for float32 based on empirical results
+                    # The current most relaxed values are for aten::matmul
+                    rtol = 3.7e-6
+                    atol = 1.8e-5
+                else:
+                    rtol = None
+                    atol = None
+
                 # Use torch testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
                     output_torch,
+                    rtol=rtol,
+                    atol=atol,
                 )
 
 
