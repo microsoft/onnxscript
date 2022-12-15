@@ -175,6 +175,8 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
     "sub": core_ops.aten_sub,
+    "zeros": core_ops.aten_zeros,
+    "zeros_like": core_ops.aten_zeros_like,
 }
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
