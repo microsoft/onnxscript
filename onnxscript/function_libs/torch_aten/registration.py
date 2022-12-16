@@ -22,19 +22,13 @@ class Registry:
     def __init__(self):
         self._registry: dict[str, OverloadedFunction] = {}
 
-    def register(self, name: str, overload: bool = False):
+    def register(self, func: Any, name: str, *, overload: bool = False) -> None:
         """Register a function."""
 
-        def wrapper(func):
-            if overload:
-                self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(
-                    func
-                )
-            else:
-                self._registry.setdefault(name, OverloadedFunction(name)).default = func
-            return func
-
-        return wrapper
+        if overload:
+            self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
+        else:
+            self._registry.setdefault(name, OverloadedFunction(name)).default = func
 
     def __getitem__(self, name):
         return self._registry[name]
@@ -69,7 +63,8 @@ def torch_op(name, overload: bool = False, registry: Optional[Registry] = None):
         # Compile the function
         compiled = onnxscript.script()(func)
 
-        registry.register(name, overload=overload)(compiled)
+        assert registry is not None
+        registry.register(compiled, name, overload=overload)
         return compiled
 
     return wrapper
