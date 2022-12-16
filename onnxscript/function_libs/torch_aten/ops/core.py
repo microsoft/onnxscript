@@ -4599,8 +4599,8 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
 def aten_transpose(self, dim0: int, dim1: int):
     # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
 
-    perm = op.SequenceConstruct(dim0, dim1)  # type: ignore[arg-type]
-    return op.Transpose(self, perm)  # type: ignore[arg-type]
+    # FIXME(justinchuby): onnxscript raises Unsupported expression type
+     return op.Transpose(self, [dim0, dim1])
 
 
 def aten_triangular_solve(
