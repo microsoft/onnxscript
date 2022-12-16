@@ -740,6 +740,7 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::clamp")
 def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 

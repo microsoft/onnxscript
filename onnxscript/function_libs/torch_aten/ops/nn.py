@@ -415,6 +415,7 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::linear")
 def aten_linear(input, weight, bias=None) -> TensorType:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
