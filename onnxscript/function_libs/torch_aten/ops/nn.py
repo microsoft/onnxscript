@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import INT64
+from onnxscript.function_libs.torch_aten.typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -197,11 +198,11 @@ def aten_cross_entropy_loss(
 
 
 def aten_elu(
-    self,
+    self: TFloat,
     alpha: float = 1.0,
     scale: float = 1.0,
     input_scale: float = 1.0,
-):
+) -> TFloat:
     # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
 
     # del scale
@@ -413,7 +414,7 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-def aten_linear(input, weight, bias=None) -> TensorType:
+def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TensorType:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
     # FIXME(justinchuby): Enable the test
@@ -799,8 +800,7 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-# TODO(justinchuby): Use TFloat as return type
-def aten_relu6(self):
+def aten_relu6(self: TFloat) -> TFloat:
     # relu6(Tensor self) -> Tensor
 
     return op.Min(op.Relu(self), op.Constant(value_float=6.0))  # type: ignore[arg-type]

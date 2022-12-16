@@ -18,23 +18,24 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence
 
 from onnxscript import BOOL, INT64
+from onnxscript.function_libs.torch_aten.typing import TFloat, TReal, TTensor
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-def aten_abs(self):
+def aten_abs(self: TReal) -> TReal:
     # abs(Tensor self) -> Tensor
 
     return op.Abs(self)
 
 
-def aten_acos(self):
+def aten_acos(self: TFloat) -> TFloat:
     # acos(Tensor self) -> Tensor
 
     return op.Acos(self)
 
 
-def aten_acosh(self):
+def aten_acosh(self: TFloat) -> TFloat:
     # acosh(Tensor self) -> Tensor
 
     return op.Acosh(self)
@@ -54,7 +55,7 @@ def aten_adaptive_max_pool1d(
     raise NotImplementedError()
 
 
-def aten_add(self, other, alpha: float = 1) -> TensorType:
+def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     if alpha != 1:
         other = op.Mul(other, alpha)  # type: ignore[arg-type]
@@ -85,7 +86,9 @@ def aten_addcmul(
     raise NotImplementedError()
 
 
-def aten_addmm(self, mat1, mat2, beta: float = 1, alpha: float = 1):
+def aten_addmm(
+    self: TFloat, mat1: TFloat, mat2: TFloat, beta: float = 1, alpha: float = 1
+) -> TFloat:
     # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
     mat1_mat2 = op.MatMul(mat1, mat2)
@@ -332,19 +335,19 @@ def aten_as_strided_scatter(
     raise NotImplementedError()
 
 
-def aten_asin(self):
+def aten_asin(self: TFloat) -> TFloat:
     # asin(Tensor self) -> Tensor
 
     return op.Asin(self)
 
 
-def aten_asinh(self):
+def aten_asinh(self: TFloat) -> TFloat:
     # asinh(Tensor self) -> Tensor
 
     return op.Asinh(self)
 
 
-def aten_atan(self):
+def aten_atan(self: TFloat) -> TFloat:
     # atan(Tensor self) -> Tensor
 
     return op.Atan(self)
@@ -356,7 +359,7 @@ def aten_atan2(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_atanh(self):
+def aten_atanh(self: TFloat) -> TFloat:
     # atanh(Tensor self) -> Tensor
 
     return op.Atanh(self)
@@ -606,7 +609,7 @@ def aten_block_diag(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_bmm(self, mat2):
+def aten_bmm(self: TFloat, mat2: TFloat) -> TFloat:
     # bmm(Tensor self, Tensor mat2) -> Tensor
 
     return op.MatMul(self, mat2)
@@ -670,7 +673,7 @@ def aten_cdist(
     raise NotImplementedError()
 
 
-def aten_ceil(self):
+def aten_ceil(self: TFloat) -> TFloat:
     # ceil(Tensor self) -> Tensor
 
     return op.Ceil(self)
@@ -728,7 +731,9 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
+def aten_clamp(
+    self: TReal, min_: Optional[float] = None, max_: Optional[float] = None
+) -> TReal:
     # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 
     # TODO(justinchuby): Handle integer inputs
@@ -752,20 +757,20 @@ def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     return clamped
 
 
-def aten_clamp_max_scalar(self, max_):
+def aten_clamp_max_scalar(self: TReal, max_: float) -> TReal:
     # clamp_max(Tensor self, Scalar max) -> Tensor
 
     max_ = op.CastLike(max_, self)
     return op.Clip(self, None, max_)
 
 
-def aten_clamp_max_tensor(self, max_):
+def aten_clamp_max_tensor(self: TReal, max_: TReal) -> TReal:
     # clamp_max(Tensor self, Scalar max) -> Tensor
 
     return op.Min(self, max_)
 
 
-def aten_clamp_min_scalar(self, min_):
+def aten_clamp_min_scalar(self: TReal, min_: float) -> TReal:
     # clamp_min(Tensor self, Scalar min) -> Tensor
     # NOTE: min_ is a rank 0 tensor.
     # TODO(justinchuby): Specify the type constraints.
@@ -773,7 +778,7 @@ def aten_clamp_min_scalar(self, min_):
     return op.Clip(self, min_, None)
 
 
-def aten_clamp_min_tensor(self, min_):
+def aten_clamp_min_tensor(self: TReal, min_: TReal) -> TReal:
     # clamp_min(Tensor self, Tensor min) -> Tensor
     # TODO(justinchuby): Specify the type constraints.
     return op.Max(self, min_)
@@ -1017,13 +1022,13 @@ def aten_corrcoef(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_cos(self):
+def aten_cos(self: TFloat) -> TFloat:
     # cos(Tensor self) -> Tensor
 
     return op.Cos(self)
 
 
-def aten_cosh(self):
+def aten_cosh(self: TFloat) -> TFloat:
     # cosh(Tensor self) -> Tensor
 
     return op.Cosh(self)
@@ -1392,7 +1397,7 @@ def aten_divide(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_dot(self, tensor):
+def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     # dot(Tensor self, Tensor tensor) -> Tensor
 
     return op.MatMul(self, tensor)
@@ -1532,13 +1537,13 @@ def aten_erfinv(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_exp(self):
+def aten_exp(self: TFloat) -> TFloat:
     # exp(Tensor self) -> Tensor
 
     return op.Exp(self)
 
 
-def aten_exp2(self):
+def aten_exp2(self: TFloat) -> TFloat:
     # exp2(Tensor self) -> Tensor
 
     two = op.Constant(value_int=2)
@@ -1972,7 +1977,7 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-def aten_gt(self, other):
+def aten_gt(self: TReal, other: TReal) -> BOOL:
     # gt.Tensor(Tensor self, Tensor other) -> Tensor
 
     # TODO(justinchuby): Input spec: non bool tensor
@@ -2588,7 +2593,7 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-def aten_lt(self, other):
+def aten_lt(self: TReal, other: TReal) -> BOOL:
     # lt.Tensor(Tensor self, Tensor other) -> Tensor
 
     # TODO(justinchuby): Input spec: non bool tensor
@@ -2663,7 +2668,7 @@ def aten_masked_select_backward(
     raise NotImplementedError()
 
 
-def aten_matmul(self, other):
+def aten_matmul(self: TFloat, other: TFloat) -> TFloat:
     # matmul(Tensor self, Tensor other) -> Tensor
 
     return op.MatMul(self, other)
@@ -3063,7 +3068,7 @@ def aten_mkldnn_max_pool3d_backward(
     raise NotImplementedError()
 
 
-def aten_mm(self, mat2):
+def aten_mm(self: TFloat, mat2: TFloat) -> TFloat:
     # mm(Tensor self, Tensor mat2) -> Tensor
 
     # TODO(justinchuby): Specify type conversion for uint8/int8/int16
@@ -3129,7 +3134,7 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_mul(self, other) -> TensorType:
+def aten_mul(self: TReal, other: TReal) -> TReal:
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.Mul(self, other)
@@ -3447,7 +3452,7 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
+def aten_ones(size: INT64, dtype: int = -1):
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     one = op.Constant(value_float=1)
@@ -3456,7 +3461,7 @@ def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
     return op.Expand(one, size)  # type: ignore[arg-type]
 
 
-def aten_ones_like(self, dtype: int = -1):
+def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
     """ones_like.
 
     Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
@@ -3942,7 +3947,7 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
-def aten_repeat(self, repeats: INT64):
+def aten_repeat(self: TTensor, repeats: INT64) -> TTensor:
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     # FIXME(justinchuby): When repeats.shape == [0]
@@ -4047,7 +4052,7 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
     raise NotImplementedError()
 
 
-def aten_round(self):
+def aten_round(self: TFloat) -> TFloat:
     # round(Tensor self) -> Tensor
 
     return op.Round(self)
@@ -4157,7 +4162,7 @@ def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int)
     raise NotImplementedError()
 
 
-def aten_selu(self):
+def aten_selu(self: TFloat) -> TFloat:
     # selu(Tensor self) -> Tensor
 
     return op.Selu(self)
@@ -4193,13 +4198,13 @@ def aten_signbit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_sin(self):
+def aten_sin(self: TFloat) -> TFloat:
     # sin(Tensor self) -> Tensor
 
     return op.Sin(self)
 
 
-def aten_sinh(self):
+def aten_sinh(self: TFloat) -> TFloat:
     # sinh(Tensor self) -> Tensor
 
     return op.Sinh(self)
@@ -4378,7 +4383,7 @@ def aten_stft(
     raise NotImplementedError()
 
 
-def aten_sub(self, other, alpha: float = 1) -> TensorType:
+def aten_sub(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     if alpha != 1:
@@ -4433,7 +4438,7 @@ def aten_symeig(
     raise NotImplementedError()
 
 
-def aten_t(self: TensorType) -> TensorType:
+def aten_t(self: TTensor) -> TTensor:
     # t(Tensor(a) self) -> Tensor(a)
 
     # TODO(justinchuby): Make rank a function
@@ -4465,13 +4470,13 @@ def aten_take_along_dim(
     raise NotImplementedError()
 
 
-def aten_tan(self):
+def aten_tan(self: TFloat) -> TFloat:
     # tan(Tensor self) -> Tensor
 
     return op.Tan(self)
 
 
-def aten_tanh(self):
+def aten_tanh(self: TFloat) -> TFloat:
     # tanh(Tensor self) -> Tensor
 
     return op.Tanh(self)
@@ -4858,7 +4863,7 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_zeros(size, dtype: int = -1):
+def aten_zeros(size: INT64, dtype: int = -1):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     zero = op.Constant(value_float=0)
@@ -4868,7 +4873,7 @@ def aten_zeros(size, dtype: int = -1):
     return op.Expand(zero, size)  # type: ignore[arg-type]
 
 
-def aten_zeros_like(self, dtype: int = -1):
+def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
     # zeros_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     shape = op.Shape(self)
