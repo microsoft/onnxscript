@@ -752,31 +752,40 @@ def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     return clamped
 
 
-def aten_clamp_max_scalar(self, max_):
-    # clamp_max(Tensor self, Scalar max) -> Tensor
+def aten_clamp_max(self, max_):
+    # clamp_max(Tensor self, Tensor max) -> Tensor
 
-    max_ = op.CastLike(max_, self)
-    return op.Clip(self, None, max_)
+    self_size = op.Size(self)
+    max_shape = op.Shape(max_)
+    max_rank = op.Size(max_shape)
+    if self_size == 0:
+        result = op.Expand(self, max_shape)
+    else:
+        if max_rank == 0:
+            max_ = op.CastLike(max_, self)
+            result = op.Clip(self, None, max_)
+        else:
+            result = op.Min(self, max_)
 
-
-def aten_clamp_max_tensor(self, max_):
-    # clamp_max(Tensor self, Scalar max) -> Tensor
-
-    return op.Min(self, max_)
-
-
-def aten_clamp_min_scalar(self, min_):
-    # clamp_min(Tensor self, Scalar min) -> Tensor
-    # NOTE: min_ is a rank 0 tensor.
-    # TODO(justinchuby): Specify the type constraints.
-    min_ = op.CastLike(min_, self)
-    return op.Clip(self, min_, None)
+    return result
 
 
-def aten_clamp_min_tensor(self, min_):
+def aten_clamp_min(self, min_):
     # clamp_min(Tensor self, Tensor min) -> Tensor
-    # TODO(justinchuby): Specify the type constraints.
-    return op.Max(self, min_)
+
+    self_size = op.Size(self)
+    min_shape = op.Shape(min_)
+    min_rank = op.Size(min_shape)
+    if self_size == 0:
+        result = op.Expand(self, min_shape)
+    else:
+        if min_rank == 0:
+            min_ = op.CastLike(min_, self)
+            result = op.Clip(self, min_, None)
+        else:
+            result = op.Max(self, min_)
+
+    return result
 
 
 def aten_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -4590,8 +4599,8 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
 def aten_transpose(self, dim0: int, dim1: int):
     # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
 
-    # FIXME(justinchuby): onnxscript raises Unsupported expression type
-    return op.Transpose(self, [dim0, dim1])
+    perm = op.SequenceConstruct(dim0, dim1)  # type: ignore[arg-type]
+    return op.Transpose(self, perm)  # type: ignore[arg-type]
 
 
 def aten_triangular_solve(

@@ -172,8 +172,8 @@ OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
     "ceil": core_ops.aten_ceil,
-    "clamp_max": core_ops.aten_clamp_max_tensor,
-    "clamp_min": core_ops.aten_clamp_min_tensor,
+    "clamp_max": core_ops.aten_clamp_max,
+    "clamp_min": core_ops.aten_clamp_min,
     "clamp": core_ops.aten_clamp,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
@@ -357,16 +357,6 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 
 SKIP_SUBTESTS = (
-    skip(
-        "clamp_max",
-        reason="Empty tensor not yet supported",
-        matcher=lambda sample: sample.input.size() == torch.Size([0]),
-    ),
-    skip(
-        "clamp_min",
-        reason="Empty tensor not yet supported",
-        matcher=lambda sample: sample.input.size() == torch.Size([0]),
-    ),
     skip(
         "repeat",
         reason="repeating when input is a scalar and repeats is empty is not supported",
