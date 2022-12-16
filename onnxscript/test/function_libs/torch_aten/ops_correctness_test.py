@@ -160,7 +160,7 @@ def add_decorate_info(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-OPINFO_FUNCTION_MAPPING: dict[str, Callable[..., Any]] = {
+OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
@@ -401,17 +401,6 @@ TORCH_TYPE_TO_ONNX = {
 }
 
 
-class TestFunctionsCompilation(unittest.TestCase):
-    """Test all functions can be compiled."""
-
-    @parameterized.parameterized.expand(
-        list(OPINFO_FUNCTION_MAPPING.items()),
-    )
-    def test_function_compiles(self, _, function):
-        compiled = onnxscript.script()(function)
-        compiled.to_function_proto()
-
-
 def _convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, torch.Tensor):
         return input.detach().cpu().numpy()
@@ -488,7 +477,6 @@ class TestOutputConsistency(unittest.TestCase):
         )
 
         onnx_function = OPINFO_FUNCTION_MAPPING[op.name]
-        scripted_function = onnxscript.script()(onnx_function)
 
         for (i, cpu_sample) in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
@@ -505,7 +493,7 @@ class TestOutputConsistency(unittest.TestCase):
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
                 output_torch = op(*inputs, **cpu_sample.kwargs)
                 try:
-                    function_output = scripted_function(*input_onnx, **kwargs_onnx)
+                    function_output = onnx_function(*input_onnx, **kwargs_onnx)
                 # pylint: disable=c-extension-no-member
                 except onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented:
                     self.skipTest(
