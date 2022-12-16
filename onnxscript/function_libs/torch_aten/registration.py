@@ -53,7 +53,9 @@ class Registry:
 default_registry = Registry()
 
 
-def torch_op(name, overload: bool = False, registry: Optional[Registry] = None):
+def torch_op(
+    name, overload: bool = False, registry: Optional[Registry] = None
+) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction]:
     """Register a torch op."""
     if registry is None:
         registry = default_registry
