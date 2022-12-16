@@ -4600,7 +4600,7 @@ def aten_transpose(self, dim0: int, dim1: int):
     # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
 
     # FIXME(justinchuby): onnxscript raises Unsupported expression type
-     return op.Transpose(self, [dim0, dim1])
+    return op.Transpose(self, [dim0, dim1])
 
 
 def aten_triangular_solve(
