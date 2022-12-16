@@ -9,7 +9,6 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 import numpy as np
 import onnx
 import onnxruntime.capi.onnxruntime_pybind11_state
-import parameterized
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core

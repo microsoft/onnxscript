@@ -39,12 +39,6 @@ class Registry:
     def __iter__(self):
         return iter(self._registry)
 
-    def __len__(self):
-        return len(self._registry)
-
-    def __str__(self):
-        return str(self._registry)
-
     def __repr__(self):
         return repr(self._registry)
 
