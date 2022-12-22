@@ -18,22 +18,26 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence
 
 from onnxscript import BOOL, INT64
+from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
+@torch_op("aten::abs")
 def aten_abs(self):
     # abs(Tensor self) -> Tensor
 
     return op.Abs(self)
 
 
+@torch_op("aten::acos")
 def aten_acos(self):
     # acos(Tensor self) -> Tensor
 
     return op.Acos(self)
 
 
+@torch_op("aten::acosh")
 def aten_acosh(self):
     # acosh(Tensor self) -> Tensor
 
@@ -54,6 +58,7 @@ def aten_adaptive_max_pool1d(
     raise NotImplementedError()
 
 
+@torch_op("aten::add")
 def aten_add(self, other, alpha: float = 1) -> TensorType:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     if alpha != 1:
@@ -85,6 +90,7 @@ def aten_addcmul(
     raise NotImplementedError()
 
 
+@torch_op("aten::addmm")
 def aten_addmm(self, mat1, mat2, beta: float = 1, alpha: float = 1):
     # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -212,6 +218,7 @@ def aten_aminmax(
 
 def aten_and(self: TensorType, other: TensorType) -> TensorType:
     # __and__.Tensor(Tensor self, Tensor other) -> Tensor
+    
 
     raise NotImplementedError()
 
@@ -332,18 +339,21 @@ def aten_as_strided_scatter(
     raise NotImplementedError()
 
 
+@torch_op("aten::asin")
 def aten_asin(self):
     # asin(Tensor self) -> Tensor
 
     return op.Asin(self)
 
 
+@torch_op("aten::asinh")
 def aten_asinh(self):
     # asinh(Tensor self) -> Tensor
 
     return op.Asinh(self)
 
 
+@torch_op("aten::atan")
 def aten_atan(self):
     # atan(Tensor self) -> Tensor
 
@@ -356,6 +366,7 @@ def aten_atan2(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::atanh")
 def aten_atanh(self):
     # atanh(Tensor self) -> Tensor
 
@@ -606,6 +617,7 @@ def aten_block_diag(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::bmm")
 def aten_bmm(self, mat2):
     # bmm(Tensor self, Tensor mat2) -> Tensor
 
@@ -670,6 +682,7 @@ def aten_cdist(
     raise NotImplementedError()
 
 
+@torch_op("aten::ceil")
 def aten_ceil(self):
     # ceil(Tensor self) -> Tensor
 
@@ -728,6 +741,7 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::clamp")
 def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 
@@ -752,6 +766,7 @@ def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     return clamped
 
 
+@torch_op("aten::clamp_max", overload=True)
 def aten_clamp_max(self, max_):
     # clamp_max(Tensor self, Tensor max) -> Tensor
 
@@ -770,6 +785,7 @@ def aten_clamp_max(self, max_):
     return result
 
 
+@torch_op("aten::clamp_min", overload=True)
 def aten_clamp_min(self, min_):
     # clamp_min(Tensor self, Tensor min) -> Tensor
 
@@ -1026,12 +1042,14 @@ def aten_corrcoef(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::cos")
 def aten_cos(self):
     # cos(Tensor self) -> Tensor
 
     return op.Cos(self)
 
 
+@torch_op("aten::cosh")
 def aten_cosh(self):
     # cosh(Tensor self) -> Tensor
 
@@ -1401,6 +1419,7 @@ def aten_divide(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::dot")
 def aten_dot(self, tensor):
     # dot(Tensor self, Tensor tensor) -> Tensor
 
@@ -1541,12 +1560,14 @@ def aten_erfinv(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::exp")
 def aten_exp(self):
     # exp(Tensor self) -> Tensor
 
     return op.Exp(self)
 
 
+@torch_op("aten::exp2")
 def aten_exp2(self):
     # exp2(Tensor self) -> Tensor
 
@@ -1981,6 +2002,7 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
+@torch_op("aten::gt")
 def aten_gt(self, other):
     # gt.Tensor(Tensor self, Tensor other) -> Tensor
 
@@ -2597,6 +2619,7 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::lt")
 def aten_lt(self, other):
     # lt.Tensor(Tensor self, Tensor other) -> Tensor
 
@@ -2672,6 +2695,7 @@ def aten_masked_select_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::matmul")
 def aten_matmul(self, other):
     # matmul(Tensor self, Tensor other) -> Tensor
 
@@ -3072,6 +3096,7 @@ def aten_mkldnn_max_pool3d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::mm")
 def aten_mm(self, mat2):
     # mm(Tensor self, Tensor mat2) -> Tensor
 
@@ -3138,12 +3163,14 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_mul(self, other) -> TensorType:
+@torch_op("aten::mul")
+def aten_mul(self, other):
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.Mul(self, other)
 
 
+@torch_op("aten::mul", overload=True)
 def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
 
@@ -3456,6 +3483,7 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::ones")
 def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
@@ -3465,6 +3493,7 @@ def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
     return op.Expand(one, size)  # type: ignore[arg-type]
 
 
+@torch_op("aten::ones_like")
 def aten_ones_like(self, dtype: int = -1):
     """ones_like.
 
@@ -3951,6 +3980,7 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
     raise NotImplementedError()
 
 
+@torch_op("aten::repeat")
 def aten_repeat(self, repeats: INT64):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
@@ -4056,6 +4086,7 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
     raise NotImplementedError()
 
 
+@torch_op("aten::round")
 def aten_round(self):
     # round(Tensor self) -> Tensor
 
@@ -4166,6 +4197,7 @@ def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int)
     raise NotImplementedError()
 
 
+@torch_op("aten::selu")
 def aten_selu(self):
     # selu(Tensor self) -> Tensor
 
@@ -4202,12 +4234,14 @@ def aten_signbit(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::sin")
 def aten_sin(self):
     # sin(Tensor self) -> Tensor
 
     return op.Sin(self)
 
 
+@torch_op("aten::sinh")
 def aten_sinh(self):
     # sinh(Tensor self) -> Tensor
 
@@ -4387,6 +4421,7 @@ def aten_stft(
     raise NotImplementedError()
 
 
+@torch_op("aten::sub")
 def aten_sub(self, other, alpha: float = 1) -> TensorType:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
@@ -4442,6 +4477,7 @@ def aten_symeig(
     raise NotImplementedError()
 
 
+@torch_op("aten::t")
 def aten_t(self: TensorType) -> TensorType:
     # t(Tensor(a) self) -> Tensor(a)
 
@@ -4474,12 +4510,14 @@ def aten_take_along_dim(
     raise NotImplementedError()
 
 
+@torch_op("aten::tan")
 def aten_tan(self):
     # tan(Tensor self) -> Tensor
 
     return op.Tan(self)
 
 
+@torch_op("aten::tanh")
 def aten_tanh(self):
     # tanh(Tensor self) -> Tensor
 
@@ -4867,6 +4905,7 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::zeros")
 def aten_zeros(size, dtype: int = -1):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
@@ -4877,6 +4916,7 @@ def aten_zeros(size, dtype: int = -1):
     return op.Expand(zero, size)  # type: ignore[arg-type]
 
 
+@torch_op("aten::zeros_like")
 def aten_zeros_like(self, dtype: int = -1):
     # zeros_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
