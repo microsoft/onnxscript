@@ -21,7 +21,8 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import INT64
-from onnxscript.onnx_opset import default_opset as op
+from onnxscript.function_libs.torch_aten.registration import torch_op
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
@@ -150,6 +151,12 @@ def aten_binary_cross_entropy_backward(
     raise NotImplementedError()
 
 
+def aten_celu(self, alpha: float = 1.0):
+    # celu(Tensor self, Scalar alpha=1.0) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_col2im(
     self: TensorType,
     output_size: INT64,
@@ -190,6 +197,7 @@ def aten_cross_entropy_loss(
     raise NotImplementedError()
 
 
+@torch_op("aten::elu")
 def aten_elu(
     self,
     alpha: float = 1.0,
@@ -407,12 +415,22 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-def aten_linear(
-    input: TensorType, weight: TensorType, bias: Optional[TensorType] = None
-) -> TensorType:
+@torch_op("aten::linear")
+def aten_linear(input, weight, bias=None) -> TensorType:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
-    raise NotImplementedError()
+    # FIXME(justinchuby): Enable the test
+    # INVALID_GRAPH : This is an invalid model.
+    # In Node, ("", OptionalHasElement, "", -1) : () -> ("output0",) ,
+    # Error Node () has input size 0 not in range [min=1, max=1]
+
+    # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
+    # Optimizers may consider this path and replace it with Gemm
+    result = op.MatMul(input, weight)
+    if op.OptionalHasElement(bias):
+        bias = op.OptionalGetElement(bias)
+        result = op.Add(result, bias)  # type: ignore[arg-type]
+    return result
 
 
 def aten_log_sigmoid(self: TensorType) -> TensorType:
@@ -785,6 +803,7 @@ def aten_reflection_pad3d_backward(
 
 
 # TODO(justinchuby): Use TFloat as return type
+@torch_op("aten::relu6")
 def aten_relu6(self):
     # relu6(Tensor self) -> Tensor
 

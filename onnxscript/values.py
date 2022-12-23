@@ -63,7 +63,7 @@ class Opset:
             return False
 
     def __str__(self) -> str:
-        return self.domain  # type: ignore[no-any-return]
+        return self.domain
 
     def __getattr__(self, attr: str):
         try:

@@ -55,7 +55,7 @@ class Tensor:
         return float(self.value)
 
     def __index__(self) -> int:
-        return self.value.__index__()  # type: ignore[no-any-return]
+        return self.value.__index__()
 
     def __getitem__(self, index):
         op = self._opset

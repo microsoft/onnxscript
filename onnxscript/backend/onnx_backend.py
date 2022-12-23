@@ -74,7 +74,7 @@ class OnnxBackendTest:
             seq = onnx.SequenceProto()
             try:
                 seq.ParseFromString(serialized)
-                loaded = to_list(seq)
+                loaded = to_list(seq)  # type: ignore[assignment]
             except Exception:  # pylint: disable=W0703
                 try:
                     loaded = onnx.load_model_from_string(serialized)
