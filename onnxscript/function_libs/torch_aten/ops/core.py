@@ -218,7 +218,6 @@ def aten_aminmax(
 
 def aten_and(self: TensorType, other: TensorType) -> TensorType:
     # __and__.Tensor(Tensor self, Tensor other) -> Tensor
-    
 
     raise NotImplementedError()
 
