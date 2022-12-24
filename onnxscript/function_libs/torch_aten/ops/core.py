@@ -765,35 +765,42 @@ def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     return clamped
 
 
-@torch_op("aten::clamp_max.Scalar", overload=True)
-def aten_clamp_max_scalar(self, max_):
-    # clamp_max(Tensor self, Scalar max) -> Tensor
-
-    max_ = op.CastLike(max_, self)
-    return op.Clip(self, None, max_)
-
-
-@torch_op("aten::clamp_max.Tensor")
-def aten_clamp_max_tensor(self, max_):
+@torch_op("aten::clamp_max")
+def aten_clamp_max(self, max_):
     # clamp_max(Tensor self, Tensor max) -> Tensor
 
-    return op.Min(self, max_)
+    self_size = op.Size(self)
+    max_shape = op.Shape(max_)
+    max_rank = op.Size(max_shape)
+    if self_size == 0:
+        result = op.Expand(self, max_shape)
+    else:
+        if max_rank == 0:
+            max_ = op.CastLike(max_, self)
+            result = op.Clip(self, None, max_)
+        else:
+            result = op.Min(self, max_)
+
+    return result
 
 
-@torch_op("aten::clamp_min.Scalar", overload=True)
-def aten_clamp_min_scalar(self, min_):
-    # clamp_min(Tensor self, Scalar min) -> Tensor
-    # NOTE: min_ is a rank 0 tensor.
-    # TODO(justinchuby): Specify the type constraints.
-    min_ = op.CastLike(min_, self)
-    return op.Clip(self, min_, None)
-
-
-@torch_op("aten::clamp_min.Tensor")
-def aten_clamp_min_tensor(self, min_):
+@torch_op("aten::clamp_min")
+def aten_clamp_min(self, min_):
     # clamp_min(Tensor self, Tensor min) -> Tensor
-    # TODO(justinchuby): Specify the type constraints.
-    return op.Max(self, min_)
+
+    self_size = op.Size(self)
+    min_shape = op.Shape(min_)
+    min_rank = op.Size(min_shape)
+    if self_size == 0:
+        result = op.Expand(self, min_shape)
+    else:
+        if min_rank == 0:
+            min_ = op.CastLike(min_, self)
+            result = op.Clip(self, min_, None)
+        else:
+            result = op.Max(self, min_)
+
+    return result
 
 
 def aten_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -3976,16 +3983,18 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 def aten_repeat(self, repeats: INT64):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
-    # FIXME(justinchuby): When repeats.shape == [0]
-
-    # TODO(justinchuby): Make ones_like a function when onnxscript supports it
-    # shape = ones_like(repeats) := {
-    one = op.Constant(value_int=1)
-    repeats_shape = op.Shape(repeats)
-    shape = op.Expand(one, repeats_shape)
-    # }
-    self_expanded = op.Expand(self, shape)  # type: ignore[arg-type]
-    return op.Tile(self_expanded, repeats)
+    if op.Size(repeats) == 0:
+        result = self
+    else:
+        # TODO(justinchuby): Make ones_like a function when onnxscript supports it
+        # shape = ones_like(repeats) := {
+        one = op.Constant(value_int=1)
+        repeats_shape = op.Shape(repeats)
+        shape = op.Expand(one, repeats_shape)
+        # }
+        self_expanded = op.Expand(self, shape)  # type: ignore[arg-type]
+        result = op.Tile(self_expanded, repeats)
+    return result
 
 
 def aten_repeat_interleave(

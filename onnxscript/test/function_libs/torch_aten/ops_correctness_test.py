@@ -79,7 +79,7 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
-):
+) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
     Args:
@@ -104,7 +104,7 @@ def skip(
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
-):
+) -> DecorateMeta:
     """Skips an OpInfo test.
 
     Args:
@@ -171,8 +171,8 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
     "ceil": core_ops.aten_ceil,
-    "clamp_max": core_ops.aten_clamp_max_tensor,
-    "clamp_min": core_ops.aten_clamp_min_tensor,
+    "clamp_max": core_ops.aten_clamp_max,
+    "clamp_min": core_ops.aten_clamp_min,
     "clamp": core_ops.aten_clamp,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
@@ -355,23 +355,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS = (
-    skip(
-        "clamp_max",
-        reason="Empty tensor not yet supported",
-        matcher=lambda sample: sample.input.size() == torch.Size([0]),
-    ),
-    skip(
-        "clamp_min",
-        reason="Empty tensor not yet supported",
-        matcher=lambda sample: sample.input.size() == torch.Size([0]),
-    ),
-    skip(
-        "repeat",
-        reason="repeating when input is a scalar and repeats is empty is not supported",
-        matcher=lambda sample: sample.args[0] == (),
-    ),
-)
+SKIP_SUBTESTS: tuple[DecorateMeta, ...] = ()
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 # END OF SECTION TO MODIFY #####################################################
