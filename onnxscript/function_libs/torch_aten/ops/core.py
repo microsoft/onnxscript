@@ -3983,16 +3983,18 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 def aten_repeat(self, repeats: INT64):
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
-    # FIXME(justinchuby): When repeats.shape == [0]
-
-    # TODO(justinchuby): Make ones_like a function when onnxscript supports it
-    # shape = ones_like(repeats) := {
-    one = op.Constant(value_int=1)
-    repeats_shape = op.Shape(repeats)
-    shape = op.Expand(one, repeats_shape)
-    # }
-    self_expanded = op.Expand(self, shape)  # type: ignore[arg-type]
-    return op.Tile(self_expanded, repeats)
+    if op.Size(repeats) == 0:
+        result = self
+    else:
+        # TODO(justinchuby): Make ones_like a function when onnxscript supports it
+        # shape = ones_like(repeats) := {
+        one = op.Constant(value_int=1)
+        repeats_shape = op.Shape(repeats)
+        shape = op.Expand(one, repeats_shape)
+        # }
+        self_expanded = op.Expand(self, shape)  # type: ignore[arg-type]
+        result = op.Tile(self_expanded, repeats)
+    return result
 
 
 def aten_repeat_interleave(

@@ -355,13 +355,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS = (
-    skip(
-        "repeat",
-        reason="repeating when input is a scalar and repeats is empty is not supported",
-        matcher=lambda sample: sample.args[0] == (),
-    ),
-)
+SKIP_SUBTESTS = ()
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 # END OF SECTION TO MODIFY #####################################################
