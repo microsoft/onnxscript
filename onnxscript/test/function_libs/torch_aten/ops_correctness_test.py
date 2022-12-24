@@ -79,7 +79,7 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
-):
+) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
     Args:
@@ -104,7 +104,7 @@ def skip(
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
-):
+) -> DecorateMeta:
     """Skips an OpInfo test.
 
     Args:
@@ -355,7 +355,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS = ()
+SKIP_SUBTESTS: tuple[DecorateMeta, ...] = ()
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 # END OF SECTION TO MODIFY #####################################################
