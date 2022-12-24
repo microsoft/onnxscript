@@ -765,7 +765,7 @@ def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     return clamped
 
 
-@torch_op("aten::clamp_max", overload=True)
+@torch_op("aten::clamp_max")
 def aten_clamp_max(self, max_):
     # clamp_max(Tensor self, Tensor max) -> Tensor
 
@@ -784,7 +784,7 @@ def aten_clamp_max(self, max_):
     return result
 
 
-@torch_op("aten::clamp_min", overload=True)
+@torch_op("aten::clamp_min")
 def aten_clamp_min(self, min_):
     # clamp_min(Tensor self, Tensor min) -> Tensor
 
