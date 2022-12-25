@@ -17,6 +17,11 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
+import numpy as np  # type: ignore
+
+from onnx import TensorProto
+from onnx.helper import make_tensor
+
 from onnxscript import BOOL, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
@@ -3408,10 +3413,19 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_new_empty(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::new_empty")
+def aten_new_empty(self, size: INT64, dtype: int = -1) -> TensorType:
+    """new_empty.
+
+    Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
+    before calling this function.
+    """
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    vals = np.empty(shape=size).flatten()
+    empty_tensor = op.Constant(value=make_tensor("new_empty", TensorProto.FLOAT, size, vals))
+    target_tensor = op.CastLike(empty_tensor, self)
+    return target_tensor
 
 
 def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> TensorType:
