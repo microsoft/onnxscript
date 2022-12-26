@@ -20,7 +20,6 @@ from typing import Any, Optional, Sequence
 import numpy as np  # type: ignore
 
 from onnx import TensorProto
-from onnx.helper import make_tensor
 
 from onnxscript import BOOL, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
@@ -3428,7 +3427,7 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_new_empty(self: TensorType, size: INT64, dtype: int = -1) -> TensorType:
+def aten_new_empty(self: TensorType, size: INT64) -> TensorType:
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     raise NotImplementedError()
