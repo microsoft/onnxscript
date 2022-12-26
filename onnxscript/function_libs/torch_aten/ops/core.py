@@ -1514,10 +1514,25 @@ def aten_embedding_sparse_backward(
     raise NotImplementedError()
 
 
-def aten_empty_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::empty")
+def aten_empty(size: INT64, dtype : int = -1) -> TensorType:
+    # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    if dtype == -1:
+        dtype = TensorProto.FLOAT
+    # using RandomUniform value to simulate np.empty()
+    return op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
+
+
+@torch_op("aten::empty_like")
+def aten_empty_like(self: TensorType, dtype: int = -1) -> TensorType:
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    input_shape = op.Shape(self)
+    if dtype == -1:
+        dtype = TensorProto.FLOAT
+    # using RandomUniform value to simulate np.empty()
+    return op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
 
 
 def aten_empty_quantized(
@@ -3413,19 +3428,10 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::new_empty")
-def aten_new_empty(self, size: INT64, dtype: int = -1) -> TensorType:
-    """new_empty.
-
-    Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
-    before calling this function.
-    """
+def aten_new_empty(self: TensorType, size: INT64, dtype: int = -1) -> TensorType:
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    vals = np.empty(shape=size).flatten()
-    empty_tensor = op.Constant(value=make_tensor("new_empty", TensorProto.FLOAT, size, vals))
-    target_tensor = op.CastLike(empty_tensor, self)
-    return target_tensor
+    raise NotImplementedError()
 
 
 def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> TensorType:
@@ -4567,10 +4573,16 @@ def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::to_dense")
 def aten_to_dense(self: TensorType, dtype: Optional[int] = None) -> TensorType:
     # to_dense(Tensor self, ScalarType? dtype=None) -> Tensor
 
-    raise NotImplementedError()
+    list_values = [0] * self.dims[0] * self.dims[1]
+    for i, p in enumerate(self.indices):
+        list_values[p] += self.values.float_data[i]
+    data = op.Constant(value=list_values)
+    shape = op.Constant(value=self.dims)
+    return op.Reshape(data, shape)
 
 
 def aten_to_dense_backward(grad: TensorType, input: TensorType) -> TensorType:
