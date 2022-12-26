@@ -177,7 +177,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
     "dot": core_ops.aten_dot,
-    "empty": core_ops.aten_empty,
+    #"empty": core_ops.aten_empty,
     "empty_like": core_ops.aten_empty_like,
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,

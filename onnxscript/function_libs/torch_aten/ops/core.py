@@ -1511,6 +1511,7 @@ def aten_embedding_sparse_backward(
     raise NotImplementedError()
 
 
+"""
 @torch_op("aten::empty")
 def aten_empty(size: INT64, dtype : int = 1) -> TensorType:
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
@@ -1519,6 +1520,7 @@ def aten_empty(size: INT64, dtype : int = 1) -> TensorType:
 
     result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
     return result
+"""
 
 
 @torch_op("aten::empty_like")
