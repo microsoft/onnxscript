@@ -1518,9 +1518,10 @@ def aten_empty(size: INT64, dtype : int = -1) -> TensorType:
     # using RandomUniform value to simulate np.empty()
 
     if dtype == -1:
-        return op.RandomUniform(TensorProto.FLOAT, high=1e30, low=-1e30, shape=size)
+        result = op.RandomUniform(TensorProto.FLOAT, high=1e30, low=-1e30, shape=size)
     else:
-        return op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
+        result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
+    return result
 
 
 @torch_op("aten::empty_like")
@@ -1531,9 +1532,10 @@ def aten_empty_like(self: TensorType, dtype: int = -1) -> TensorType:
 
     input_shape = op.Shape(self)
     if dtype == -1:
-        return op.RandomUniform(TensorProto.FLOAT, high=1e30, low=-1e30, shape=input_shape)
+        result = op.RandomUniform(TensorProto.FLOAT, high=1e30, low=-1e30, shape=input_shape)
     else:
-        return op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
+        result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
+    return result
 
 
 def aten_empty_quantized(
