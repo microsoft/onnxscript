@@ -1512,29 +1512,23 @@ def aten_embedding_sparse_backward(
 
 
 @torch_op("aten::empty")
-def aten_empty(size: INT64, dtype : int = -1) -> TensorType:
+def aten_empty(size: INT64, dtype : int = 1) -> TensorType:
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
 
-    if dtype == -1:
-        result = op.RandomUniform(TensorProto.FLOAT, high=1e30, low=-1e30, shape=size)
-    else:
-        result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
+    result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
     return result
 
 
 @torch_op("aten::empty_like")
-def aten_empty_like(self: TensorType, dtype: int = -1) -> TensorType:
+def aten_empty_like(self: TensorType, dtype: int = 1) -> TensorType:
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
 
     input_shape = op.Shape(self)
-    if dtype == -1:
-        result = op.RandomUniform(TensorProto.FLOAT, high=1e30, low=-1e30, shape=input_shape)
-    else:
-        result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
+    result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
     return result
 
 
