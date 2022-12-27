@@ -4573,8 +4573,13 @@ def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
 
 
 @torch_op("aten::to_dense")
-def aten_to_dense(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+def aten_to_dense(self, dtype: Optional[int] = None):
     # to_dense(Tensor self, ScalarType? dtype=None) -> Tensor
+
+    """
+    to do(xiaowuhu): check if the self is dense, if yes, directly return it
+                     check dtype
+    """
 
     list_values = [0] * self.dims[0] * self.dims[1]
     for i, p in enumerate(self.indices):
