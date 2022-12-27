@@ -4582,7 +4582,9 @@ def aten_to_dense(self, dtype: Optional[int] = None):
     """
 
     list_values = [0] * self.dims[0] * self.dims[1]
-    for i, p in enumerate(self.indices):
+    index_length = len(self.indices)
+    for i in range(index_length):
+        p = self.indices[i]
         list_values[p] += self.values.float_data[i]
     data = op.Constant(value=list_values)
     shape = op.Constant(value=self.dims)
