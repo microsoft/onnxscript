@@ -200,7 +200,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
-    "to_dense": core_ops.aten_to_dense,
+    #"to_dense": core_ops.aten_to_dense,
     # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,

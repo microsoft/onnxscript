@@ -1512,12 +1512,14 @@ def aten_embedding_sparse_backward(
 
 
 @torch_op("aten::empty")
-def aten_empty(size, dtype : int = 1):
+def aten_empty(size, dtype : int = 7):
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
 
-    result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
+    #result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=[size])
+    result = op.RandomUniform(dtype, 1e30, 1e30, None, size)
+    #result = op.Constant(value_float=1.0)
     return result
 
 
@@ -1528,7 +1530,9 @@ def aten_empty_like(self, dtype: int = 7):
     # using RandomUniform value to simulate np.empty()
 
     input_shape = op.Shape(self)
-    result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
+    #result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
+    result = op.Constant(value_float=1.0)
+
     return result
 
 
@@ -4570,7 +4574,6 @@ def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::to_dense")
 def aten_to_dense(self, dtype: Optional[int] = None):
     # to_dense(Tensor self, ScalarType? dtype=None) -> Tensor
 
@@ -4578,15 +4581,18 @@ def aten_to_dense(self, dtype: Optional[int] = None):
     to do(xiaowuhu): check if the self is dense, if yes, directly return it
                      check dtype
     """
-
+    """
     list_values = [0] * self.dims[0] * self.dims[1]
     index_length = len(self.indices)
     for i in range(index_length):
         p = self.indices[i]
-        list_values[p] += self.values.float_data[i]
+        v = self.values.float_data[i]
+        list_values[p] = v  # this doesn't work
     data = op.Constant(value=list_values)
     shape = op.Constant(value=self.dims)
     return op.Reshape(data, shape)
+    """
+    raise NotImplementedError()
 
 
 def aten_to_dense_backward(grad: TensorType, input: TensorType) -> TensorType:
