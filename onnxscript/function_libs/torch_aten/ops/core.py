@@ -1512,26 +1512,25 @@ def aten_embedding_sparse_backward(
 
 
 @torch_op("aten::empty")
-def aten_empty(size, dtype : int = 7):
+def aten_empty(size: INT64, datatype: int = 7):
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
 
     #result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=[size])
-    result = op.RandomUniform(dtype, 1e30, 1e30, None, size)
+    result = op.RandomUniform(datatype, 100, -100, None, size)
     #result = op.Constant(value_float=1.0)
     return result
 
 
 @torch_op("aten::empty_like")
-def aten_empty_like(self, dtype: int = 7):
+def aten_empty_like(self, datatype: int = 7):
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
 
     input_shape = op.Shape(self)
-    #result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
-    result = op.Constant(value_float=1.0)
+    result = op.RandomUniform(datatype, 100, -100, None, input_shape)
 
     return result
 
