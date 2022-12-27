@@ -1511,18 +1511,16 @@ def aten_embedding_sparse_backward(
     raise NotImplementedError()
 
 
-"""
 @torch_op("aten::empty")
-def aten_empty(size: INT64, dtype : int = 1) -> TensorType:
+def aten_empty(size, dtype : int = 1):
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
 
     result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=size)
     return result
-"""
 
-"""
+
 @torch_op("aten::empty_like")
 def aten_empty_like(self, dtype: int = 7):
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
@@ -1532,7 +1530,7 @@ def aten_empty_like(self, dtype: int = 7):
     input_shape = op.Shape(self)
     result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=input_shape)
     return result
-"""
+
 
 def aten_empty_quantized(
     size: Sequence[int], qtensor: TensorType, memory_format: Optional[str] = None
