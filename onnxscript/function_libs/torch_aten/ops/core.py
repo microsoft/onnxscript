@@ -1512,34 +1512,23 @@ def aten_embedding_sparse_backward(
 
 
 @torch_op("aten::empty")
-def aten_empty(size, datatype: int = 1):
+def aten_empty(size, dtype: int = 1):
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
-    print(size)
-    print(type(size))
-    result = op.RandomUniform(datatype, 1.1, -1.1, 0.5, size)
+    result = op.RandomUniform(dtype, 1.1, -1.1, 0.5, size)
     return result
 
 
 @torch_op("aten::empty_like")
-def aten_empty_like(self, datatype: int = 1):
+def aten_empty_like(self, dtype: int = 1):
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
-
-    input_shape = op.Shape(self)
-    print(input_shape)
-    result = op.RandomUniformLike(self, dtype=datatype, high=1.1, low=-1.1, seed=0.5)
-    #result = op.RandomUniform(dtype=datatype, high=1.1, low=-1.1, seed=0.5, shape=input_shape)
-
+    result = op.RandomUniformLike(self, dtype=dtype, high=1.1, low=-1.1, seed=0.5)
     return result
-"""
-import numpy as np
-a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
-result = aten_empty_like(a)
-print(result)
-"""
+
+
 def aten_empty_quantized(
     size: Sequence[int], qtensor: TensorType, memory_format: Optional[str] = None
 ) -> TensorType:
