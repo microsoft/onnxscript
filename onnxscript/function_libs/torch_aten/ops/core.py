@@ -4570,17 +4570,16 @@ def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
 
 def aten_to_dense(self, dtype: Optional[int] = None):
     # to_dense(Tensor self, ScalarType? dtype=None) -> Tensor
-    """
-    list_values = [0] * self.dims[0] * self.dims[1]
-    index_length = len(self.indices)
-    for i in range(index_length):
-        p = self.indices[i]
-        v = self.values.float_data[i]
-        list_values[p] = v  # this doesn't work
-    data = op.Constant(value=list_values)
-    shape = op.Constant(value=self.dims)
-    return op.Reshape(data, shape)
-    """
+    # list_values = [0] * self.dims[0] * self.dims[1]
+    # index_length = len(self.indices)
+    # for i in range(index_length):
+    #     p = self.indices[i]
+    #     v = self.values.float_data[i]
+    #     list_values[p] = v  # this doesn't work
+    # data = op.Constant(value=list_values)
+    # shape = op.Constant(value=self.dims)
+    # return op.Reshape(data, shape)
+
     raise NotImplementedError()
 
 
@@ -4953,4 +4952,3 @@ def aten_zeros_like(self, dtype: int = -1):
         zero = op.Cast(0, to=dtype)  # type: ignore[arg-type]
 
     return op.Expand(zero, shape)
-
