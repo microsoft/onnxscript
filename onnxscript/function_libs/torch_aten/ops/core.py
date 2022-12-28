@@ -4009,7 +4009,7 @@ def aten_repeat_interleave(
 def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
-    return op.Reshape(self, shape)
+    return op.Reshape(self, shape)    # type: ignore[arg-type]
 
 
 def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4845,7 +4845,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 def aten_view(self: TensorType, size: INT64) -> TensorType:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
-    return op.Reshape(self, size)
+    return op.Reshape(self, size)     # type: ignore[arg-type]
 
 def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
     # view_as(Tensor(a) self, Tensor other) -> Tensor(a)
