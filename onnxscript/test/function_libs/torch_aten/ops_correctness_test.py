@@ -282,12 +282,12 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "empty",
-        dtypes=BOOL_TYPES + INT_TYPES,
+        dtypes=BOOL_TYPES + INT_TYPES + (torch.float16,),
         reason="Exp is not defined on bool or int tensors",
     ),
     xfail(
         "empty_like",
-        dtypes=BOOL_TYPES + INT_TYPES,
+        dtypes=BOOL_TYPES + INT_TYPES + (torch.float16,),
         reason="Exp is not defined on bool or int tensors",
     ),
     xfail(
