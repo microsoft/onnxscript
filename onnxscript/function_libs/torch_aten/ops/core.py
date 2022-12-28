@@ -1512,29 +1512,34 @@ def aten_embedding_sparse_backward(
 
 
 @torch_op("aten::empty")
-def aten_empty(size: INT64, datatype: int = 7):
+def aten_empty(size, datatype: int = 1):
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
-
-    #result = op.RandomUniform(dtype, high=1e30, low=-1e30, shape=[size])
-    result = op.RandomUniform(datatype, 100, -100, None, size)
-    #result = op.Constant(value_float=1.0)
+    print(size)
+    print(type(size))
+    result = op.RandomUniform(datatype, 1.1, -1.1, 0.5, size)
     return result
 
 
 @torch_op("aten::empty_like")
-def aten_empty_like(self, datatype: int = 7):
+def aten_empty_like(self, datatype: int = 1):
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
 
     input_shape = op.Shape(self)
-    result = op.RandomUniform(datatype, 100, -100, None, input_shape)
+    print(input_shape)
+    result = op.RandomUniformLike(self, dtype=datatype, high=1.1, low=-1.1, seed=0.5)
+    #result = op.RandomUniform(dtype=datatype, high=1.1, low=-1.1, seed=0.5, shape=input_shape)
 
     return result
-
-
+"""
+import numpy as np
+a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
+result = aten_empty_like(a)
+print(result)
+"""
 def aten_empty_quantized(
     size: Sequence[int], qtensor: TensorType, memory_format: Optional[str] = None
 ) -> TensorType:
@@ -3522,11 +3527,17 @@ def aten_ones_like(self, dtype: int = -1):
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     shape = op.Shape(self)
+    print(shape)
+    print(type(shape))
     if dtype == -1:
         one = op.CastLike(1, self)  # type: ignore[arg-type]
     else:
         one = op.Cast(1, to=dtype)  # type: ignore[arg-type]
+    print(shape)
     return op.Expand(one, shape)
+
+
+
 
 
 def aten_or(self: TensorType, other: TensorType) -> TensorType:
@@ -4963,3 +4974,17 @@ def aten_zeros_like(self, dtype: int = -1):
         zero = op.Cast(0, to=dtype)  # type: ignore[arg-type]
 
     return op.Expand(zero, shape)
+
+"""
+from onnxscript import tensor
+import numpy as np
+
+a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
+result = aten_ones_like(a)
+print(result)
+
+size = [2,3]
+result = aten_empty(size)
+print(result)
+
+"""
