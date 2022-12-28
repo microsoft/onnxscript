@@ -280,16 +280,8 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=[torch.uint8, torch.int8, torch.int16],
         reason="MatMul is not defined on int16/int8/uint8 tensors",
     ),
-    xfail(
-        "empty",
-        dtypes=BOOL_TYPES + INT_TYPES + (torch.float16,),
-        reason="Exp is not defined on bool or int tensors",
-    ),
-    xfail(
-        "empty_like",
-        dtypes=BOOL_TYPES + INT_TYPES + (torch.float16,),
-        reason="Exp is not defined on bool or int tensors",
-    ),
+    skip("empty", reason="random generated values are not close"),
+    skip("empty_like", reason="random generated values are not close"),
     xfail(
         "exp",
         dtypes=BOOL_TYPES + INT_TYPES,
