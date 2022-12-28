@@ -191,6 +191,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
     "repeat": core_ops.aten_repeat,
+    "reshape": core_ops.aten_reshape,
     "round": core_ops.aten_round,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
@@ -199,6 +200,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
+    "view": core_ops.aten_view,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
 }
