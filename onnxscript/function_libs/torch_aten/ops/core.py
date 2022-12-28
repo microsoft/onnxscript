@@ -17,8 +17,6 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-from onnx import TensorProto
-
 from onnxscript import BOOL, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
@@ -1516,7 +1514,7 @@ def aten_empty(size, dtype: int = 1):
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
-    result = op.RandomUniform(dtype, 1.1, -1.1, 0.5, size)
+    result = op.RandomUniform(dtype, 1e10, -1e10, 0.5, size)
     return result
 
 
@@ -1525,7 +1523,7 @@ def aten_empty_like(self, dtype: int = 1):
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using RandomUniform value to simulate np.empty()
-    result = op.RandomUniformLike(self, dtype=dtype, high=1.1, low=-1.1, seed=0.5)
+    result = op.RandomUniformLike(self, dtype=dtype, high=1e10, low=-1e10, seed=0.5)
     return result
 
 
@@ -3526,9 +3524,6 @@ def aten_ones_like(self, dtype: int = -1):
     return op.Expand(one, shape)
 
 
-
-
-
 def aten_or(self: TensorType, other: TensorType) -> TensorType:
     # __or__.Tensor(Tensor self, Tensor other) -> Tensor
 
@@ -4575,11 +4570,6 @@ def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
 
 def aten_to_dense(self, dtype: Optional[int] = None):
     # to_dense(Tensor self, ScalarType? dtype=None) -> Tensor
-
-    """
-    to do(xiaowuhu): check if the self is dense, if yes, directly return it
-                     check dtype
-    """
     """
     list_values = [0] * self.dims[0] * self.dims[1]
     index_length = len(self.indices)
@@ -4964,16 +4954,3 @@ def aten_zeros_like(self, dtype: int = -1):
 
     return op.Expand(zero, shape)
 
-"""
-from onnxscript import tensor
-import numpy as np
-
-a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
-result = aten_ones_like(a)
-print(result)
-
-size = [2,3]
-result = aten_empty(size)
-print(result)
-
-"""
