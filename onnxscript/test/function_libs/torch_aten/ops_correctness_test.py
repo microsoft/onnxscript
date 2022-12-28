@@ -281,6 +281,16 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="MatMul is not defined on int16/int8/uint8 tensors",
     ),
     xfail(
+        "empty",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Exp is not defined on bool or int tensors",
+    ),
+    xfail(
+        "empty_like",
+        dtypes=BOOL_TYPES + INT_TYPES,
+        reason="Exp is not defined on bool or int tensors",
+    ),
+    xfail(
         "exp",
         dtypes=BOOL_TYPES + INT_TYPES,
         reason="Exp is not defined on bool or int tensors",
