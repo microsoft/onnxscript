@@ -16,6 +16,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
+from onnxscript.function_libs.torch_aten.ops import special as special_ops
 
 T = TypeVar("T")
 
@@ -183,6 +184,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "expand": core_ops.aten_expand,
     "gt": core_ops.aten_gt,
     "lt": core_ops.aten_lt,
+    "log_softmax": special_ops.aten_special_log_softmax,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,

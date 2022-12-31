@@ -804,7 +804,7 @@ def aten_clamp_min(self, min_):
 
 
 @torch_op("aten::clone")
-def aten_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+def aten_clone(self: TensorType, memory_format: str = None) -> TensorType:
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
     return op.CastLike(self, self)
@@ -1407,10 +1407,11 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::div")
 def aten_div(self: TensorType, other: TensorType) -> TensorType:
     # div.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Div(self, other)
 
 
 def aten_divide(self: TensorType, other: TensorType) -> TensorType:
@@ -4252,6 +4253,7 @@ def aten_sinh(self):
     return op.Sinh(self)
 
 
+@torch_op("aten::slice")
 def aten_slice(
     self: TensorType,
     dim: int = 0,
@@ -4261,7 +4263,8 @@ def aten_slice(
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Slice(self, start, end, dim, step)
+
 
 
 def aten_slice_backward(
@@ -4442,7 +4445,7 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 
 
 @torch_op("aten::sum")
-def aten_sum(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+def aten_sum(self: TensorType, dtype: int = None) -> TensorType:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
     return op.ReduceSum(self, keepdims=0)
