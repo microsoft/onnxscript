@@ -174,6 +174,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clamp": core_ops.aten_clamp,
+    "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
     "dot": core_ops.aten_dot,

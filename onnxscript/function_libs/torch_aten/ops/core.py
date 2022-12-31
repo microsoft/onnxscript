@@ -803,10 +803,11 @@ def aten_clamp_min(self, min_):
     return result
 
 
+@torch_op("aten::clone")
 def aten_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    return op.CastLike(self, self)
 
 
 def aten_coalesce(self: TensorType) -> TensorType:
@@ -4444,7 +4445,7 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 def aten_sum(self: TensorType, dtype: Optional[int] = None) -> TensorType:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
-    return op.Sum(self)
+    return op.ReduceSum(self, keepdims=0)
 
 
 def aten_sum_to_size(self: TensorType, size: Sequence[int]) -> TensorType:
