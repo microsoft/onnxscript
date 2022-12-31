@@ -1575,10 +1575,11 @@ def aten_exp2(self):
     return op.Pow(two, self)  # type: ignore[arg-type]
 
 
+@torch_op()
 def aten_expand(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Expand(self, size)
 
 
 def aten_expand_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4439,10 +4440,11 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
     raise NotImplementedError()
 
 
+@torch_op()
 def aten_sum(self: TensorType, dtype: Optional[int] = None) -> TensorType:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sum(self)
 
 
 def aten_sum_to_size(self: TensorType, size: Sequence[int]) -> TensorType:
