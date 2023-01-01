@@ -1547,12 +1547,7 @@ def aten_equal(self: TensorType, other: TensorType) -> bool:
     sub_self_other = op.Sub(self, other)
     abs_sub = op.Abs(sub_self_other)
     sum_of_abs = op.ReduceSum(abs_sub)
-    result = True
-    if sum_of_abs == 0:
-        result = True
-    else:
-        result = False
-    return result
+    return sum_of_abs == 0
 
 
 def aten_erf(self: TensorType) -> TensorType:

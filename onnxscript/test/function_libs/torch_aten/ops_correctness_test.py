@@ -171,7 +171,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
-    # "cat": core_ops.aten_cat,     # TODO(xiaowuhu): Enable when onnxscript errors are fixed, it cannot suport Sequence[tensor] parsing as input
+    # "cat": core_ops.aten_cat,     # TODO(xiaowuhu): Enable after fix: it cannot parse Sequence[tensor] as input
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -355,7 +355,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
     xfail(
         "sum",
-        dtypes=[torch.bfloat16, torch.int32, torch.int64, torch.double, torch.float32, torch.float16],
+        dtypes=except(torch.bfloat16, torch.int32, torch.int64, torch.double, torch.float32, torch.float16),
         reason="Sum is not defined on bool tensors"),
     xfail(
         "tan",
