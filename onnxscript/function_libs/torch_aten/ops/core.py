@@ -4459,6 +4459,7 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 @torch_op("aten::sum")
 def aten_sum(self: TensorType, dtype: int = None) -> TensorType:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
+    # since op.Sum() is element-wise sum, so we have to use op.ReduceSum()
 
     return op.ReduceSum(self, keepdims=0)
 
