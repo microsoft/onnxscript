@@ -655,10 +655,12 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::cat")
 def aten_cat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
+    # TODO: onnxscript cannot support parsing correctly input as Tensor[] now
 
-    raise NotImplementedError()
+    return op.Concat(tensors, axis=dim)
 
 
 def aten_ccol_indices(self: TensorType) -> TensorType:
@@ -1531,16 +1533,26 @@ def aten_empty_strided(size: INT64, stride: INT64) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::eq")
 def aten_eq(self: TensorType, other: TensorType) -> TensorType:
     # eq.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Equal(self, other)
 
 
+@torch_op("aten::equal")
 def aten_equal(self: TensorType, other: TensorType) -> bool:
     # equal(Tensor self, Tensor other) -> bool
 
-    raise NotImplementedError()
+    sub_self_other = op.Sub(self, other)
+    abs_sub = op.Abs(sub_self_other)
+    sum_of_abs = op.ReduceSum(abs_sub)
+    result = True
+    if sum_of_abs == 0:
+        result = True
+    else:
+        result = False
+    return result
 
 
 def aten_erf(self: TensorType) -> TensorType:
@@ -4257,8 +4269,8 @@ def aten_sinh(self):
 def aten_slice(
     self: TensorType,
     dim: int = 0,
-    start: Optional[INT64] = None,
-    end: Optional[INT64] = None,
+    start: INT64 = None,
+    end: INT64 = None,
     step: INT64 = 1,
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)

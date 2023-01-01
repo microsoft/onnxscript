@@ -204,6 +204,8 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
             return input
         elif isinstance(input, (bool, int, float)):
             return tensor.Tensor(np.array(input))
+        elif isinstance(input, int):
+            return input
         elif input is None:
             return None
         elif isinstance(input, list):
@@ -236,6 +238,8 @@ def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
     elif isinstance(output, tuple):
         return tuple(_adapt_to_user_mode(elt) for elt in output)
     elif isinstance(output, np.ndarray):
+        return output
+    elif isinstance(output, (bool, int, float)):
         return output
     raise TypeError(f"Unexpected type {type(output)}.")
 
