@@ -401,10 +401,10 @@ def aten_l1_loss(self: TensorType, target: TensorType, reduction: int = 1) -> Te
     raise NotImplementedError()
 
 
-def aten_leaky_relu(self: TensorType, negative_slope: float = 0.01) -> TensorType:
+def aten_leaky_relu(self, negative_slope: float = 0.01):
     # leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor
 
-    raise NotImplementedError()
+    return op.LeakyRelu(self, negative_slope)
 
 
 def aten_leaky_relu_backward(

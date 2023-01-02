@@ -568,16 +568,16 @@ def aten_binomial(
     raise NotImplementedError()
 
 
-def aten_bitwise_and(self: TensorType, other: TensorType) -> TensorType:
+def aten_bitwise_and(self, other):
     # bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseAnd(self, other)
 
 
-def aten_bitwise_left_shift(self: TensorType, other: TensorType) -> TensorType:
+def aten_bitwise_left_shift(self, other):
     # bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitShift(self, other, "LEFT")
 
 
 def aten_bitwise_not(self: TensorType) -> TensorType:
@@ -586,22 +586,22 @@ def aten_bitwise_not(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_bitwise_or(self: TensorType, other: TensorType) -> TensorType:
+def aten_bitwise_or(self, other):
     # bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseOr(self, other)
 
 
-def aten_bitwise_right_shift(self: TensorType, other: TensorType) -> TensorType:
+def aten_bitwise_right_shift(self, other):
     # bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitShift(self, other, "RIGHT")
 
 
-def aten_bitwise_xor(self: TensorType, other: TensorType) -> TensorType:
+def aten_bitwise_xor(self, other):
     # bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseXor(self, other)
 
 
 def aten_blackman_window(window_length: int) -> TensorType:
@@ -1793,10 +1793,10 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_fmod(self: TensorType, other: TensorType) -> TensorType:
+def aten_fmod(self, other):
     # fmod.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Mod(self, other, fmod=1)
 
 
 def aten_frac(self: TensorType) -> TensorType:
@@ -2536,16 +2536,16 @@ def aten_logdet(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_logical_and(self: TensorType, other: TensorType) -> TensorType:
+def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
     # logical_and(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.And(self, other)
 
 
-def aten_logical_not(self: TensorType) -> TensorType:
+def aten_logical_not(self):
     # logical_not(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Not(self)
 
 
 def aten_logical_or(self: TensorType, other: TensorType) -> TensorType:
@@ -4223,10 +4223,11 @@ def aten_sigmoid(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_sign(self: TensorType) -> TensorType:
+@torch_op("aten::sign")
+def aten_sign(self):
     # sign(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sign(self)
 
 
 def aten_signbit(self: TensorType) -> TensorType:
