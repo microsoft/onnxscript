@@ -413,7 +413,7 @@ def aten_leaky_relu_backward(
 
 
 @torch_op("aten::linear")
-def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TensorType:
+def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TFloat:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
     # FIXME(justinchuby): Enable the test
