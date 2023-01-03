@@ -2,11 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# mypy: disable-error-code=misc
-# mypy: disable-error-code=arg-type
-# mypy: disable-error-code=type-arg
-# mypy: disable-error-code=valid-type
-# mypy: disable-error-code=assignment
+# mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `nn` module.
 
 - No inplace operators.
@@ -22,6 +18,7 @@ from typing import Optional, Sequence
 
 from onnxscript import INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
+from onnxscript.function_libs.torch_aten.typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -199,11 +196,11 @@ def aten_cross_entropy_loss(
 
 @torch_op("aten::elu")
 def aten_elu(
-    self,
+    self: TFloat,
     alpha: float = 1.0,
     scale: float = 1.0,
     input_scale: float = 1.0,
-):
+) -> TFloat:
     # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
 
     # del scale
@@ -416,7 +413,7 @@ def aten_leaky_relu_backward(
 
 
 @torch_op("aten::linear")
-def aten_linear(input, weight, bias=None) -> TensorType:
+def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TensorType:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
     # FIXME(justinchuby): Enable the test
@@ -429,7 +426,7 @@ def aten_linear(input, weight, bias=None) -> TensorType:
     result = op.MatMul(input, weight)
     if op.OptionalHasElement(bias):
         bias = op.OptionalGetElement(bias)
-        result = op.Add(result, bias)  # type: ignore[arg-type]
+        result = op.Add(result, bias)
     return result
 
 
@@ -802,12 +799,11 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-# TODO(justinchuby): Use TFloat as return type
 @torch_op("aten::relu6")
-def aten_relu6(self):
+def aten_relu6(self: TFloat) -> TFloat:
     # relu6(Tensor self) -> Tensor
 
-    return op.Min(op.Relu(self), op.Constant(value_float=6.0))  # type: ignore[arg-type]
+    return op.Min(op.Relu(self), op.Constant(value_float=6.0))
 
 
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
