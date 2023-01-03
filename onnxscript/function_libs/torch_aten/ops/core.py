@@ -15,7 +15,13 @@ from typing import Any, Optional, Sequence
 
 from onnxscript import BOOL, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
-from onnxscript.function_libs.torch_aten.typing import TFloat, TReal, TTensor
+from onnxscript.function_libs.torch_aten.typing import (
+    TFloat,
+    TInt,
+    TReal,
+    TRealUnlessInt16OrInt8,
+    TTensor,
+)
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -568,42 +574,42 @@ def aten_binomial(
 
 
 @torch_op("aten::bitwise_and")
-def aten_bitwise_and(self, other):
+def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     # bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.BitwiseAnd(self, other)
 
 
 @torch_op("aten::bitwise_left_shift")
-def aten_bitwise_left_shift(self, other):
+def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     # bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.BitShift(self, other, direction="LEFT")
 
 
 @torch_op("aten::bitwise_not")
-def aten_bitwise_not(self):
+def aten_bitwise_not(self: TInt) -> TInt:
     # bitwise_not(Tensor self) -> Tensor
 
     return op.BitwiseNot(self)
 
 
 @torch_op("aten::bitwise_or")
-def aten_bitwise_or(self, other):
+def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     # bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.BitwiseOr(self, other)
 
 
 @torch_op("aten::bitwise_right_shift")
-def aten_bitwise_right_shift(self, other):
+def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     # bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.BitShift(self, other, direction="RIGHT")
 
 
 @torch_op("aten::bitwise_xor")
-def aten_bitwise_xor(self, other):
+def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     # bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.BitwiseXor(self, other)
@@ -1801,7 +1807,7 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::fmod")
-def aten_fmod(self, other):
+def aten_fmod(self: TReal, other: TReal) -> TReal:
     # fmod.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.Mod(self, other, fmod=1)
@@ -2707,7 +2713,9 @@ def aten_masked_select_backward(
 
 
 @torch_op("aten::matmul")
-def aten_matmul(self: TFloat, other: TFloat) -> TFloat:
+def aten_matmul(
+    self: TRealUnlessInt16OrInt8, other: TRealUnlessInt16OrInt8
+) -> TRealUnlessInt16OrInt8:
     # matmul(Tensor self, Tensor other) -> Tensor
 
     return op.MatMul(self, other)
@@ -3108,7 +3116,9 @@ def aten_mkldnn_max_pool3d_backward(
 
 
 @torch_op("aten::mm")
-def aten_mm(self: TFloat, mat2: TFloat) -> TFloat:
+def aten_mm(
+    self: TRealUnlessInt16OrInt8, mat2: TRealUnlessInt16OrInt8
+) -> TRealUnlessInt16OrInt8:
     # mm(Tensor self, Tensor mat2) -> Tensor
 
     # TODO(justinchuby): Specify type conversion for uint8/int8/int16
@@ -4236,7 +4246,7 @@ def aten_sigmoid(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::sign")
-def aten_sign(self):
+def aten_sign(self: TReal) -> TReal:
     # sign(Tensor self) -> Tensor
 
     return op.Sign(self)

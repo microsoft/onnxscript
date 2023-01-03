@@ -18,7 +18,7 @@ from typing import Optional, Sequence
 
 from onnxscript import INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
-from onnxscript.function_libs.torch_aten.typing import TFloat
+from onnxscript.function_libs.torch_aten.typing import TFloat, TFloatOrBFloat16, TReal
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -399,7 +399,7 @@ def aten_l1_loss(self: TensorType, target: TensorType, reduction: int = 1) -> Te
 
 
 @torch_op("aten::leaky_relu")
-def aten_leaky_relu(self, negative_slope: float = 0.01):
+def aten_leaky_relu(self: TFloatOrBFloat16, negative_slope: float = 0.01) -> TFloatOrBFloat16:
     # leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor
 
     return op.LeakyRelu(self, alpha=negative_slope)
@@ -801,10 +801,11 @@ def aten_reflection_pad3d_backward(
 
 
 @torch_op("aten::relu6")
-def aten_relu6(self: TFloat) -> TFloat:
+def aten_relu6(self: TReal) -> TReal:
     # relu6(Tensor self) -> Tensor
 
-    return op.Min(op.Relu(self), op.Constant(value_float=6.0))
+    six = op.CastLike(op.Constant(value_int=6), self)
+    return op.Min(op.Relu(self), six)
 
 
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
