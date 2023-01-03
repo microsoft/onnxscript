@@ -3977,12 +3977,6 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_relu(self: TensorType) -> TensorType:
-    # relu(Tensor self) -> Tensor
-
-    raise NotImplementedError()
-
-
 def aten_remainder(self: TensorType, other: TensorType) -> TensorType:
     # remainder.Tensor(Tensor self, Tensor other) -> Tensor
 

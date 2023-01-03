@@ -800,6 +800,13 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::relu")
+def aten_relu(self: TReal) -> TReal:
+    # relu(Tensor self) -> Tensor
+
+    return op.Relu(self)
+
+
 @torch_op("aten::relu6")
 def aten_relu6(self: TReal) -> TReal:
     # relu6(Tensor self) -> Tensor
