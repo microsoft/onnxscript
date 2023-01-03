@@ -1,5 +1,6 @@
 # Requirements for testing with the release version of onnx and onnxruntime
 
 # TODO(#249): Fix tests for onnx 1.13
+numpy==1.21.5
 onnx==1.12
 onnxruntime
