@@ -165,32 +165,43 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
     "dot": core_ops.aten_dot,
+    "erf": core_ops.aten_erf,
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,
     "fmod": core_ops.aten_fmod,
     "gt": core_ops.aten_gt,
+    "isinf": core_ops.aten_isinf,
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
+    "ne": core_ops.aten_ne,
+    "neg": core_ops.aten_neg,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
+    "reciprocal": core_ops.aten_reciprocal,
+    "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
+    "rsqrt": core_ops.aten_rsqrt,
+    "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
+    "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
+    "unsqueeze": core_ops.aten_unsqueeze,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
 }
@@ -210,7 +221,13 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS: tuple[DecorateMeta, ...] = ()
+SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
+    skip(
+        "nonzero",
+        matcher=lambda sample: sample.kwargs.get("as_tuple") == True,
+        reason="as_tuple=True is not supported",
+    ),
+)
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 # END OF SECTION TO MODIFY #####################################################
