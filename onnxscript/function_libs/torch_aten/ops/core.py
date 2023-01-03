@@ -11,9 +11,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
-
-import onnx
+from typing import Any, Optional, Sequence, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
@@ -2339,7 +2337,7 @@ def aten_isfinite(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::isinf")
-def aten_isinf(self: FLOAT | DOUBLE) -> BOOL:
+def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
     # isinf(Tensor self) -> Tensor
 
     return op.IsInf(self)

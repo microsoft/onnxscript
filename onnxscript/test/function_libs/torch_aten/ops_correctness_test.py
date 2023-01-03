@@ -224,7 +224,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "nonzero",
-        matcher=lambda sample: sample.kwargs.get("as_tuple") == True,
+        matcher=lambda sample: sample.kwargs.get("as_tuple") is True,
         reason="as_tuple=True is not supported",
     ),
 )
