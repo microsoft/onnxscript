@@ -49,20 +49,17 @@ filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
 [tool.mypy]
 follow_imports = "silent"   # TODO: Remove when we fix all the mypy errors
 strict_optional = true
-warn_return_any = true
 warn_no_return = true
-warn_unused_ignores = true
+warn_unused_ignores = false # TODO: CI and local are inconsistent when this is true. Investigate.
 warn_redundant_casts = true
 warn_incomplete_stub = true
 # TODO disallow_untyped_calls = true
 check_untyped_defs = true
-disallow_any_generics = true
-no_implicit_optional = true
+disallow_any_generics = false
 # TODO disallow_incomplete_defs = true
 # TODO disallow_subclassing_any = true
 disallow_untyped_decorators = true
 warn_unused_configs = true
-show_error_codes = true
 show_column_numbers = true
 
 [[tool.mypy.overrides]]

@@ -192,7 +192,7 @@ def format_arg_name(arg: torchgen.model.Argument) -> str:
     """Returns the python compatible name of the given argument."""
     if arg.name == "from":
         return f"{arg.name}_"
-    return arg.name  # type: ignore[no-any-return]
+    return arg.name
 
 
 def create_signature(func: torchgen.model.NativeFunction) -> cg.FunctionDef:

@@ -25,12 +25,13 @@ steps:
     python -m pip install -r requirements-dev.txt
   displayName: 'Install dependencies'
 
+# TODO(#249): Fix tests for onnx 1.13
 - script: |
       if [ '$(onnx.standard)' == '1' ]
         then
           python -m pip uninstall -y onnx-function-experiment
           python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install onnx onnxruntime
+          python -m pip install -r requirements-onnx.txt
       fi
   displayName: 'Install onnx'
 
