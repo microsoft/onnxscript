@@ -209,7 +209,6 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    skip("clamp", reason="Enable when onnxscript errors are fixed"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -347,14 +346,7 @@ class TestOutputConsistency(unittest.TestCase):
                 input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
                 output_torch = op(*inputs, **cpu_sample.kwargs)
-                try:
-                    function_output = onnx_function(*input_onnx, **kwargs_onnx)
-                # pylint: disable=c-extension-no-member
-                except onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented:
-                    self.skipTest(
-                        f"ONNX Runtime doesn't support running {op.name} with dtype {dtype}",
-                    )
-                # pylint: enable=c-extension-no-member
+                function_output = onnx_function(*input_onnx, **kwargs_onnx)
 
                 if dtype == torch.float32:
                     # Relax atol and rtol for float32 based on empirical results
