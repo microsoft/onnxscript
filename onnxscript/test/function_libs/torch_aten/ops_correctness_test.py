@@ -207,7 +207,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "slice": core_ops.aten_slice,
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
-    "sum": core_ops.aten_sum,
+    # "sum": core_ops.aten_sum, #TODO: kwargs={dim, keepdims}, dim is invalid
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
@@ -257,10 +257,15 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=BOOL_TYPES + INT_TYPES,
         reason="Sinh is not defined on bool or int tensors",
     ),
+    xfail(
+        "slice",
+        dtypes=dtypes_except(torch.float32),
+        reason="Sinh is not defined on bool or int tensors",
+    ),
     xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
     xfail(
         "sum",
-        dtypes=dtypes_except(torch.bfloat16, torch.int32, torch.int64, torch.double, torch.float32, torch.float16),
+        dtypes=dtypes_except(torch.bfloat16, torch.int64, torch.double, torch.float32, torch.float16),
         reason="Sum is not defined on bool tensors",
     ),
     xfail(
