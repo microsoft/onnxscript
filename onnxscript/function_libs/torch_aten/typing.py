@@ -22,10 +22,9 @@ from onnxscript import (
     INT32,
     INT64,
     UINT8,
-    UINT16,
-    UINT32,
-    UINT64,
 )
+
+# NOTE: We do not care about unsigned types beyond UINT8 because PyTorch does not us them.
 
 _TensorType = Union[
     BFLOAT16,
@@ -40,9 +39,6 @@ _TensorType = Union[
     INT32,
     INT64,
     UINT8,
-    UINT16,
-    UINT32,
-    UINT64,
 ]
 _FloatType = Union[FLOAT16, FLOAT, DOUBLE]
 _IntType = Union[INT8, INT16, INT32, INT64]
@@ -55,13 +51,13 @@ _RealType = Union[
     INT16,
     INT32,
     INT64,
-    UINT8,
-    UINT16,
-    UINT32,
-    UINT64,
 ]
 
 TTensor = TypeVar("TTensor", bound=_TensorType)
 TFloat = TypeVar("TFloat", bound=_FloatType)
+TFloatOrBFloat16 = TypeVar("TFloatOrBFloat16", bound=Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16])
 TInt = TypeVar("TInt", bound=_IntType)
 TReal = TypeVar("TReal", bound=_RealType)
+TRealUnlessInt16OrInt8 = TypeVar(
+    "TRealUnlessInt16OrInt8", bound=Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16, INT32, INT64]
+)

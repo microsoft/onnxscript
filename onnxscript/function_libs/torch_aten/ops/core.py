@@ -11,11 +11,18 @@
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Union
 
-from onnxscript import BOOL, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
-from onnxscript.function_libs.torch_aten.typing import TFloat, TReal, TTensor
+from onnxscript.function_libs.torch_aten.typing import (
+    TFloat,
+    TFloatOrBFloat16,
+    TInt,
+    TReal,
+    TRealUnlessInt16OrInt8,
+    TTensor,
+)
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -567,40 +574,46 @@ def aten_binomial(
     raise NotImplementedError()
 
 
-def aten_bitwise_and(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_and")
+def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     # bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseAnd(self, other)
 
 
-def aten_bitwise_left_shift(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_left_shift")
+def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     # bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitShift(self, other, direction="LEFT")
 
 
-def aten_bitwise_not(self: TensorType) -> TensorType:
+@torch_op("aten::bitwise_not")
+def aten_bitwise_not(self: TInt) -> TInt:
     # bitwise_not(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseNot(self)
 
 
-def aten_bitwise_or(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_or")
+def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     # bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseOr(self, other)
 
 
-def aten_bitwise_right_shift(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_right_shift")
+def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     # bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitShift(self, other, direction="RIGHT")
 
 
-def aten_bitwise_xor(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_xor")
+def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     # bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseXor(self, other)
 
 
 def aten_blackman_window(window_length: int) -> TensorType:
@@ -1542,10 +1555,11 @@ def aten_equal(self: TensorType, other: TensorType) -> bool:
     raise NotImplementedError()
 
 
-def aten_erf(self: TensorType) -> TensorType:
+@torch_op("aten::erf")
+def aten_erf(self: TReal) -> TReal:
     # erf(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Erf(self)
 
 
 def aten_erfc(self: TensorType) -> TensorType:
@@ -1794,10 +1808,11 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_fmod(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::fmod")
+def aten_fmod(self: TReal, other: TReal) -> TReal:
     # fmod.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Mod(self, other, fmod=1)
 
 
 def aten_frac(self: TensorType) -> TensorType:
@@ -2321,10 +2336,11 @@ def aten_isfinite(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_isinf(self: TensorType) -> TensorType:
+@torch_op("aten::isinf")
+def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
     # isinf(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.IsInf(self)
 
 
 def aten_isnan(self: TensorType) -> TensorType:
@@ -2537,28 +2553,32 @@ def aten_logdet(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_logical_and(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logical_and")
+def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
     # logical_and(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.And(self, other)
 
 
-def aten_logical_not(self: TensorType) -> TensorType:
+@torch_op("aten::logical_not")
+def aten_logical_not(self: BOOL) -> BOOL:
     # logical_not(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Not(self)
 
 
-def aten_logical_or(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logical_or")
+def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     # logical_or(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Or(self, other)
 
 
-def aten_logical_xor(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logical_xor")
+def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     # logical_xor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Xor(self, other)
 
 
 def aten_logit(self: TensorType, eps: Optional[float] = None) -> TensorType:
@@ -2696,7 +2716,9 @@ def aten_masked_select_backward(
 
 
 @torch_op("aten::matmul")
-def aten_matmul(self: TFloat, other: TFloat) -> TFloat:
+def aten_matmul(
+    self: TRealUnlessInt16OrInt8, other: TRealUnlessInt16OrInt8
+) -> TRealUnlessInt16OrInt8:
     # matmul(Tensor self, Tensor other) -> Tensor
 
     return op.MatMul(self, other)
@@ -3097,7 +3119,9 @@ def aten_mkldnn_max_pool3d_backward(
 
 
 @torch_op("aten::mm")
-def aten_mm(self: TFloat, mat2: TFloat) -> TFloat:
+def aten_mm(
+    self: TRealUnlessInt16OrInt8, mat2: TRealUnlessInt16OrInt8
+) -> TRealUnlessInt16OrInt8:
     # mm(Tensor self, Tensor mat2) -> Tensor
 
     # TODO(justinchuby): Specify type conversion for uint8/int8/int16
@@ -3391,16 +3415,18 @@ def aten_native_norm(self: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ne(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::ne")
+def aten_ne(self: TReal, other: TReal) -> BOOL:
     # ne.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Not(op.Equal(self, other))
 
 
-def aten_neg(self: TensorType) -> TensorType:
+@torch_op("aten::neg")
+def aten_neg(self: TReal) -> TReal:
     # neg(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Neg(self)
 
 
 def aten_negative(self: TensorType) -> TensorType:
@@ -3445,10 +3471,11 @@ def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_nonzero(self: TensorType) -> TensorType:
+@torch_op("aten::nonzero")
+def aten_nonzero(self: TTensor) -> INT64:
     # nonzero(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.NonZero(self)
 
 
 def aten_nonzero_numpy(self: TensorType) -> TensorType:
@@ -3938,10 +3965,11 @@ def aten_real(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_reciprocal(self: TensorType) -> TensorType:
+@torch_op("aten::reciprocal")
+def aten_reciprocal(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # reciprocal(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Reciprocal(self)
 
 
 def aten_record_stream(self: TensorType, s: str) -> Any:
@@ -3956,16 +3984,21 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_relu(self: TensorType) -> TensorType:
-    # relu(Tensor self) -> Tensor
-
-    raise NotImplementedError()
-
-
-def aten_remainder(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::remainder")
+def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # remainder.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    # a - a.div(b, rounding_mode="floor") * b
+    rounded_quotient = op.Floor(op.Div(self, other))
+
+    return op.Sub(self, op.Mul(rounded_quotient, other))
+
+
+@torch_op("aten::remainder", overload=True)
+def aten_remainder_int(self: TInt, other: TInt) -> TInt:
+    # remainder.Tensor(Tensor self, Tensor other) -> Tensor
+
+    return op.Mod(self, other)
 
 
 def aten_rename(self: TensorType, names: Optional[str]) -> TensorType:
@@ -4131,10 +4164,11 @@ def aten_rshift(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_rsqrt(self: TensorType) -> TensorType:
+@torch_op("aten::rsqrt")
+def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # rsqrt(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Reciprocal(op.Sqrt(self))
 
 
 def aten_rsub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
@@ -4218,16 +4252,18 @@ def aten_sgn(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_sigmoid(self: TensorType) -> TensorType:
+@torch_op("aten::sigmoid")
+def aten_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # sigmoid(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sigmoid(self)
 
 
-def aten_sign(self: TensorType) -> TensorType:
+@torch_op("aten::sign")
+def aten_sign(self: TReal) -> TReal:
     # sign(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sign(self)
 
 
 def aten_signbit(self: TensorType) -> TensorType:
@@ -4358,10 +4394,11 @@ def aten_split_with_sizes_copy(
     raise NotImplementedError()
 
 
-def aten_sqrt(self: TensorType) -> TensorType:
+@torch_op("aten::sqrt")
+def aten_sqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # sqrt(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sqrt(self)
 
 
 def aten_square(self: TensorType) -> TensorType:
@@ -4783,10 +4820,12 @@ def aten_unsafe_split_with_sizes(
     raise NotImplementedError()
 
 
-def aten_unsqueeze(self: TensorType, dim: int) -> TensorType:
+@torch_op("aten::unsqueeze")
+def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     # unsqueeze(Tensor(a) self, int dim) -> Tensor(a)
 
-    raise NotImplementedError()
+    dim = op.Cast(dim, to=INT64.dtype)
+    return op.Unsqueeze(self, dim)
 
 
 def aten_unsqueeze_copy(self: TensorType, dim: int) -> TensorType:
