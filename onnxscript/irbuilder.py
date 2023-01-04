@@ -261,17 +261,18 @@ class IRFunction:
         """Converts this instance into a `onnx.ModelProto`.
 
         Args:
-            functions: list of functions to include in the model,
-                by default, all functions called at least once are included
+            functions: A list of functions to include in the model.
+                By default, all functions called at least once are included.
             io_types: When specified, all the inputs/outputs of the model
                 are set to be of this type.
             input_types: When specified, all the inputs of the model
                 are set to be of the corresponding type in this list.
             output_types: When specified, all the outputs of the model
                 are set to be of the corresponding type in this list.
-            kwargs: additional parameters given to function :func:`onnx.helper.make_model`
+            kwargs: Additional parameters given to function :func:`onnx.helper.make_model`.
+
         Returns:
-            an instance of :class:`onnx.ModelProto`
+            An instance of :class:`onnx.ModelProto`.
         """
         graph, sub_functions = self.to_graph_and_functions(use_default_type=False)
         if io_types is not None:
