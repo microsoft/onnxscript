@@ -252,7 +252,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.upsample_nearest2d",
-        # Shape should be [N, C, H, W]
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
     ),
