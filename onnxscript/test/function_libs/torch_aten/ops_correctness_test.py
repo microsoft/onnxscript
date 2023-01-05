@@ -170,6 +170,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "exp2": core_ops.aten_exp2,
     "fmod": core_ops.aten_fmod,
     "gt": core_ops.aten_gt,
+    "index_select": core_ops.aten_index_select,
     "isinf": core_ops.aten_isinf,
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,

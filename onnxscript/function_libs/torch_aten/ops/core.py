@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT64
+import onnx.helper
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import (
     TFloat,
@@ -2174,10 +2175,21 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-def aten_index_select(self: TensorType, dim: int, index: TensorType) -> TensorType:
+@torch_op("aten::index_select")
+def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(index)) == 0:
+        # Index is a scalar. Reshape it to a size 1 tensor.
+        index = op.Expand(
+            index,
+            op.Constant(
+                value=onnx.helper.make_tensor("size_one", INT64.dtype, [1], [1])
+            ),
+        )
+
+    index = op.Cast(index, to=INT64.dtype)
+    return op.Gather(self, index, axis=dim)
 
 
 def aten_index_select_backward(
