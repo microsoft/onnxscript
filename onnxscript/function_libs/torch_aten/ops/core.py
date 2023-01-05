@@ -2505,41 +2505,47 @@ def aten_linspace(start: float, end: float, steps: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("log")
 def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log(Tensor self) -> Tensor
 
     return op.Log(self)
 
 
+@torch_op("aten::log10")
 def aten_log10(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log10(Tensor self) -> Tensor
 
-    return op.Div(op.Log(self), op.Log(10))
+    return op.Div(op.Log(self), op.Log(10.0))
 
 
+@torch_op("aten::log1p")
 def aten_log1p(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log1p(Tensor self) -> Tensor
 
-    return op.Log(op.Add(self, 1))
+    return op.Log(op.Add(self, 1.0))
 
 
+@torch_op("aten::log2")
 def aten_log2(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log2(Tensor self) -> Tensor
 
-    return op.Div(op.Log(self), op.Log(2))
+    return op.Div(op.Log(self), op.Log(2.0))
 
 
+@torch_op("aten::logaddexp")
 def aten_logaddexp(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # logaddexp(Tensor self, Tensor other) -> Tensor
 
     return op.Log(op.Add(op.Exp(self), op.Exp(other)))
 
 
+@torch_op("aten::logaddexp2")
 def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # logaddexp2(Tensor self, Tensor other) -> Tensor
-    summation = op.Add(op.Pow(2, self), op.Pow(2, other))
+    summation = op.Add(op.Pow(2.0, self), op.Pow(2.0, other))
 
-    return op.Log(summation) / op.Log(2)
+    return op.Log(summation) / op.Log(2.0)
 
 
 def aten_logcumsumexp(self: TensorType, dim: int) -> TensorType:
