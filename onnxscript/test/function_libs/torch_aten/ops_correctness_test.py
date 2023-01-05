@@ -178,6 +178,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "logaddexp": core_ops.aten_logaddexp,
     "logaddexp2": core_ops.aten_logaddexp2,
     "logcumsumexp": core_ops.aten_logcumsumexp,
+    "logsumexp": core_ops.aten_logsumexp,
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
