@@ -206,7 +206,7 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
 
 @torch_op("aten::log_softmax")
 def aten_special_log_softmax(
-    self: TensorType, dim: int, dtype: int = -1 # pylint: disable=unused-argument
+    self: TensorType, dim: int, dtype: int = -1  # pylint: disable=unused-argument
 ) -> TensorType:
     # special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 
