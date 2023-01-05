@@ -207,7 +207,7 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
         elif input is None:
             return None
         elif isinstance(input, list):
-            return input
+            return [adapt(elt) for elt in input]
         elif isinstance(input, tuple):
             return tuple(adapt(elt) for elt in input)
         raise TypeError(f"Unexpected input type {type(input)}.")
