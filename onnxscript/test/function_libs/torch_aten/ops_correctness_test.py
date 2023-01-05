@@ -5,6 +5,7 @@ import copy
 import dataclasses
 import unittest
 from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
+import warnings
 
 import numpy as np
 import onnx
@@ -145,9 +146,18 @@ def add_decorate_info(
 
 # Modify this section ##########################################################
 
+def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+    if "scale_factor" in kwargs:
+        kwargs["scales_h"] = kwargs["scale_factor"]
+        kwargs["scales_w"] = kwargs["scale_factor"]
+        del kwargs["scale_factor"]
+    if "size" in kwargs:
+        kwargs["size"] = np.array(kwargs["size"])
+    return kwargs
+
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
+OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction | tuple[onnxscript.OnnxFunction, Callable]] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
@@ -183,6 +193,10 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    "nn.functional.upsample_nearest2d": (
+        nn_ops.aten_upsample_nearest2d,
+        _upsample_kwargs_wrangler,
+    ),
     "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
@@ -227,13 +241,45 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("as_tuple") is True,
         reason="as_tuple=True is not supported",
     ),
+    skip(
+        "nn.functional.upsample_nearest2d",
+        # Shape should be [N, C, H, W]
+        matcher=lambda sample: len(sample.input.shape) != 2 + 2,
+        reason="only test on 2d inputs",
+    ),
+    skip(
+        "nn.functional.upsample_nearest2d",
+        # Shape should be [N, C, H, W]
+        matcher=lambda sample: "scale_factor" in sample.kwargs,
+        reason="fixme: the scale_factor tests",
+    ),
 )
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
 # END OF SECTION TO MODIFY #####################################################
 
 
+def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
+    """Duplicate an opinfo in the opinfo database and give it a new name."""
+    for opinfo in opinfos:
+        if opinfo.name == name:
+            for new_name in new_names:
+                new_opinfo = copy.deepcopy(opinfo)
+                new_opinfo.name = new_name
+                opinfos.append(new_opinfo)
+            return
+
+
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.upsample_nearest",
+    (
+        "nn.functional.upsample_nearest1d",
+        "nn.functional.upsample_nearest2d",
+        "nn.functional.upsample_nearest3d",
+    ),
+)
 
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
@@ -332,6 +378,13 @@ class TestOutputConsistency(unittest.TestCase):
         )
 
         onnx_function = OPINFO_FUNCTION_MAPPING[op.name]
+        kwarg_wrangler = None
+        if isinstance(onnx_function, tuple):
+            # Obtain the kwarg_wrangler that manipulates the OpInfo inputs
+            # to match the aten operator signature
+            # An example is nn.functional.upsample_nearest2d, which has a different signature
+            # than the aten operator upsample_nearest2d
+            onnx_function, kwarg_wrangler = onnx_function
 
         for (i, cpu_sample) in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
@@ -346,6 +399,8 @@ class TestOutputConsistency(unittest.TestCase):
                     self.skipTest(skip_reason)
                 input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
+                if kwarg_wrangler:
+                    kwargs_onnx = kwarg_wrangler(kwargs_onnx)
                 output_torch = op(*inputs, **cpu_sample.kwargs)
                 try:
                     function_output = onnx_function(*input_onnx, **kwargs_onnx)

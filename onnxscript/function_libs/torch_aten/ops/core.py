@@ -199,19 +199,19 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 
 
 def aten_amax(
-    self: TensorType, dim: Optional[Sequence[int]] = None, keepdim: bool = False
-) -> TensorType:
+    self: TReal, dim: Optional[INT64["M"]] = None, keepdim: bool = False
+) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
 def aten_amin(
-    self: TensorType, dim: Optional[Sequence[int]] = None, keepdim: bool = False
+    self: TensorType, dim: Optional[INT64["M"]] = None, keepdim: bool = False
 ) -> TensorType:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
 def aten_aminmax(
@@ -4171,10 +4171,10 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Reciprocal(op.Sqrt(self))
 
 
-def aten_rsub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+def aten_rsub(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    return op.Mul(op.Sub(other, self), alpha)
 
 
 def aten_scalar_tensor(s: float) -> TensorType:
