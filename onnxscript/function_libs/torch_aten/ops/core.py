@@ -4309,7 +4309,7 @@ def aten_slice(
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    return op.Slice(self, start, end, dim, step)    # type: ignore[arg-type]
+    return op.Slice(self, start, end, dim, step)# type: ignore[arg-type]
 
 
 def aten_slice_backward(
@@ -4497,7 +4497,7 @@ def aten_sum(
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
     # since op.Sum() is element-wise sum, so we have to use op.ReduceSum()
 
-    return op.ReduceSum(self, keepdims=0)   # type: ignore[arg-type]
+    return op.ReduceSum(self, keepdims=0)# type: ignore[arg-type]
 
 
 def aten_sum_to_size(self: TensorType, size: Sequence[int]) -> TensorType:
