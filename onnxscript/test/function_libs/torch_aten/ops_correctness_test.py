@@ -5,7 +5,6 @@ import copy
 import dataclasses
 import unittest
 from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
-import warnings
 
 import numpy as np
 import onnx
@@ -146,6 +145,7 @@ def add_decorate_info(
 
 # Modify this section ##########################################################
 
+
 def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
     if "scale_factor" in kwargs:
         kwargs["scales_h"] = kwargs["scale_factor"]
@@ -155,9 +155,12 @@ def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
         kwargs["size"] = np.array(kwargs["size"])
     return kwargs
 
+
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction | tuple[onnxscript.OnnxFunction, Callable]] = {
+OPINFO_FUNCTION_MAPPING: dict[
+    str, onnxscript.OnnxFunction | tuple[onnxscript.OnnxFunction, Callable]
+] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
