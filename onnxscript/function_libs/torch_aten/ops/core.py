@@ -3683,7 +3683,7 @@ def aten_pdist(self: TensorType, p: float = 2) -> TensorType:
 
 def aten_permute(self: TensorType, dims: Sequence[int]) -> TensorType:
     # permute(Tensor(a) self, int[] dims) -> Tensor(a)
-
+    # TODO(jiz): Start implementation
     raise NotImplementedError()
 
 
