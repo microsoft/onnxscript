@@ -265,7 +265,9 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
     xfail(
         "sum",
-        dtypes=dtypes_except(torch.bfloat16, torch.int64, torch.double, torch.float32, torch.float16),
+        dtypes=dtypes_except(
+            torch.bfloat16, torch.int64, torch.double, torch.float32, torch.float16
+        ),
         reason="Sum is not defined on bool tensors",
     ),
     xfail(
