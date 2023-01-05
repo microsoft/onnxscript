@@ -820,7 +820,7 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 
 
 @torch_op("aten::clone")
-def aten_clone(self: TensorType, memory_format: str = None) -> TensorType:  # pylint: disable=unused-argument
+def aten_clone(self: TensorType, memory_format: str = "") -> TensorType:  # pylint: disable=unused-argument
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
     return op.Identity(self)
@@ -4050,7 +4050,7 @@ def aten_repeat_interleave(
 
 
 @torch_op("aten::reshape")
-def aten_reshape(self: TensorType, shape: INT64["M"]) -> TensorType:
+def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
     return op.Reshape(self, shape)    # type: ignore[arg-type]
@@ -4896,7 +4896,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::view")
-def aten_view(self: TensorType, size: INT64["M"]) -> TensorType:
+def aten_view(self: TensorType, size: INT64) -> TensorType:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
     return op.Reshape(self, size)     # type: ignore[arg-type]
