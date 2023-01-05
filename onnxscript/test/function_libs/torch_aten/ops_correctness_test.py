@@ -159,7 +159,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
-    # "cat": core_ops.aten_cat,     # TODO(xiaowuhu): Enable after fix: it cannot parse Sequence[tensor] as input
+    "cat": core_ops.aten_cat,     # TODO(xiaowuhu): Enable after fix: it cannot parse Sequence[tensor] as input
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -207,7 +207,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "slice": core_ops.aten_slice,
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
-    # "sum": core_ops.aten_sum, #TODO: kwargs={dim, keepdims}, dim is invalid
+    "sum": core_ops.aten_sum, #TODO: kwargs={dim, keepdims}, dim is invalid
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
@@ -382,13 +382,16 @@ class TestOutputConsistency(unittest.TestCase):
                     rtol = None
                     atol = None
 
-                # Use torch testing to ensure dtypes and shapes match
-                torch.testing.assert_close(
-                    torch.tensor(function_output),
-                    output_torch,
-                    rtol=rtol,
-                    atol=atol,
-                )
+                if isinstance(output_torch, bool):
+                    assert(output_torch == function_output)
+                else:
+                    # Use torch testing to ensure dtypes and shapes match
+                    torch.testing.assert_close(
+                        torch.tensor(function_output),
+                        output_torch,
+                        rtol=rtol,
+                        atol=atol,
+                    )
 
 
 common_device_type.instantiate_device_type_tests(
