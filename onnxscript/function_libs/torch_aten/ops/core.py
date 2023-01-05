@@ -13,8 +13,9 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT64
 import onnx.helper
+
+from onnxscript import BOOL, DOUBLE, FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import (
     TFloat,
@@ -2183,9 +2184,7 @@ def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
         # Index is a scalar. Reshape it to a size 1 tensor.
         index = op.Expand(
             index,
-            op.Constant(
-                value=onnx.helper.make_tensor("size_one", INT64.dtype, [1], [1])
-            ),
+            op.Constant(value=onnx.helper.make_tensor("size_one", INT64.dtype, [1], [1])),
         )
 
     index = op.Cast(index, to=INT64.dtype)
