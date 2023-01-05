@@ -820,7 +820,9 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 
 
 @torch_op("aten::clone")
-def aten_clone(self: TensorType, memory_format: str = "") -> TensorType:  # pylint: disable=unused-argument
+def aten_clone(
+    self: TensorType, memory_format: str = ""
+) -> TensorType:  # pylint: disable=unused-argument
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
     return op.Identity(self)
@@ -4053,7 +4055,7 @@ def aten_repeat_interleave(
 def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
-    return op.Reshape(self, shape)    # type: ignore[arg-type]
+    return op.Reshape(self, shape)  # type: ignore[arg-type]
 
 
 def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4310,7 +4312,6 @@ def aten_slice(
     return op.Slice(self, start, end, dim, step)
 
 
-
 def aten_slice_backward(
     grad_output: TensorType,
     input_sizes: INT64,
@@ -4490,7 +4491,9 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 
 
 @torch_op("aten::sum")
-def aten_sum(self: TensorType, dtype: int = None) -> TensorType:    # pylint: disable=unused-argument
+def aten_sum(
+    self: TensorType, dtype: int = None
+) -> TensorType:  # pylint: disable=unused-argument
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
     # since op.Sum() is element-wise sum, so we have to use op.ReduceSum()
 
@@ -4899,7 +4902,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 def aten_view(self: TensorType, size: INT64) -> TensorType:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
-    return op.Reshape(self, size)     # type: ignore[arg-type]
+    return op.Reshape(self, size)  # type: ignore[arg-type]
 
 
 def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
