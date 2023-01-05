@@ -2548,10 +2548,18 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
     return op.Log(summation) / op.Log(2.0)
 
 
-def aten_logcumsumexp(self: TensorType, dim: int) -> TensorType:
+@torch_op("aten::logcumsumexp")
+def aten_logcumsumexp(self: TFloatOrBFloat16, dim: INT64) -> TFloatOrBFloat16:
     # logcumsumexp(Tensor self, int dim) -> Tensor
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(self)) == 0:
+        # A scalar
+        result = self
+    else:
+        # TODO(justinchuby): Ensure numerical stability
+        result = op.Log(op.CumSum(op.Exp(self), dim))
+
+    return result
 
 
 def aten_logdet(self: TensorType) -> TensorType:
