@@ -1429,7 +1429,7 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2) -> TensorType:
 def aten_div(self: TensorType, other: TensorType) -> TensorType:
     # div.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Div(self, other)
+    return op.Div(self, other)  # type: ignore[arg-type]
 
 
 def aten_divide(self: TensorType, other: TensorType) -> TensorType:

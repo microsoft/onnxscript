@@ -235,6 +235,11 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
+        "div",
+        matcher=lambda sample: sample.kwargs.get("rounding_mode") is True,
+        reason="rounding_mode=True is not supported",
+    ),
+    skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is True,
         reason="as_tuple=True is not supported",
