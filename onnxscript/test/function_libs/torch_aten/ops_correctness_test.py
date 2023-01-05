@@ -226,60 +226,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
     ),
-    xfail(
-        "nn.functional.relu6",
-        dtypes=dtypes_except(torch.float16, torch.float32),
-        reason="ONNX Runtime doesn't support float64 for Relu",
-    ),
-    xfail(
-        "nn.functional.selu",
-        dtypes=dtypes_except(torch.float16, torch.float32),
-        reason="ONNX Runtime doesn't support float64 for Selu",
-    ),
-    xfail(
-        "round",
-        variant_name="",
-        dtypes=dtypes_except(*FLOAT_TYPES),
-        reason="Round is not defined on non-float tensors",
-    ),
-    xfail("round", variant_name="decimals_0", reason="The ATen op does not support decimals"),
-    xfail("round", variant_name="decimals_3", reason="The ATen op does not support decimals"),
-    xfail(
-        "round", variant_name="decimals_neg_3", reason="The ATen op does not support decimals"
-    ),
-    xfail(
-        "sin",
-        dtypes=BOOL_TYPES + INT_TYPES,
-        reason="Sin is not defined on bool or int tensors",
-    ),
-    xfail(
-        "sinh",
-        dtypes=BOOL_TYPES + INT_TYPES,
-        reason="Sinh is not defined on bool or int tensors",
-    ),
-    xfail(
-        "slice",
-        dtypes=dtypes_except(torch.float32),
-        reason="Sinh is not defined on bool or int tensors",
-    ),
-    xfail("sub", dtypes=BOOL_TYPES, reason="Sub is not defined on bool tensors"),
-    xfail(
-        "sum",
-        dtypes=dtypes_except(
-            torch.bfloat16, torch.int64, torch.double, torch.float32, torch.float16
-        ),
-        reason="Sum is not defined on bool tensors",
-    ),
-    xfail(
-        "tan",
-        dtypes=BOOL_TYPES + INT_TYPES,
-        reason="Tan is not defined on bool or int tensors",
-    ),
-    xfail(
-        "tanh",
-        dtypes=BOOL_TYPES + INT_TYPES,
-        reason="Tanh is not defined on bool or int tensors",
-    ),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
