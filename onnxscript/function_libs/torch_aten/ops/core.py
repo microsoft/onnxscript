@@ -2545,7 +2545,7 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
     # logaddexp2(Tensor self, Tensor other) -> Tensor
     summation = op.Add(op.Pow(2.0, self), op.Pow(2.0, other))
 
-    return op.Log(summation) / op.Log(2.0)
+    return op.Div(op.Log(summation), op.Log(2.0))
 
 
 @torch_op("aten::logcumsumexp")
