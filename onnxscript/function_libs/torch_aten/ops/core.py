@@ -820,10 +820,10 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 
 
 @torch_op("aten::clone")
-def aten_clone(self: TensorType, memory_format: str = None) -> TensorType:
+def aten_clone(self: TensorType, memory_format: str = None) -> TensorType:  # pylint: disable=unused-argument
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
-    return op.CastLike(self, self)
+    return op.Identity(self)
 
 
 def aten_coalesce(self: TensorType) -> TensorType:
@@ -1600,7 +1600,7 @@ def aten_exp2(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::expand")
-def aten_expand(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:
+def aten_expand(self: TensorType, size: INT64) -> TensorType:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
     return op.Expand(self, size)
@@ -4050,7 +4050,7 @@ def aten_repeat_interleave(
 
 
 @torch_op("aten::reshape")
-def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
+def aten_reshape(self: TensorType, shape: INT64["M"]) -> TensorType:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
     return op.Reshape(self, shape)    # type: ignore[arg-type]
@@ -4301,8 +4301,8 @@ def aten_sinh(self: TFloat) -> TFloat:
 def aten_slice(
     self: TensorType,
     dim: int = 0,
-    start: INT64 = None,
-    end: INT64 = None,
+    start: Optional[INT64] = None,
+    end: Optional[INT64] = None,
     step: INT64 = 1,
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
@@ -4490,7 +4490,7 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 
 
 @torch_op("aten::sum")
-def aten_sum(self: TensorType, dtype: int = None) -> TensorType:
+def aten_sum(self: TensorType, dtype: int = None) -> TensorType:    # pylint: disable=unused-argument
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
     # since op.Sum() is element-wise sum, so we have to use op.ReduceSum()
 
@@ -4896,10 +4896,11 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::view")
-def aten_view(self: TensorType, size: INT64) -> TensorType:
+def aten_view(self: TensorType, size: INT64["M"]) -> TensorType:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
     return op.Reshape(self, size)     # type: ignore[arg-type]
+
 
 def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
     # view_as(Tensor(a) self, Tensor other) -> Tensor(a)
