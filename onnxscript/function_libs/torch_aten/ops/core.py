@@ -821,7 +821,8 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 
 @torch_op("aten::clone")
 def aten_clone(
-    self: TensorType, memory_format: str = "") -> TensorType:  # pylint: disable=unused-argument
+    self: TensorType, memory_format: str = ""
+) -> TensorType:  # pylint: disable=unused-argument
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
     return op.Identity(self)
@@ -4490,7 +4491,9 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 
 
 @torch_op("aten::sum")
-def aten_sum(self: TensorType, dtype: int = -1) -> TensorType:  # pylint: disable=unused-argument
+def aten_sum(
+    self: TensorType, dtype: int = -1
+) -> TensorType:  # pylint: disable=unused-argument
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
     # since op.Sum() is element-wise sum, so we have to use op.ReduceSum()
 
