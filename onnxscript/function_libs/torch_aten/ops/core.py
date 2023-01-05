@@ -2505,40 +2505,41 @@ def aten_linspace(start: float, end: float, steps: int) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_log(self: TensorType) -> TensorType:
+def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(self)
 
 
-def aten_log10(self: TensorType) -> TensorType:
+def aten_log10(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log10(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Div(op.Log(self), op.Log(10))
 
 
-def aten_log1p(self: TensorType) -> TensorType:
+def aten_log1p(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log1p(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(op.Add(self, 1))
 
 
-def aten_log2(self: TensorType) -> TensorType:
+def aten_log2(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log2(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Div(op.Log(self), op.Log(2))
 
 
-def aten_logaddexp(self: TensorType, other: TensorType) -> TensorType:
+def aten_logaddexp(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # logaddexp(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(op.Add(op.Exp(self), op.Exp(other)))
 
 
-def aten_logaddexp2(self: TensorType, other: TensorType) -> TensorType:
+def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # logaddexp2(Tensor self, Tensor other) -> Tensor
+    summation = op.Add(op.Pow(2, self), op.Pow(2, other))
 
-    raise NotImplementedError()
+    return op.Log(summation) / op.Log(2)
 
 
 def aten_logcumsumexp(self: TensorType, dim: int) -> TensorType:
