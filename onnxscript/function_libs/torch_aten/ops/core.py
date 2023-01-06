@@ -251,7 +251,7 @@ def aten_arange(end: TReal, dtype: int = -1) -> TReal:
 
 
 @torch_op("aten::arange", overload=True)
-def aten_arange(start: TReal, end: TReal, dtype: int = -1) -> TReal:
+def aten_arange_start_end(start: TReal, end: TReal, dtype: int = -1) -> TReal:
     # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     if dtype != -1:
@@ -262,7 +262,7 @@ def aten_arange(start: TReal, end: TReal, dtype: int = -1) -> TReal:
 
 
 @torch_op("aten::arange", overload=True)
-def aten_arange(start: TReal, end: TReal, step: TReal, dtype: int = -1) -> TReal:
+def aten_arange_start_end_step(start: TReal, end: TReal, step: TReal, dtype: int = -1) -> TReal:
     # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     if dtype != -1:
