@@ -258,7 +258,7 @@ def aten_arange_start_end(start: TReal, end: TReal, dtype: int = -1) -> TReal:
         start = op.Cast(start, to=dtype)
         end = op.Cast(end, to=dtype)
 
-    return op.Range(start, end, dtype)
+    return op.Range(start, end, 1)
 
 
 @torch_op("aten::arange", overload=True)
@@ -270,7 +270,7 @@ def aten_arange_start_end_step(start: TReal, end: TReal, step: TReal, dtype: int
         end = op.Cast(end, to=dtype)
         step = op.Cast(step, to=dtype)
 
-    return op.Range(start, end, dtype)
+    return op.Range(start, end, step)
 
 
 def aten_arccos(self: TensorType) -> TensorType:
