@@ -1854,18 +1854,23 @@ def aten_from_file(
     raise NotImplementedError()
 
 
-def aten_full(size: INT64, fill_value: float) -> TensorType:
+@torch_op("aten::full")
+def aten_full(size: INT64, fill_value, dtype: int = FLOAT.dtype):
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    fill_value = op.Cast(fill_value, to=dtype)
+
+    return op.Expand(fill_value, size)
 
 
-def aten_full_like(
-    self: TensorType, fill_value: float, memory_format: Optional[str] = None
-) -> TensorType:
+@torch_op("aten::full_like")
+def aten_full_like(self, fill_value, dtype: int = FLOAT.dtype):
     # full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    fill_value = op.Cast(fill_value, to=dtype)
+    self_shape = op.Shape(self)
+
+    return op.Expand(fill_value, self_shape)
 
 
 def aten_fused_moving_avg_obs_fake_quant(
@@ -3460,10 +3465,15 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
     raise NotImplementedError()
 
 
-def aten_new_full(self: TensorType, size: INT64, fill_value: float) -> TensorType:
+@torch_op("aten::new_full")
+def aten_new_full(
+    self, size: INT64, fill_value, dtype: int = FLOAT.dtype
+):  # pylint: disable=unused-argument
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    fill_value = op.Cast(fill_value, to=dtype)
+
+    return op.Expand(fill_value, size)
 
 
 def aten_new_ones(self: TensorType, size: INT64) -> TensorType:
@@ -4948,10 +4958,11 @@ def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_where(condition: TensorType) -> TensorType:
-    # where(Tensor condition) -> Tensor[]
+@torch_op("aten::where")
+def aten_where(self: TTensor, condition: BOOL, other: TTensor) -> TTensor:
+    # where.self(Tensor condition, Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Where(condition, self, other)
 
 
 def aten_xlogy(self: TensorType, other: TensorType) -> TensorType:
