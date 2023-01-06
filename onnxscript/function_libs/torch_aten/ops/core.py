@@ -251,8 +251,8 @@ def aten_arange(end: TReal, dtype: int = -1) -> TReal:
 
 
 @torch_op("aten::arange", overload=True)
-def aten_arange_start_end(start: TReal, end: TReal, dtype: int = -1) -> TReal:
-    # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+def aten_arange_start(start: TReal, end: TReal, dtype: int = -1) -> TReal:
+    # arange.start(Scalar start, Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     if dtype != -1:
         start = op.Cast(start, to=dtype)
@@ -262,8 +262,8 @@ def aten_arange_start_end(start: TReal, end: TReal, dtype: int = -1) -> TReal:
 
 
 @torch_op("aten::arange", overload=True)
-def aten_arange_start_end_step(start: TReal, end: TReal, step: TReal, dtype: int = -1) -> TReal:
-    # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+def aten_arange_start_step(start: TReal, end: TReal, step: TReal, dtype: int = -1) -> TReal:
+    # arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     if dtype != -1:
         start = op.Cast(start, to=dtype)
