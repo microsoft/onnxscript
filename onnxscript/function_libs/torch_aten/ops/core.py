@@ -240,10 +240,37 @@ def aten_any(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_arange(end: float) -> TensorType:
+@torch_op("aten::arange")
+def aten_arange(end: TReal, dtype: int = -1) -> TReal:
     # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    if dtype != -1:
+        end = op.Cast(end, to=dtype)
+
+    return op.Range(0, end, 1)
+
+
+@torch_op("aten::arange", overload=True)
+def aten_arange(start: TReal, end: TReal, dtype: int = -1) -> TReal:
+    # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+
+    if dtype != -1:
+        start = op.Cast(start, to=dtype)
+        end = op.Cast(end, to=dtype)
+
+    return op.Range(start, end, dtype)
+
+
+@torch_op("aten::arange", overload=True)
+def aten_arange(start: TReal, end: TReal, step: TReal, dtype: int = -1) -> TReal:
+    # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+
+    if dtype != -1:
+        start = op.Cast(start, to=dtype)
+        end = op.Cast(end, to=dtype)
+        step = op.Cast(step, to=dtype)
+
+    return op.Range(start, end, dtype)
 
 
 def aten_arccos(self: TensorType) -> TensorType:
