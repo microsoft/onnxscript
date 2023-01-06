@@ -158,7 +158,6 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
-    "cat": core_ops.aten_cat,
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -243,7 +242,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "expand",
-        matcher=lambda sample: (np.array(sample.args[0]) > 0).all() == False,
+        matcher=lambda sample: (np.array(sample.args[0]) > 0).all() is np.bool_(False),
         reason="Negative value is not supported",
     ),
     skip(
