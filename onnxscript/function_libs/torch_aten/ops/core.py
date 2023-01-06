@@ -1842,7 +1842,7 @@ def aten_from_file(
 
 
 @torch_op("aten::full")
-def aten_full(self, size: INT64, fill_value, dtype: int = FLOAT.dtype):
+def aten_full(size: INT64, fill_value, dtype: int = FLOAT.dtype):
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     fill_value = op.Cast(fill_value, to=dtype)
@@ -3452,10 +3452,13 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
     raise NotImplementedError()
 
 
-def aten_new_full(self: TensorType, size: INT64, fill_value: float) -> TensorType:
+@torch_op("aten::new_full")
+def aten_new_full(self, size: INT64, fill_value, dtype: int = FLOAT.dtype):
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    fill_value = op.Cast(fill_value, to=dtype)
+
+    return op.Expand(fill_value, size)
 
 
 def aten_new_ones(self: TensorType, size: INT64) -> TensorType:
