@@ -198,17 +198,17 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_amax(self: TReal, dim: Optional[INT64] = None, keepdim: bool = False) -> TReal:
+def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
+    # TODO(justinchuby): Make dim optional, test
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-def aten_amin(
-    self: TensorType, dim: Optional[INT64] = None, keepdim: bool = False
-) -> TensorType:
+def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
+    # TODO(justinchuby): Make dim optional, test
     return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
@@ -4179,10 +4179,11 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Reciprocal(op.Sqrt(self))
 
 
-def aten_rsub(self: TReal, other: TReal, alpha: float = 1) -> TReal:
+@torch_op("aten::rsub")
+def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
-    return op.Mul(op.Sub(other, self), alpha)
+    return op.Sub(other, op.Mul(self, alpha))
 
 
 def aten_scalar_tensor(s: float) -> TensorType:

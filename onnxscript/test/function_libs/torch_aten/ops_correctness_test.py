@@ -216,6 +216,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "repeat": core_ops.aten_repeat,
     "round": core_ops.aten_round,
     "rsqrt": core_ops.aten_rsqrt,
+    "rsub": core_ops.aten_rsub,
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
