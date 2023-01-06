@@ -668,7 +668,7 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
 
 
 @torch_op("aten::cat")
-def aten_cat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+def aten_cat(tensors: Sequence[TensorType], dim: Optional[int] = 0) -> TensorType:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
     # TODO: onnxscript cannot support parsing correctly input as Tensor[] now
 
@@ -4502,7 +4502,10 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 
 
 def aten_sum(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False, dtype: int = -1  # pylint: disable=unused-argument
+    self: TensorType,
+    dim: Optional[int] = None,
+    keepdim: bool = False,
+    dtype: int = -1
 ) -> TensorType:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
     # since op.Sum() is element-wise sum, so we have to use op.ReduceSum()

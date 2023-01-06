@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.onnx_types import TensorType
 
 
@@ -203,11 +202,8 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_log_softmax(
-    self: TensorType, dim: int, dtype: int = -1
-) -> TensorType:
+def aten_special_log_softmax(self: TensorType, dim: int, dtype: int = -1) -> TensorType:
     # special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
-
 
     raise NotImplementedError()
 
