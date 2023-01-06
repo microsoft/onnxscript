@@ -1176,7 +1176,7 @@ def aten_upsample_nearest2d(
     # upsample_nearest2d(Tensor self, SymInt[2] output_size, float? scales_h=None, float? scales_w=None) -> Tensor
 
     self_shape = op.Shape(self)
-    batch_channel = self_shape[:2]
+    batch_channel = self_shape[:2]  # type: ignore[index]
     output_size = op.Concat(batch_channel, size, axis=0)
 
     # TODO(justinchuby): Conditionally use scales
