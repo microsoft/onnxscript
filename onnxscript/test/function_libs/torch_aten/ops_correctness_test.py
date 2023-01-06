@@ -391,10 +391,6 @@ class TestOutputConsistency(unittest.TestCase):
                     rtol = None
                     atol = None
 
-                # if isinstance(output_torch, bool):
-                #     assert(output_torch == function_output)
-                # else:
-                    # Use torch testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
                     torch.tensor(output_torch),

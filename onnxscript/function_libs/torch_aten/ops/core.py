@@ -1429,7 +1429,7 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2) -> TensorType:
 def aten_div(self: TensorType, other: TensorType) -> TensorType:
     # div.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Div(self, other)  # type: ignore[arg-type]
+    return op.Div(self, other)
 
 
 def aten_divide(self: TensorType, other: TensorType) -> TensorType:
@@ -1550,20 +1550,20 @@ def aten_empty_strided(size: INT64, stride: INT64) -> TensorType:
 
 
 @torch_op("aten::eq")
-def aten_eq(self: TensorType, other: TensorType) -> TensorType:
+def aten_eq(self: TTensor, other: TTensor) -> BOOL:
     # eq.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Equal(self, other)
+    return op.Equal(self, other)  # type: ignore[arg-type]
 
 
 @torch_op("aten::equal")
-def aten_equal(self: TensorType, other: TensorType) -> bool:
+def aten_equal(self: TTensor, other: TTensor) -> bool:
     # equal(Tensor self, Tensor other) -> bool
 
-    sub_self_other = op.Sub(self, other)
+    sub_self_other = op.Sub(self, other)  # type: ignore[arg-type]
     abs_sub = op.Abs(sub_self_other)
     sum_of_abs = op.ReduceSum(abs_sub, keepdims=0)
-    return sum_of_abs == 0
+    return op.Equal(sum_of_abs, 0)
 
 
 @torch_op("aten::erf")
