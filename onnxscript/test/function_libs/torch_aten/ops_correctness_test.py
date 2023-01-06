@@ -169,6 +169,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,
     "fmod": core_ops.aten_fmod,
+    # TODO(justinchuby): Test aten::full
     "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
     "isinf": core_ops.aten_isinf,
