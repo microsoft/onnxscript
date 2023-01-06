@@ -20,9 +20,6 @@ from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 
 T = TypeVar("T")
 
-# Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
-TESTED_DTYPES = (torch.float32,)
-
 # Convenience tuples for creating dtype lists when skipping or xfailing tests
 
 BOOL_TYPES = (torch.bool,)
@@ -39,6 +36,12 @@ FLOAT_TYPES = (
     torch.float16,
     torch.float32,
     torch.float64,
+)
+
+TESTED_DTYPES = (
+    *BOOL_TYPES,
+    *INT_TYPES,
+    *FLOAT_TYPES,
 )
 
 
