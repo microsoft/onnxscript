@@ -25,7 +25,7 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
     str: onnx.AttributeProto.STRINGS,
 }
 
-_LIST_CONSTRUCTORS = [list, typing.List, typing.Sequence, collections.abc.Sequence]
+_LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
 
 def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.AttributeType]:
