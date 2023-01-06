@@ -61,7 +61,7 @@ class Registry:
             overloaded_function.add_overload(function_with_meta)
         else:
             overloaded_function.set_default(function_with_meta)
-        self._name_to_function[func.__name__] = function_with_meta
+        self._name_to_function[func.name] = function_with_meta
 
     def __getitem__(self, aten_name) -> OverloadedFunction:
         return self._registry[aten_name]
@@ -75,9 +75,9 @@ class Registry:
     def __repr__(self):
         return repr(self._registry)
 
-    def get_function_by_onnx_name(self, name: str) -> Optional[FunctionWithMeta]:
+    def get_function_meta_by_name(self, name: str) -> FunctionWithMeta:
         """Get a function by its onnx function name (not the aten name)."""
-        return self._name_to_function.get(name)
+        return self._name_to_function[name]
 
 
 # Default registry

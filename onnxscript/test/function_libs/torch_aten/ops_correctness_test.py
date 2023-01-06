@@ -17,6 +17,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
+from onnxscript.function_libs.torch_aten import registration, typing as atenlib_typing
 
 T = TypeVar("T")
 
@@ -360,6 +361,21 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
+def _dtype_matches_signature(dtype: torch.dtype, function_meta: registration.FunctionWithMeta) -> bool:
+    """Returns True if the sample input matches the function signature.
+
+    Args:
+        dtype: ONNX dtype.
+        function_meta: FunctionWithMeta.
+    """
+    onnx_type = TORCH_TYPE_TO_ONNX[dtype]
+    signature = function_meta.signature
+    first_param_annotation = tuple(signature.parameters.values())[0].annotation
+    if isinstance(first_param_annotation, str):
+        param_type = getattr(atenlib_typing, first_param_annotation)
+    raise NotImplementedError("TODO: implement this")
+
+
 class TestOutputConsistency(unittest.TestCase):
     """Test output consistency between exported ONNX models and PyTorch eager mode.
 
@@ -400,6 +416,17 @@ class TestOutputConsistency(unittest.TestCase):
             # than the aten operator upsample_nearest2d
             onnx_function, kwarg_wrangler = onnx_function
 
+        # Check the dtype to make sure it is supported by the function
+        if isinstance(onnx_function, onnxscript.OnnxFunction):
+            onnx_function_name = onnx_function.name
+        else:
+            onnx_function_name = onnx_function.__name__
+        function_meta = registration.default_registry.get_function_meta_by_name(onnx_function_name)
+
+        if not _dtype_matches_signature(dtype, function_meta):
+            self.skipTest(f"dtype '{dtype}' for '{op.name}' not supported by the function '{onnx_function_name}'.")
+
+        # Test every sample
         for (i, cpu_sample) in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
             # Provide the repr to subtest because tensors are not serializable in parallel test runs
