@@ -1605,7 +1605,7 @@ def aten_exp2(self: TFloat) -> TFloat:
 def aten_expand(self: TensorType, size: INT64) -> TensorType:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    size_int64 = op.Cast(size, to=7)    # to INT64
+    size_int64 = op.Cast(size, to=7)  # to INT64
     return op.Expand(self, size_int64)
 
 
@@ -4912,7 +4912,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 def aten_view(self: TensorType, size: INT64) -> TensorType:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
-    size_int64 = op.Cast(size, to=7)    # Reshape only support INT64 as second input
+    size_int64 = op.Cast(size, to=7)  # Reshape only support INT64 as second input
     return op.Reshape(self, size_int64)  # type: ignore[arg-type]
 
 
