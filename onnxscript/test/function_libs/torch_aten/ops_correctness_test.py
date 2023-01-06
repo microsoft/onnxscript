@@ -169,6 +169,8 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,
     "fmod": core_ops.aten_fmod,
+    "new_full": core_ops.aten_full,
+    "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
     "isinf": core_ops.aten_isinf,
     "lt": core_ops.aten_lt,
@@ -202,6 +204,7 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "tanh": core_ops.aten_tanh,
     # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
     "unsqueeze": core_ops.aten_unsqueeze,
+    "where": core_ops.aten_where,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
 }
