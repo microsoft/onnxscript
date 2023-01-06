@@ -19,7 +19,7 @@ from typing import Optional, Sequence
 from onnxscript import INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import TFloat, TFloatOrBFloat16, TReal
-from onnxscript.onnx_opset import opset17 as op
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
@@ -1185,7 +1185,7 @@ def aten_upsample_nearest2d(
         self,
         None,
         None,
-        size,
+        output_size,
         mode="nearest",
         coordinate_transformation_mode="asymmetric",
     )

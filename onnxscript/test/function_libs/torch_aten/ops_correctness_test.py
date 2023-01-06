@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import unittest
+import warnings
 from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
 
 import numpy as np
@@ -235,6 +236,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
     ),
+    xfail(
+        "nn.functional.upsample_nearest2d",
+        reason="enable when ONNX Runtime does support opset18",
+    ),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
@@ -245,7 +250,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "nonzero",
-        matcher=lambda sample: sample.kwargs.get("as_tuple") is True,
+        matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
     ),
     skip(
@@ -402,7 +407,9 @@ class TestOutputConsistency(unittest.TestCase):
             ):
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
-                    self.skipTest(skip_reason)
+                    # Cannot use self.skip because pytest would skip the entire test
+                    warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
+                    continue
                 input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
                 if kwarg_wrangler:
