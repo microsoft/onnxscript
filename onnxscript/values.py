@@ -236,8 +236,6 @@ def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
         return tuple(_adapt_to_user_mode(elt) for elt in output)
     elif isinstance(output, np.ndarray):
         return output
-    # elif isinstance(output, (bool, int, float)):
-    #     return output
     raise TypeError(f"Unexpected type {type(output)}.")
 
 
