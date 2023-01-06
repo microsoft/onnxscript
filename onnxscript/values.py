@@ -207,6 +207,9 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
         elif input is None:
             return None
         elif isinstance(input, list):
+            assert (len(input) > 0)
+            if isinstance(input[0], np.ndarray):  # this is for the case: list[array]
+                has_array = True
             return input
         elif isinstance(input, tuple):
             return tuple(adapt(elt) for elt in input)
@@ -236,8 +239,8 @@ def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
         return tuple(_adapt_to_user_mode(elt) for elt in output)
     elif isinstance(output, np.ndarray):
         return output
-    elif isinstance(output, (bool, int, float)):
-        return output
+    # elif isinstance(output, (bool, int, float)):
+    #     return output
     raise TypeError(f"Unexpected type {type(output)}.")
 
 

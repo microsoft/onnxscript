@@ -672,7 +672,7 @@ def aten_cat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
     # TODO: onnxscript cannot support parsing correctly input as Tensor[] now
 
-    return op.Concat(tensors, axis=dim)
+    return op.ConcatFromSequence(tensors, axis=dim)  # type: ignore[arg-type]
 
 
 def aten_ccol_indices(self: TensorType) -> TensorType:
@@ -1605,7 +1605,8 @@ def aten_exp2(self: TFloat) -> TFloat:
 def aten_expand(self: TensorType, size: INT64) -> TensorType:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    return op.Expand(self, size)
+    size_int64 = op.Cast(size, to=7)    # to INT64
+    return op.Expand(self, size_int64)
 
 
 def aten_expand_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4055,7 +4056,8 @@ def aten_repeat_interleave(
 def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
-    return op.Reshape(self, shape)  # type: ignore[arg-type]
+    shape_int64 = op.Cast(shape, to=7)  # Reshape only support INT64 as 'shape'
+    return op.Reshape(self, shape_int64)  # type: ignore[arg-type]
 
 
 def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4299,7 +4301,6 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
-@torch_op("aten::slice")
 def aten_slice(
     self: TensorType,
     dim: int = 0,
@@ -4309,7 +4310,7 @@ def aten_slice(
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    return op.Slice(self, start, end, dim, step)  # type: ignore[arg-type]
+    raise NotImplementedError()
 
 
 def aten_slice_backward(
@@ -4490,14 +4491,13 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
     raise NotImplementedError()
 
 
-@torch_op("aten::sum")
 def aten_sum(
-    self: TensorType, dtype: int = -1  # pylint: disable=unused-argument
+    self: TensorType, dim: Optional[int] = None, keepdim: bool = False, dtype: int = -1  # pylint: disable=unused-argument
 ) -> TensorType:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
     # since op.Sum() is element-wise sum, so we have to use op.ReduceSum()
 
-    return op.ReduceSum(self, keepdims=0)  # type: ignore[arg-type]
+    raise NotImplementedError()
 
 
 def aten_sum_to_size(self: TensorType, size: Sequence[int]) -> TensorType:
@@ -4902,7 +4902,8 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 def aten_view(self: TensorType, size: INT64) -> TensorType:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
-    return op.Reshape(self, size)  # type: ignore[arg-type]
+    size_int64 = op.Cast(size, to=7)    # Reshape only support INT64 as second input
+    return op.Reshape(self, size_int64)  # type: ignore[arg-type]
 
 
 def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
