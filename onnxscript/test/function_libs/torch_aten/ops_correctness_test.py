@@ -244,7 +244,6 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
-    xfail("rsub", reason="fixme: two cases mismatch"),
     xfail("transpose", reason="Enable when onnxscript errors are fixed"),
 )
 

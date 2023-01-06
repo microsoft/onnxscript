@@ -4183,7 +4183,7 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
-    return op.Mul(op.Sub(other, self), alpha)
+    return op.Sub(other, op.Mul(self, alpha))
 
 
 def aten_scalar_tensor(s: float) -> TensorType:
