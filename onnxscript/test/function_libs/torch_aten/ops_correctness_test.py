@@ -289,17 +289,17 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "nn.functional.adaptive_avg_pool1d",
         # Shape should be [N, C, D1]
-        matcher=lambda sample: sample.args[0] not in {1, (1,)} or len(sample.input.shape) != 3,
+        matcher=lambda sample: sample.args[0] not in {1, (1,)},
         reason="only global pooling is supported; only batched inputs are supported",
     ),
     skip(
         "nn.functional.adaptive_avg_pool2d",
-        matcher=lambda sample: sample.args[0] != (1, 1) or len(sample.input.shape) != 4,
+        matcher=lambda sample: sample.args[0] != (1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
     skip(
         "nn.functional.adaptive_avg_pool3d",
-        matcher=lambda sample: sample.args[0] != (1, 1, 1) or len(sample.input.shape) != 5,
+        matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
     skip(
@@ -426,14 +426,17 @@ class TestOutputConsistency(unittest.TestCase):
             requires_grad=False,
         )
 
-        onnx_function = OPINFO_FUNCTION_MAPPING[op.name]
+        onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
         kwarg_wrangler = None
-        if isinstance(onnx_function, tuple):
+        if isinstance(onnx_function_and_wrangler, tuple):
             # Obtain the kwarg_wrangler that manipulates the OpInfo inputs
             # to match the aten operator signature
             # An example is nn.functional.upsample_nearest2d, which has a different signature
             # than the aten operator upsample_nearest2d
-            onnx_function, kwarg_wrangler = onnx_function
+            onnx_function, kwarg_wrangler = onnx_function_and_wrangler
+        else:
+            assert isinstance(onnx_function_and_wrangler, Callable)
+            onnx_function = onnx_function_and_wrangler
 
         for (i, cpu_sample) in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
