@@ -2174,12 +2174,15 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_select")
+# @torch_op("aten::index_select")
 def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
+    if op.Size(op.Shape(self)) == 0:
+        return self
+
     # Index can be a scalar. Reshape it to a rank 1 tensor.
-    index = op.Reshape(index, (-1,))
+    index = op.Reshape(index, op.Constant(value_floats=[-1]))
     index = op.Cast(index, to=INT64.dtype)
 
     return op.Gather(self, index, axis=dim)

@@ -366,6 +366,10 @@ class TestOutputConsistency(unittest.TestCase):
                     rtol = None
                     atol = None
 
+                if not isinstance(function_output, np.ndarray):
+                    # An onnxscript tensor
+                    function_output = function_output.value
+
                 # Use torch testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
