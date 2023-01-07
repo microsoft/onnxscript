@@ -202,9 +202,7 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_log_softmax(
-    self: TensorType, dim: int, dtype: Optional[int] = None
-) -> TensorType:
+def aten_special_log_softmax(self: TensorType, dim: int, dtype: int = -1) -> TensorType:
     # special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 
     raise NotImplementedError()
