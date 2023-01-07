@@ -180,7 +180,12 @@ def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[
-    str, onnxscript.OnnxFunction | tuple[onnxscript.OnnxFunction, Callable]
+    str,
+    onnxscript.OnnxFunction
+    | tuple[
+        onnxscript.OnnxFunction | Callable[..., Any],
+        Callable[[dict[str, Any]], dict[str, Any]],
+    ],
 ] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
