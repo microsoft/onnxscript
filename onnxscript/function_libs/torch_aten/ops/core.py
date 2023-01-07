@@ -2165,10 +2165,21 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-def aten_index_select(self: TensorType, dim: int, index: TensorType) -> TensorType:
+# FIXME(#277): Script when attributes can come before inputs
+@torch_op("aten::index_select", trace_only=True)
+def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+    else:
+        # Index can be a scalar. Reshape it to a rank 1 tensor.
+        index = op.Reshape(index, op.Constant(value_floats=[-1]))
+        index = op.Cast(index, to=INT64.dtype)
+
+        result = op.Gather(self, index, axis=dim)
+
+    return result
 
 
 def aten_index_select_backward(
@@ -4670,11 +4681,26 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::transpose", trace_only=True)
 def aten_transpose(self, dim0: int, dim1: int):
     # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
 
     # FIXME(justinchuby): onnxscript raises Unsupported expression type
-    return op.Transpose(self, [dim0, dim1])
+    # Script the function when this is fixed
+    self_rank = op.Size(op.Shape(self))
+
+    if self_rank == 0:
+        result = self
+    else:
+        # Python code, change when onnxscript supports this
+        self_rank_val = self_rank.value  # type: ignore[attr-defined]
+        dims = list(range(self_rank_val))
+        dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
+        # Python code ends
+
+        result = op.Transpose(self, perm=dims)
+
+    return result
 
 
 def aten_triangular_solve(
