@@ -2165,7 +2165,8 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_select", trace_only=True)  # FIXME(#277): Script when attributes can come before inputs
+# FIXME(#277): Script when attributes can come before inputs
+@torch_op("aten::index_select", trace_only=True)
 def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
