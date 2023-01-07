@@ -23,14 +23,64 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-def aten_adaptive_avg_pool2d(self: TensorType, output_size: INT64) -> TensorType:
+@torch_op("aten::aten_adaptive_avg_pool1d")
+def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
+    # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
+
+    # assert output_size == [1]
+    # TODO(justinchuby): Specify input constraints
+
+    if op.Size(op.Shape(self)) == 2:
+        # Unbatched case
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        pooled = op.GlobalAveragePool(self)
+        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
+    else:
+        result = op.GlobalAveragePool(self)
+
+    return result
+
+
+@torch_op("aten::aten_adaptive_avg_pool2d")
+def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     # adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor
 
-    raise NotImplementedError()
+    # assert output_size == [1, 1]
+    # TODO(justinchuby): Specify input constraints
+
+    if op.Size(op.Shape(self)) == 3:
+        # Unbatched case
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        pooled = op.GlobalAveragePool(self)
+        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
+    else:
+        result = op.GlobalAveragePool(self)
+
+    return result
 
 
-def aten_adaptive_avg_pool3d(self: TensorType, output_size: INT64) -> TensorType:
+@torch_op("aten::aten_adaptive_avg_pool3d")
+def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
     # adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor
+
+    # assert output_size == [1, 1, 1]
+    # TODO(justinchuby): Specify input constraints
+
+    if op.Size(op.Shape(self)) == 4:
+        # Unbatched case
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        pooled = op.GlobalAveragePool(self)
+        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
+    else:
+        result = op.GlobalAveragePool(self)
+
+    return result
+
+
+def aten_adaptive_max_pool1d(
+    self: TensorType, output_size: Sequence[int]
+) -> tuple[TensorType, TensorType]:
+    # adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)
 
     raise NotImplementedError()
 
@@ -1162,15 +1212,29 @@ def aten_upsample_nearest1d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_nearest2d")
 def aten_upsample_nearest2d(
-    self: TensorType,
-    output_size: INT64,
+    self: TReal,
+    size: INT64,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
-) -> TensorType:
+) -> TReal:
     # upsample_nearest2d(Tensor self, SymInt[2] output_size, float? scales_h=None, float? scales_w=None) -> Tensor
 
-    raise NotImplementedError()
+    self_shape = op.Shape(self)
+    batch_channel = self_shape[:2]  # type: ignore[index]
+    output_size = op.Concat(batch_channel, size, axis=0)
+
+    # TODO(justinchuby): Conditionally use scales
+
+    return op.Resize(
+        self,
+        None,
+        None,
+        output_size,
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+    )
 
 
 def aten_upsample_nearest2d_backward(
