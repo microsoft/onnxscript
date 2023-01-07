@@ -48,20 +48,6 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-def aten_adaptive_avg_pool1d(self: TensorType, output_size: Sequence[int]) -> TensorType:
-    # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
-
-    raise NotImplementedError()
-
-
-def aten_adaptive_max_pool1d(
-    self: TensorType, output_size: Sequence[int]
-) -> tuple[TensorType, TensorType]:
-    # adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::add")
 def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
@@ -198,20 +184,20 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_amax(
-    self: TensorType, dim: Optional[Sequence[int]] = None, keepdim: bool = False
-) -> TensorType:
+# @torch_op("aten::amax")  # FIXME: Uncomment when CI uses onnx 1.13
+def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Make dim optional, keepdim bool
+    return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-def aten_amin(
-    self: TensorType, dim: Optional[Sequence[int]] = None, keepdim: bool = False
-) -> TensorType:
+# @torch_op("aten::amin")  # FIXME: Uncomment when CI uses onnx 1.13
+def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Make dim optional, keepdim bool
+    return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
 def aten_aminmax(
@@ -4181,10 +4167,11 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Reciprocal(op.Sqrt(self))
 
 
-def aten_rsub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+@torch_op("aten::rsub")
+def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sub(other, op.Mul(self, alpha))
 
 
 def aten_scalar_tensor(s: float) -> TensorType:
