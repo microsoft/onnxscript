@@ -48,20 +48,6 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-def aten_adaptive_avg_pool1d(self: TensorType, output_size: Sequence[int]) -> TensorType:
-    # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
-
-    raise NotImplementedError()
-
-
-def aten_adaptive_max_pool1d(
-    self: TensorType, output_size: Sequence[int]
-) -> tuple[TensorType, TensorType]:
-    # adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::add")
 def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
