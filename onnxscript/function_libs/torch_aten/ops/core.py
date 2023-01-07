@@ -4687,7 +4687,20 @@ def aten_transpose(self, dim0: int, dim1: int):
 
     # FIXME(justinchuby): onnxscript raises Unsupported expression type
     # Script the function when this is fixed
-    return op.Transpose(self, [dim0, dim1])
+    self_rank = op.Size(op.Shape(self))
+
+    if self_rank == 0:
+        result = self
+    else:
+        # Python code, change when onnxscript supports this
+        self_rank_val = self_rank.value  # type: ignore[attr-defined]
+        dims = list(range(self_rank_val))
+        dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
+        # Python code ends
+
+        result = op.Transpose(self, perm=dims)
+
+    return result
 
 
 def aten_triangular_solve(
