@@ -2622,7 +2622,7 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
     raise NotImplementedError()
 
 
-@torch_op("aten::logsumexp", trace_only=True)  # FIXME(#249): Uncomment when CI uses onnx 1.13
+@torch_op("aten::logsumexp", trace_only=True)  # FIXME(#249): Script when CI uses onnx 1.13
 def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
     # logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor
 
