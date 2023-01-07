@@ -2165,18 +2165,20 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-# @torch_op("aten::index_select")
+@torch_op("aten::index_select", trace_only=True)  # FIXME(#277): Script when attributes can come before inputs
 def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
     if op.Size(op.Shape(self)) == 0:
-        return self
+        result = self
+    else:
+        # Index can be a scalar. Reshape it to a rank 1 tensor.
+        index = op.Reshape(index, op.Constant(value_floats=[-1]))
+        index = op.Cast(index, to=INT64.dtype)
 
-    # Index can be a scalar. Reshape it to a rank 1 tensor.
-    index = op.Reshape(index, op.Constant(value_floats=[-1]))
-    index = op.Cast(index, to=INT64.dtype)
+        result = op.Gather(self, index, axis=dim)
 
-    return op.Gather(self, index, axis=dim)
+    return result
 
 
 def aten_index_select_backward(
@@ -4678,10 +4680,12 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::transpose", trace_only=True)
 def aten_transpose(self, dim0: int, dim1: int):
     # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
 
     # FIXME(justinchuby): onnxscript raises Unsupported expression type
+    # Script the function when this is fixed
     return op.Transpose(self, [dim0, dim1])
 
 

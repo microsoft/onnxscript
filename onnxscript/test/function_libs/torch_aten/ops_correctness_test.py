@@ -182,6 +182,7 @@ def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
 OPINFO_FUNCTION_MAPPING: dict[
     str,
     onnxscript.OnnxFunction
+    | Callable[..., Any]
     | tuple[
         onnxscript.OnnxFunction | Callable[..., Any],
         Callable[[dict[str, Any]], dict[str, Any]],
@@ -253,7 +254,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
-    # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
+    "transpose": core_ops.aten_transpose,
     "unsqueeze": core_ops.aten_unsqueeze,
     "where": core_ops.aten_where,
     "zeros": core_ops.aten_zeros,
