@@ -169,6 +169,14 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
+def _full_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove the self argument
+    args.pop(0)
+    return args, kwargs
+
+
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -227,7 +235,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "expand": core_ops.aten_expand,
     "erf": core_ops.aten_erf,
     "fmod": core_ops.aten_fmod,
-    # TODO(justinchuby): Test aten::full
+    "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
     "index_select": core_ops.aten_index_select,
@@ -362,6 +370,8 @@ duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
+
+duplicate_opinfo(OPS_DB, "new_full", ("full",))
 
 
 # END OF SECTION TO MODIFY #####################################################
