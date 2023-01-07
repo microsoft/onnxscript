@@ -238,7 +238,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
-        reason="rounding_mode=True is not supported",
+        reason="rounding_mode is not yet supported",
     ),
     skip(
         "expand",
@@ -388,6 +388,7 @@ class TestOutputConsistency(unittest.TestCase):
                     rtol = None
                     atol = None
 
+                # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
                     torch.tensor(output_torch),

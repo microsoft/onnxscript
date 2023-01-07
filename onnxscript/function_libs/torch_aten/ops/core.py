@@ -667,7 +667,7 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_cat(tensors: Sequence[TensorType], dim: Optional[int] = 0) -> TensorType:
+def aten_cat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
 
     raise NotImplementedError()
@@ -819,8 +819,8 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 
 @torch_op("aten::clone")
 def aten_clone(
-    self: TensorType, memory_format: str = ""  # pylint: disable=unused-argument
-) -> TensorType:
+    self: TTensor, memory_format: str = ""  # pylint: disable=unused-argument
+) -> TTensor:
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
     return op.Identity(self)
@@ -1424,7 +1424,7 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2) -> TensorType:
 
 
 @torch_op("aten::div")
-def aten_div(self: TensorType, other: TensorType) -> TensorType:
+def aten_div(self: TReal, other: TReal) -> TReal:
     # div.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.Div(self, other)
@@ -1551,14 +1551,14 @@ def aten_empty_strided(size: INT64, stride: INT64) -> TensorType:
 def aten_eq(self: TTensor, other: TTensor) -> BOOL:
     # eq.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Equal(self, other)  # type: ignore[arg-type]
+    return op.Equal(self, other)
 
 
 @torch_op("aten::equal")
-def aten_equal(self: TTensor, other: TTensor) -> bool:
+def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     # equal(Tensor self, Tensor other) -> bool
 
-    sub_self_other = op.Sub(self, other)  # type: ignore[arg-type]
+    sub_self_other = op.Sub(self, other)
     abs_sub = op.Abs(sub_self_other)
     sum_of_abs = op.ReduceSum(abs_sub, keepdims=0)
     return op.Equal(sum_of_abs, 0)
@@ -1600,11 +1600,11 @@ def aten_exp2(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::expand")
-def aten_expand(self: TensorType, size: INT64) -> TensorType:
+def aten_expand(self: TTensor, size: INT64) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    size_int64 = op.Cast(size, to=7)  # to INT64
-    return op.Expand(self, size_int64)
+    size = op.Cast(size, to=INT64.dtype)  # to INT64
+    return op.Expand(self, size)
 
 
 def aten_expand_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4061,11 +4061,11 @@ def aten_repeat_interleave(
 
 
 @torch_op("aten::reshape")
-def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
+def aten_reshape(self: TTensor, shape: INT64) -> TTensor:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
-    shape_int64 = op.Cast(shape, to=7)  # Reshape only support INT64 as 'shape'
-    return op.Reshape(self, shape_int64)  # type: ignore[arg-type]
+    shape = op.Cast(shape, to=INT64.dtype)  # Reshape only support INT64 as 'shape'
+    return op.Reshape(self, shape)
 
 
 def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4906,11 +4906,11 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::view")
-def aten_view(self: TensorType, size: INT64) -> TensorType:
+def aten_view(self: TTensor, size: INT64) -> TTensor:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
-    size_int64 = op.Cast(size, to=7)  # Reshape only support INT64 as second input
-    return op.Reshape(self, size_int64)  # type: ignore[arg-type]
+    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    return op.Reshape(self, size)
 
 
 def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
