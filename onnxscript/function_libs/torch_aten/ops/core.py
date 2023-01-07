@@ -4992,12 +4992,6 @@ def aten_where(self: TTensor, condition: BOOL, other: TTensor) -> TTensor:
     return op.Where(condition, self, other)
 
 
-def aten_xlogy(self: TensorType, other: TensorType) -> TensorType:
-    # xlogy.Tensor(Tensor self, Tensor other) -> Tensor
-
-    raise NotImplementedError()
-
-
 def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     # __xor__.Tensor(Tensor self, Tensor other) -> Tensor
 

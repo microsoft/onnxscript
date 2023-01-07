@@ -16,6 +16,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
+from onnxscript.function_libs.torch_aten.ops import special as special_ops
 
 T = TypeVar("T")
 
@@ -293,6 +294,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": core_ops.aten_where,
+    "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
 }
@@ -524,7 +526,9 @@ class TestOutputConsistency(unittest.TestCase):
                 # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
-                    torch.tensor(torch_output),
+                    torch_output
+                    if isinstance(torch_output, torch.Tensor)
+                    else torch.tensor(torch_output),
                     rtol=rtol,
                     atol=atol,
                 )
