@@ -257,8 +257,8 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    skip("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
-    skip("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
+    xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
+    xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
     skip("clamp", reason="Enable when onnxscript supports optional inputs"),
     xfail(
         "nn.functional.linear",
