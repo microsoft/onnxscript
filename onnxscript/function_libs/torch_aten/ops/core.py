@@ -184,17 +184,19 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+@torch_op("aten::amax")
+def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional, test
+    # TODO(justinchuby): Make dim optional, keepdim bool
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+@torch_op("aten::amin")
+def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional, test
+    # TODO(justinchuby): Make dim optional, keepdim bool
     return op.ReduceMin(self, dim, keepdims=keepdim)
 
 

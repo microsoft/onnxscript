@@ -9,7 +9,6 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 
 import numpy as np
 import onnx
-import onnxruntime.capi.onnxruntime_pybind11_state
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -162,6 +161,12 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 # Modify this section ##########################################################
 
 
+def _amax_amin_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+    if "dim" not in kwargs:
+        kwargs["dim"] = None
+    return kwargs
+
+
 def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
     if "scale_factor" in kwargs:
         kwargs["scales_h"] = kwargs["scale_factor"]
@@ -182,6 +187,8 @@ OPINFO_FUNCTION_MAPPING: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
+    "amax": (core_ops.aten_amax, _amax_amin_kwargs_wrangler),
+    "amin": (core_ops.aten_amin, _amax_amin_kwargs_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -250,7 +257,9 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    skip("clamp", reason="Enable when onnxscript errors are fixed"),
+    skip("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
+    skip("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
+    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
