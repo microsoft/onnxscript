@@ -204,12 +204,17 @@ OPINFO_FUNCTION_MAPPING: dict[
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clamp": core_ops.aten_clamp,
+    "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
-    "erf": core_ops.aten_erf,
+    "eq": core_ops.aten_eq,
+    "equal": core_ops.aten_equal,
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,
+    "expand": core_ops.aten_expand,
+    "erf": core_ops.aten_erf,
     "fmod": core_ops.aten_fmod,
     # TODO(justinchuby): Test aten::full
     "full_like": core_ops.aten_full_like,
@@ -242,6 +247,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
+    "reshape": core_ops.aten_reshape,
     "round": core_ops.aten_round,
     "rsqrt": core_ops.aten_rsqrt,
     "rsub": core_ops.aten_rsub,
@@ -256,6 +262,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "tanh": core_ops.aten_tanh,
     "transpose": core_ops.aten_transpose,
     "unsqueeze": core_ops.aten_unsqueeze,
+    "view": core_ops.aten_view,
     "where": core_ops.aten_where,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
@@ -282,6 +289,16 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
+    skip(
+        "div",
+        matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
+        reason="rounding_mode is not yet supported",
+    ),
+    skip(
+        "expand",
+        matcher=lambda sample: (np.array(sample.args[0]) > 0).all() is np.bool_(False),
+        reason="Negative value is not supported",
+    ),
     skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
