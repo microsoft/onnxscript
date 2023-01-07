@@ -85,28 +85,36 @@ default_registry = Registry()
 
 
 def torch_op(
-    aten_name, overload: bool = False, registry: Optional[Registry] = None
-) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction]:
+    aten_name,
+    *,
+    overload: bool = False,
+    registry: Optional[Registry] = None,
+    trace_only: bool = False,
+) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction | Callable[..., Any]]:
     """Register a torch op.
 
     Args:
         aten_name: The name of the aten function. E.g. "aten::add".
-        overload: Whether this is an overload of an existing function.
-        registry: The registry to register the function to. If None, the default registry is used.
+        overload: Whether the function is an overload (not default).
+        registry: Registry to register the function to. If None, the default registry is used.
+        trace_only: Whether the function should only be traced and not compiled.
     """
     if registry is None:
         registry = default_registry
 
-    def wrapper(func: Callable[..., Any]) -> onnxscript.OnnxFunction:
+    def wrapper(func: Callable[..., Any]) -> onnxscript.OnnxFunction | Callable[..., Any]:
 
         # Register the function signature
         signature = inspect.signature(func)
 
-        # Compile the function
-        compiled = onnxscript.script()(func)
+        if trace_only:
+            processed_func = func
+        else:
+            # Compile the function
+            processed_func = onnxscript.script()(func)
 
         assert registry is not None
-        registry.register(compiled, aten_name, signature=signature, overload=overload)
-        return compiled
+        registry.register(processed_func, aten_name, signature=signature, overload=overload)
+        return processed_func
 
     return wrapper

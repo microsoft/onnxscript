@@ -162,6 +162,21 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
+def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
+    """Duplicate an opinfo in the opinfo database and give it a new name."""
+    duplicated = []
+    for opinfo in opinfos:
+        if opinfo.name == name:
+            for new_name in new_names:
+                new_opinfo = copy.deepcopy(opinfo)
+                new_opinfo.name = new_name
+                duplicated.append(new_opinfo)
+    opinfos.extend(duplicated)
+
+
+# Create a copy of the op_db to modify
+OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+
 # Modify this section ##########################################################
 
 
@@ -186,6 +201,7 @@ def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
 OPINFO_FUNCTION_MAPPING: dict[
     str,
     onnxscript.OnnxFunction
+    | Callable[..., Any]
     | tuple[
         onnxscript.OnnxFunction | Callable[..., Any],
         Callable[[dict[str, Any]], dict[str, Any]],
@@ -217,6 +233,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     # TODO(justinchuby): Test aten::full
     "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
+    "index_select": core_ops.aten_index_select,
     "isinf": core_ops.aten_isinf,
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
@@ -256,7 +273,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
-    # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
+    "transpose": core_ops.aten_transpose,
     "unsqueeze": core_ops.aten_unsqueeze,
     "where": core_ops.aten_where,
     "zeros": core_ops.aten_zeros,
@@ -280,7 +297,6 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
-    xfail("transpose", reason="Enable when onnxscript errors are fixed"),
 )
 
 
@@ -496,6 +512,10 @@ class TestOutputConsistency(unittest.TestCase):
                 else:
                     rtol = None
                     atol = None
+
+                if not isinstance(function_output, np.ndarray):
+                    # An onnxscript tensor
+                    function_output = function_output.value
 
                 # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
