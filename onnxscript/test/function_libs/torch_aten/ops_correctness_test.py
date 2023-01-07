@@ -9,7 +9,6 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 
 import numpy as np
 import onnx
-import onnxruntime.capi.onnxruntime_pybind11_state
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -148,7 +147,28 @@ def add_decorate_info(
     return wrapped
 
 
+def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
+    """Duplicate an opinfo in the opinfo database and give it a new name."""
+    duplicated = []
+    for opinfo in opinfos:
+        if opinfo.name == name:
+            for new_name in new_names:
+                new_opinfo = copy.deepcopy(opinfo)
+                new_opinfo.name = new_name
+                duplicated.append(new_opinfo)
+    opinfos.extend(duplicated)
+
+
+# Create a copy of the op_db to modify
+OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+
 # Modify this section ##########################################################
+
+
+def _amax_amin_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+    if "dim" not in kwargs:
+        kwargs["dim"] = None
+    return kwargs
 
 
 def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -164,13 +184,20 @@ def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[
-    str, onnxscript.OnnxFunction | tuple[onnxscript.OnnxFunction, Callable]
+    str,
+    onnxscript.OnnxFunction
+    | tuple[
+        onnxscript.OnnxFunction | Callable[..., Any],
+        Callable[[dict[str, Any]], dict[str, Any]],
+    ],
 ] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
+    "amax": (core_ops.aten_amax, _amax_amin_kwargs_wrangler),
+    "amin": (core_ops.aten_amin, _amax_amin_kwargs_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -198,6 +225,9 @@ OPINFO_FUNCTION_MAPPING: dict[
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,
+    "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
+    "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
+    "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.linear": nn_ops.aten_linear,
@@ -236,7 +266,9 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    skip("clamp", reason="Enable when onnxscript errors are fixed"),
+    xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
+    xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
+    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -259,6 +291,22 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="as_tuple=True is not supported",
     ),
     skip(
+        "nn.functional.adaptive_avg_pool1d",
+        # Shape should be [N, C, D1]
+        matcher=lambda sample: sample.args[0] not in {1, (1,)},
+        reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.adaptive_avg_pool2d",
+        matcher=lambda sample: sample.args[0] != (1, 1),
+        reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.adaptive_avg_pool3d",
+        matcher=lambda sample: sample.args[0] != (1, 1, 1),
+        reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
@@ -270,23 +318,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="fixme: the scale_factor tests",
     ),
 )
-OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 
-# END OF SECTION TO MODIFY #####################################################
-
-
-def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
-    """Duplicate an opinfo in the opinfo database and give it a new name."""
-    for opinfo in opinfos:
-        if opinfo.name == name:
-            for new_name in new_names:
-                new_opinfo = copy.deepcopy(opinfo)
-                new_opinfo.name = new_name
-                opinfos.append(new_opinfo)
-            return
-
-
-OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
@@ -297,6 +329,11 @@ duplicate_opinfo(
     ),
 )
 
+
+# END OF SECTION TO MODIFY #####################################################
+
+
+OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
@@ -408,14 +445,17 @@ class TestOutputConsistency(unittest.TestCase):
             requires_grad=False,
         )
 
-        onnx_function = OPINFO_FUNCTION_MAPPING[op.name]
+        onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
         kwarg_wrangler = None
-        if isinstance(onnx_function, tuple):
+        if isinstance(onnx_function_and_wrangler, tuple):
             # Obtain the kwarg_wrangler that manipulates the OpInfo inputs
             # to match the aten operator signature
             # An example is nn.functional.upsample_nearest2d, which has a different signature
             # than the aten operator upsample_nearest2d
-            onnx_function, kwarg_wrangler = onnx_function
+            onnx_function, kwarg_wrangler = onnx_function_and_wrangler
+        else:
+            assert callable(onnx_function_and_wrangler)
+            onnx_function = onnx_function_and_wrangler
 
         # Check the dtype to make sure it is supported by the function
         if isinstance(onnx_function, onnxscript.OnnxFunction):
@@ -445,15 +485,8 @@ class TestOutputConsistency(unittest.TestCase):
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
                 if kwarg_wrangler:
                     kwargs_onnx = kwarg_wrangler(kwargs_onnx)
-                output_torch = op(*inputs, **cpu_sample.kwargs)
-                try:
-                    function_output = onnx_function(*input_onnx, **kwargs_onnx)
-                # pylint: disable=c-extension-no-member
-                except onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented:
-                    self.skipTest(
-                        f"ONNX Runtime doesn't support running {op.name} with dtype {dtype}",
-                    )
-                # pylint: enable=c-extension-no-member
+                torch_output = op(*inputs, **cpu_sample.kwargs)
+                function_output = onnx_function(*input_onnx, **kwargs_onnx)
 
                 if dtype == torch.float32:
                     # Relax atol and rtol for float32 based on empirical results
@@ -464,10 +497,10 @@ class TestOutputConsistency(unittest.TestCase):
                     rtol = None
                     atol = None
 
-                # Use torch testing to ensure dtypes and shapes match
+                # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
-                    output_torch,
+                    torch.tensor(torch_output),
                     rtol=rtol,
                     atol=atol,
                 )
