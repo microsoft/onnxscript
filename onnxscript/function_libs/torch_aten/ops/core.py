@@ -2575,10 +2575,11 @@ def aten_logcumsumexp(self: TFloatOrBFloat16, dim: INT64) -> TFloatOrBFloat16:
     return result
 
 
-def aten_logdet(self: TensorType) -> TensorType:
+@torch_op("aten::logdet")
+def aten_logdet(self: TFloat) -> TFloat:
     # logdet(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(op.Det(self))
 
 
 @torch_op("aten::logical_and")
