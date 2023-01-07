@@ -161,20 +161,31 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 # Modify this section ##########################################################
 
 
-def _amax_amin_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+def _amax_amin_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
     if "dim" not in kwargs:
         kwargs["dim"] = None
-    return kwargs
+    return args, kwargs
 
 
-def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+def _upsample_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
     if "scale_factor" in kwargs:
         kwargs["scales_h"] = kwargs["scale_factor"]
         kwargs["scales_w"] = kwargs["scale_factor"]
         del kwargs["scale_factor"]
     if "size" in kwargs:
         kwargs["size"] = np.array(kwargs["size"])
-    return kwargs
+    return args, kwargs
+
+
+def _logcumsumexp_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["keepdim"] = args.pop()
+    return args, kwargs
 
 
 # Ops to be tested for numerical consistency between onnx and pytorch
@@ -185,7 +196,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     | Callable[..., Any]
     | tuple[
         onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[dict[str, Any]], dict[str, Any]],
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
 ] = {
     "abs": core_ops.aten_abs,
@@ -193,8 +204,8 @@ OPINFO_FUNCTION_MAPPING: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "amax": (core_ops.aten_amax, _amax_amin_kwargs_wrangler),
-    "amin": (core_ops.aten_amin, _amax_amin_kwargs_wrangler),
+    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
+    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -223,7 +234,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "logaddexp": core_ops.aten_logaddexp,
     "logaddexp2": core_ops.aten_logaddexp2,
     "logcumsumexp": core_ops.aten_logcumsumexp,
-    "logsumexp": core_ops.aten_logsumexp,
+    "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
@@ -242,7 +253,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
-        _upsample_kwargs_wrangler,
+        _upsample_input_wrangler,
     ),
     "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
@@ -275,6 +286,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
     skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -436,13 +448,13 @@ class TestOutputConsistency(unittest.TestCase):
         )
 
         onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
-        kwarg_wrangler = None
+        input_wrangler = None
         if isinstance(onnx_function_and_wrangler, tuple):
-            # Obtain the kwarg_wrangler that manipulates the OpInfo inputs
+            # Obtain the input_wrangler that manipulates the OpInfo inputs
             # to match the aten operator signature
             # An example is nn.functional.upsample_nearest2d, which has a different signature
             # than the aten operator upsample_nearest2d
-            onnx_function, kwarg_wrangler = onnx_function_and_wrangler
+            onnx_function, input_wrangler = onnx_function_and_wrangler
         else:
             assert callable(onnx_function_and_wrangler)
             onnx_function = onnx_function_and_wrangler
@@ -462,8 +474,8 @@ class TestOutputConsistency(unittest.TestCase):
                     continue
                 input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
-                if kwarg_wrangler:
-                    kwargs_onnx = kwarg_wrangler(kwargs_onnx)
+                if input_wrangler:
+                    input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
                 function_output = onnx_function(*input_onnx, **kwargs_onnx)
 
