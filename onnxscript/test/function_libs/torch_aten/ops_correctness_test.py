@@ -435,7 +435,7 @@ class TestOutputConsistency(unittest.TestCase):
             # than the aten operator upsample_nearest2d
             onnx_function, kwarg_wrangler = onnx_function_and_wrangler
         else:
-            assert isinstance(onnx_function_and_wrangler, Callable)
+            assert callable(onnx_function_and_wrangler)
             onnx_function = onnx_function_and_wrangler
 
         for (i, cpu_sample) in enumerate(samples):
