@@ -13,14 +13,14 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import (
-    RealType,
     TFloat,
     TFloatOrBFloat16,
     TInt,
     TReal,
+    TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
 )
@@ -228,7 +228,7 @@ def aten_any(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::arange")
-def aten_arange(end: RealType, dtype: int = -1) -> TensorType:
+def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1) -> TensorType:
     # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
@@ -245,7 +245,9 @@ def aten_arange(end: RealType, dtype: int = -1) -> TensorType:
 
 
 @torch_op("aten::arange", overload=True)
-def aten_arange_start(start: TReal, end: TReal, dtype: int = -1) -> TensorType:
+def aten_arange_start(
+    start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, dtype: int = -1
+) -> TensorType:
     # arange.start(Scalar start, Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
@@ -264,7 +266,10 @@ def aten_arange_start(start: TReal, end: TReal, dtype: int = -1) -> TensorType:
 
 @torch_op("aten::arange", overload=True)
 def aten_arange_start_step(
-    start: TReal, end: TReal, step: TReal, dtype: int = -1
+    start: TRealUnlessFloat16OrInt8,
+    end: TRealUnlessFloat16OrInt8,
+    step: TRealUnlessFloat16OrInt8,
+    dtype: int = -1,
 ) -> TensorType:
     # arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 

@@ -61,3 +61,6 @@ TReal = TypeVar("TReal", bound=RealType)
 TRealUnlessInt16OrInt8 = TypeVar(
     "TRealUnlessInt16OrInt8", bound=Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16, INT32, INT64]
 )
+TRealUnlessFloat16OrInt8 = TypeVar(
+    "TRealUnlessFloat16OrInt8", bound=Union[DOUBLE, FLOAT, INT16, INT32, INT64]
+)
