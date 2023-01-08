@@ -77,14 +77,14 @@ jobs:
           pip list | grep torch
 
       - name: pytest
-        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n=auto --tb=short
+        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n=auto --tb=short --color=yes
 
       - name: Install package
         run: pip install .
 
       - name: Test examples
         if: ${{ matrix.test_examples }}
-        run: pytest -v docs/test
+        run: pytest -v docs/test -n=auto --color=yes
 
       - name: Build package
         run: python -m build
