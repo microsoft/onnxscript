@@ -16,6 +16,7 @@ from typing import Any, Optional, Sequence, Union
 from onnxscript import BOOL, DOUBLE, FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import (
+    IntType,
     TFloat,
     TFloatOrBFloat16,
     TInt,
@@ -1586,7 +1587,7 @@ def aten_exp2(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::expand")
-def aten_expand(self: TTensor, size: TInt) -> TTensor:
+def aten_expand(self: TTensor, size: IntType) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
     size = op.Cast(size, to=INT64.dtype)
@@ -2178,7 +2179,7 @@ def aten_index_reduce(
 
 # FIXME(#277): Script when attributes can come before inputs
 @torch_op("aten::index_select", trace_only=True)
-def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
+def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
     if op.Size(op.Shape(self)) == 0:
@@ -3462,7 +3463,7 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
 
 @torch_op("aten::new_full")
 def aten_new_full(
-    self, size: TInt, fill_value, dtype: int = FLOAT.dtype
+    self, size: IntType, fill_value, dtype: int = FLOAT.dtype
 ):  # pylint: disable=unused-argument
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
@@ -3530,13 +3531,12 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
 
 
 @torch_op("aten::ones")
-def aten_ones(size: TInt, dtype: int = -1) -> TTensor:
+def aten_ones(size: IntType, dtype: int = FLOAT.dtype):
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     size = op.Cast(size, to=INT64.dtype)
     one = op.Constant(value_float=1)
-    if dtype != -1:
-        one = op.Cast(one, to=dtype)
+    one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
 
 
@@ -4034,7 +4034,7 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 
 
 @torch_op("aten::repeat")
-def aten_repeat(self: TTensor, repeats: TInt) -> TTensor:
+def aten_repeat(self: TTensor, repeats: IntType) -> TTensor:
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     if op.Size(repeats) == 0:
@@ -4061,7 +4061,7 @@ def aten_repeat_interleave(
 
 
 @torch_op("aten::reshape")
-def aten_reshape(self: TTensor, shape: TInt) -> TTensor:
+def aten_reshape(self: TTensor, shape: IntType) -> TTensor:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
     # Reshape only support INT64 as 'shape'
@@ -4923,7 +4923,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::view")
-def aten_view(self: TTensor, size: TInt) -> TTensor:
+def aten_view(self: TTensor, size: IntType) -> TTensor:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
     size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
@@ -4992,13 +4992,12 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::zeros")
-def aten_zeros(size: TInt, dtype: int = -1) -> TTensor:
+def aten_zeros(size: IntType, dtype: int = FLOAT.dtype):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     size = op.Cast(size, to=INT64.dtype)
     zero = op.Constant(value_float=0)
-    if dtype != -1:
-        zero = op.Cast(zero, to=dtype)
+    zero = op.Cast(zero, to=dtype)
 
     return op.Expand(zero, size)
 
