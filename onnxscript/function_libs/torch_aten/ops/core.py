@@ -1586,10 +1586,10 @@ def aten_exp2(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::expand")
-def aten_expand(self: TTensor, size: INT64) -> TTensor:
+def aten_expand(self: TTensor, size: TInt) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    size = op.Cast(size, to=INT64.dtype)  # to INT64
+    size = op.Cast(size, to=INT64.dtype)
     return op.Expand(self, size)
 
 
@@ -3462,10 +3462,11 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
 
 @torch_op("aten::new_full")
 def aten_new_full(
-    self, size: INT64, fill_value, dtype: int = FLOAT.dtype
+    self, size: TInt, fill_value, dtype: int = FLOAT.dtype
 ):  # pylint: disable=unused-argument
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     fill_value = op.Cast(fill_value, to=dtype)
 
     return op.Expand(fill_value, size)
@@ -4032,13 +4033,14 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 
 
 @torch_op("aten::repeat")
-def aten_repeat(self: TTensor, repeats: INT64) -> TTensor:
+def aten_repeat(self: TTensor, repeats: TInt) -> TTensor:
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     if op.Size(repeats) == 0:
         result = self
     else:
         # TODO(justinchuby): Make ones_like a function when onnxscript supports it
+        repeats = op.Cast(repeats, to=INT64.dtype)
         # shape = ones_like(repeats) := {
         one = op.Constant(value_int=1)
         repeats_shape = op.Shape(repeats)
@@ -4058,10 +4060,11 @@ def aten_repeat_interleave(
 
 
 @torch_op("aten::reshape")
-def aten_reshape(self: TTensor, shape: INT64) -> TTensor:
+def aten_reshape(self: TTensor, shape: TInt) -> TTensor:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
-    shape = op.Cast(shape, to=INT64.dtype)  # Reshape only support INT64 as 'shape'
+    # Reshape only support INT64 as 'shape'
+    shape = op.Cast(shape, to=INT64.dtype)
     return op.Reshape(self, shape)
 
 
@@ -4919,7 +4922,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::view")
-def aten_view(self: TTensor, size: INT64) -> TTensor:
+def aten_view(self: TTensor, size: TInt) -> TTensor:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
     size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
