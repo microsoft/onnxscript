@@ -1589,7 +1589,7 @@ def aten_exp2(self: TFloat) -> TFloat:
 def aten_expand(self: TTensor, size: TInt) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    size = op.Cast(size, to=6)
+    size = op.Cast(size, to=INT64.dtype)
     return op.Expand(self, size)
 
 
