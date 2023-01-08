@@ -1589,7 +1589,7 @@ def aten_exp2(self: TFloat) -> TFloat:
 def aten_expand(self: TTensor, size: TInt) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    size = op.Cast(size, to=INT64.dtype)
+    size = op.Cast(size, to=6)
     return op.Expand(self, size)
 
 
@@ -3530,9 +3530,10 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
 
 
 @torch_op("aten::ones")
-def aten_ones(size: INT64, dtype: int = -1):
+def aten_ones(size: TInt, dtype: int = -1) -> TTensor:
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     one = op.Constant(value_float=1)
     if dtype != -1:
         one = op.Cast(one, to=dtype)
@@ -4991,9 +4992,10 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::zeros")
-def aten_zeros(size: INT64, dtype: int = -1):
+def aten_zeros(size: TInt, dtype: int = -1) -> TTensor:
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     zero = op.Constant(value_float=0)
     if dtype != -1:
         zero = op.Cast(zero, to=dtype)
