@@ -77,7 +77,7 @@ jobs:
           pip list | grep torch
 
       - name: pytest
-        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n auto
+        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n=auto --tb=short
 
       - name: Install package
         run: pip install .
