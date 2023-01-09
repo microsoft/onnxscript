@@ -1643,7 +1643,7 @@ def aten_exp2(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::expand")
-def aten_expand(self: TTensor, size: IntType) -> TTensor:
+def aten_expand(self: TTensor, size: TInt) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
     size = op.Cast(size, to=INT64.dtype)
@@ -2235,7 +2235,7 @@ def aten_index_reduce(
 
 # FIXME(#277): Script when attributes can come before inputs
 @torch_op("aten::index_select", trace_only=True)
-def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
+def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
     if op.Size(op.Shape(self)) == 0:
@@ -4090,7 +4090,7 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 
 
 @torch_op("aten::repeat")
-def aten_repeat(self: TTensor, repeats: IntType) -> TTensor:
+def aten_repeat(self: TTensor, repeats: TInt) -> TTensor:
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     if op.Size(repeats) == 0:
