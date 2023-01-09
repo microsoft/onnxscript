@@ -1524,6 +1524,7 @@ def aten_empty(size: INT64, dtype: int = -1) -> TTensor:
 
     return op.Expand(zero, size)
 
+
 @torch_op("aten::empty_like")
 def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
