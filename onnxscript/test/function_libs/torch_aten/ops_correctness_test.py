@@ -299,11 +299,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
-        "empty",
-        matcher=lambda sample: sample.kwargs.get("requires_grad") is not None,
-        reason="requires_grad is not yet supported",
-    ),
-    skip(
         "expand",
         matcher=lambda sample: (np.array(sample.args[0]) > 0).all() is np.bool_(False),
         reason="Negative value is not supported",

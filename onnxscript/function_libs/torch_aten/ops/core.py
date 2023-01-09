@@ -1514,7 +1514,7 @@ def aten_embedding_sparse_backward(
 
 
 @torch_op("aten::empty")
-def aten_empty(size, dtype: int = -1) -> TTensor:
+def aten_empty(size: INT64, dtype: int = -1) -> TTensor:
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using Zeros to simulate np.empty()
@@ -3566,8 +3566,6 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     shape = op.Shape(self)
-    print(shape)
-    print(type(shape))
     if dtype == -1:
         one = op.CastLike(1, self)
     else:
@@ -4636,15 +4634,6 @@ def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
 
 def aten_to_dense(self, dtype: Optional[int] = None):
     # to_dense(Tensor self, ScalarType? dtype=None) -> Tensor
-    # list_values = [0] * self.dims[0] * self.dims[1]
-    # index_length = len(self.indices)
-    # for i in range(index_length):
-    #     p = self.indices[i]
-    #     v = self.values.float_data[i]
-    #     list_values[p] = v  # this doesn't work
-    # data = op.Constant(value=list_values)
-    # shape = op.Constant(value=self.dims)
-    # return op.Reshape(data, shape)
 
     raise NotImplementedError()
 

@@ -207,12 +207,7 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
         elif input is None:
             return None
         elif isinstance(input, list):
-            # orginal code:
-            # return [adapt(elt) for elt in input]
-            # modified by xiaowuhu, reason: input is a list, e.g. [2,3]
-            # that's the user intend to pass a list into function, no need
-            # to convert to list of tensor: [tensor(2), tensor(3)]
-            return input
+            return [adapt(elt) for elt in input]
         elif isinstance(input, tuple):
             return tuple(adapt(elt) for elt in input)
         raise TypeError(f"Unexpected input type {type(input)}.")
