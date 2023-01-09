@@ -79,6 +79,55 @@ class Evaluator(abc.ABC):
         pass
 
 
+from torch.onnx._internal import jit_utils
+
+
+class TorchScriptEvaluator(Evaluator):
+    def __init__(self, graph: jit_utils.GraphContext = None):
+        self._graph = graph
+
+    def get_graph(self):
+        return self._graph
+
+    def update_graph(self, graph):
+        self._graph = graph
+
+    def reset_graph(self):
+        self._graph = None
+
+    def adapt_inputs(self, schema, inputs):
+        """Adapt input graph inputs to ONNX graph inputs
+
+        Not modified as input/output shares the same graph in this demo.
+
+        """
+        return autocast.dynamic_cast_inputs(schema, *inputs)
+
+    def adapt_attributes(self, schema, attributes):
+        """Adapt input graph attributes to ONNX graph attributes
+
+        Not implemented as it's not used in this demo.
+        For torchscript, should be how to create dim_i=dim
+
+        """
+        pass
+
+    def eval(self, schema, inputs, attributes):
+        # adapt_input should return torch._C.Value right back to us, as for now, we don't have ONNX graph builder yet.
+        inputs = self.adapt_inputs(schema, inputs)
+        # adapt attributes should be added here
+        # attributes = self.adapt_attributes(schema, attributes)
+        outputs = self._eval(schema, inputs, attributes)
+        return outputs
+
+    def _eval(self, schema, inputs, attributes):
+        # ONNX graph API applied if there was
+        return self._graph.op(schema.name, *inputs, **attributes)
+
+
+torchscript_evaluator = TorchScriptEvaluator()
+
+
 # Utilities for evaluation using ORT:
 
 
@@ -316,4 +365,12 @@ def default_as(temp_default: Evaluator):
 
 def eval(schema, inputs, attributes):
     """Evaluate using current default evaluator"""
+
     return default().eval(schema, inputs, attributes)
+
+
+# Hack
+def graph_eval(schema, inputs, attributes):
+    """Evaluate using current default evaluator"""
+
+    return torchscript_evaluator.eval(schema, inputs, attributes)

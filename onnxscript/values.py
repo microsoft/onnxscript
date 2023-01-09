@@ -13,6 +13,7 @@ from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
 import numpy as np
 import onnx
 from onnx.defs import OpSchema
+from torch.onnx._internal import jit_utils
 
 from onnxscript import irbuilder, sourceinfo, tensor
 
@@ -92,6 +93,22 @@ class Opset:
             del input_list[-1]
         return input_list
 
+    # Hack: here needs input, as we hack into torchscript
+    # when we have our own graph, we don't need input graph
+    def initialize_graph(self, graph: jit_utils.GraphContext):
+        from onnxscript import evaluator
+
+        if evaluator.torchscript_evaluator.get_graph() is not None:
+            raise ValueError(
+                "[ERROR] Please reset the current graph before initializeing one!"
+            )
+        evaluator.torchscript_evaluator.update_graph(graph)
+
+    def reset_graph(self):
+        from onnxscript import evaluator
+
+        evaluator.torchscript_evaluator.reset_graph()
+
 
 # ONNX ops
 
@@ -136,7 +153,9 @@ class Op:
     def __call__(self, *args, **kwargs):
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.eval(self.opschema, args, kwargs)
+        # Hack:
+        # TODO(titaiwang): how to keep both graph_eval and eval if they share the same API?
+        return evaluator.graph_eval(self.opschema, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)
