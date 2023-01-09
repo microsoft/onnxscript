@@ -2,10 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# mypy: disable-error-code=misc
-# mypy: disable-error-code=type-arg
-# mypy: disable-error-code=valid-type
-# mypy: disable-error-code=assignment
+# mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `special` module.
 
 - No inplace operators.
@@ -205,9 +202,7 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_log_softmax(
-    self: TensorType, dim: int, dtype: Optional[int] = None
-) -> TensorType:
+def aten_special_log_softmax(self: TensorType, dim: int, dtype: int = -1) -> TensorType:
     # special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 
     raise NotImplementedError()

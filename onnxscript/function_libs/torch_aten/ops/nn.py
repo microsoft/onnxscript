@@ -2,11 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# mypy: disable-error-code=misc
-# mypy: disable-error-code=arg-type
-# mypy: disable-error-code=type-arg
-# mypy: disable-error-code=valid-type
-# mypy: disable-error-code=assignment
+# mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `nn` module.
 
 - No inplace operators.
@@ -22,18 +18,69 @@ from typing import Optional, Sequence
 
 from onnxscript import INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
+from onnxscript.function_libs.torch_aten.typing import TFloat, TFloatOrBFloat16, TReal
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-def aten_adaptive_avg_pool2d(self: TensorType, output_size: INT64) -> TensorType:
+@torch_op("aten::aten_adaptive_avg_pool1d")
+def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
+    # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
+
+    # assert output_size == [1]
+    # TODO(justinchuby): Specify input constraints
+
+    if op.Size(op.Shape(self)) == 2:
+        # Unbatched case
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        pooled = op.GlobalAveragePool(self)
+        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
+    else:
+        result = op.GlobalAveragePool(self)
+
+    return result
+
+
+@torch_op("aten::aten_adaptive_avg_pool2d")
+def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     # adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor
 
-    raise NotImplementedError()
+    # assert output_size == [1, 1]
+    # TODO(justinchuby): Specify input constraints
+
+    if op.Size(op.Shape(self)) == 3:
+        # Unbatched case
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        pooled = op.GlobalAveragePool(self)
+        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
+    else:
+        result = op.GlobalAveragePool(self)
+
+    return result
 
 
-def aten_adaptive_avg_pool3d(self: TensorType, output_size: INT64) -> TensorType:
+@torch_op("aten::aten_adaptive_avg_pool3d")
+def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
     # adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor
+
+    # assert output_size == [1, 1, 1]
+    # TODO(justinchuby): Specify input constraints
+
+    if op.Size(op.Shape(self)) == 4:
+        # Unbatched case
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        pooled = op.GlobalAveragePool(self)
+        result = op.Squeeze(pooled, op.Constant(value_ints=[0]))
+    else:
+        result = op.GlobalAveragePool(self)
+
+    return result
+
+
+def aten_adaptive_max_pool1d(
+    self: TensorType, output_size: Sequence[int]
+) -> tuple[TensorType, TensorType]:
+    # adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)
 
     raise NotImplementedError()
 
@@ -199,11 +246,11 @@ def aten_cross_entropy_loss(
 
 @torch_op("aten::elu")
 def aten_elu(
-    self,
+    self: TFloat,
     alpha: float = 1.0,
     scale: float = 1.0,
     input_scale: float = 1.0,
-):
+) -> TFloat:
     # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
 
     # del scale
@@ -401,10 +448,11 @@ def aten_l1_loss(self: TensorType, target: TensorType, reduction: int = 1) -> Te
     raise NotImplementedError()
 
 
-def aten_leaky_relu(self: TensorType, negative_slope: float = 0.01) -> TensorType:
+@torch_op("aten::leaky_relu")
+def aten_leaky_relu(self: TFloatOrBFloat16, negative_slope: float = 0.01) -> TFloatOrBFloat16:
     # leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor
 
-    raise NotImplementedError()
+    return op.LeakyRelu(self, alpha=negative_slope)
 
 
 def aten_leaky_relu_backward(
@@ -416,7 +464,7 @@ def aten_leaky_relu_backward(
 
 
 @torch_op("aten::linear")
-def aten_linear(input, weight, bias=None) -> TensorType:
+def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TFloat:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
     # FIXME(justinchuby): Enable the test
@@ -429,7 +477,7 @@ def aten_linear(input, weight, bias=None) -> TensorType:
     result = op.MatMul(input, weight)
     if op.OptionalHasElement(bias):
         bias = op.OptionalGetElement(bias)
-        result = op.Add(result, bias)  # type: ignore[arg-type]
+        result = op.Add(result, bias)
     return result
 
 
@@ -802,12 +850,19 @@ def aten_reflection_pad3d_backward(
     raise NotImplementedError()
 
 
-# TODO(justinchuby): Use TFloat as return type
+@torch_op("aten::relu")
+def aten_relu(self: TReal) -> TReal:
+    # relu(Tensor self) -> Tensor
+
+    return op.Relu(self)
+
+
 @torch_op("aten::relu6")
-def aten_relu6(self):
+def aten_relu6(self: TReal) -> TReal:
     # relu6(Tensor self) -> Tensor
 
-    return op.Min(op.Relu(self), op.Constant(value_float=6.0))  # type: ignore[arg-type]
+    six = op.CastLike(op.Constant(value_int=6), self)
+    return op.Min(op.Relu(self), six)
 
 
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
@@ -1157,15 +1212,29 @@ def aten_upsample_nearest1d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_nearest2d")
 def aten_upsample_nearest2d(
-    self: TensorType,
-    output_size: INT64,
+    self: TReal,
+    size: INT64,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
-) -> TensorType:
+) -> TReal:
     # upsample_nearest2d(Tensor self, SymInt[2] output_size, float? scales_h=None, float? scales_w=None) -> Tensor
 
-    raise NotImplementedError()
+    self_shape = op.Shape(self)
+    batch_channel = self_shape[:2]  # type: ignore[index]
+    output_size = op.Concat(batch_channel, size, axis=0)
+
+    # TODO(justinchuby): Conditionally use scales
+
+    return op.Resize(
+        self,
+        None,
+        None,
+        output_size,
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+    )
 
 
 def aten_upsample_nearest2d_backward(

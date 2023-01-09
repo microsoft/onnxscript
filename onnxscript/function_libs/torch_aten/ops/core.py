@@ -2,11 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# mypy: disable-error-code=misc
-# mypy: disable-error-code=arg-type
-# mypy: disable-error-code=type-arg
-# mypy: disable-error-code=valid-type
-# mypy: disable-error-code=assignment
+# mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
 """torch.ops.aten operators under the `core` module.
 
 - No inplace operators.
@@ -15,54 +11,48 @@
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Union
 
-from onnxscript import BOOL, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
+from onnxscript.function_libs.torch_aten.typing import (
+    TFloat,
+    TFloatOrBFloat16,
+    TInt,
+    TReal,
+    TRealUnlessInt16OrInt8,
+    TTensor,
+)
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
 @torch_op("aten::abs")
-def aten_abs(self):
+def aten_abs(self: TReal) -> TReal:
     # abs(Tensor self) -> Tensor
 
     return op.Abs(self)
 
 
 @torch_op("aten::acos")
-def aten_acos(self):
+def aten_acos(self: TFloat) -> TFloat:
     # acos(Tensor self) -> Tensor
 
     return op.Acos(self)
 
 
 @torch_op("aten::acosh")
-def aten_acosh(self):
+def aten_acosh(self: TFloat) -> TFloat:
     # acosh(Tensor self) -> Tensor
 
     return op.Acosh(self)
 
 
-def aten_adaptive_avg_pool1d(self: TensorType, output_size: Sequence[int]) -> TensorType:
-    # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
-
-    raise NotImplementedError()
-
-
-def aten_adaptive_max_pool1d(
-    self: TensorType, output_size: Sequence[int]
-) -> tuple[TensorType, TensorType]:
-    # adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::add")
-def aten_add(self, other, alpha: float = 1) -> TensorType:
+def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     if alpha != 1:
-        other = op.Mul(other, alpha)  # type: ignore[arg-type]
+        other = op.Mul(other, alpha)
     return op.Add(self, other)
 
 
@@ -91,13 +81,15 @@ def aten_addcmul(
 
 
 @torch_op("aten::addmm")
-def aten_addmm(self, mat1, mat2, beta: float = 1, alpha: float = 1):
+def aten_addmm(
+    self: TFloat, mat1: TFloat, mat2: TFloat, beta: float = 1, alpha: float = 1
+) -> TFloat:
     # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
     mat1_mat2 = op.MatMul(mat1, mat2)
-    scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)  # type: ignore[arg-type]
-    scaled_self = op.Mul(self, beta)  # type: ignore[arg-type]
-    return op.Add(scaled_self, scaled_mat1_mat2)  # type: ignore[arg-type]
+    scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
+    scaled_self = op.Mul(self, beta)
+    return op.Add(scaled_self, scaled_mat1_mat2)
 
 
 def aten_addmv(
@@ -192,20 +184,20 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_amax(
-    self: TensorType, dim: Optional[Sequence[int]] = None, keepdim: bool = False
-) -> TensorType:
+# @torch_op("aten::amax")  # FIXME: Uncomment when CI uses onnx 1.13
+def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Make dim optional, keepdim bool
+    return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-def aten_amin(
-    self: TensorType, dim: Optional[Sequence[int]] = None, keepdim: bool = False
-) -> TensorType:
+# @torch_op("aten::amin")  # FIXME: Uncomment when CI uses onnx 1.13
+def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Make dim optional, keepdim bool
+    return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
 def aten_aminmax(
@@ -339,21 +331,21 @@ def aten_as_strided_scatter(
 
 
 @torch_op("aten::asin")
-def aten_asin(self):
+def aten_asin(self: TFloat) -> TFloat:
     # asin(Tensor self) -> Tensor
 
     return op.Asin(self)
 
 
 @torch_op("aten::asinh")
-def aten_asinh(self):
+def aten_asinh(self: TFloat) -> TFloat:
     # asinh(Tensor self) -> Tensor
 
     return op.Asinh(self)
 
 
 @torch_op("aten::atan")
-def aten_atan(self):
+def aten_atan(self: TFloat) -> TFloat:
     # atan(Tensor self) -> Tensor
 
     return op.Atan(self)
@@ -366,7 +358,7 @@ def aten_atan2(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::atanh")
-def aten_atanh(self):
+def aten_atanh(self: TFloat) -> TFloat:
     # atanh(Tensor self) -> Tensor
 
     return op.Atanh(self)
@@ -568,40 +560,46 @@ def aten_binomial(
     raise NotImplementedError()
 
 
-def aten_bitwise_and(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_and")
+def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     # bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseAnd(self, other)
 
 
-def aten_bitwise_left_shift(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_left_shift")
+def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
     # bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitShift(self, other, direction="LEFT")
 
 
-def aten_bitwise_not(self: TensorType) -> TensorType:
+@torch_op("aten::bitwise_not")
+def aten_bitwise_not(self: TInt) -> TInt:
     # bitwise_not(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseNot(self)
 
 
-def aten_bitwise_or(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_or")
+def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     # bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseOr(self, other)
 
 
-def aten_bitwise_right_shift(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_right_shift")
+def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     # bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitShift(self, other, direction="RIGHT")
 
 
-def aten_bitwise_xor(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::bitwise_xor")
+def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     # bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.BitwiseXor(self, other)
 
 
 def aten_blackman_window(window_length: int) -> TensorType:
@@ -617,7 +615,7 @@ def aten_block_diag(tensors: Sequence[TensorType]) -> TensorType:
 
 
 @torch_op("aten::bmm")
-def aten_bmm(self, mat2):
+def aten_bmm(self: TFloat, mat2: TFloat) -> TFloat:
     # bmm(Tensor self, Tensor mat2) -> Tensor
 
     return op.MatMul(self, mat2)
@@ -682,7 +680,7 @@ def aten_cdist(
 
 
 @torch_op("aten::ceil")
-def aten_ceil(self):
+def aten_ceil(self: TFloat) -> TFloat:
     # ceil(Tensor self) -> Tensor
 
     return op.Ceil(self)
@@ -741,7 +739,9 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
 
 
 @torch_op("aten::clamp")
-def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
+def aten_clamp(
+    self: TReal, min_: Optional[float] = None, max_: Optional[float] = None
+) -> TReal:
     # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
 
     # TODO(justinchuby): Handle integer inputs
@@ -750,23 +750,23 @@ def aten_clamp(self: TensorType, min_=None, max_=None) -> TensorType:
     # sets all elements in input to the value of max.
     if op.OptionalHasElement(min_):
         min_ = op.OptionalGetElement(min_)
-        min_clamp = op.CastLike(min_, self)  # type: ignore[arg-type]
+        min_clamp = op.CastLike(min_, self)
     else:
         min_clamp = op.Constant(value_float=float("-inf"))
 
     if op.OptionalHasElement(max_):
         max_ = op.OptionalGetElement(max_)
-        max_clamp = op.CastLike(max_, self)  # type: ignore[arg-type]
+        max_clamp = op.CastLike(max_, self)
     else:
         max_clamp = op.Constant(value_float=float("inf"))
 
     # Enforce the lower and upper bounds
-    clamped = op.Max(op.Min(self, max_clamp), min_clamp)  # type: ignore[arg-type]
+    clamped = op.Max(op.Min(self, max_clamp), min_clamp)
     return clamped
 
 
 @torch_op("aten::clamp_max")
-def aten_clamp_max(self, max_):
+def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
     # clamp_max(Tensor self, Tensor max) -> Tensor
 
     self_size = op.Size(self)
@@ -785,7 +785,7 @@ def aten_clamp_max(self, max_):
 
 
 @torch_op("aten::clamp_min")
-def aten_clamp_min(self, min_):
+def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
     # clamp_min(Tensor self, Tensor min) -> Tensor
 
     self_size = op.Size(self)
@@ -803,10 +803,13 @@ def aten_clamp_min(self, min_):
     return result
 
 
-def aten_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::clone")
+def aten_clone(
+    self: TTensor, memory_format: str = ""  # pylint: disable=unused-argument
+) -> TTensor:
     # clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_coalesce(self: TensorType) -> TensorType:
@@ -1042,14 +1045,14 @@ def aten_corrcoef(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::cos")
-def aten_cos(self):
+def aten_cos(self: TFloat) -> TFloat:
     # cos(Tensor self) -> Tensor
 
     return op.Cos(self)
 
 
 @torch_op("aten::cosh")
-def aten_cosh(self):
+def aten_cosh(self: TFloat) -> TFloat:
     # cosh(Tensor self) -> Tensor
 
     return op.Cosh(self)
@@ -1406,10 +1409,11 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_div(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::div")
+def aten_div(self: TReal, other: TReal) -> TReal:
     # div.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Div(self, other)
 
 
 def aten_divide(self: TensorType, other: TensorType) -> TensorType:
@@ -1419,7 +1423,7 @@ def aten_divide(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::dot")
-def aten_dot(self, tensor):
+def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     # dot(Tensor self, Tensor tensor) -> Tensor
 
     return op.MatMul(self, tensor)
@@ -1541,22 +1545,28 @@ def aten_empty_strided(size: INT64, stride: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_eq(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::eq")
+def aten_eq(self: TTensor, other: TTensor) -> BOOL:
     # eq.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Equal(self, other)
 
 
-def aten_equal(self: TensorType, other: TensorType) -> bool:
+@torch_op("aten::equal")
+def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     # equal(Tensor self, Tensor other) -> bool
 
-    raise NotImplementedError()
+    sub_self_other = op.Sub(self, other)
+    abs_sub = op.Abs(sub_self_other)
+    sum_of_abs = op.ReduceSum(abs_sub, keepdims=0)
+    return op.Equal(sum_of_abs, 0)
 
 
-def aten_erf(self: TensorType) -> TensorType:
+@torch_op("aten::erf")
+def aten_erf(self: TReal) -> TReal:
     # erf(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Erf(self)
 
 
 def aten_erfc(self: TensorType) -> TensorType:
@@ -1572,25 +1582,27 @@ def aten_erfinv(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::exp")
-def aten_exp(self):
+def aten_exp(self: TFloat) -> TFloat:
     # exp(Tensor self) -> Tensor
 
     return op.Exp(self)
 
 
 @torch_op("aten::exp2")
-def aten_exp2(self):
+def aten_exp2(self: TFloat) -> TFloat:
     # exp2(Tensor self) -> Tensor
 
     two = op.Constant(value_int=2)
-    two = op.CastLike(two, self)  # type: ignore[arg-type]
-    return op.Pow(two, self)  # type: ignore[arg-type]
+    two = op.CastLike(two, self)
+    return op.Pow(two, self)
 
 
-def aten_expand(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:
+@torch_op("aten::expand")
+def aten_expand(self: TTensor, size: INT64) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    raise NotImplementedError()
+    size = op.Cast(size, to=INT64.dtype)  # to INT64
+    return op.Expand(self, size)
 
 
 def aten_expand_as(self: TensorType, other: TensorType) -> TensorType:
@@ -1805,10 +1817,11 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_fmod(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::fmod")
+def aten_fmod(self: TReal, other: TReal) -> TReal:
     # fmod.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Mod(self, other, fmod=1)
 
 
 def aten_frac(self: TensorType) -> TensorType:
@@ -1837,18 +1850,23 @@ def aten_from_file(
     raise NotImplementedError()
 
 
-def aten_full(size: INT64, fill_value: float) -> TensorType:
+@torch_op("aten::full")
+def aten_full(size: INT64, fill_value, dtype: int = FLOAT.dtype):
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    fill_value = op.Cast(fill_value, to=dtype)
+
+    return op.Expand(fill_value, size)
 
 
-def aten_full_like(
-    self: TensorType, fill_value: float, memory_format: Optional[str] = None
-) -> TensorType:
+@torch_op("aten::full_like")
+def aten_full_like(self, fill_value, dtype: int = FLOAT.dtype):
     # full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    fill_value = op.Cast(fill_value, to=dtype)
+    self_shape = op.Shape(self)
+
+    return op.Expand(fill_value, self_shape)
 
 
 def aten_fused_moving_avg_obs_fake_quant(
@@ -2014,7 +2032,7 @@ def aten_gru_cell(
 
 
 @torch_op("aten::gt")
-def aten_gt(self, other):
+def aten_gt(self: TReal, other: TReal) -> BOOL:
     # gt.Tensor(Tensor self, Tensor other) -> Tensor
 
     # TODO(justinchuby): Input spec: non bool tensor
@@ -2170,10 +2188,21 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-def aten_index_select(self: TensorType, dim: int, index: TensorType) -> TensorType:
+# FIXME(#277): Script when attributes can come before inputs
+@torch_op("aten::index_select", trace_only=True)
+def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+    else:
+        # Index can be a scalar. Reshape it to a rank 1 tensor.
+        index = op.Reshape(index, op.Constant(value_floats=[-1]))
+        index = op.Cast(index, to=INT64.dtype)
+
+        result = op.Gather(self, index, axis=dim)
+
+    return result
 
 
 def aten_index_select_backward(
@@ -2332,10 +2361,11 @@ def aten_isfinite(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_isinf(self: TensorType) -> TensorType:
+@torch_op("aten::isinf")
+def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
     # isinf(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.IsInf(self)
 
 
 def aten_isnan(self: TensorType) -> TensorType:
@@ -2548,28 +2578,32 @@ def aten_logdet(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_logical_and(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logical_and")
+def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
     # logical_and(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.And(self, other)
 
 
-def aten_logical_not(self: TensorType) -> TensorType:
+@torch_op("aten::logical_not")
+def aten_logical_not(self: BOOL) -> BOOL:
     # logical_not(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Not(self)
 
 
-def aten_logical_or(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logical_or")
+def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     # logical_or(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Or(self, other)
 
 
-def aten_logical_xor(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logical_xor")
+def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     # logical_xor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Xor(self, other)
 
 
 def aten_logit(self: TensorType, eps: Optional[float] = None) -> TensorType:
@@ -2631,7 +2665,7 @@ def aten_lstm_mps_backward(
 
 
 @torch_op("aten::lt")
-def aten_lt(self, other):
+def aten_lt(self: TReal, other: TReal) -> BOOL:
     # lt.Tensor(Tensor self, Tensor other) -> Tensor
 
     # TODO(justinchuby): Input spec: non bool tensor
@@ -2707,7 +2741,9 @@ def aten_masked_select_backward(
 
 
 @torch_op("aten::matmul")
-def aten_matmul(self, other):
+def aten_matmul(
+    self: TRealUnlessInt16OrInt8, other: TRealUnlessInt16OrInt8
+) -> TRealUnlessInt16OrInt8:
     # matmul(Tensor self, Tensor other) -> Tensor
 
     return op.MatMul(self, other)
@@ -3108,7 +3144,9 @@ def aten_mkldnn_max_pool3d_backward(
 
 
 @torch_op("aten::mm")
-def aten_mm(self, mat2):
+def aten_mm(
+    self: TRealUnlessInt16OrInt8, mat2: TRealUnlessInt16OrInt8
+) -> TRealUnlessInt16OrInt8:
     # mm(Tensor self, Tensor mat2) -> Tensor
 
     # TODO(justinchuby): Specify type conversion for uint8/int8/int16
@@ -3175,7 +3213,7 @@ def aten_msort(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::mul")
-def aten_mul(self, other):
+def aten_mul(self: TReal, other: TReal) -> TReal:
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
 
     return op.Mul(self, other)
@@ -3402,16 +3440,18 @@ def aten_native_norm(self: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ne(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::ne")
+def aten_ne(self: TReal, other: TReal) -> BOOL:
     # ne.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Not(op.Equal(self, other))
 
 
-def aten_neg(self: TensorType) -> TensorType:
+@torch_op("aten::neg")
+def aten_neg(self: TReal) -> TReal:
     # neg(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Neg(self)
 
 
 def aten_negative(self: TensorType) -> TensorType:
@@ -3432,10 +3472,15 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
     raise NotImplementedError()
 
 
-def aten_new_full(self: TensorType, size: INT64, fill_value: float) -> TensorType:
+@torch_op("aten::new_full")
+def aten_new_full(
+    self, size: INT64, fill_value, dtype: int = FLOAT.dtype
+):  # pylint: disable=unused-argument
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    fill_value = op.Cast(fill_value, to=dtype)
+
+    return op.Expand(fill_value, size)
 
 
 def aten_new_ones(self: TensorType, size: INT64) -> TensorType:
@@ -3456,10 +3501,11 @@ def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_nonzero(self: TensorType) -> TensorType:
+@torch_op("aten::nonzero")
+def aten_nonzero(self: TTensor) -> INT64:
     # nonzero(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.NonZero(self)
 
 
 def aten_nonzero_numpy(self: TensorType) -> TensorType:
@@ -3495,17 +3541,17 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
 
 
 @torch_op("aten::ones")
-def aten_ones(size: INT64, dtype: int = -1) -> TensorType:
+def aten_ones(size: INT64, dtype: int = -1):
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     one = op.Constant(value_float=1)
     if dtype != -1:
-        one = op.Cast(one, to=dtype)  # type: ignore[arg-type]
-    return op.Expand(one, size)  # type: ignore[arg-type]
+        one = op.Cast(one, to=dtype)
+    return op.Expand(one, size)
 
 
 @torch_op("aten::ones_like")
-def aten_ones_like(self, dtype: int = -1):
+def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
     """ones_like.
 
     Note: dtype is an onnx enum. Users should convert torch dtype to onnx dtype
@@ -3517,10 +3563,9 @@ def aten_ones_like(self, dtype: int = -1):
     print(shape)
     print(type(shape))
     if dtype == -1:
-        one = op.CastLike(1, self)  # type: ignore[arg-type]
+        one = op.CastLike(1, self)
     else:
-        one = op.Cast(1, to=dtype)  # type: ignore[arg-type]
-    print(shape)
+        one = op.Cast(1, to=dtype)
     return op.Expand(one, shape)
 
 
@@ -3952,10 +3997,11 @@ def aten_real(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_reciprocal(self: TensorType) -> TensorType:
+@torch_op("aten::reciprocal")
+def aten_reciprocal(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # reciprocal(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Reciprocal(self)
 
 
 def aten_record_stream(self: TensorType, s: str) -> Any:
@@ -3970,16 +4016,21 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_relu(self: TensorType) -> TensorType:
-    # relu(Tensor self) -> Tensor
-
-    raise NotImplementedError()
-
-
-def aten_remainder(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::remainder")
+def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # remainder.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    # a - a.div(b, rounding_mode="floor") * b
+    rounded_quotient = op.Floor(op.Div(self, other))
+
+    return op.Sub(self, op.Mul(rounded_quotient, other))
+
+
+@torch_op("aten::remainder", overload=True)
+def aten_remainder_int(self: TInt, other: TInt) -> TInt:
+    # remainder.Tensor(Tensor self, Tensor other) -> Tensor
+
+    return op.Mod(self, other)
 
 
 def aten_rename(self: TensorType, names: Optional[str]) -> TensorType:
@@ -3995,7 +4046,7 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 
 
 @torch_op("aten::repeat")
-def aten_repeat(self, repeats: INT64):
+def aten_repeat(self: TTensor, repeats: INT64) -> TTensor:
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     if op.Size(repeats) == 0:
@@ -4007,7 +4058,7 @@ def aten_repeat(self, repeats: INT64):
         repeats_shape = op.Shape(repeats)
         shape = op.Expand(one, repeats_shape)
         # }
-        self_expanded = op.Expand(self, shape)  # type: ignore[arg-type]
+        self_expanded = op.Expand(self, shape)
         result = op.Tile(self_expanded, repeats)
     return result
 
@@ -4020,10 +4071,12 @@ def aten_repeat_interleave(
     raise NotImplementedError()
 
 
-def aten_reshape(self: TensorType, shape: INT64) -> TensorType:
+@torch_op("aten::reshape")
+def aten_reshape(self: TTensor, shape: INT64) -> TTensor:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
-    raise NotImplementedError()
+    shape = op.Cast(shape, to=INT64.dtype)  # Reshape only support INT64 as 'shape'
+    return op.Reshape(self, shape)
 
 
 def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4103,7 +4156,7 @@ def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> Te
 
 
 @torch_op("aten::round")
-def aten_round(self):
+def aten_round(self: TFloat) -> TFloat:
     # round(Tensor self) -> Tensor
 
     return op.Round(self)
@@ -4145,16 +4198,18 @@ def aten_rshift(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_rsqrt(self: TensorType) -> TensorType:
+@torch_op("aten::rsqrt")
+def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # rsqrt(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Reciprocal(op.Sqrt(self))
 
 
-def aten_rsub(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+@torch_op("aten::rsub")
+def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sub(other, op.Mul(self, alpha))
 
 
 def aten_scalar_tensor(s: float) -> TensorType:
@@ -4214,7 +4269,7 @@ def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int)
 
 
 @torch_op("aten::selu")
-def aten_selu(self):
+def aten_selu(self: TFloat) -> TFloat:
     # selu(Tensor self) -> Tensor
 
     return op.Selu(self)
@@ -4232,16 +4287,18 @@ def aten_sgn(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_sigmoid(self: TensorType) -> TensorType:
+@torch_op("aten::sigmoid")
+def aten_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # sigmoid(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sigmoid(self)
 
 
-def aten_sign(self: TensorType) -> TensorType:
+@torch_op("aten::sign")
+def aten_sign(self: TReal) -> TReal:
     # sign(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sign(self)
 
 
 def aten_signbit(self: TensorType) -> TensorType:
@@ -4251,14 +4308,14 @@ def aten_signbit(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::sin")
-def aten_sin(self):
+def aten_sin(self: TFloat) -> TFloat:
     # sin(Tensor self) -> Tensor
 
     return op.Sin(self)
 
 
 @torch_op("aten::sinh")
-def aten_sinh(self):
+def aten_sinh(self: TFloat) -> TFloat:
     # sinh(Tensor self) -> Tensor
 
     return op.Sinh(self)
@@ -4372,10 +4429,11 @@ def aten_split_with_sizes_copy(
     raise NotImplementedError()
 
 
-def aten_sqrt(self: TensorType) -> TensorType:
+@torch_op("aten::sqrt")
+def aten_sqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # sqrt(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Sqrt(self)
 
 
 def aten_square(self: TensorType) -> TensorType:
@@ -4438,11 +4496,11 @@ def aten_stft(
 
 
 @torch_op("aten::sub")
-def aten_sub(self, other, alpha: float = 1) -> TensorType:
+def aten_sub(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     if alpha != 1:
-        other = op.Mul(other, alpha)  # type: ignore[arg-type]
+        other = op.Mul(other, alpha)
 
     return op.Sub(self, other)
 
@@ -4453,7 +4511,9 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
     raise NotImplementedError()
 
 
-def aten_sum(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+def aten_sum(
+    self: TensorType, dim: Optional[int] = None, keepdim: bool = False, dtype: int = -1
+) -> TensorType:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
     raise NotImplementedError()
@@ -4494,15 +4554,15 @@ def aten_symeig(
 
 
 @torch_op("aten::t")
-def aten_t(self: TensorType) -> TensorType:
+def aten_t(self: TTensor) -> TTensor:
     # t(Tensor(a) self) -> Tensor(a)
 
     # TODO(justinchuby): Make rank a function
-    rank = op.Size(op.Shape(self))  # type: ignore[arg-type]
+    rank = op.Size(op.Shape(self))
     if rank == 0 or rank == 1:  # pylint: disable=consider-using-in
         result = self
     else:
-        result = op.Transpose(self, perm=[1, 0])  # type: ignore[arg-type]
+        result = op.Transpose(self, perm=[1, 0])
     return result
 
 
@@ -4527,14 +4587,14 @@ def aten_take_along_dim(
 
 
 @torch_op("aten::tan")
-def aten_tan(self):
+def aten_tan(self: TFloat) -> TFloat:
     # tan(Tensor self) -> Tensor
 
     return op.Tan(self)
 
 
 @torch_op("aten::tanh")
-def aten_tanh(self):
+def aten_tanh(self: TFloat) -> TFloat:
     # tanh(Tensor self) -> Tensor
 
     return op.Tanh(self)
@@ -4659,11 +4719,26 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::transpose", trace_only=True)
 def aten_transpose(self, dim0: int, dim1: int):
     # transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
 
     # FIXME(justinchuby): onnxscript raises Unsupported expression type
-    return op.Transpose(self, [dim0, dim1])
+    # Script the function when this is fixed
+    self_rank = op.Size(op.Shape(self))
+
+    if self_rank == 0:
+        result = self
+    else:
+        # Python code, change when onnxscript supports this
+        self_rank_val = self_rank.value  # type: ignore[attr-defined]
+        dims = list(range(self_rank_val))
+        dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
+        # Python code ends
+
+        result = op.Transpose(self, perm=dims)
+
+    return result
 
 
 def aten_triangular_solve(
@@ -4806,10 +4881,12 @@ def aten_unsafe_split_with_sizes(
     raise NotImplementedError()
 
 
-def aten_unsqueeze(self: TensorType, dim: int) -> TensorType:
+@torch_op("aten::unsqueeze")
+def aten_unsqueeze(self: TTensor, dim: int) -> TTensor:
     # unsqueeze(Tensor(a) self, int dim) -> Tensor(a)
 
-    raise NotImplementedError()
+    dim = op.Cast(dim, to=INT64.dtype)
+    return op.Unsqueeze(self, dim)
 
 
 def aten_unsqueeze_copy(self: TensorType, dim: int) -> TensorType:
@@ -4864,10 +4941,12 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_view(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::view")
+def aten_view(self: TTensor, size: INT64) -> TTensor:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
-    raise NotImplementedError()
+    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    return op.Reshape(self, size)
 
 
 def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
@@ -4912,10 +4991,11 @@ def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_where(condition: TensorType) -> TensorType:
-    # where(Tensor condition) -> Tensor[]
+@torch_op("aten::where")
+def aten_where(self: TTensor, condition: BOOL, other: TTensor) -> TTensor:
+    # where.self(Tensor condition, Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Where(condition, self, other)
 
 
 def aten_xlogy(self: TensorType, other: TensorType) -> TensorType:
@@ -4931,24 +5011,24 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::zeros")
-def aten_zeros(size, dtype: int = -1):
+def aten_zeros(size: INT64, dtype: int = -1):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     zero = op.Constant(value_float=0)
     if dtype != -1:
-        zero = op.Cast(zero, to=dtype)  # type: ignore[arg-type]
+        zero = op.Cast(zero, to=dtype)
 
-    return op.Expand(zero, size)  # type: ignore[arg-type]
+    return op.Expand(zero, size)
 
 
 @torch_op("aten::zeros_like")
-def aten_zeros_like(self, dtype: int = -1):
+def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
     # zeros_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     shape = op.Shape(self)
     if dtype == -1:
-        zero = op.CastLike(0, self)  # type: ignore[arg-type]
+        zero = op.CastLike(0, self)
     else:
-        zero = op.Cast(0, to=dtype)  # type: ignore[arg-type]
+        zero = op.Cast(0, to=dtype)
 
     return op.Expand(zero, shape)
