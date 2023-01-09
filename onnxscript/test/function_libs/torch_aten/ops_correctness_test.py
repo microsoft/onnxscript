@@ -209,6 +209,8 @@ OPINFO_FUNCTION_MAPPING: dict[
     "cosh": core_ops.aten_cosh,
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
+    "empty": core_ops.aten_empty,
+    "empty_like": core_ops.aten_empty_like,
     "eq": core_ops.aten_eq,
     "equal": core_ops.aten_equal,
     "exp": core_ops.aten_exp,
@@ -274,6 +276,8 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
     skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    skip("empty", reason="Using zeros to simulate empty"),
+    skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -293,6 +297,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
+    ),
+    skip(
+        "empty",
+        matcher=lambda sample: sample.kwargs.get("requires_grad") is not None,
+        reason="requires_grad is not yet supported",
     ),
     skip(
         "expand",
