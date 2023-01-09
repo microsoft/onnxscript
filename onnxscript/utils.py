@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import numbers
-from typing import Any, Optional, Sequence
+from typing import Any, Iterable, Optional, Sequence
 
 import numpy as np
 import onnx
+import onnx.helper
+import onnx.mapping
 from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
-from onnx.helper import make_sequence_type_proto, make_tensor_type_proto
 
 from onnxscript import tensor
 
@@ -82,22 +83,24 @@ def value_to_type_proto(val):
     if isinstance(val, (np.ndarray, tensor.Tensor)):
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
         shape = val.shape
-        return make_tensor_type_proto(elem_type, shape)
+        return onnx.helper.make_tensor_type_proto(elem_type, shape)
     if isinstance(val, int):
-        return make_tensor_type_proto(TensorProto.INT32, [])
+        return onnx.helper.make_tensor_type_proto(TensorProto.INT32, [])
     if isinstance(val, (float, np.float32)):
-        return make_tensor_type_proto(TensorProto.FLOAT, [])
+        return onnx.helper.make_tensor_type_proto(TensorProto.FLOAT, [])
     if isinstance(val, list):
         if len(val) > 0:
-            return make_sequence_type_proto(value_to_type_proto(val[0]))
+            return onnx.helper.make_sequence_type_proto(value_to_type_proto(val[0]))
         # Edge-case. Cannot determine a suitable ONNX type for an empty list.
         # Should be using a typed-value instead.
         # Treated as a sequence of tensors of float-type.
-        return make_sequence_type_proto(make_tensor_type_proto(TensorProto.FLOAT, None))
+        return onnx.helper.make_sequence_type_proto(
+            onnx.helper.make_tensor_type_proto(TensorProto.FLOAT, None)
+        )
     if isinstance(val, numbers.Number):
         nparray = np.array(val)
         elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
-        return make_tensor_type_proto(elem_type, [])
+        return onnx.helper.make_tensor_type_proto(elem_type, [])
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 
 
@@ -144,7 +147,7 @@ def make_model_from_function_proto(
         **(attrs or {}),
     )
     graph = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
-    model_proto_opset = function_proto.opset_import
+    model_proto_opset: Iterable[onnx.OperatorSetIdProto] = function_proto.opset_import
     if all(o.domain != function_proto.domain for o in model_proto_opset):
         model_proto_opset = [
             *model_proto_opset,

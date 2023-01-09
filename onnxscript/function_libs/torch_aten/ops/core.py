@@ -16,6 +16,7 @@ from typing import Any, Optional, Sequence, Union
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import (
+    IntType,
     TFloat,
     TFloatOrBFloat16,
     TInt,
@@ -1642,10 +1643,10 @@ def aten_exp2(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::expand")
-def aten_expand(self: TTensor, size: INT64) -> TTensor:
+def aten_expand(self: TTensor, size: TInt) -> TTensor:
     # expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)
 
-    size = op.Cast(size, to=INT64.dtype)  # to INT64
+    size = op.Cast(size, to=INT64.dtype)
     return op.Expand(self, size)
 
 
@@ -3518,10 +3519,11 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
 
 @torch_op("aten::new_full")
 def aten_new_full(
-    self, size: INT64, fill_value, dtype: int = FLOAT.dtype
+    self, size: IntType, fill_value, dtype: int = FLOAT.dtype
 ):  # pylint: disable=unused-argument
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     fill_value = op.Cast(fill_value, to=dtype)
 
     return op.Expand(fill_value, size)
@@ -3585,12 +3587,12 @@ def aten_nuclear_norm(self: TensorType, keepdim: bool = False) -> TensorType:
 
 
 @torch_op("aten::ones")
-def aten_ones(size: INT64, dtype: int = -1):
+def aten_ones(size: IntType, dtype: int = FLOAT.dtype):
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     one = op.Constant(value_float=1)
-    if dtype != -1:
-        one = op.Cast(one, to=dtype)
+    one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
 
 
@@ -4088,13 +4090,14 @@ def aten_renorm(self: TensorType, p: float, dim: int, maxnorm: float) -> TensorT
 
 
 @torch_op("aten::repeat")
-def aten_repeat(self: TTensor, repeats: INT64) -> TTensor:
+def aten_repeat(self: TTensor, repeats: TInt) -> TTensor:
     # repeat(Tensor self, SymInt[] repeats) -> Tensor
 
     if op.Size(repeats) == 0:
         result = self
     else:
         # TODO(justinchuby): Make ones_like a function when onnxscript supports it
+        repeats = op.Cast(repeats, to=INT64.dtype)
         # shape = ones_like(repeats) := {
         one = op.Constant(value_int=1)
         repeats_shape = op.Shape(repeats)
@@ -4114,10 +4117,11 @@ def aten_repeat_interleave(
 
 
 @torch_op("aten::reshape")
-def aten_reshape(self: TTensor, shape: INT64) -> TTensor:
+def aten_reshape(self: TTensor, shape: IntType) -> TTensor:
     # reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)
 
-    shape = op.Cast(shape, to=INT64.dtype)  # Reshape only support INT64 as 'shape'
+    # Reshape only support INT64 as 'shape'
+    shape = op.Cast(shape, to=INT64.dtype)
     return op.Reshape(self, shape)
 
 
@@ -4975,7 +4979,7 @@ def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::view")
-def aten_view(self: TTensor, size: INT64) -> TTensor:
+def aten_view(self: TTensor, size: IntType) -> TTensor:
     # view(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
     size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
@@ -5044,12 +5048,12 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::zeros")
-def aten_zeros(size: INT64, dtype: int = -1):
+def aten_zeros(size: IntType, dtype: int = FLOAT.dtype):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     zero = op.Constant(value_float=0)
-    if dtype != -1:
-        zero = op.Cast(zero, to=dtype)
+    zero = op.Cast(zero, to=dtype)
 
     return op.Expand(zero, size)
 
