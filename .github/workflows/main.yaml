@@ -23,7 +23,6 @@ jobs:
           - python39-onnx
           - python39-expe
           - python38-expe
-          - python37-expe
         include:
           # - name: python311-onnx
           #   python-version: "3.11"
@@ -43,10 +42,6 @@ jobs:
             test_examples: false
           - name: python38-expe
             python-version: "3.8"
-            onnx_standard: false
-            test_examples: false
-          - name: python37-expe
-            python-version: "3.7"
             onnx_standard: false
             test_examples: false
     runs-on: ${{ matrix.os }}
@@ -77,14 +72,14 @@ jobs:
           pip list | grep torch
 
       - name: pytest
-        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n auto
+        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n=auto
 
       - name: Install package
         run: pip install .
 
       - name: Test examples
         if: ${{ matrix.test_examples }}
-        run: pytest -v docs/test
+        run: pytest -v docs/test -n=auto
 
       - name: Build package
         run: python -m build
