@@ -28,6 +28,9 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
 
+def is_primitive_attr_type(typeinfo) -> bool:
+    return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
+
 def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.AttributeType]:
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
@@ -43,17 +46,35 @@ def is_attr_type(pytype: type):
     return pytype_to_attrtype(pytype) is not None
 
 
-def is_value_type(typeinfo):
+def is_tensor_type(typeinfo):
     if isinstance(typeinfo, TensorType):
         return True
     if inspect.isclass(typeinfo) and issubclass(typeinfo, TensorType):
         return True
     return False
 
+def is_value_type(typeinfo):
+    if is_tensor_type(typeinfo):
+        return True
+    if is_primitive_attr_type(typeinfo):
+        return False
+    type_constructor = get_origin(typeinfo)
+    if type_constructor in _LIST_CONSTRUCTORS:
+        args = get_args(typeinfo)
+        elt_type = args[0]
+        return is_value_type(elt_type)
+    if type_constructor is typing.Optional:
+        args = get_args(typeinfo)
+        elt_type = args[0]
+        return is_value_type(elt_type)
+    raise ValueError(f"Unsupported type annotation {typeinfo}")        
+
 
 def is_valid_type(typeinfo):
-    return is_attr_type(typeinfo) or is_value_type(typeinfo)
-
+    try:
+        return is_value_type(typeinfo) in {True, False}
+    except ValueError:
+        return False
 
 def get_return_types(typeinfo: type | typing.Sequence[type]) -> typing.Sequence[type]:
     """Converts return-type annotation into a sequence of types.
