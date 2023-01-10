@@ -16,6 +16,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
+from onnxscript.function_libs.torch_aten.ops import special as special_ops
 
 T = TypeVar("T")
 
@@ -161,20 +162,39 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 # Modify this section ##########################################################
 
 
-def _amax_amin_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+def _amax_amin_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
     if "dim" not in kwargs:
         kwargs["dim"] = None
-    return kwargs
+    return args, kwargs
 
 
-def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+def _full_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove the self argument
+    args.pop(0)
+    return args, kwargs
+
+
+def _upsample_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
     if "scale_factor" in kwargs:
         kwargs["scales_h"] = kwargs["scale_factor"]
         kwargs["scales_w"] = kwargs["scale_factor"]
         del kwargs["scale_factor"]
     if "size" in kwargs:
         kwargs["size"] = np.array(kwargs["size"])
-    return kwargs
+    return args, kwargs
+
+
+def _logcumsumexp_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["keepdim"] = args.pop()
+    return args, kwargs
 
 
 # Ops to be tested for numerical consistency between onnx and pytorch
@@ -185,7 +205,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     | Callable[..., Any]
     | tuple[
         onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[dict[str, Any]], dict[str, Any]],
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
 ] = {
     "abs": core_ops.aten_abs,
@@ -193,8 +213,8 @@ OPINFO_FUNCTION_MAPPING: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "amax": (core_ops.aten_amax, _amax_amin_kwargs_wrangler),
-    "amin": (core_ops.aten_amin, _amax_amin_kwargs_wrangler),
+    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
+    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -219,11 +239,20 @@ OPINFO_FUNCTION_MAPPING: dict[
     "expand": core_ops.aten_expand,
     "erf": core_ops.aten_erf,
     "fmod": core_ops.aten_fmod,
-    # TODO(justinchuby): Test aten::full
+    "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
     "index_select": core_ops.aten_index_select,
     "isinf": core_ops.aten_isinf,
+    "log": core_ops.aten_log,
+    "log10": core_ops.aten_log10,
+    "log1p": core_ops.aten_log1p,
+    "log2": core_ops.aten_log2,
+    "logaddexp": core_ops.aten_logaddexp,
+    "logaddexp2": core_ops.aten_logaddexp2,
+    "logcumsumexp": core_ops.aten_logcumsumexp,
+    "logdet": core_ops.aten_logdet,
+    "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
@@ -237,12 +266,13 @@ OPINFO_FUNCTION_MAPPING: dict[
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
-        _upsample_kwargs_wrangler,
+        _upsample_input_wrangler,
     ),
     "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
@@ -267,6 +297,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": core_ops.aten_where,
+    "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
 }
@@ -276,7 +307,9 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    skip("clamp", reason="enable when onnxscript supports optional inputs"),
+    xfail("logcumsumexp", reason="naive implementation not numerically stable"),
+    xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -358,6 +391,15 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
 
 duplicate_opinfo(
     OPS_DB,
+    "arange",
+    (
+        "arange_start",
+        "arange_start_step",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
     "nn.functional.upsample_nearest",
     (
         "nn.functional.upsample_nearest1d",
@@ -366,14 +408,7 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(
-    OPS_DB,
-    "arange",
-    (
-        "arange_start",
-        "arange_start_step",
-    ),
-)
+duplicate_opinfo(OPS_DB, "new_full", ("full",))
 
 
 # END OF SECTION TO MODIFY #####################################################
@@ -477,13 +512,13 @@ class TestOutputConsistency(unittest.TestCase):
         )
 
         onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
-        kwarg_wrangler = None
+        input_wrangler = None
         if isinstance(onnx_function_and_wrangler, tuple):
-            # Obtain the kwarg_wrangler that manipulates the OpInfo inputs
+            # Obtain the input_wrangler that manipulates the OpInfo inputs
             # to match the aten operator signature
             # An example is nn.functional.upsample_nearest2d, which has a different signature
             # than the aten operator upsample_nearest2d
-            onnx_function, kwarg_wrangler = onnx_function_and_wrangler
+            onnx_function, input_wrangler = onnx_function_and_wrangler
         else:
             assert callable(onnx_function_and_wrangler)
             onnx_function = onnx_function_and_wrangler
@@ -503,8 +538,8 @@ class TestOutputConsistency(unittest.TestCase):
                     continue
                 input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
-                if kwarg_wrangler:
-                    kwargs_onnx = kwarg_wrangler(kwargs_onnx)
+                if input_wrangler:
+                    input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
                 function_output = onnx_function(*input_onnx, **kwargs_onnx)
 
@@ -524,7 +559,9 @@ class TestOutputConsistency(unittest.TestCase):
                 # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
-                    torch.tensor(torch_output),
+                    torch_output
+                    if isinstance(torch_output, torch.Tensor)
+                    else torch.tensor(torch_output),
                     rtol=rtol,
                     atol=atol,
                 )
