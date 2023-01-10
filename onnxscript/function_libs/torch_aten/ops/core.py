@@ -1896,16 +1896,17 @@ def aten_from_file(
 
 
 @torch_op("aten::full")
-def aten_full(size: INT64, fill_value, dtype: int = FLOAT.dtype):
+def aten_full(size: INT64, fill_value: TensorType, dtype: int = FLOAT.dtype):
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     fill_value = op.Cast(fill_value, to=dtype)
 
     return op.Expand(fill_value, size)
 
 
 @torch_op("aten::full_like")
-def aten_full_like(self, fill_value, dtype: int = FLOAT.dtype):
+def aten_full_like(self, fill_value: TensorType, dtype: int = FLOAT.dtype):
     # full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     fill_value = op.Cast(fill_value, to=dtype)
@@ -3536,7 +3537,7 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
 
 @torch_op("aten::new_full")
 def aten_new_full(
-    self, size: IntType, fill_value, dtype: int = FLOAT.dtype
+    self, size: IntType, fill_value: TensorType, dtype: int = FLOAT.dtype
 ):  # pylint: disable=unused-argument
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
