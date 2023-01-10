@@ -11,7 +11,7 @@ description = "Authoring ONNX functions in Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
 urls = { "Repository" = "https://github.com/onnx/onnx-script" }
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = { text = 'Apache License v2.0' }
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -20,14 +20,13 @@ classifiers = [
   "Operating System :: POSIX",
   "Operating System :: MacOS :: MacOS X",
   "Operating System :: Microsoft :: Windows",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: Apache Software License",
 ]
-dependencies = ["numpy>=1.21.5", "protobuf<4", "onnx"]
+dependencies = ["numpy>=1.22.0", "protobuf<4", "onnx"]
 
 [project.optional-dependencies]
 test = ["flake8", "mypy", "black", "isort[colors]", "pylint"]
@@ -45,6 +44,7 @@ onnx = ["py.typed"]
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
+addopts = "-ra --tb=short --color=yes"
 
 [tool.mypy]
 follow_imports = "silent"   # TODO: Remove when we fix all the mypy errors

@@ -213,8 +213,11 @@ OPINFO_FUNCTION_MAPPING: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
-    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
+    "amax": (core_ops.aten_amax, _amax_amin_kwargs_wrangler),
+    "amin": (core_ops.aten_amin, _amax_amin_kwargs_wrangler),
+    "arange_start_step": core_ops.aten_arange_start_step,
+    "arange_start": core_ops.aten_arange_start,
+    "arange": core_ops.aten_arange,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -323,6 +326,26 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
+        "arange",
+        matcher=lambda sample: len(sample.args) != 0,
+        reason="arange overload takes single argument",
+    ),
+    skip(
+        "arange",
+        matcher=lambda sample: sample.kwargs.get("end") is not None,
+        reason="arange overload does not support positional 'end' argument",
+    ),
+    skip(
+        "arange_start",
+        matcher=lambda sample: len(sample.args) != 1,
+        reason="arange_start overload takes two arguments (input, start)",
+    ),
+    skip(
+        "arange_start_step",
+        matcher=lambda sample: len(sample.args) != 2,
+        reason="arange_start_step overload takes three arguments (input, start, step)",
+    ),
+    skip(
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
@@ -363,6 +386,15 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "arange",
+    (
+        "arange_start",
+        "arange_start_step",
     ),
 )
 

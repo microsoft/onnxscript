@@ -1,6 +1,6 @@
 autopep8
 click
-numpy==1.21.5
+numpy==1.22.0
 matplotlib
 --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html
 onnx-function-experiment
