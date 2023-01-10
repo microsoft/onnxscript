@@ -659,9 +659,10 @@ def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
 
     print(tensors)
     print(type(tensors))
-    a = (tensors[0], tensors[1])
-    b = op.Concat(a, axis=0)
-    print(b)
+    #a = [tensors[0], tensors[1]]
+    #b = op.Concat(tensors[0], tensors[1], axis=0)
+    #print(b)
+    op.SequenceConstruct(tensors)
     a = op.SequenceEmpty()
     a = op.SequenceInsert(a, tensors[0])
     a = op.SequenceInsert(a, tensors[1])
