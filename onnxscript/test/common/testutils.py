@@ -16,6 +16,8 @@ def function_proto(f):
         return f
     if isinstance(f, OnnxFunction):
         return f.to_function_proto()
+    if isinstance(f, str):
+        return parser.parse_function(f)
     raise TypeError(f"Cannot convert {type(f)} to FunctionProto")
 
 
@@ -51,3 +53,6 @@ class TestBase(unittest.TestCase):
 
     def assertSameGraph(self, graph1, graph2):
         self.assertTrue(isomorphic(graph_proto(graph1), graph_proto(graph2)))
+
+    def assertSameFunction(self, fn1, fn2):
+        self.assertTrue(isomorphic(function_proto(fn1), function_proto(fn2)))
