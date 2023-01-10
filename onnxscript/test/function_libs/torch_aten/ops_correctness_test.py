@@ -408,6 +408,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
     ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(list(filter(lambda v : v < 0, sample.args[0]))) > 0,
+        reason="Negative value in perm is not supported",
+    ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(sample.args[0]) == 0,
+        reason="Empty perm is not supported",
+    ),
 )
 
 duplicate_opinfo(
