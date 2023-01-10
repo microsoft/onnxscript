@@ -410,7 +410,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "permute",
-        matcher=lambda sample: len(list(filter(lambda v : v < 0, sample.args[0]))) > 0,
+        matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
         reason="Negative value in perm is not supported",
     ),
     skip(
