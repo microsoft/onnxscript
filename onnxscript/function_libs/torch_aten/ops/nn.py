@@ -481,10 +481,11 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
     return result
 
 
-def aten_log_sigmoid(self: TensorType) -> TensorType:
+@torch_op("aten::log_sigmoid")
+def aten_log_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log_sigmoid(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(op.Sigmoid(self))
 
 
 def aten_log_sigmoid_backward(
