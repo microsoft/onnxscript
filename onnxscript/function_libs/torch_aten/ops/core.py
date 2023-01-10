@@ -4754,7 +4754,7 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::topk", trace_only=True)
+@torch_op("aten::topk")
 def aten_topk(
     self: TReal, k: INT64, dim: int = -1, largest: bool = True, sorted: bool = True
 ) -> Tuple[TReal, INT64]:

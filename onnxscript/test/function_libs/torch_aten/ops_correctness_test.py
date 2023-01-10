@@ -198,6 +198,20 @@ def _logcumsumexp_input_wrangler(
     return args, kwargs
 
 
+def _topk_inputs_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # TODO: Sole purpose is to workaround attributes must be in kwargs in onnxscript.
+
+    if len(args) >= 3:
+        kwargs["dim"] = args.pop(2)
+    if len(args) >= 3:
+        kwargs["largest"] = args.pop(2)
+    if len(args) >= 3:
+        kwargs["sorted"] = args.pop(2)
+    return args, kwargs
+
+
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[
@@ -295,7 +309,10 @@ OPINFO_FUNCTION_MAPPING: dict[
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     "transpose": core_ops.aten_transpose,
-    "topk": core_ops.aten_topk,
+    "topk": (
+        core_ops.aten_topk,
+        _topk_inputs_wrangler,
+    ),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": core_ops.aten_where,
