@@ -13,6 +13,9 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from onnxscript.function_libs.torch_aten.registration import torch_op
+from onnxscript.function_libs.torch_aten.typing import TFloatOrBFloat16
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
@@ -344,10 +347,22 @@ def aten_special_xlog1py(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_xlogy(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::xlogy")
+def aten_special_xlogy(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # special_xlogy(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    # https://pytorch.org/docs/stable/special.html#torch.special.xlogy
+    # out := {
+    #     NaN if other == NaN
+    #     0 if self == 0
+    #     self * log(other) otherwise
+    # }
+
+    nans = op.IsNaN(other)
+    zeros = op.Equal(self, 0)
+    xlogy = op.Mul(self, op.Log(other))
+    xlogy_with_nans = op.Where(nans, other, xlogy)
+    return op.Where(zeros, self, xlogy_with_nans)
 
 
 def aten_special_zeta(self: TensorType, other: TensorType) -> TensorType:
