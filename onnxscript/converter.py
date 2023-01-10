@@ -456,15 +456,17 @@ class Converter:
             f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
         )
 
-    def translate_expr(self, node, target="tmp"):
+    def translate_expr(self, node, target="tmp") -> ConverterExpression:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
         """
         if isinstance(node, ast.Call):
             r = self.translate_call_expr(node)
-        elif isinstance(node, (ast.BinOp, ast.BoolOp, ast.BitAnd, ast.BitOr)):
+        elif isinstance(node, (ast.BinOp, ast.BitAnd, ast.BitOr)):
             r = self.translate_bin_op_expr(node)
+        elif isinstance(node, ast.BoolOp):
+            r = self.translate_bool_op_expr(node)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
         elif isinstance(node, ast.Compare):
@@ -759,7 +761,25 @@ class Converter:
         schema = op.get_schema()
         return autocast.static_cast_inputs(self, schema, left, right)
 
-    def translate_bin_op_expr(self, node):
+    def translate_bool_op_expr(self, node: ast.BoolOp) -> ConverterExpression:
+        if isinstance(node.op, ast.And):
+            op = values.Op(self.default_opset, "And")
+        elif isinstance(node.op, ast.Or):
+            op = values.Op(self.default_opset, "Or")
+        else:
+            raise ValueError(self.message(node, f"Unsupported operator {node.op!r}."))
+
+        expr = self.translate_expr(node.values[0])
+        for operand in node.values[1:]:
+            left, right = self._cast_like_binary_expression(
+                op, expr, self.translate_expr(operand)
+            )
+            ovar = self.generate_unique_name()
+            self.emit([ovar], op, [left, right], [])
+            expr = ConverterExpression(ovar, ConverterExpressionKind.ANY)
+        return expr
+
+    def translate_bin_op_expr(self, node: ast.BinOp):
         op = type(node.op)
         if op not in primop_map:
             raise ValueError(self.message(node, f"Unsupported operator {op!r}."))
@@ -772,18 +792,10 @@ class Converter:
             if isinstance(cst, float):
                 attr = [self.ir_builder.make_attr("fmod", 1)]
 
-        opname = primop_map[op]
-        if hasattr(node, "left"):
-            # operation
-            left = self.translate_expr(node.left)
-            right = self.translate_expr(node.right)
-        else:
-            # and, or
-            left = self.translate_expr(node.values[0])
-            right = self.translate_expr(node.values[1])
-
-        op = values.Op(self.default_opset, opname)
-        left, right = self._cast_like_binary_expression(op, left, right)
+        op = values.Op(self.default_opset, primop_map[op])
+        left, right = self._cast_like_binary_expression(
+            op, self.translate_expr(node.left), self.translate_expr(node.right)
+        )
         return op, [left, right], attr
 
     def translate_unary_op_expr(self, node):
