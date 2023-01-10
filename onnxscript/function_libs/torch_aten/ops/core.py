@@ -4716,7 +4716,7 @@ def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_to_dense(self, dtype: Optional[int] = None):
+def aten_to_dense(self: TensorType, dtype: Optional[int] = None) -> TensorType:
     # to_dense(Tensor self, ScalarType? dtype=None) -> Tensor
 
     raise NotImplementedError()
