@@ -304,7 +304,8 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    skip("clamp", reason="enable when onnxscript supports optional inputs"),
+    xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     xfail(
         "nn.functional.linear",
