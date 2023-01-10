@@ -4,7 +4,6 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-import copy
 import dataclasses
 import logging
 import types
@@ -135,8 +134,9 @@ class Op:
         return kwargs, closure
 
     def _convert_kwargs_to_numpy(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        new_kwargs = copy.deepcopy(kwargs)
+        new_kwargs = {}
         for k, v in kwargs.items():
+            new_kwargs[k] = v
             if isinstance(v, tensor.Tensor):
                 new_kwargs[k] = v.value
 
