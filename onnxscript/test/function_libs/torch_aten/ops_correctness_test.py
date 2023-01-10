@@ -288,6 +288,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
+    "slice": core_ops.aten_slice,
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
@@ -386,6 +387,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+    ),
+    skip(
+        "slice",
+        matcher=lambda sample: isinstance(sample.args[3], int),
+        reason="start and end must be 1-D array",
     ),
 )
 

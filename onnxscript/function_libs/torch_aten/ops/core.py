@@ -4385,6 +4385,7 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
+@torch_op("aten::slice")
 def aten_slice(
     self: TensorType,
     dim: int = 0,
@@ -4394,7 +4395,22 @@ def aten_slice(
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Slice(self, start, end, dim, step)  # type: ignore[arg-type]
+
+def test_aten_slice():
+    import numpy as np
+    x = np.random.randn(20, 10, 5).astype(np.float32)
+    y = x[0:3, 0:10]
+    starts = np.array([0, 0], dtype=np.int64)
+    ends = np.array([3, 10], dtype=np.int64)
+    axes = np.array([0, 1], dtype=np.int64)
+    steps = np.array([1, 1], dtype=np.int64)
+    yy = aten_slice(x, axes, starts, ends, steps)
+    print(yy)
+    print(np.allclose(y, yy))
+    print("---------------------")
+
+test_aten_slice()
 
 
 def aten_slice_backward(
