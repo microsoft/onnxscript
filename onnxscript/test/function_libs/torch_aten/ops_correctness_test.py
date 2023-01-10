@@ -566,6 +566,7 @@ class TestOutputConsistency(unittest.TestCase):
                 flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
+                assert len(flattened_torch_outputs) > 0
                 assert len(flattened_torch_outputs) == len(flattened_function_outputs)
 
                 for torch_output, function_output in zip(
