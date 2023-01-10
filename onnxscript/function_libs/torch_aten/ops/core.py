@@ -1576,13 +1576,13 @@ def aten_embedding_sparse_backward(
 
 
 @torch_op("aten::empty")
-def aten_empty(size: INT64, dtype: int = -1) -> TTensor:
+def aten_empty(size: IntType, dtype: int = FLOAT.dtype) -> TTensor:
     # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     # using Zeros to simulate np.empty()
+    size = op.Cast(size, to=INT64.dtype)
     zero = op.Constant(value_float=0)
-    if dtype != -1:
-        zero = op.Cast(zero, to=dtype)
+    zero = op.Cast(zero, to=dtype)
 
     return op.Expand(zero, size)
 
