@@ -186,7 +186,7 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-# @torch_op("aten::amax")  # FIXME: Uncomment when CI uses onnx 1.13
+# @torch_op("aten::amax")  # FIXME(#249): Uncomment when CI uses onnx 1.13
 def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -194,7 +194,7 @@ def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-# @torch_op("aten::amin")  # FIXME: Uncomment when CI uses onnx 1.13
+# @torch_op("aten::amin")  # FIXME(#249): Uncomment when CI uses onnx 1.13
 def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -1935,16 +1935,17 @@ def aten_from_file(
 
 
 @torch_op("aten::full")
-def aten_full(size: INT64, fill_value, dtype: int = FLOAT.dtype):
+def aten_full(size: INT64, fill_value: TensorType, dtype: int = FLOAT.dtype):
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    size = op.Cast(size, to=INT64.dtype)
     fill_value = op.Cast(fill_value, to=dtype)
 
     return op.Expand(fill_value, size)
 
 
 @torch_op("aten::full_like")
-def aten_full_like(self, fill_value, dtype: int = FLOAT.dtype):
+def aten_full_like(self, fill_value: TensorType, dtype: int = FLOAT.dtype):
     # full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     fill_value = op.Cast(fill_value, to=dtype)
@@ -2614,52 +2615,68 @@ def aten_linspace(start: float, end: float, steps: int) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_log(self: TensorType) -> TensorType:
+@torch_op("log")
+def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(self)
 
 
-def aten_log10(self: TensorType) -> TensorType:
+@torch_op("aten::log10")
+def aten_log10(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log10(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Div(op.Log(self), op.Log(10.0))
 
 
-def aten_log1p(self: TensorType) -> TensorType:
+@torch_op("aten::log1p")
+def aten_log1p(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log1p(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(op.Add(self, 1.0))
 
 
-def aten_log2(self: TensorType) -> TensorType:
+@torch_op("aten::log2")
+def aten_log2(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # log2(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Div(op.Log(self), op.Log(2.0))
 
 
-def aten_logaddexp(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logaddexp")
+def aten_logaddexp(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # logaddexp(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(op.Add(op.Exp(self), op.Exp(other)))
 
 
-def aten_logaddexp2(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::logaddexp2")
+def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     # logaddexp2(Tensor self, Tensor other) -> Tensor
+    summation = op.Add(op.Pow(2.0, self), op.Pow(2.0, other))
 
-    raise NotImplementedError()
+    return op.Div(op.Log(summation), op.Log(2.0))
 
 
-def aten_logcumsumexp(self: TensorType, dim: int) -> TensorType:
+@torch_op("aten::logcumsumexp")
+def aten_logcumsumexp(self: TFloatOrBFloat16, dim: INT64) -> TFloatOrBFloat16:
     # logcumsumexp(Tensor self, int dim) -> Tensor
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(self)) == 0:
+        # A scalar
+        result = self
+    else:
+        # FIXME(justinchuby): Ensure numerical stability
+        result = op.Log(op.CumSum(op.Exp(self), dim))
+
+    return result
 
 
-def aten_logdet(self: TensorType) -> TensorType:
+@torch_op("aten::logdet")
+def aten_logdet(self: TFloat) -> TFloat:
     # logdet(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Log(op.Det(self))
 
 
 @torch_op("aten::logical_and")
@@ -2702,10 +2719,11 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
     raise NotImplementedError()
 
 
-def aten_logsumexp(self: TensorType, dim: Sequence[int], keepdim: bool = False) -> TensorType:
+@torch_op("aten::logsumexp", trace_only=True)  # FIXME(#249): Script when CI uses onnx 1.13
+def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
     # logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    return op.ReduceLogSumExp(self, dim, keepdims=keepdim)
 
 
 def aten_lshift(self: TensorType, other: TensorType) -> TensorType:
@@ -3558,7 +3576,7 @@ def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> Tens
 
 @torch_op("aten::new_full")
 def aten_new_full(
-    self, size: IntType, fill_value, dtype: int = FLOAT.dtype
+    self, size: IntType, fill_value: TensorType, dtype: int = FLOAT.dtype
 ):  # pylint: disable=unused-argument
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
@@ -5072,12 +5090,6 @@ def aten_where(self: TTensor, condition: BOOL, other: TTensor) -> TTensor:
     # where.self(Tensor condition, Tensor self, Tensor other) -> Tensor
 
     return op.Where(condition, self, other)
-
-
-def aten_xlogy(self: TensorType, other: TensorType) -> TensorType:
-    # xlogy.Tensor(Tensor self, Tensor other) -> Tensor
-
-    raise NotImplementedError()
 
 
 def aten_xor(self: TensorType, other: TensorType) -> TensorType:
