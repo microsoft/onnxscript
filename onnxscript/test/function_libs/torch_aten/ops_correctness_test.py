@@ -197,6 +197,13 @@ def _logcumsumexp_input_wrangler(
     return args, kwargs
 
 
+def _log_softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 OPINFO_FUNCTION_MAPPING: dict[
@@ -256,6 +263,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "logcumsumexp": core_ops.aten_logcumsumexp,
     "logdet": core_ops.aten_logdet,
     "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
+    "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
@@ -391,6 +399,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+    ),
+    skip(
+        "log_softmax",
+        matcher=lambda sample: isinstance(sample.args[0], int),
+        reason="input rank cannot be 0",
     ),
 )
 

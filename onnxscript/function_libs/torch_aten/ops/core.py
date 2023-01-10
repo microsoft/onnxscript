@@ -710,31 +710,16 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::cat")
+@torch_op("aten::cat", trace_only=True)
 def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
 
-    print(tensors)
-    print(type(tensors))
-    #a = [tensors[0], tensors[1]]
-    #b = op.Concat(tensors[0], tensors[1], axis=0)
-    #print(b)
-    op.SequenceConstruct(tensors)
+    num_of_input = len(tensors)  # len() function not support yest
     a = op.SequenceEmpty()
-    a = op.SequenceInsert(a, tensors[0])
-    a = op.SequenceInsert(a, tensors[1])
-    return op.ConcatFromSequence(a, axis=0)
+    for i in range(num_of_input):
+        a = op.SequenceInsert(a, tensors[i])
+    return op.ConcatFromSequence(a, axis=dim)
 
-def test_aten_cat():
-    import numpy as np
-    a = np.array([1,2], dtype=np.float32)
-    b = np.array([1,3], dtype=np.float32)
-    # a = [1.1, 2.0]
-    # b = [2.1, 2.1]
-    print(aten_cat([a,b]))
-    print("--------------------")
-
-test_aten_cat()
 
 def aten_ccol_indices(self: TensorType) -> TensorType:
     # ccol_indices(Tensor(a) self) -> Tensor(a)
