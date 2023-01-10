@@ -772,9 +772,7 @@ class Converter:
         expr = self.translate_expr(node.values[0])
         for operand in node.values[1:]:
             left, right = self._cast_like_binary_expression(
-                op,
-                expr,
-                self.translate_expr(operand)
+                op, expr, self.translate_expr(operand)
             )
             ovar = self.generate_unique_name()
             self.emit([ovar], op, [left, right], [])
