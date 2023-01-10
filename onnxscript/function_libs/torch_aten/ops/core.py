@@ -4759,7 +4759,16 @@ def aten_topk(
 ) -> tuple[TensorType, TensorType]:
     # topk(Tensor self, int k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)
 
-    raise NotImplementedError()
+    # TODO: Does this support dynamic k value?
+    is_scalar_input = op.Size(op.Shape(self)) == 0
+    if is_scalar_input:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    k_value = op.Constant(value_ints=[k])
+    values, indices = op.TopK(self, k_value, axis=dim, largest=largest, sorted=sorted)
+    if is_scalar_input:
+        values = op.Squeeze(values, op.Constant(value_ints=[0]))
+        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+    return values, indices
 
 
 def aten_trace(self: TensorType) -> TensorType:
