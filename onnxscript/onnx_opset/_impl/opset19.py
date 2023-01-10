@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 # flake8: noqa
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901
+# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
 # --------------------------------------------------------------------------
 
 from onnx.defs import get_schema

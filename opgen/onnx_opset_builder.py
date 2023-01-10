@@ -453,7 +453,7 @@ class OpsetsBuilder:
         writer.write(dashline)
         writer.write("# flake8: noqa\n")
         writer.write("# mypy: disable-error-code=override\n")
-        writer.write("# pylint: disable=W0221,W0222,W0237,W0246,R0901\n")
+        writer.write("# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611\n")
         writer.write(dashline)
         writer.write("\n")
 
