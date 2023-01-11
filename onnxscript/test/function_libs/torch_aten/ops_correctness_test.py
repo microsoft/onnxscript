@@ -198,10 +198,10 @@ def _logcumsumexp_input_wrangler(
     return args, kwargs
 
 
-def _topk_inputs_wrangler(
+def _topk_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    # TODO: Sole purpose is to workaround attributes must be in kwargs in onnxscript.
+    # TODO(#305): Sole purpose is to workaround attributes must be in kwargs in onnxscript.
 
     if len(args) >= 3:
         kwargs["dim"] = args.pop(2)
@@ -311,7 +311,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "transpose": core_ops.aten_transpose,
     "topk": (
         core_ops.aten_topk,
-        _topk_inputs_wrangler,
+        _topk_input_wrangler,
     ),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
