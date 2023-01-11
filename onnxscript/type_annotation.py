@@ -58,10 +58,13 @@ def is_value_type(typeinfo):
     if is_primitive_attr_type(typeinfo):
         return False
     type_constructor = get_origin(typeinfo)
+    # Handle List-like type-constructor
+    # Eg. List[INT32] is a value type, while List[int] is an attribute type
     if type_constructor in _LIST_CONSTRUCTORS:
         args = get_args(typeinfo)
         elt_type = args[0]
         return is_value_type(elt_type)
+    # Handle Union and Optional type-constructors
     if type_constructor is typing.Union:
         # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
         args = [x for x in get_args(typeinfo) if x is not type(None)]
@@ -75,6 +78,11 @@ def is_value_type(typeinfo):
             return False
         else:
             raise ValueError(f"Unsupported type annotation {typeinfo}")
+    # Handle TypeVars:
+    if isinstance(typeinfo, typing.TypeVar):
+        if hasattr(typeinfo, "__bound__"):
+            bound = typeinfo.__bound__
+            return is_value_type(bound)
     raise ValueError(f"Unsupported type annotation {typeinfo}")        
 
 
