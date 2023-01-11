@@ -18,12 +18,10 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         reason="onnxruntime does not support that scenario.",
     )
     def test_onnxfns_reduce_sum_square(self):
-        default_axes = None
         default_keepdims = 1
 
         self.run_onnx_test(
             onnxfns2.ReduceSumSquare,
-            axes=default_axes,
             keepdims=default_keepdims,
             # default attributes are not supported yet.
             skip_test_names=[
@@ -37,12 +35,10 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         reason="onnxruntime does not support that scenario.",
     )
     def test_onnxfns_reduce_l1(self):
-        default_axes = None
         default_keepdims = 1
 
         self.run_onnx_test(
             onnxfns2.ReduceL1,
-            axes=default_axes,
             keepdims=default_keepdims,
             # default attributes are not supported yet.
             skip_test_names=[
@@ -56,12 +52,10 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         reason="onnxruntime does not support that scenario.",
     )
     def test_onnxfns_reduce_l2(self):
-        default_axes = None
         default_keepdims = 1
 
         self.run_onnx_test(
             onnxfns2.ReduceL2,
-            axes=default_axes,
             keepdims=default_keepdims,
             # default attributes are not supported yet.
             skip_test_names=[
@@ -75,12 +69,10 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         reason="onnxruntime does not support that scenario.",
     )
     def test_onnxfns_reduce_log_sum(self):
-        default_axes = None
         default_keepdims = 1
 
         self.run_onnx_test(
             onnxfns2.ReduceLogSum,
-            axes=default_axes,
             keepdims=default_keepdims,
             # default attributes are not supported yet.
             skip_test_names=["test_reduce_log_sum_default"],
@@ -91,12 +83,10 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         reason="onnxruntime does not support that scenario.",
     )
     def test_onnxfns_reduce_log_sum_exp(self):
-        default_axes = None
         default_keepdims = 1
 
         self.run_onnx_test(
             onnxfns2.ReduceLogSumExp,
-            axes=default_axes,
             keepdims=default_keepdims,
             # default attributes are not supported yet.
             skip_test_names=[

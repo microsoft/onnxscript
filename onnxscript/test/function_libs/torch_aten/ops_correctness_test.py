@@ -198,6 +198,13 @@ def _logcumsumexp_input_wrangler(
     return args, kwargs
 
 
+def _log_softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
 def _topk_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -238,6 +245,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
+    "cat": core_ops.aten_cat,
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -247,6 +255,8 @@ OPINFO_FUNCTION_MAPPING: dict[
     "cosh": core_ops.aten_cosh,
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
+    "empty": core_ops.aten_empty,
+    "empty_like": core_ops.aten_empty_like,
     "eq": core_ops.aten_eq,
     "equal": core_ops.aten_equal,
     "exp": core_ops.aten_exp,
@@ -268,6 +278,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "logcumsumexp": core_ops.aten_logcumsumexp,
     "logdet": core_ops.aten_logdet,
     "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
+    "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
@@ -327,7 +338,9 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    skip("clamp", reason="enable when onnxscript supports optional inputs"),
+    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    skip("empty", reason="Using zeros to simulate empty"),
+    skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     xfail(
