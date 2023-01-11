@@ -12,6 +12,7 @@ import onnx
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
+from torch.utils import _pytree as pytree
 
 import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
@@ -201,6 +202,19 @@ def _log_softmax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop()
+
+
+def _topk_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # TODO(#305): Sole purpose is to workaround attributes must be in kwargs in onnxscript.
+
+    if len(args) >= 3:
+        kwargs["dim"] = args.pop(2)
+    if len(args) >= 3:
+        kwargs["largest"] = args.pop(2)
+    if len(args) >= 3:
+        kwargs["sorted"] = args.pop(2)
     return args, kwargs
 
 
@@ -305,6 +319,10 @@ OPINFO_FUNCTION_MAPPING: dict[
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     "transpose": core_ops.aten_transpose,
+    "topk": (
+        core_ops.aten_topk,
+        _topk_input_wrangler,
+    ),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": core_ops.aten_where,
@@ -556,28 +574,38 @@ class TestOutputConsistency(unittest.TestCase):
                 torch_output = op(*inputs, **cpu_sample.kwargs)
                 function_output = onnx_function(*input_onnx, **kwargs_onnx)
 
-                if dtype == torch.float32:
-                    # Relax atol and rtol for float32 based on empirical results
-                    # The current most relaxed values are for aten::matmul
-                    rtol = 3.7e-6
-                    atol = 1.8e-5
-                else:
-                    rtol = None
-                    atol = None
+                # TODO: add pytree structure comparison.
+                flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
+                flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
-                if not isinstance(function_output, np.ndarray):
-                    # An onnxscript tensor
-                    function_output = function_output.value
+                assert len(flattened_torch_outputs) > 0
+                assert len(flattened_torch_outputs) == len(flattened_function_outputs)
 
-                # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
-                torch.testing.assert_close(
-                    torch.tensor(function_output),
-                    torch_output
-                    if isinstance(torch_output, torch.Tensor)
-                    else torch.tensor(torch_output),
-                    rtol=rtol,
-                    atol=atol,
-                )
+                for torch_output, function_output in zip(
+                    flattened_torch_outputs, flattened_function_outputs
+                ):
+                    if dtype == torch.float32:
+                        # Relax atol and rtol for float32 based on empirical results
+                        # The current most relaxed values are for aten::matmul
+                        rtol = 3.7e-6
+                        atol = 1.8e-5
+                    else:
+                        rtol = None
+                        atol = None
+
+                    if not isinstance(function_output, np.ndarray):
+                        # An onnxscript tensor
+                        function_output = function_output.value
+
+                    # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
+                    torch.testing.assert_close(
+                        torch.tensor(function_output),
+                        torch_output
+                        if isinstance(torch_output, torch.Tensor)
+                        else torch.tensor(torch_output),
+                        rtol=rtol,
+                        atol=atol,
+                    )
 
 
 common_device_type.instantiate_device_type_tests(
