@@ -45,7 +45,6 @@ def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.Attr
 def is_attr_type(pytype: type):
     return pytype_to_attrtype(pytype) is not None
 
-
 def is_tensor_type(typeinfo):
     if isinstance(typeinfo, TensorType):
         return True
@@ -63,10 +62,19 @@ def is_value_type(typeinfo):
         args = get_args(typeinfo)
         elt_type = args[0]
         return is_value_type(elt_type)
-    if type_constructor is typing.Optional:
-        args = get_args(typeinfo)
-        elt_type = args[0]
-        return is_value_type(elt_type)
+    if type_constructor is typing.Union:
+        # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
+        args = [x for x in get_args(typeinfo) if x is not type(None)]
+        args_value_check = [is_value_type(x) for x in args]
+        if all(args_value_check):
+            # Handles cases like Optional[INT32] as well as Union[FLOAT16, FLOAT, DOUBLE]
+            return True
+        elif (len(args) == 1) and args_value_check[0] is False:
+            # Handle the case of optional attribute: eg. Optional[int]
+            # Note that we do not allow Union[int, float] for attributes.
+            return False
+        else:
+            raise ValueError(f"Unsupported type annotation {typeinfo}")
     raise ValueError(f"Unsupported type annotation {typeinfo}")        
 
 
