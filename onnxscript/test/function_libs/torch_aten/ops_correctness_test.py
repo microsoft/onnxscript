@@ -400,11 +400,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
     ),
-    skip(
-        "log_softmax",
-        matcher=lambda sample: isinstance(sample.args[0], int),
-        reason="input rank cannot be 0",
-    ),
 )
 
 duplicate_opinfo(
