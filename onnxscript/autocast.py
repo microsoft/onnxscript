@@ -18,7 +18,7 @@ def cast_inputs(get_type_info, cast, opschema, *args):
     This is used by the converter in a static-mode, as well as by the eager-mode
     execution in a dynamic-mode.
     """
-    if opschema is not None and len(opschema.inputs) > 0:
+    if opschema is not None:
         expected_inputs = opschema.inputs
         # We make two passes. In the first pass, we identify known type-bindings for
         # type-variables: eg., {'T1' : np.float32, 'T2' : np.int32}.

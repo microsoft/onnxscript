@@ -212,12 +212,12 @@ def aten_special_log_softmax(
 ) -> TFloatOrBFloat16:
     # special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 
-    rank = op.Size(op.Shape(self))
-    if rank == 0:
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.LogSoftmax(self, axis=dim)
     result = op.Cast(result, to=dtype)
-    if rank == 0:  # squeeze to scalar due to input is scalar
+    if self_is_scalar:  # squeeze to scalar due to input is scalar
         result = op.Squeeze(result)
     return result
 
