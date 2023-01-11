@@ -714,7 +714,7 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
 def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
 
-    num_of_input = len(tensors)  # len() function not support yest
+    num_of_input = len(tensors)  # len() function not support yet
     a = op.SequenceEmpty()
     for i in range(num_of_input):
         a = op.SequenceInsert(a, tensors[i])

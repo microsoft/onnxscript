@@ -207,11 +207,17 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::log_softmax")
-def aten_special_log_softmax(self: TTensor, dim: int, dtype: int = FLOAT.dtype) -> TTensor:
+def aten_special_log_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype) -> TFloatOrBFloat16:
     # special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 
+    rank = op.Size(op.Shape(self))
+    if rank == 0:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.LogSoftmax(self, axis=dim)
-    return op.Cast(result, to=dtype)
+    result = op.Cast(result, to=dtype)
+    if rank == 0:   # squeeze to scalar due to input is scalar
+        result = op.Squeeze(result)
+    return result
 
 
 def aten_special_logit(self: TensorType, eps: Optional[float] = None) -> TensorType:
