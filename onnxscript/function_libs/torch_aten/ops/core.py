@@ -2932,10 +2932,22 @@ def aten_maximum(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_mean(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+@torch_op("aten::mean")
+def aten_mean(self: TReal, dtype: Optional[int] = None) -> TReal:
     # mean(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
-    raise NotImplementedError()
+    op.Constant()
+    return op.ReduceMean(self, noop_with_empty_axes=True)
+
+
+def test_mean():
+    import numpy as np
+    a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
+    b = aten_mean(a)
+    print(b)
+    print("----------")
+
+test_mean()
 
 
 def aten_median(self: TensorType) -> TensorType:
