@@ -254,7 +254,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "expand": core_ops.aten_expand,
     "erf": core_ops.aten_erf,
     "fmod": core_ops.aten_fmod,
-    # "full": (core_ops.aten_full, _full_input_wrangler),
+    "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
     "index_select": core_ops.aten_index_select,
