@@ -202,6 +202,7 @@ def _log_softmax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop()
+    return args, kwargs
 
 
 def _topk_input_wrangler(
