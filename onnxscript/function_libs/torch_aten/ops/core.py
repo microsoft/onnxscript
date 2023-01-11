@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
@@ -4754,12 +4754,21 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::topk")
 def aten_topk(
-    self: TensorType, k: int, dim: int = -1, largest: bool = True, sorted: bool = True
-) -> tuple[TensorType, TensorType]:
+    self: TReal, k: INT64, dim: int = -1, largest: bool = True, sorted: bool = True
+) -> Tuple[TReal, INT64]:
     # topk(Tensor self, int k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)
 
-    raise NotImplementedError()
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    k = op.Reshape(op.Cast(k, to=INT64.dtype), op.Constant(value_ints=[1]))
+    values, indices = op.TopK(self, k, axis=dim, largest=largest, sorted=sorted)
+    if self_is_scalar:
+        values = op.Squeeze(values, op.Constant(value_ints=[0]))
+        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+    return values, indices
 
 
 def aten_trace(self: TensorType) -> TensorType:
