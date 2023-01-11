@@ -1506,16 +1506,15 @@ def aten_einsum(
     raise NotImplementedError()
 
 
+@torch_op("aten::embedding")
 def aten_embedding(
-    weight: TensorType,
-    indices: TensorType,
-    padding_idx: int = -1,
-    scale_grad_by_freq: bool = False,
-    sparse: bool = False,
-) -> TensorType:
+    weight: TTensor,
+    indices: TTensor,
+    **kwargs,
+) -> TTensor:
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
-    raise NotImplementedError()
+    return op.Gather(weight, indices)
 
 
 def aten_embedding_backward(
