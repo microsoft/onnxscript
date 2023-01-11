@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
@@ -710,10 +710,15 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_cat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::cat", trace_only=True)
+def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
 
-    raise NotImplementedError()
+    num_of_input = len(tensors)  # len() function not support yet
+    a = op.SequenceEmpty()
+    for i in range(num_of_input):
+        a = op.SequenceInsert(a, tensors[i])
+    return op.ConcatFromSequence(a, axis=dim)
 
 
 def aten_ccol_indices(self: TensorType) -> TensorType:
@@ -1570,10 +1575,29 @@ def aten_embedding_sparse_backward(
     raise NotImplementedError()
 
 
-def aten_empty_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::empty")
+def aten_empty(size: IntType, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+    # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    # using Zeros to simulate np.empty()
+    size = op.Cast(size, to=INT64.dtype)
+    zero = op.Constant(value_float=0)
+    zero = op.Cast(zero, to=dtype)
+
+    return op.Expand(zero, size)
+
+
+@torch_op("aten::empty_like")
+def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    shape = op.Shape(self)
+    if dtype == -1:
+        zero = op.CastLike(0, self)
+    else:
+        zero = op.Cast(0, to=dtype)
+
+    return op.Expand(zero, shape)
 
 
 def aten_empty_quantized(
@@ -4770,12 +4794,21 @@ def aten_to_sparse_csr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::topk")
 def aten_topk(
-    self: TensorType, k: int, dim: int = -1, largest: bool = True, sorted: bool = True
-) -> tuple[TensorType, TensorType]:
+    self: TReal, k: INT64, dim: int = -1, largest: bool = True, sorted: bool = True
+) -> Tuple[TReal, INT64]:
     # topk(Tensor self, int k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)
 
-    raise NotImplementedError()
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    k = op.Reshape(op.Cast(k, to=INT64.dtype), op.Constant(value_ints=[1]))
+    values, indices = op.TopK(self, k, axis=dim, largest=largest, sorted=sorted)
+    if self_is_scalar:
+        values = op.Squeeze(values, op.Constant(value_ints=[0]))
+        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+    return values, indices
 
 
 def aten_trace(self: TensorType) -> TensorType:
