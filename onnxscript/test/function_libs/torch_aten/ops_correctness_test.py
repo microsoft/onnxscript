@@ -281,6 +281,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
+    "mean": core_ops.aten_mean,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
     "ne": core_ops.aten_ne,
