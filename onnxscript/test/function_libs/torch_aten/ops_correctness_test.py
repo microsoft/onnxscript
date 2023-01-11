@@ -214,12 +214,13 @@ def _topk_input_wrangler(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-OPINFO_FUNCTION_MAPPING: dict[
+
+# Split the scripted and traced ops to make sure we don't forget to script an op
+OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
     onnxscript.OnnxFunction
-    | Callable[..., Any]
     | tuple[
-        onnxscript.OnnxFunction | Callable[..., Any],
+        onnxscript.OnnxFunction,
         Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
 ] = {
@@ -228,8 +229,6 @@ OPINFO_FUNCTION_MAPPING: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
-    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -257,7 +256,6 @@ OPINFO_FUNCTION_MAPPING: dict[
     "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
-    "index_select": core_ops.aten_index_select,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
     "log10": core_ops.aten_log10,
@@ -267,7 +265,6 @@ OPINFO_FUNCTION_MAPPING: dict[
     "logaddexp2": core_ops.aten_logaddexp2,
     "logcumsumexp": core_ops.aten_logcumsumexp,
     "logdet": core_ops.aten_logdet,
-    "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
@@ -308,7 +305,6 @@ OPINFO_FUNCTION_MAPPING: dict[
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
-    "transpose": core_ops.aten_transpose,
     "topk": (
         core_ops.aten_topk,
         _topk_input_wrangler,
@@ -320,6 +316,32 @@ OPINFO_FUNCTION_MAPPING: dict[
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
 }
+
+
+OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
+    str,
+    Callable[..., Any]
+    | tuple[
+        Callable[..., Any],
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    ],
+] = {
+    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
+    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
+    "index_select": core_ops.aten_index_select,
+    "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
+    "transpose": core_ops.aten_transpose,
+}
+
+OPINFO_FUNCTION_MAPPING: dict[
+    str,
+    onnxscript.OnnxFunction
+    | Callable[..., Any]
+    | tuple[
+        onnxscript.OnnxFunction | Callable[..., Any],
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    ],
+] = OPINFO_FUNCTION_MAPPING_SCRIPTED.update(OPINFO_FUNCTION_MAPPING_TRACE_ONLY)
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
