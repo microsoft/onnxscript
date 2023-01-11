@@ -1510,7 +1510,7 @@ def aten_einsum(
 def aten_embedding(
     weight: TTensor,
     indices: TTensor,
-    **kwargs,
+    **kwargs, # pylint: disable=unused-argument
 ) -> TTensor:
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
