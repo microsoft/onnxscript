@@ -4413,8 +4413,8 @@ def aten_sinh(self: TFloat) -> TFloat:
 def aten_slice(
     self: TensorType,
     dim: int = 0,
-    start: Optional[INT64] = 0,
-    end: Optional[INT64] = 0,
+    start: Optional[INT64] = None,
+    end: Optional[INT64] = None,
     step: INT64 = 1,
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
