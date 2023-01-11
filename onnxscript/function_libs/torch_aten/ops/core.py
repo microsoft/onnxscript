@@ -4419,6 +4419,7 @@ def aten_slice(
 ) -> TTensor:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
+    # TODO: using OptionalHasElement() to check start/end value
     is_scalar = op.Size(op.Shape(start)) == 0
     if is_scalar:
         start = op.Cast(start, to=INT64.dtype)
