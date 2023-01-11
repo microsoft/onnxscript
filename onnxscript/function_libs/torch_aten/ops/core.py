@@ -4411,12 +4411,12 @@ def aten_sinh(self: TFloat) -> TFloat:
 
 @torch_op("aten::slice")
 def aten_slice(
-    self: TensorType,
+    self: TTensor,
     dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
     step: INT64 = 1,
-) -> TensorType:
+) -> TTensor:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
     is_scalar = op.Size(op.Shape(start)) == 0
