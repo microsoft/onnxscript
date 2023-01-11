@@ -4413,28 +4413,33 @@ def aten_sinh(self: TFloat) -> TFloat:
 def aten_slice(
     self: TensorType,
     dim: int = 0,
-    start: Optional[INT64] = None,
-    end: Optional[INT64] = None,
+    start: Optional[INT64] = 0,
+    end: Optional[INT64] = 0,
     step: INT64 = 1,
 ) -> TensorType:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    return op.Slice(self, start, end, dim, step)  # type: ignore[arg-type]
+    is_scalar = op.Size(op.Shape(start)) == 0
+    if is_scalar:
+        start = op.Cast(start, to=INT64.dtype)
+        start = op.Unsqueeze(start, op.Constant(value_ints=[0]))
 
-def test_aten_slice():
-    import numpy as np
-    x = np.random.randn(20, 10, 5).astype(np.float32)
-    y = x[0:3, 0:10]
-    starts = np.array([0, 0], dtype=np.int64)
-    ends = np.array([3, 10], dtype=np.int64)
-    axes = np.array([0, 1], dtype=np.int64)
-    steps = np.array([1, 1], dtype=np.int64)
-    yy = aten_slice(x, axes, starts, ends, steps)
-    print(yy)
-    print(np.allclose(y, yy))
-    print("---------------------")
+    is_scalar = op.Size(op.Shape(end)) == 0
+    if is_scalar:
+        end = op.Cast(end, to=INT64.dtype)
+        end = op.Unsqueeze(end, op.Constant(value_ints=[0]))
 
-test_aten_slice()
+    is_scalar = op.Size(op.Shape(dim)) == 0
+    if is_scalar:
+        dim = op.Cast(dim, to=INT64.dtype)
+        dim = op.Unsqueeze(dim, op.Constant(value_ints=[0]))
+
+    is_scalar = op.Size(op.Shape(step)) == 0
+    if is_scalar:
+        step = op.Cast(step, to=INT64.dtype)
+        step = op.Unsqueeze(step, op.Constant(value_ints=[0]))
+
+    return op.Slice(self, start, end, dim, step)
 
 
 def aten_slice_backward(

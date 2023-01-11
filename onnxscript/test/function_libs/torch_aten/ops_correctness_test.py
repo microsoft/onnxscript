@@ -422,7 +422,8 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "slice",
-        matcher=lambda sample: isinstance(sample.args[3], int),
+        # kwargs {dim, start, end, step} is empty, we cannot give the default value
+        matcher=lambda sample: len(sample.kwargs) == 0,
         reason="start and end must be 1-D array",
     ),
 )
