@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Union, Tuple
+from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
