@@ -218,7 +218,12 @@ def _topk_input_wrangler(
 # Split the scripted and traced ops to make sure we don't forget to script an op
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
-    onnxscript.OnnxFunction | tuple[onnxscript.OnnxFunction, Callable[..., Any]],
+    onnxscript.OnnxFunction
+    | Callable[..., Any]
+    | tuple[
+        onnxscript.OnnxFunction | Callable[..., Any],
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    ],
 ] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
@@ -522,6 +527,14 @@ class TestOutputConsistency(unittest.TestCase):
     def setUp(self) -> None:
         torch.manual_seed(42)
         np.random.seed(42)
+
+    def test_all_script_functions_are_onnx_functions(self):
+        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
+            if isinstance(func_with_wrangler, tuple):
+                func = func_with_wrangler[0]
+            else:
+                func = func_with_wrangler
+            self.assertIsInstance(func, onnxscript.OnnxFunction)
 
     @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],
