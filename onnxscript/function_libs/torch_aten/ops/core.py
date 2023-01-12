@@ -2936,7 +2936,8 @@ def aten_maximum(self: TensorType, other: TensorType) -> TensorType:
 def aten_mean(self: TReal, dtype: Optional[int] = None) -> TReal:
     # mean(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
-    return op.ReduceMean(self, 0, keepdims=0, noop_with_empty_axes=0)
+    # TODO: due to ort 1.13 does not support opset18, need to recheck when it is ready
+    return op.ReduceMean(self, keepdims=0)
 
 
 def test_mean():
