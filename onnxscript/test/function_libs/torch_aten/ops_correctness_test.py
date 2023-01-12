@@ -247,7 +247,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
-    "cat": core_ops.aten_cat,
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -337,6 +336,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
+    "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "transpose": core_ops.aten_transpose,
 }
