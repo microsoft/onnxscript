@@ -4493,10 +4493,22 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+@torch_op("aten::split")
+def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
 
-    raise NotImplementedError()
+    split_size_is_scalar = op.Size(op.Shape(split_size)) == 0  # split_size means size of single chunk
+    if split_size_is_scalar:  # calculate number of outputs
+        size_of_dim = op.Shape(self, start=0, end=1)  # TODO: start=dim, end=dim+1, but this cannot support now
+        size_of_dim = op.Cast(size_of_dim, to=FLOAT.dtype)
+        split_size = op.Cast(split_size, to=FLOAT.dtype)
+        num_out = op.Div(size_of_dim, split_size)
+        num_out = op.Ceil(num_out)
+        num_out = op.Cast(num_out, to=INT64.dtype)
+        result = op.Split(self, axis=dim, num_outputs=num_out)
+    else:
+        result = op.Split(self, split_size, axis=dim)
+    return result
 
 
 def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:

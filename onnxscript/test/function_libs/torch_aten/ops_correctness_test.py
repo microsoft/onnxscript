@@ -315,6 +315,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
+    "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
