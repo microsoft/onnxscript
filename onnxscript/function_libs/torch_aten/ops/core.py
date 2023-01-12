@@ -4409,16 +4409,30 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
+@torch_op("aten::slice")
 def aten_slice(
-    self: TensorType,
+    self: TTensor,
     dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
     step: INT64 = 1,
-) -> TensorType:
+) -> TTensor:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    raise NotImplementedError()
+    # TODO: using OptionalHasElement() to check start/end value
+    start = op.Cast(start, to=INT64.dtype)
+    start = op.Reshape(start, op.Constant(value_ints=[-1]))
+
+    end = op.Cast(end, to=INT64.dtype)
+    end = op.Reshape(end, op.Constant(value_ints=[-1]))
+
+    dim = op.Cast(dim, to=INT64.dtype)
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+
+    step = op.Cast(step, to=INT64.dtype)
+    step = op.Reshape(step, op.Constant(value_ints=[-1]))
+
+    return op.Slice(self, start, end, dim, step)
 
 
 def aten_slice_backward(
