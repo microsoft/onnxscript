@@ -2940,16 +2940,6 @@ def aten_mean(self: TReal, dtype: Optional[int] = None) -> TReal:
     return op.ReduceMean(self, keepdims=0)
 
 
-def test_mean():
-    import numpy as np
-    a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
-    b = aten_mean(a)
-    print(b)
-    print("----------")
-
-test_mean()
-
-
 def aten_median(self: TensorType) -> TensorType:
     # median(Tensor self) -> Tensor
 
