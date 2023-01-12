@@ -218,11 +218,7 @@ def _topk_input_wrangler(
 # Split the scripted and traced ops to make sure we don't forget to script an op
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
-    onnxscript.OnnxFunction
-    | tuple[
-        onnxscript.OnnxFunction,
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    ],
+    onnxscript.OnnxFunction | tuple[onnxscript.OnnxFunction, Callable[..., Any]],
 ] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
@@ -320,11 +316,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
 
 OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
-    Callable[..., Any]
-    | tuple[
-        Callable[..., Any],
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    ],
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
@@ -341,7 +333,7 @@ OPINFO_FUNCTION_MAPPING: dict[
         onnxscript.OnnxFunction | Callable[..., Any],
         Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
-] = OPINFO_FUNCTION_MAPPING_SCRIPTED.update(OPINFO_FUNCTION_MAPPING_TRACE_ONLY)
+] = {**OPINFO_FUNCTION_MAPPING_SCRIPTED, **OPINFO_FUNCTION_MAPPING_TRACE_ONLY}
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
