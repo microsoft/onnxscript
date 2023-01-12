@@ -186,7 +186,7 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-# @torch_op("aten::amax")  # FIXME(#249): Uncomment when CI uses onnx 1.13
+@torch_op("aten::amax")
 def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -194,7 +194,7 @@ def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-# @torch_op("aten::amin")  # FIXME(#249): Uncomment when CI uses onnx 1.13
+@torch_op("aten::amin")
 def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -2703,7 +2703,7 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
     raise NotImplementedError()
 
 
-@torch_op("aten::logsumexp", trace_only=True)  # FIXME(#249): Script when CI uses onnx 1.13
+@torch_op("aten::logsumexp")
 def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
     # logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor
 
@@ -4408,16 +4408,30 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
+@torch_op("aten::slice")
 def aten_slice(
-    self: TensorType,
+    self: TTensor,
     dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
     step: INT64 = 1,
-) -> TensorType:
+) -> TTensor:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    raise NotImplementedError()
+    # TODO: using OptionalHasElement() to check start/end value
+    start = op.Cast(start, to=INT64.dtype)
+    start = op.Reshape(start, op.Constant(value_ints=[-1]))
+
+    end = op.Cast(end, to=INT64.dtype)
+    end = op.Reshape(end, op.Constant(value_ints=[-1]))
+
+    dim = op.Cast(dim, to=INT64.dtype)
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+
+    step = op.Cast(step, to=INT64.dtype)
+    step = op.Reshape(step, op.Constant(value_ints=[-1]))
+
+    return op.Slice(self, start, end, dim, step)
 
 
 def aten_slice_backward(
