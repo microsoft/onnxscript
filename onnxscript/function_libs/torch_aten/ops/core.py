@@ -4505,7 +4505,8 @@ def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
         num_out = op.Div(size_of_dim, split_size)
         num_out = op.Ceil(num_out)
         num_out = op.Cast(num_out, to=INT64.dtype)
-        result = op.Split(self, axis=dim, num_outputs=num_out)
+        #result = op.Split(self, axis=dim, num_outputs=num_out)
+        result = op.Split(self, axis=dim)
     else:
         result = op.Split(self, split_size, axis=dim)
     return result
