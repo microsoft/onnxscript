@@ -4428,7 +4428,6 @@ def aten_slice(
     end = op.Cast(end, to=INT64.dtype)
     is_scalar = op.Size(op.Shape(end)) == 0
     if is_scalar:
-        #end = op.Cast(end, to=INT64.dtype)
         end = op.Unsqueeze(end, op.Constant(value_ints=[0]))
 
     dim = op.Cast(dim, to=INT64.dtype)
