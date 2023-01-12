@@ -77,8 +77,8 @@ class OnnxBackendTest:
                 loaded = to_list(seq)  # type: ignore[assignment]
             except Exception:  # pylint: disable=W0703
                 try:
-                    loaded = onnx.load_model_from_string(serialized)
-                except Exception:  # pragma: no cover
+                    loaded = onnx.load_model_from_string(serialized)  # type: ignore[assignment]
+                except Exception:
                     raise RuntimeError(
                         f"Unable to read {full!r}, error is {e}, "
                         f"content is {serialized[:100]!r}."

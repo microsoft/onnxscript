@@ -4,11 +4,11 @@ from __future__ import annotations
 import copy
 import dataclasses
 import unittest
+import warnings
 from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
 
 import numpy as np
 import onnx
-import onnxruntime.capi.onnxruntime_pybind11_state
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -143,16 +143,61 @@ def add_decorate_info(
     return wrapped
 
 
+def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
+    """Duplicate an opinfo in the opinfo database and give it a new name."""
+    duplicated = []
+    for opinfo in opinfos:
+        if opinfo.name == name:
+            for new_name in new_names:
+                new_opinfo = copy.deepcopy(opinfo)
+                new_opinfo.name = new_name
+                duplicated.append(new_opinfo)
+    opinfos.extend(duplicated)
+
+
+# Create a copy of the op_db to modify
+OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+
 # Modify this section ##########################################################
+
+
+def _amax_amin_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+    if "dim" not in kwargs:
+        kwargs["dim"] = None
+    return kwargs
+
+
+def _upsample_kwargs_wrangler(kwargs: dict[str, Any]) -> dict[str, Any]:
+    if "scale_factor" in kwargs:
+        kwargs["scales_h"] = kwargs["scale_factor"]
+        kwargs["scales_w"] = kwargs["scale_factor"]
+        del kwargs["scale_factor"]
+    if "size" in kwargs:
+        kwargs["size"] = np.array(kwargs["size"])
+    return kwargs
+
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
+OPINFO_FUNCTION_MAPPING: dict[
+    str,
+    onnxscript.OnnxFunction
+    | Callable[..., Any]
+    | tuple[
+        onnxscript.OnnxFunction | Callable[..., Any],
+        Callable[[dict[str, Any]], dict[str, Any]],
+    ],
+] = {
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
+    "amax": (core_ops.aten_amax, _amax_amin_kwargs_wrangler),
+    "amin": (core_ops.aten_amin, _amax_amin_kwargs_wrangler),
+    "arange_start_step": core_ops.aten_arange_start_step,
+    "arange_start": core_ops.aten_arange_start,
+    "arange": core_ops.aten_arange,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -162,14 +207,22 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clamp": core_ops.aten_clamp,
+    "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
-    "erf": core_ops.aten_erf,
+    "eq": core_ops.aten_eq,
+    "equal": core_ops.aten_equal,
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,
+    "expand": core_ops.aten_expand,
+    "erf": core_ops.aten_erf,
     "fmod": core_ops.aten_fmod,
+    # TODO(justinchuby): Test aten::full
+    "full_like": core_ops.aten_full_like,
     "gt": core_ops.aten_gt,
+    "index_select": core_ops.aten_index_select,
     "isinf": core_ops.aten_isinf,
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
@@ -177,20 +230,30 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "mul": core_ops.aten_mul,
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
+    "new_full": core_ops.aten_new_full,
+    "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
+    "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
+    "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    "nn.functional.upsample_nearest2d": (
+        nn_ops.aten_upsample_nearest2d,
+        _upsample_kwargs_wrangler,
+    ),
     "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
+    "reshape": core_ops.aten_reshape,
     "round": core_ops.aten_round,
     "rsqrt": core_ops.aten_rsqrt,
+    "rsub": core_ops.aten_rsub,
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -200,8 +263,10 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
-    # "transpose": core_ops.aten_transpose,  # TODO(justinchuby): Enable when onnxscript errors are fixed,
+    "transpose": core_ops.aten_transpose,
     "unsqueeze": core_ops.aten_unsqueeze,
+    "view": core_ops.aten_view,
+    "where": core_ops.aten_where,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
 }
@@ -209,32 +274,112 @@ OPINFO_FUNCTION_MAPPING: dict[str, onnxscript.OnnxFunction] = {
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    skip("clamp", reason="Enable when onnxscript errors are fixed"),
+    xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
+    xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
+    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
     ),
+    xfail(
+        "nn.functional.upsample_nearest2d",
+        reason="enable when ONNX Runtime does support opset18",
+    ),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
-    xfail("transpose", reason="Enable when onnxscript errors are fixed"),
 )
 
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
+        "arange",
+        matcher=lambda sample: len(sample.args) != 0,
+        reason="arange overload takes single argument",
+    ),
+    skip(
+        "arange",
+        matcher=lambda sample: sample.kwargs.get("end") is not None,
+        reason="arange overload does not support positional 'end' argument",
+    ),
+    skip(
+        "arange_start",
+        matcher=lambda sample: len(sample.args) != 1,
+        reason="arange_start overload takes two arguments (input, start)",
+    ),
+    skip(
+        "arange_start_step",
+        matcher=lambda sample: len(sample.args) != 2,
+        reason="arange_start_step overload takes three arguments (input, start, step)",
+    ),
+    skip(
+        "div",
+        matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
+        reason="rounding_mode is not yet supported",
+    ),
+    skip(
+        "expand",
+        matcher=lambda sample: (np.array(sample.args[0]) > 0).all() is np.bool_(False),
+        reason="Negative value is not supported",
+    ),
+    skip(
         "nonzero",
-        matcher=lambda sample: sample.kwargs.get("as_tuple") is True,
+        matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
     ),
+    skip(
+        "nn.functional.adaptive_avg_pool1d",
+        # Shape should be [N, C, D1]
+        matcher=lambda sample: sample.args[0] not in {1, (1,)},
+        reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.adaptive_avg_pool2d",
+        matcher=lambda sample: sample.args[0] != (1, 1),
+        reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.adaptive_avg_pool3d",
+        matcher=lambda sample: sample.args[0] != (1, 1, 1),
+        reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.upsample_nearest2d",
+        # Shape should be [N, C, H, W]
+        matcher=lambda sample: len(sample.input.shape) != 2 + 2,
+        reason="only test on 2d inputs",
+    ),
+    skip(
+        "nn.functional.upsample_nearest2d",
+        matcher=lambda sample: "scale_factor" in sample.kwargs,
+        reason="fixme: the scale_factor tests",
+    ),
 )
-OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.upsample_nearest",
+    (
+        "nn.functional.upsample_nearest1d",
+        "nn.functional.upsample_nearest2d",
+        "nn.functional.upsample_nearest3d",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "arange",
+    (
+        "arange_start",
+        "arange_start_step",
+    ),
+)
+
 
 # END OF SECTION TO MODIFY #####################################################
 
 
-OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
-
+OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
@@ -331,7 +476,17 @@ class TestOutputConsistency(unittest.TestCase):
             requires_grad=False,
         )
 
-        onnx_function = OPINFO_FUNCTION_MAPPING[op.name]
+        onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
+        kwarg_wrangler = None
+        if isinstance(onnx_function_and_wrangler, tuple):
+            # Obtain the kwarg_wrangler that manipulates the OpInfo inputs
+            # to match the aten operator signature
+            # An example is nn.functional.upsample_nearest2d, which has a different signature
+            # than the aten operator upsample_nearest2d
+            onnx_function, kwarg_wrangler = onnx_function_and_wrangler
+        else:
+            assert callable(onnx_function_and_wrangler)
+            onnx_function = onnx_function_and_wrangler
 
         for (i, cpu_sample) in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
@@ -343,18 +498,15 @@ class TestOutputConsistency(unittest.TestCase):
             ):
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
-                    self.skipTest(skip_reason)
+                    # Cannot use self.skip because pytest would skip the entire test
+                    warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
+                    continue
                 input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
-                output_torch = op(*inputs, **cpu_sample.kwargs)
-                try:
-                    function_output = onnx_function(*input_onnx, **kwargs_onnx)
-                # pylint: disable=c-extension-no-member
-                except onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented:
-                    self.skipTest(
-                        f"ONNX Runtime doesn't support running {op.name} with dtype {dtype}",
-                    )
-                # pylint: enable=c-extension-no-member
+                if kwarg_wrangler:
+                    kwargs_onnx = kwarg_wrangler(kwargs_onnx)
+                torch_output = op(*inputs, **cpu_sample.kwargs)
+                function_output = onnx_function(*input_onnx, **kwargs_onnx)
 
                 if dtype == torch.float32:
                     # Relax atol and rtol for float32 based on empirical results
@@ -365,10 +517,14 @@ class TestOutputConsistency(unittest.TestCase):
                     rtol = None
                     atol = None
 
-                # Use torch testing to ensure dtypes and shapes match
+                if not isinstance(function_output, np.ndarray):
+                    # An onnxscript tensor
+                    function_output = function_output.value
+
+                # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                 torch.testing.assert_close(
                     torch.tensor(function_output),
-                    output_torch,
+                    torch.tensor(torch_output),
                     rtol=rtol,
                     atol=atol,
                 )
