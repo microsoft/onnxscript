@@ -4420,24 +4420,25 @@ def aten_slice(
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
     # TODO: using OptionalHasElement() to check start/end value
+    start = op.Cast(start, to=INT64.dtype)
     is_scalar = op.Size(op.Shape(start)) == 0
     if is_scalar:
-        start = op.Cast(start, to=INT64.dtype)
         start = op.Unsqueeze(start, op.Constant(value_ints=[0]))
 
+    end = op.Cast(end, to=INT64.dtype)
     is_scalar = op.Size(op.Shape(end)) == 0
     if is_scalar:
-        end = op.Cast(end, to=INT64.dtype)
+        #end = op.Cast(end, to=INT64.dtype)
         end = op.Unsqueeze(end, op.Constant(value_ints=[0]))
 
+    dim = op.Cast(dim, to=INT64.dtype)
     is_scalar = op.Size(op.Shape(dim)) == 0
     if is_scalar:
-        dim = op.Cast(dim, to=INT64.dtype)
         dim = op.Unsqueeze(dim, op.Constant(value_ints=[0]))
 
+    step = op.Cast(step, to=INT64.dtype)
     is_scalar = op.Size(op.Shape(step)) == 0
     if is_scalar:
-        step = op.Cast(step, to=INT64.dtype)
         step = op.Unsqueeze(step, op.Constant(value_ints=[0]))
 
     return op.Slice(self, start, end, dim, step)

@@ -424,7 +424,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "slice",
         # kwargs {dim, start, end, step} is empty, we cannot give the default value
         matcher=lambda sample: len(sample.kwargs) == 0,
-        reason="start and end must be 1-D array",
+        reason="start and end must be 1-D array, cannot be optional, due to ort 1.13 does not support yet",
     ),
 )
 
