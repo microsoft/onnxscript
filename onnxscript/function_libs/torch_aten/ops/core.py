@@ -4421,24 +4421,16 @@ def aten_slice(
 
     # TODO: using OptionalHasElement() to check start/end value
     start = op.Cast(start, to=INT64.dtype)
-    is_scalar = op.Size(op.Shape(start)) == 0
-    if is_scalar:
-        start = op.Unsqueeze(start, op.Constant(value_ints=[0]))
+    start = op.Reshape(start, op.Constant(value_ints=[-1]))
 
     end = op.Cast(end, to=INT64.dtype)
-    is_scalar = op.Size(op.Shape(end)) == 0
-    if is_scalar:
-        end = op.Unsqueeze(end, op.Constant(value_ints=[0]))
+    end = op.Reshape(end, op.Constant(value_ints=[-1]))
 
     dim = op.Cast(dim, to=INT64.dtype)
-    is_scalar = op.Size(op.Shape(dim)) == 0
-    if is_scalar:
-        dim = op.Unsqueeze(dim, op.Constant(value_ints=[0]))
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
 
     step = op.Cast(step, to=INT64.dtype)
-    is_scalar = op.Size(op.Shape(step)) == 0
-    if is_scalar:
-        step = op.Unsqueeze(step, op.Constant(value_ints=[0]))
+    step = op.Reshape(step, op.Constant(value_ints=[-1]))
 
     return op.Slice(self, start, end, dim, step)
 
