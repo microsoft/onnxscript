@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from onnxscript import FLOAT
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import TFloatOrBFloat16
 from onnxscript.onnx_opset import opset18 as op
@@ -205,10 +206,20 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_special_log_softmax(self: TensorType, dim: int, dtype: int = -1) -> TensorType:
+@torch_op("aten::log_softmax")
+def aten_special_log_softmax(
+    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
+) -> TFloatOrBFloat16:
     # special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    result = op.LogSoftmax(self, axis=dim)
+    result = op.Cast(result, to=dtype)
+    if self_is_scalar:  # squeeze to scalar due to input is scalar
+        result = op.Squeeze(result)
+    return result
 
 
 def aten_special_logit(self: TensorType, eps: Optional[float] = None) -> TensorType:
