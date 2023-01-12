@@ -186,7 +186,7 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-# @torch_op("aten::amax")  # FIXME(#249): Uncomment when CI uses onnx 1.13
+@torch_op("aten::amax")
 def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -194,7 +194,7 @@ def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-# @torch_op("aten::amin")  # FIXME(#249): Uncomment when CI uses onnx 1.13
+@torch_op("aten::amin")
 def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -2704,7 +2704,7 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
     raise NotImplementedError()
 
 
-@torch_op("aten::logsumexp", trace_only=True)  # FIXME(#249): Script when CI uses onnx 1.13
+@torch_op("aten::logsumexp")
 def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
     # logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor
 
