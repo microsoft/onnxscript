@@ -2936,17 +2936,17 @@ def aten_maximum(self: TensorType, other: TensorType) -> TensorType:
 def aten_mean(self: TReal, dtype: Optional[int] = None) -> TReal:
     # mean(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
-    return op.ReduceMean(self, keepdims=0)
+    return op.ReduceMean(self, 0, keepdims=0, noop_with_empty_axes=0)
 
 
-# def test_mean():
-#     import numpy as np
-#     a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
-#     b = aten_mean(a)
-#     print(b)
-#     print("----------")
+def test_mean():
+    import numpy as np
+    a = np.array([[1,2,3],[4,5,6]], dtype=np.float32)
+    b = aten_mean(a)
+    print(b)
+    print("----------")
 
-# test_mean()
+test_mean()
 
 
 def aten_median(self: TensorType) -> TensorType:
