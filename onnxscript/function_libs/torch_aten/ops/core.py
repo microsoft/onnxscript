@@ -2538,10 +2538,11 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_le(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::le")
+def aten_le(self: TReal, other: TReal) -> BOOL:
     # le.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Less(self, other)
 
 
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
@@ -2957,10 +2958,11 @@ def aten_min(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_minimum(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::minimum")
+def aten_minimum(self: TReal, other: TReal) -> TReal:
     # minimum(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Min(self, other)
 
 
 def aten_miopen_batch_norm(
