@@ -153,9 +153,7 @@ class Op:
     def __call__(self, *args, **kwargs):
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        # Hack:
-        # TODO(titaiwang): how to keep both graph_eval and eval if they share the same API?
-        return evaluator.graph_eval(self.opschema, args, kwargs)
+        return evaluator.eval(self.opschema, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)

@@ -12,7 +12,8 @@ from typing import Any, Optional
 
 import numpy as np
 import onnx
-
+from torch.onnx._internal import jit_utils
+import torch
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
 if typing.TYPE_CHECKING:
@@ -79,9 +80,6 @@ class Evaluator(abc.ABC):
         pass
 
 
-from torch.onnx._internal import jit_utils
-
-
 class TorchScriptEvaluator(Evaluator):
     def __init__(self, graph: jit_utils.GraphContext = None):
         self._graph = graph
@@ -98,10 +96,10 @@ class TorchScriptEvaluator(Evaluator):
     def adapt_inputs(self, schema, inputs):
         """Adapt input graph inputs to ONNX graph inputs
 
-        Not modified as input/output shares the same graph in this demo.
+        Encode Tensor to torch._C.Value.
 
         """
-        return autocast.dynamic_cast_inputs(schema, *inputs)
+        return [torch.from_numpy(input.value) for input in inputs]
 
     def adapt_attributes(self, schema, attributes):
         """Adapt input graph attributes to ONNX graph attributes
@@ -123,10 +121,6 @@ class TorchScriptEvaluator(Evaluator):
     def _eval(self, schema, inputs, attributes):
         # ONNX graph API applied if there was
         return self._graph.op(schema.name, *inputs, **attributes)
-
-
-torchscript_evaluator = TorchScriptEvaluator()
-
 
 # Utilities for evaluation using ORT:
 
@@ -367,10 +361,3 @@ def eval(schema, inputs, attributes):
     """Evaluate using current default evaluator"""
 
     return default().eval(schema, inputs, attributes)
-
-
-# Hack
-def graph_eval(schema, inputs, attributes):
-    """Evaluate using current default evaluator"""
-
-    return torchscript_evaluator.eval(schema, inputs, attributes)

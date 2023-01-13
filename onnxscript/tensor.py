@@ -10,10 +10,11 @@ from typing import Any
 import numpy as np
 from onnx import TensorProto
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
-
+import torch
 from onnxscript import onnx_opset
 
 
+# TODO(titaiwang): FakeTensor acceptable
 class Tensor:
     """An implementation of ONNX Tensors, based on a wrapper around numpy arrays.
     Serves to define overloaded ops with an ONNX/ONNXScript semantics.
