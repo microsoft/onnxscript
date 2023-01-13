@@ -27,7 +27,6 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
-
 def is_primitive_attr_type(typeinfo) -> bool:
     return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
 
@@ -53,6 +52,9 @@ def is_tensor_type(typeinfo):
     return False
 
 def is_value_type(typeinfo):
+    # Remove Annotated wrapper if present
+    if isinstance(typeinfo, typing._AnnotatedAlias):
+        typeinfo = get_args(typeinfo)[0]
     if is_tensor_type(typeinfo):
         return True
     if is_primitive_attr_type(typeinfo):
