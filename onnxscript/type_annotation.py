@@ -28,16 +28,23 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
 
+def remove_annotation(typeinfo):
+    """Remove Annotated wrapper if present, otherwise return typeinfo as is."""
+    if hasattr(typing, "Annotated"):
+        # Present in Python 3.9+
+        if get_origin(typeinfo) is typing.Annotated:
+            return get_args(typeinfo)[0]
+    return typeinfo
+
+
 def is_primitive_attr_type(typeinfo) -> bool:
     return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
 
 
 def pytype_to_attrtype(pytype) -> typing.Optional[onnx.AttributeProto.AttributeType]:
+    pytype = remove_annotation(pytype)
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
-    # Remove Annotated wrapper if present
-    if isinstance(pytype, typing._AnnotatedAlias):  # pylint: disable=protected-access
-        return pytype_to_attrtype(get_args(pytype)[0])
     type_constructor = get_origin(pytype)
     # Remove Optional wrapper if present, which is represented as an Union[..., None]
     if type_constructor is typing.Union:
@@ -64,9 +71,7 @@ def is_value_type(typeinfo) -> bool:
     """Returns True if typeinfo represents a value type, False if it is an attribute type.
     Raises ValueError if typeinfo is not a supported type annotation.
     """
-    # Remove Annotated wrapper if present
-    if isinstance(typeinfo, typing._AnnotatedAlias):  # pylint: disable=protected-access
-        typeinfo = get_args(typeinfo)[0]
+    typeinfo = remove_annotation(typeinfo)
     if is_tensor_type(typeinfo):
         return True
     if is_primitive_attr_type(typeinfo):
