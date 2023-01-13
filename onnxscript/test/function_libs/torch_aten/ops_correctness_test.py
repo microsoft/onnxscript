@@ -205,6 +205,13 @@ def _log_softmax_input_wrangler(
     return args, kwargs
 
 
+def _softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
 def _topk_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -267,9 +274,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "fmod": core_ops.aten_fmod,
     "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
+    "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
+    "le": core_ops.aten_le,
     "log10": core_ops.aten_log10,
     "log1p": core_ops.aten_log1p,
     "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
@@ -281,6 +290,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
+    "maximum": core_ops.aten_maximum,
+    "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
     "ne": core_ops.aten_ne,
@@ -316,6 +327,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
     "slice": core_ops.aten_slice,
+    "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
