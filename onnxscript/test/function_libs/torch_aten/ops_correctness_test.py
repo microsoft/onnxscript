@@ -205,6 +205,13 @@ def _log_softmax_input_wrangler(
     return args, kwargs
 
 
+def _softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
 def _topk_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -318,6 +325,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
     "slice": core_ops.aten_slice,
+    "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,

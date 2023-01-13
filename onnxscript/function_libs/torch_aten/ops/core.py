@@ -2868,7 +2868,7 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_max(self: TReal, dim_or_other: Optional[int] = None, keepdim: Optional[BOOL] = None) -> Tuple[TReal, INT64]:
+def aten_max(self: TensorType) -> TensorType:
     # max(Tensor self) -> Tensor
 
     raise NotImplementedError()
