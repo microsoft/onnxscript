@@ -2868,10 +2868,11 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_max(self: TensorType) -> TensorType:
+@torch_op("aten::max")
+def aten_max(self: TReal, dim: int, keepdim: BOOL = False) -> Tuple[TReal, INT64]:
     # max(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    return op.Max(self)
 
 
 def aten_max_pool1d(
@@ -2926,10 +2927,11 @@ def aten_max_pool3d(
     raise NotImplementedError()
 
 
-def aten_maximum(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::maximum")
+def aten_maximum(self: TReal, other: TReal) -> TReal:
     # maximum(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Max(self, other)
 
 
 def aten_mean(self: TensorType, dtype: Optional[int] = None) -> TensorType:
