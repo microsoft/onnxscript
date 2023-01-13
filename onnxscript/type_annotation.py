@@ -42,12 +42,11 @@ def pytype_to_attrtype(pytype) -> typing.Optional[onnx.AttributeProto.AttributeT
     # Remove Optional wrapper if present, which is represented as an Union[..., None]
     if type_constructor is typing.Union:
         # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
-        args = [x for x in get_args(pytype) if x is not type(None)]
+        args = [x for x in get_args(pytype) if x is not type(None)]  # noqa: E721
         if len(args) == 1:
             return pytype_to_attrtype(args[0])
     if type_constructor in _LIST_CONSTRUCTORS:
-        args = get_args(pytype)
-        elt_type = args[0]
+        elt_type = get_args(pytype)[0]
         if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
             return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
     return None
@@ -76,13 +75,12 @@ def is_value_type(typeinfo) -> bool:
     # Handle List-like type-constructor
     # Eg. List[INT32] is a value type, while List[int] is an attribute type
     if type_constructor in _LIST_CONSTRUCTORS:
-        args = get_args(typeinfo)
-        elt_type = args[0]
+        elt_type = get_args(typeinfo)[0]
         return is_value_type(elt_type)
     # Handle Union and Optional type-constructors
     if type_constructor is typing.Union:
         # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
-        args = [x for x in get_args(typeinfo) if x is not type(None)]
+        args = [x for x in get_args(typeinfo) if x is not type(None)]  # noqa: E721
         args_value_check = [is_value_type(x) for x in args]
         if all(args_value_check):
             # Handles cases like Optional[INT32] as well as Union[FLOAT16, FLOAT, DOUBLE]
