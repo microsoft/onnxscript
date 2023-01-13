@@ -1980,10 +1980,11 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ge(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::ge")
+def aten_ge(self: TReal, other: TReal) -> BOOL:
     # ge.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Greater(self, other)
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
