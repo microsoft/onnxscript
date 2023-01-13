@@ -32,19 +32,25 @@ def is_primitive_attr_type(typeinfo) -> bool:
     return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
 
 
-def pytype_to_attrtype(pytype: type) -> typing.Optional[onnx.AttributeProto.AttributeType]:
+def pytype_to_attrtype(pytype) -> typing.Optional[onnx.AttributeProto.AttributeType]:
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
-    if get_origin(pytype) in _LIST_CONSTRUCTORS:
+    # Remove Annotated wrapper if present
+    if isinstance(pytype, typing._AnnotatedAlias):  # pylint: disable=protected-access
+        return pytype_to_attrtype(get_args(pytype)[0])
+    type_constructor = get_origin(pytype)
+    # Remove Optional wrapper if present, which is represented as an Union[..., None]
+    if type_constructor is typing.Union:
+        # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
+        args = [x for x in get_args(pytype) if x is not type(None)]
+        if len(args) == 1:
+            return pytype_to_attrtype(args[0])
+    if type_constructor in _LIST_CONSTRUCTORS:
         args = get_args(pytype)
         elt_type = args[0]
         if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
             return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
     return None
-
-
-def is_attr_type(pytype: type):
-    return pytype_to_attrtype(pytype) is not None
 
 
 def is_tensor_type(typeinfo):
@@ -55,7 +61,10 @@ def is_tensor_type(typeinfo):
     return False
 
 
-def is_value_type(typeinfo):
+def is_value_type(typeinfo) -> bool:
+    """Returns True if typeinfo represents a value type, False if it is an attribute type.
+    Raises ValueError if typeinfo is not a supported type annotation.
+    """
     # Remove Annotated wrapper if present
     if isinstance(typeinfo, typing._AnnotatedAlias):  # pylint: disable=protected-access
         typeinfo = get_args(typeinfo)[0]
@@ -90,6 +99,10 @@ def is_value_type(typeinfo):
             bound = typeinfo.__bound__
             return is_value_type(bound)
     raise ValueError(f"Unsupported type annotation {typeinfo}")
+
+
+def is_attr_type(pytype: type):
+    return is_value_type(pytype) is False
 
 
 def is_valid_type(typeinfo):
