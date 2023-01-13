@@ -237,6 +237,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
+    "argmax": core_ops.aten_argmax,
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
     "arange_start_step": core_ops.aten_arange_start_step,
@@ -254,6 +255,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
     "empty": core_ops.aten_empty,
@@ -283,6 +285,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "matmul": core_ops.aten_matmul,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
+    "native_layer_norm": core_ops.aten_native_layer_norm,
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,

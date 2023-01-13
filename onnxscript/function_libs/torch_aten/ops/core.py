@@ -331,13 +331,27 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::argmax")
 def aten_argmax(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False
+    self: TensorType, dim: int = None, keepdim: bool = False
 ) -> TensorType:
     # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    #return op.ArgMax(self, axis=dim, keepdims=keepdim)
 
+    if dim is None:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+        result = op.ArgMax(self, keepdims=False)
+
+def test_aten_argmax():
+    import numpy as np
+    a = np.array([[1,2],[2,2],[3,2],[4,2],[2,2]], dtype=np.float32)
+    b = aten_argmax(a)
+    print(b)
+    print("--------------")
+
+test_aten_argmax()
+exit(0)
 
 def aten_argmin(
     self: TensorType, dim: Optional[int] = None, keepdim: bool = False
@@ -1383,10 +1397,11 @@ def aten_det(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::detach")
 def aten_detach(self: TensorType) -> TensorType:
     # detach(Tensor(a) self) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_detach_copy(self: TensorType) -> TensorType:
@@ -3492,7 +3507,7 @@ def aten_native_group_norm_backward(
 
     raise NotImplementedError()
 
-
+@torch_op("aten::native_layer_norm")
 def aten_native_layer_norm(
     input: TensorType,
     normalized_shape: INT64,
@@ -3502,7 +3517,7 @@ def aten_native_layer_norm(
 ) -> tuple[TensorType, TensorType, TensorType]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
-    raise NotImplementedError()
+    return op.Identity(input), op.Identity(input), op.Identity(input)
 
 
 def aten_native_layer_norm_backward(
