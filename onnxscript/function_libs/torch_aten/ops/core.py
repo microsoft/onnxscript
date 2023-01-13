@@ -2932,7 +2932,7 @@ def aten_maximum(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::mean")
-def aten_mean(self: TReal, dtype: Optional[int] = None) -> TReal:
+def aten_mean(self: TReal, dim: INT64, keepdim: BOOL = False, dtype: Optional[int] = None) -> TReal:
     # mean(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
     # TODO: due to ort 1.13 does not support opset18, need to recheck when it is ready
@@ -4506,22 +4506,25 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+from onnxscript.onnx_opset import opset17 as op17
+
 @torch_op("aten::split")
 def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
 
-    split_size_is_scalar = op.Size(op.Shape(split_size)) == 0  # split_size means size of single chunk
+    split_size_is_scalar = op17.Size(op17.Shape(split_size)) == 0  # split_size means size of single chunk
     if split_size_is_scalar:  # calculate number of outputs
-        size_of_dim = op.Shape(self, start=0, end=1)  # TODO: start=dim, end=dim+1, but this cannot support now
-        size_of_dim = op.Cast(size_of_dim, to=FLOAT.dtype)
-        split_size = op.Cast(split_size, to=FLOAT.dtype)
-        num_out = op.Div(size_of_dim, split_size)
-        num_out = op.Ceil(num_out)
-        num_out = op.Cast(num_out, to=INT64.dtype)
-        #result = op.Split(self, axis=dim, num_outputs=num_out)
-        result = op.Split(self, axis=dim)
+        size_of_dim = op17.Shape(self, start=0, end=1)  # TODO: start=dim, end=dim+1, but this cannot support now
+        size_of_dim = op17.Cast(size_of_dim, to=FLOAT.dtype)
+        split_size = op17.Cast(split_size, to=FLOAT.dtype)
+        num_out = op17.Div(size_of_dim, split_size)
+        num_out = op17.Ceil(num_out)
+        num_out = op17.Cast(num_out, to=INT64.dtype)
+        #result = op17.Split(self, axis=dim, num_outputs=num_out)   # waiting for opset18 ort 1.14 release
+        result = op17.Split(self, axis=dim)
     else:
-        result = op.Split(self, split_size, axis=dim)
+        split_size = op17.Cast(split_size, to=INT64.dtype)
+        result = op17.Split(self, split_size, axis=dim)
     return result
 
 
