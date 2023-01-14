@@ -15,8 +15,7 @@ import onnx
 import torch
 from torch.onnx._internal import jit_utils
 
-from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values, 
-from onnxscript import type_annotation as ta
+from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -85,7 +84,10 @@ class Evaluator(abc.ABC):
 class TorchScriptEvaluator(Evaluator):
     def __init__(self, graph: jit_utils.GraphContext = None):
         self._graph = graph
-        self._ops_to_function_proto = dict()
+        self._ops_to_function = {}
+
+    def get_functions(self):
+        return self._ops_to_function
 
     def get_graph(self):
         return self._graph
@@ -106,6 +108,10 @@ class TorchScriptEvaluator(Evaluator):
 
     def decode_attributes(self, onnx_func, args, kwargs):
         func_ir = onnx_func.function_ir
+        print("kwargs: ", kwargs)
+        print("args: ", args)
+        print("func_ir.inputs: ", func_ir.inputs)
+        print("func_ir.attrs: ", func_ir.attrs)
         assert len(func_ir.inputs) + len(func_ir.attrs) == len(args)
         # The first len(func_ir.inputs) arguements are onnx inputs
         onnx_inputs = args[:len(func_ir.inputs)]
@@ -150,8 +156,8 @@ class TorchScriptEvaluator(Evaluator):
 
 
     def eval_func(self, onnx_func, *args, **kwargs):
-        self._ops_to_function_proto[onnx_func.name] = onnx_func.to_function_proto()
-        opname = "onnxscript::" + onnx_func.name
+        self._ops_to_function[onnx_func.name] = onnx_func
+        opname = onnx_func.opset.domain + "::" + onnx_func.name
 
         encoded_kwargs = self._encode_kwargs(kwargs)
         print("encoded_kwargs:", encoded_kwargs)

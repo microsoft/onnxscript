@@ -71,7 +71,8 @@ def torch_op(
             processed_func = func
         else:
             # Compile the function
-            processed_func = onnxscript.script()(func)
+            custom_opset = onnxscript.values.Opset(domain="onnx-script", version=1)
+            processed_func = onnxscript.script(custom_opset)(func)
 
         assert registry is not None
         registry.register(processed_func, name, overload=overload)
