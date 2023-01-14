@@ -177,7 +177,7 @@ def _arange_input_wrangler(
     new_args = []
     for arg in args:
         if isinstance(arg, int):
-            # Explicitly convert to int64 because ints are 32-bit on Windows
+            # Explicitly convert to int64 because int type is 32-bit on Windows
             arg = np.array(arg, dtype=np.int64)
         new_args.append(arg)
     return new_args, kwargs
