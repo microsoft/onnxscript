@@ -515,13 +515,14 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
             return np.array((), dtype=np.int64)
         if isinstance(input[0], torch.Tensor):
             return [_convert_tensor_to_numpy(x) for x in input]
-        if isinstance(input[0], int):
+        if isinstance(input[0], (int, float)):
             # Just a tuple of numbers
-            # Explicitly convert to int64 because ints are 32-bit on Windows
-            return np.array(input, dtype=np.int64)
-        if isinstance(input[0], float):
             return np.array(input)
         return input
+    if type(input) is int:  # pylint: disable=unidiomatic-typecheck
+        # Take only the int type as bool is a subclass of int
+        # Explicity convert to int64 because ints are 32-bit on Windows
+        return np.array(input, dtype=np.int64)
 
     return input
 
