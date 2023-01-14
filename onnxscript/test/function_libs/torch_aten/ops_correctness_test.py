@@ -521,7 +521,7 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
         return input
     if type(input) is int:  # pylint: disable=unidiomatic-typecheck
         # Take only the int type as bool is a subclass of int
-        # Explicity convert to int64 because ints are 32-bit on Windows
+        # Explicitly convert to int64 because ints are 32-bit on Windows
         return np.array(input, dtype=np.int64)
 
     return input
