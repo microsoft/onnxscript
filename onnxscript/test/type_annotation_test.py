@@ -5,6 +5,9 @@
 
 import unittest
 
+import onnx
+from packaging.version import Version
+
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
@@ -65,6 +68,28 @@ class TypeAnnotationTester(testutils.TestBase):
 
         with self.assertRaises(ValueError):
             FLOAT[10][20]  # Invalid usage. pylint: disable=pointless-statement
+
+    @unittest.skipIf(
+        Version(onnx.__version__) < Version("1.13"),
+        reason="module 'onnx.parser' has no attribute 'parse_function'",
+    )
+    def test_type_annotation_with_bool_type_for_attribute(self):
+        @script()
+        def bool_type_for_attribute(self: FLOAT[...], sorted: bool) -> FLOAT[...]:
+            out = op.Unique(self, sorted=sorted)
+            return out
+
+        bool_type_for_attribute_txt = """
+            <
+                domain: "this",
+                opset_import: ["": 15]
+            >
+            bool_type_for_attribute <sorted>(self) => (out) {
+                out = Unique <sorted: int = @sorted> (self)
+            }
+
+        """
+        self.assertSameFunction(bool_type_for_attribute, bool_type_for_attribute_txt)
 
 
 if __name__ == "__main__":

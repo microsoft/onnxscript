@@ -17,12 +17,14 @@ _PYTYPE_TO_ATTRTYPE_MAP = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
+    bool: onnx.AttributeProto.INT,
 }
 
 _LISTTYPE_TO_ATTRTYPE_MAP = {
     float: onnx.AttributeProto.FLOATS,
     int: onnx.AttributeProto.INTS,
     str: onnx.AttributeProto.STRINGS,
+    bool: onnx.AttributeProto.INTS,
 }
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
