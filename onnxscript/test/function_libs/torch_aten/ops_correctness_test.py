@@ -174,13 +174,13 @@ def _amax_amin_input_wrangler(
 def _arange_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    args = []
+    new_args = []
     for arg in args:
         if isinstance(arg, int):
             # Explicitly convert to int64 because ints are 32-bit on Windows
             arg = np.array(arg, dtype=np.int64)
-        args.append(arg)
-    return args, kwargs
+        new_args.append(arg)
+    return new_args, kwargs
 
 
 def _full_input_wrangler(
