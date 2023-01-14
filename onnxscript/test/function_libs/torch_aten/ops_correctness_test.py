@@ -198,6 +198,20 @@ def _logcumsumexp_input_wrangler(
     return args, kwargs
 
 
+def _log_softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
+def _softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
 def _topk_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -214,7 +228,9 @@ def _topk_input_wrangler(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-OPINFO_FUNCTION_MAPPING: dict[
+
+# Split the scripted and traced ops to make sure we don't forget to script an op
+OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
     onnxscript.OnnxFunction
     | Callable[..., Any]
@@ -247,6 +263,8 @@ OPINFO_FUNCTION_MAPPING: dict[
     "cosh": core_ops.aten_cosh,
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
+    "empty": core_ops.aten_empty,
+    "empty_like": core_ops.aten_empty_like,
     "eq": core_ops.aten_eq,
     "equal": core_ops.aten_equal,
     "exp": core_ops.aten_exp,
@@ -256,12 +274,14 @@ OPINFO_FUNCTION_MAPPING: dict[
     "fmod": core_ops.aten_fmod,
     "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
+    "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
-    "index_select": core_ops.aten_index_select,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
+    "le": core_ops.aten_le,
     "log10": core_ops.aten_log10,
     "log1p": core_ops.aten_log1p,
+    "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
     "log2": core_ops.aten_log2,
     "logaddexp": core_ops.aten_logaddexp,
     "logaddexp2": core_ops.aten_logaddexp2,
@@ -270,6 +290,8 @@ OPINFO_FUNCTION_MAPPING: dict[
     "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
+    "maximum": core_ops.aten_maximum,
+    "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
     "ne": core_ops.aten_ne,
@@ -279,6 +301,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.elu": nn_ops.aten_elu,
+    "nn.functional.embedding": core_ops.aten_embedding,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
@@ -305,12 +328,13 @@ OPINFO_FUNCTION_MAPPING: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
+    "slice": core_ops.aten_slice,
+    "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
-    "transpose": core_ops.aten_transpose,
     "topk": (
         core_ops.aten_topk,
         _topk_input_wrangler,
@@ -323,12 +347,34 @@ OPINFO_FUNCTION_MAPPING: dict[
     "zeros_like": core_ops.aten_zeros_like,
 }
 
+
+OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
+    str,
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+] = {
+    "cat": core_ops.aten_cat,
+    "index_select": core_ops.aten_index_select,
+    "transpose": core_ops.aten_transpose,
+}
+
+OPINFO_FUNCTION_MAPPING: dict[
+    str,
+    onnxscript.OnnxFunction
+    | Callable[..., Any]
+    | tuple[
+        onnxscript.OnnxFunction | Callable[..., Any],
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    ],
+] = {**OPINFO_FUNCTION_MAPPING_SCRIPTED, **OPINFO_FUNCTION_MAPPING_TRACE_ONLY}
+
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    skip("clamp", reason="enable when onnxscript supports optional inputs"),
+    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    skip("empty", reason="Using zeros to simulate empty"),
+    skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     xfail(
@@ -417,6 +463,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
+    ),
+    skip(
+        "slice",
+        # kwargs {dim, start, end, step} is empty, we cannot give the default value
+        matcher=lambda sample: len(sample.kwargs) == 0,
+        reason="start and end must be 1-D array, cannot be optional, due to ort 1.13 does not support yet",
     ),
 )
 
@@ -520,6 +572,14 @@ class TestOutputConsistency(unittest.TestCase):
     def setUp(self) -> None:
         torch.manual_seed(42)
         np.random.seed(42)
+
+    def test_all_script_functions_are_onnx_functions(self):
+        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
+            if isinstance(func_with_wrangler, tuple):
+                func = func_with_wrangler[0]
+            else:
+                func = func_with_wrangler
+            self.assertIsInstance(func, onnxscript.OnnxFunction)
 
     @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],

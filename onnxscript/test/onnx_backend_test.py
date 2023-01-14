@@ -3,6 +3,8 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+# pylint: disable=too-many-boolean-expressions
+
 import importlib
 import os
 import unittest

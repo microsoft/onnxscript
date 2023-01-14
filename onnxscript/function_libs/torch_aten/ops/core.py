@@ -186,7 +186,7 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-# @torch_op("aten::amax")  # FIXME(#249): Uncomment when CI uses onnx 1.13
+@torch_op("aten::amax")
 def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -194,7 +194,7 @@ def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-# @torch_op("aten::amin")  # FIXME(#249): Uncomment when CI uses onnx 1.13
+@torch_op("aten::amin")
 def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
@@ -710,10 +710,15 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_cat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::cat", trace_only=True)
+def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
 
-    raise NotImplementedError()
+    num_of_input = len(tensors)  # len() function not support yet
+    a = op.SequenceEmpty()
+    for i in range(num_of_input):
+        a = op.SequenceInsert(a, tensors[i])
+    return op.ConcatFromSequence(a, axis=dim)
 
 
 def aten_ccol_indices(self: TensorType) -> TensorType:
@@ -1506,16 +1511,15 @@ def aten_einsum(
     raise NotImplementedError()
 
 
+@torch_op("aten::embedding")
 def aten_embedding(
-    weight: TensorType,
-    indices: TensorType,
-    padding_idx: int = -1,
-    scale_grad_by_freq: bool = False,
-    sparse: bool = False,
-) -> TensorType:
+    weight: TTensor,
+    indices: TTensor,
+    **_,
+) -> TTensor:
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
-    raise NotImplementedError()
+    return op.Gather(weight, indices)
 
 
 def aten_embedding_backward(
@@ -1570,10 +1574,29 @@ def aten_embedding_sparse_backward(
     raise NotImplementedError()
 
 
-def aten_empty_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::empty")
+def aten_empty(size: IntType, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+    # empty(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    # using Zeros to simulate np.empty()
+    size = op.Cast(size, to=INT64.dtype)
+    zero = op.Constant(value_float=0)
+    zero = op.Cast(zero, to=dtype)
+
+    return op.Expand(zero, size)
+
+
+@torch_op("aten::empty_like")
+def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    raise NotImplementedError()
+    shape = op.Shape(self)
+    if dtype == -1:
+        zero = op.CastLike(0, self)
+    else:
+        zero = op.Cast(0, to=dtype)
+
+    return op.Expand(zero, shape)
 
 
 def aten_empty_quantized(
@@ -1957,10 +1980,11 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ge(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::ge")
+def aten_ge(self: TReal, other: TReal) -> BOOL:
     # ge.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Greater(self, other)
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -2514,10 +2538,11 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_le(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::le")
+def aten_le(self: TReal, other: TReal) -> BOOL:
     # le.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Less(self, other)
 
 
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
@@ -2680,7 +2705,7 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
     raise NotImplementedError()
 
 
-@torch_op("aten::logsumexp", trace_only=True)  # FIXME(#249): Script when CI uses onnx 1.13
+@torch_op("aten::logsumexp")
 def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
     # logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor
 
@@ -2902,10 +2927,11 @@ def aten_max_pool3d(
     raise NotImplementedError()
 
 
-def aten_maximum(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::maximum")
+def aten_maximum(self: TReal, other: TReal) -> TReal:
     # maximum(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Max(self, other)
 
 
 def aten_mean(self: TensorType, dtype: Optional[int] = None) -> TensorType:
@@ -2932,10 +2958,11 @@ def aten_min(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_minimum(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::minimum")
+def aten_minimum(self: TReal, other: TReal) -> TReal:
     # minimum(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Min(self, other)
 
 
 def aten_miopen_batch_norm(
@@ -4393,16 +4420,30 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
+@torch_op("aten::slice")
 def aten_slice(
-    self: TensorType,
+    self: TTensor,
     dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
     step: INT64 = 1,
-) -> TensorType:
+) -> TTensor:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
-    raise NotImplementedError()
+    # TODO: using OptionalHasElement() to check start/end value
+    start = op.Cast(start, to=INT64.dtype)
+    start = op.Reshape(start, op.Constant(value_ints=[-1]))
+
+    end = op.Cast(end, to=INT64.dtype)
+    end = op.Reshape(end, op.Constant(value_ints=[-1]))
+
+    dim = op.Cast(dim, to=INT64.dtype)
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+
+    step = op.Cast(step, to=INT64.dtype)
+    step = op.Reshape(step, op.Constant(value_ints=[-1]))
+
+    return op.Slice(self, start, end, dim, step)
 
 
 def aten_slice_backward(

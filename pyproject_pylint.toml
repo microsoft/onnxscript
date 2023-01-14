@@ -19,9 +19,7 @@ disable = [
   "redefined-builtin",              # TODO: should we avoid redefined-builtin?
   "too-few-public-methods",
   "too-many-arguments",
-  "too-many-boolean-expressions",
   "too-many-branches",
-  "too-many-function-args",
   "too-many-instance-attributes",
   "too-many-lines",
   "too-many-locals",
