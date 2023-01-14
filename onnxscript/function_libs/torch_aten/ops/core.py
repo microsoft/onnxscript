@@ -3708,10 +3708,11 @@ def aten_pdist(self: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_permute(self: TensorType, dims: Sequence[int]) -> TensorType:
+@torch_op("aten::permute")
+def aten_permute(self: TTensor, dims: Sequence[int]) -> TTensor:
     # permute(Tensor(a) self, int[] dims) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Transpose(self, perm=dims)
 
 
 def aten_permute_copy(self: TensorType, dims: Sequence[int]) -> TensorType:
@@ -3779,6 +3780,13 @@ def aten_positive(self: TensorType) -> TensorType:
     # positive(Tensor(a) self) -> Tensor(a)
 
     raise NotImplementedError()
+
+
+@torch_op("aten::pow")
+def aten_pow(self: TReal, exponent: TTensor) -> TReal:
+    # pow(Tensor self, Tensor exponent) -> Tensor
+
+    return op.Pow(self, exponent)
 
 
 def aten_prelu(self: TensorType, weight: TensorType) -> TensorType:

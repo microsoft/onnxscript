@@ -327,6 +327,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
+    "permute": core_ops.aten_permute,
+    "pow": core_ops.aten_pow,
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
@@ -463,6 +465,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+    ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
+        reason="Negative value in perm is not supported",
+    ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(sample.args[0]) == 0,
+        reason="Empty perm is not supported",
     ),
     skip(
         "slice",

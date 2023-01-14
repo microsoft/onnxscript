@@ -133,10 +133,19 @@ class Op:
                 )
         return kwargs, closure
 
+    def _convert_kwargs_to_numpy(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        new_kwargs = {}
+        for k, v in kwargs.items():
+            new_kwargs[k] = v
+            if isinstance(v, tensor.Tensor):
+                new_kwargs[k] = v.value
+
+        return new_kwargs
+
     def __call__(self, *args, **kwargs):
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.eval(self.opschema, args, kwargs)
+        return evaluator.eval(self.opschema, args, self._convert_kwargs_to_numpy(kwargs))
 
 
 @dataclasses.dataclass(repr=False, eq=False)
