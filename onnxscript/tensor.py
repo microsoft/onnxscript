@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 from onnx import TensorProto
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
-import torch
+
 from onnxscript import onnx_opset
 
 

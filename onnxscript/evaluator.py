@@ -12,9 +12,11 @@ from typing import Any, Optional
 
 import numpy as np
 import onnx
-from torch.onnx._internal import jit_utils
 import torch
-from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
+from torch.onnx._internal import jit_utils
+
+from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values, 
+from onnxscript import type_annotation as ta
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -83,6 +85,7 @@ class Evaluator(abc.ABC):
 class TorchScriptEvaluator(Evaluator):
     def __init__(self, graph: jit_utils.GraphContext = None):
         self._graph = graph
+        self._ops_to_function_proto = dict()
 
     def get_graph(self):
         return self._graph
@@ -93,13 +96,77 @@ class TorchScriptEvaluator(Evaluator):
     def reset_graph(self):
         self._graph = None
 
-    def adapt_inputs(self, schema, inputs):
-        """Adapt input graph inputs to ONNX graph inputs
+    def _parse_node(self, value: torch._C.Value):
+        node = value.node()
+        if node.mustBeNone():
+            return None
+        if node.kind() == "onnx::Constant":
+            return torch.onnx.symbolic_helper._node_get(node, "value")
+        raise ValueError("[ERROR] Attibute is not Constant!!!")
 
-        Encode Tensor to torch._C.Value.
+    def decode_attributes(self, onnx_func, args, kwargs):
+        func_ir = onnx_func.function_ir
+        assert len(func_ir.inputs) + len(func_ir.attrs) == len(args)
+        # The first len(func_ir.inputs) arguements are onnx inputs
+        onnx_inputs = args[:len(func_ir.inputs)]
+        # The rest is onnx attributes
+        # Contruct a dictionary of attributes with names specified in the function
+        # definition
+        attributes = args[len(func_ir.inputs):]
+        onnx_attrs = {}
+        for attr_name, attr_type, attr_value in zip(func_ir.attrs, func_ir.attr_protos, attributes):
+            node_val = self._parse_node(attr_value)
+            if attr_type == onnx.AttributeProto.FLOAT:
+                onnx_attrs[attr_name] = float(node_val)
+            elif attr_type == onnx.AttributeProto.INT:
+                onnx_attrs[attr_name] = int(node_val)
+            elif attr_type == onnx.AttributeProto.STRING:
+                onnx_attrs[attr_name] = str(node_val)
+            elif attr_type == onnx.AttributeProto.FLOATS:
+                onnx_attrs[attr_name] = [float(v) for v in node_val]
+            elif attr_type == onnx.AttributeProto.INTS:
+                onnx_attrs[attr_name] = [int(v) for v in node_val]
+            elif attr_type == onnx.AttributeProto.STRINGS:
+                assert False, "Bad: list of strings"
 
-        """
-        return [torch.from_numpy(input.value) for input in inputs]
+        return onnx_inputs, onnx_attrs
+
+    def _encode_kwargs(self, kwargs):
+        encoded = {}
+        for attr_name, attr in kwargs.items():
+            if isinstance(attr, float):
+                attr_name += "_f"
+            elif isinstance(attr, int):
+                attr_name += "_i"
+            elif isinstance(attr, str):
+                attr_name += "_s"
+            elif isinstance(attr, list):
+                if isinstance(attr, float):
+                    attr_name += "_f"
+                elif isinstance(attr, int):
+                    attr_name += "_i"
+            encoded[attr_name] = attr
+        return encoded
+
+
+    def eval_func(self, onnx_func, *args, **kwargs):
+        self._ops_to_function_proto[onnx_func.name] = onnx_func.to_function_proto()
+        opname = "onnxscript::" + onnx_func.name
+
+        encoded_kwargs = self._encode_kwargs(kwargs)
+        print("encoded_kwargs:", encoded_kwargs)
+
+        # This is not a tuple for now
+        return self._graph.op(opname, *args, **encoded_kwargs)
+
+
+    # def adapt_inputs(self, schema, inputs):
+    #     """Adapt input graph inputs to ONNX graph inputs
+
+    #     Encode Tensor to torch._C.Value.
+
+    #     """
+    #     return [torch.from_numpy(input.value) for input in inputs]
 
     def adapt_attributes(self, schema, attributes):
         """Adapt input graph attributes to ONNX graph attributes
@@ -111,16 +178,19 @@ class TorchScriptEvaluator(Evaluator):
         pass
 
     def eval(self, schema, inputs, attributes):
-        # adapt_input should return torch._C.Value right back to us, as for now, we don't have ONNX graph builder yet.
-        inputs = self.adapt_inputs(schema, inputs)
+        # adapt_input should return torch._C.Value right back to us, 
+        # as for now, we don't have ONNX graph builder yet.
+        # inputs = self.adapt_inputs(schema, inputs)
         # adapt attributes should be added here
         # attributes = self.adapt_attributes(schema, attributes)
-        outputs = self._eval(schema, inputs, attributes)
+        # outputs = self._eval(schema, inputs, attributes)
+        
         return outputs
 
     def _eval(self, schema, inputs, attributes):
         # ONNX graph API applied if there was
         return self._graph.op(schema.name, *inputs, **attributes)
+
 
 # Utilities for evaluation using ORT:
 

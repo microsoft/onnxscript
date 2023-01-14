@@ -93,22 +93,6 @@ class Opset:
             del input_list[-1]
         return input_list
 
-    # Hack: here needs input, as we hack into torchscript
-    # when we have our own graph, we don't need input graph
-    def initialize_graph(self, graph: jit_utils.GraphContext):
-        from onnxscript import evaluator
-
-        if evaluator.torchscript_evaluator.get_graph() is not None:
-            raise ValueError(
-                "[ERROR] Please reset the current graph before initializeing one!"
-            )
-        evaluator.torchscript_evaluator.update_graph(graph)
-
-    def reset_graph(self):
-        from onnxscript import evaluator
-
-        evaluator.torchscript_evaluator.reset_graph()
-
 
 # ONNX ops
 
@@ -290,15 +274,22 @@ class OnnxFunction(Op):
         """
 
         def fun(*args, **kwargs):
-            from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
+            from onnxscript import evaluator
 
             with evaluator.default_as(instance):
+                # TODO(titaiwang): possibly insert function_proto here?
                 return self.__call__(*args, **kwargs)
 
         return fun
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
+        from onnxscript import evaluator
+
+        if isinstance(evaluator.default(), evaluator.TorchScriptEvaluator):
+            # insert function proto into graph
+            return evaluator.default().eval_func(self, *args, **kwargs)
+
         new_args, has_array = _adapt_to_eager_mode(args)
         result = self.function(*new_args, **kwargs)
 
