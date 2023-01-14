@@ -171,6 +171,18 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
+def _arange_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    new_args = []
+    for arg in args:
+        if isinstance(arg, int):
+            # Explicitly convert to int64 because int type is 32-bit on Windows
+            arg = np.array(arg, dtype=np.int64)
+        new_args.append(arg)
+    return new_args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -246,9 +258,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "addmm": core_ops.aten_addmm,
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
+    "arange_start_step": (core_ops.aten_arange_start_step, _arange_input_wrangler),
+    "arange_start": (core_ops.aten_arange_start, _arange_input_wrangler),
+    "arange": (core_ops.aten_arange, _arange_input_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
