@@ -171,6 +171,14 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
+def _arange_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Explicitly convert to int64 because ints are 32-bit on Windows
+    args = [np.array(arg, dtype=np.int64) for arg in args]
+    return args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -246,9 +254,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "addmm": core_ops.aten_addmm,
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
+    "arange_start_step": (core_ops.aten_arange_start_step, _arange_input_wrangler),
+    "arange_start": (core_ops.aten_arange_start, _arange_input_wrangler),
+    "arange": (core_ops.aten_arange, _arange_input_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -519,10 +527,6 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
             # Just a tuple of numbers
             return np.array(input)
         return input
-    if type(input) is int:  # pylint: disable=unidiomatic-typecheck
-        # Take only the int type as bool is a subclass of int
-        # Explicitly convert to int64 because ints are 32-bit on Windows
-        return np.array(input, dtype=np.int64)
 
     return input
 
