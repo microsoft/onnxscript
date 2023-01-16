@@ -198,10 +198,11 @@ def aten_binary_cross_entropy_backward(
     raise NotImplementedError()
 
 
-def aten_celu(self, alpha: float = 1.0):
+@torch_op("aten::celu")
+def aten_celu(self: TReal, alpha: float = 1.0) -> TReal:
     # celu(Tensor self, Scalar alpha=1.0) -> Tensor
 
-    raise NotImplementedError()
+    return op.Celu(self, alpha=alpha)
 
 
 def aten_col2im(
@@ -324,7 +325,7 @@ def aten_fractional_max_pool3d_backward(
 
 
 @torch_op("aten::gelu")
-def aten_gelu(self: TensorType, approximate: str = "none") -> TensorType:
+def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 
     self = op.Cast(self, to=FLOAT.dtype)
