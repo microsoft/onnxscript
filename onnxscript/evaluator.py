@@ -103,6 +103,7 @@ def compute_num_outputs(schema, *args, **kwargs):
         if schema.name == "LSTM":
             return 3
         if schema.name == "Split":
+            return kwargs['num_outputs']
             if len(args) == 1:
                 raise EagerModeError(
                     "Operator Split: the number of expected outputs defines the split. "

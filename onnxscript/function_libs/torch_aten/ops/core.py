@@ -339,9 +339,13 @@ def aten_argmax(
 
     #return op.ArgMax(self, axis=dim, keepdims=keepdim)
 
-    if dim is None:
+    if op.OptionalHasElement(dim):
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
         result = op.ArgMax(self, keepdims=False)
+    else:
+        result = op.Identity(self)
+    return result
+
 
 def test_aten_argmax():
     import numpy as np
