@@ -171,6 +171,18 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
+def _arange_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    new_args = []
+    for arg in args:
+        if isinstance(arg, int):
+            # Explicitly convert to int64 because int type is 32-bit on Windows
+            arg = np.array(arg, dtype=np.int64)
+        new_args.append(arg)
+    return new_args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -199,6 +211,13 @@ def _logcumsumexp_input_wrangler(
 
 
 def _log_softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
+def _softmax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop()
@@ -240,9 +259,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "argmax": core_ops.aten_argmax,
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
+    "arange_start_step": (core_ops.aten_arange_start_step, _arange_input_wrangler),
+    "arange_start": (core_ops.aten_arange_start, _arange_input_wrangler),
+    "arange": (core_ops.aten_arange, _arange_input_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -269,9 +288,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "fmod": core_ops.aten_fmod,
     "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
+    "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
+    "le": core_ops.aten_le,
     "log10": core_ops.aten_log10,
     "log1p": core_ops.aten_log1p,
     "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
@@ -283,6 +304,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
+    "maximum": core_ops.aten_maximum,
+    "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
     "native_layer_norm": core_ops.aten_native_layer_norm,
@@ -307,6 +330,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
+    "permute": core_ops.aten_permute,
+    "pow": core_ops.aten_pow,
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
@@ -319,6 +344,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
     "slice": core_ops.aten_slice,
+    "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
@@ -442,6 +468,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+    ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
+        reason="Negative value in perm is not supported",
+    ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(sample.args[0]) == 0,
+        reason="Empty perm is not supported",
     ),
     skip(
         "slice",

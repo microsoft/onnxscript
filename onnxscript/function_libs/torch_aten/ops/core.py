@@ -1995,10 +1995,11 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_ge(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::ge")
+def aten_ge(self: TReal, other: TReal) -> BOOL:
     # ge.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Greater(self, other)
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -2552,10 +2553,11 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_le(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::le")
+def aten_le(self: TReal, other: TReal) -> BOOL:
     # le.Tensor(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Less(self, other)
 
 
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
@@ -2940,10 +2942,11 @@ def aten_max_pool3d(
     raise NotImplementedError()
 
 
-def aten_maximum(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::maximum")
+def aten_maximum(self: TReal, other: TReal) -> TReal:
     # maximum(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Max(self, other)
 
 
 def aten_mean(self: TensorType, dtype: Optional[int] = None) -> TensorType:
@@ -2970,10 +2973,11 @@ def aten_min(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_minimum(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::minimum")
+def aten_minimum(self: TReal, other: TReal) -> TReal:
     # minimum(Tensor self, Tensor other) -> Tensor
 
-    raise NotImplementedError()
+    return op.Min(self, other)
 
 
 def aten_miopen_batch_norm(
@@ -3719,10 +3723,11 @@ def aten_pdist(self: TensorType, p: float = 2) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_permute(self: TensorType, dims: Sequence[int]) -> TensorType:
+@torch_op("aten::permute")
+def aten_permute(self: TTensor, dims: Sequence[int]) -> TTensor:
     # permute(Tensor(a) self, int[] dims) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Transpose(self, perm=dims)
 
 
 def aten_permute_copy(self: TensorType, dims: Sequence[int]) -> TensorType:
@@ -3790,6 +3795,13 @@ def aten_positive(self: TensorType) -> TensorType:
     # positive(Tensor(a) self) -> Tensor(a)
 
     raise NotImplementedError()
+
+
+@torch_op("aten::pow")
+def aten_pow(self: TReal, exponent: TTensor) -> TReal:
+    # pow(Tensor self, Tensor exponent) -> Tensor
+
+    return op.Pow(self, exponent)
 
 
 def aten_prelu(self: TensorType, weight: TensorType) -> TensorType:
