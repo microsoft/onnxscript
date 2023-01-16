@@ -342,6 +342,7 @@ def aten_gelu(self: TensorType, approximate: str = "none") -> TensorType:
         inner = op.Mul(self, inner)
         result = op.Mul(0.5, inner)
     else:
+        # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
         inner = op.Div(self, 1.4142135623730951)
         erf = op.Erf(inner)
         inner = op.Add(erf, 1)
