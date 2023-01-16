@@ -199,7 +199,7 @@ def aten_binary_cross_entropy_backward(
 
 
 @torch_op("aten::celu")
-def aten_celu(self: TReal, alpha: float = 1.0) -> TReal:
+def aten_celu(self: TFloat, alpha: float = 1.0) -> TFloat:
     # celu(Tensor self, Scalar alpha=1.0) -> Tensor
 
     return op.Celu(self, alpha=alpha)
