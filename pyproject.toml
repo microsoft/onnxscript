@@ -28,9 +28,6 @@ classifiers = [
 ]
 dependencies = ["numpy>=1.22.0", "protobuf<4", "onnx"]
 
-[project.optional-dependencies]
-test = ["flake8", "mypy", "black", "isort[colors]", "pylint"]
-
 [tool.setuptools.dynamic]
 version = {attr = "onnxscript.__version__"}
 
