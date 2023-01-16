@@ -287,6 +287,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
+    "gelu": nn_ops.aten_gelu,
     "gt": core_ops.aten_gt,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
