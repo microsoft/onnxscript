@@ -6,6 +6,7 @@ on:
       - main
       - 'gh/**/base' # ghstack base branches
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   optional-lint:
@@ -69,7 +70,8 @@ jobs:
         run: |
           python -m lintrunner_adapters to-sarif lint.json lintrunner.sarif
       - name: Upload SARIF file
-        if: always()
+        # Do not display on drafts to make reviewing easier
+        if: github.event.pull_request.draft == false
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v2
         with:
