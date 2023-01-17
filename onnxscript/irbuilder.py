@@ -112,6 +112,7 @@ class IRAttributeValue:
     """An attribute value (representing an actual parameter)."""
 
     def __init__(self, attrproto) -> None:
+        # consider hiding this attr?
         self.attr_proto = attrproto
 
     def __str__(self):
@@ -119,6 +120,29 @@ class IRAttributeValue:
             return f"{self.attr_proto.name} = @{self.attr_proto.ref_attr_name}"
         # self.name + " = " + self.value
         return helper.printable_attribute(self.attr_proto)
+
+    @property
+    def name(self):
+        return self.attr_proto.name
+
+    @property
+    def type(self):
+        return self.attr_proto.type
+
+    @property
+    def value(self):
+        if self.type == onnx.AttributeProto.FLOAT:
+            return self.attr_proto.f
+        elif self.type == onnx.AttributeProto.INT:
+            return self.attr_proto.i
+        elif self.type == onnx.AttributeProto.STRING:
+            return self.attr_proto.s
+        elif self.type == onnx.AttributeProto.FLOATS:
+            return [float(v) for v in self.attr_proto.f]
+        elif self.type == onnx.AttributeProto.INTS:
+            return [int(v) for v in self.attr_proto.i]
+        elif self.type == onnx.AttributeProto.STRINGS:
+            assert False, "Bad: list of strings"
 
 
 class IRStmt:

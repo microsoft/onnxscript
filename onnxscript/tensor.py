@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from onnx import TensorProto
@@ -20,8 +20,8 @@ class Tensor:
     Serves to define overloaded ops with an ONNX/ONNXScript semantics.
     """
 
-    def __init__(self, nparray, opset=None):
-        if not isinstance(nparray, np.ndarray):
+    def __init__(self, nparray: Optional[np.ndarray], opset=None):
+        if nparray is not None and not isinstance(nparray, np.ndarray):
             raise TypeError(f"Unexpected type {type(nparray)}. It must be a numpy array.")
         self._nparray = nparray
 

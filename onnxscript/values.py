@@ -286,12 +286,11 @@ class OnnxFunction(Op):
         """Implements an eager-mode execution of an onnxscript function."""
         from onnxscript import evaluator
 
-        if isinstance(evaluator.default(), evaluator.TorchScriptEvaluator):
-            # insert function proto into graph
-            return evaluator.default().eval_func(self, *args, **kwargs)
-
         new_args, has_array = _adapt_to_eager_mode(args)
-        result = self.function(*new_args, **kwargs)
+
+        result = evaluator.default().eval_function(self, *new_args, **kwargs)
+
+        # result = self.function(*new_args, **kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one
