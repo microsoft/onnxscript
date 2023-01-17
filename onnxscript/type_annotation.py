@@ -97,7 +97,7 @@ def is_value_type(typeinfo) -> bool:
             # Note that we do not allow Union[int, float] for attributes.
             return False
         else:
-            raise ValueError(f"Unsupported type annotation {typeinfo}")
+            raise ValueError(f"Unsupported type annotation '{typeinfo}'")
     # Handle TypeVars:
     if isinstance(typeinfo, typing.TypeVar):
         if hasattr(typeinfo, "__bound__"):
