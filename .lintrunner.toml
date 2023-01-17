@@ -46,7 +46,6 @@ exclude_patterns = [
     # FIXME: Fix typing annotations in these files
     'onnxscript/converter.py',
     'onnxscript/evaluator.py',
-    'onnxscript/libfunctions.py',
     'onnxscript/onnx_types.py',
     'onnxscript/test/converter_test.py',
     'onnxscript/test/eager_test.py',
