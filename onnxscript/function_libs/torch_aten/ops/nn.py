@@ -199,14 +199,10 @@ def aten_binary_cross_entropy_backward(
 
 
 @torch_op("aten::celu")
-def aten_celu(self: TFloat, alpha: float = 1.0, dtype: int = -1) -> TFloat:
+def aten_celu(self: TFloat, alpha: float = 1.0) -> TFloat:
     # celu(Tensor self, Scalar alpha=1.0) -> Tensor
 
-    self = op.Cast(self, to=FLOAT.dtype)
-    result = op.Celu(self, alpha=alpha)  # op.Celu only support float32
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
-    return result
+    return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
 def aten_col2im(
