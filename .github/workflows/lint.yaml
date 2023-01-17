@@ -6,6 +6,7 @@ on:
       - main
       - 'gh/**/base' # ghstack base branches
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   optional-lint:
@@ -35,6 +36,8 @@ jobs:
   enforce-style:
     name: Enforce style
     runs-on: ubuntu-latest
+    # Do not run on drafts to make reviewing easier
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v3
       - name: Setup Python
