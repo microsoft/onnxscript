@@ -340,7 +340,7 @@ def aten_argmax(
     self_is_scaler = op.Size(op.Shape(self)) == 0
     if self_is_scaler:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
-    elif dim == None:  # should use OptionalHasElement(dim)
+    elif dim is None:  # should use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     result = op.ArgMax(self, axis=dim, keepdims=keepdim)
@@ -359,7 +359,7 @@ def aten_argmin(
     self_is_scaler = op.Size(op.Shape(self)) == 0
     if self_is_scaler:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
-    elif dim == None:  # should use OptionalHasElement(dim)
+    elif dim is None:  # should use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     result = op.ArgMin(self, axis=dim, keepdims=keepdim)
