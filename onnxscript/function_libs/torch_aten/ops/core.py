@@ -333,8 +333,8 @@ def aten_arctanh(self: TensorType) -> TensorType:
 
 @torch_op("aten::argmax", trace_only=True)
 def aten_argmax(
-    self: TensorType, dim: int = None, keepdim: bool = False
-) -> TensorType:
+    self: TReal, dim: int = None, keepdim: bool = False
+) -> TReal:
     # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -350,24 +350,23 @@ def aten_argmax(
     return result
 
 
-# def test_aten_argmax():
-#     import numpy as np
-#     a = np.array([[1,2,3,4,5],[2,3,4,5,6],[3,2,1,3,4]], dtype=np.float32)
-#     a = np.array(6.88, dtype=np.float32)
-#     b = aten_argmax(a, dim=0, keepdim=True)
-#     print(b)
-#     print("--------------")
-
-# test_aten_argmax()
-# exit(0)
-
-
+@torch_op("aten::argmin", trace_only=True)
 def aten_argmin(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False
-) -> TensorType:
+    self: TReal, dim: Optional[int] = None, keepdim: bool = False
+) -> TReal:
     # argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    if self_is_scaler:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    elif dim == None:  # should use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.ArgMin(self, axis=dim, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_argsort(self: TensorType, dim: int = -1, descending: bool = False) -> TensorType:
@@ -3520,7 +3519,7 @@ def aten_native_group_norm_backward(
 
     raise NotImplementedError()
 
-@torch_op("aten::native_layer_norm")
+
 def aten_native_layer_norm(
     input: TensorType,
     normalized_shape: INT64,
@@ -3530,7 +3529,7 @@ def aten_native_layer_norm(
 ) -> tuple[TensorType, TensorType, TensorType]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
-    return op.Identity(input), op.Identity(input), op.Identity(input)
+    raise NotImplementedError()
 
 
 def aten_native_layer_norm_backward(

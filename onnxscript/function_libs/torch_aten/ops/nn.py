@@ -337,22 +337,10 @@ def aten_gelu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::glu")
 def aten_glu(self: TensorType, dim: int = -1) -> TensorType:
     # glu(Tensor self, int dim=-1) -> Tensor
 
-    first, second = op.Split(self, axis=dim, num_outputs=2)
-    return first
-
-# def test_aten_glu():
-#     import numpy as np
-#     a = np.array([[1,2,3,4],[5,6,7,8]], dtype=np.float32)
-#     #b = aten_glu(a)
-#     b,d = op.Split(a, split=[2,2], axis=0)
-#     print(b)
-#     print("---------------")
-
-# test_aten_glu()
+    raise NotImplementedError()
 
 
 def aten_glu_backward(grad_output: TensorType, self: TensorType, dim: int) -> TensorType:
