@@ -332,12 +332,10 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
 
     if approximate == "tanh":
         # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
-        inner1 = op.Div(2.0, 3.141592653589793)
-        inner1 = op.Sqrt(inner1)
         self_cube = op.Pow(self, 3)
         inner = op.Mul(0.044715, self_cube)
         inner = op.Add(self, inner)
-        inner = op.Mul(inner1, inner)
+        inner = op.Mul(op.Sqrt(op.Div(2.0, 3.141592653589793)), inner)
         inner = op.Tanh(inner)
         inner = op.Add(inner, 1)
         inner = op.Mul(self, inner)
