@@ -331,31 +331,36 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::argmax")
+@torch_op("aten::argmax", trace_only=True)
 def aten_argmax(
     self: TensorType, dim: int = None, keepdim: bool = False
 ) -> TensorType:
     # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
-    #return op.ArgMax(self, axis=dim, keepdims=keepdim)
-
-    if op.OptionalHasElement(dim):
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    if self_is_scaler:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
-        result = op.ArgMax(self, keepdims=False)
-    else:
-        result = op.Identity(self)
+    elif dim == None:  # should use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.ArgMax(self, axis=dim, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
+
     return result
 
 
-def test_aten_argmax():
-    import numpy as np
-    a = np.array([[1,2],[2,2],[3,2],[4,2],[2,2]], dtype=np.float32)
-    b = aten_argmax(a)
-    print(b)
-    print("--------------")
+# def test_aten_argmax():
+#     import numpy as np
+#     a = np.array([[1,2,3,4,5],[2,3,4,5,6],[3,2,1,3,4]], dtype=np.float32)
+#     a = np.array(6.88, dtype=np.float32)
+#     b = aten_argmax(a, dim=0, keepdim=True)
+#     print(b)
+#     print("--------------")
 
-test_aten_argmax()
-exit(0)
+# test_aten_argmax()
+# exit(0)
+
 
 def aten_argmin(
     self: TensorType, dim: Optional[int] = None, keepdim: bool = False
