@@ -347,7 +347,8 @@ def aten_glu(self: TensorType, dim: int = -1) -> TensorType:
 def test_aten_glu():
     import numpy as np
     a = np.array([[1,2,3,4],[5,6,7,8]], dtype=np.float32)
-    b = aten_glu(a)
+    #b = aten_glu(a)
+    b,d = op.Split(a, split=[2,2], axis=0)
     print(b)
     print("---------------")
 
