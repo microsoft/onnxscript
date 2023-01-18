@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 import numpy as np
 import onnx
+import onnx.helper
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
@@ -78,6 +79,13 @@ class Evaluator(abc.ABC):
     def _eval(self, schema, inputs, attributes, closure):
         pass
 
+    def eval_function(self, function: values.OnnxFunction, *args, **kwargs):
+        """Evaluates a function in eager mode.
+
+        Override this function to change the evaluator's behavior for functions.
+        """
+        return function.function(*args, **kwargs)
+
 
 # Utilities for evaluation using ORT:
 
@@ -92,7 +100,7 @@ def _rename_io(prefix, i, arg):
     return f"{prefix}{i}"
 
 
-def compute_num_outputs(schema, *args, **kwargs):
+def _compute_num_outputs(schema, *args, **kwargs):
     """Returns the number of outputs expected.
     TODO: Use ONNX type inference to replace the special-case handling below.
     """
@@ -132,7 +140,7 @@ def _cache_(model, providers):
     return session
 
 
-def os_to_ort_value(v):
+def _os_to_ort_value(v):
     """Converts an onnxscript encoding of an ONNX value into the encoding used by ORT."""
     if isinstance(v, tensor.Tensor):
         return v.value
@@ -147,7 +155,7 @@ def os_to_ort_value(v):
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def ort_to_os_value(v):
+def _ort_to_os_value(v):
     """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
@@ -158,7 +166,7 @@ def ort_to_os_value(v):
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def call_ort(schema, args, kwargs, implicit_args=None):
+def _call_ort(schema, args, kwargs, implicit_args=None):
     from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
         Fail,
         InvalidArgument,
@@ -167,13 +175,13 @@ def call_ort(schema, args, kwargs, implicit_args=None):
 
     implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
-    args = [os_to_ort_value(x) for x in args]
-    implicit_args = {k: os_to_ort_value(v) for k, v in implicit_args.items()}
+    args = [_os_to_ort_value(x) for x in args]
+    implicit_args = {k: _os_to_ort_value(v) for k, v in implicit_args.items()}
 
     # Construct ONNX model with a single op call:
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
-    num_outputs = compute_num_outputs(schema, *args, **kwargs)
+    num_outputs = _compute_num_outputs(schema, *args, **kwargs)
     outputs = [f"output{str(i)}" for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)
@@ -219,7 +227,7 @@ def call_ort(schema, args, kwargs, implicit_args=None):
         ) from e
 
     # Map ORT output values to the onnxscript representation-type.
-    return [ort_to_os_value(x) for x in result]
+    return [_ort_to_os_value(x) for x in result]
 
 
 def schema_id(schema):
@@ -230,7 +238,7 @@ class ORTEvaluator(Evaluator):
     """Evaluates ONNX ops using ONNX Runtime."""
 
     def _eval(self, schema, inputs, attributes, closure):
-        return call_ort(schema, inputs, attributes, closure)
+        return _call_ort(schema, inputs, attributes, closure)
 
 
 ort_evaluator = ORTEvaluator()
