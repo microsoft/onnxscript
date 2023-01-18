@@ -395,6 +395,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
+    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
