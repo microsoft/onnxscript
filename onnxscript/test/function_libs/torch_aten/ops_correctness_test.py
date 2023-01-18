@@ -273,6 +273,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
     "empty": core_ops.aten_empty,
@@ -366,6 +367,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
+    "argmax": core_ops.aten_argmax,
+    "argmin": core_ops.aten_argmin,
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "transpose": core_ops.aten_transpose,
