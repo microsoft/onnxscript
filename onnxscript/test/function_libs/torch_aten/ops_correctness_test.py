@@ -154,6 +154,7 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
             for new_name in new_names:
                 if new_name in all_info_names:
                     warnings.warn(f"OpInfo {new_name} already exists in the database.")
+                    continue
                 new_opinfo = copy.deepcopy(opinfo)
                 new_opinfo.name = new_name
                 duplicated.append(new_opinfo)
