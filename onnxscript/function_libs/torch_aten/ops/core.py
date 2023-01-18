@@ -3526,9 +3526,12 @@ def aten_native_layer_norm(
 ) -> tuple[TReal, TReal, TReal]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
+    # for test only due to ReduceMean in opset18 is not ready yet
     from onnxscript.onnx_opset import (
-        opset17 as op,  # for test only due to ReduceMean in opset18 is not ready yet
+        opset17 as op,   # pylint: disable=redefined-outer-name
     )
+
+    input = op.Cast(input, to=DOUBLE.dtype)
 
     axes = [-i for i in range(len(normalized_shape), 0, -1)]
     mean = op.ReduceMean(input, axes=axes)
@@ -3539,10 +3542,15 @@ def aten_native_layer_norm(
     denominator = op.Sqrt(variance_eps)
     result = op.Div(numerator, denominator)
     if weight is not None:
+        weight = op.Cast(weight, to=DOUBLE.dtype)
         result = op.Mul(result, weight)
     if bias is not None:
+        bias = op.Cast(bias, to=DOUBLE.dtype)
         result = op.Add(result, bias)
     rdenominator = op.Reciprocal(denominator)
+    result = op.Cast(result, to=FLOAT.dtype)
+    mean = op.Cast(mean, to=FLOAT.dtype)
+    rdenominator = op.Cast(rdenominator, to=FLOAT.dtype)
     return result, mean, rdenominator
 
 
