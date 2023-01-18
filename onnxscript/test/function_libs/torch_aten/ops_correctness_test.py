@@ -9,6 +9,7 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 
 import numpy as np
 import onnx
+import packaging.version
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -191,7 +192,8 @@ def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Remove the self argument
-    args.pop(0)
+    if packaging.version.parse(torch.__version__) <= packaging.version.parse("1.13.1"):
+        args.pop(0)
     return args, kwargs
 
 
