@@ -148,9 +148,12 @@ def add_decorate_info(
 def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
     """Duplicate an opinfo in the opinfo database and give it a new name."""
     duplicated = []
+    all_info_names = {opinfo.name for opinfo in opinfos}
     for opinfo in opinfos:
         if opinfo.name == name:
             for new_name in new_names:
+                if new_name in all_info_names:
+                    warnings.warn(f"OpInfo {new_name} already exists in the database.")
                 new_opinfo = copy.deepcopy(opinfo)
                 new_opinfo.name = new_name
                 duplicated.append(new_opinfo)
