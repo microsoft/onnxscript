@@ -134,6 +134,12 @@ def _convert_kwargs_for_torchscript(kwargs):
     return encoded
 
 
+def _convert_result_to_torchscript(result):
+    if isinstance(result, tuple):
+        return tuple(v.symbolic() for v in result)
+    return result.symbolic()
+
+
 class TorchScriptEvaluator(evaluator.Evaluator):
     def __init__(self, graph: jit_utils.GraphContext):
         self._graph = graph
@@ -161,10 +167,9 @@ class TorchScriptEvaluator(evaluator.Evaluator):
 
         # This is not a tuple for now. TODO: Check output
         result = self._graph.op(opname, *args, **encoded_kwargs)
-        # if isinstance(result, tuple):
-        #     return tuple(TorchScriptTensor(v) for v in result)
-        # return TorchScriptTensor(result)
-        return result
+        if isinstance(result, tuple):
+            return tuple(TorchScriptTensor(v) for v in result)
+        return TorchScriptTensor(result)
 
     def _eval(self, schema, inputs, attributes):
         return self._graph.op(schema.name, *inputs, **attributes)
