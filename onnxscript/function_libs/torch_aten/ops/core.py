@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-import collections
+from collections import Iterable
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
@@ -997,15 +997,15 @@ def aten_conv2d(
         if padding == 'valid':
             padding = 0
 
-    if not isinstance(padding, collections.Iterable):
+    if not isinstance(padding, Iterable):
         padding = [padding, padding]
     pad_value = list(padding + padding)
 
-    if not isinstance(dilation, collections.Iterable):
+    if not isinstance(dilation, Iterable):
         dilation = [dilation]
     dilation = list(dilation)
 
-    if not isinstance(stride, collections.Iterable):
+    if not isinstance(stride, Iterable):
         stride = [stride, stride]
     stride = list(stride)
 
