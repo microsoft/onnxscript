@@ -323,5 +323,4 @@ def default_as(temp_default: Evaluator):
 
 def eval(schema, inputs, attributes):
     """Evaluate using current default evaluator"""
-
     return default().eval(schema, inputs, attributes)

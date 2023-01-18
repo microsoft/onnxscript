@@ -13,7 +13,6 @@ from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
 import numpy as np
 import onnx
 from onnx.defs import OpSchema
-from torch.onnx._internal import jit_utils
 
 from onnxscript import irbuilder, sourceinfo, tensor
 
