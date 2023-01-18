@@ -1405,7 +1405,7 @@ def aten_det(self: TensorType) -> TensorType:
 def aten_detach(self: TensorType) -> TensorType:
     # detach(Tensor(a) self) -> Tensor(a)
 
-    return self
+    return op.Identity(self)
 
 
 def aten_detach_copy(self: TensorType) -> TensorType:
