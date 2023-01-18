@@ -446,6 +446,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="as_tuple=True is not supported",
     ),
     skip(
+        "nn.functional.conv2d",
+        matcher=lambda sample: type(sample.kwargs.get("padding")) is str,
+        reason="String value of padding is not accepted by aten::conv2d op",
+    ),
+    skip(
         "nn.functional.adaptive_avg_pool1d",
         # Shape should be [N, C, D1]
         matcher=lambda sample: sample.args[0] not in {1, (1,)},

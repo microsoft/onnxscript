@@ -11,7 +11,6 @@
 """
 from __future__ import annotations
 
-from collections import Iterable
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
@@ -993,19 +992,15 @@ def aten_conv2d(
 ) -> TTensor:
     # conv2d(Tensor input, Tensor weight, Tensor? bias=None, int[2] stride=1, int[2] padding=0, int[2] dilation=1, int groups=1) -> Tensor
 
-    if isinstance(padding, str):
-        if padding == 'valid':
-            padding = 0
-
-    if not isinstance(padding, Iterable):
+    if not isinstance(padding, Sequence):
         padding = [padding, padding]
     pad_value = list(padding + padding)
 
-    if not isinstance(dilation, Iterable):
+    if not isinstance(dilation, Sequence):
         dilation = [dilation]
     dilation = list(dilation)
 
-    if not isinstance(stride, Iterable):
+    if not isinstance(stride, Sequence):
         stride = [stride, stride]
     stride = list(stride)
 
