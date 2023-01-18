@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import collections
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
@@ -980,18 +981,40 @@ def aten_conv1d(
     raise NotImplementedError()
 
 
+@torch_op("aten::conv2d", trace_only=True)
 def aten_conv2d(
-    input: TensorType,
-    weight: TensorType,
-    bias: Optional[TensorType] = None,
+    input: TTensor,
+    weight: TTensor,
+    bias: TTensor = None,
     stride: Sequence[int] = (1, 1),
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     groups: int = 1,
-) -> TensorType:
+) -> TTensor:
     # conv2d(Tensor input, Tensor weight, Tensor? bias=None, int[2] stride=1, int[2] padding=0, int[2] dilation=1, int groups=1) -> Tensor
 
-    raise NotImplementedError()
+    if isinstance(padding, str):
+        if padding == 'valid':
+            padding = 0
+
+    if not isinstance(padding, collections.Iterable):
+        padding = [padding, padding]
+    pad_value = list(padding + padding)
+
+    if not isinstance(dilation, collections.Iterable):
+        dilation = [dilation]
+    dilation = list(dilation)
+
+    if not isinstance(stride, collections.Iterable):
+        stride = [stride, stride]
+    stride = list(stride)
+
+    result = op.Conv(input, weight, bias, strides=stride, pads=pad_value, group=groups, dilations=dilation)
+
+    if bias is not None and op.Size(op.Shape(bias)) != 1:
+        result = op.Add(result, bias)
+
+    return result
 
 
 def aten_conv3d(

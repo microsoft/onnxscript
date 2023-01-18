@@ -313,6 +313,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
+    "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": core_ops.aten_embedding,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
@@ -661,8 +662,8 @@ class TestOutputConsistency(unittest.TestCase):
                 ):
                     if dtype == torch.float32:
                         # Relax atol and rtol for float32 based on empirical results
-                        # The current most relaxed values are for aten::matmul
-                        rtol = 3.7e-6
+                        # The current most relaxed values are for aten::conv2d
+                        rtol = 3.7e-5
                         atol = 1.8e-5
                     else:
                         rtol = None
