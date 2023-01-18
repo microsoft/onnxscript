@@ -13,24 +13,36 @@ from typing_extensions import get_args, get_origin
 
 from onnxscript.onnx_types import TensorType
 
+# TypeAnnotationValue represents the (value of) valid type-annotations recognized
+# by ONNX Script. TODO: Flesh out a formal definition. Currently, it supports
+# * float, int, str (primitive attribute types)
+# * Sequence[float], Sequence[int], Sequence[str] (attribute types)
+# * Tensor types
+# * Sequence[Tensor] types
+# * Union of above 2
+# * TypeVars with above bounds
+# * Above types with annotation attached
+TypeAnnotationValue = typing.Any
+
+# Map from python type to corresponding ONNX AttributeProto type
 _PYTYPE_TO_ATTRTYPE_MAP = {
     float: onnx.AttributeProto.FLOAT,
     int: onnx.AttributeProto.INT,
     str: onnx.AttributeProto.STRING,
-    bool: onnx.AttributeProto.INT,
 }
 
+# Map from python type to corresponding ONNX AttributeProto type,
+# for repeated (i.e., list of) values
 _LISTTYPE_TO_ATTRTYPE_MAP = {
     float: onnx.AttributeProto.FLOATS,
     int: onnx.AttributeProto.INTS,
     str: onnx.AttributeProto.STRINGS,
-    bool: onnx.AttributeProto.INTS,
 }
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
 
-def remove_annotation(typeinfo):
+def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
     """Remove Annotated wrapper if present, otherwise return typeinfo as is."""
     if hasattr(typing, "Annotated"):
         # Present in Python 3.9+
@@ -39,12 +51,14 @@ def remove_annotation(typeinfo):
     return typeinfo
 
 
-def is_primitive_attr_type(typeinfo) -> bool:
+def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
     return typeinfo in _PYTYPE_TO_ATTRTYPE_MAP
 
 
-def pytype_to_attrtype(pytype) -> typing.Optional[onnx.AttributeProto.AttributeType]:
-    pytype = remove_annotation(pytype)
+def pytype_to_attrtype(
+    pytype: TypeAnnotationValue,
+) -> typing.Optional[onnx.AttributeProto.AttributeType]:
+    pytype = _remove_annotation(pytype)
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
     type_constructor = get_origin(pytype)
@@ -61,7 +75,7 @@ def pytype_to_attrtype(pytype) -> typing.Optional[onnx.AttributeProto.AttributeT
     return None
 
 
-def is_tensor_type(typeinfo):
+def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
     if isinstance(typeinfo, TensorType):
         return True
     if inspect.isclass(typeinfo) and issubclass(typeinfo, TensorType):
@@ -69,14 +83,14 @@ def is_tensor_type(typeinfo):
     return False
 
 
-def is_value_type(typeinfo) -> bool:
+def is_value_type(typeinfo: TypeAnnotationValue) -> bool:
     """Returns True if typeinfo represents a value type, False if it is an attribute type.
     Raises ValueError if typeinfo is not a supported type annotation.
     """
-    typeinfo = remove_annotation(typeinfo)
-    if is_tensor_type(typeinfo):
+    typeinfo = _remove_annotation(typeinfo)
+    if _is_tensor_type(typeinfo):
         return True
-    if is_primitive_attr_type(typeinfo):
+    if _is_primitive_attr_type(typeinfo):
         return False
     type_constructor = get_origin(typeinfo)
     # Handle List-like type-constructor
@@ -106,11 +120,11 @@ def is_value_type(typeinfo) -> bool:
     raise ValueError(f"Unsupported type annotation {typeinfo}")
 
 
-def is_attr_type(pytype: type):
+def is_attr_type(pytype: TypeAnnotationValue):
     return is_value_type(pytype) is False
 
 
-def is_valid_type(typeinfo):
+def is_valid_type(typeinfo: TypeAnnotationValue):
     try:
         return is_value_type(typeinfo) in {True, False}
     except ValueError:
