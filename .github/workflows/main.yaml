@@ -17,33 +17,25 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
-          # - python311-onnx
-          # TODO: Enable python311 when onnx is updated
-          - python310-onnx
-          - python39-onnx
-          - python39-expe
-          - python38-expe
+          - python310
+          - python39
+          - python38
+          - python37
+          - python310-experimental
+          - python310-torch-nightly
         include:
-          # - name: python311-onnx
-          #   python-version: "3.11"
-          #   onnx_standard: true
-          #   test_examples: true
-          - name: python310-onnx
+          - name: python310
             python-version: "3.10"
-            onnx_standard: true
-            test_examples: true
-          - name: python39-onnx
+          - name: python39
             python-version: "3.9"
-            onnx_standard: true
-            test_examples: false
-          - name: python39-expe
-            python-version: "3.9"
-            onnx_standard: false
-            test_examples: false
-          - name: python38-expe
+          - name: python38
             python-version: "3.8"
-            onnx_standard: false
-            test_examples: false
+          - name: python37
+            python-version: "3.7"
+          - name: python310-experimental
+            python-version: "3.10"
+          - name: python310-torch-nightly
+            python-version: "3.10"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
