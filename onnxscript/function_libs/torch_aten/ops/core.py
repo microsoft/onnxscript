@@ -331,20 +331,38 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_argmax(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False
-) -> TensorType:
+@torch_op("aten::argmax", trace_only=True)
+def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    if self_is_scaler:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    elif dim is None:  # should use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.ArgMax(self, axis=dim, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
+
+    return result
 
 
-def aten_argmin(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False
-) -> TensorType:
+@torch_op("aten::argmin", trace_only=True)
+def aten_argmin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    if self_is_scaler:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    elif dim is None:  # should use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.ArgMin(self, axis=dim, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_argsort(self: TensorType, dim: int = -1, descending: bool = False) -> TensorType:
@@ -1383,10 +1401,11 @@ def aten_det(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::detach")
 def aten_detach(self: TensorType) -> TensorType:
     # detach(Tensor(a) self) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_detach_copy(self: TensorType) -> TensorType:
@@ -1984,7 +2003,7 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     # ge.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Greater(self, other)
+    return op.GreaterOrEqual(self, other)
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -2542,7 +2561,7 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
 def aten_le(self: TReal, other: TReal) -> BOOL:
     # le.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Less(self, other)
+    return op.LessOrEqual(self, other)
 
 
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
