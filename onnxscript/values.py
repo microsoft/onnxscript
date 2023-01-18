@@ -213,8 +213,6 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
             return input
         elif isinstance(input, (bool, int, float)):
             return tensor.Tensor(np.array(input))
-        elif isinstance(input, str):
-            return input
         elif input is None:
             return None
         elif isinstance(input, list):
