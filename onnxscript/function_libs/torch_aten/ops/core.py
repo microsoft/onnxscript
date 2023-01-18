@@ -3516,16 +3516,32 @@ def aten_native_group_norm_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
-    input: TensorType,
+    input: TReal,
     normalized_shape: INT64,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
+    weight: Optional[TReal],
+    bias: Optional[TReal],
     eps: float,
-) -> tuple[TensorType, TensorType, TensorType]:
+) -> tuple[TReal, TReal, TReal]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
-    raise NotImplementedError()
+    from onnxscript.onnx_opset import opset17 as op  # for test only, due to opset18 is not ready
+
+    axes = [-i for i in range(len(normalized_shape), 0, -1)]
+    mean = op.ReduceMean(input, axes=axes)
+    numerator = op.Sub(input, mean)
+    power_num = op.Pow(numerator, 2.0)
+    variance = op.ReduceMean(power_num, axes=axes)
+    variance_eps = op.Add(variance, eps)
+    denominator = op.Sqrt(variance_eps)
+    result = op.Div(numerator, denominator)
+    if weight is not None:
+        result = op.Mul(result, weight)
+    if bias is not None:
+        result = op.Add(result, bias)
+    rdenominator = op.Reciprocal(denominator)
+    return result, mean, rdenominator
 
 
 def aten_native_layer_norm_backward(
