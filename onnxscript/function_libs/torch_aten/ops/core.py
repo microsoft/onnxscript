@@ -3528,7 +3528,7 @@ def aten_native_layer_norm(
 
     # for test only due to ReduceMean in opset18 is not ready yet
     from onnxscript.onnx_opset import (
-        opset17 as op,   # pylint: disable=redefined-outer-name
+        opset17 as op,  # pylint: disable=redefined-outer-name
     )
 
     input = op.Cast(input, to=DOUBLE.dtype)
