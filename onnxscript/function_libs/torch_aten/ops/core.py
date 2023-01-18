@@ -984,7 +984,7 @@ def aten_conv1d(
 def aten_conv2d(
     input: TTensor,
     weight: TTensor,
-    bias: TTensor = None,
+    bias: Optional[TTensor] = None,
     stride: Sequence[int] = (1, 1),
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
@@ -997,7 +997,7 @@ def aten_conv2d(
     pad_value = list(padding + padding)
 
     if not isinstance(dilation, Sequence):
-        dilation = [dilation]
+        dilation = [dilation, dilation]
     dilation = list(dilation)
 
     if not isinstance(stride, Sequence):
@@ -1006,8 +1006,10 @@ def aten_conv2d(
 
     result = op.Conv(input, weight, bias, strides=stride, pads=pad_value, group=groups, dilations=dilation)
 
-    if bias is not None and op.Size(op.Shape(bias)) != 1:
+    if bias is not None:
         result = op.Add(result, bias)
+
+    # TODO(justinchuby): Use groups?
 
     return result
 
