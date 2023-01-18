@@ -52,7 +52,7 @@ jobs:
       - name: Setup test suite
         run: tox -m ${{ matrix.name }} --colored yes -vv --notest
       - name: Run test suite
-        run: tox -m ${{ matrix.name }} --colored yes --skip-pkg-install
+        run: tox -m ${{ matrix.name }} --colored yes --skip-pkg-install -- -v --cov=onnxscript --cov-report=xml -n=auto
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
 
