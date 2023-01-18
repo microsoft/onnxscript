@@ -14,7 +14,7 @@ import numpy as np
 import onnx
 import onnx.defs
 
-from onnxscript import irbuilder, sourceinfo, tensor, evaluator
+from onnxscript import irbuilder, sourceinfo, tensor
 
 
 class Opset:
@@ -143,6 +143,9 @@ class Op:
         return new_kwargs
 
     def __call__(self, *args, **kwargs):
+        # FIXME(after #225): Move import to the top of the file.
+        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
+
         return evaluator.eval(self.opschema, args, self._convert_kwargs_to_numpy(kwargs))
 
 
@@ -280,6 +283,9 @@ class OnnxFunction(Op):
         """
 
         def fun(*args, **kwargs):
+            # FIXME(after #225): Move import to the top of the file.
+            from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
+
             with evaluator.default_as(instance):
                 return self.__call__(*args, **kwargs)
 
@@ -287,6 +293,9 @@ class OnnxFunction(Op):
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
+        # FIXME(after #225): Move import to the top of the file.
+        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
+
         new_args, has_array = _adapt_to_eager_mode(args)
         result = evaluator.default().eval_function(self, *new_args, **kwargs)
 
