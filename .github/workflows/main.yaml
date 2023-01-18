@@ -57,9 +57,9 @@ jobs:
           cache: pip
           cache-dependency-path: "**/requirements-dev.txt"
       - name: Setup test suite
-        run: tox -m ${{ matrix.name }} -vv --notest
+        run: tox -m ${{ matrix.name }} --colored yes -vv --notest
       - name: Run test suite
-        run: tox -m ${{ matrix.name }}
+        run: tox -m ${{ matrix.name }} --colored yes --skip-pkg-install
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
 
