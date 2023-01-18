@@ -30,22 +30,16 @@ jobs:
         include:
           - name: python310
             python-version: "3.10"
-            toxenv: "py310,examples,build"
           - name: python39
             python-version: "3.9"
-            toxenv: "py39,examples,build"
           - name: python38
             python-version: "3.8"
-            toxenv: "py38,examples,build"
           - name: python37
             python-version: "3.7"
-            toxenv: "py37,examples,build"
           - name: python310-experimental
             python-version: "3.10"
-            toxenv: "test_onnx_preview,examples,build"
           - name: python310-torch-nightly
             python-version: "3.10"
-            toxenv: "test_torch_nightly"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup Python for tox
@@ -62,9 +56,9 @@ jobs:
           cache: pip
           cache-dependency-path: "**/requirements-dev.txt"
       - name: Setup test suite
-        run: tox -e ${{ matrix.toxenv }} -vv --notest
+        run: tox -m ${{ matrix.name }} -vv --notest
       - name: Run test suite
-        run: tox -e ${{ matrix.toxenv }}
+        run: tox -m ${{ matrix.name }}
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
 
