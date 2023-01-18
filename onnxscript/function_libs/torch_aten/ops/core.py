@@ -2003,7 +2003,7 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     # ge.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Greater(self, other)
+    return op.GreaterOrEqual(self, other)
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -2561,7 +2561,7 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
 def aten_le(self: TReal, other: TReal) -> BOOL:
     # le.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Less(self, other)
+    return op.LessOrEqual(self, other)
 
 
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
