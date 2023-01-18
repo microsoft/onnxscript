@@ -332,7 +332,7 @@ def aten_arctanh(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::argmax", trace_only=True)
-def aten_argmax(self: TReal, dim: int = None, keepdim: bool = False) -> TReal:
+def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -1405,7 +1405,7 @@ def aten_det(self: TensorType) -> TensorType:
 def aten_detach(self: TensorType) -> TensorType:
     # detach(Tensor(a) self) -> Tensor(a)
 
-    return op.Identity(self)
+    return self
 
 
 def aten_detach_copy(self: TensorType) -> TensorType:

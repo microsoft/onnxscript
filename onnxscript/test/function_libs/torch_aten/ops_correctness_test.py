@@ -256,8 +256,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    # "argmax": core_ops.aten_argmax,  # using trace_on=True mode to walkaround the OptionalHasElement()
-    # "argmin": core_ops.aten_argmin,  # using trace_on=True mode to walkaround the OptionalHasElement()
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
     "arange_start_step": (core_ops.aten_arange_start_step, _arange_input_wrangler),
@@ -367,6 +365,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
+    "argmax": core_ops.aten_argmax,
+    "argmin": core_ops.aten_argmin,
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "transpose": core_ops.aten_transpose,
