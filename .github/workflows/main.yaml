@@ -25,7 +25,6 @@ jobs:
           - python310
           - python39
           - python38
-          - python37
           - python310-experimental
           - python310-torch-nightly
         include:
@@ -35,8 +34,6 @@ jobs:
             python-version: "3.9"
           - name: python38
             python-version: "3.8"
-          - name: python37
-            python-version: "3.7"
           - name: python310-experimental
             python-version: "3.10"
           - name: python310-torch-nightly
