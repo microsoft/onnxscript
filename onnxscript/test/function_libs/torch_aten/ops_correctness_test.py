@@ -307,7 +307,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
-    "native_layer_norm": core_ops.aten_native_layer_norm,
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,
@@ -372,6 +371,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
+    "native_layer_norm": core_ops.aten_native_layer_norm,
     "transpose": core_ops.aten_transpose,
 }
 

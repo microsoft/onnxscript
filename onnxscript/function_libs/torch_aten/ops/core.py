@@ -3526,11 +3526,6 @@ def aten_native_layer_norm(
 ) -> tuple[TReal, TReal, TReal]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
-    # for test only due to ReduceMean in opset18 is not ready yet
-    from onnxscript.onnx_opset import (
-        opset17 as op,  # pylint: disable=import-outside-toplevel
-    )
-
     axes = [-i for i in range(len(normalized_shape), 0, -1)]
     mean = op.ReduceMean(input, axes=axes)
     numerator = op.Sub(input, mean)
