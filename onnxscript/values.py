@@ -288,7 +288,7 @@ class OnnxFunction(Op):
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
         new_args, has_array = _adapt_to_eager_mode(args)
-        result = evaluator.default().eval_function(self, new_args, kwargs)
+        result = evaluator.default().eval_function(self, *new_args, **kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one

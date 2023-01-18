@@ -31,6 +31,10 @@ class Tensor:
         return self._nparray
 
     @property
+    def rank(self):
+        return len(self._nparray.shape)
+
+    @property
     def shape(self):
         return self._nparray.shape
 
