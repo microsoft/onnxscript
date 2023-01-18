@@ -199,7 +199,7 @@ def aten_binary_cross_entropy_backward(
 
 
 @torch_op("aten::celu")
-def aten_celu(self: TFloat, alpha: float = 1.0) -> TFloat:
+def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     # celu(Tensor self, Scalar alpha=1.0) -> Tensor
 
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
@@ -332,8 +332,8 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
 
     if approximate == "tanh":
         # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
-        self_cube = op.Pow(self, 3)
-        inner = op.Mul(0.044715, self_cube)
+        cubed = op.Pow(self, 3)
+        inner = op.Mul(0.044715, cubed)
         inner = op.Add(self, inner)
         inner = op.Mul(op.Sqrt(op.Div(2.0, 3.141592653589793)), inner)
         inner = op.Tanh(inner)
