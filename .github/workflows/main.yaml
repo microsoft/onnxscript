@@ -21,6 +21,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
+          # names should match tox labels in tox.ini
           - python310
           - python39
           - python38
