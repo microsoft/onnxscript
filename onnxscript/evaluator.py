@@ -65,14 +65,16 @@ class Evaluator(abc.ABC):
                 )
         return closure
 
-    def adapt_outputs(self, schema, outputs):  # pylint: disable=unused-argument
+    def adapt_outputs(self, schema, outputs):
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
         """
+        del schema  # unused
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def use_graph_attribute(self, schema):  # pylint: disable=unused-argument
+    def use_graph_attribute(self, schema):
+        del schema  # unused
         return True
 
     @abc.abstractmethod
