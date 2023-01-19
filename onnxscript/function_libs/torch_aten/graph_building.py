@@ -178,7 +178,7 @@ class TorchScriptEvaluator(evaluator.Evaluator):
 
     def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
         # TODO: Decide input and outputs
-        # SHould this be done by the graph or the evaluator?
+        # Should this be done by the graph or the evaluator?
         return self._graph.add_function(function, inputs, attributes)
 
     def _eval(self, schema, inputs, attributes):
@@ -262,21 +262,19 @@ class TorchScriptGraph:
         result = self._add_torchscript_op(
             onnx_op.name, onnx_inputs, onnx_attributes, outputs=1
         )
+        result = self._add_torchscript_op(
+            onnx_op.name, onnx_inputs, onnx_attributes, outputs=1
+        )
 
         return result
 
+
     def add_function(
         self,
-        onnx_function: onnxscript.OnnxFunction,
-        onnx_inputs,
-        onnx_attributes,
-    ):
-        self._function_store[onnx_function.name] = onnx_function
-        # Compute outputs from the function ir
+        onnx_function,
 
-        # This is not a tuple for now. TODO: Check output
-        result = self._add_torchscript_op(
-            onnx_function.name, onnx_inputs, onnx_attributes, outputs=1
-        )
+    )
+
+        return result
 
         return result
