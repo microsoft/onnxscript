@@ -232,7 +232,7 @@ def _call_ort(schema, args, kwargs, implicit_args=None):
     return [_ort_to_os_value(x) for x in result]
 
 
-def schema_id(schema):
+def _schema_id(schema):
     return schema.name, schema.domain, schema.since_version
 
 
@@ -257,10 +257,10 @@ class ORTMixedEvaluator(ORTEvaluator):
         self._python_ops: dict[Any, Any] = {}
 
     def use_graph_attribute(self, schema):
-        return schema_id(schema) not in self._python_ops
+        return _schema_id(schema) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
-        schemaid = schema_id(schema)
+        schemaid = _schema_id(schema)
         if schemaid in self._python_ops:
             return self._python_ops[schemaid](inputs, attributes)
         else:
@@ -271,7 +271,7 @@ class ORTMixedEvaluator(ORTEvaluator):
 
         def decorator(function):
             schema = opset[function.__name__]
-            self._python_ops[schema_id(schema)] = function
+            self._python_ops[_schema_id(schema)] = function
             return function
 
         return decorator
