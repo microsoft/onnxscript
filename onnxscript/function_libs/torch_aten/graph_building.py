@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import collections
 import warnings
+from typing import Tuple, Union
 
 import onnx
 import torch
@@ -139,9 +140,58 @@ def _convert_result_to_torchscript(result):
         return tuple(v.symbolic() for v in result)
     return result.symbolic()
 
+class TorchScriptGraph:
+    def __init__(self, opset_version=16):
+        self._graph = torch._C.Graph()
+        self._graph_context = jit_utils.GraphContext(
+            graph=self._graph,
+            block=self._graph.block(),  # Pointless. Just make linter happy.
+            opset=opset_version,
+            original_node=self._graph.insertPoint(),  # Pointless. Just make linter happy.
+            params_dict={},  # Pointless. Just make linter happy.
+            env={},  # Pointless. Just make linter happy.
+        )
+
+    @property
+    def graph(self):
+        return self._graph
+
+    @property
+    def graph_context(self):
+        return self._graph_context
+
+    def add_input(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
+        torch_value = self.graph.addInput(input_name)
+        torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
+        return torch_value
+
+    def register_output(self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]):
+        if isinstance(outputs, TorchScriptTensor):
+            self.graph.registerOutput(outputs)
+        else:
+            for ts_output in outputs:
+                assert isinstance(
+                    ts_output, TorchScriptTensor
+                ), f"ts_output must be a torch._C.Value, not {type(ts_output)}"
+                self.graph.registerOutput(ts_output)
+
+    def op(self, opname: str, *arg, **kwargs):
+        # unwrap TorchScriptTensor
+        args = [arg.symbolic() if isinstance(arg, TorchScriptTensor) else arg for arg in args]
+
+        kwargs = {
+            k: v.symbolic() if isinstance(v, TorchScriptTensor) else v
+            for k, v in kwargs.items()
+        }
+        encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
+
+        # This is not a tuple for now. TODO: Check output
+        result = self._graph.op(opname, *args, **encoded_kwargs)
+
+        return result
 
 class TorchScriptEvaluator(evaluator.Evaluator):
-    def __init__(self, graph: jit_utils.GraphContext):
+    def __init__(self, graph: TorchScriptGraph):
         self._graph = graph
         self._ops_to_function = {}
 
@@ -156,17 +206,7 @@ class TorchScriptEvaluator(evaluator.Evaluator):
         self._ops_to_function[function.name] = function
         opname = function.opset.domain + "::" + function.name
 
-        # unwrap TorchScriptTensor
-        args = [arg.symbolic() if isinstance(arg, TorchScriptTensor) else arg for arg in args]
 
-        kwargs = {
-            k: v.symbolic() if isinstance(v, TorchScriptTensor) else v
-            for k, v in kwargs.items()
-        }
-        encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
-
-        # This is not a tuple for now. TODO: Check output
-        result = self._graph.op(opname, *args, **encoded_kwargs)
         if isinstance(result, tuple):
             return tuple(TorchScriptTensor(v) for v in result)
         return TorchScriptTensor(result)
