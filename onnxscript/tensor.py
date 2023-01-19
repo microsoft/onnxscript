@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 import numpy as np
 from onnx import TensorProto
@@ -37,7 +37,7 @@ class Tensor:
         return len(self.value.shape)
 
     @property
-    def shape(self) -> Sequence[int]:
+    def shape(self) -> tuple[int]:
         return self.value.shape
 
     @property
@@ -46,6 +46,7 @@ class Tensor:
 
     @property
     def onnx_dtype(self) -> TensorProto.DataType:
+        # FIXME: NP_TYPE_TO_TENSOR_TYPE is deprecated
         return NP_TYPE_TO_TENSOR_TYPE[self.dtype]
 
     def __repr__(self) -> str:
