@@ -259,8 +259,8 @@ class OnnxFunction(Op):
         kwargs: additional properties used to construct a ModelProto
     """
 
-    def __init__(self, opset, pyfun, irfun, source, kwargs):
-        opset = opset or Opset(irfun.domai: irbuilder.IRFunctionn, 1)
+    def __init__(self, opset, pyfun, irfun: irbuilder.IRFunction, source, kwargs):
+        opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun
         self.function_ir = irfun
