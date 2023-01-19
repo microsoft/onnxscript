@@ -260,7 +260,7 @@ class OnnxFunction(Op):
     """
 
     def __init__(self, opset, pyfun, irfun, source, kwargs):
-        opset = opset or Opset(irfun.domain, 1)
+        opset = opset or Opset(irfun.domai: irbuilder.IRFunctionn, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun
         self.function_ir = irfun

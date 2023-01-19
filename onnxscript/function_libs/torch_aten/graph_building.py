@@ -4,6 +4,7 @@ from __future__ import annotations
 import collections
 import typing
 import warnings
+from typing import Dict, List, Tuple, Union, Any
 
 import numpy as np
 import onnx
@@ -14,6 +15,8 @@ from torch.onnx._internal import jit_utils
 import onnxscript
 from onnxscript import evaluator, tensor as onnxscript_tensor
 
+
+ValidArgumentType = Union["TorchScriptTensor", str, int, float]
 
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
@@ -87,7 +90,7 @@ def _parse_node(value: torch.Value):
     raise ValueError("[ERROR] Attribute is not Constant!!!")
 
 
-def adapt_torchscript_inputs(onnx_func, args, kwargs):
+def _adapt_torchscript_inputs(onnx_func, args, kwargs):
     func_ir = onnx_func.function_ir
     assert len(func_ir.inputs) + len(func_ir.attr_protos) == len(args)
     # The first len(func_ir.inputs) arguements are onnx inputs
@@ -122,17 +125,10 @@ def adapt_torchscript_inputs(onnx_func, args, kwargs):
         if key not in onnx_attrs:
             onnx_attrs[key] = attr_proto.value
 
-    # wrap torch.Value with TorchScriptTensor
-    onnx_inputs = [
-        TorchScriptTensor(v) if isinstance(v, torch.Value) else v for v in onnx_inputs
-    ]
-    onnx_attrs = {
-        k: TorchScriptTensor(v) if isinstance(v, torch.Value) else v
-        for k, v in onnx_attrs.items()
-    }
+    onnx_inputs = _wrap_torch_value_to_tensor(onnx_inputs)
+    onnx_attrs = _wrap_torch_value_to_tensor(onnx_attrs)
 
     return onnx_inputs, onnx_attrs
-
 
 def _convert_kwargs_for_torchscript(kwargs):
     encoded = {}
@@ -151,41 +147,58 @@ def _convert_kwargs_for_torchscript(kwargs):
         encoded[attr_name] = attr
     return encoded
 
+def _wrap_torch_value_to_tensor(value: Union[Dict[str, Any], List]) -> Union[Dict[str, Any], List]:
+    # wrap torch.Value with TorchScriptTensor
+    if isinstance(value, dict):
+        value = {
+            k: TorchScriptTensor(v) if isinstance(v, torch.Value) else v
+            for k, v in value.items()
+        }
+    elif isinstance(value, list):
+        value = [
+            TorchScriptTensor(v) if isinstance(v, torch.Value) else v for v in value
+        ]
+    elif isinstance(value, tuple):
+        return tuple(TorchScriptTensor(v) if isinstance(v, torch.Value) else v for v in value)
+    elif isinstance(value, TorchScriptTensor):
+        value = value.symbolic_value()
+    return value
 
-def _convert_result_to_torchscript(result):
-    if isinstance(result, tuple):
-        return tuple(v.symbolic_value() for v in result)
-    return result.symbolic_value()
-
-
+def _unwrap_torch_value_to_tensor(value: Union[Dict[str, Any], List]) -> Union[Dict[str, Any], List]:
+    # unwrap TorchScriptTensor
+    if isinstance(value, dict):
+        value = {
+            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
+            for k, v in value.items()
+        }
+    elif isinstance(value, list):
+        value = [
+            v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in value
+        ]
+    elif isinstance(value, tuple):
+        return tuple(v.symbolic_value() for v in value)
+    elif isinstance(value, TorchScriptTensor):
+        value = value.symbolic_value()
+    return value
 class TorchScriptEvaluator(evaluator.Evaluator):
-    def __init__(self, graph):
+    def __init__(self, graph: TorchScriptGraph):
         self._graph = graph
-        # All the functions used, deduplicated by name
-        self._function_store: dict[str, onnxscript.OnnxFunction] = {}
 
     @property
-    def graph(self):
+    def graph(self) -> TorchScriptGraph:
         return self._graph
-
-    def functions(self):
-        return self._function_store
 
     def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
         self._function_store[function.name] = function
         opname = function.opset.domain + "::" + function.name
 
-        # unwrap TorchScriptTensor
-        args = [arg.symbolic_value() if isinstance(arg, TorchScriptTensor) else arg for arg in args]
-
-        kwargs = {
-            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
-            for k, v in kwargs.items()
-        }
+        # # unwrap TorchScriptTensor
+        args = _unwrap_torch_value_to_tensor(args)
+        kwargs = _unwrap_torch_value_to_tensor(kwargs)
         encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
 
         # This is not a tuple for now. TODO: Check output
-        result = self._graph.op(opname, *args, **encoded_kwargs)
+        result = self._graph.op(opname, args, encoded_kwargs, outputs=...)
         if isinstance(result, tuple):
             return tuple(TorchScriptTensor(v) for v in result)
         return TorchScriptTensor(result)
@@ -193,17 +206,20 @@ class TorchScriptEvaluator(evaluator.Evaluator):
     def _eval(self, schema, inputs, attributes):
         return self._graph.op(schema.name, *inputs, **attributes)
 
+
 class TorchScriptGraph:
-    def __init__(self, opset_version=16):
+    def __init__(self):
         self._graph = torch._C.Graph()
         self._graph_context = jit_utils.GraphContext(
             graph=self._graph,
             block=self._graph.block(),  # Pointless. Just make linter happy.
-            opset=opset_version,
+            opset=-1,
             original_node=self._graph.insertPoint(),  # Pointless. Just make linter happy.
             params_dict={},  # Pointless. Just make linter happy.
             env={},  # Pointless. Just make linter happy.
         )
+        # All the functions used, deduplicated by name
+        self._function_store: dict[str, onnxscript.OnnxFunction] = {}
 
     @property
     def graph(self):
@@ -218,7 +234,7 @@ class TorchScriptGraph:
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
         return torch_value
 
-    def register_output(self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]):
+    def register_output(self, outputs: Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]):
         if isinstance(outputs, TorchScriptTensor):
             self.graph.registerOutput(outputs)
         else:
@@ -227,18 +243,28 @@ class TorchScriptGraph:
                     ts_output, TorchScriptTensor
                 ), f"ts_output must be a torch._C.Value, not {type(ts_output)}"
                 self.graph.registerOutput(ts_output)
+        return
 
-    def op(self, opname: str, *arg, **kwargs):
+    def add_op(
+        self,
+        onnx_op,
+        args: Sequence[ValidArgumentType | Sequence[ValidArgumentType]],
+        kwargs: dict[str, ValidArgumentType | Sequence[ValidArgumentType]]]],
+    ):
         # unwrap TorchScriptTensor
-        args = [arg.symbolic() if isinstance(arg, TorchScriptTensor) else arg for arg in args]
-
-        kwargs = {
-            k: v.symbolic() if isinstance(v, TorchScriptTensor) else v
-            for k, v in kwargs.items()
-        }
+        args = _unwrap_torch_value_to_tensor(args)
+        kwargs = _unwrap_torch_value_to_tensor(kwargs)
         encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
 
+        # Compute outputs from the onnx_op op schema
+
         # This is not a tuple for now. TODO: Check output
-        result = self._graph.op(opname, *args, **encoded_kwargs)
+        result = self._graph.op(onnx_op.name, *args, outputs=1, **encoded_kwargs)
 
         return result
+        
+    def add_function(
+        self,
+        onnx_function,
+        
+    )
