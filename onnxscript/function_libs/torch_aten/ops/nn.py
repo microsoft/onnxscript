@@ -245,6 +245,20 @@ def aten_cross_entropy_loss(
     raise NotImplementedError()
 
 
+@torch_op("aten::dropout")
+def aten_dropout(input: TReal, p: TFloatOrBFloat16, training: bool = False) -> TReal:
+    # dropout(Tensor input, float p, bool train) -> Tensor
+
+    if training:
+        rand = op.RandomUniformLike(input)
+        mask = op.GreaterOrEqual(rand, p)
+        result = op.Div(op.Where(mask, input, 0), 1.0 - p)
+    else:
+        result = input
+
+    return result
+
+
 @torch_op("aten::elu")
 def aten_elu(
     self: TFloat,

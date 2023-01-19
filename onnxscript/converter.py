@@ -301,6 +301,8 @@ class Converter:
             attrname = "value_string"
         elif pytype is List[int]:
             attrname = "value_ints"
+        elif pytype is bool:
+            attrname = "value_int"
         else:
             self.fail(val, f"Unsupported attribute type {pytype!r}.")
         return self.ir_builder.make_attr_ref(attrname, val.value, pytype)

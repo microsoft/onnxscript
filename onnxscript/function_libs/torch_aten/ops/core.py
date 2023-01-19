@@ -1513,12 +1513,6 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     return op.MatMul(self, tensor)
 
 
-def aten_dropout(input: TensorType, p: float, train: bool) -> TensorType:
-    # dropout(Tensor input, float p, bool train) -> Tensor
-
-    raise NotImplementedError()
-
-
 def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
     # dstack(Tensor[] tensors) -> Tensor
 
