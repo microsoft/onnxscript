@@ -262,9 +262,6 @@ class TorchScriptGraph:
         result = self._add_torchscript_op(
             onnx_op.name, onnx_inputs, onnx_attributes, outputs=1
         )
-        result = self._add_torchscript_op(
-            onnx_op.name, onnx_inputs, onnx_attributes, outputs=1
-        )
 
         return result
 
