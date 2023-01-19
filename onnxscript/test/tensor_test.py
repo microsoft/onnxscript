@@ -39,6 +39,23 @@ class TestTensor(unittest.TestCase):
         with self.assertRaises(ValueError):
             bool(x)
 
+    def test_it_can_be_initialized_with_none(self):
+        x = tensor.Tensor(None)
+        with self.assertRaises(ValueError):
+            _ = x.value
+
+    def test_rank_is_zero_for_scalar(self):
+        x = tensor.Tensor(np.array(1))
+        self.assertEqual(x.rank, 0)
+
+    def test_rank_is_one_for_vector(self):
+        x = tensor.Tensor(np.array([1, 2, 3]))
+        self.assertEqual(x.rank, 1)
+
+    def test_rank_is_two_for_matrix(self):
+        x = tensor.Tensor(np.array([[1, 2, 3], [4, 5, 6]]))
+        self.assertEqual(x.rank, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
