@@ -4506,27 +4506,25 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-from onnxscript.onnx_opset import opset17 as op17
-
 @torch_op("aten::split")
 def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
+    from onnxscript.onnx_opset import opset17 as op17
 
-    split_size_is_scalar = op17.Size(op17.Shape(split_size)) == 0  # split_size means size of single chunk
-    if split_size_is_scalar:  # calculate number of outputs
-        size_of_dim = op17.Shape(self, start=0, end=1)  # TODO: start=dim, end=dim+1, but this cannot support now
-        size_of_dim = op17.Cast(size_of_dim, to=FLOAT.dtype)
-        split_size = op17.Cast(split_size, to=FLOAT.dtype)
-        num_out = op17.Div(size_of_dim, split_size)
-        num_out = op17.Ceil(num_out)
-        num_out = op17.Cast(num_out, to=INT64.dtype)
-        #result = op17.Split(self, axis=dim, num_outputs=num_out)   # waiting for opset18 ort 1.14 release
-        result = op17.Split(self, axis=dim)
-    else:
-        split_size = op17.Cast(split_size, to=INT64.dtype)
-        result = op17.Split(self, split_size, axis=dim)
-    return result
+    return op17.SplitToSequence(self, split_size, axis=dim)
 
+
+def test_aten_split():
+    import numpy as np
+    a = np.arange(10, dtype=np.float32).reshape(5,2)
+    s = 2
+    dim = 0
+    b = aten_split(a, s)
+    print(b)
+    print("------------------")
+
+test_aten_split()
+exit(0)
 
 def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
     # split_copy.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]
