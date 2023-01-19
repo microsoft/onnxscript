@@ -156,7 +156,7 @@ def graph():
     # inside Sum in the above example).
 
     function_frame = sys._getframe(1)  # pylint: disable=protected-access
-    wrapper_frame = sys._getframe(2)  # pylint: disable=protected-access
+    wrapper_frame = sys._getframe(3)  # pylint: disable=protected-access
     onnx_function = wrapper_frame.f_locals["self"]
     nested_functions = onnx_function.function_ir.nested_functions
 
