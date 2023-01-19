@@ -983,18 +983,36 @@ def aten_conv1d(
     raise NotImplementedError()
 
 
+@torch_op("aten::conv2d", trace_only=True)
 def aten_conv2d(
-    input: TensorType,
-    weight: TensorType,
-    bias: Optional[TensorType] = None,
+    input: TFloat,
+    weight: TFloat,
+    bias: Optional[TFloat] = None,
     stride: Sequence[int] = (1, 1),
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     groups: int = 1,
-) -> TensorType:
+) -> TFloat:
     # conv2d(Tensor input, Tensor weight, Tensor? bias=None, int[2] stride=1, int[2] padding=0, int[2] dilation=1, int groups=1) -> Tensor
 
-    raise NotImplementedError()
+    if not isinstance(padding, Sequence):
+        padding = (padding, padding)
+    pads = list(padding + padding)
+
+    if not isinstance(dilation, Sequence):
+        dilation = (dilation, dilation)
+    dilations = list(dilation)
+
+    if not isinstance(stride, Sequence):
+        stride = (stride, stride)
+    strides = list(stride)
+
+    result = op.Conv(input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations)
+
+    if bias is not None:
+        result = op.Add(result, bias)
+
+    return result
 
 
 def aten_conv3d(

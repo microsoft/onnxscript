@@ -330,6 +330,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
+    "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": core_ops.aten_embedding,
     "nn.functional.gelu": nn_ops.aten_gelu,
@@ -462,6 +463,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
+    ),
+    skip(
+        "nn.functional.conv2d",
+        matcher=lambda sample: type(sample.kwargs.get("padding")) is str,
+        reason="String value of padding is not accepted by aten::conv2d op",
     ),
     skip(
         "nn.functional.adaptive_avg_pool1d",
