@@ -204,9 +204,9 @@ class TorchScriptGraph:
     def graph(self):
         return self._graph
 
-    # @property
-    # def graph_context(self):
-    #     return self._graph_context
+    @property
+    def graph_context(self):
+        return self._graph_context
 
     def add_input(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
         # TODO: Take in a TorchScriptTensor?
@@ -217,15 +217,16 @@ class TorchScriptGraph:
     def register_output(
         self, outputs: Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]
     ):
-        # TODO: Unwrap TorchScriptTensors?
         if isinstance(outputs, TorchScriptTensor):
-            self._graph.registerOutput(outputs)
+            unwrapped_outputs = outputs.symbolic_value()
+            self._graph.registerOutput(unwrapped_outputs)
         else:
             for ts_output in outputs:
                 assert isinstance(
                     ts_output, TorchScriptTensor
                 ), f"ts_output must be a torch._C.Value, not {type(ts_output)}"
-                self._graph.registerOutput(ts_output)
+                unwrapped_ts_output = ts_output.symbolic_value()
+                self._graph.registerOutput(unwrapped_ts_output)
         return
 
     def _add_torchscript_op(
@@ -235,6 +236,7 @@ class TorchScriptGraph:
         onnx_attributes,
         outputs: int,
     ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
+        # TODO(titaiwang) why not have unwrap function
         unwrapped_inputs = [
             v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in onnx_inputs
         ]
