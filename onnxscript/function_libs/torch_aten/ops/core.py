@@ -735,6 +735,9 @@ def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     num_of_input = len(tensors)  # len() function not support yet
     a = op.SequenceEmpty()
     for i in range(num_of_input):
+        if op.Size(tensors[i]) == 0 and dim != 0:
+            # Skip empty tensors when concatenating along non-zero dimension
+            continue
         a = op.SequenceInsert(a, tensors[i])
     return op.ConcatFromSequence(a, axis=dim)
 

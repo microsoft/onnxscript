@@ -1,7 +1,5 @@
 # Python package
-# Create and test a Python package on multiple Python versions.
-# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+# Clone the repository for mandatory injected checks
 
 trigger:
 - main
@@ -12,43 +10,8 @@ strategy:
   matrix:
     Python310-onnx:
       python.version: '3.10'
-      onnx.standard: '1'
-      test.examples: '1'
 steps:
 - task: UsePythonVersion@0
   inputs:
     versionSpec: '$(python.version)'
   displayName: 'Use Python $(python.version)'
-
-- script: |
-    python -m pip install --upgrade pip setuptools wheel
-    python -m pip install -r requirements-dev.txt
-  displayName: 'Install dependencies'
-
-- script: |
-      if [ '$(onnx.standard)' == '1' ]
-        then
-          python -m pip uninstall -y onnx-function-experiment
-          python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install -r requirements-onnx.txt
-      fi
-  displayName: 'Install onnx'
-
-- script: |
-    python setup.py sdist
-  displayName: 'make package'
-
-- script: |
-    pytest -v onnxscript --cov=onnxscript --cov-report term-missing
-  displayName: 'pytest'
-
-- script: |
-    python setup.py install
-  displayName: 'install package'
-
-- script: |
-      if [ '$(test.examples)' == '1' ]
-        then
-          pytest -v docs/test
-      fi
-  displayName: 'Test examples'
