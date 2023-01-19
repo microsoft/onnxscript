@@ -197,19 +197,11 @@ class TorchScriptEvaluator(evaluator.Evaluator):
         return self._graph
 
     def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
-        self._function_store[function.name] = function
-        opname = function.opset.domain + "::" + function.name
-
-        # # unwrap TorchScriptTensor
-        # args = _unwrap_tensors_to_torch_values(args)
-        # kwargs = _unwrap_tensors_to_torch_values(kwargs)
-        # encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
-
-        # This is not a tuple for now. TODO: Check output
-        result = self._graph.op(opname, args, encoded_kwargs, outputs=...)
+        return self._graph.add_function(function, args, kwargs)
 
     def _eval(self, schema, inputs, attributes):
-        return self._graph.op(schema.name, *inputs, **attributes)
+        # TODO: Does it really know what the inputs are?
+        return self._graph.add_op(schema, inputs, attributes)
 
 
 class TorchScriptGraph:
@@ -297,6 +289,8 @@ class TorchScriptGraph:
         args,
         kwargs,
     ):
+        self._function_store[onnx_function.name] = onnx_function
+
         # TODO: Decide input and outputs
 
         encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
