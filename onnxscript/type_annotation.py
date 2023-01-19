@@ -64,9 +64,9 @@ def pytype_to_attrtype(
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
     type_constructor = get_origin(pytype)
-    # Remove Optional wrapper if present, which is represented as an Union[..., None]
+    # Remove Optional wrapper if present, which is represented as an Union[..., type(None)]
     if type_constructor is typing.Union:
-        # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
+        # Filter out type(None), since typing.Optional[X] evaluates to Union[X, type(None)]
         args = [x for x in get_args(pytype) if x is not type(None)]  # noqa: E721
         if len(args) == 1:
             return pytype_to_attrtype(args[0])
