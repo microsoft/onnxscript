@@ -39,7 +39,7 @@ class Tensor:
         return len(self.value.shape)
 
     @property
-    def shape(self) -> tuple[int]:
+    def shape(self) -> tuple[int, ...]:
         return self.value.shape
 
     @property
