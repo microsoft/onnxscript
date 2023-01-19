@@ -168,26 +168,6 @@ def _wrap_torch_value_to_tensor(
     return value
 
 
-def _unwrap_tensors_to_torch_values(
-    tensors: Union[Dict[str, Any], List]
-) -> Union[Dict[str, Any], List]:
-    """Unwrap TorchScriptTensor"""
-    if isinstance(tensors, dict):
-        values = {
-            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
-            for k, v in tensors.items()
-        }
-    elif isinstance(tensors, Sequence):
-        values = [
-            v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in tensors
-        ]
-    if isinstance(tensors, tuple):
-        return tuple(v.symbolic_value() for v in tensors)
-    elif isinstance(tensors, TorchScriptTensor):
-        tensors = tensors.symbolic_value()
-    return tensors
-
-
 class TorchScriptEvaluator(evaluator.Evaluator):
     def __init__(self, graph: TorchScriptGraph):
         self._graph = graph
@@ -222,26 +202,28 @@ class TorchScriptGraph:
     def graph(self):
         return self._graph
 
-    @property
-    def graph_context(self):
-        return self._graph_context
+    # @property
+    # def graph_context(self):
+    #     return self._graph_context
 
     def add_input(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
-        torch_value = self.graph.addInput(input_name)
+        # TODO: Take in a TorchScriptTensor?
+        torch_value = self._graph.addInput(input_name)
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
         return torch_value
 
     def register_output(
         self, outputs: Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]
     ):
+        # TODO: Unwrap TorchScriptTensors?
         if isinstance(outputs, TorchScriptTensor):
-            self.graph.registerOutput(outputs)
+            self._graph.registerOutput(outputs)
         else:
             for ts_output in outputs:
                 assert isinstance(
                     ts_output, TorchScriptTensor
                 ), f"ts_output must be a torch._C.Value, not {type(ts_output)}"
-                self.graph.registerOutput(ts_output)
+                self._graph.registerOutput(ts_output)
         return
 
     def _add_torchscript_op(
@@ -251,6 +233,7 @@ class TorchScriptGraph:
         kwargs,
         outputs: int,
     ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
+    # TODO: here
         unwrapped_args = [
             v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in args
         ]
