@@ -177,7 +177,9 @@ class TorchScriptEvaluator(evaluator.Evaluator):
         return self._graph
 
     def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
-        return self._graph.add_function(function, args, kwargs)
+        # TODO: Decide input and outputs
+        # SHould this be done by the graph or the evaluator?
+        return self._graph.add_function(function, inputs, attributes)
 
     def _eval(self, schema, inputs, attributes):
         # TODO: Does it really know what the inputs are?
@@ -229,20 +231,21 @@ class TorchScriptGraph:
     def _add_torchscript_op(
         self,
         name,
-        args,
-        kwargs,
+        onnx_inputs,
+        onnx_attributes,
         outputs: int,
     ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
-    # TODO: here
-        unwrapped_args = [
-            v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in args
+        unwrapped_inputs = [
+            v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in onnx_inputs
         ]
-        unwrapped_kwargs = {
+        unwrapped_attributes = {
             k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
-            for k, v in kwargs.items()
+            for k, v in onnx_attributes.items()
         }
-        encoded_kwargs = _convert_kwargs_for_torchscript(unwrapped_kwargs)
-        result = self._graph_context.op(name, *args, outputs=1, **encoded_kwargs)
+        encoded_attributes = _convert_kwargs_for_torchscript(unwrapped_attributes)
+        result = self._graph_context.op(
+            name, *unwrapped_inputs, outputs=outputs, **encoded_attributes
+        )
         if isinstance(result, Sequence):
             return tuple(TorchScriptTensor(v) for v in result)
         return TorchScriptTensor(result)
@@ -250,13 +253,9 @@ class TorchScriptGraph:
     def add_op(
         self,
         onnx_op,
-        args: Sequence[ValidArgumentType | Sequence[ValidArgumentType]],
-        kwargs: dict[str, ValidArgumentType | Sequence[ValidArgumentType]],
+        onnx_inputs: Sequence[ValidArgumentType | Sequence[ValidArgumentType]],
+        onnx_attributes: dict[str, ValidArgumentType | Sequence[ValidArgumentType]],
     ):
-        # TODO: Decide input and outputs
-
-        encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
-
         # Compute outputs from the onnx_op op schema
 
         # This is not a tuple for now. TODO: Check output
@@ -269,16 +268,11 @@ class TorchScriptGraph:
     def add_function(
         self,
         onnx_function: onnxscript.OnnxFunction,
-        args,
-        kwargs,
+        onnx_inputs,
+        onnx_attributes,
     ):
         self._function_store[onnx_function.name] = onnx_function
-
-        # TODO: Decide input and outputs
-
-        encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
-
-        # Compute outputs from the onnx_op op schema
+        # Compute outputs from the function ir
 
         # This is not a tuple for now. TODO: Check output
         result = self._add_torchscript_op(
