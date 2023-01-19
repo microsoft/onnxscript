@@ -330,7 +330,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
-    "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": core_ops.aten_embedding,
     "nn.functional.gelu": nn_ops.aten_gelu,
@@ -390,6 +389,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
+    "nn.functional.conv2d": core_ops.aten_conv2d,
     "transpose": core_ops.aten_transpose,
 }
 
