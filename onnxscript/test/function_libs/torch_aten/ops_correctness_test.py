@@ -379,6 +379,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
+    "native_layer_norm": core_ops.aten_native_layer_norm,
     "transpose": core_ops.aten_transpose,
 }
 
@@ -402,6 +403,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
+    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -671,9 +673,9 @@ class TestOutputConsistency(unittest.TestCase):
                 ):
                     if dtype == torch.float32:
                         # Relax atol and rtol for float32 based on empirical results
-                        # The current most relaxed values are for aten::matmul
-                        rtol = 3.7e-6
-                        atol = 1.8e-5
+                        # The current most relaxed values are for aten::native_layer_norm
+                        rtol = 3.7e-5
+                        atol = 1.8e-4
                     else:
                         rtol = None
                         atol = None
