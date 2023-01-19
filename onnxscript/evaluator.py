@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 import numpy as np
 import onnx
+import onnx.helper
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
@@ -64,14 +65,16 @@ class Evaluator(abc.ABC):
                 )
         return closure
 
-    def adapt_outputs(self, schema, outputs):  # pylint: disable=unused-argument
+    def adapt_outputs(self, schema, outputs):
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
         """
+        del schema  # unused
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def use_graph_attribute(self, schema):  # pylint: disable=unused-argument
+    def use_graph_attribute(self, schema):
+        del schema  # unused
         return True
 
     @abc.abstractmethod
@@ -229,7 +232,7 @@ def _call_ort(schema, args, kwargs, implicit_args=None):
     return [_ort_to_os_value(x) for x in result]
 
 
-def schema_id(schema):
+def _schema_id(schema):
     return schema.name, schema.domain, schema.since_version
 
 
@@ -254,10 +257,10 @@ class ORTMixedEvaluator(ORTEvaluator):
         self._python_ops: dict[Any, Any] = {}
 
     def use_graph_attribute(self, schema):
-        return schema_id(schema) not in self._python_ops
+        return _schema_id(schema) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
-        schemaid = schema_id(schema)
+        schemaid = _schema_id(schema)
         if schemaid in self._python_ops:
             return self._python_ops[schemaid](inputs, attributes)
         else:
@@ -268,7 +271,7 @@ class ORTMixedEvaluator(ORTEvaluator):
 
         def decorator(function):
             schema = opset[function.__name__]
-            self._python_ops[schema_id(schema)] = function
+            self._python_ops[_schema_id(schema)] = function
             return function
 
         return decorator

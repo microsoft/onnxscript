@@ -2,19 +2,20 @@
 from __future__ import annotations
 
 import collections
+import typing
 import warnings
-from typing import Tuple, Union
 
+import numpy as np
 import onnx
 import torch
 from torch.onnx import _type_utils
 from torch.onnx._internal import jit_utils
 
 import onnxscript
-from onnxscript import evaluator
+from onnxscript import evaluator, tensor as onnxscript_tensor
 
 
-class TorchScriptTensor(onnxscript.tensor.Tensor):
+class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
     def __init__(self, value: torch.Value):
@@ -22,15 +23,30 @@ class TorchScriptTensor(onnxscript.tensor.Tensor):
         self._value = value
 
     @property
-    def value(self):
-        return self._value
+    def value(self)-> np.ndarray:
+        raise NotImplementedError()
 
-    def symbolic(self) -> torch.Value:
+    def symbolic_value(self) -> torch.Value:
         return self._value
 
     @property
-    def shape(self):
-        raise NotImplementedError()
+    def rank(self) -> int | None:
+        value_type = self._value.type()
+        if value_type is None:
+            return None
+        value_type = typing.cast(torch.TensorType, value_type)
+        return value_type.dim()
+
+    @property
+    def shape(self) -> tuple[int | None, ...] | None:
+        value_type = self._value.type()
+        if value_type is None:
+            return None
+        value_type = typing.cast(torch.TensorType, value_type)
+        shape = value_type.varyingSizes()
+        if shape is None:
+            return None
+        return tuple(shape)
 
     @property
     def dtype(self):
@@ -46,7 +62,7 @@ class TorchScriptTensor(onnxscript.tensor.Tensor):
         ).onnx_type()
 
 
-def _parse_torch_value(value: torch.Value, attr_type):
+def _parse_torch_value(value: torch.Value, attr_type: onnx.AttributeProto.AttributeType):
     if attr_type == onnx.AttributeProto.FLOAT:
         return float(value)
     if attr_type == onnx.AttributeProto.INT:
@@ -61,7 +77,8 @@ def _parse_torch_value(value: torch.Value, attr_type):
     return value
 
 
-def _parse_node(value: torch._C.Value):
+def _parse_node(value: torch.Value):
+    # Why do we find the node and then get the same value back?
     node = value.node()
     if node.mustBeNone():
         return None
@@ -137,8 +154,44 @@ def _convert_kwargs_for_torchscript(kwargs):
 
 def _convert_result_to_torchscript(result):
     if isinstance(result, tuple):
-        return tuple(v.symbolic() for v in result)
-    return result.symbolic()
+        return tuple(v.symbolic_value() for v in result)
+    return result.symbolic_value()
+
+
+class TorchScriptEvaluator(evaluator.Evaluator):
+    def __init__(self, graph):
+        self._graph = graph
+        # All the functions used, deduplicated by name
+        self._function_store: dict[str, onnxscript.OnnxFunction] = {}
+
+    @property
+    def graph(self):
+        return self._graph
+
+    def functions(self):
+        return self._function_store
+
+    def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
+        self._function_store[function.name] = function
+        opname = function.opset.domain + "::" + function.name
+
+        # unwrap TorchScriptTensor
+        args = [arg.symbolic_value() if isinstance(arg, TorchScriptTensor) else arg for arg in args]
+
+        kwargs = {
+            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
+            for k, v in kwargs.items()
+        }
+        encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
+
+        # This is not a tuple for now. TODO: Check output
+        result = self._graph.op(opname, *args, **encoded_kwargs)
+        if isinstance(result, tuple):
+            return tuple(TorchScriptTensor(v) for v in result)
+        return TorchScriptTensor(result)
+
+    def _eval(self, schema, inputs, attributes):
+        return self._graph.op(schema.name, *inputs, **attributes)
 
 class TorchScriptGraph:
     def __init__(self, opset_version=16):
@@ -189,27 +242,3 @@ class TorchScriptGraph:
         result = self._graph.op(opname, *args, **encoded_kwargs)
 
         return result
-
-class TorchScriptEvaluator(evaluator.Evaluator):
-    def __init__(self, graph: TorchScriptGraph):
-        self._graph = graph
-        self._ops_to_function = {}
-
-    @property
-    def graph(self):
-        return self._graph
-
-    def functions(self):
-        return self._ops_to_function
-
-    def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
-        self._ops_to_function[function.name] = function
-        opname = function.opset.domain + "::" + function.name
-
-
-        if isinstance(result, tuple):
-            return tuple(TorchScriptTensor(v) for v in result)
-        return TorchScriptTensor(result)
-
-    def _eval(self, schema, inputs, attributes):
-        return self._graph.op(schema.name, *inputs, **attributes)

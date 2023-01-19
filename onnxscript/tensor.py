@@ -22,25 +22,34 @@ class Tensor:
 
     def __init__(self, nparray: Optional[np.ndarray], opset=None):
         if nparray is not None and not isinstance(nparray, np.ndarray):
-            raise TypeError(f"Unexpected type {type(nparray)}. It must be a numpy array.")
-        self._nparray = nparray
+            raise TypeError(
+                f"Unexpected type {type(nparray)}. It must be a numpy array or None."
+            )
 
+        self._nparray = nparray
         self._opset: Any = opset or onnx_opset.default_opset
 
     @property
-    def value(self):
+    def value(self) -> np.ndarray:
+        if self._nparray is None:
+            raise ValueError("Tensor does not have a value.")
         return self._nparray
 
     @property
-    def shape(self):
-        return self._nparray.shape
+    def rank(self) -> int:
+        return len(self.value.shape)
 
     @property
-    def dtype(self):
-        return self._nparray.dtype
+    def shape(self) -> tuple[int, ...]:
+        return self.value.shape
 
     @property
-    def onnx_dtype(self):
+    def dtype(self) -> np.dtype:
+        return self.value.dtype
+
+    @property
+    def onnx_dtype(self) -> TensorProto.DataType:
+        # FIXME: NP_TYPE_TO_TENSOR_TYPE is deprecated
         return NP_TYPE_TO_TENSOR_TYPE[self.dtype]
 
     def __repr__(self) -> str:

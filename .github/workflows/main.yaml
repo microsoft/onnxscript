@@ -10,6 +10,10 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
+  cancel-in-progress: true
+
 jobs:
   test:
     strategy:
@@ -17,33 +21,23 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
-          # - python311-onnx
-          # TODO: Enable python311 when onnx is updated
-          - python310-onnx
-          - python39-onnx
-          - python39-expe
-          - python38-expe
+          # names should match tox labels in tox.ini
+          - python310
+          - python39
+          - python38
+          - python310-experimental
+          - python310-torch-nightly
         include:
-          # - name: python311-onnx
-          #   python-version: "3.11"
-          #   onnx_standard: true
-          #   test_examples: true
-          - name: python310-onnx
+          - name: python310
             python-version: "3.10"
-            onnx_standard: true
-            test_examples: true
-          - name: python39-onnx
+          - name: python39
             python-version: "3.9"
-            onnx_standard: true
-            test_examples: false
-          - name: python39-expe
-            python-version: "3.9"
-            onnx_standard: false
-            test_examples: false
-          - name: python38-expe
+          - name: python38
             python-version: "3.8"
-            onnx_standard: false
-            test_examples: false
+          - name: python310-experimental
+            python-version: "3.10"
+          - name: python310-torch-nightly
+            python-version: "3.10"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
@@ -51,39 +45,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: "**/requirements-dev.txt"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel build
-          python -m pip install -r requirements-dev.txt
-
-      - name: Install standard onnx
-        if: ${{ matrix.onnx_standard }}
-        run: |
-          python -m pip uninstall -y onnx-function-experiment
-          python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install -r requirements-onnx.txt
-
-      - name: Versions
-        run: |
-          pip list | grep numpy
-          pip list | grep onnx
-          pip list | grep torch
-
-      - name: pytest
-        run: pytest -v onnxscript --cov=onnxscript --cov-report=xml -n=auto
-
-      - name: Install package
-        run: pip install .
-
-      - name: Test examples
-        if: ${{ matrix.test_examples }}
-        run: pytest -v docs/test -n=auto
-
-      - name: Build package
-        run: python -m build
-
+      - name: Install tox
+        run: python -m pip install tox tox-gh
+      - name: Setup test suite
+        run: tox -m ${{ matrix.name }} --colored yes -vv --notest
+      - name: Run test suite
+        run: tox -m ${{ matrix.name }} --colored yes --skip-pkg-install -- -v --cov=onnxscript --cov-report=xml -n=auto
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
 
