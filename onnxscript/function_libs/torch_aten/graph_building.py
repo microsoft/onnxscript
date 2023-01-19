@@ -2,18 +2,20 @@
 from __future__ import annotations
 
 import collections
+import typing
 import warnings
 
+import numpy as np
 import onnx
 import torch
 from torch.onnx import _type_utils
 from torch.onnx._internal import jit_utils
 
 import onnxscript
-from onnxscript import evaluator
+from onnxscript import evaluator, tensor as onnxscript_tensor
 
 
-class TorchScriptTensor(onnxscript.tensor.Tensor):
+class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
     def __init__(self, value: torch.Value):
@@ -21,15 +23,30 @@ class TorchScriptTensor(onnxscript.tensor.Tensor):
         self._value = value
 
     @property
-    def value(self):
-        return self._value
+    def value(self)-> np.ndarray:
+        raise NotImplementedError()
 
-    def symbolic(self) -> torch.Value:
+    def symbolic_value(self) -> torch.Value:
         return self._value
 
     @property
-    def shape(self):
-        raise NotImplementedError()
+    def rank(self) -> int | None:
+        value_type = self._value.type()
+        if value_type is None:
+            return None
+        value_type = typing.cast(torch._C.TensorType, value_type)
+        return value_type.dim()
+
+    @property
+    def shape(self) -> tuple[int | None, ...] | None:
+        value_type = self._value.type()
+        if value_type is None:
+            return None
+        value_type = typing.cast(torch._C.TensorType, value_type)
+        shape = value_type.varyingSizes()
+        if shape is None:
+            return None
+        return tuple(shape)
 
     @property
     def dtype(self):
@@ -136,8 +153,8 @@ def _convert_kwargs_for_torchscript(kwargs):
 
 def _convert_result_to_torchscript(result):
     if isinstance(result, tuple):
-        return tuple(v.symbolic() for v in result)
-    return result.symbolic()
+        return tuple(v.symbolic_value() for v in result)
+    return result.symbolic_value()
 
 
 class TorchScriptEvaluator(evaluator.Evaluator):
@@ -157,10 +174,10 @@ class TorchScriptEvaluator(evaluator.Evaluator):
         opname = function.opset.domain + "::" + function.name
 
         # unwrap TorchScriptTensor
-        args = [arg.symbolic() if isinstance(arg, TorchScriptTensor) else arg for arg in args]
+        args = [arg.symbolic_value() if isinstance(arg, TorchScriptTensor) else arg for arg in args]
 
         kwargs = {
-            k: v.symbolic() if isinstance(v, TorchScriptTensor) else v
+            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
             for k, v in kwargs.items()
         }
         encoded_kwargs = _convert_kwargs_for_torchscript(kwargs)
