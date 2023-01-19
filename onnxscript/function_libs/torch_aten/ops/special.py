@@ -338,12 +338,21 @@ def aten_special_sinc(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::softmax")
 def aten_special_softmax(
-    self: TensorType, dim: int, dtype: Optional[int] = None
-) -> TensorType:
+    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
+) -> TFloatOrBFloat16:
     # special_softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    result = op.Softmax(self, axis=dim)
+    result = op.Cast(result, to=dtype)
+    if self_is_scalar:  # squeeze to scalar due to input is scalar
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_special_spherical_bessel_j0(x: TensorType) -> TensorType:

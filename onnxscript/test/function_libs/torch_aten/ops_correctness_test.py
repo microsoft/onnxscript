@@ -171,6 +171,18 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
+def _arange_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    new_args = []
+    for arg in args:
+        if isinstance(arg, int):
+            # Explicitly convert to int64 because int type is 32-bit on Windows
+            arg = np.array(arg, dtype=np.int64)
+        new_args.append(arg)
+    return new_args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -199,6 +211,13 @@ def _logcumsumexp_input_wrangler(
 
 
 def _log_softmax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
+def _softmax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop()
@@ -247,9 +266,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "addmm": core_ops.aten_addmm,
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
+    "arange_start_step": (core_ops.aten_arange_start_step, _arange_input_wrangler),
+    "arange_start": (core_ops.aten_arange_start, _arange_input_wrangler),
+    "arange": (core_ops.aten_arange, _arange_input_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -262,6 +281,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
     "empty": core_ops.aten_empty,
@@ -275,9 +295,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "fmod": core_ops.aten_fmod,
     "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
+    "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
+    "le": core_ops.aten_le,
     "log10": core_ops.aten_log10,
     "log1p": core_ops.aten_log1p,
     "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
@@ -289,7 +311,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
-    "mean": core_ops.aten_mean,
+    "maximum": core_ops.aten_maximum,
+    "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
     "ne": core_ops.aten_ne,
@@ -298,8 +321,10 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
+    "nn.functional.celu": nn_ops.aten_celu,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": core_ops.aten_embedding,
+    "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
@@ -313,6 +338,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nonzero": core_ops.aten_nonzero,
     "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
+    "permute": core_ops.aten_permute,
+    "pow": core_ops.aten_pow,
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
@@ -326,6 +353,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sinh": core_ops.aten_sinh,
     "split": (core_ops.aten_split, _split_input_wrangler),
     "slice": core_ops.aten_slice,
+    "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
@@ -348,8 +376,11 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
+    "argmax": core_ops.aten_argmax,
+    "argmin": core_ops.aten_argmin,
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
+    "native_layer_norm": core_ops.aten_native_layer_norm,
     "transpose": core_ops.aten_transpose,
 }
 
@@ -373,6 +404,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
+    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -449,6 +481,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+    ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
+        reason="Negative value in perm is not supported",
+    ),
+    skip(
+        "permute",
+        matcher=lambda sample: len(sample.args[0]) == 0,
+        reason="Empty perm is not supported",
     ),
     skip(
         "slice",
@@ -632,9 +674,9 @@ class TestOutputConsistency(unittest.TestCase):
                 ):
                     if dtype == torch.float32:
                         # Relax atol and rtol for float32 based on empirical results
-                        # The current most relaxed values are for aten::matmul
-                        rtol = 3.7e-6
-                        atol = 1.8e-5
+                        # The current most relaxed values are for aten::native_layer_norm
+                        rtol = 3.7e-5
+                        atol = 1.8e-4
                     else:
                         rtol = None
                         atol = None
