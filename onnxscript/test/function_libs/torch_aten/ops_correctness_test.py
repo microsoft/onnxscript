@@ -154,6 +154,8 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
         if opinfo.name == name:
             for new_name in new_names:
                 if new_name in all_info_names:
+                    # NOTE: Avoid duplicating an opinfo that already exists in the database.
+                    # New opinfos are expected to be added in torch-nightly.
                     warnings.warn(f"OpInfo {new_name} already exists in the database.")
                     continue
                 new_opinfo = copy.deepcopy(opinfo)
