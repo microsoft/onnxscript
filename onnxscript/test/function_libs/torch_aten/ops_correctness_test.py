@@ -9,6 +9,7 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 
 import numpy as np
 import onnx
+import packaging.version
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -148,9 +149,15 @@ def add_decorate_info(
 def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
     """Duplicate an opinfo in the opinfo database and give it a new name."""
     duplicated = []
+    all_info_names = {opinfo.name for opinfo in opinfos}
     for opinfo in opinfos:
         if opinfo.name == name:
             for new_name in new_names:
+                if new_name in all_info_names:
+                    # NOTE: Avoid duplicating an opinfo that already exists in the database.
+                    # New opinfos are expected to be added in torch-nightly.
+                    warnings.warn(f"OpInfo {new_name} already exists in the database.")
+                    continue
                 new_opinfo = copy.deepcopy(opinfo)
                 new_opinfo.name = new_name
                 duplicated.append(new_opinfo)
@@ -187,7 +194,8 @@ def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Remove the self argument
-    args.pop(0)
+    if packaging.version.parse(torch.__version__) <= packaging.version.parse("1.13.1"):
+        args.pop(0)
     return args, kwargs
 
 
@@ -221,6 +229,14 @@ def _softmax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
+def _split_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if len(args) >= 3:
+        kwargs["dim"] = args.pop(2)
     return args, kwargs
 
 
@@ -346,6 +362,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sinh": core_ops.aten_sinh,
     "slice": core_ops.aten_slice,
     "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
+    "split": (core_ops.aten_split, _split_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
@@ -372,6 +389,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
+    "native_layer_norm": core_ops.aten_native_layer_norm,
     "transpose": core_ops.aten_transpose,
 }
 
@@ -395,6 +413,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
+    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean"),
     xfail(
         "nn.functional.linear",
         reason="ONNX Runtime thinks the graph is invalid",
@@ -669,9 +688,9 @@ class TestOutputConsistency(unittest.TestCase):
                 ):
                     if dtype == torch.float32:
                         # Relax atol and rtol for float32 based on empirical results
-                        # The current most relaxed values are for aten::conv2d
+                        # The current most relaxed values are for aten::native_layer_norm
                         rtol = 3.7e-5
-                        atol = 1.8e-5
+                        atol = 1.8e-4
                     else:
                         rtol = None
                         atol = None

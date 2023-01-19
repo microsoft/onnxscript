@@ -427,9 +427,6 @@ def export_template(
     Returns:
         python code
     """
-    # delayed import to avoid raising an exception if not installed.
-    import autopep8  # pylint: disable=import-outside-toplevel
-
     # unique_function_domain_version
     unique_function_domain_version = set()
     if hasattr(model_onnx, "functions"):
@@ -521,6 +518,9 @@ def export_template(
     if "\nreturn" in final:
         raise SyntaxError(f"The produced code is wrong.\n{final}")
     if clean_code:
+        # delayed import to avoid raising an exception if not installed.
+        import autopep8  # pylint: disable=import-outside-toplevel
+
         cleaned_code = autopep8.fix_code(final, options=autopep_options)
         if "\nreturn" in cleaned_code:
             raise SyntaxError(f"The cleaned code is wrong.\n{final}\n------{cleaned_code}")
