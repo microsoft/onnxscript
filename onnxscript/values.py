@@ -76,9 +76,7 @@ class Opset:
         if fun.name in self.function_defs:
 
             logger = logging.getLogger("onnx-script")
-            logger.warning(
-                "%s: Already defined.", fun.name
-            )
+            logger.warning("%s: Already defined.", fun.name)
         self.function_defs[fun.name] = fun
 
     def _prepare_inputs(self, _: onnx.defs.OpSchema, *inputs):

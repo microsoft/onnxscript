@@ -21,7 +21,9 @@ class Tensor:
 
     def __init__(self, nparray: Optional[np.ndarray], opset=None):
         if nparray is not None and not isinstance(nparray, np.ndarray):
-            raise TypeError(f"Unexpected type {type(nparray)}. It must be a numpy array or None.")
+            raise TypeError(
+                f"Unexpected type {type(nparray)}. It must be a numpy array or None."
+            )
 
         self._nparray = nparray
         self._opset: Any = opset or onnx_opset.default_opset
