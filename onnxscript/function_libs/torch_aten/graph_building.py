@@ -34,7 +34,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         value_type = self._value.type()
         if value_type is None:
             return None
-        value_type = typing.cast(torch._C.TensorType, value_type)
+        value_type = typing.cast(torch.TensorType, value_type)
         return value_type.dim()
 
     @property
@@ -42,7 +42,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         value_type = self._value.type()
         if value_type is None:
             return None
-        value_type = typing.cast(torch._C.TensorType, value_type)
+        value_type = typing.cast(torch.TensorType, value_type)
         shape = value_type.varyingSizes()
         if shape is None:
             return None
@@ -62,7 +62,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         ).onnx_type()
 
 
-def _parse_torch_value(value: torch.Value, attr_type):
+def _parse_torch_value(value: torch.Value, attr_type: onnx.AttributeProto.AttributeType):
     if attr_type == onnx.AttributeProto.FLOAT:
         return float(value)
     if attr_type == onnx.AttributeProto.INT:
@@ -77,7 +77,8 @@ def _parse_torch_value(value: torch.Value, attr_type):
     return value
 
 
-def _parse_node(value: torch._C.Value):
+def _parse_node(value: torch.Value):
+    # Why do we find the node and then get the same value back?
     node = value.node()
     if node.mustBeNone():
         return None
@@ -158,19 +159,20 @@ def _convert_result_to_torchscript(result):
 
 
 class TorchScriptEvaluator(evaluator.Evaluator):
-    def __init__(self, graph: jit_utils.GraphContext):
+    def __init__(self, graph):
         self._graph = graph
-        self._ops_to_function = {}
+        # All the functions used, deduplicated by name
+        self._function_store: dict[str, onnxscript.OnnxFunction] = {}
 
     @property
     def graph(self):
         return self._graph
 
     def functions(self):
-        return self._ops_to_function
+        return self._function_store
 
     def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
-        self._ops_to_function[function.name] = function
+        self._function_store[function.name] = function
         opname = function.opset.domain + "::" + function.name
 
         # unwrap TorchScriptTensor
