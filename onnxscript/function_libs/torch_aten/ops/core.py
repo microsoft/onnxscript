@@ -4549,10 +4549,25 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::split")
 def aten_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
     # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_size, axis=dim)
+
+
+def test_aten_split():
+    import numpy as np
+    a = np.arange(10, dtype=np.float32).reshape(5,2)
+    print(a)
+    s = 2
+    dim = 0
+    b = aten_split(a, s, dim=dim)
+    print(b)
+    print("------------------")
+
+test_aten_split()
+
 
 
 def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
