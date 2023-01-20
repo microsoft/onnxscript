@@ -28,9 +28,14 @@ __all__ = [
 
 ValidArgumentType = Union["TorchScriptTensor", str, int, float, bool]
 
+# TODO(justinchuby): Build a context manager to handle source information.
+
 
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
+
+    # TODO(justinchuby): Create setters for attributes so the exporter can
+    # update the name/shape/type information when they are available.
 
     def __init__(self, value: torch.Value):
         super().__init__(None)
