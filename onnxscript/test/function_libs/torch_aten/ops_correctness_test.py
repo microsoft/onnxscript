@@ -294,6 +294,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
+    "cat": core_ops.aten_cat,
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -398,10 +399,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
 ] = {
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
-    "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
-    "sum": (core_ops.aten_sum, _sum_input_wrangler),
+    "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
 
@@ -420,7 +420,8 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    xfail("cat", reason="Enable after #351 is fixed"),
+    xfail("clamp", reason="Enable when ONNX Runtime supports OptionalHasElement-18"),
     skip("empty", reason="Using zeros to simulate empty"),
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
