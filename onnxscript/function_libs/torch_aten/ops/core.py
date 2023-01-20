@@ -750,7 +750,8 @@ def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
 
     # NOTE: Having empty tensors when concatenating along non-zero dimension
     # is not supported.
-    # TODO: Filter these tensors out before calling ConcatFromSequence.
+    # TODO(justinchuby): Filter these tensors out with Sequence ops before
+    # calling ConcatFromSequence.
     return op.ConcatFromSequence(tensors, axis=dim)
 
 
@@ -4698,7 +4699,7 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 
 
 @torch_op("aten::sum", trace_only=True)
-def aten_sum(
+def aten_sum_dim_IntList(
     self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
@@ -4706,11 +4707,11 @@ def aten_sum(
     # TODO: Combine the overloads when OptionalHasElement() works
     if dim is None:
         return aten_sum_dim_none(self, keepdim=keepdim, dtype=dtype)
-    return aten_sum_dim_IntList(self, dim, keepdim=keepdim, dtype=dtype)
+    return aten_sum_dim_onnx(self, dim, keepdim=keepdim, dtype=dtype)
 
 
 @torch_op("aten::sum", overload=True)
-def aten_sum_dim_IntList(
+def aten_sum_dim_onnx(
     self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
