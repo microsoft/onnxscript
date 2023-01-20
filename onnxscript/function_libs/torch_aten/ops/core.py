@@ -331,20 +331,38 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_argmax(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False
-) -> TensorType:
+@torch_op("aten::argmax", trace_only=True)
+def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    if self_is_scaler:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    elif dim is None:  # should use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.ArgMax(self, axis=dim, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
+
+    return result
 
 
-def aten_argmin(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False
-) -> TensorType:
+@torch_op("aten::argmin", trace_only=True)
+def aten_argmin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    if self_is_scaler:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    elif dim is None:  # should use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.ArgMin(self, axis=dim, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_argsort(self: TensorType, dim: int = -1, descending: bool = False) -> TensorType:
@@ -717,6 +735,9 @@ def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     num_of_input = len(tensors)  # len() function not support yet
     a = op.SequenceEmpty()
     for i in range(num_of_input):
+        if op.Size(tensors[i]) == 0 and dim != 0:
+            # Skip empty tensors when concatenating along non-zero dimension
+            continue
         a = op.SequenceInsert(a, tensors[i])
     return op.ConcatFromSequence(a, axis=dim)
 
@@ -1383,10 +1404,11 @@ def aten_det(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::detach")
 def aten_detach(self: TensorType) -> TensorType:
     # detach(Tensor(a) self) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_detach_copy(self: TensorType) -> TensorType:
@@ -1984,7 +2006,7 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     # ge.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Greater(self, other)
+    return op.GreaterOrEqual(self, other)
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -2542,7 +2564,7 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
 def aten_le(self: TReal, other: TReal) -> BOOL:
     # le.Tensor(Tensor self, Tensor other) -> Tensor
 
-    return op.Less(self, other)
+    return op.LessOrEqual(self, other)
 
 
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
@@ -3497,16 +3519,30 @@ def aten_native_group_norm_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
-    input: TensorType,
+    input: TReal,
     normalized_shape: INT64,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
+    weight: Optional[TReal],
+    bias: Optional[TReal],
     eps: float,
-) -> tuple[TensorType, TensorType, TensorType]:
+) -> tuple[TReal, TReal, TReal]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
-    raise NotImplementedError()
+    axes = [-i for i in range(len(normalized_shape), 0, -1)]
+    mean = op.ReduceMean(input, axes=axes)
+    numerator = op.Sub(input, mean)
+    power_num = op.Pow(numerator, 2.0)
+    variance = op.ReduceMean(power_num, axes=axes)
+    variance_eps = op.Add(variance, eps)
+    denominator = op.Sqrt(variance_eps)
+    result = op.Div(numerator, denominator)
+    if weight is not None:
+        result = op.Mul(result, weight)
+    if bias is not None:
+        result = op.Add(result, bias)
+    rdenominator = op.Reciprocal(denominator)
+    return result, mean, rdenominator
 
 
 def aten_native_layer_norm_backward(
@@ -4516,10 +4552,11 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+@torch_op("aten::split")
+def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_size, axis=dim)
 
 
 def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:

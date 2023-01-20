@@ -6,6 +6,7 @@ on:
       - main
       - 'gh/**/base' # ghstack base branches
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   optional-lint:
@@ -49,10 +50,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade setuptools
           python -m pip install -q -r requirements-dev.txt
-          # Install ONNX
-          python -m pip uninstall -y onnx-function-experiment
-          python -m pip uninstall -y ort-function-experiment-nightly
-          python -m pip install -r requirements-onnx.txt
           # Install packages
           python -m pip install -e .
           lintrunner init
@@ -69,7 +66,8 @@ jobs:
         run: |
           python -m lintrunner_adapters to-sarif lint.json lintrunner.sarif
       - name: Upload SARIF file
-        if: always()
+        # Do not display on drafts to make reviewing easier
+        if: github.event.pull_request.draft == false
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v2
         with:

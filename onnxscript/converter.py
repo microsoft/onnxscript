@@ -313,7 +313,7 @@ class Converter:
             result = self.generate_unique_name(target if target else "tmp")
             attr = self.to_onnx_attr_ref(val, info)
             self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
-            return result
+            return ConverterExpression(result, ConverterExpressionKind.CONST)
         if isinstance(val, values.Dynamic):
             return val.value
         # Assume value is a python-value convertible to a tensor

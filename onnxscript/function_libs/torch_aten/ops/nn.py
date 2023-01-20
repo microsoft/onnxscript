@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from onnxscript import INT64
+from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import TFloat, TFloatOrBFloat16, TReal
 from onnxscript.onnx_opset import opset18 as op
@@ -198,10 +198,11 @@ def aten_binary_cross_entropy_backward(
     raise NotImplementedError()
 
 
-def aten_celu(self, alpha: float = 1.0):
+@torch_op("aten::celu")
+def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     # celu(Tensor self, Scalar alpha=1.0) -> Tensor
 
-    raise NotImplementedError()
+    return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
 def aten_col2im(
@@ -323,10 +324,30 @@ def aten_fractional_max_pool3d_backward(
     raise NotImplementedError()
 
 
-def aten_gelu(self: TensorType, approximate: str = "none") -> TensorType:
+@torch_op("aten::gelu")
+def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 
-    raise NotImplementedError()
+    self = op.Cast(self, to=FLOAT.dtype)
+
+    if approximate == "tanh":
+        # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
+        cubed = op.Pow(self, 3)
+        inner = op.Mul(0.044715, cubed)
+        inner = op.Add(self, inner)
+        inner = op.Mul(op.Sqrt(op.Div(2.0, 3.141592653589793)), inner)
+        inner = op.Tanh(inner)
+        inner = op.Add(inner, 1)
+        inner = op.Mul(self, inner)
+        result = op.Mul(0.5, inner)
+    else:
+        # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
+        inner = op.Div(self, 1.4142135623730951)
+        erf = op.Erf(inner)
+        inner = op.Add(erf, 1)
+        inner = op.Mul(self, inner)
+        result = op.Mul(0.5, inner)
+    return result
 
 
 def aten_gelu_backward(

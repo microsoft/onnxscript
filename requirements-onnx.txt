@@ -1,5 +1,0 @@
-# Requirements for testing with the release version of onnx and onnxruntime
-
-numpy==1.22.0
-onnx==1.13
-onnxruntime

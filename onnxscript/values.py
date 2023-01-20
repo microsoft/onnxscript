@@ -12,7 +12,7 @@ from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
 
 import numpy as np
 import onnx
-from onnx.defs import OpSchema
+import onnx.defs
 
 from onnxscript import irbuilder, sourceinfo, tensor
 
@@ -76,12 +76,10 @@ class Opset:
         if fun.name in self.function_defs:
 
             logger = logging.getLogger("onnx-script")
-            logger.warning(  # pylint: disable=logging-fstring-interpolation
-                f"{fun.name}: Already defined."
-            )
+            logger.warning("%s: Already defined.", fun.name)
         self.function_defs[fun.name] = fun
 
-    def _prepare_inputs(self, _: OpSchema, *inputs):
+    def _prepare_inputs(self, _: onnx.defs.OpSchema, *inputs):
         """Trims 'None' values from the end of the inputs list. This is used to support
         omitting optional inputs when no more required inputs follow to prepare a valid call
         against the Op. Used by the static opset code generator.
@@ -143,6 +141,7 @@ class Op:
         return new_kwargs
 
     def __call__(self, *args, **kwargs):
+        # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
         return evaluator.eval(self.opschema, args, self._convert_kwargs_to_numpy(kwargs))
@@ -282,6 +281,7 @@ class OnnxFunction(Op):
         """
 
         def fun(*args, **kwargs):
+            # FIXME(after #225): Move import to the top of the file.
             from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
             with evaluator.default_as(instance):
@@ -291,8 +291,11 @@ class OnnxFunction(Op):
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
+        # FIXME(after #225): Move import to the top of the file.
+        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
+
         new_args, has_array = _adapt_to_eager_mode(args)
-        result = self.function(*new_args, **kwargs)
+        result = evaluator.default().eval_function(self, *new_args, **kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one
