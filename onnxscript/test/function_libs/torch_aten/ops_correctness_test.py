@@ -235,13 +235,13 @@ def _softmax_input_wrangler(
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    new_kwargs = []
-    for kwarg in kwargs:
-        if isinstance(kwargs[kwarg], int):
-            # Explicitly convert to int64 because int type is 32-bit on Windows
-            kwarg = np.array(kwarg, dtype=np.int64)
-        new_kwargs.append(kwarg)
-    return args, new_kwargs
+    if kwargs.get("dim") is not None:
+        dim_value = kwargs.pop("dim")  # move 'dim' from kwargs into args
+        if isinstance(dim_value, tuple):
+            # tuple input cannot be handeled in os function, convert to array
+            dim_value = np.array(dim_value, dtype=np.int64)
+        args.append(dim_value)
+    return args, kwargs
 
 
 def _topk_input_wrangler(
@@ -318,9 +318,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "log2": core_ops.aten_log2,
     "logaddexp": core_ops.aten_logaddexp,
     "logaddexp2": core_ops.aten_logaddexp2,
-    #"logcumsumexp": core_ops.aten_logcumsumexp,
+    "logcumsumexp": core_ops.aten_logcumsumexp,
     "logdet": core_ops.aten_logdet,
-    #"logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
+    "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
@@ -392,8 +392,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
-    # "sum": (core_ops.aten_sum, _sum_input_wrangler),
-    "sum": core_ops.aten_sum,
+    "sum": (core_ops.aten_sum, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
 
