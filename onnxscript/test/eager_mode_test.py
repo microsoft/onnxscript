@@ -18,7 +18,7 @@ class EagerModeTest(unittest.TestCase):
         @script()
         def Concat(seq):
             return op.ConcatFromSequence(seq, axis=0)
-        
+
         np_array = np.array([1, 2, 3], dtype=np.float32)
         output1 = Concat([np_array, np_array])
         self.assertIsInstance(output1, np.ndarray)
