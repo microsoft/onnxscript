@@ -4,7 +4,6 @@
 # --------------------------------------------------------------------------
 
 import unittest
-from typing import Sequence
 
 import numpy as np
 import onnxscript
@@ -12,13 +11,12 @@ import onnxscript.tensor
 
 from onnxscript import script
 from onnxscript import opset17 as op
-from onnxscript import FLOAT
 
 
 class EagerModeTest(unittest.TestCase):
     def test_sequence_input(self):
         @script()
-        def Concat(seq: Sequence[FLOAT["N"]]):
+        def Concat(seq):
             return op.ConcatFromSequence(seq, axis=0)
         
         np_array = np.array([1, 2, 3], dtype=np.float32)
