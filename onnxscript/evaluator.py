@@ -147,7 +147,7 @@ def _os_to_ort_value(v):
     if isinstance(v, tensor.Tensor):
         return v.value
     if isinstance(v, list):
-        return v
+        return [_os_to_ort_value(x) for x in v]
     if v is None:
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
@@ -162,7 +162,7 @@ def _ort_to_os_value(v):
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
     if isinstance(v, list):
-        return v
+        return [_ort_to_os_value(x) for x in v]
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
