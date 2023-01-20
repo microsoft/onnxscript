@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
+import onnxscript
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import (
     IntType,
@@ -3522,7 +3523,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: INT64,
+    normalized_shape: Sequence[int],
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
@@ -3530,6 +3531,22 @@ def aten_native_layer_norm(
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
     axes = [-i for i in range(len(normalized_shape), 0, -1)]
+    if weight is None:
+        weight = op.Constant(value_int=1)
+    if bias is not None:
+        bias = op.Constant(value_int=0)
+    return aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
+
+
+@torch_op("aten::native_layer_norm", overload=True)
+def aten_native_layer_norm_onnx(
+    input: TReal,
+    weight: TReal,
+    bias: TReal,
+    axes: Sequence[int],
+    eps: float,
+) -> tuple[TReal, TReal, TReal]:
+
     mean = op.ReduceMean(input, axes=axes)
     numerator = op.Sub(input, mean)
     power_num = op.Pow(numerator, 2.0)
@@ -3537,10 +3554,8 @@ def aten_native_layer_norm(
     variance_eps = op.Add(variance, eps)
     denominator = op.Sqrt(variance_eps)
     result = op.Div(numerator, denominator)
-    if weight is not None:
-        result = op.Mul(result, weight)
-    if bias is not None:
-        result = op.Add(result, bias)
+    result = op.Mul(result, weight)
+    result = op.Add(result, bias)
     rdenominator = op.Reciprocal(denominator)
     return result, mean, rdenominator
 
@@ -4667,17 +4682,44 @@ def aten_sum(
 ) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
+    # TODO: Combine the overloads when OptionalHasElement() works
+    if dim is None:
+        return aten_sum_dim_none(self, None, keepdim=keepdim, dtype=dtype)
+    return aten_sum_dim_IntList(self, dim, keepdim=keepdim, dtype=dtype)
+
+
+@torch_op("aten::sum", overload=True)
+def aten_sum_dim_IntList(
+    self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1
+) -> TReal:
+    # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
+
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    if dim is None:  # waiting for OptionalHasElement() work
-        result = op.ReduceSum(self, dim, keepdims=keepdim)
-    else:
-        if op.Size(op.Shape(dim)) == 0:
-            dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
-            dim = op.Cast(dim, to=INT64.dtype)
-        result = op.ReduceSum(self, dim, keepdims=keepdim)
+    if op.Size(op.Shape(dim)) == 0:
+        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        dim = op.Cast(dim, to=INT64.dtype)
+    result = op.ReduceSum(self, dim, keepdims=keepdim)
+
+    if dtype != -1:
+        result = op.Cast(result, to=dtype)
+
+    if self_is_scalar:
+        result = op.Squeeze(result)
+    return result
+
+
+@torch_op("aten::sum", overload=True)
+def aten_sum_dim_none(self: TReal, dim=None, keepdim: bool = False, dtype: int = -1) -> TReal:
+    # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
+
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.ReduceSum(self, dim, keepdims=keepdim)
 
     if dtype != -1:
         result = op.Cast(result, to=dtype)
@@ -4898,12 +4940,6 @@ def aten_transpose(self, dim0: int, dim1: int):
     if self_rank == 0:
         result = self
     else:
-        # Python code, change when onnxscript supports this
-        self_rank_val = self_rank.value  # type: ignore[attr-defined]
-        dims = list(range(self_rank_val))
-        dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
-        # Python code ends
-
         result = op.Transpose(self, perm=dims)
 
     return result
