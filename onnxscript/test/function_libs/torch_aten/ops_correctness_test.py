@@ -420,7 +420,6 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    xfail("cat", reason="Enable after #351 is fixed"),
     xfail("clamp", reason="Enable when ONNX Runtime supports OptionalHasElement-18"),
     skip("empty", reason="Using zeros to simulate empty"),
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
