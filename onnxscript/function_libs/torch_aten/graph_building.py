@@ -160,6 +160,7 @@ def _unwrap_tensor_to_torch_value(
         return tuple(v.symbolic_value() for v in value)
     elif isinstance(value, TorchScriptTensor):
         value = value.symbolic_value()
+    # A normal python value
     return value
 
 
@@ -176,8 +177,8 @@ def _wrap_torch_value_to_tensor(
         value = [TorchScriptTensor(v) if isinstance(v, torch.Value) else v for v in value]
     elif isinstance(value, tuple):
         return tuple(TorchScriptTensor(v) if isinstance(v, torch.Value) else v for v in value)
-    elif isinstance(value, TorchScriptTensor):
-        value = value.symbolic_value()
+    elif isinstance(value, torch.Value):
+        value = TorchScriptTensor(value)
     return value
 
 
@@ -192,12 +193,10 @@ class TorchScriptEvaluator(evaluator.Evaluator):
     def eval_function(self, function: onnxscript.OnnxFunction, args, kwargs):
         # args/kwargs are TorchScriptTensor/python built-in based
         inputs, attributes = _split_args_kwargs_to_input_attr(function, args, kwargs)
-        inputs = self.graph._wrap_constant_to_torchscript_value(inputs)
         return self._graph.add_function(function, inputs, attributes)
 
     def _eval(self, schema, inputs, attributes, closure):
         # TODO: Does it really know what the inputs are?
-        inputs = self.graph._wrap_constant_to_torchscript_value(inputs)
         return self._graph.add_op(schema, inputs, attributes)
 
 
@@ -259,10 +258,16 @@ class TorchScriptGraph:
     ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
         # TODO(titaiwang) why not have unwrap function
         unwrapped_inputs = _unwrap_tensor_to_torch_value(onnx_inputs)
+        graph_inputs = []
+        for input in unwrapped_inputs:
+            if not isinstance(input, torch.Value):
+                graph_inputs.append(self.graph._wrap_constant_to_torchscript_value(input))
+            else:
+                graph_inputs.append(input)
         unwrapped_attributes = _unwrap_tensor_to_torch_value(onnx_attributes)
         encoded_attributes = _convert_kwargs_for_torchscript(unwrapped_attributes)
         result = self._graph_context.op(
-            name, *unwrapped_inputs, outputs=outputs, **encoded_attributes
+            name, *graph_inputs, outputs=outputs, **encoded_attributes
         )
         if isinstance(result, Sequence):
             return tuple(TorchScriptTensor(v) for v in result)
@@ -334,7 +339,8 @@ class TorchScriptGraph:
             value = self.graph.op(
                 "Constant", value_t=torch.tensor(constant, dtype=torch.float)
             )
-
+        else:
+            raise ValueError("[ERROR]")
         return value
 
     def to_model_proto(
