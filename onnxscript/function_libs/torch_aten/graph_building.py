@@ -12,13 +12,21 @@ import onnx.checker
 import onnx.defs
 import onnx.shape_inference
 import torch
+from beartype import beartype
 from torch.onnx import _type_utils
 
 import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
 
-ValidArgumentType = Union["TorchScriptTensor", str, int, float]
+__all__ = [
+    "TorchScriptTensor",
+    "TorchScriptGraph",
+    "TorchScriptEvaluator",
+]
+
+
+ValidArgumentType = Union["TorchScriptTensor", str, int, float, bool]
 
 
 class TorchScriptTensor(onnxscript_tensor.Tensor):
@@ -69,6 +77,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return self._value
 
 
+@beartype
 def _split_args_kwargs_to_input_attr(
     onnx_func: onnxscript.OnnxFunction, args, kwargs
 ) -> tuple[list[ValidArgumentType], dict[str, ValidArgumentType]]:
@@ -118,6 +127,7 @@ def _split_args_kwargs_to_input_attr(
     return onnx_inputs, onnx_attributes
 
 
+@beartype
 def _unwrap_tensor_to_torch_value(
     value: ValidArgumentType
     | dict[str, ValidArgumentType]
@@ -126,14 +136,7 @@ def _unwrap_tensor_to_torch_value(
 ) -> torch.Value | str | int | float | dict[str, torch.Value | str | int | float] | list[
     torch.Value | str | int | float
 ] | tuple[torch.Value | str | int | float, ...]:
-    """Unwrap the TorchScriptTensor to torch.Value.
-
-    Args:
-        value: The value to unwrap.
-
-    Returns:
-        The unwrapped value.
-    """
+    """Unwrap the TorchScriptTensor to torch.Value."""
     if isinstance(value, dict):
         return {
             k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
@@ -151,6 +154,7 @@ def _unwrap_tensor_to_torch_value(
     return value
 
 
+@beartype
 def _wrap_torch_value_to_tensor(
     value: torch.Value
     | dict[str, torch.Value | str | int | float]
@@ -159,14 +163,7 @@ def _wrap_torch_value_to_tensor(
 ) -> ValidArgumentType | dict[str, ValidArgumentType] | list[ValidArgumentType] | tuple[
     ValidArgumentType, ...
 ]:
-    """Wrap torch.Value to TorchScriptTensor.
-
-    Args:
-        value: The value to wrap.
-
-    Returns:
-        The wrapped value.
-    """
+    """Wrap torch.Value to TorchScriptTensor."""
     if isinstance(value, dict):
         return {
             k: TorchScriptTensor(v) if isinstance(v, torch.Value) else v
@@ -198,6 +195,7 @@ class TorchScriptEvaluator(evaluator.Evaluator):
     def graph(self) -> TorchScriptGraph:
         return self._graph
 
+    @beartype
     def eval_function(
         self,
         function: onnxscript.OnnxFunction,
@@ -215,32 +213,30 @@ class TorchScriptEvaluator(evaluator.Evaluator):
         return self._graph.add_op(schema, inputs, attributes)
 
 
+@beartype
 def _add_attribute_to_torchscrpt_node(
     node: torch.Node, key: str, value: float | int | str | Sequence[float] | Sequence[int]
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
-        kind = "f"
-    elif isinstance(value, int):
-        kind = "i"
-    elif isinstance(value, str):
-        kind = "s"
-    elif isinstance(value, torch.Tensor):
-        kind = "t"
-    elif isinstance(value, Sequence):
+        return node.f_(key, value)
+    if isinstance(value, int):
+        return node.i_(key, value)
+    if isinstance(value, str):
+        return node.s_(key, value)
+    if isinstance(value, torch.Tensor):
+        return node.t_(key, value)
+    if isinstance(value, Sequence):
         if isinstance(value, float):
-            kind = "fs"
-        elif isinstance(value, int):
-            kind = "is"
-        else:
-            raise ValueError(
-                f"Unsupported sequence type '{type(value)}' for attribute '{key}'"
-            )
-    else:
-        raise ValueError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
-    return getattr(node, f"{kind}_")(key, value)
+            return node.fs_(key, list(value))
+        if isinstance(value, int):
+            # Need to use getattr because 'is' is a reserved keyword
+            return getattr(node, "is_")(key, list(value))
+        raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
+    raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
 
+@beartype
 def _create_torchscript_op(
     graph: torch.Graph,
     opname: str,
@@ -262,7 +258,7 @@ def _create_torchscript_op(
     for key, value in sorted(attributes.items()):
         _add_attribute_to_torchscrpt_node(node, key, value)
 
-    return tuple(node.outputs())
+    return node_ouputs
 
 
 class TorchScriptGraph:
@@ -272,26 +268,25 @@ class TorchScriptGraph:
         self._function_store: dict[str, onnxscript.OnnxFunction] = {}
 
     @property
-    def graph(self):
+    def torch_graph(self):
         return self._graph
 
+    @beartype
     def add_input(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
         # TODO: Take in a TorchScriptTensor?
         if input_value is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
-            torch_value = self.graph.op("prim::Constant")  # type: ignore[attr-defined]
+            torch_value = self._graph.op("prim::Constant")  # type: ignore[attr-defined]
             torch_value.setType(torch._C.OptionalType.ofTensor())
             return torch_value
         torch_value = self._graph.addInput(input_name)
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
-        assert isinstance(tensor_value, TorchScriptTensor)
         return tensor_value
 
-    def register_outputs(
-        self, outputs: Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]
-    ):
+    @beartype
+    def register_outputs(self, outputs: TorchScriptTensor | tuple[TorchScriptTensor, ...]):
         unwrapped_outputs = _unwrap_tensors_to_torch_values(outputs)
         if isinstance(unwrapped_outputs, torch.Value):
             self._graph.registerOutput(unwrapped_outputs)
@@ -307,21 +302,21 @@ class TorchScriptGraph:
     def _add_constant_to_graph(self, constant) -> torch.Value:
         if isinstance(constant, float):
             return _create_torchscript_op(
-                self.graph,
+                self._graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
             )[0]
         if isinstance(constant, int):
             return _create_torchscript_op(
-                self.graph,
+                self._graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
             )[0]
         if constant is None:
             value = _create_torchscript_op(
-                self.graph, "prim::Constant", inputs=(), attributes={}
+                self._graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
             return value
@@ -329,7 +324,7 @@ class TorchScriptGraph:
             isinstance(val, int) for val in constant
         ):
             return _create_torchscript_op(
-                self.graph,
+                self._graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
@@ -338,7 +333,7 @@ class TorchScriptGraph:
             isinstance(val, float) for val in constant
         ):
             return _create_torchscript_op(
-                self.graph,
+                self._graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
@@ -348,9 +343,10 @@ class TorchScriptGraph:
             f"Constant input `{constant}` of type '{type(constant)}' is not supported"
         )
 
+    @beartype
     def _add_torchscript_op(
         self,
-        name,
+        name: str,
         onnx_inputs,
         onnx_attributes,
         n_outputs: int,
@@ -367,7 +363,7 @@ class TorchScriptGraph:
         for value in onnx_attributes.values():
             assert not isinstance(value, TorchScriptTensor)
         result = _create_torchscript_op(
-            self.graph,
+            self._graph,
             name,
             inputs=graph_inputs,
             attributes=onnx_attributes,
@@ -377,9 +373,10 @@ class TorchScriptGraph:
             return TorchScriptTensor(result[0])
         return tuple(TorchScriptTensor(v) for v in result)
 
+    @beartype
     def add_op(
         self,
-        onnx_op_schema,
+        onnx_op_schema: onnx.defs.OpSchema,
         onnx_inputs: Sequence[ValidArgumentType | Sequence[ValidArgumentType]],
         onnx_attributes: dict[str, ValidArgumentType | Sequence[ValidArgumentType]],
     ):
@@ -392,6 +389,7 @@ class TorchScriptGraph:
 
         return result
 
+    @beartype
     def add_function(
         self,
         onnx_function: onnxscript.OnnxFunction,
@@ -411,10 +409,11 @@ class TorchScriptGraph:
 
         return result
 
+    @beartype
     def to_model_proto(
         self, initializers: dict[str, torch.Tensor], opset_version: Optional[int]
     ) -> onnx.ModelProto:
-        proto, _, _, _ = self.graph._export_onnx(
+        proto, _, _, _ = self._graph._export_onnx(
             initializers=initializers,
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
