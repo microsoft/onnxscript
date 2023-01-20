@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
-import onnxscript
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.typing import (
     IntType,
@@ -4957,11 +4956,16 @@ def aten_transpose(self, dim0: int, dim1: int):
 
     # FIXME(justinchuby): onnxscript raises Unsupported expression type
     # Script the function when this is fixed
-    self_rank = op.Size(op.Shape(self))
+    self_rank = self.rank  # type: ignore[attr-defined]
 
     if self_rank == 0:
         result = self
     else:
+        # Python code, change when onnxscript supports this
+        dims = list(range(self_rank))
+        dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
+        # Python code ends
+
         result = op.Transpose(self, perm=dims)
 
     return result
