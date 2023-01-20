@@ -285,7 +285,6 @@ class OnnxFunction(Op):
             from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
             with evaluator.default_as(instance):
-                # TODO(titaiwang): possibly insert function_proto here?
                 return self.__call__(*args, **kwargs)
 
         return fun
@@ -296,7 +295,7 @@ class OnnxFunction(Op):
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
         new_args, has_array = _adapt_to_eager_mode(args)
-        result = evaluator.default().eval_function(self, *new_args, **kwargs)
+        result = evaluator.default().eval_function(self, new_args, kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one

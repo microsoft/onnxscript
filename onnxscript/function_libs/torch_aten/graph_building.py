@@ -4,7 +4,7 @@ from __future__ import annotations
 import collections
 import typing
 import warnings
-from typing import Dict, List, Sequence, Union, Any
+from typing import Any, Dict, List, Sequence, Union
 
 import numpy as np
 import onnx
@@ -13,8 +13,8 @@ from torch.onnx import _type_utils
 from torch.onnx._internal import jit_utils
 
 import onnxscript
-from onnxscript import evaluator, tensor as onnxscript_tensor
-
+from onnxscript import evaluator
+from onnxscript import tensor as onnxscript_tensor
 
 ValidArgumentType = Union["TorchScriptTensor", str, int, float]
 
@@ -91,7 +91,7 @@ def _parse_node(value: torch.Value):
     raise ValueError("[ERROR] Attribute is not Constant!!!")
 
 
-def _adapt_torchscript_inputs(onnx_func, args, kwargs):
+def _split_args_kwargs_to_input_attr(onnx_func: onnxscript.OnnxFunction, args, kwargs):
     func_ir = onnx_func.function_ir
     assert len(func_ir.inputs) + len(func_ir.attr_protos) == len(args)
     # The first len(func_ir.inputs) arguements are onnx inputs
@@ -110,24 +110,19 @@ def _adapt_torchscript_inputs(onnx_func, args, kwargs):
     )
     assert len(attr_name_to_protos) >= len(attributes)
     for attr_proto, attr_value in zip(attr_name_to_protos.values(), attributes):
-        node_val = _parse_node(attr_value)
-        onnx_attrs[attr_proto.name] = _parse_torch_value(node_val, attr_proto.type)
+        onnx_attrs[attr_proto.name] = attr_value
 
     for key, value in kwargs.items():
         if key not in attr_name_to_protos:
             warnings.warn(f"Attribute '{key}' is not defined in the function definition")
             continue
         # Fill in the values from kwargs
-        attr_proto = attr_name_to_protos[key]
-        onnx_attrs[key] = _parse_torch_value(value, attr_proto.type)
+        onnx_attrs[key] = value
 
     # Fill in the default values
     for key, attr_proto in attr_name_to_protos.items():
         if key not in onnx_attrs:
             onnx_attrs[key] = attr_proto.value
-
-    onnx_inputs = _wrap_torch_value_to_tensor(onnx_inputs)
-    onnx_attrs = _wrap_torch_value_to_tensor(onnx_attrs)
 
     return onnx_inputs, onnx_attrs
 
@@ -148,6 +143,24 @@ def _convert_kwargs_for_torchscript(kwargs):
                 attr_name += "_i"
         encoded[attr_name] = attr
     return encoded
+
+
+def _unwrap_tensor_to_torch_value(
+    value: Union[Dict[str, Any], List]
+) -> Union[Dict[str, Any], List]:
+    # unwrap TorchScriptTensor
+    if isinstance(value, dict):
+        value = {
+            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
+            for k, v in value.items()
+        }
+    elif isinstance(value, list):
+        value = [v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in value]
+    elif isinstance(value, tuple):
+        return tuple(v.symbolic_value() for v in value)
+    elif isinstance(value, TorchScriptTensor):
+        value = value.symbolic_value()
+    return value
 
 
 def _wrap_torch_value_to_tensor(
@@ -176,13 +189,15 @@ class TorchScriptEvaluator(evaluator.Evaluator):
     def graph(self) -> TorchScriptGraph:
         return self._graph
 
-    def eval_function(self, function: onnxscript.OnnxFunction, *args, **kwargs):
-        # TODO: Decide input and attributes
-        # Should this be done by the graph or the evaluator?
+    def eval_function(self, function: onnxscript.OnnxFunction, args, kwargs):
+        # args/kwargs are TorchScriptTensor/python built-in based
+        inputs, attributes = _split_args_kwargs_to_input_attr(function, args, kwargs)
+        inputs = self.graph._wrap_constant_to_torchscript_value(inputs)
         return self._graph.add_function(function, inputs, attributes)
 
-    def _eval(self, schema, inputs, attributes):
+    def _eval(self, schema, inputs, attributes, closure):
         # TODO: Does it really know what the inputs are?
+        inputs = self.graph._wrap_constant_to_torchscript_value(inputs)
         return self._graph.add_op(schema, inputs, attributes)
 
 
@@ -210,23 +225,29 @@ class TorchScriptGraph:
 
     def add_input(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
         # TODO: Take in a TorchScriptTensor?
+        if input_value is None:
+            # This input argument is None, which is mapped
+            # to a NULL value in TorchScript type system.
+            torch_value = self.graph.op("prim::Constant")  # type: ignore[attr-defined]
+            torch_value.setType(torch._C.OptionalType.ofTensor())
+            return torch_value
         torch_value = self._graph.addInput(input_name)
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
-        return torch_value
+        tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        return tensor_value
 
     def register_output(
         self, outputs: Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]
     ):
-        if isinstance(outputs, TorchScriptTensor):
-            unwrapped_outputs = outputs.symbolic_value()
-            self._graph.registerOutput(unwrapped_outputs)
+        unwrap_outputs = _unwrap_tensor_to_torch_value(outputs)
+        if isinstance(outputs, torch.Value):
+            self._graph.registerOutput(unwrap_outputs)
         else:
-            for ts_output in outputs:
+            for ts_output in unwrap_outputs:
                 assert isinstance(
-                    ts_output, TorchScriptTensor
+                    ts_output, torch.Value
                 ), f"ts_output must be a torch._C.Value, not {type(ts_output)}"
-                unwrapped_ts_output = ts_output.symbolic_value()
-                self._graph.registerOutput(unwrapped_ts_output)
+                self._graph.registerOutput(unwrap_outputs)
         return
 
     def _add_torchscript_op(
@@ -237,13 +258,8 @@ class TorchScriptGraph:
         outputs: int,
     ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
         # TODO(titaiwang) why not have unwrap function
-        unwrapped_inputs = [
-            v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in onnx_inputs
-        ]
-        unwrapped_attributes = {
-            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
-            for k, v in onnx_attributes.items()
-        }
+        unwrapped_inputs = _unwrap_tensor_to_torch_value(onnx_inputs)
+        unwrapped_attributes = _unwrap_tensor_to_torch_value(onnx_attributes)
         encoded_attributes = _convert_kwargs_for_torchscript(unwrapped_attributes)
         result = self._graph_context.op(
             name, *unwrapped_inputs, outputs=outputs, **encoded_attributes
@@ -267,7 +283,6 @@ class TorchScriptGraph:
 
         return result
 
-
     def add_function(
         self,
         onnx_function: onnxscript.OnnxFunction,
@@ -284,3 +299,70 @@ class TorchScriptGraph:
         )
 
         return result
+
+    def _wrap_constant_to_torchscript_value(self, constant) -> torch.Value:
+        if isinstance(constant, float):
+            # Always promote scalar to tensor with element type "dtype."
+            # Usually, "dtype" is extracted from the expected output tensor of the node.
+            # If this assumption is broken, we probably need to
+            #  1. add "scalar" type in ONNX  and extend all exporters to support it, or
+            #  2. write type promotion logic for each operator.
+            # TODO(wechi): the called exporting function should tell all allowed input and output types.
+            # Then, here we can try type-casting if type-mismatch happens.
+            value = self.graph.op(
+                "Constant", value_t=torch.tensor(constant, dtype=torch.float)
+            )
+        elif isinstance(constant, int):
+            # Always promote scalar to tensor with element type "dtype."
+            # Usually, "dtype" is extracted from the expected output tensor of the node.
+            # If this assumption is broken, we probably need to
+            #  1. add "scalar" type in ONNX  and extend all exporters to support it, or
+            #  2. write type promotion logic for each operator.
+            # TODO(wechi): the called exporting function should tell all allowed input and output types.
+            # Then, here we can try type-casting if type-mismatch happens.
+            value = self.graph.op(
+                "Constant", value_t=torch.tensor(constant, dtype=torch.int64)
+            )
+        elif constant is None:
+            value = self.graph.op("prim::Constant")
+            value.setType(torch._C.OptionalType.ofTensor())
+        elif isinstance(constant, list) and all(isinstance(val, int) for val in constant):
+            value = self.graph.op(
+                "Constant", value_t=torch.tensor(constant, dtype=torch.int64)
+            )
+        elif isinstance(constant, list) and all(isinstance(val, float) for val in constant):
+            value = self.graph.op(
+                "Constant", value_t=torch.tensor(constant, dtype=torch.float)
+            )
+
+        return value
+
+    def to_model_proto(
+        self, initializers: dict[str, torch.Tensor], opset_version: Optional[int]
+    ):
+        proto, _, _, _ = self.graph._export_onnx(
+            initializers=initializers,
+            onnx_opset_version=opset_version,
+            dynamic_axes={},
+            defer_weight_export=False,
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
+            strip_doc_string=False,
+            keep_initializers_as_inputs=False,
+            custom_opsets={},
+            add_node_names=True,
+            onnx_file_path="",
+            node_attr_to_name={},
+        )
+
+        onnx_model = onnx.load_from_string(proto)
+        function_proto_list = []
+        for onnx_function in self._function_store.values():
+            function_proto_list.append(onnx_function.to_function_proto())
+        onnx_model.functions.extend(function_proto_list)
+        print("ONNX model: \n", onnx_model)
+        onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
+        print("after ONNX model: \n", onnx_model)
+        onnx.checker.check_model(onnx_model, full_check=True)
+        print("[Success] ONNX model")
+        model_bytes = onnx_model.SerializeToString()
+        return model_bytes
