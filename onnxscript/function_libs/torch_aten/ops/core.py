@@ -3546,7 +3546,7 @@ def aten_native_layer_norm(
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
-) -> tuple[TReal, TReal, TReal]:
+) -> Tuple[TReal, TReal, TReal]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
     # Use python to manipulate the axes
@@ -3565,7 +3565,7 @@ def aten_native_layer_norm_onnx(
     bias: TReal,
     axes: Sequence[int],
     eps: float,
-) -> tuple[TReal, TReal, TReal]:
+) -> Tuple[TReal, TReal, TReal]:
 
     mean = op.ReduceMean(input, axes=axes)
     numerator = op.Sub(input, mean)
