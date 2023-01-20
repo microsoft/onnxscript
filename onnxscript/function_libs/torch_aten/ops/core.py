@@ -4661,12 +4661,30 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
     raise NotImplementedError()
 
 
+@torch_op("aten::sum", trace_only=True)
 def aten_sum(
-    self: TensorType, dim: Optional[int] = None, keepdim: bool = False, dtype: int = -1
-) -> TensorType:
+    self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1
+) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
-    raise NotImplementedError()
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    if dim is None:  # waiting for OptionalHasElement() work
+        result = op.ReduceSum(self, dim, keepdims=keepdim)
+    else:
+        if op.Size(op.Shape(dim)) == 0:
+            dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+            dim = op.Cast(dim, to=INT64.dtype)
+        result = op.ReduceSum(self, dim, keepdims=keepdim)
+
+    if dtype != -1:
+        result = op.Cast(result, to=dtype)
+
+    if self_is_scalar:
+        result = op.Squeeze(result)
+    return result
 
 
 def aten_sum_to_size(self: TensorType, size: Sequence[int]) -> TensorType:

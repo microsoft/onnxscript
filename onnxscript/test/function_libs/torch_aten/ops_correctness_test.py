@@ -232,6 +232,18 @@ def _softmax_input_wrangler(
     return args, kwargs
 
 
+def _sum_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if kwargs.get("dim") is not None:
+        dim_value = kwargs.pop("dim")  # move 'dim' from kwargs into args
+        if isinstance(dim_value, tuple):
+            # tuple input cannot be handeled in os function, convert to array
+            dim_value = np.array(dim_value, dtype=np.int64)
+        args.append(dim_value)
+    return args, kwargs
+
+
 def _split_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -389,6 +401,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
+    "sum": (core_ops.aten_sum, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
 
@@ -528,7 +541,6 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "new_full", ("full",))
-
 
 # END OF SECTION TO MODIFY #####################################################
 
