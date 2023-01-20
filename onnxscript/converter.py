@@ -290,26 +290,28 @@ class Converter:
         self.used_vars.add(r)
         return r
 
-    def to_onnx_attr_ref(self, val: values.AttrRef):
+    def to_onnx_attr_ref(self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]):
         pytype = val.typeinfo
+        attrtype = ta.pytype_to_attrtype(pytype)
         attrname = None
-        if pytype is float:
+        if attrtype is onnx.AttributeProto.FLOAT:
             attrname = "value_float"
-        elif pytype is int:
+        elif attrtype is onnx.AttributeProto.INT:
             attrname = "value_int"
-        elif pytype is str:
+        elif attrtype is onnx.AttributeProto.STRING:
             attrname = "value_string"
-        elif pytype is List[int]:
+        elif attrtype is onnx.AttributeProto.INTS:
             attrname = "value_ints"
         else:
-            self.fail(val, f"Unsupported attribute type {pytype!r}.")
+            msg = f"Unsupported attribute type {pytype!r}."
+            fail(info.msg(msg) if info else msg)
         return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
 
-    def to_onnx_var(self, val, target=None, info=None):
+    def to_onnx_var(self, val, target=None, info: Optional[sourceinfo.SourceInfo] = None):
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target if target else "tmp")
-            attr = self.to_onnx_attr_ref(val)
+            attr = self.to_onnx_attr_ref(val, info)
             self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
             return ConverterExpression(result, ConverterExpressionKind.CONST)
         if isinstance(val, values.Dynamic):
@@ -319,7 +321,7 @@ class Converter:
         # produce a better error message otherwise
         return self.emit_const(val, target if target else "tmp", info)
 
-    def py_var_to_onnx_var(self, py_var, info):
+    def py_var_to_onnx_var(self, py_var, info: sourceinfo.SourceInfo):
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring):
@@ -341,7 +343,6 @@ class Converter:
             self.bind(x, values.Dynamic(r, values.DynamicKind.Output, info))
             return r
 
-        # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
         self.emit(
