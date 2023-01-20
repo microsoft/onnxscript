@@ -190,6 +190,15 @@ def _arange_input_wrangler(
     return new_args, kwargs
 
 
+def _cat_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove the self argument
+    if len(args) == 2:
+        kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -294,7 +303,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
-    "cat": core_ops.aten_cat,
+    "cat": (core_ops.aten_cat, _cat_input_wrangler),
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -420,7 +429,6 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    xfail("cat", reason="Enable after #351 is fixed"),
     xfail("clamp", reason="Enable when ONNX Runtime supports OptionalHasElement-18"),
     skip("empty", reason="Using zeros to simulate empty"),
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
@@ -461,6 +469,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "arange_start_step",
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
+    ),
+    skip(
+        "cat",
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="cat does not support zero-dim tensors yet",
     ),
     skip(
         "div",
