@@ -166,7 +166,7 @@ class Evaluator(abc.ABC):
     def _eval(self, schema, inputs, attributes, closure):
         pass
 
-    def eval_function(self, function: values.OnnxFunction, *args, **kwargs):
+    def eval_function(self, function: values.OnnxFunction, args, kwargs):
         """Evaluates a function in eager mode.
 
         Override this function to change the evaluator's behavior for functions.

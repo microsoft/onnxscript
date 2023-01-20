@@ -208,7 +208,7 @@ class OnnxFunction(Op):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval_function(self, *args, **kwargs)
+        return evaluator.default().eval_function(self, args, kwargs)
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
