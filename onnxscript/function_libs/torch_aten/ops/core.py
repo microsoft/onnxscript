@@ -336,10 +336,18 @@ def aten_arctanh(self: TensorType) -> TensorType:
 def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
+    if dim is None:  # TODO: use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    return aten_argmax_dim(self, dim=dim, keepdim=keepdim)
+
+
+@torch_op("aten::argmax", overload=True)
+def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+    # argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
+
     self_is_scaler = op.Size(op.Shape(self)) == 0
     if self_is_scaler:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
-    elif dim is None:  # should use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     result = op.ArgMax(self, axis=dim, keepdims=keepdim)
@@ -353,10 +361,18 @@ def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -
 def aten_argmin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
 
+    if dim is None:  # TODO: use OptionalHasElement(dim)
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    return aten_argmin_dim(self, dim=dim, keepdim=keepdim)
+
+
+@torch_op("aten::argmin", overload=True)
+def aten_argmin_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+    # argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor
+
     self_is_scaler = op.Size(op.Shape(self)) == 0
     if self_is_scaler:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
-    elif dim is None:  # should use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     result = op.ArgMin(self, axis=dim, keepdims=keepdim)
@@ -729,18 +745,14 @@ def aten_cartesian_prod(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::cat", trace_only=True)
+@torch_op("aten::cat")
 def aten_cat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     # cat(Tensor[] tensors, int dim=0) -> Tensor
 
-    num_of_input = len(tensors)  # len() function not support yet
-    a = op.SequenceEmpty()
-    for i in range(num_of_input):
-        if op.Size(tensors[i]) == 0 and dim != 0:
-            # Skip empty tensors when concatenating along non-zero dimension
-            continue
-        a = op.SequenceInsert(a, tensors[i])
-    return op.ConcatFromSequence(a, axis=dim)
+    # NOTE: Having empty tensors when concatenating along non-zero dimension
+    # is not supported.
+    # TODO: Filter these tensors out before calling ConcatFromSequence.
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
 def aten_ccol_indices(self: TensorType) -> TensorType:
@@ -2283,7 +2295,14 @@ def aten_index_reduce(
 
 # FIXME(#277): Script when attributes can come before inputs
 @torch_op("aten::index_select", trace_only=True)
-def aten_index_select(self: TTensor, dim: int, index: TInt) -> TTensor:
+def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
+    # index_select(Tensor self, int dim, Tensor index) -> Tensor
+
+    return aten_index_select_onnx(self, index, dim)
+
+
+@torch_op("aten::index_select", overload=True)
+def aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
     if op.Size(op.Shape(self)) == 0:
@@ -3530,6 +3549,7 @@ def aten_native_layer_norm(
 ) -> tuple[TReal, TReal, TReal]:
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
+    # Use python to manipulate the axes
     axes = [-i for i in range(len(normalized_shape), 0, -1)]
     if weight is None:
         weight = op.Constant(value_int=1)
@@ -3554,7 +3574,9 @@ def aten_native_layer_norm_onnx(
     variance_eps = op.Add(variance, eps)
     denominator = op.Sqrt(variance_eps)
     result = op.Div(numerator, denominator)
+    weight = op.CastLike(weight, result)
     result = op.Mul(result, weight)
+    bias = op.CastLike(bias, result)
     result = op.Add(result, bias)
     rdenominator = op.Reciprocal(denominator)
     return result, mean, rdenominator
@@ -4684,7 +4706,7 @@ def aten_sum(
 
     # TODO: Combine the overloads when OptionalHasElement() works
     if dim is None:
-        return aten_sum_dim_none(self, None, keepdim=keepdim, dtype=dtype)
+        return aten_sum_dim_none(self, keepdim=keepdim, dtype=dtype)
     return aten_sum_dim_IntList(self, dim, keepdim=keepdim, dtype=dtype)
 
 
@@ -4712,14 +4734,14 @@ def aten_sum_dim_IntList(
 
 
 @torch_op("aten::sum", overload=True)
-def aten_sum_dim_none(self: TReal, dim=None, keepdim: bool = False, dtype: int = -1) -> TReal:
+def aten_sum_dim_none(self: TReal, keepdim: bool = False, dtype: int = -1) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    result = op.ReduceSum(self, dim, keepdims=keepdim)
+    result = op.ReduceSum(self, keepdims=keepdim)
 
     if dtype != -1:
         result = op.Cast(result, to=dtype)
