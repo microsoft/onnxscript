@@ -294,8 +294,8 @@ class OnnxFunction(Op):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        new_args, has_array = _adapt_to_eager_mode(args)
-        result = evaluator.default().eval_function(self, new_args, kwargs)
+        # new_args, has_array = _adapt_to_eager_mode(args)
+        result = evaluator.default().eval_function(self, args, kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one
@@ -304,7 +304,8 @@ class OnnxFunction(Op):
         # or explicitly track whether this is a top-level function-call or
         # a nested function-call.
 
-        return _adapt_to_user_mode(result) if has_array else result
+        # return _adapt_to_user_mode(result) if has_array else result
+        return result
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""

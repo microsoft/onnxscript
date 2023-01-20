@@ -28,7 +28,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     @property
     def value(self) -> np.ndarray:
-        raise NotImplementedError()
+        return None
 
     def symbolic_value(self) -> torch.Value:
         return self._value
@@ -157,9 +157,11 @@ def _unwrap_tensor_to_torch_value(
     elif isinstance(value, list):
         value = [v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in value]
     elif isinstance(value, tuple):
-        return tuple(v.symbolic_value() for v in value)
+        return tuple(v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in value)
     elif isinstance(value, TorchScriptTensor):
         value = value.symbolic_value()
+    else:
+        print("value: ", value)
     # A normal python value
     return value
 
@@ -181,6 +183,10 @@ def _wrap_torch_value_to_tensor(
         value = TorchScriptTensor(value)
     return value
 
+def _unwrap_tensors_to_torch_values(tensors):
+    if isinstance(tensors, Sequence):
+        return [_unwrap_tensor_to_torch_value(output) for output in tensors]
+    return _unwrap_tensor_to_torch_value(tensors)
 
 class TorchScriptEvaluator(evaluator.Evaluator):
     def __init__(self, graph: TorchScriptGraph):
@@ -206,7 +212,7 @@ class TorchScriptGraph:
         self._graph_context = jit_utils.GraphContext(
             graph=self._graph,
             block=self._graph.block(),  # Pointless. Just make linter happy.
-            opset=-1,
+            opset=17,
             original_node=self._graph.insertPoint(),  # Pointless. Just make linter happy.
             params_dict={},  # Pointless. Just make linter happy.
             env={},  # Pointless. Just make linter happy.
@@ -235,14 +241,14 @@ class TorchScriptGraph:
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value
 
-    def register_output(
+    def register_outputs(
         self, outputs: Union[TorchScriptTensor, tuple[TorchScriptTensor, ...]]
     ):
-        unwrap_outputs = _unwrap_tensor_to_torch_value(outputs)
-        if isinstance(outputs, torch.Value):
-            self._graph.registerOutput(unwrap_outputs)
+        unwrapped_outputs = _unwrap_tensors_to_torch_values(outputs)
+        if isinstance(unwrapped_outputs, torch.Value):
+            self._graph.registerOutput(unwrapped_outputs)
         else:
-            for ts_output in unwrap_outputs:
+            for ts_output in unwrapped_outputs:
                 assert isinstance(
                     ts_output, torch.Value
                 ), f"ts_output must be a torch._C.Value, not {type(ts_output)}"
@@ -256,16 +262,17 @@ class TorchScriptGraph:
         onnx_attributes,
         outputs: int,
     ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
-        # TODO(titaiwang) why not have unwrap function
-        unwrapped_inputs = _unwrap_tensor_to_torch_value(onnx_inputs)
+        
+        unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         for input in unwrapped_inputs:
             if not isinstance(input, torch.Value):
-                graph_inputs.append(self.graph._wrap_constant_to_torchscript_value(input))
+                graph_inputs.append(self._wrap_constant_to_torchscript_value(input))
             else:
                 graph_inputs.append(input)
-        unwrapped_attributes = _unwrap_tensor_to_torch_value(onnx_attributes)
-        encoded_attributes = _convert_kwargs_for_torchscript(unwrapped_attributes)
+        for value in onnx_attributes.values():
+            assert not isinstance(value, TorchScriptTensor)
+        encoded_attributes = _convert_kwargs_for_torchscript(onnx_attributes)
         result = self._graph_context.op(
             name, *graph_inputs, outputs=outputs, **encoded_attributes
         )
@@ -275,15 +282,15 @@ class TorchScriptGraph:
 
     def add_op(
         self,
-        onnx_op,
+        onnx_op_schema,
         onnx_inputs: Sequence[ValidArgumentType | Sequence[ValidArgumentType]],
         onnx_attributes: dict[str, ValidArgumentType | Sequence[ValidArgumentType]],
     ):
         # Compute outputs from the onnx_op op schema
 
-        # This is not a tuple for now. TODO: Check output
+        # FIXME(justinchuby): Figure out how to get the number of outputs from the schema
         result = self._add_torchscript_op(
-            onnx_op.name, onnx_inputs, onnx_attributes, outputs=1
+            f"onnx::{onnx_op_schema.name}", onnx_inputs, onnx_attributes, outputs=1
         )
 
         return result
@@ -298,9 +305,8 @@ class TorchScriptGraph:
 
         # Compute outputs from the function schema
 
-        # This is not a tuple for now. TODO: Check output
         result = self._add_torchscript_op(
-            onnx_function.name, onnx_inputs, onnx_attributes, outputs=1
+            f"{onnx_function.function_ir.domain}::{onnx_function.name}", onnx_inputs, onnx_attributes, outputs=len(onnx_function.function_ir.outputs)
         )
 
         return result
@@ -340,7 +346,7 @@ class TorchScriptGraph:
                 "Constant", value_t=torch.tensor(constant, dtype=torch.float)
             )
         else:
-            raise ValueError("[ERROR]")
+            raise ValueError("[ERROR]: ", constant)
         return value
 
     def to_model_proto(
