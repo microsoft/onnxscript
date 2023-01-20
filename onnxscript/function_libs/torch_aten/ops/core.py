@@ -4552,10 +4552,11 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_split(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
+@torch_op("aten::split")
+def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_size, axis=dim)
 
 
 def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
