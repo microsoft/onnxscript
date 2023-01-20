@@ -4661,7 +4661,9 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> Tens
 
 
 @torch_op("aten::sum", trace_only=True)
-def aten_sum(self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1) -> TReal:
+def aten_sum(
+    self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1
+) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
 
     self_is_scalar = op.Size(op.Shape(self)) == 0
