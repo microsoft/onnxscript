@@ -4957,7 +4957,7 @@ def aten_transpose(self, dim0: int, dim1: int):
 
     # FIXME(justinchuby): onnxscript raises Unsupported expression type
     # Script the function when this is fixed
-    self_rank = self.rank  # type: ignore[attr-defined]
+    self_rank = len(self.shape)  # type: ignore[attr-defined]
 
     if self_rank == 0:
         result = self
