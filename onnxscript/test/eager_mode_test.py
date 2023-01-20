@@ -6,11 +6,11 @@
 import unittest
 
 import numpy as np
+
 import onnxscript
 import onnxscript.tensor
-
-from onnxscript import script
 from onnxscript import opset17 as op
+from onnxscript import script
 
 
 class EagerModeTest(unittest.TestCase):
@@ -26,6 +26,7 @@ class EagerModeTest(unittest.TestCase):
         os_tensor = onnxscript.tensor.Tensor(np_array)
         output2 = Concat([os_tensor, os_tensor])
         self.assertIsInstance(output2, onnxscript.tensor.Tensor)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
