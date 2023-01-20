@@ -2298,7 +2298,7 @@ def aten_index_reduce(
 def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
-    return aten_index_select_onnx(self, index, dim)
+    return aten_index_select_onnx(self, index, dim=dim)
 
 
 @torch_op("aten::index_select", overload=True)
