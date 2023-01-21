@@ -1022,9 +1022,6 @@ def aten_conv2d(
 
     result = op.Conv(input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations)
 
-    if bias is not None:
-        result = op.Add(result, bias)
-
     return result
 
 
