@@ -1010,7 +1010,7 @@ def aten_conv2d(
 
     if not isinstance(padding, Sequence):
         padding = (padding, padding)
-    pads = list(padding + padding)
+    pads = list(padding)
 
     if not isinstance(dilation, Sequence):
         dilation = (dilation, dilation)
