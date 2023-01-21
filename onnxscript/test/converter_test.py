@@ -616,6 +616,17 @@ class TestConverter(testutils.TestBase):
         proto = model_script.to_model_proto()
         onnx.shape_inference.infer_shapes(proto)
 
+    def test_cast_like_attr(self):
+        @script(default_opset=op)
+        def inc_alpha(A: FLOAT[...], alpha: int) -> FLOAT[...]:
+            return A + alpha
+
+        @script()
+        def inc_alpha_expanded(A: FLOAT[...], alpha: int) -> FLOAT[...]:
+            return A + op.CastLike(alpha, A)
+
+        self.assertSame(inc_alpha, inc_alpha_expanded)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
