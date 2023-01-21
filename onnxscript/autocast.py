@@ -66,7 +66,7 @@ def dynamic_cast_inputs(opschema, *args):
             if typeinfo is not None:
                 dtype = typeinfo
             elif isinstance(x, int):
-                dtype = np.int32
+                dtype = np.int64
             else:  # isinstance(x, float):
                 dtype = np.float32
             return tensor.Tensor(np.array(x, dtype=dtype))
