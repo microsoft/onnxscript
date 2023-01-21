@@ -8,11 +8,12 @@ import abc
 import contextlib
 import pprint
 import typing
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
 import onnx.helper
+from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
@@ -20,28 +21,26 @@ if typing.TYPE_CHECKING:
     import onnxruntime as ort
 
 
-_UserModeValue = Any
-_EagerModeValue = Any
-_ExtendedModeValue = Any
+UserModeValue: TypeAlias = Union[
+    Optional[np.ndarray], List["UserModeValue"], Tuple["UserModeValue", ...]
+]
 
-# _UserModeValue = Union[Optional[np.ndarray], List["_UserModeValue"], Tuple["_UserModeValue", ...]]
+EagerModeValue: TypeAlias = Union[
+    Optional["tensor.Tensor"], List["EagerModeValue"], Tuple["EagerModeValue", ...]
+]
 
-# _EagerModeValue = Union[
-#     Optional["tensor.Tensor"], List["_EagerModeValue"], Tuple["_EagerModeValue", ...]
-# ]
-
-# _ExtendedModeValue = Union[
-#     Optional["tensor.Tensor"],
-#     List["_ExtendedModeValue"],
-#     Tuple["_ExtendedModeValue", ...],
-#     np.ndarray,
-#     int,
-#     float,
-#     bool,
-# ]
+ExtendedModeValue: TypeAlias = Union[
+    Optional["tensor.Tensor"],
+    List["ExtendedModeValue"],
+    Tuple["ExtendedModeValue", ...],
+    np.ndarray,
+    int,
+    float,
+    bool,
+]
 
 
-def _adapt_to_eager_mode(inputs: _ExtendedModeValue) -> _EagerModeValue:
+def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> tuple[EagerModeValue, bool]:
     """Adapts inputs into representation used by onnxscript eager mode.
 
     This does the following transformations:
@@ -61,7 +60,7 @@ def _adapt_to_eager_mode(inputs: _ExtendedModeValue) -> _EagerModeValue:
     """
     has_array = False
 
-    def adapt(input: _ExtendedModeValue) -> _EagerModeValue:
+    def adapt(input: ExtendedModeValue) -> EagerModeValue:
         if isinstance(input, np.ndarray):
             nonlocal has_array
             has_array = True
@@ -82,7 +81,7 @@ def _adapt_to_eager_mode(inputs: _ExtendedModeValue) -> _EagerModeValue:
     return result, has_array
 
 
-def _adapt_to_user_mode(output: _ExtendedModeValue) -> _UserModeValue:
+def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
     """Unwraps Tensor wrapper around numpy arrays.
 
     Args:
