@@ -10,9 +10,8 @@ import types
 from enum import IntFlag
 from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
 
-import numpy as np
 import onnx
-from onnx.defs import OpSchema
+import onnx.defs
 
 from onnxscript import irbuilder, sourceinfo, tensor
 
@@ -76,12 +75,10 @@ class Opset:
         if fun.name in self.function_defs:
 
             logger = logging.getLogger("onnx-script")
-            logger.warning(  # pylint: disable=logging-fstring-interpolation
-                f"{fun.name}: Already defined."
-            )
+            logger.warning("%s: Already defined.", fun.name)
         self.function_defs[fun.name] = fun
 
-    def _prepare_inputs(self, _: OpSchema, *inputs):
+    def _prepare_inputs(self, _: onnx.defs.OpSchema, *inputs):
         """Trims 'None' values from the end of the inputs list. This is used to support
         omitting optional inputs when no more required inputs follow to prepare a valid call
         against the Op. Used by the static opset code generator.
@@ -143,6 +140,7 @@ class Op:
         return new_kwargs
 
     def __call__(self, *args, **kwargs):
+        # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
         return evaluator.eval(self.opschema, args, self._convert_kwargs_to_numpy(kwargs))
@@ -161,91 +159,6 @@ class OnnxClosure:
     frame: types.FrameType
 
     function: Any
-
-
-UserModeValue = Any
-EagerModeValue = Any
-ExtendedModeValue = Any
-
-# UserModeValue = Union[Optional[np.ndarray], List["UserModeValue"], Tuple["UserModeValue", ...]]
-
-# EagerModeValue = Union[
-#     Optional["tensor.Tensor"], List["EagerModeValue"], Tuple["EagerModeValue", ...]
-# ]
-
-# ExtendedModeValue = Union[
-#     Optional["tensor.Tensor"],
-#     List["ExtendedModeValue"],
-#     Tuple["ExtendedModeValue", ...],
-#     np.ndarray,
-#     int,
-#     float,
-#     bool,
-# ]
-
-
-def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> EagerModeValue:
-    """Adapts inputs into representation used by onnxscript eager mode.
-
-    This does the following transformations:
-    * It adds an onnxscript Tensor wrapper around numpy arrays, which
-    allows the use of overloaded operators like + to be controlled by onnxscript.
-    * It also provides a promotion of scalars into tensors as a convenience.
-    This is needed to complement the similar promotion supported by the
-    onnxscript converter (for example, when an attribute is promoted and used
-    as an input argument).
-
-    Args:
-        inputs: a list/tuple of inputs to an ONNX function
-
-    Returns:
-        a pair (wrapped_inputs, flag) where flag indicates whether any numpy array
-        was wrapped into a Tensor.
-    """
-    has_array = False
-
-    def adapt(input: ExtendedModeValue) -> EagerModeValue:
-        if isinstance(input, np.ndarray):
-            nonlocal has_array
-            has_array = True
-            return tensor.Tensor(input)
-        elif isinstance(input, tensor.Tensor):
-            return input
-        elif isinstance(input, (bool, int, float)):
-            return tensor.Tensor(np.array(input))
-        elif input is None:
-            return None
-        elif isinstance(input, list):
-            return [adapt(elt) for elt in input]
-        elif isinstance(input, tuple):
-            return tuple(adapt(elt) for elt in input)
-        raise TypeError(f"Unexpected input type {type(input)}.")
-
-    result = adapt(inputs)
-    return result, has_array
-
-
-def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
-    """Unwraps Tensor wrapper around numpy arrays.
-
-    Args:
-        output: output of an ONNX function, which can be either a single
-            onnx value or a list/tuple of onnx values.
-
-    Returns:
-        unwrapped output
-    """
-    if isinstance(output, tensor.Tensor):
-        return output.value
-    elif output is None:
-        return None
-    elif isinstance(output, list):
-        return [_adapt_to_user_mode(elt) for elt in output]
-    elif isinstance(output, tuple):
-        return tuple(_adapt_to_user_mode(elt) for elt in output)
-    elif isinstance(output, np.ndarray):
-        return output
-    raise TypeError(f"Unexpected type {type(output)}.")
 
 
 class OnnxFunction(Op):
@@ -282,6 +195,7 @@ class OnnxFunction(Op):
         """
 
         def fun(*args, **kwargs):
+            # FIXME(after #225): Move import to the top of the file.
             from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
             with evaluator.default_as(instance):
@@ -291,17 +205,10 @@ class OnnxFunction(Op):
 
     def __call__(self, *args, **kwargs):
         """Implements an eager-mode execution of an onnxscript function."""
-        new_args, has_array = _adapt_to_eager_mode(args)
-        result = self.function(*new_args, **kwargs)
+        # FIXME(after #225): Move import to the top of the file.
+        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        # We use a heuristic to decide whether to return output values as
-        # numpy arrays or tensor.Tensors. If the function has at least one
-        # numpy array as input, we return numpy arrays. Otherwise, we return
-        # tensor.Tensors. We could use a user-specified flag to control this
-        # or explicitly track whether this is a top-level function-call or
-        # a nested function-call.
-
-        return _adapt_to_user_mode(result) if has_array else result
+        return evaluator.default().eval_function(self, args, kwargs)
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""

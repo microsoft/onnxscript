@@ -8,15 +8,102 @@ import abc
 import contextlib
 import pprint
 import typing
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import onnx
+import onnx.helper
+from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
+
+
+UserModeValue: TypeAlias = Union[
+    Optional[np.ndarray], List["UserModeValue"], Tuple["UserModeValue", ...]
+]
+
+EagerModeValue: TypeAlias = Union[
+    Optional["tensor.Tensor"], List["EagerModeValue"], Tuple["EagerModeValue", ...]
+]
+
+ExtendedModeValue: TypeAlias = Union[
+    Optional["tensor.Tensor"],
+    List["ExtendedModeValue"],
+    Tuple["ExtendedModeValue", ...],
+    np.ndarray,
+    int,
+    float,
+    bool,
+]
+
+
+def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> tuple[EagerModeValue, bool]:
+    """Adapts inputs into representation used by onnxscript eager mode.
+
+    This does the following transformations:
+    * It adds an onnxscript Tensor wrapper around numpy arrays, which
+    allows the use of overloaded operators like + to be controlled by onnxscript.
+    * It also provides a promotion of scalars into tensors as a convenience.
+    This is needed to complement the similar promotion supported by the
+    onnxscript converter (for example, when an attribute is promoted and used
+    as an input argument).
+
+    Args:
+        inputs: a list/tuple of inputs to an ONNX function
+
+    Returns:
+        a pair (wrapped_inputs, flag) where flag indicates whether any numpy array
+        was wrapped into a Tensor.
+    """
+    has_array = False
+
+    def adapt(input: ExtendedModeValue) -> EagerModeValue:
+        if isinstance(input, np.ndarray):
+            nonlocal has_array
+            has_array = True
+            return tensor.Tensor(input)
+        elif isinstance(input, tensor.Tensor):
+            return input
+        elif isinstance(input, (bool, float)):
+            return tensor.Tensor(np.array(input))
+        elif isinstance(input, int):
+            return tensor.Tensor(np.array(input, dtype=np.int64))
+        elif input is None:
+            return None
+        elif isinstance(input, list):
+            return [adapt(elt) for elt in input]
+        elif isinstance(input, tuple):
+            return tuple(adapt(elt) for elt in input)
+        raise TypeError(f"Unexpected input type {type(input)}.")
+
+    result = adapt(inputs)
+    return result, has_array
+
+
+def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
+    """Unwraps Tensor wrapper around numpy arrays.
+
+    Args:
+        output: output of an ONNX function, which can be either a single
+            onnx value or a list/tuple of onnx values.
+
+    Returns:
+        unwrapped output
+    """
+    if isinstance(output, tensor.Tensor):
+        return output.value
+    elif output is None:
+        return None
+    elif isinstance(output, list):
+        return [_adapt_to_user_mode(elt) for elt in output]
+    elif isinstance(output, tuple):
+        return tuple(_adapt_to_user_mode(elt) for elt in output)
+    elif isinstance(output, np.ndarray):
+        return output
+    raise TypeError(f"Unexpected type {type(output)}.")
 
 
 class Evaluator(abc.ABC):
@@ -64,19 +151,38 @@ class Evaluator(abc.ABC):
                 )
         return closure
 
-    def adapt_outputs(self, schema, outputs):  # pylint: disable=unused-argument
+    def adapt_outputs(self, schema, outputs):
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
         """
+        del schema  # unused
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def use_graph_attribute(self, schema):  # pylint: disable=unused-argument
+    def use_graph_attribute(self, schema):
+        del schema  # unused
         return True
 
     @abc.abstractmethod
     def _eval(self, schema, inputs, attributes, closure):
         pass
+
+    def eval_function(self, function: values.OnnxFunction, args, kwargs):
+        """Evaluates a function in eager mode.
+
+        Override this function to change the evaluator's behavior for functions.
+        """
+        new_args, has_array = _adapt_to_eager_mode(args)
+        result = function.function(*new_args, **kwargs)
+
+        # We use a heuristic to decide whether to return output values as
+        # numpy arrays or tensor.Tensors. If the function has at least one
+        # numpy array as input, we return numpy arrays. Otherwise, we return
+        # tensor.Tensors. We could use a user-specified flag to control this
+        # or explicitly track whether this is a top-level function-call or
+        # a nested function-call.
+
+        return _adapt_to_user_mode(result) if has_array else result
 
 
 # Utilities for evaluation using ORT:
@@ -92,7 +198,7 @@ def _rename_io(prefix, i, arg):
     return f"{prefix}{i}"
 
 
-def compute_num_outputs(schema, *args, **kwargs):
+def _compute_num_outputs(schema, *args, **kwargs):
     """Returns the number of outputs expected.
     TODO: Use ONNX type inference to replace the special-case handling below.
     """
@@ -132,12 +238,12 @@ def _cache_(model, providers):
     return session
 
 
-def os_to_ort_value(v):
+def _os_to_ort_value(v):
     """Converts an onnxscript encoding of an ONNX value into the encoding used by ORT."""
     if isinstance(v, tensor.Tensor):
         return v.value
     if isinstance(v, list):
-        return v
+        return [_os_to_ort_value(x) for x in v]
     if v is None:
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
@@ -147,18 +253,18 @@ def os_to_ort_value(v):
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def ort_to_os_value(v):
+def _ort_to_os_value(v):
     """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
     if isinstance(v, list):
-        return v
+        return [_ort_to_os_value(x) for x in v]
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def call_ort(schema, args, kwargs, implicit_args=None):
+def _call_ort(schema, args, kwargs, implicit_args=None):
     from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
         Fail,
         InvalidArgument,
@@ -167,13 +273,13 @@ def call_ort(schema, args, kwargs, implicit_args=None):
 
     implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
-    args = [os_to_ort_value(x) for x in args]
-    implicit_args = {k: os_to_ort_value(v) for k, v in implicit_args.items()}
+    args = [_os_to_ort_value(x) for x in args]
+    implicit_args = {k: _os_to_ort_value(v) for k, v in implicit_args.items()}
 
     # Construct ONNX model with a single op call:
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
-    num_outputs = compute_num_outputs(schema, *args, **kwargs)
+    num_outputs = _compute_num_outputs(schema, *args, **kwargs)
     outputs = [f"output{str(i)}" for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)
@@ -219,10 +325,10 @@ def call_ort(schema, args, kwargs, implicit_args=None):
         ) from e
 
     # Map ORT output values to the onnxscript representation-type.
-    return [ort_to_os_value(x) for x in result]
+    return [_ort_to_os_value(x) for x in result]
 
 
-def schema_id(schema):
+def _schema_id(schema):
     return schema.name, schema.domain, schema.since_version
 
 
@@ -230,7 +336,7 @@ class ORTEvaluator(Evaluator):
     """Evaluates ONNX ops using ONNX Runtime."""
 
     def _eval(self, schema, inputs, attributes, closure):
-        return call_ort(schema, inputs, attributes, closure)
+        return _call_ort(schema, inputs, attributes, closure)
 
 
 ort_evaluator = ORTEvaluator()
@@ -247,10 +353,10 @@ class ORTMixedEvaluator(ORTEvaluator):
         self._python_ops: dict[Any, Any] = {}
 
     def use_graph_attribute(self, schema):
-        return schema_id(schema) not in self._python_ops
+        return _schema_id(schema) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
-        schemaid = schema_id(schema)
+        schemaid = _schema_id(schema)
         if schemaid in self._python_ops:
             return self._python_ops[schemaid](inputs, attributes)
         else:
@@ -261,7 +367,7 @@ class ORTMixedEvaluator(ORTEvaluator):
 
         def decorator(function):
             schema = opset[function.__name__]
-            self._python_ops[schema_id(schema)] = function
+            self._python_ops[_schema_id(schema)] = function
             return function
 
         return decorator

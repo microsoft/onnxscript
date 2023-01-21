@@ -178,6 +178,15 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
+def _cat_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove the self argument
+    if len(args) == 2:
+        kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -217,6 +226,18 @@ def _softmax_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop()
+    return args, kwargs
+
+
+def _sum_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if kwargs.get("dim") is not None:
+        dim_value = kwargs.pop("dim")  # move 'dim' from kwargs into args
+        if isinstance(dim_value, tuple):
+            # tuple input cannot be handeled in os function, convert to array
+            dim_value = np.array(dim_value, dtype=np.int64)
+        args.append(dim_value)
     return args, kwargs
 
 
@@ -270,6 +291,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
+    "cat": (core_ops.aten_cat, _cat_input_wrangler),
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
@@ -374,10 +396,10 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
 ] = {
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
-    "cat": core_ops.aten_cat,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
+    "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
 
@@ -396,7 +418,7 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 EXPECTED_SKIPS_OR_FAILS = (
     xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
     xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    skip("clamp", reason="Enable when onnxscript supports optional inputs"),
+    xfail("clamp", reason="Enable when ONNX Runtime supports OptionalHasElement-18"),
     skip("empty", reason="Using zeros to simulate empty"),
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
@@ -436,6 +458,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "arange_start_step",
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
+    ),
+    skip(
+        "cat",
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="cat does not support zero-dim tensors yet",
     ),
     skip(
         "div",
@@ -522,7 +549,6 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "new_full", ("full",))
-
 
 # END OF SECTION TO MODIFY #####################################################
 
