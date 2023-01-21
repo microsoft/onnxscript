@@ -61,10 +61,12 @@ def dynamic_cast_inputs(opschema, *args):
         return x.dtype if isinstance(x, tensor.Tensor) else None
 
     def cast(x, typeinfo):
-        if isinstance(x, (int, float)):
+        if isinstance(x, (bool, int, float)):
             # Scalar values are promoted to tensors of a type chosen as below:
             if typeinfo is not None:
                 dtype = typeinfo
+            elif isinstance(x, bool):
+                dtype = bool
             elif isinstance(x, int):
                 dtype = np.int64
             else:  # isinstance(x, float):
