@@ -64,16 +64,16 @@ def cast_inputs(
 def dynamic_cast_inputs(op_schema: OpSchema, *args):
     """Used for autocast during eager-mode execution."""
 
-    def get_type_info(x) -> Optional[np.dtype]:
+    def get_type_info(x):
         return x.dtype if isinstance(x, tensor.Tensor) else None
 
-    def cast(x, typeinfo: Optional[np.dtype]) -> tensor.Tensor:
+    def cast(x, typeinfo) -> tensor.Tensor:
         if isinstance(x, (bool, int, float)):
             # Scalar values are promoted to tensors of a type chosen as below:
             if typeinfo is not None:
                 dtype = typeinfo
             elif isinstance(x, bool):
-                dtype = bool
+                dtype = np.bool_
             elif isinstance(x, int):
                 dtype = np.int64
             else:
