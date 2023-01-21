@@ -4,7 +4,9 @@ from __future__ import annotations
 import collections
 import typing
 import warnings
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Callable, Optional, Sequence, Union
+
+from typing_extensions import TypeAlias
 
 import numpy as np
 import onnx
@@ -22,11 +24,43 @@ from onnxscript import tensor as onnxscript_tensor
 __all__ = [
     "TorchScriptTensor",
     "TorchScriptGraph",
-    "TorchScriptEvaluator",
+    "TorchScriptTracingEvaluator",
 ]
 
 
-ValidArgumentType = Union["TorchScriptTensor", str, int, float, bool]
+ValidArgumentType: TypeAlias = Union[
+    "TorchScriptTensor",
+    Sequence["TorchScriptTensor"],
+    Sequence[float],
+    Sequence[int],
+    str,
+    int,
+    float,
+    bool,
+    None,
+]
+ValidInputType: TypeAlias = Union[
+    "TorchScriptTensor",
+    Sequence["TorchScriptTensor"],
+    Sequence[float],
+    Sequence[int],
+    str,
+    int,
+    float,
+    bool,
+    None,
+]
+ValidTorchValueType: TypeAlias = Union[
+    torch.Value,
+    Sequence[torch.Value],
+    Sequence[float],
+    Sequence[int],
+    str,
+    int,
+    float,
+    bool,
+    None,
+]
 
 # TODO(justinchuby): Build a context manager to handle source information.
 
@@ -84,20 +118,21 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
 @beartype
 def _split_args_kwargs_to_input_attr(
-    onnx_func: onnxscript.OnnxFunction, args, kwargs
-) -> tuple[list[ValidArgumentType], dict[str, ValidArgumentType]]:
-    """Split the function args and kwargs to onnx inputs and attributes.
+    onnx_func: onnxscript.OnnxFunction,
+    args: Sequence[ValidArgumentType],
+    kwargs: dict[str, ValidArgumentType],
+) -> tuple[Sequence[ValidInputType], dict[str, ValidArgumentType]]:
+    """Split the args and kwargs supplied to `onnx_func` to onnx inputs and attributes.
 
     Args:
         onnx_func: The onnx function.
-        args: The positional arguments.
-        kwargs: The keyword arguments.
+        args: The positional arguments supplied to `onnx_func`.
+        kwargs: The keyword arguments supplied to `onnx_func`.
 
     Returns:
         A tuple of (onnx_inputs, onnx_attributes).
     """
     function_ir = onnx_func.function_ir
-    # FIXME(justinchuby): There can be attributes in the args too.
     # The first len(func_ir.inputs) arguments are onnx inputs
     onnx_inputs = args[: len(function_ir.inputs)]
     # The rest is onnx attributes
@@ -134,52 +169,40 @@ def _split_args_kwargs_to_input_attr(
 
 @beartype
 def _unwrap_tensor_to_torch_value(
-    value: ValidArgumentType
-    | dict[str, ValidArgumentType]
-    | list[ValidArgumentType]
-    | tuple[ValidArgumentType, ...]
-) -> torch.Value | str | int | float | dict[str, torch.Value | str | int | float] | list[
-    torch.Value | str | int | float
-] | tuple[torch.Value | str | int | float, ...]:
+    value: ValidArgumentType | dict[str, ValidArgumentType] | Sequence[ValidArgumentType]
+) -> ValidTorchValueType | dict[str, ValidTorchValueType] | list[ValidTorchValueType] | tuple[
+    ValidTorchValueType, ...
+]:
     """Unwrap the TorchScriptTensor to torch.Value."""
-    if isinstance(value, dict):
-        return {
-            k: v.symbolic_value() if isinstance(v, TorchScriptTensor) else v
-            for k, v in value.items()
-        }
-    if isinstance(value, list):
-        return [v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in value]
-    if isinstance(value, tuple):
-        return tuple(
-            v.symbolic_value() if isinstance(v, TorchScriptTensor) else v for v in value
-        )
     if isinstance(value, TorchScriptTensor):
         return value.symbolic_value()
+    if isinstance(value, dict):
+        return {k: _unwrap_tensor_to_torch_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_unwrap_tensor_to_torch_value(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_unwrap_tensor_to_torch_value(v) for v in value)
+
     # A normal python value
     return value
 
 
 @beartype
 def _wrap_torch_value_to_tensor(
-    value: torch.Value
-    | dict[str, torch.Value | str | int | float]
-    | list[torch.Value | str | int | float]
-    | tuple[torch.Value | str | int | float, ...]
+    value: torch.Value | dict[str, ValidTorchValueType] | Sequence[ValidTorchValueType]
 ) -> ValidArgumentType | dict[str, ValidArgumentType] | list[ValidArgumentType] | tuple[
     ValidArgumentType, ...
 ]:
     """Wrap torch.Value to TorchScriptTensor."""
-    if isinstance(value, dict):
-        return {
-            k: TorchScriptTensor(v) if isinstance(v, torch.Value) else v
-            for k, v in value.items()
-        }
-    if isinstance(value, list):
-        return [TorchScriptTensor(v) if isinstance(v, torch.Value) else v for v in value]
-    if isinstance(value, tuple):
-        return tuple(TorchScriptTensor(v) if isinstance(v, torch.Value) else v for v in value)
     if isinstance(value, torch.Value):
         return TorchScriptTensor(value)
+    if isinstance(value, dict):
+        return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_wrap_torch_value_to_tensor(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_wrap_torch_value_to_tensor(v) for v in value)
+
     return value
 
 
@@ -190,7 +213,7 @@ def _unwrap_tensors_to_torch_values(tensors):
     return _unwrap_tensor_to_torch_value(tensors)
 
 
-class TorchScriptEvaluator(evaluator.Evaluator):
+class TorchScriptTracingEvaluator(evaluator.Evaluator):
     """An onnxscript Evaluator that captures the graph into torchscript."""
 
     def __init__(self, graph: TorchScriptGraph):
@@ -205,22 +228,24 @@ class TorchScriptEvaluator(evaluator.Evaluator):
         self,
         function: onnxscript.OnnxFunction,
         args: Sequence[ValidArgumentType],
-        kwargs: Sequence[ValidArgumentType],
+        kwargs: dict[str, ValidArgumentType],
     ):
         # args/kwargs are TorchScriptTensor/python built-in based
         inputs, attributes = _split_args_kwargs_to_input_attr(function, args, kwargs)
-        return self._graph.add_function(function, inputs, attributes)
+        return self._graph.add_function_call(function, inputs, attributes)
 
     def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
         # TODO(justinchuby): Does it really know what the inputs are?
 
         del closure  # Unused
-        return self._graph.add_op(schema, inputs, attributes)
+        return self._graph.add_op_call(schema, inputs, attributes)
 
 
 @beartype
 def _add_attribute_to_torchscrpt_node(
-    node: torch.Node, key: str, value: float | int | str | Sequence[float] | Sequence[int]
+    node: torch.Node,
+    key: str,
+    value: float | int | str | Sequence[float] | Sequence[int] | torch.Tensor,
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
@@ -232,9 +257,9 @@ def _add_attribute_to_torchscrpt_node(
     if isinstance(value, torch.Tensor):
         return node.t_(key, value)
     if isinstance(value, Sequence):
-        if isinstance(value, float):
+        if isinstance(value[0], float):
             return node.fs_(key, list(value))
-        if isinstance(value, int):
+        if isinstance(value[0], int):
             # Need to use getattr because 'is' is a reserved keyword
             return getattr(node, "is_")(key, list(value))
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
@@ -242,7 +267,7 @@ def _add_attribute_to_torchscrpt_node(
 
 
 @beartype
-def _create_torchscript_op(
+def _create_op_call_in_torch_graph(
     graph: torch.Graph,
     opname: str,
     *,
@@ -250,6 +275,18 @@ def _create_torchscript_op(
     attributes: dict[str, Any],
     n_outputs: int = 1,
 ) -> tuple[torch.Value, ...]:
+    """Creates a node representing an onnx op in `graph`.
+
+    Args:
+        graph: The torch graph to add the node to.
+        opname: The name of the op to add. E.g. "onnx::Add".
+        inputs: The onnx inputs to the op.
+        attributes: The onnx attributes to the op.
+        n_outputs: The number of outputs the op has.
+
+    Returns:
+        The outputs of the created node.
+    """
     # Filter out None attributes, this can be convenient client side because
     # now they can pass through None attributes, and have them not show up
     attributes = {k: v for k, v in attributes.items() if v is not None}
@@ -306,21 +343,21 @@ class TorchScriptGraph:
 
     def _add_constant_to_graph(self, constant) -> torch.Value:
         if isinstance(constant, float):
-            return _create_torchscript_op(
+            return _create_op_call_in_torch_graph(
                 self._graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
             )[0]
         if isinstance(constant, int):
-            return _create_torchscript_op(
+            return _create_op_call_in_torch_graph(
                 self._graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
             )[0]
         if constant is None:
-            value = _create_torchscript_op(
+            value = _create_op_call_in_torch_graph(
                 self._graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
@@ -328,7 +365,7 @@ class TorchScriptGraph:
         if isinstance(constant, (tuple, list)) and all(
             isinstance(val, int) for val in constant
         ):
-            return _create_torchscript_op(
+            return _create_op_call_in_torch_graph(
                 self._graph,
                 "onnx::Constant",
                 inputs=(),
@@ -337,7 +374,7 @@ class TorchScriptGraph:
         if isinstance(constant, (tuple, list)) and all(
             isinstance(val, float) for val in constant
         ):
-            return _create_torchscript_op(
+            return _create_op_call_in_torch_graph(
                 self._graph,
                 "onnx::Constant",
                 inputs=(),
@@ -349,14 +386,13 @@ class TorchScriptGraph:
         )
 
     @beartype
-    def _add_torchscript_op(
+    def _add_torchscript_op_call(
         self,
         name: str,
-        onnx_inputs,
-        onnx_attributes,
+        onnx_inputs: Sequence[ValidInputType],
+        onnx_attributes: dict[str, ValidArgumentType],
         n_outputs: int,
     ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
-
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
@@ -367,7 +403,7 @@ class TorchScriptGraph:
                 graph_inputs.append(input)
         for value in onnx_attributes.values():
             assert not isinstance(value, TorchScriptTensor)
-        result = _create_torchscript_op(
+        result = _create_op_call_in_torch_graph(
             self._graph,
             name,
             inputs=graph_inputs,
@@ -379,33 +415,33 @@ class TorchScriptGraph:
         return tuple(TorchScriptTensor(v) for v in result)
 
     @beartype
-    def add_op(
+    def add_op_call(
         self,
         onnx_op_schema: onnx.defs.OpSchema,
-        onnx_inputs: Sequence[ValidArgumentType | Sequence[ValidArgumentType]],
-        onnx_attributes: dict[str, ValidArgumentType | Sequence[ValidArgumentType]],
+        onnx_inputs: Sequence[ValidInputType],
+        onnx_attributes: dict[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
 
         # FIXME(justinchuby): Figure out how to get the number of outputs from the schema
-        result = self._add_torchscript_op(
+        result = self._add_torchscript_op_call(
             f"onnx::{onnx_op_schema.name}", onnx_inputs, onnx_attributes, n_outputs=1
         )
 
         return result
 
     @beartype
-    def add_function(
+    def add_function_call(
         self,
         onnx_function: onnxscript.OnnxFunction,
-        onnx_inputs,
-        onnx_attributes,
+        onnx_inputs: Sequence[ValidInputType],
+        onnx_attributes: dict[str, ValidArgumentType],
     ):
         self._function_store[onnx_function.name] = onnx_function
 
         # Compute outputs from the function schema
 
-        result = self._add_torchscript_op(
+        result = self._add_torchscript_op_call(
             f"{onnx_function.function_ir.domain}::{onnx_function.name}",
             onnx_inputs,
             onnx_attributes,
@@ -444,3 +480,7 @@ class TorchScriptGraph:
         onnx.checker.check_model(onnx_model, full_check=True)
         print("[Success] ONNX model exported")
         return onnx_model
+
+    def apply(self, graph_pass: Callable, *args, **kwargs):
+        """Apply a graph pass to the graph."""
+        graph_pass(self._graph, *args, **kwargs)
