@@ -8,7 +8,7 @@ import unittest
 from onnx import FunctionProto, GraphProto, ModelProto, parser
 
 from onnxscript import OnnxFunction
-from onnxscript.test.common.checker import isomorphic
+from onnxscript.tests.common.checker import isomorphic
 
 
 def function_proto(f):

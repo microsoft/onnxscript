@@ -29,7 +29,7 @@ from packaging.version import Version
 from onnxscript import OnnxFunction, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
-from onnxscript.test.common import onnx_script_test_case, testutils
+from onnxscript.tests.common import onnx_script_test_case, testutils
 
 TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
@@ -124,7 +124,7 @@ class TestConverter(testutils.TestBase):
                     self.check_run(val.function, val.input, val.output[0])
 
     def test_eager_op(self):
-        from onnxscript.test.models import eager_op
+        from onnxscript.tests.models import eager_op
 
         test_functions = self.validate_save(eager_op, check_ort=True)
 
@@ -187,27 +187,27 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(output_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
 
     def test_onnxfns1(self):
-        from onnxscript.test.models import onnxfns1
+        from onnxscript.tests.models import onnxfns1
 
         self.validate(onnxfns1)
 
     def test_onnxfns1A(self):
-        from onnxscript.test.models import onnxfns1A
+        from onnxscript.tests.models import onnxfns1A
 
         self.validate(onnxfns1A)
 
     def test_ort_custom_ops(self):
-        from onnxscript.test.functions import ort_custom_ops
+        from onnxscript.tests.functions import ort_custom_ops
 
         self.validate(ort_custom_ops)
 
     def test_unary_op(self):
-        from onnxscript.test.models import m1
+        from onnxscript.tests.models import m1
 
         self.validate_save(m1)
 
     def test_subfunction_check_model(self):
-        from onnxscript.test.models import subfunction
+        from onnxscript.tests.models import subfunction
 
         model = subfunction.MyElu.function_ir.to_model_proto(producer_name="p2o")
         model = onnx.shape_inference.infer_shapes(model)
@@ -218,12 +218,12 @@ class TestConverter(testutils.TestBase):
         reason="onnxruntime does not support that scenario.",
     )
     def test_subfunction(self):
-        from onnxscript.test.models import subfunction
+        from onnxscript.tests.models import subfunction
 
         self.validate_save(subfunction, check_ort=True)
 
     def test_if_models(self):
-        from onnxscript.test.models import if_statement
+        from onnxscript.tests.models import if_statement
 
         self.validate_save(if_statement)
 
@@ -242,39 +242,39 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(proto.doc_string.strip(), "Combines ReduceSum, ReduceProd.")
 
     def test_signal(self):
-        from onnxscript.test.models import signal_dft
+        from onnxscript.tests.models import signal_dft
 
         # shape_inference crashes on stft.
         self.validate_save(signal_dft, shape_inference=False)
 
     def test_multi(self):
-        from onnxscript.test.models import multi
+        from onnxscript.tests.models import multi
 
         self.validate_save(multi, shape_inference=False)
 
     def test_dropout(self):
-        from onnxscript.test.models import dropout
+        from onnxscript.tests.models import dropout
 
         self.validate_save(dropout, shape_inference=False)
 
     def test_attrref(self):
-        from onnxscript.test.models import attrref
+        from onnxscript.tests.models import attrref
 
         self.validate_save(attrref, shape_inference=False)
 
     def test_renaming(self):
-        from onnxscript.test.models import renaming
+        from onnxscript.tests.models import renaming
 
         self.validate_save(renaming, shape_inference=False)
 
     @unittest.skipIf(True, reason="TypeError: val must be numeric not <class 'NoneType'>")
     def test_opt_output(self):
-        from onnxscript.test.models import opt_output
+        from onnxscript.tests.models import opt_output
 
         self.validate_save(opt_output, shape_inference=False)
 
     def test_opt_input(self):
-        from onnxscript.test.models import opt_input
+        from onnxscript.tests.models import opt_input
 
         self.validate_save(opt_input, shape_inference=False)
 
@@ -282,7 +282,7 @@ class TestConverter(testutils.TestBase):
         True, reason="ValueError: A function with attributes " "cannot be exported as a model."
     )
     def test_onnxfns2(self):
-        from onnxscript.test.models import onnxfns2
+        from onnxscript.tests.models import onnxfns2
 
         self.validate_save(onnxfns2, shape_inference=False)
 
@@ -296,7 +296,7 @@ class TestConverter(testutils.TestBase):
         self.validate_save(clipmax)
 
     def test_type_double(self):
-        from onnxscript.test.models import type_double
+        from onnxscript.tests.models import type_double
 
         fcts = self.validate_save(type_double, check_ort=False)
         f = fcts["double_abs"]
@@ -315,17 +315,17 @@ class TestConverter(testutils.TestBase):
         self.validate_save(type_double, check_ort=True)
 
     def test_cast_like(self):
-        from onnxscript.test.models import cast_like
+        from onnxscript.tests.models import cast_like
 
         self.validate_expansion(cast_like)
 
     def test_identity(self):
-        from onnxscript.test.models import identity
+        from onnxscript.tests.models import identity
 
         self.validate_expansion(identity)
 
     def test_opset_import(self):
-        from onnxscript.test.models import different_opset
+        from onnxscript.tests.models import different_opset
 
         fcts = self.validate_save(different_opset, shape_inference=False)
         s16 = str(fcts["shape_A"])
@@ -340,7 +340,7 @@ class TestConverter(testutils.TestBase):
         self.assertNotIn("version: 15", sdef)
 
     def test_sequences(self):
-        from onnxscript.test.models import sequences
+        from onnxscript.tests.models import sequences
 
         test_functions = self.validate_save(sequences, check_ort=True)
 
@@ -367,7 +367,7 @@ class TestConverter(testutils.TestBase):
         assert_almost_equal(eager_mode, result)
 
     def test_loops_break(self):
-        from onnxscript.test.models import loops_break
+        from onnxscript.tests.models import loops_break
 
         test_functions = self.validate_save(loops_break, check_ort=True)
         self.assertIn("loop1", test_functions)
@@ -387,7 +387,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(y.tolist(), [0, 11, -22])
 
     def test_loops_while(self):
-        from onnxscript.test.models import loops_while
+        from onnxscript.tests.models import loops_while
 
         test_functions = self.validate_save(loops_while, check_ort=True)
         self.assertIn("loop1", test_functions)
@@ -407,7 +407,7 @@ class TestConverter(testutils.TestBase):
         sys.version_info[:2] < (3, 8), reason="Notation [...] not supported in python 3.7."
     )
     def test_getitem(self):
-        from onnxscript.test.models import getitem
+        from onnxscript.tests.models import getitem
 
         if sys.version_info[:2] >= (3, 8):
             skip_check_ort = None
@@ -471,7 +471,7 @@ class TestConverter(testutils.TestBase):
         sys.version_info[:2] < (3, 9), reason="Notation [...] not supported in python 3.8."
     )
     def test_getitem39(self):
-        from onnxscript.test.models import getitem39
+        from onnxscript.tests.models import getitem39
 
         test_functions = self.validate_save(getitem39, check_ort=True)
 
@@ -558,28 +558,28 @@ class TestConverter(testutils.TestBase):
         np.testing.assert_equal(output, expected_output)
 
     def test_graph_attr_scan(self):
-        from onnxscript.test.models.graph_attr import cumulative_sum
+        from onnxscript.tests.models.graph_attr import cumulative_sum
 
         inputs = [np.array([1, 2, 3, 4, 5], dtype=np.int64)]
         expected_output = np.array([1, 3, 6, 10, 15], dtype=np.int64)
         self.check_run(cumulative_sum, inputs, expected_output)
 
     def test_graph_attr_loop(self):
-        from onnxscript.test.models.graph_attr import sum_to
+        from onnxscript.tests.models.graph_attr import sum_to
 
         inputs = [np.array(6, dtype=np.int64)]
         expected_output = np.array([0, 1, 3, 6, 10, 15], dtype=np.int64)
         self.check_run(sum_to, inputs, expected_output)
 
     def test_graph_attr_loop_error(self):
-        from onnxscript.test.models.graph_attr import sum_to_error
+        from onnxscript.tests.models.graph_attr import sum_to_error
 
         input = np.array(6, dtype=np.int64)
         with self.assertRaisesRegex(ValueError, "@graph"):
             sum_to_error(input)
 
     def test_loop_outer_scope(self):
-        from onnxscript.test.models.graph_attr import loop_add
+        from onnxscript.tests.models.graph_attr import loop_add
 
         input_x = np.array([1, 2, 3], dtype=np.int64)
         input_m = np.array(3, dtype=np.int64)
@@ -603,7 +603,7 @@ class TestConverter(testutils.TestBase):
                 return op.DummyOp(body=inner)
 
     def test_attr(self):
-        from onnxscript.test.functions import attr_test
+        from onnxscript.tests.functions import attr_test
 
         self.validate_run(attr_test)
 
