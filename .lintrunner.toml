@@ -112,13 +112,12 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'onnxscript/tests/models/**',
-    'onnxscript/tests/onnx_backend_test_code/**',
     'docs/examples/**',
     'docs/tutorial/examples/**',
+    'onnxscript/converter_test.py',
     'onnxscript/tests/functions/**',
     'onnxscript/tests/models/**',
-    'onnxscript/tests/converter_test.py',
+    'onnxscript/tests/onnx_backend_test_code/**',
 ]
 command = [
     'python',
