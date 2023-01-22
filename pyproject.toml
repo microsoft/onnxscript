@@ -31,8 +31,7 @@ dependencies = ["numpy", "protobuf<4", "onnx", "typing_extensions"]
 [tool.setuptools.dynamic]
 version = {attr = "onnxscript.__version__"}
 
-[tool.setuptools.packages.find]
-exclude = ["onnxscript.test.*"]
+# Tests are by default excluded: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
 
 [tool.setuptools.package-data]
 onnxscript = ["py.typed"]
