@@ -25,14 +25,15 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 from packaging.version import Version
+import pathlib
 
 from onnxscript import OnnxFunction, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import onnx_script_test_case, testutils
 
-TEST_INPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-TEST_OUTPUT_DIR = os.path.join(TEST_INPUT_DIR, "testoutputs")
+TEST_INPUT_DIR = pathlib.Path(__file__) / "tests" / "models"
+TEST_OUTPUT_DIR = TEST_INPUT_DIR / "testoutputs"
 
 
 class TestConverter(testutils.TestBase):
@@ -43,8 +44,8 @@ class TestConverter(testutils.TestBase):
             fnlist = [script]
         else:
             fnlist = script
-        if not os.path.exists(TEST_OUTPUT_DIR):
-            os.makedirs(TEST_OUTPUT_DIR)
+        if not TEST_INPUT_DIR.exists():
+            TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         for f in fnlist:
             with self.subTest(f=f.name):
                 f.to_function_proto()
@@ -63,14 +64,14 @@ class TestConverter(testutils.TestBase):
             fnlist = [script]
         else:
             fnlist = script
-        if not os.path.exists(TEST_OUTPUT_DIR):
-            os.makedirs(TEST_OUTPUT_DIR)
+        if not TEST_OUTPUT_DIR.exists():
+            TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         fcts = {}
         for f in fnlist:
             with self.subTest(f=f.name):
                 model = f.to_model_proto(io_types=FLOAT)
                 if save_text:
-                    with open(os.path.join(TEST_OUTPUT_DIR, f"{f.name}.txt"), "w") as fi:
+                    with open(TEST_OUTPUT_DIR / f"{f.name}.txt", "w", encoding="utf-8") as fi:
                         fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")

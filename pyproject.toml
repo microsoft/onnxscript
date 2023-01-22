@@ -31,6 +31,9 @@ dependencies = ["numpy", "protobuf<4", "onnx", "typing_extensions"]
 [tool.setuptools.dynamic]
 version = {attr = "onnxscript.__version__"}
 
+[tool.setuptools.packages.find]
+# All the following settings are optional:
+include = ["onnxscript*"]
 # Tests are by default excluded: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
 
 [tool.setuptools.package-data]
@@ -76,8 +79,8 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = [
   "setup",
-  "onnxscript.test.models.*",
-  "onnxscript.test.onnx_backend_test_code.*",
+  "onnxscript.tests.models.*",
+  "onnxscript.tests.onnx_backend_test_code.*",
 ]
 ignore_errors = true
 
