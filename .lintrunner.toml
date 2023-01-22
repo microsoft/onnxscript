@@ -47,14 +47,14 @@ exclude_patterns = [
     'onnxscript/converter.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'onnxscript/test/converter_test.py',
-    'onnxscript/test/eager_test.py',
-    'onnxscript/test/loop_test.py',
-    'onnxscript/test/operator_test.py',
-    'onnxscript/test/evaluator_test.py',
-    'onnxscript/test/external_tensor_test.py',
-    'onnxscript/test/type_annotation_test.py',
-    'onnxscript/test/functions/**',
+    'onnxscript/tests/converter_test.py',
+    'onnxscript/tests/eager_test.py',
+    'onnxscript/tests/loop_test.py',
+    'onnxscript/tests/operator_test.py',
+    'onnxscript/tests/evaluator_test.py',
+    'onnxscript/tests/external_tensor_test.py',
+    'onnxscript/tests/type_annotation_test.py',
+    'onnxscript/tests/functions/**',
 ]
 command = [
     'python',
@@ -83,8 +83,7 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'onnxscript/test/models/**',
-    'onnxscript/test/onnx_backend_test_code/**',
+    'onnxscript/tests/onnx_backend_test_code/**',
 ]
 command = [
     'python',
@@ -113,13 +112,13 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'onnxscript/test/models/**',
-    'onnxscript/test/onnx_backend_test_code/**',
+    'onnxscript/tests/models/**',
+    'onnxscript/tests/onnx_backend_test_code/**',
     'docs/examples/**',
     'docs/tutorial/examples/**',
-    'onnxscript/test/functions/**',
-    'onnxscript/test/models/**',
-    'onnxscript/test/converter_test.py',
+    'onnxscript/tests/functions/**',
+    'onnxscript/tests/models/**',
+    'onnxscript/tests/converter_test.py',
 ]
 command = [
     'python',

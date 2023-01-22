@@ -6,6 +6,7 @@
 import ast
 import inspect
 import os
+import pathlib
 import sys
 import textwrap
 import types
@@ -25,7 +26,6 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
     InvalidGraph,
 )
 from packaging.version import Version
-import pathlib
 
 from onnxscript import OnnxFunction, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset15 as op
