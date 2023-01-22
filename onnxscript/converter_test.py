@@ -32,7 +32,7 @@ from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import onnx_script_test_case, testutils
 
-TEST_INPUT_DIR = pathlib.Path(__file__) / "tests" / "models"
+TEST_INPUT_DIR = pathlib.Path(__file__).parent / "tests" / "models"
 TEST_OUTPUT_DIR = TEST_INPUT_DIR / "testoutputs"
 
 
