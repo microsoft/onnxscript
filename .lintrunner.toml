@@ -44,17 +44,17 @@ include_patterns = [
 ]
 exclude_patterns = [
     # FIXME: Fix typing annotations in these files
+    'onnxscript/converter_test.py',
     'onnxscript/converter.py',
+    'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'onnxscript/tests/converter_test.py',
     'onnxscript/tests/eager_test.py',
+    'onnxscript/tests/external_tensor_test.py',
+    'onnxscript/tests/functions/**',
     'onnxscript/tests/loop_test.py',
     'onnxscript/tests/operator_test.py',
-    'onnxscript/tests/evaluator_test.py',
-    'onnxscript/tests/external_tensor_test.py',
-    'onnxscript/tests/type_annotation_test.py',
-    'onnxscript/tests/functions/**',
+    'onnxscript/type_annotation_test.py',
 ]
 command = [
     'python',
