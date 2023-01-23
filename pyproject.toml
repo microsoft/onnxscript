@@ -32,7 +32,6 @@ dependencies = ["numpy", "protobuf<4", "onnx", "typing_extensions"]
 version = {attr = "onnxscript.__version__"}
 
 [tool.setuptools.packages.find]
-# All the following settings are optional:
 include = ["onnxscript*"]
 # Tests are by default excluded: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
 
