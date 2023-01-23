@@ -591,7 +591,7 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
         if isinstance(input[0], torch.Tensor):
             return [_convert_tensor_to_numpy(x) for x in input]
         if isinstance(input[0], bool):
-            return np.array(input, dtype=np.bool)
+            return np.array(input, dtype=np.bool_)
 
         # Just a sequence of numbers
         if isinstance(input[0], int):
