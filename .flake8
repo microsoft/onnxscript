@@ -17,7 +17,7 @@ exclude =
   __pycache__,
   .eggs,
   **tests/models/*.py,
-  **onnx_backend_s_code/*.py,
+  **onnx_backend_test_code/*.py,
 
 per-file-ignores =
   onnxscript/function_libs/torch_aten/ops/*:E501
