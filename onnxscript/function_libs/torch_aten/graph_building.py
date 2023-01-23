@@ -4,7 +4,7 @@ from __future__ import annotations
 import collections
 import typing
 import warnings
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from typing_extensions import TypeAlias
 
@@ -88,7 +88,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return value_type.dim()
 
     @property
-    def shape(self) -> tuple[int | None, ...] | None:
+    def shape(self) -> Tuple[int | None, ...] | None:
         value_type = self._value.type()
         if value_type is None:
             return None
@@ -120,8 +120,8 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 def _split_args_kwargs_to_input_attr(
     onnx_func: onnxscript.OnnxFunction,
     args: Sequence[ValidArgumentType],
-    kwargs: dict[str, ValidArgumentType],
-) -> tuple[Sequence[ValidInputType], dict[str, ValidArgumentType]]:
+    kwargs: Dict[str, ValidArgumentType],
+) -> Tuple[Sequence[ValidInputType], Dict[str, ValidArgumentType]]:
     """Split the args and kwargs supplied to `onnx_func` to onnx inputs and attributes.
 
     Args:
@@ -169,10 +169,10 @@ def _split_args_kwargs_to_input_attr(
 
 @beartype
 def _unwrap_tensor_to_torch_value(
-    value: ValidArgumentType | dict[str, ValidArgumentType] | Sequence[ValidArgumentType]
-) -> ValidTorchValueType | dict[str, ValidTorchValueType] | list[ValidTorchValueType] | tuple[
+    value: Union[ValidArgumentType, Dict[str, ValidArgumentType], Sequence[ValidArgumentType]]
+) -> Union[ValidTorchValueType, Dict[str, ValidTorchValueType], List[ValidTorchValueType], Tuple[
     ValidTorchValueType, ...
-]:
+]]:
     """Unwrap the TorchScriptTensor to torch.Value."""
     if isinstance(value, TorchScriptTensor):
         return value.symbolic_value()
@@ -189,10 +189,10 @@ def _unwrap_tensor_to_torch_value(
 
 @beartype
 def _wrap_torch_value_to_tensor(
-    value: torch.Value | dict[str, ValidTorchValueType] | Sequence[ValidTorchValueType]
-) -> ValidArgumentType | dict[str, ValidArgumentType] | list[ValidArgumentType] | tuple[
+    value: Union[torch.Value, Dict[str, ValidTorchValueType], Sequence[ValidTorchValueType]]
+) -> Union[ValidArgumentType, Dict[str, ValidArgumentType], List[ValidArgumentType], Tuple[
     ValidArgumentType, ...
-]:
+]]:
     """Wrap torch.Value to TorchScriptTensor."""
     if isinstance(value, torch.Value):
         return TorchScriptTensor(value)
@@ -228,7 +228,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         self,
         function: onnxscript.OnnxFunction,
         args: Sequence[ValidArgumentType],
-        kwargs: dict[str, ValidArgumentType],
+        kwargs: Dict[str, ValidArgumentType],
     ):
         # args/kwargs are TorchScriptTensor/python built-in based
         inputs, attributes = _split_args_kwargs_to_input_attr(function, args, kwargs)
@@ -245,7 +245,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
 def _add_attribute_to_torchscrpt_node(
     node: torch.Node,
     key: str,
-    value: float | int | str | Sequence[float] | Sequence[int] | torch.Tensor,
+    value: Union[float, int, str, Sequence[float], Sequence[int], torch.Tensor],
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
@@ -272,9 +272,9 @@ def _create_op_call_in_torch_graph(
     opname: str,
     *,
     inputs: Sequence[torch.Value],
-    attributes: dict[str, Any],
+    attributes: Dict[str, Any],
     n_outputs: int = 1,
-) -> tuple[torch.Value, ...]:
+) -> Tuple[torch.Value, ...]:
     """Creates a node representing an onnx op in `graph`.
 
     Args:
@@ -307,7 +307,7 @@ class TorchScriptGraph:
     def __init__(self):
         self._graph = torch.Graph()
         # All the functions used, deduplicated by name
-        self._function_store: dict[str, onnxscript.OnnxFunction] = {}
+        self._function_store: Dict[str, onnxscript.OnnxFunction] = {}
 
     @property
     def torch_graph(self):
@@ -328,7 +328,7 @@ class TorchScriptGraph:
         return tensor_value
 
     @beartype
-    def register_outputs(self, outputs: TorchScriptTensor | tuple[TorchScriptTensor, ...]):
+    def register_outputs(self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]):
         unwrapped_outputs = _unwrap_tensors_to_torch_values(outputs)
         if isinstance(unwrapped_outputs, torch.Value):
             self._graph.registerOutput(unwrapped_outputs)
@@ -390,9 +390,9 @@ class TorchScriptGraph:
         self,
         name: str,
         onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: dict[str, ValidArgumentType],
+        onnx_attributes: Dict[str, ValidArgumentType],
         n_outputs: int,
-    ) -> TorchScriptTensor | tuple[TorchScriptTensor, ...]:
+    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
@@ -419,7 +419,7 @@ class TorchScriptGraph:
         self,
         onnx_op_schema: onnx.defs.OpSchema,
         onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: dict[str, ValidArgumentType],
+        onnx_attributes: Dict[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
 
@@ -435,7 +435,7 @@ class TorchScriptGraph:
         self,
         onnx_function: onnxscript.OnnxFunction,
         onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: dict[str, ValidArgumentType],
+        onnx_attributes: Dict[str, ValidArgumentType],
     ):
         self._function_store[onnx_function.name] = onnx_function
 
@@ -452,7 +452,7 @@ class TorchScriptGraph:
 
     @beartype
     def to_model_proto(
-        self, initializers: dict[str, torch.Tensor], opset_version: Optional[int]
+        self, initializers: Dict[str, torch.Tensor], opset_version: Optional[int]
     ) -> onnx.ModelProto:
         proto, _, _, _ = self._graph._export_onnx(
             initializers=initializers,
