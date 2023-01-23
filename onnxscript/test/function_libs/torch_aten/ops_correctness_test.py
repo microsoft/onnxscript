@@ -590,10 +590,14 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
             return np.array((), dtype=np.int64)
         if isinstance(input[0], torch.Tensor):
             return [_convert_tensor_to_numpy(x) for x in input]
-        if isinstance(input[0], (int, float)):
-            # Just a tuple of numbers
+        if isinstance(input[0], bool):
+            return np.array(input, dtype=np.bool)
+
+        # Just a sequence of numbers
+        if isinstance(input[0], int):
+            return np.array(input, dtype=np.int64)
+        if isinstance(input[0], float):
             return np.array(input)
-        return input
 
     return input
 
