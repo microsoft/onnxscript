@@ -481,6 +481,6 @@ class TorchScriptGraph:
         print("[Success] ONNX model exported")
         return onnx_model
 
-    def apply(self, graph_pass: Callable, *args, **kwargs):
+    def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
         """Apply a graph pass to the graph."""
         graph_pass(self._graph, *args, **kwargs)
