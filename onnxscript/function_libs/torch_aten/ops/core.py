@@ -1009,6 +1009,7 @@ def aten_conv2d(
 ) -> TFloat:
     # conv2d(Tensor input, Tensor weight, Tensor? bias=None, int[2] stride=1, int[2] padding=0, int[2] dilation=1, int groups=1) -> Tensor
 
+    # Attributes need to be manipulated in Python to match ONNX's conv2d
     if not isinstance(padding, Sequence):
         padding = (padding, padding)
     pads = [*padding, *padding]
