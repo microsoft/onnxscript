@@ -51,10 +51,11 @@ def aten_acosh(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::add")
-def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
+def aten_add(self: TReal, other: TReal, alpha: float) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
-    if alpha != 1:
-        other = op.Mul(other, alpha)
+    one = op.Constant(value_float=1.0)
+    alpha = op.CastLike(alpha, one)
+    other = op.Mul(other, alpha)
     return op.Add(self, other)
 
 
