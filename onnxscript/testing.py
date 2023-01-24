@@ -5,6 +5,7 @@
 """Public utilities for testing onnxscript."""
 
 import onnx
+from onnx import parser
 
 import onnxscript
 
@@ -317,7 +318,7 @@ def _to_function_proto(f):
     if isinstance(f, onnxscript.OnnxFunction):
         return f.to_function_proto()
     if isinstance(f, str):
-        return onnx.parser.parse_function(f)
+        return parser.parse_function(f)
     raise TypeError(f"Cannot convert {type(f)} to FunctionProto")
 
 
@@ -327,7 +328,7 @@ def _to_graph_proto(g):
     if isinstance(g, onnxscript.OnnxFunction):
         return g.to_model_proto().graph
     if isinstance(g, str):
-        return onnx.parser.parse_graph(g)
+        return parser.parse_graph(g)
     raise TypeError(f"Cannot convert {type(g)} to ModelProto")
 
 
