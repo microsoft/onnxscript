@@ -314,7 +314,7 @@ def _isomorphic(fg1, fg2):
 def _to_function_proto(f):
     if isinstance(f, onnx.FunctionProto):
         return f
-    if isinstance(f, onnx.OnnxFunction):
+    if isinstance(f, onnxscript.OnnxFunction):
         return f.to_function_proto()
     if isinstance(f, str):
         return onnx.parser.parse_function(f)
@@ -324,7 +324,7 @@ def _to_function_proto(f):
 def _to_graph_proto(g):
     if isinstance(g, onnx.GraphProto):
         return g
-    if isinstance(g, onnx.OnnxFunction):
+    if isinstance(g, onnxscript.OnnxFunction):
         return g.to_model_proto().graph
     if isinstance(g, str):
         return onnx.parser.parse_graph(g)
