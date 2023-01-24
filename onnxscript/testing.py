@@ -2,15 +2,38 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+"""Public utilities for testing onnxscript."""
 
 import onnx
 
+import onnxscript
 
-def default_equality_op(x, y):
+__all__ = ["assert_isomorphic", "assert_isomorphic_graph", "assert_isomorphic_function"]
+
+
+def assert_isomorphic(graph_or_function_1, graph_or_function_2):
+    """Assert two graphs or functions are isomorphic."""
+    assert _isomorphic(
+        _to_function_or_graph(graph_or_function_1),
+        _to_function_or_graph(graph_or_function_2),
+    )
+
+
+def assert_isomorphic_graph(graph1, graph2):
+    """Assert two graphs are isomorphic."""
+    assert _isomorphic(_to_graph_proto(graph1), _to_graph_proto(graph2))
+
+
+def assert_isomorphic_function(fn1, fn2):
+    """Assert two functions are isomorphic."""
+    assert _isomorphic(_to_function_proto(fn1), _to_function_proto(fn2))
+
+
+def _default_equality_op(x, y):
     return x == y
 
 
-def same_optional(field, obj1, obj2, equals=default_equality_op):
+def _same_optional(field, obj1, obj2, equals=_default_equality_op):
     """Check two proto object have same value for optional field.
     This is restricted to simple field types where == comparison is sufficient.
     """
@@ -19,7 +42,7 @@ def same_optional(field, obj1, obj2, equals=default_equality_op):
     return not obj2.HasField(field)
 
 
-def same_repeated(values1, values2, equals=default_equality_op):
+def _same_repeated(values1, values2, equals=_default_equality_op):
     if len(values1) != len(values2):
         return False
     for (val1, val2) in zip(values1, values2):
@@ -28,7 +51,7 @@ def same_repeated(values1, values2, equals=default_equality_op):
     return True
 
 
-def same_string_string_map(proto1, proto2):
+def _same_string_string_map(proto1, proto2):
     """Compare repeated StringStringEntryProto as maps."""
 
     def to_map(proto):
@@ -37,10 +60,10 @@ def same_string_string_map(proto1, proto2):
     return to_map(proto1) == to_map(proto2)
 
 
-def same_tensor(tp1, tp2):
+def _same_tensor(tp1, tp2):
     if tp1.dims != tp2.dims:
         return False
-    if not same_optional("data_type", tp1, tp2):
+    if not _same_optional("data_type", tp1, tp2):
         return False
     # Segmented representation not supported yet
     if tp1.HasField("segment") or tp2.HasField("segment"):
@@ -58,72 +81,71 @@ def same_tensor(tp1, tp2):
     if tp1.double_data != tp2.double_data:
         return False
     # Ignore name for comparison:
-    # if not same_optional("name", tp1, tp2): return False
-    if not same_optional("doc_string", tp1, tp2):
+    # if not _same_optional("name", tp1, tp2): return False
+    if not _same_optional("doc_string", tp1, tp2):
         return False
-    if not same_optional("data_location", tp1, tp2):
+    if not _same_optional("data_location", tp1, tp2):
         return False
-    if not same_string_string_map(tp1.external_data, tp2.external_data):
+    if not _same_string_string_map(tp1.external_data, tp2.external_data):
         return False
     return True
 
 
-def same_dim(dim1, dim2):
-    return same_optional("dim_value", dim1, dim2) and same_optional("dim_param", dim1, dim2)
+def _same_dim(dim1, dim2):
+    return _same_optional("dim_value", dim1, dim2) and _same_optional("dim_param", dim1, dim2)
 
 
-def same_shape(shape1, shape2):
-    return same_repeated(shape1.dim, shape2.dim, same_dim)
+def _same_shape(shape1, shape2):
+    return _same_repeated(shape1.dim, shape2.dim, _same_dim)
 
 
-def same_tensor_type(tt1, tt2):
-    return (tt1.elem_type == tt2.elem_type) and same_optional("shape", tt1, tt2, same_shape)
+def _same_tensor_type(tt1, tt2):
+    return (tt1.elem_type == tt2.elem_type) and _same_optional("shape", tt1, tt2, _same_shape)
 
 
-def same_type(tp1, tp2):
+def _same_type(tp1, tp2):
     # Handles only tensor type at this point.
-    return same_optional("tensor_type", tp1, tp2, same_tensor_type)
+    return _same_optional("tensor_type", tp1, tp2, _same_tensor_type)
 
 
-def same_value_info(vi1, vi2):
+def _same_value_info(vi1, vi2):
     return (
-        same_optional("name", vi1, vi2)
-        and same_optional("type", vi1, vi2, same_type)
-        and same_optional("doc_string", vi1, vi2)
+        _same_optional("name", vi1, vi2)
+        and _same_optional("type", vi1, vi2, _same_type)
+        and _same_optional("doc_string", vi1, vi2)
     )
 
 
-def same_attr(attr1, attr2, graph_equality):
+def _same_attr(attr1, attr2, graph_equality):
     # no name check; names used to match attributes already.
     for field in ["type", "ref_attr_name", "f", "i", "s"]:
-        if not same_optional(field, attr1, attr2):
+        if not _same_optional(field, attr1, attr2):
             return False
 
-    if not same_optional("t", attr1, attr2, same_tensor):
+    if not _same_optional("t", attr1, attr2, _same_tensor):
         return False
 
-    if not same_repeated(attr1.tensors, attr2.tensors, same_tensor):
+    if not _same_repeated(attr1.tensors, attr2.tensors, _same_tensor):
         return False
 
     for field in ["floats", "ints", "strings"]:
         if getattr(attr1, field) != getattr(attr2, field):
             return False
 
-    if not same_optional("g", attr1, attr2, graph_equality):
+    if not _same_optional("g", attr1, attr2, graph_equality):
         return False
 
-    if not same_repeated(attr1.graphs, attr2.graphs, graph_equality):
+    if not _same_repeated(attr1.graphs, attr2.graphs, graph_equality):
         return False
 
-    # for field in ["t", "sparse_tensor", "tp", "tensors", "sparse_tensors", "type_protos"]:
     for field in ["sparse_tensor", "tp"]:
-        # TODO: check for more complex fields
+        # TODO(gramalingam): check for more complex fields
         if attr1.HasField(field) or attr2.HasField(field):
             return False
     return True
 
 
-def same_attrs(attrs1, attrs2, graph_equality):
+def _same_attrs(attrs1, attrs2, graph_equality):
     if len(attrs1) != len(attrs2):
         return False
     attrs1map = {a.name: a for a in attrs1}
@@ -131,19 +153,17 @@ def same_attrs(attrs1, attrs2, graph_equality):
         if attr2.name not in attrs1map:
             return False
         attr1 = attrs1map[attr2.name]
-        if not same_attr(attr1, attr2, graph_equality):
+        if not _same_attr(attr1, attr2, graph_equality):
             return False
     return True
 
 
-# Return the name of an input/output of a function or graph
-
-
-def ioname(x):
+def _ioname(x):
+    """Return the name of an input/output of a function or graph"""
     return x.name if isinstance(x, onnx.ValueInfoProto) else x
 
 
-class Matcher:
+class _Matcher:
     """An isomorphism matcher for two functions or two graphs."""
 
     def __init__(self, fg1, fg2, outer_scope) -> None:
@@ -154,7 +174,7 @@ class Matcher:
             """
             result = {}
             for (i, x) in enumerate(f.input):
-                result[ioname(x)] = (-1, i)
+                result[_ioname(x)] = (-1, i)
             for ni, n in enumerate(f.node):
                 for xi, x in enumerate(n.output):
                     result[x] = (ni, xi)
@@ -194,7 +214,7 @@ class Matcher:
         if node1.domain != node2.domain:
             return False
         # check attrs
-        if not same_attrs(node1.attribute, node2.attribute, self.same_sub_graph):
+        if not _same_attrs(node1.attribute, node2.attribute, self.same_sub_graph):
             return False
         if not self.same_value_list(node1.input, node2.input):
             return False
@@ -208,20 +228,20 @@ class Matcher:
         if len(list1) != len(list2):
             return False
         for x, y in zip(list1, list2):
-            if not self.same_value(ioname(x), ioname(y)):
+            if not self.same_value(_ioname(x), _ioname(y)):
                 return False
         return True
 
     def same_sub_graph(self, g1, g2):
         """Match two sub-graphs."""
-        sub_graph_matcher = Matcher(g1, g2, self)
+        sub_graph_matcher = _Matcher(g1, g2, self)
         return sub_graph_matcher.same_graph()
 
     def same_graph(self):
         """Match two sub-graphs."""
         g1 = self.fg1
         g2 = self.fg2
-        if not same_repeated(g1.input, g2.input, same_value_info):
+        if not _same_repeated(g1.input, g2.input, _same_value_info):
             return False
 
         if g1.initializer or g2.initializer:
@@ -273,13 +293,13 @@ class Matcher:
         return True
 
 
-def isomorphic(fg1, fg2):
+def _isomorphic(fg1, fg2):
     """Checks that two function/graph bodies are isomorphic.
     Assumes that the inputs are valid FunctionProto/GraphProto.
     Use a separate check to verify that the inputs satisfy
     FunctionProto/GraphProto requirements (like no duplicate attributes).
     """
-    matcher = Matcher(fg1, fg2, None)
+    matcher = _Matcher(fg1, fg2, None)
     if isinstance(fg1, onnx.FunctionProto):
         if not isinstance(fg2, onnx.FunctionProto):
             raise TypeError("Both inputs must be same type (function or graph)")
@@ -289,3 +309,35 @@ def isomorphic(fg1, fg2):
             raise TypeError("Both inputs must be same type (function or graph)")
         return matcher.same_graph()
     raise TypeError("Inputs must be either a FunctionProto or GraphProto")
+
+
+def _to_function_proto(f):
+    if isinstance(f, onnx.FunctionProto):
+        return f
+    if isinstance(f, onnx.OnnxFunction):
+        return f.to_function_proto()
+    if isinstance(f, str):
+        return onnx.parser.parse_function(f)
+    raise TypeError(f"Cannot convert {type(f)} to FunctionProto")
+
+
+def _to_graph_proto(g):
+    if isinstance(g, onnx.GraphProto):
+        return g
+    if isinstance(g, onnx.OnnxFunction):
+        return g.to_model_proto().graph
+    if isinstance(g, str):
+        return onnx.parser.parse_graph(g)
+    raise TypeError(f"Cannot convert {type(g)} to ModelProto")
+
+
+def _to_function_or_graph(obj):
+    if isinstance(obj, onnx.FunctionProto):
+        return obj
+    if isinstance(obj, onnx.GraphProto):
+        return obj
+    if isinstance(obj, onnx.ModelProto):
+        return obj.graph
+    if isinstance(obj, onnxscript.OnnxFunction):
+        return obj.to_function_proto()
+    raise TypeError(f"Cannot convert {type(obj)} to FunctionProto or GraphProto")
