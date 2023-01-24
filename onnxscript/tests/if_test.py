@@ -7,7 +7,7 @@ import unittest
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.test.common import testutils
+from onnxscript.tests.common import testutils
 
 
 class IfOpTester(testutils.TestBase):
