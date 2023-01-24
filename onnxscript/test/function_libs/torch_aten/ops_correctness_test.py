@@ -481,7 +481,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.conv2d",
-        matcher=lambda sample: type(sample.kwargs.get("padding")) is str,
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String value of padding is not accepted by aten::conv2d op",
     ),
     skip(

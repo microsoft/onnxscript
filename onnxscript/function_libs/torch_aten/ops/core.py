@@ -1020,7 +1020,15 @@ def aten_conv2d(
         stride = (stride, stride)
     strides = list(stride)
 
-    result = aten_conv2d_onnx(input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations)
+    if bias is None:
+        weight_dim_0 = op.Gather(op.Shape(weight), 0, axis=0)
+        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
+        zero = op.CastLike(0.0, input)
+        bias = op.Expand(zero, bias_shape)
+
+    result = aten_conv2d_onnx(
+        input, weight, bias, strides=strides, pads=pads, dilations=dilations, groups=groups
+    )
 
     return result
 
@@ -1030,22 +1038,24 @@ def aten_conv2d_onnx(
     input: TFloat,
     weight: TFloat,
     bias: TFloat,
-    stride: Sequence[int],
-    padding: Sequence[int],
-    dilation: Sequence[int],
+    strides: Sequence[int],
+    pads: Sequence[int],
+    dilations: Sequence[int],
     groups: int,
 ) -> TFloat:
-    # conv2d(Tensor input, Tensor weight, Tensor? bias=None, int[2] stride=1, int[2] padding=0, int[2] dilation=1, int groups=1) -> Tensor
+    """conv2d with attributes pre-computed to fit the ONNX spec."""
 
+    # Torch input may be 3D or 4D, ONNX requires 4D
     no_batch = op.Size(op.Shape(input)) == 3
     if no_batch:
-        input = op.Unsqueeze(input)
+        input = op.Unsqueeze(input, op.Constant(value_ints=[0]))
 
-    result = op.Conv(input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations)
+    result = op.Conv(
+        input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations
+    )
 
     if no_batch:
-        # Don't squeeze the batch dimension
-        result = op.Squeeze(result)
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
     return result
 
 
