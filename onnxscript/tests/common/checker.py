@@ -181,7 +181,7 @@ class Matcher:
 
     def same_node(self, n1, n2):
         """Match two node-indices. The special node-index -1 represents inputs."""
-        if (n1 == -1) and (n2 == -1):
+        if n1 == n2 == -1:
             return True  # Both are inputs
         if (n1 == -1) or (n2 == -1):
             return False  # Only one is input
