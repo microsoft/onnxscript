@@ -95,7 +95,7 @@ def same_value_info(vi1, vi2):
 
 def same_attr(attr1, attr2, graph_equality):
     # no name check; names used to match attributes already.
-    for field in ["type", "ref_attr_name", "f", "i", "s"]:
+    for field in ("type", "ref_attr_name", "f", "i", "s"):
         if not same_optional(field, attr1, attr2):
             return False
 
@@ -105,7 +105,7 @@ def same_attr(attr1, attr2, graph_equality):
     if not same_repeated(attr1.tensors, attr2.tensors, same_tensor):
         return False
 
-    for field in ["floats", "ints", "strings"]:
+    for field in ("floats", "ints", "strings"):
         if getattr(attr1, field) != getattr(attr2, field):
             return False
 
@@ -116,7 +116,7 @@ def same_attr(attr1, attr2, graph_equality):
         return False
 
     # for field in ["t", "sparse_tensor", "tp", "tensors", "sparse_tensors", "type_protos"]:
-    for field in ["sparse_tensor", "tp"]:
+    for field in ("sparse_tensor", "tp"):
         # TODO: check for more complex fields
         if attr1.HasField(field) or attr2.HasField(field):
             return False

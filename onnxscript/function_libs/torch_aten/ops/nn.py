@@ -13,6 +13,7 @@
 # pylint: disable=unused-argument
 
 from __future__ import annotations
+import math
 
 from typing import Optional, Sequence
 
@@ -335,7 +336,7 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
         cubed = op.Pow(self, 3)
         inner = op.Mul(0.044715, cubed)
         inner = op.Add(self, inner)
-        inner = op.Mul(op.Sqrt(op.Div(2.0, 3.141592653589793)), inner)
+        inner = op.Mul(op.Sqrt(op.Div(2.0, math.pi)), inner)
         inner = op.Tanh(inner)
         inner = op.Add(inner, 1)
         inner = op.Mul(self, inner)

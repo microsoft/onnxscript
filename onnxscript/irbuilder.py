@@ -81,7 +81,7 @@ class IRVar:
         return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
 
     def typed_str(self):
-        return f"{self.name} : {str(self.typeinfo)}"
+        return f"{self.name} : {self.typeinfo}"
 
     def to_value_info(self, use_default_type: bool = True):
         """Converts the content of this class into :class:`onnx.ValueInfoProto`.
@@ -160,7 +160,7 @@ class IRStmt:
         n = helper.make_node(
             self.callee.opname,
             [_opt_var_to_str(x) for x in self.args],
-            [str(x) for x in self.result],
+            list(self.result),
             domain=self.callee.opset.domain,
             name=node_name,
         )
@@ -171,7 +171,7 @@ class IRStmt:
     @property
     def output_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this statement."""
-        return [str(x) for x in self.result]
+        return list(self.result)
 
 
 class IRFunction:
