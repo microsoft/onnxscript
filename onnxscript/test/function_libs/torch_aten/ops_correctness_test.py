@@ -291,6 +291,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
+    "broadcast_to": core_ops.aten_broadcast_to,
     "cat": (core_ops.aten_cat, _cat_input_wrangler),
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
@@ -583,10 +584,14 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
             return np.array((), dtype=np.int64)
         if isinstance(input[0], torch.Tensor):
             return [_convert_tensor_to_numpy(x) for x in input]
-        if isinstance(input[0], (int, float)):
-            # Just a tuple of numbers
+        if isinstance(input[0], bool):
+            return np.array(input, dtype=np.bool_)
+
+        # Just a sequence of numbers
+        if isinstance(input[0], int):
+            return np.array(input, dtype=np.int64)
+        if isinstance(input[0], float):
             return np.array(input)
-        return input
 
     return input
 
