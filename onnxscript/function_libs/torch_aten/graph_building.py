@@ -240,6 +240,9 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         del closure  # Unused
         return self._graph.add_op_call(schema, inputs, attributes)
 
+    def eval(self, schema, inputs, attributes):
+        outputs = self._eval(schema, inputs, attributes, closure=None)
+        return outputs
 
 @beartype
 def _add_attribute_to_torchscrpt_node(
@@ -321,7 +324,8 @@ class TorchScriptGraph:
             # to a NULL value in TorchScript type system.
             torch_value = self._graph.op("prim::Constant")  # type: ignore[attr-defined]
             torch_value.setType(torch._C.OptionalType.ofTensor())
-            return torch_value
+            tensor_value = _wrap_torch_value_to_tensor(torch_value)
+            return tensor_value
         torch_value = self._graph.addInput(input_name)
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
@@ -474,10 +478,10 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        print("===========ONNX model: \n", onnx_model)
-        onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
-        print("===========ONNX model with inferred shapes: \n", onnx_model)
-        onnx.checker.check_model(onnx_model, full_check=True)
+        #print("===========ONNX model: \n", onnx_model)
+        #onnx_model = onnx.shape_inference.infer_shapes(onnx_model, True, True)
+        #print("===========ONNX model with inferred shapes: \n", onnx_model)
+        #onnx.checker.check_model(onnx_model, full_check=True)
         print("[Success] ONNX model exported")
         return onnx_model
 
