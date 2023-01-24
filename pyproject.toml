@@ -113,3 +113,13 @@ convention = "google"
 # D205 Too strict. "1 blank line required between summary line and description"
 # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
 add-ignore = ["D1", "D202", "D205", "D415"]
+
+[tool.refurb]
+python_version = "3.7"
+disable = [
+  "FURB101",
+  "FURB118", # Replace function with `operator.add`
+  "FURB131", # Replace `del x[y]` with `x.pop(y)`
+  "FURB141", # Replace `os.path.exists(x)` with `Path(x).exists()`
+  "FURB150", # Replace `os.mkdir(x)` with `Path(x).mkdir()`
+]
