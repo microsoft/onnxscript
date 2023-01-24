@@ -6,6 +6,7 @@ import typing
 import warnings
 from typing import Any, Optional, Sequence, Union
 
+import expecttest
 import numpy as np
 import onnx
 import onnx.checker
@@ -14,16 +15,17 @@ import onnx.shape_inference
 import torch
 from beartype import beartype
 from torch.onnx import _type_utils
-import expecttest
+
 import onnxscript
 from onnxscript import evaluator, script
-from onnxscript.function_libs.torch_aten import graph_building, ops
 from onnxscript import tensor as onnxscript_tensor
+from onnxscript.function_libs.torch_aten import graph_building, ops
+
 
 class TestCase(expecttest.TestCase):
 
     # TODO(titaiwang): opset version
-        
+
     def test_attribute_split_logics(self):
         """Test for _split_args_kwargs_to_input_attr function"""
 
@@ -46,10 +48,11 @@ class TestCase(expecttest.TestCase):
     def test_inputs_created_as_constant_op(self):
         """Test for _add_constant_to_graph function"""
         pass
-        
+
     def test_constant_op_with_evaluator(self):
         """Test for op.Constant created in graph builder"""
         from onnxscript import opset18 as op
+
         # initialize graph
         onnxscript_graph = graph_building.TorchScriptGraph()
         tracer = graph_building.TorchScriptTracingEvaluator(onnxscript_graph)
