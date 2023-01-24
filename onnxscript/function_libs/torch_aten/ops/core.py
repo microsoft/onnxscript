@@ -1020,8 +1020,32 @@ def aten_conv2d(
         stride = (stride, stride)
     strides = list(stride)
 
+    result = aten_conv2d_onnx(input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations)
+
+    return result
+
+
+@torch_op("aten::conv2d", overload=True)
+def aten_conv2d_onnx(
+    input: TFloat,
+    weight: TFloat,
+    bias: TFloat,
+    stride: Sequence[int],
+    padding: Sequence[int],
+    dilation: Sequence[int],
+    groups: int,
+) -> TFloat:
+    # conv2d(Tensor input, Tensor weight, Tensor? bias=None, int[2] stride=1, int[2] padding=0, int[2] dilation=1, int groups=1) -> Tensor
+
+    no_batch = op.Size(op.Shape(input)) == 3
+    if no_batch:
+        input = op.Unsqueeze(input)
+
     result = op.Conv(input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations)
 
+    if no_batch:
+        # Don't squeeze the batch dimension
+        result = op.Squeeze(result)
     return result
 
 
