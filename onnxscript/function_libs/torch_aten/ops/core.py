@@ -1060,6 +1060,20 @@ def aten_conv2d_onnx(
     return result
 
 
+def aten_conv3d(
+    input: TensorType,
+    weight: TensorType,
+    bias: Optional[TensorType] = None,
+    stride: Sequence[int] = (1, 1, 1),
+    padding: Sequence[int] = (0, 0, 0),
+    dilation: Sequence[int] = (1, 1, 1),
+    groups: int = 1,
+) -> TensorType:
+    # conv3d(Tensor input, Tensor weight, Tensor? bias=None, int[3] stride=1, int[3] padding=0, int[3] dilation=1, int groups=1) -> Tensor
+
+    raise NotImplementedError()
+
+
 def aten_conv_tbc(
     self: TensorType, weight: TensorType, bias: TensorType, pad: int = 0
 ) -> TensorType:
