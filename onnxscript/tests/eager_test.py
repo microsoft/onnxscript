@@ -7,8 +7,8 @@ import unittest
 import numpy as np
 import parameterized
 
-from onnxscript.test.common import onnx_script_test_case
-from onnxscript.test.models import signal_dft
+from onnxscript.tests.common import onnx_script_test_case
+from onnxscript.tests.models import signal_dft
 
 
 def _fft(x, fft_length, axis=-1):

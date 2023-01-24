@@ -22,7 +22,7 @@ import onnxscript
 from onnxscript import evaluator
 from onnxscript.backend.onnx_backend import enumerate_onnx_tests
 from onnxscript.backend.onnx_export import export2python
-from onnxscript.test.models import type_double
+from onnxscript.tests.models import type_double
 
 
 def print_code(code, begin=1):
@@ -80,7 +80,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
 
-        import_name = f"onnxscript.test.{os.path.split(TestOnnxBackEnd.folder)[-1]}.{name}"
+        import_name = f"onnxscript.tests.{os.path.split(TestOnnxBackEnd.folder)[-1]}.{name}"
         try:
             mod = importlib.import_module(import_name)
         except (SyntaxError, ImportError) as e:

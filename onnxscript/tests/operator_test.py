@@ -10,7 +10,7 @@ import onnx.helper
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import BOOL, FLOAT
-from onnxscript.test.common import testutils
+from onnxscript.tests.common import testutils
 
 
 class TestConverter(testutils.TestBase):

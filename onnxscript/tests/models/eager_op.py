@@ -3,9 +3,6 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-import numpy as np
-from onnx import TensorProto
-from onnx.helper import make_tensor
 
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op

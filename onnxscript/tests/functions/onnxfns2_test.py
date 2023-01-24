@@ -3,8 +3,8 @@ import unittest
 import onnxruntime
 from packaging.version import Version
 
-from onnxscript.test.common import onnx_script_test_case
-from onnxscript.test.models import onnxfns2
+from onnxscript.tests.common import onnx_script_test_case
+from onnxscript.tests.models import onnxfns2
 
 
 class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):

@@ -67,8 +67,10 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> tuple[EagerModeValue, boo
             return tensor.Tensor(input)
         elif isinstance(input, tensor.Tensor):
             return input
-        elif isinstance(input, (bool, int, float)):
+        elif isinstance(input, (bool, float)):
             return tensor.Tensor(np.array(input))
+        elif isinstance(input, int):
+            return tensor.Tensor(np.array(input, dtype=np.int64))
         elif input is None:
             return None
         elif isinstance(input, list):
