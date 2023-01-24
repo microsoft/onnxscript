@@ -8,7 +8,7 @@ import unittest
 import onnx
 
 import onnxscript.onnx_opset as mod_opset
-from onnxscript.test.common import testutils
+from onnxscript.tests.common import testutils
 
 
 class TestOpset(testutils.TestBase):

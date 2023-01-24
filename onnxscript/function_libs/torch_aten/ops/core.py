@@ -718,10 +718,11 @@ def aten_broadcast_tensors(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_broadcast_to(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::broadcast_to")
+def aten_broadcast_to(self: TTensor, size: INT64) -> TTensor:
     # broadcast_to(Tensor(a) self, SymInt[] size) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Expand(self, size)
 
 
 def aten_bucketize(
