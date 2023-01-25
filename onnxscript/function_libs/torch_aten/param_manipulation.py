@@ -42,5 +42,17 @@ def separate_input_attributes_from_arguments(
     param_schemas: Sequence[ParamSchema],
     args,
     kwargs,
-) -> Tuple[List[str, Any], OrderedDict[str, Any]]:
-    pass
+) -> Tuple[List[Any], OrderedDict[str, Any]]:
+    """Separate Python args and kwargs into ONNX inputs and attributes.
+
+    Args:
+        param_schemas: The parameter schemas of an Op or a OnnxFunction.
+        args: The Python positional arguments supplied by the caller.
+        kwargs: The Python keyword arguments supplied by the caller.
+
+    Returns:
+        A tuple of two elements:
+        - A list of ONNX inputs.
+        - An ordered dictionary of ONNX attribute names and values.
+    """
+    raise NotImplementedError()
