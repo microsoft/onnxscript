@@ -6,7 +6,7 @@ import dataclasses
 from typing import Any, List, OrderedDict, Sequence, Tuple
 
 # A special value to indicate that the default value is not specified
-EmptyDefault = object()
+_EmptyDefault = object()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -22,13 +22,13 @@ class ParamSchema:
 
     name: str
     type: type
-    default: Any = EmptyDefault
+    default: Any = _EmptyDefault
     is_input: bool = True
 
     def __repr__(self) -> str:
         param_kind = "INPUT" if self.is_input else "ATTRIBUTE"
         text = f"{self.name}<{param_kind}>: {self.type}"
-        if self.default is not EmptyDefault:
+        if self.default is not _EmptyDefault:
             text += f" = {self.default}"
         return text
 
