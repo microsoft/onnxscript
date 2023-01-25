@@ -13,8 +13,8 @@
 # pylint: disable=unused-argument
 
 from __future__ import annotations
-import math
 
+import math
 from typing import Optional, Sequence
 
 from onnxscript import FLOAT, INT64

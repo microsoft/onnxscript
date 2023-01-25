@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import math
+
 import numpy as np
 from onnx import TensorProto
 from onnx.helper import make_tensor
