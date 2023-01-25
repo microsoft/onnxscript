@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import collections
 import dataclasses
-from typing import Any, OrderedDict, Sequence, Tuple
+from typing import Any, List, OrderedDict, Sequence, Tuple
 
 # A special value to indicate that the default value is not specified
 EmptyDefault = object()
@@ -42,5 +42,5 @@ def separate_input_attributes_from_arguments(
     param_schemas: Sequence[ParamSchema],
     args,
     kwargs,
-) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
+) -> Tuple[List[str, Any], OrderedDict[str, Any]]:
     pass

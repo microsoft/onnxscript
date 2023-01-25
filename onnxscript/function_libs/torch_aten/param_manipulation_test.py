@@ -1,7 +1,7 @@
 import collections
-from typing import Any
 import unittest
 
+import parameterized
 import numpy as np
 
 from onnxscript import tensor, INT64
@@ -13,25 +13,66 @@ from onnxscript.function_libs.torch_aten.param_manipulation import (
 
 
 class TestParamManipulation(unittest.TestCase):
-    def test_separate_input_attributes_from_arguments_should_separate_positional_arguments(
-        self,
+    @parameterized.parameterized.expand(
+        [
+            (
+                "all_positional",
+                (tensor.Tensor(np.array((), dtype=np.int64)), 42, 0.0),
+                {},
+                0.0,
+            ),
+            (
+                "positional_with_default",
+                (tensor.Tensor(np.array((), dtype=np.int64)), 42),
+                {},
+                100.0,
+            ),
+            (
+                "positional_with_default_and_kwargs",
+                (tensor.Tensor(np.array((), dtype=np.int64)),),
+                {"b": 42},
+                100.0,
+            ),
+            (
+                "positional_with_kwargs",
+                (tensor.Tensor(np.array((), dtype=np.int64)), 42),
+                {"c": 0.0},
+                0.0,
+            ),
+            (
+                "positional_input_with_kwargs_attribute",
+                (tensor.Tensor(np.array((), dtype=np.int64)),),
+                {"b": 42, "c": 0.0},
+                0.0,
+            ),
+            (
+                "all_kwargs",
+                (),
+                {"a": tensor.Tensor(np.array((), dtype=np.int64)), "b": 42, "c": 0.0},
+                0.0,
+            ),
+            (
+                "all_kwargs_with_default",
+                (),
+                {"a": tensor.Tensor(np.array((), dtype=np.int64)), "b": 42},
+                100.0,
+            ),
+        ]
+    )
+    def test_separate_input_attributes_from_arguments_correct_on(
+        self, _, args, kwargs, expected_c
     ):
         param_schemas = (
             ParamSchema(name="a", type=INT64, is_input=True),
             ParamSchema(name="b", type=int, is_input=False),
-            ParamSchema(name="c", type=float, default=1.0, is_input=False),
+            ParamSchema(name="c", type=float, default=100.0, is_input=False),
         )
 
-        args = (tensor.Tensor(np.array((), dtype=np.int64)), 42, 0.0)
-        kwargs: dict[str, Any] = {}
-
-        expected_inputs = collections.OrderedDict(
-            [("a", tensor.Tensor(np.array((), dtype=np.int64)))]
-        )
+        expected_inputs = [tensor.Tensor(np.array((), dtype=np.int64))]
         expected_attributes = collections.OrderedDict(
             [
                 ("b", 42),
-                ("c", 0.0),
+                ("c", expected_c),
             ]
         )
 
@@ -41,3 +82,7 @@ class TestParamManipulation(unittest.TestCase):
 
         self.assertEqual(inputs, expected_inputs)
         self.assertEqual(attributes, expected_attributes)
+
+
+if __name__ == "__main__":
+    unittest.main()
