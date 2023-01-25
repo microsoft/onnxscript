@@ -1028,7 +1028,7 @@ def aten_conv2d(
         zero = op.CastLike(0.0, input)
         bias = op.Expand(zero, bias_shape)
 
-    result = aten_conv2d_onnx(
+    result = _aten_conv2d_onnx(
         input, weight, bias, strides=strides, pads=pads, dilations=dilations, groups=groups
     )
 
@@ -1036,7 +1036,7 @@ def aten_conv2d(
 
 
 @torch_op("aten::conv2d", overload=True)
-def aten_conv2d_onnx(
+def _aten_conv2d_onnx(
     input: TFloat,
     weight: TFloat,
     bias: TFloat,
@@ -2349,11 +2349,11 @@ def aten_index_reduce(
 def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
-    return aten_index_select_onnx(self, index, dim=dim)
+    return _aten_index_select_onnx(self, index, dim=dim)
 
 
 @torch_op("aten::index_select", overload=True)
-def aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
+def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
     if op.Size(op.Shape(self)) == 0:
@@ -3606,11 +3606,11 @@ def aten_native_layer_norm(
         weight = op.Constant(value_int=1)
     if bias is not None:
         bias = op.Constant(value_int=0)
-    return aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
+    return _aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
 
 
 @torch_op("aten::native_layer_norm", overload=True)
-def aten_native_layer_norm_onnx(
+def _aten_native_layer_norm_onnx(
     input: TReal,
     weight: TReal,
     bias: TReal,
@@ -4758,11 +4758,11 @@ def aten_sum_dim_IntList(
     # TODO: Combine the overloads when OptionalHasElement() works
     if dim is None:
         return aten_sum_dim_none(self, keepdim=keepdim, dtype=dtype)
-    return aten_sum_dim_onnx(self, dim, keepdim=keepdim, dtype=dtype)
+    return _aten_sum_dim_onnx(self, dim, keepdim=keepdim, dtype=dtype)
 
 
 @torch_op("aten::sum", overload=True)
-def aten_sum_dim_onnx(
+def _aten_sum_dim_onnx(
     self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
