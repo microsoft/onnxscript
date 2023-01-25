@@ -23,7 +23,6 @@ from onnxscript.function_libs.torch_aten.typing import TFloat, TFloatOrBFloat16,
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
-
 _MATH_PI = math.pi
 
 
@@ -339,6 +338,7 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
         cubed = op.Pow(self, 3)
         inner = op.Mul(0.044715, cubed)
         inner = op.Add(self, inner)
+        # Prefer explicit graph construction over precomputed constants for clarity.
         inner = op.Mul(op.Sqrt(op.Div(2.0, _MATH_PI)), inner)
         inner = op.Tanh(inner)
         inner = op.Add(inner, 1)
