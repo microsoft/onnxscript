@@ -57,6 +57,24 @@ class TestParamManipulation(unittest.TestCase):
                 {"a": tensor.Tensor(np.array((), dtype=np.int64)), "b": 42},
                 100.0,
             ),
+            (
+                "extra_positional",  # Probably warn about this
+                (tensor.Tensor(np.array((), dtype=np.int64)), 42, 0.0, -1),
+                {},
+                0.0,
+            ),
+            (
+                "extra_keyword",  # Probably warn about this
+                (tensor.Tensor(np.array((), dtype=np.int64)), 42, 0.0),
+                {"unknown": -1},
+                0.0,
+            ),
+            (
+                "extra_positional_and_keyword",  # Probably warn about this
+                (tensor.Tensor(np.array((), dtype=np.int64)), 42, 0.0, -1),
+                {"unknown": -1},
+                0.0,
+            ),
         ]
     )
     def test_separate_input_attributes_from_arguments_correct_on(
