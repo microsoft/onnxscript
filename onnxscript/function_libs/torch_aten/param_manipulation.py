@@ -1,49 +1,46 @@
+"""Function for manipulating input parameters of an Op or a OnnxFunction."""
+from __future__ import annotations
 
-def _split_args_kwargs_to_input_attr(
-    onnx_func: onnxscript.OnnxFunction,
-    args: Sequence[ValidArgumentType],
-    kwargs: Dict[str, ValidArgumentType],
-) -> Tuple[Sequence[ValidInputType], Dict[str, ValidArgumentType]]:
-    """Split the args and kwargs supplied to `onnx_func` to onnx inputs and attributes.
+import collections
+import dataclasses
+from typing import Any, OrderedDict, Sequence, Tuple
 
-    Args:
-        onnx_func: The onnx function.
-        args: The positional arguments supplied to `onnx_func`.
-        kwargs: The keyword arguments supplied to `onnx_func`.
+# A special value to indicate that the default value is not specified
+EmptyDefault = object()
 
-    Returns:
-        A tuple of (onnx_inputs, onnx_attributes).
+
+@dataclasses.dataclass(frozen=True)
+class ParamSchema:
+    """A schema for a parameter of an Op or a OnnxFunction.
+
+    Attributes:
+        name: The name of the parameter.
+        type: The type of the parameter.
+        default: The default value of the parameter.
+        is_input: Whether the parameter is an ONNX input.
     """
-    function_ir = onnx_func.function_ir
-    # The first len(func_ir.inputs) arguments are onnx inputs
-    onnx_inputs = args[: len(function_ir.inputs)]
-    # The rest is onnx attributes
-    attributes_in_args = args[len(function_ir.inputs) :]
-    # Construct a dictionary of attributes with their names specified in the function
-    # definition
-    onnx_attributes = {}
 
-    # (1) Some/All attributes are supplied as positional arguments
-    attr_name_to_protos = collections.OrderedDict(
-        (attr.name, attr) for attr in function_ir.attr_protos
-    )
+    name: str
+    type: type
+    default: Any = EmptyDefault
+    is_input: bool = True
 
-    assert len(function_ir.attr_protos) >= len(attributes_in_args)
-    for attr_proto, attr_value in zip(attr_name_to_protos.values(), attributes_in_args):
-        onnx_attributes[attr_proto.name] = attr_value
+    def __repr__(self):
+        param_kind = "INPUT" if self.is_input else "ATTRIBUTE"
+        text = f"{self.name}<{param_kind}>: {self.type}"
+        if self.default is not EmptyDefault:
+            text += f" = {self.default}"
+        return text
 
-    # (2) Some/All attributes are supplied as kwargs
-    for key, value in kwargs.items():
-        # (3) Some arguments in kwargs are not defined in the onnx function
-        if key not in attr_name_to_protos:
-            warnings.warn(f"Attribute '{key}' is not defined in the function definition")
-            continue
+    @property
+    def is_attribute(self):
+        """Check if the parameter is an ONNX attribute."""
+        return not self.is_input
 
-        onnx_attributes[key] = value
 
-    # (4) Fill in the default values from the attr_proto if not supplied by caller
-    for key, attr_proto in attr_name_to_protos.items():
-        if key not in onnx_attributes:
-            onnx_attributes[key] = attr_proto.value
-
-    return onnx_inputs, onnx_attributes
+def separate_input_attributes_from_arguments(
+    param_schemas: Sequence[ParamSchema],
+    args,
+    kwargs,
+) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
+    pass
