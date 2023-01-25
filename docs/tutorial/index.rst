@@ -109,3 +109,31 @@ any more.
 Third example mixes both types of loops.
 
 .. literalinclude:: examples/forwhileloop.py
+
+**Encoding Higher-Order Ops: Scan**
+
+ONNX allows graph-valued attributes. This is the mechanism used to define (quasi)
+higher-order ops, such as *If*, *Loop*, *Scan*, and *SequenceMap*.
+While we use Python control-flow to encode *If* and *Loop*, onnxscript
+supports the use of nested Python functions to represent graph-valued attributes,
+as shown in the example below:
+
+.. literalinclude:: examples/scanloop.py
+
+In this case, the function-definition of *Sum* is converted into a graph and used
+as the attribute-value when invoking the *Scan* op.
+
+Function definitions used as graph-attributes must satisfy some constraints.
+They cannot update outer-scope variables, but may reference them.
+(Specifically, the functions cannot use *global* or *nonlocal* declarations.)
+They are also restricted from using local-variables with the same name
+as outer-scope variables (no shadowing).
+
+There is also an interaction between SSA-renaming and the use of outer-scope
+variables inside a function-definition. The following code is invalid, since
+the function *CumulativeSum* references the global *g*, which is updated
+in between the function-definition and function-use. Note that, from an
+ONNX perspective, the two assignments to *g* represent two distinct tensors
+*g1* and *g2*.
+
+.. literalinclude:: examples/outerscope_redef_error.py
