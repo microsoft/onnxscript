@@ -24,6 +24,9 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
+_MATH_PI = math.pi
+
+
 @torch_op("aten::aten_adaptive_avg_pool1d")
 def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
@@ -336,7 +339,7 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
         cubed = op.Pow(self, 3)
         inner = op.Mul(0.044715, cubed)
         inner = op.Add(self, inner)
-        inner = op.Mul(op.Sqrt(op.Div(2.0, math.pi)), inner)
+        inner = op.Mul(op.Sqrt(op.Div(2.0, _MATH_PI)), inner)
         inner = op.Tanh(inner)
         inner = op.Add(inner, 1)
         inner = op.Mul(self, inner)
