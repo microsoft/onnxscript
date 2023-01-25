@@ -1,11 +1,10 @@
 import collections
 import unittest
 
-import parameterized
 import numpy as np
+import parameterized
 
-from onnxscript import tensor, INT64
-
+from onnxscript import INT64, tensor
 from onnxscript.function_libs.torch_aten.param_manipulation import (
     ParamSchema,
     separate_input_attributes_from_arguments,
