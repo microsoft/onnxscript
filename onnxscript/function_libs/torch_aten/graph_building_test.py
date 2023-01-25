@@ -31,7 +31,7 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
         with evaluator.default_as(self.tracer):
             output = op.Constant(value_float=0.5)
         self.onnxscript_graph.register_outputs(output)
-        traced = self.onnxscript_graph.to_model_proto(initializers={}, opset_version=self.opset_version)
+        traced = self.to_model_proto(initializers={}, opset_version=self.opset_version)
 
         @onnxscript.script()
         def expected_model():
