@@ -25,7 +25,7 @@ class ParamSchema:
     default: Any = EmptyDefault
     is_input: bool = True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         param_kind = "INPUT" if self.is_input else "ATTRIBUTE"
         text = f"{self.name}<{param_kind}>: {self.type}"
         if self.default is not EmptyDefault:
@@ -33,8 +33,8 @@ class ParamSchema:
         return text
 
     @property
-    def is_attribute(self):
-        """Check if the parameter is an ONNX attribute."""
+    def is_attribute(self) -> bool:
+        """Returns True if the parameter is an ONNX attribute."""
         return not self.is_input
 
 
