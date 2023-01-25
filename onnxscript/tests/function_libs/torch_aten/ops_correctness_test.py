@@ -178,18 +178,6 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
-def _arange_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    new_args = []
-    for arg in args:
-        if isinstance(arg, int):
-            # Explicitly convert to int64 because int type is 32-bit on Windows
-            arg = np.array(arg, dtype=np.int64)
-        new_args.append(arg)
-    return new_args, kwargs
-
-
 def _cat_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -295,9 +283,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "addmm": core_ops.aten_addmm,
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
-    "arange_start_step": (core_ops.aten_arange_start_step, _arange_input_wrangler),
-    "arange_start": (core_ops.aten_arange_start, _arange_input_wrangler),
-    "arange": (core_ops.aten_arange, _arange_input_wrangler),
+    "arange_start_step": core_ops.aten_arange_start_step,
+    "arange_start": core_ops.aten_arange_start,
+    "arange": core_ops.aten_arange,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -411,6 +399,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
+    "nn.functional.conv2d": core_ops.aten_conv2d,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
@@ -506,6 +495,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.adaptive_avg_pool3d",
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.conv2d",
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+        reason="String padding is not accepted by aten::conv2d",
     ),
     skip(
         "nn.functional.upsample_nearest2d",
