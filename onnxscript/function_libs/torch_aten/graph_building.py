@@ -274,13 +274,13 @@ def _create_op_call_in_torch_graph(
 
 class TorchScriptGraph:
     def __init__(self):
-        self._graph = torch.Graph()
+        self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
         self._function_store: Dict[str, onnxscript.OnnxFunction] = {}
 
     @property
     def torch_graph(self):
-        return self._graph
+        return self._torch_graph
 
     @beartype
     def add_input(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
@@ -289,11 +289,13 @@ class TorchScriptGraph:
         if input_value is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
-            torch_value = self._graph.op("prim::Constant")  # type: ignore[attr-defined]
+            torch_value = _create_op_call_in_torch_graph(
+                self._torch_graph, "prim::Constant", inputs=(), attributes={}
+            )[0]
             torch_value.setType(torch._C.OptionalType.ofTensor())
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
             return tensor_value
-        torch_value = self._graph.addInput(input_name)
+        torch_value = self._torch_graph.addInput(input_name)
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value
@@ -304,34 +306,34 @@ class TorchScriptGraph:
     ):
         unwrapped_outputs = _unwrap_tensors_to_torch_values(outputs)
         if isinstance(unwrapped_outputs, torch.Value):
-            self._graph.registerOutput(unwrapped_outputs)
+            self._torch_graph.registerOutput(unwrapped_outputs)
             return
         assert isinstance(unwrapped_outputs, Sequence)
         for ts_output in unwrapped_outputs:
             assert isinstance(
                 ts_output, torch.Value
             ), f"ts_output must be a torch.Value, not {type(ts_output)}"
-            self._graph.registerOutput(ts_output)
+            self._torch_graph.registerOutput(ts_output)
         return
 
     def _add_constant_to_graph(self, constant) -> torch.Value:
         if isinstance(constant, float):
             return _create_op_call_in_torch_graph(
-                self._graph,
+                self._torch_graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
             )[0]
         if isinstance(constant, int):
             return _create_op_call_in_torch_graph(
-                self._graph,
+                self._torch_graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
             )[0]
         if constant is None:
             value = _create_op_call_in_torch_graph(
-                self._graph, "prim::Constant", inputs=(), attributes={}
+                self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
             return value
@@ -339,7 +341,7 @@ class TorchScriptGraph:
             isinstance(val, int) for val in constant
         ):
             return _create_op_call_in_torch_graph(
-                self._graph,
+                self._torch_graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
@@ -348,7 +350,7 @@ class TorchScriptGraph:
             isinstance(val, float) for val in constant
         ):
             return _create_op_call_in_torch_graph(
-                self._graph,
+                self._torch_graph,
                 "onnx::Constant",
                 inputs=(),
                 attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
@@ -377,7 +379,7 @@ class TorchScriptGraph:
         for value in onnx_attributes.values():
             assert not isinstance(value, TorchScriptTensor)
         result = _create_op_call_in_torch_graph(
-            self._graph,
+            self._torch_graph,
             name,
             inputs=graph_inputs,
             attributes=onnx_attributes,
@@ -427,7 +429,7 @@ class TorchScriptGraph:
     def to_model_proto(
         self, initializers: Dict[str, torch.Tensor], opset_version: Optional[int]
     ) -> onnx.ModelProto:
-        proto, _, _, _ = self._graph._export_onnx(
+        proto, _, _, _ = self._torch_graph._export_onnx(
             initializers=initializers,
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
@@ -458,4 +460,4 @@ class TorchScriptGraph:
 
     def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
         """Apply a graph pass to the graph."""
-        graph_pass(self._graph, *args, **kwargs)
+        graph_pass(self._torch_graph, *args, **kwargs)
