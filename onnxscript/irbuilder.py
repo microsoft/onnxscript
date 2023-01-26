@@ -120,6 +120,14 @@ class IRAttributeValue:
         # self.name + " = " + self.value
         return helper.printable_attribute(self.attr_proto)
 
+    @property
+    def name(self):
+        return self.attr_proto.name
+
+    @property
+    def type(self):
+        return self.attr_proto.type
+
 
 class IRStmt:
     def __init__(
