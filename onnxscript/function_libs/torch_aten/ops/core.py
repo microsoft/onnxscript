@@ -2049,10 +2049,9 @@ def aten_from_file(
 def aten_full(size: INT64, fill_value: float, dtype: int = FLOAT.dtype):
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    fill_value = op.Cast(fill_value, to=dtype)
     size = op.Cast(size, to=INT64.dtype)
-    result = op.Expand(fill_value, size)
-    return result
+    fill_value = op.Cast(fill_value, to=dtype)
+    return = op.Expand(fill_value, size)
 
 
 @torch_op("aten::full_like")
