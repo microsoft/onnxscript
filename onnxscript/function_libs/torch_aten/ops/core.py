@@ -53,8 +53,8 @@ def aten_acosh(self: TFloat) -> TFloat:
 @torch_op("aten::add")
 def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
-    if alpha != 1:
-        other = op.Mul(other, alpha)
+    alpha = op.CastLike(alpha, other)
+    other = op.Mul(other, alpha)
     return op.Add(self, other)
 
 
@@ -1023,8 +1023,8 @@ def aten_conv2d(
     strides = list(stride)
 
     if bias is None:
-        weight_dim_0 = op.Gather(op.Shape(weight), 0, axis=0)
-        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
+        weight_dim_0 = op.Shape(weight, start=0, end=1)
+        bias_shape = op.Unsqueeze(weight_dim_0, op.Constant(value_ints=[0]))
         zero = op.CastLike(0.0, input)
         bias = op.Expand(zero, bias_shape)
 
