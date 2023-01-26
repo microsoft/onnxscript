@@ -112,7 +112,6 @@ class IRAttributeValue:
     """An attribute value (representing an actual parameter)."""
 
     def __init__(self, attrproto) -> None:
-        # consider hiding this attr?
         self.attr_proto = attrproto
 
     def __str__(self):
