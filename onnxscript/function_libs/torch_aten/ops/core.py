@@ -888,7 +888,7 @@ def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = 
 
     # If min is greater than max torch.clamp(..., min, max)
     # sets all elements in input to the value of max.
-
+    # So this order is important.
     if min is not None:
         min_clamp = op.CastLike(min, self)
         clamped = op.Max(clamped, min_clamp)
