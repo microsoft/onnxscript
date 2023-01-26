@@ -345,7 +345,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.embedding": core_ops.aten_embedding,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
-    "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
@@ -400,6 +399,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
+    "nn.functional.linear": nn_ops.aten_linear,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
@@ -424,11 +424,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
-    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean"),
-    xfail(
-        "nn.functional.linear",
-        reason="ONNX Runtime thinks the graph is invalid",
-    ),
+    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean-18"),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="enable when ONNX Runtime does support opset18",
