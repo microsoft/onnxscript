@@ -98,21 +98,22 @@ class Op:
     It belongs to a particular Opset and has a name.
     """
 
-    def __init__(self, opset, opname, opschema=None) -> None:
-
+    def __init__(
+        self, opset, opname: str, opschema: Optional[onnx.defs.OpSchema] = None
+    ) -> None:
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
 
-    def is_single_op(self):
+    def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
 
-    def get_schema(self):
+    def get_schema(self) -> onnx.defs.OpSchema:
         if self.opschema:
             return self.opschema
         return self.opset[self.opname]
 
-    def has_schema(self):
+    def has_schema(self) -> bool:
         return self.opschema is not None
 
     def adapt_kwargs(self, kwargs):

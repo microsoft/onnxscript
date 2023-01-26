@@ -129,21 +129,6 @@ class IRAttributeValue:
     def type(self):
         return self.attr_proto.type
 
-    @property
-    def value(self):
-        if self.type == onnx.AttributeProto.FLOAT:
-            return self.attr_proto.f
-        elif self.type == onnx.AttributeProto.INT:
-            return self.attr_proto.i
-        elif self.type == onnx.AttributeProto.STRING:
-            return self.attr_proto.s
-        elif self.type == onnx.AttributeProto.FLOATS:
-            return [float(v) for v in self.attr_proto.f]
-        elif self.type == onnx.AttributeProto.INTS:
-            return [int(v) for v in self.attr_proto.i]
-        elif self.type == onnx.AttributeProto.STRINGS:
-            assert False, "Bad: list of strings"
-
 
 class IRStmt:
     def __init__(
