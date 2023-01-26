@@ -25,6 +25,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TRealUnlessInt16OrInt8,
     TTensor,
 )
+from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -190,20 +191,24 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::amax")
-def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+@torch_op("aten::amax", trace_only=True)
+def aten_amax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional
-    return op.ReduceMax(self, dim, keepdims=keepdim)
+    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
+    if dim is None:
+        return opset17.ReduceMax(self, keepdims=keepdim)
+    return opset17.ReduceMax(self, axes=[dim], keepdims=keepdim)
 
 
-@torch_op("aten::amin")
-def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+@torch_op("aten::amin", trace_only=True)
+def aten_amin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional
-    return op.ReduceMin(self, dim, keepdims=keepdim)
+    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
+    if dim is None:
+        return opset17.ReduceMin(self, keepdims=keepdim)
+    return opset17.ReduceMin(self, axes=[dim], keepdims=keepdim)
 
 
 def aten_aminmax(
@@ -843,30 +848,22 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::clamp")
-def aten_clamp(
-    self: TReal, min_: Optional[float] = None, max_: Optional[float] = None
-) -> TReal:
+@torch_op("aten::clamp", trace_only=True)
+def aten_clamp(self: TReal, min: Optional[float] = None, max: Optional[float] = None) -> TReal:
     # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
+    clamped = self
 
-    # TODO(justinchuby): Handle integer inputs
-    # FIXME(justinchuby): Enable test for this after None values are supported
-    # TODO(justinchuby): If min is greater than max torch.clamp(..., min, max)
-    # sets all elements in input to the value of max.
-    if op.OptionalHasElement(min_):
-        min_ = op.OptionalGetElement(min_)
-        min_clamp = op.CastLike(min_, self)
-    else:
-        min_clamp = op.Constant(value_float=float("-inf"))
+    if min is None and max is None:
+        return clamped
 
-    if op.OptionalHasElement(max_):
-        max_ = op.OptionalGetElement(max_)
-        max_clamp = op.CastLike(max_, self)
-    else:
-        max_clamp = op.Constant(value_float=float("inf"))
+    if max is not None:
+        max_clamp = op.CastLike(max, self)
+        clamped = op.Min(clamped, max_clamp)
 
-    # Enforce the lower and upper bounds
-    clamped = op.Max(op.Min(self, max_clamp), min_clamp)
+    if min is not None:
+        min_clamp = op.CastLike(min, self)
+        clamped = op.Max(clamped, min_clamp)
+
     return clamped
 
 
@@ -3626,10 +3623,11 @@ def _aten_native_layer_norm_onnx(
     eps: float,
 ) -> Tuple[TReal, TReal, TReal]:
 
-    mean = op.ReduceMean(input, axes=axes)
+    # FIXME(justinchuby): Use opset18 when it is supported by onnxruntime
+    mean = opset17.ReduceMean(input, axes=axes)
     numerator = op.Sub(input, mean)
     power_num = op.Pow(numerator, 2.0)
-    variance = op.ReduceMean(power_num, axes=axes)
+    variance = opset17.ReduceMean(power_num, axes=axes)
     variance_eps = op.Add(variance, eps)
     denominator = op.Sqrt(variance_eps)
     result = op.Div(numerator, denominator)
