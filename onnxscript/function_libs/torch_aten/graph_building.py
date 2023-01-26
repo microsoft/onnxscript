@@ -69,12 +69,11 @@ ValidTorchValueType: TypeAlias = Union[
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
-    # TODO(justinchuby): Create setters for attributes so the exporter can
-    # update the name/shape/type information when they are available.
 
     def __init__(self, value: torch.Value):
         super().__init__(None)
         self._value = value
+        self._shape = None
 
     @property
     def value(self) -> np.ndarray:
@@ -90,6 +89,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     @property
     def shape(self) -> Tuple[int | None, ...] | None:
+        if self._shape is not None:
+            return self._shape
+
         value_type = self._value.type()
         if value_type is None:
             return None
@@ -98,6 +100,11 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         if shape is None:
             return None
         return tuple(shape)
+
+    @shape.setter
+    def shape(self, shape: Tuple[int | None, ...]):
+        self._shape = shape
+        # TODO(justinchuby): Add shape to self._value?
 
     @property
     def dtype(self):
@@ -197,7 +204,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return outputs
 
 @beartype
-def _add_attribute_to_torchscrpt_node(
+def _add_attribute_to_torchscript_node(
     node: torch.Node,
     key: str,
     value: Union[float, int, str, Sequence[float], Sequence[int], torch.Tensor],
@@ -253,7 +260,7 @@ def _create_op_call_in_torch_graph(
     assert len(node_ouputs) == n_outputs
     # Add all attributes
     for key, value in sorted(attributes.items()):
-        _add_attribute_to_torchscrpt_node(node, key, value)
+        _add_attribute_to_torchscript_node(node, key, value)
 
     return node_ouputs
 

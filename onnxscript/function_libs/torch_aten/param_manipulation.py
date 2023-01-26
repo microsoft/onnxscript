@@ -4,6 +4,7 @@ from __future__ import annotations
 import collections
 import dataclasses
 from typing import Any, List, OrderedDict, Sequence, Tuple
+import warnings
 
 import onnx
 
@@ -148,8 +149,23 @@ def separate_input_attributes_from_arguments(
     """
     # args, kwargs and param_schemas should be all in order
     # user might not specify all attributes
+    # TODO: Remove print statements
+    print("args", args)
+    print("kwargs", kwargs)
+    print("param_schemas", param_schemas)
     if len(args) + len(kwargs) > len(param_schemas):
-        raise TypeError("Inputs are more than expected in schema")
+        # TODO(justinchuby): Log diagnostic information.
+        warnings.warn(
+            f"Inputs are more than expected in schema. Expected {len(param_schemas)} arguments, "
+            f"but got {len(args)} positional arguments and {len(kwargs)} keyword arguments. "
+            f"The extra inputs will be ignored. "
+            f"args: {args}, kwargs: {kwargs}, param_schemas: {param_schemas}"
+        )
+    if len(args) > len(param_schemas):
+        raise TypeError(
+            f"Too many arguments are provided. Expected {len(param_schemas)} arguments, "
+            f"but got {len(args)} positional arguments and {len(kwargs)} keyword arguments."
+        )
 
     onnx_inputs = []
     onnx_attributes = OrderedDict()
