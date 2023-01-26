@@ -170,14 +170,6 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 # Modify this section ##########################################################
 
 
-def _amax_amin_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "dim" not in kwargs:
-        kwargs["dim"] = None
-    return args, kwargs
-
-
 def _cat_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -391,8 +383,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
-    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
+    "amax": core_ops.aten_amax,
+    "amin": core_ops.aten_amin,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
