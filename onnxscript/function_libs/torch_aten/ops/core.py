@@ -2051,7 +2051,7 @@ def aten_full(size: INT64, fill_value: float, dtype: int = FLOAT.dtype):
 
     size = op.Cast(size, to=INT64.dtype)
     fill_value = op.Cast(fill_value, to=dtype)
-    return = op.Expand(fill_value, size)
+    return op.Expand(fill_value, size)
 
 
 @torch_op("aten::full_like")
