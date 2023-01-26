@@ -170,14 +170,6 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 # Modify this section ##########################################################
 
 
-def _amax_amin_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "dim" not in kwargs:
-        kwargs["dim"] = None
-    return args, kwargs
-
-
 def _cat_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -281,8 +273,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
-    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -296,7 +286,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
-    "clamp": core_ops.aten_clamp,
     "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
@@ -394,8 +383,11 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
+    "amax": core_ops.aten_amax,
+    "amin": core_ops.aten_amin,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
+    "clamp": core_ops.aten_clamp,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
@@ -417,14 +409,10 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
-    xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    xfail("clamp", reason="Enable when ONNX Runtime supports OptionalHasElement-18"),
     skip("empty", reason="Using zeros to simulate empty"),
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
-    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean-18"),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="enable when ONNX Runtime does support opset18",

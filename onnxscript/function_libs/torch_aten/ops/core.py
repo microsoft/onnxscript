@@ -25,6 +25,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TRealUnlessInt16OrInt8,
     TTensor,
 )
+from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -190,20 +191,54 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::amax")
-def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+@torch_op("aten::amax", trace_only=True)
+def aten_amax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional
-    return op.ReduceMax(self, dim, keepdims=keepdim)
+    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
+    if dim is None:
+        return opset17.ReduceMax(self, keepdims=keepdim)
+    if not isinstance(dim, Sequence):
+        dims = [dim]
+    else:
+        dims = list(dim)
+    return _aten_amax_onnx(self, axes=dims, keepdims=keepdim)
 
 
-@torch_op("aten::amin")
-def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+@torch_op("aten::amax", overload=True)
+def _aten_amax_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
+    # TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14
+    if opset17.Size(opset17.Shape(self)) == 0:
+        # Scalar
+        result = self
+    else:
+        result = opset17.ReduceMax(self, axes=axes, keepdims=keepdims)
+    return result
+
+
+@torch_op("aten::amin", trace_only=True)
+def aten_amin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional
-    return op.ReduceMin(self, dim, keepdims=keepdim)
+    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
+    if dim is None:
+        return opset17.ReduceMin(self, keepdims=keepdim)
+    if not isinstance(dim, Sequence):
+        dims = [dim]
+    else:
+        dims = list(dim)
+    return _aten_amin_onnx(self, axes=dims, keepdims=keepdim)
+
+
+@torch_op("aten::amin", overload=True)
+def _aten_amin_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
+    # TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14
+    if opset17.Size(opset17.Shape(self)) == 0:
+        # Scalar
+        result = self
+    else:
+        result = opset17.ReduceMin(self, axes=axes, keepdims=keepdims)
+    return result
 
 
 def aten_aminmax(
@@ -843,30 +878,25 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::clamp")
-def aten_clamp(
-    self: TReal, min_: Optional[float] = None, max_: Optional[float] = None
-) -> TReal:
-    # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
+@torch_op("aten::clamp", trace_only=True)
+def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = None) -> TReal:
+    # clamp(Tensor self, Tensor? min=None, Tensor? max=None) -> Tensor
+    clamped = self
 
-    # TODO(justinchuby): Handle integer inputs
-    # FIXME(justinchuby): Enable test for this after None values are supported
-    # TODO(justinchuby): If min is greater than max torch.clamp(..., min, max)
+    if min is None and max is None:
+        return clamped
+
+    # If min is greater than max torch.clamp(..., min, max)
     # sets all elements in input to the value of max.
-    if op.OptionalHasElement(min_):
-        min_ = op.OptionalGetElement(min_)
-        min_clamp = op.CastLike(min_, self)
-    else:
-        min_clamp = op.Constant(value_float=float("-inf"))
+    # So this order is important.
+    if min is not None:
+        min_clamp = op.CastLike(min, self)
+        clamped = op.Max(clamped, min_clamp)
 
-    if op.OptionalHasElement(max_):
-        max_ = op.OptionalGetElement(max_)
-        max_clamp = op.CastLike(max_, self)
-    else:
-        max_clamp = op.Constant(value_float=float("inf"))
+    if max is not None:
+        max_clamp = op.CastLike(max, self)
+        clamped = op.Min(clamped, max_clamp)
 
-    # Enforce the lower and upper bounds
-    clamped = op.Max(op.Min(self, max_clamp), min_clamp)
     return clamped
 
 
@@ -3609,12 +3639,17 @@ def aten_native_layer_norm(
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
     # Use python to manipulate the axes
+    # https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
+    # The mean and standard-deviation are calculated over the last D dimensions,
+    # where D is the dimension of normalized_shape. For example, if normalized_shape is
+    # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
+    # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
     axes = [-i for i in range(len(normalized_shape), 0, -1)]
     if weight is None:
-        weight = op.Constant(value_int=1)
-    if bias is not None:
-        bias = op.Constant(value_int=0)
-    return _aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
+        weight = op.CastLike(1, input)
+    if bias is None:
+        bias = op.CastLike(0, input)
+    return _aten_native_layer_norm_onnx(input, weight, bias, axes=axes, eps=eps)
 
 
 @torch_op("aten::native_layer_norm", overload=True)
@@ -3626,18 +3661,19 @@ def _aten_native_layer_norm_onnx(
     eps: float,
 ) -> Tuple[TReal, TReal, TReal]:
 
-    mean = op.ReduceMean(input, axes=axes)
-    numerator = op.Sub(input, mean)
-    power_num = op.Pow(numerator, 2.0)
-    variance = op.ReduceMean(power_num, axes=axes)
-    variance_eps = op.Add(variance, eps)
-    denominator = op.Sqrt(variance_eps)
-    result = op.Div(numerator, denominator)
-    weight = op.CastLike(weight, result)
-    result = op.Mul(result, weight)
-    bias = op.CastLike(bias, result)
-    result = op.Add(result, bias)
-    rdenominator = op.Reciprocal(denominator)
+    # FIXME(justinchuby): Use opset18 when it is supported by onnxruntime
+    mean = opset17.ReduceMean(input, axes=axes)
+    numerator = opset17.Sub(input, mean)
+    power_num = opset17.Pow(numerator, 2.0)
+    variance = opset17.ReduceMean(power_num, axes=axes)
+    variance_eps = opset17.Add(variance, eps)
+    denominator = opset17.Sqrt(variance_eps)
+    result = opset17.Div(numerator, denominator)
+    weight = opset17.CastLike(weight, result)
+    result = opset17.Mul(result, weight)
+    bias = opset17.CastLike(bias, result)
+    result = opset17.Add(result, bias)
+    rdenominator = opset17.Reciprocal(denominator)
     return result, mean, rdenominator
 
 
