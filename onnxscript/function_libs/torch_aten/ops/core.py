@@ -17,6 +17,7 @@ from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     IntType,
+    RealType,
     TFloat,
     TFloatOrBFloat16,
     TInt,
@@ -5329,8 +5330,9 @@ def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
 
 
 @torch_op("aten::where")
-def aten_where(self: TTensor, condition: BOOL, other: TTensor) -> TTensor:
+def aten_where(self: TTensor, condition: RealType, other: TTensor) -> TTensor:
     # where.self(Tensor condition, Tensor self, Tensor other) -> Tensor
+    condition = op.Cast(condition, to=BOOL.dtype)
 
     return op.Where(condition, self, other)
 
