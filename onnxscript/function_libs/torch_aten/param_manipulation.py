@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import collections
 import dataclasses
-from typing import Any, List, OrderedDict, Sequence, Tuple
 import warnings
+from typing import Any, List, OrderedDict, Sequence, Tuple
 
 import onnx
 

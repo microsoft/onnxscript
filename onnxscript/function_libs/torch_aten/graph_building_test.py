@@ -7,8 +7,8 @@ import onnx.shape_inference
 import torch
 
 import onnxscript
+from onnxscript import FLOAT, evaluator
 from onnxscript import opset17 as op
-from onnxscript import evaluator, FLOAT
 from onnxscript.function_libs.torch_aten import graph_building, ops
 from onnxscript.tests.common import testutils
 
@@ -22,8 +22,7 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
     def to_model_proto(self):
         # TODO(titaiwang): initializer API
         return self.onnxscript_graph.to_model_proto(
-            initializers={},
-            opset_version=self.opset_version
+            initializers={}, opset_version=self.opset_version
         )
 
     def test_traced_constant_op_is_same_as_compiled_graph(self):
@@ -56,6 +55,7 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
         traced = self.to_model_proto()
         expected = expected_model.to_model_proto()
         import onnx
+
         expected = onnx.shape_inference.infer_shapes(expected)
         onnx.checker.check_model(expected, full_check=True)
         onnx.checker.check_model(traced, full_check=True)

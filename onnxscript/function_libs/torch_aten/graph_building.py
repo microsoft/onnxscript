@@ -1,12 +1,8 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
 
-import collections
 import typing
-import warnings
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
-
-from typing_extensions import TypeAlias
 
 import numpy as np
 import onnx
@@ -16,6 +12,7 @@ import onnx.shape_inference
 import torch
 from beartype import beartype
 from torch.onnx import _type_utils
+from typing_extensions import TypeAlias
 
 import onnxscript
 from onnxscript import evaluator
@@ -68,7 +65,6 @@ ValidTorchValueType: TypeAlias = Union[
 
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
-
 
     def __init__(self, value: torch.Value):
         super().__init__(None)
@@ -127,9 +123,12 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 @beartype
 def _unwrap_tensor_to_torch_value(
     value: Union[ValidArgumentType, Dict[str, ValidArgumentType], Sequence[ValidArgumentType]]
-) -> Union[ValidTorchValueType, Dict[str, ValidTorchValueType], List[ValidTorchValueType], Tuple[
-    ValidTorchValueType, ...
-]]:
+) -> Union[
+    ValidTorchValueType,
+    Dict[str, ValidTorchValueType],
+    List[ValidTorchValueType],
+    Tuple[ValidTorchValueType, ...],
+]:
     """Unwrap the TorchScriptTensor to torch.Value."""
     if isinstance(value, TorchScriptTensor):
         return value.symbolic_value()
@@ -147,9 +146,12 @@ def _unwrap_tensor_to_torch_value(
 @beartype
 def _wrap_torch_value_to_tensor(
     value: Union[torch.Value, Dict[str, ValidTorchValueType], Sequence[ValidTorchValueType]]
-) -> Union[ValidArgumentType, Dict[str, ValidArgumentType], List[ValidArgumentType], Tuple[
-    ValidArgumentType, ...
-]]:
+) -> Union[
+    ValidArgumentType,
+    Dict[str, ValidArgumentType],
+    List[ValidArgumentType],
+    Tuple[ValidArgumentType, ...],
+]:
     """Wrap torch.Value to TorchScriptTensor."""
     if isinstance(value, torch.Value):
         return TorchScriptTensor(value)
@@ -189,19 +191,24 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     ):
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = param_manipulation.extract_param_schema_from_function(function)
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(param_schemas, args, kwargs)
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            param_schemas, args, kwargs
+        )
         return self._graph.add_function_call(function, inputs, attributes)
 
     def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
         del closure  # Unused
 
         param_schemas = param_manipulation.extract_param_schema_from_op_schema(schema)
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(param_schemas, inputs, attributes)
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            param_schemas, inputs, attributes
+        )
         return self._graph.add_op_call(schema, inputs, attributes)
 
     def eval(self, schema, inputs, attributes):
         outputs = self._eval(schema, inputs, attributes, closure=None)
         return outputs
+
 
 @beartype
 def _add_attribute_to_torchscript_node(
@@ -292,7 +299,9 @@ class TorchScriptGraph:
         return tensor_value
 
     @beartype
-    def register_outputs(self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]):
+    def register_outputs(
+        self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]
+    ):
         unwrapped_outputs = _unwrap_tensors_to_torch_values(outputs)
         if isinstance(unwrapped_outputs, torch.Value):
             self._graph.registerOutput(unwrapped_outputs)
@@ -438,10 +447,12 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        #print("===========ONNX model: \n", onnx_model)
-        #onnx_model = onnx.shape_inference.infer_shapes(onnx_model, True, True)
-        #print("===========ONNX model with inferred shapes: \n", onnx_model)
-        #onnx.checker.check_model(onnx_model, full_check=True)
+        # print("===========ONNX model: \n", onnx_model)
+        onnx_model = onnx.shape_inference.infer_shapes(
+            onnx_model, check_type=True, strict_mode=True
+        )
+        # print("===========ONNX model with inferred shapes: \n", onnx_model)
+        # onnx.checker.check_model(onnx_model, full_check=True)
         print("[Success] ONNX model exported")
         return onnx_model
 
