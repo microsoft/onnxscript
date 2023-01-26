@@ -214,7 +214,7 @@ def _add_attribute_to_torchscript_node(
         return node.f_(key, value)
     if isinstance(value, int):
         return node.i_(key, value)
-    if isinstance(value, str):
+    if isinstance(value, (str, bytes)):
         return node.s_(key, value)
     if isinstance(value, torch.Tensor):
         return node.t_(key, value)
