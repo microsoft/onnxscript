@@ -473,9 +473,9 @@ class TorchScriptGraph:
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
         # print("===========ONNX model: \n", onnx_model)
-        # onnx_model = onnx.shape_inference.infer_shapes(
-        #     onnx_model, check_type=True, strict_mode=True
-        # )
+        onnx_model = onnx.shape_inference.infer_shapes(
+            onnx_model, check_type=True, strict_mode=True
+        )
         # print("===========ONNX model with inferred shapes: \n", onnx_model)
         # onnx.checker.check_model(onnx_model, full_check=True)
         print("[Success] ONNX model exported")
