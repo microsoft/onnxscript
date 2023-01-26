@@ -849,8 +849,8 @@ def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
 
 
 @torch_op("aten::clamp", trace_only=True)
-def aten_clamp(self: TReal, min: Optional[float] = None, max: Optional[float] = None) -> TReal:
-    # clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor
+def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = None) -> TReal:
+    # clamp(Tensor self, Tensor? min=None, Tensor? max=None) -> Tensor
     clamped = self
 
     if min is None and max is None:
@@ -3606,12 +3606,17 @@ def aten_native_layer_norm(
     # native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)
 
     # Use python to manipulate the axes
+    # https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
+    # The mean and standard-deviation are calculated over the last D dimensions,
+    # where D is the dimension of normalized_shape. For example, if normalized_shape is
+    # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
+    # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
     axes = [-i for i in range(len(normalized_shape), 0, -1)]
     if weight is None:
-        weight = op.Constant(value_int=1)
+        weight = op.CastLike(1, input)
     if bias is not None:
-        bias = op.Constant(value_int=0)
-    return _aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
+        bias = op.CastLike(0, input)
+    return _aten_native_layer_norm_onnx(input, weight, bias, axes=axes, eps=eps)
 
 
 @torch_op("aten::native_layer_norm", overload=True)
@@ -3625,17 +3630,17 @@ def _aten_native_layer_norm_onnx(
 
     # FIXME(justinchuby): Use opset18 when it is supported by onnxruntime
     mean = opset17.ReduceMean(input, axes=axes)
-    numerator = op.Sub(input, mean)
-    power_num = op.Pow(numerator, 2.0)
+    numerator = opset17.Sub(input, mean)
+    power_num = opset17.Pow(numerator, 2.0)
     variance = opset17.ReduceMean(power_num, axes=axes)
-    variance_eps = op.Add(variance, eps)
-    denominator = op.Sqrt(variance_eps)
-    result = op.Div(numerator, denominator)
-    weight = op.CastLike(weight, result)
-    result = op.Mul(result, weight)
-    bias = op.CastLike(bias, result)
-    result = op.Add(result, bias)
-    rdenominator = op.Reciprocal(denominator)
+    variance_eps = opset17.Add(variance, eps)
+    denominator = opset17.Sqrt(variance_eps)
+    result = opset17.Div(numerator, denominator)
+    weight = opset17.CastLike(weight, result)
+    result = opset17.Mul(result, weight)
+    bias = opset17.CastLike(bias, result)
+    result = opset17.Add(result, bias)
+    rdenominator = opset17.Reciprocal(denominator)
     return result, mean, rdenominator
 
 
