@@ -3647,7 +3647,7 @@ def aten_native_layer_norm(
     axes = [-i for i in range(len(normalized_shape), 0, -1)]
     if weight is None:
         weight = op.CastLike(1, input)
-    if bias is not None:
+    if bias is None:
         bias = op.CastLike(0, input)
     return _aten_native_layer_norm_onnx(input, weight, bias, axes=axes, eps=eps)
 
