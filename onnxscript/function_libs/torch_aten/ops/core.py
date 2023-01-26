@@ -51,7 +51,7 @@ def aten_acosh(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::add")
-def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
+def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
@@ -59,7 +59,7 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1) -> TReal:
 
 
 def aten_addbmm(
-    self: TensorType, batch1: TensorType, batch2: TensorType, beta: float = 1, alpha: float = 1
+    self: TensorType, batch1: TensorType, batch2: TensorType, beta: float = 1.0, alpha: float = 1.0
 ) -> TensorType:
     # addbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -67,7 +67,7 @@ def aten_addbmm(
 
 
 def aten_addcdiv(
-    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1
+    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0
 ) -> TensorType:
     # addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
@@ -75,7 +75,7 @@ def aten_addcdiv(
 
 
 def aten_addcmul(
-    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1
+    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0
 ) -> TensorType:
     # addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
@@ -84,7 +84,7 @@ def aten_addcmul(
 
 @torch_op("aten::addmm")
 def aten_addmm(
-    self: TFloat, mat1: TFloat, mat2: TFloat, beta: float = 1, alpha: float = 1
+    self: TFloat, mat1: TFloat, mat2: TFloat, beta: float = 1.0, alpha: float = 1.0
 ) -> TFloat:
     # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -95,7 +95,7 @@ def aten_addmm(
 
 
 def aten_addmv(
-    self: TensorType, mat: TensorType, vec: TensorType, beta: float = 1, alpha: float = 1
+    self: TensorType, mat: TensorType, vec: TensorType, beta: float = 1.0, alpha: float = 1.0
 ) -> TensorType:
     # addmv(Tensor self, Tensor mat, Tensor vec, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -103,7 +103,7 @@ def aten_addmv(
 
 
 def aten_addr(
-    self: TensorType, vec1: TensorType, vec2: TensorType, beta: float = 1, alpha: float = 1
+    self: TensorType, vec1: TensorType, vec2: TensorType, beta: float = 1.0, alpha: float = 1.0
 ) -> TensorType:
     # addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -487,7 +487,7 @@ def aten_avg_pool1d(
 
 
 def aten_baddbmm(
-    self: TensorType, batch1: TensorType, batch2: TensorType, beta: float = 1, alpha: float = 1
+    self: TensorType, batch1: TensorType, batch2: TensorType, beta: float = 1.0, alpha: float = 1.0
 ) -> TensorType:
     # baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -769,7 +769,7 @@ def aten_ccol_indices_copy(self: TensorType) -> TensorType:
 
 
 def aten_cdist(
-    x1: TensorType, x2: TensorType, p: float = 2, compute_mode: Optional[int] = None
+    x1: TensorType, x2: TensorType, p: float = 2.0, compute_mode: Optional[int] = None
 ) -> TensorType:
     # cdist(Tensor x1, Tensor x2, float p=2, int? compute_mode=None) -> Tensor
 
@@ -971,7 +971,7 @@ def aten_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0) -> TensorType:
+def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0.0) -> TensorType:
     # constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor
 
     raise NotImplementedError()
@@ -1551,7 +1551,7 @@ def aten_digamma(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_dist(self: TensorType, other: TensorType, p: float = 2) -> TensorType:
+def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType:
     # dist(Tensor self, Tensor other, Scalar p=2) -> Tensor
 
     raise NotImplementedError()
@@ -2237,7 +2237,7 @@ def aten_hinge_embedding_loss(
 
 
 def aten_histc(
-    self: TensorType, bins: int = 100, min: float = 0, max: float = 0
+    self: TensorType, bins: int = 100, min: float = 0.0, max: float = 0.0
 ) -> TensorType:
     # histc(Tensor self, int bins=100, Scalar min=0, Scalar max=0) -> Tensor
 
@@ -3648,7 +3648,7 @@ def aten_native_layer_norm_backward(
     raise NotImplementedError()
 
 
-def aten_native_norm(self: TensorType, p: float = 2) -> TensorType:
+def aten_native_norm(self: TensorType, p: float = 2.0) -> TensorType:
     # native_norm(Tensor self, Scalar p=2) -> Tensor
 
     raise NotImplementedError()
@@ -3736,7 +3736,7 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
 
 
 def aten_normal(
-    self: TensorType, mean: float = 0, std: float = 1, generator: Optional[str] = None
+    self: TensorType, mean: float = 0.0, std: float = 1.0, generator: Optional[str] = None
 ) -> TensorType:
     # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
 
@@ -3819,14 +3819,14 @@ def aten_output_nr(self: TensorType) -> int:
 
 
 def aten_pairwise_distance(
-    x1: TensorType, x2: TensorType, p: float = 2, eps: float = 1e-06, keepdim: bool = False
+    x1: TensorType, x2: TensorType, p: float = 2.0, eps: float = 1e-06, keepdim: bool = False
 ) -> TensorType:
     # pairwise_distance(Tensor x1, Tensor x2, float p=2, float eps=1e-06, bool keepdim=False) -> Tensor
 
     raise NotImplementedError()
 
 
-def aten_pdist(self: TensorType, p: float = 2) -> TensorType:
+def aten_pdist(self: TensorType, p: float = 2.0) -> TensorType:
     # pdist(Tensor self, float p=2) -> Tensor
 
     raise NotImplementedError()
@@ -4693,7 +4693,7 @@ def aten_squeeze_copy(self: TensorType) -> TensorType:
 
 
 def aten_sspaddmm(
-    self: TensorType, mat1: TensorType, mat2: TensorType, beta: float = 1, alpha: float = 1
+    self: TensorType, mat1: TensorType, mat2: TensorType, beta: float = 1.0, alpha: float = 1.0
 ) -> TensorType:
     # sspaddmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -4734,7 +4734,7 @@ def aten_stft(
 
 
 @torch_op("aten::sub")
-def aten_sub(self: TReal, other: TReal, alpha: float = 1) -> TReal:
+def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     if alpha != 1:
@@ -4743,7 +4743,7 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1) -> TReal:
     return op.Sub(self, other)
 
 
-def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1) -> TensorType:
+def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1.0) -> TensorType:
     # subtract.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
 
     raise NotImplementedError()
@@ -5052,7 +5052,7 @@ def aten_triplet_margin_loss(
     positive: TensorType,
     negative: TensorType,
     margin: float = 1.0,
-    p: float = 2,
+    p: float = 2.0,
     eps: float = 1e-06,
     swap: bool = False,
     reduction: int = 1,
