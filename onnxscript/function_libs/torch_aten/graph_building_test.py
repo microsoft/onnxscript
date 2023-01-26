@@ -31,7 +31,7 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
         with evaluator.default_as(self.tracer):
             output = op.Constant(value_float=0.5)
         self.onnxscript_graph.register_outputs(output)
-        traced = self.to_model_proto(initializers={}, opset_version=self.opset_version)
+        traced = self.to_model_proto()
 
         @onnxscript.script()
         def expected_model():
@@ -55,6 +55,10 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
 
         traced = self.to_model_proto()
         expected = expected_model.to_model_proto()
+        import onnx
+        expected = onnx.shape_inference.infer_shapes(expected)
+        onnx.checker.check_model(expected, full_check=True)
+        onnx.checker.check_model(traced, full_check=True)
         print("traced: ", traced)
         print("expected model: ", expected)
         self.assertSame(traced, expected)

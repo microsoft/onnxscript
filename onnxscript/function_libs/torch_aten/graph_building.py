@@ -20,6 +20,7 @@ from torch.onnx import _type_utils
 import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
+from onnxscript.function_libs.torch_aten import param_manipulation
 
 __all__ = [
     "TorchScriptTensor",
@@ -117,57 +118,6 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
 
 @beartype
-def _split_args_kwargs_to_input_attr(
-    onnx_func: onnxscript.OnnxFunction,
-    args: Sequence[ValidArgumentType],
-    kwargs: Dict[str, ValidArgumentType],
-) -> Tuple[Sequence[ValidInputType], Dict[str, ValidArgumentType]]:
-    """Split the args and kwargs supplied to `onnx_func` to onnx inputs and attributes.
-
-    Args:
-        onnx_func: The onnx function.
-        args: The positional arguments supplied to `onnx_func`.
-        kwargs: The keyword arguments supplied to `onnx_func`.
-
-    Returns:
-        A tuple of (onnx_inputs, onnx_attributes).
-    """
-    function_ir = onnx_func.function_ir
-    # The first len(func_ir.inputs) arguments are onnx inputs
-    onnx_inputs = args[: len(function_ir.inputs)]
-    # The rest is onnx attributes
-    attributes_in_args = args[len(function_ir.inputs) :]
-    # Construct a dictionary of attributes with their names specified in the function
-    # definition
-    onnx_attributes = {}
-
-    # (1) Some/All attributes are supplied as positional arguments
-    attr_name_to_protos = collections.OrderedDict(
-        (attr.name, attr) for attr in function_ir.attr_protos
-    )
-
-    assert len(function_ir.attr_protos) >= len(attributes_in_args)
-    for attr_proto, attr_value in zip(attr_name_to_protos.values(), attributes_in_args):
-        onnx_attributes[attr_proto.name] = attr_value
-
-    # (2) Some/All attributes are supplied as kwargs
-    for key, value in kwargs.items():
-        # (3) Some arguments in kwargs are not defined in the onnx function
-        if key not in attr_name_to_protos:
-            warnings.warn(f"Attribute '{key}' is not defined in the function definition")
-            continue
-
-        onnx_attributes[key] = value
-
-    # (4) Fill in the default values from the attr_proto if not supplied by caller
-    for key, attr_proto in attr_name_to_protos.items():
-        if key not in onnx_attributes:
-            onnx_attributes[key] = attr_proto.value
-
-    return onnx_inputs, onnx_attributes
-
-
-@beartype
 def _unwrap_tensor_to_torch_value(
     value: Union[ValidArgumentType, Dict[str, ValidArgumentType], Sequence[ValidArgumentType]]
 ) -> Union[ValidTorchValueType, Dict[str, ValidTorchValueType], List[ValidTorchValueType], Tuple[
@@ -231,13 +181,15 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         kwargs: Dict[str, ValidArgumentType],
     ):
         # args/kwargs are TorchScriptTensor/python built-in based
-        inputs, attributes = _split_args_kwargs_to_input_attr(function, args, kwargs)
+        param_schemas = param_manipulation.extract_param_schema_from_function(function)
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(param_schemas, args, kwargs)
         return self._graph.add_function_call(function, inputs, attributes)
 
     def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
-        # TODO(justinchuby): Does it really know what the inputs are?
-
         del closure  # Unused
+
+        param_schemas = param_manipulation.extract_param_schema_from_op_schema(schema)
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(param_schemas, inputs, attributes)
         return self._graph.add_op_call(schema, inputs, attributes)
 
     def eval(self, schema, inputs, attributes):
