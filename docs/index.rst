@@ -1,27 +1,36 @@
+.. include:: abbreviations.rst
+
 onnxscript: authoring onnx scripts
 ==================================
 
-ONNXScript is a subset of Python that can be used to author ONNX functions (as well as ONNX models).
+|onnxscript| enables developers to naturally author ONNX functions and
+models using a subset of Python. It is intended to be:
 
-.. toctree::
-    :maxdepth: 1
+* **Expressive:** enables the authoring of all ONNX functions.
+* **Simple and concise:** function code is natural and simple.
+* **Debuggable:** allows for eager-mode evaluation that provides for a
+  more delightful ONNX model debugging experience.
 
-    tutorial/index
-    open/index
-    api/index
-    auto_examples/index
+Note however that |onnxscript| does **not** intend to support the entirety
+of the Python language.
 
-*onnxscript* implements two main functionalities:
+|onnxscript| provides a few major capabilities for authoring and debugging
+ONNX models and functions:
 
-- a converter which translates a python function into ONNX; the converter analyzes the python
-  code using its abstract syntax tree and converts that tree into an ONNX graph
-  equivalent to the function.
-- a runtime that allows such functions to be executed (in an "eager mode"); this runtime relies on
-  *onnxruntime* for executing every operation described in
-  `ONNX Operators <https://github.com/onnx/onnx/blob/main/docs/Operators.md>`_).
+* A converter which translates a Python |onnxscript| function into an
+  ONNX graph, accomplished by traversing the Python Abstract Syntax Tree
+  to build an ONNX graph equivalent of the function.
 
-The runtime is intended to help understand and debug function-definitions, and performance
-is not a goal for this mode.
+* A runtime shim that allows such functions to be evaluated
+  (in an "eager mode"). This functionality currently relies on
+  ONNX Runtime for executing ONNX ops
+  and there is a Python-only reference runtime for ONNX underway that
+  will also be supported.
+
+* A converter that translates ONNX models and functions into |onnxscript|.
+  This capability can be used to fully round-trip ONNX Script ↔ ONNX graph.
+
+Note that the runtime is intended to help understand and debug function definitions. Performance is not a goal here.
 
 **Example**
 
@@ -65,6 +74,14 @@ executes in an eager-evaluation mode.
     bias = np.array([0, 1], dtype=np.float32)
     result = MatmulAdd(x, wt, bias)
 
+.. toctree::
+    :maxdepth: 1
+
+    tutorial/index
+    open/index
+    api/index
+    auto_examples/index
+  
 **License**
 
 onnxscript comes with a `MIT <https://github.com/microsoft/onnx-script/blob/main/LICENSE>`_ license.

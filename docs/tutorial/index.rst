@@ -1,11 +1,13 @@
+.. include:: ../abbreviations.rst
+
 Tutorial
 ========
 
-In this tutorial, we illustrate the features supported by onnxscript using examples.
+In this tutorial, we illustrate the features supported by |onnxscript| using examples.
 
 **Basic Features**
 
-The example below shows a definition of ``Softplus`` as an *onnxscript* function.
+The example below shows a definition of ``Softplus`` as an |onnxscript| function.
 
 .. literalinclude:: examples/softplus.py
 
@@ -53,7 +55,7 @@ can be used as attribute values, as shown below:
 
 **Semantics: Script Constants**
 
-Attributes in ONNX are required to be constant values. In *onnxscript*, the
+Attributes in ONNX are required to be constant values. In |onnxscript|, the
 expression specified as an attribute is evaluated at script-time (when the
 script decorator is evaluated) in the context in which the script function
 is defined. The resulting python value is translated into an ONNX attribute,
@@ -114,7 +116,7 @@ Third example mixes both types of loops.
 
 ONNX allows graph-valued attributes. This is the mechanism used to define (quasi)
 higher-order ops, such as *If*, *Loop*, *Scan*, and *SequenceMap*.
-While we use Python control-flow to encode *If* and *Loop*, onnxscript
+While we use Python control-flow to encode *If* and *Loop*, |onnxscript|
 supports the use of nested Python functions to represent graph-valued attributes,
 as shown in the example below:
 
