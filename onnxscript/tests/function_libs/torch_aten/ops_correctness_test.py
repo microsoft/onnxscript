@@ -358,7 +358,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
-    "slice": core_ops.aten_slice,
     "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
     "split": (core_ops.aten_split, _split_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
@@ -392,6 +391,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.linear": nn_ops.aten_linear,
+    "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
@@ -505,12 +505,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
-    ),
-    skip(
-        "slice",
-        # kwargs {dim, start, end, step} is empty, we cannot give the default value
-        matcher=lambda sample: len(sample.kwargs) == 0,
-        reason="start and end must be 1-D array, cannot be optional, due to ort 1.13 does not support yet",
     ),
 )
 

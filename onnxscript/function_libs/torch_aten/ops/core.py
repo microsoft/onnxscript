@@ -29,6 +29,8 @@ from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
+_INT64_MAX = 9223372036854775807
+
 
 @torch_op("aten::abs")
 def aten_abs(self: TReal) -> TReal:
@@ -4475,7 +4477,7 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 @torch_op("aten::rsub")
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
-
+    alpha = op.CastLike(alpha, self)
     return op.Sub(other, op.Mul(self, alpha))
 
 
@@ -4588,28 +4590,37 @@ def aten_sinh(self: TFloat) -> TFloat:
     return op.Sinh(self)
 
 
-@torch_op("aten::slice")
+@torch_op("aten::slice", trace_only=True)
 def aten_slice(
     self: TTensor,
     dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
-    step: INT64 = 1,
+    step: Optional[INT64] = None,
 ) -> TTensor:
     # slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)
 
     # TODO: using OptionalHasElement() to check start/end value
-    start = op.Cast(start, to=INT64.dtype)
-    start = op.Reshape(start, op.Constant(value_ints=[-1]))
+    if start is not None:
+        start = op.Cast(start, to=INT64.dtype)
+        start = op.Reshape(start, op.Constant(value_ints=[-1]))
+    else:
+        start = op.Constant(value_ints=[0])
 
-    end = op.Cast(end, to=INT64.dtype)
-    end = op.Reshape(end, op.Constant(value_ints=[-1]))
+    if end is not None:
+        end = op.Cast(end, to=INT64.dtype)
+        end = op.Reshape(end, op.Constant(value_ints=[-1]))
+    else:
+        end = op.Constant(value_ints=[_INT64_MAX])
 
     dim = op.Cast(dim, to=INT64.dtype)
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
 
-    step = op.Cast(step, to=INT64.dtype)
-    step = op.Reshape(step, op.Constant(value_ints=[-1]))
+    if step is not None:
+        step = op.Cast(step, to=INT64.dtype)
+        step = op.Reshape(step, op.Constant(value_ints=[-1]))
+    else:
+        step = op.Constant(value_ints=[1])
 
     return op.Slice(self, start, end, dim, step)
 
