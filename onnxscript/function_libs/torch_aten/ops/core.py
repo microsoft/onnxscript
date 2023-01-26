@@ -4796,9 +4796,8 @@ def aten_stft(
 @torch_op("aten::sub")
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
-
-    if alpha != 1:
-        other = op.Mul(other, alpha)
+    alpha = op.CastLike(alpha, other)
+    other = op.Mul(other, alpha)
 
     return op.Sub(self, other)
 
@@ -5334,9 +5333,8 @@ def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
 
 
 @torch_op("aten::where")
-def aten_where(self: TTensor, condition: RealType, other: TTensor) -> TTensor:
+def aten_where(condition: BOOL, self: TTensor, other: TTensor) -> TTensor:
     # where.self(Tensor condition, Tensor self, Tensor other) -> Tensor
-    condition = op.Cast(condition, to=BOOL.dtype)
 
     return op.Where(condition, self, other)
 
