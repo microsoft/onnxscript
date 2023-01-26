@@ -1,9 +1,11 @@
 """Function for manipulating input parameters of an Op or a OnnxFunction."""
 from __future__ import annotations
 
+import collections
 import dataclasses
-import inspect
-from typing import Any, Callable, List, OrderedDict, Sequence, Tuple, Union
+from typing import Any, List, OrderedDict, Sequence, Tuple
+
+import onnx
 
 from onnxscript import values
 
@@ -23,7 +25,7 @@ class ParamSchema:
     """
 
     name: str
-    type: type
+    type: Any = None  # Op input does not have a type, for now
     default: Any = _EmptyDefault
     is_input: bool = True
 
@@ -40,41 +42,90 @@ class ParamSchema:
         return not self.is_input
 
 
-def extract_param_schema_from_function(
-    func: Union[values.OnnxFunction, Callable]
-) -> List[ParamSchema]:
-    if isinstance(func, values.OnnxFunction):
-        func = func.function
-    params_dict = dict(inspect.getfullargspec(func)._asdict())
-    print(params_dict)
-    input_length = len(params_dict["args"]) - len(params_dict["defaults"])
-    inputs = params_dict["args"][:input_length]
-    attributes = params_dict["args"][input_length:]
+def extract_param_schema_from_function(onnx_func: values.OnnxFunction) -> List[ParamSchema]:
+
+    function_ir = onnx_func.function_ir
+    # The first len(func_ir.inputs) arguments are onnx inputs
+    onnx_inputs = function_ir.inputs
+    # The rest is onnx attributes
+    attributes = function_ir.attrs
+    # Construct a dictionary of attributes with their names specified in the function
+    # definition
+    attr_name_to_protos = collections.OrderedDict(
+        (attr.name, attr) for attr in function_ir.attr_protos
+    )
+
     # args with default value are attributes
-    param_schema_list = []
-    for arg_name in inputs:
-        arg_annotation = params_dict["annotations"].get(arg_name)
-        # FIXME: better way to check annotation existence?
-        assert arg_annotation is not None
+    param_schemas = []
+    for arg in onnx_inputs:
+        param_schema = ParamSchema(name=arg, type=str(arg.typeinfo), is_input=True)
+        param_schemas.append(param_schema)
+
+    for arg in attributes:
+        param_schema = ParamSchema(name=arg, type=str(arg.typeinfo), is_input=False)
+        param_schemas.append(param_schema)
+
+    for name, arg_proto in attr_name_to_protos.items():
         param_schema = ParamSchema(
-            name=arg_name, type=arg_annotation, default=_EmptyDefault, is_input=True
+            name=name,
+            type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[arg_proto.type],
+            default=_get_attribute_value(arg_proto),
+            is_input=False,
         )
-        param_schema_list.append(param_schema)
-    for arg_name, arg_default in zip(attributes, params_dict["defaults"]):
-        arg_annotation = params_dict["annotations"].get(arg_name)
-        # FIXME: better way to check annotation existence?
-        assert arg_annotation is not None
-        param_schema = ParamSchema(
-            name=arg_name, type=arg_annotation, default=arg_default, is_input=False
-        )
-        param_schema_list.append(param_schema)
-    return param_schema_list
+        param_schemas.append(param_schema)
+    return param_schemas
 
 
-def extract_param_schema_from_op(op: values.Op):
-    # TODO(titaiwang): How do you tell the param is attr/input
-    params_dict = dict(inspect.getfullargspec(op)._asdict())
-    print(params_dict)
+_ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
+    onnx.defs.OpSchema.AttrType.FLOAT: float,
+    onnx.defs.OpSchema.AttrType.INT: int,
+    onnx.defs.OpSchema.AttrType.STRING: str,
+    onnx.defs.OpSchema.AttrType.TENSOR: None,
+    onnx.defs.OpSchema.AttrType.GRAPH: None,
+    onnx.defs.OpSchema.AttrType.SPARSE_TENSOR: None,
+    onnx.defs.OpSchema.AttrType.TYPE_PROTO: None,
+    onnx.defs.OpSchema.AttrType.FLOATS: Sequence[float],
+    onnx.defs.OpSchema.AttrType.INTS: Sequence[int],
+    onnx.defs.OpSchema.AttrType.STRINGS: Sequence[str],
+    onnx.defs.OpSchema.AttrType.TENSORS: None,
+    onnx.defs.OpSchema.AttrType.GRAPHS: None,
+    onnx.defs.OpSchema.AttrType.SPARSE_TENSORS: None,
+    onnx.defs.OpSchema.AttrType.TYPE_PROTOS: None,
+}
+
+
+def _get_attribute_value(attr_proto):
+    if attr_proto.type == onnx.AttributeProto.UNDEFINED:
+        return _EmptyDefault
+    if attr_proto.type == onnx.AttributeProto.FLOAT:
+        return attr_proto.f
+    if attr_proto.type == onnx.AttributeProto.INT:
+        return attr_proto.i
+    if attr_proto.type == onnx.AttributeProto.STRING:
+        return attr_proto.s
+    if attr_proto.type == onnx.AttributeProto.FLOATS:
+        return [float(v) for v in attr_proto.f]
+    if attr_proto.type == onnx.AttributeProto.INTS:
+        return [int(v) for v in attr_proto.i]
+    raise TypeError(f"Unsupported attribute type: {attr_proto.type}")
+
+
+def extract_param_schema_from_op_schema(op_schema: onnx.defs.OpSchema) -> List[ParamSchema]:
+    param_schemas = []
+    for input_ in op_schema.inputs:
+        param_schema = ParamSchema(name=input_.name, is_input=True)
+        param_schemas.append(param_schema)
+    for attr_name, attribute in op_schema.attributes.items():
+        default_attr_proto = attribute.default_value
+        param_schema = ParamSchema(
+            name=attr_name,
+            type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
+            default=_get_attribute_value(default_attr_proto),
+            is_input=False,
+        )
+        param_schemas.append(param_schema)
+
+    return param_schemas
 
 
 def separate_input_attributes_from_arguments(
@@ -96,16 +147,24 @@ def separate_input_attributes_from_arguments(
     """
     # args, kwargs and param_schemas should be all in order
     # user might not specify all attributes
-    assert len(args) + len(kwargs) <= len(param_schemas)
-    onnx_inputs, onnx_attributes = [], OrderedDict()
-    for idx, param in enumerate(param_schemas):
-        if idx < len(args):
+    if len(args) + len(kwargs) > len(param_schemas):
+        raise TypeError("Inputs are more than expected in schema")
+
+    onnx_inputs = []
+    onnx_attributes = OrderedDict()
+    for i, param in enumerate(param_schemas):
+        if i < len(args):
             if not param.is_attribute:
-                onnx_inputs.append(args[idx])
-            onnx_attributes[param.name] = args
+                onnx_inputs.append(args[i])
+            else:
+                onnx_attributes[param.name] = args[i]
         elif param.name in kwargs:
-            onnx_attributes[param.name] = kwargs[param.name]
+            if not param.is_attribute:
+                onnx_inputs.append(kwargs[param.name])
+            else:
+                onnx_attributes[param.name] = kwargs[param.name]
         else:
+            # input doesn't have default
             onnx_attributes[param.name] = param.default
 
     return onnx_inputs, onnx_attributes
