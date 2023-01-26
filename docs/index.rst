@@ -1,15 +1,15 @@
 .. include:: abbreviations.rst
 
-onnxscript: authoring onnx scripts
-==================================
+Overview
+========
 
 |onnxscript| enables developers to naturally author ONNX functions and
 models using a subset of Python. It is intended to be:
 
 * **Expressive:** enables the authoring of all ONNX functions.
 * **Simple and concise:** function code is natural and simple.
-* **Debuggable:** allows for eager-mode evaluation that provides for a
-  more delightful ONNX model debugging experience.
+* **Debuggable:** allows for eager-mode evaluation that enables
+  debugging the code using standard python debuggers.
 
 Note however that |onnxscript| does **not** intend to support the entirety
 of the Python language.
@@ -30,7 +30,8 @@ ONNX models and functions:
 * A converter that translates ONNX models and functions into |onnxscript|.
   This capability can be used to fully round-trip ONNX Script ↔ ONNX graph.
 
-Note that the runtime is intended to help understand and debug function definitions. Performance is not a goal here.
+Note that the runtime is intended to help understand and debug function definitions.
+Performance is not a goal here.
 
 **Example**
 
@@ -50,19 +51,35 @@ The following toy example illustrates how to use onnxscript.
 
 
 The decorator parses the code of the function and converts it into an intermediate
-representation. If it fails, it produces an error message indicating the line where
-the error was detected. If it succeeds, the corresponding ONNX representation
-of the function (a value of type FunctionProto) can be generated as shown below:
+representation. If it fails, it produces an error message indicating the error detected.
+If it succeeds, the corresponding ONNX representation of the function
+(a value of type FunctionProto) can be generated as shown below:
 
 ::
 
   fp = MatmulAdd.to_function_proto()  # returns an onnx.FunctionProto
 
+One can similarly generate an ONNX Model. There are a few differences between
+ONNX models and ONNX functions. For example, ONNX models must specify the
+type of inputs and outputs (unlike ONNX functions).
+The following example illustrates how we can generate an ONNX Model:
+
+::
+
+    from onnxscript import script
+    from onnxscript import opset15 as op
+    from onnxscript import FLOAT
+
+    @script()
+    def MatmulAddModel(X : FLOAT[64, 128] , Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOAT[64, 10]:
+        return op.MatMul(X, Wt) + Bias
+
+    model = MatmulAddModel.to_model_proto() # returns an onnx.ModelProto
 
 **Eager mode**
 
 Eager evaluation mode is mostly use to debug and check intermediate results
-are as expected. The function defined above can be called as below, and this
+are as expected. The function defined earlier can be called as below, and this
 executes in an eager-evaluation mode.
 
 ::
@@ -78,10 +95,9 @@ executes in an eager-evaluation mode.
     :maxdepth: 1
 
     tutorial/index
-    open/index
     api/index
     auto_examples/index
-  
+
 **License**
 
 onnxscript comes with a `MIT <https://github.com/microsoft/onnx-script/blob/main/LICENSE>`_ license.
