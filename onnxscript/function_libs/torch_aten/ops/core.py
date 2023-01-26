@@ -2046,13 +2046,17 @@ def aten_from_file(
 
 
 @torch_op("aten::full")
-def aten_full(size: INT64, fill_value: TensorType, dtype: int = FLOAT.dtype):
+def aten_full(size: INT64, fill_value: float, dtype: int = -1):
     # full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     size = op.Cast(size, to=INT64.dtype)
-    fill_value = op.Cast(fill_value, to=dtype)
+    if dtype == -1:
+        result = op.ConstantOfShape(size, value=fill_value)
+    else:
+        result = op.ConstantOfShape(size, value=fill_value)
+        result = op.Cast(result, to=dtype)
 
-    return op.Expand(fill_value, size)
+    return result
 
 
 @torch_op("aten::full_like")
