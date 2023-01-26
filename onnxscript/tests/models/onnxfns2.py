@@ -3,11 +3,8 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from typing import List
-
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import INT64
 
 # TODO: Need to verify definitions below.
 # Behavior for integral types is not explicitly described in ONNX spec.

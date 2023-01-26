@@ -16,7 +16,7 @@ exclude =
   .git,
   __pycache__,
   .eggs,
-  **test/models/*.py,
+  **tests/models/*.py,
   **onnx_backend_test_code/*.py,
 
 per-file-ignores =

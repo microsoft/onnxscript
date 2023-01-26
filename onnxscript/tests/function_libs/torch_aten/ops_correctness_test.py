@@ -178,18 +178,6 @@ def _amax_amin_input_wrangler(
     return args, kwargs
 
 
-def _arange_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    new_args = []
-    for arg in args:
-        if isinstance(arg, int):
-            # Explicitly convert to int64 because int type is 32-bit on Windows
-            arg = np.array(arg, dtype=np.int64)
-        new_args.append(arg)
-    return new_args, kwargs
-
-
 def _cat_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -295,14 +283,15 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "addmm": core_ops.aten_addmm,
     "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
     "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
-    "arange_start_step": (core_ops.aten_arange_start_step, _arange_input_wrangler),
-    "arange_start": (core_ops.aten_arange_start, _arange_input_wrangler),
-    "arange": (core_ops.aten_arange, _arange_input_wrangler),
+    "arange_start_step": core_ops.aten_arange_start_step,
+    "arange_start": core_ops.aten_arange_start,
+    "arange": core_ops.aten_arange,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
     "bmm": core_ops.aten_bmm,
+    "broadcast_to": core_ops.aten_broadcast_to,
     "cat": (core_ops.aten_cat, _cat_input_wrangler),
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
@@ -410,6 +399,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
+    "nn.functional.conv2d": core_ops.aten_conv2d,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
@@ -507,6 +497,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="only global pooling is supported; only batched inputs are supported",
     ),
     skip(
+        "nn.functional.conv2d",
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+        reason="String padding is not accepted by aten::conv2d",
+    ),
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
@@ -589,10 +584,14 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
             return np.array((), dtype=np.int64)
         if isinstance(input[0], torch.Tensor):
             return [_convert_tensor_to_numpy(x) for x in input]
-        if isinstance(input[0], (int, float)):
-            # Just a tuple of numbers
+        if isinstance(input[0], bool):
+            return np.array(input, dtype=np.bool_)
+
+        # Just a sequence of numbers
+        if isinstance(input[0], int):
+            return np.array(input, dtype=np.int64)
+        if isinstance(input[0], float):
             return np.array(input)
-        return input
 
     return input
 
