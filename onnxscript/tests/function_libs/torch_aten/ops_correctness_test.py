@@ -255,6 +255,15 @@ def _topk_input_wrangler(
     return args, kwargs
 
 
+def _where_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # The aten::where op takes condition, x, y as inputs
+    # Swap the first two inputs
+    args[0], args[1] = args[1], args[0]
+    return args, kwargs
+
+
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 
@@ -371,7 +380,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
-    "where": core_ops.aten_where,
+    "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
