@@ -59,7 +59,11 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 
 def aten_addbmm(
-    self: TensorType, batch1: TensorType, batch2: TensorType, beta: float = 1.0, alpha: float = 1.0
+    self: TensorType,
+    batch1: TensorType,
+    batch2: TensorType,
+    beta: float = 1.0,
+    alpha: float = 1.0,
 ) -> TensorType:
     # addbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
@@ -187,18 +191,18 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 
 
 @torch_op("aten::amax")
-def aten_amax(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
+def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     # amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional, keepdim bool
+    # TODO(justinchuby): Make dim optional
     return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
 @torch_op("aten::amin")
-def aten_amin(self: TReal, dim: INT64, keepdim: int = 0) -> TReal:
+def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     # amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor
 
-    # TODO(justinchuby): Make dim optional, keepdim bool
+    # TODO(justinchuby): Make dim optional
     return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
@@ -487,7 +491,11 @@ def aten_avg_pool1d(
 
 
 def aten_baddbmm(
-    self: TensorType, batch1: TensorType, batch2: TensorType, beta: float = 1.0, alpha: float = 1.0
+    self: TensorType,
+    batch1: TensorType,
+    batch2: TensorType,
+    beta: float = 1.0,
+    alpha: float = 1.0,
 ) -> TensorType:
     # baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
