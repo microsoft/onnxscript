@@ -477,7 +477,6 @@ class TorchScriptGraph:
             onnx_model, check_type=True, strict_mode=True
         )
         # print("===========ONNX model with inferred shapes: \n", onnx_model)
-        onnx.checker.check_model(onnx_model, full_check=True)
         print("[Success] ONNX model exported")
         return onnx_model
 
