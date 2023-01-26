@@ -208,6 +208,13 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
             param_schemas, args, kwargs
         )
+        name_to_schema = {param.name: param for param in param_schemas}
+        for name, value in attributes.items():
+            param = name_to_schema[name]
+            # Cast int to float if needed
+            if param.type in {float, "float"}:
+                # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
+                attributes[name] = float(value)
         return self._graph.add_function_call(function, inputs, attributes)
 
     def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
@@ -371,7 +378,7 @@ class TorchScriptGraph:
             )[0]
 
         raise TypeError(
-            f"Constant input `{constant}` of type '{type(constant)}' is not supported"
+            f"Constant input '{constant}' of type '{type(constant)}' is not supported"
         )
 
     @beartype
@@ -412,9 +419,11 @@ class TorchScriptGraph:
     ):
         # Compute outputs from the onnx_op op schema
 
-        # FIXME(justinchuby): Figure out how to get the number of outputs from the schema
         result = self._add_torchscript_op_call(
-            f"onnx::{onnx_op_schema.name}", onnx_inputs, onnx_attributes, n_outputs=1
+            f"onnx::{onnx_op_schema.name}",
+            onnx_inputs,
+            onnx_attributes,
+            n_outputs=len(onnx_op_schema.outputs),
         )
 
         return result
