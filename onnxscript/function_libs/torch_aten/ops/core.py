@@ -997,18 +997,68 @@ def aten_conv1d(
     raise NotImplementedError()
 
 
+@torch_op("aten::conv2d", trace_only=True)
 def aten_conv2d(
-    input: TensorType,
-    weight: TensorType,
-    bias: Optional[TensorType] = None,
+    input: TFloat,
+    weight: TFloat,
+    bias: Optional[TFloat] = None,
     stride: Sequence[int] = (1, 1),
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     groups: int = 1,
-) -> TensorType:
+) -> TFloat:
     # conv2d(Tensor input, Tensor weight, Tensor? bias=None, int[2] stride=1, int[2] padding=0, int[2] dilation=1, int groups=1) -> Tensor
 
-    raise NotImplementedError()
+    # Attributes need to be manipulated in Python to match ONNX's conv2d
+    if not isinstance(padding, Sequence):
+        padding = (padding, padding)
+    pads = [*padding, *padding]
+
+    if not isinstance(dilation, Sequence):
+        dilation = (dilation, dilation)
+    dilations = list(dilation)
+
+    if not isinstance(stride, Sequence):
+        stride = (stride, stride)
+    strides = list(stride)
+
+    if bias is None:
+        weight_dim_0 = op.Gather(op.Shape(weight), 0, axis=0)
+        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
+        zero = op.CastLike(0.0, input)
+        bias = op.Expand(zero, bias_shape)
+
+    result = _aten_conv2d_onnx(
+        input, weight, bias, strides=strides, pads=pads, dilations=dilations, groups=groups
+    )
+
+    return result
+
+
+@torch_op("aten::conv2d", overload=True)
+def _aten_conv2d_onnx(
+    input: TFloat,
+    weight: TFloat,
+    bias: TFloat,
+    strides: Sequence[int],
+    pads: Sequence[int],
+    dilations: Sequence[int],
+    groups: int,
+) -> TFloat:
+    """conv2d with attributes pre-computed to fit the ONNX spec."""
+
+    # Torch input may be 3D or 4D, ONNX requires 4D
+    no_batch = op.Size(op.Shape(input)) == 3
+    if no_batch:
+        input = op.Unsqueeze(input, op.Constant(value_ints=[0]))
+
+    result = op.Conv(
+        input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations
+    )
+
+    if no_batch:
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+    return result
 
 
 def aten_conv3d(
@@ -2299,11 +2349,11 @@ def aten_index_reduce(
 def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
-    return aten_index_select_onnx(self, index, dim=dim)
+    return _aten_index_select_onnx(self, index, dim=dim)
 
 
 @torch_op("aten::index_select", overload=True)
-def aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
+def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     # index_select(Tensor self, int dim, Tensor index) -> Tensor
 
     if op.Size(op.Shape(self)) == 0:
@@ -3556,11 +3606,11 @@ def aten_native_layer_norm(
         weight = op.Constant(value_int=1)
     if bias is not None:
         bias = op.Constant(value_int=0)
-    return aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
+    return _aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
 
 
 @torch_op("aten::native_layer_norm", overload=True)
-def aten_native_layer_norm_onnx(
+def _aten_native_layer_norm_onnx(
     input: TReal,
     weight: TReal,
     bias: TReal,
@@ -4708,11 +4758,11 @@ def aten_sum_dim_IntList(
     # TODO: Combine the overloads when OptionalHasElement() works
     if dim is None:
         return aten_sum_dim_none(self, keepdim=keepdim, dtype=dtype)
-    return aten_sum_dim_onnx(self, dim, keepdim=keepdim, dtype=dtype)
+    return _aten_sum_dim_onnx(self, dim, keepdim=keepdim, dtype=dtype)
 
 
 @torch_op("aten::sum", overload=True)
-def aten_sum_dim_onnx(
+def _aten_sum_dim_onnx(
     self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
     # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
