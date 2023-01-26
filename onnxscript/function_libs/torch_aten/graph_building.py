@@ -70,10 +70,24 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         super().__init__(None)
         self._value = value
         self._shape = None
+        self._name = None
 
     @property
     def value(self) -> np.ndarray:
         return None
+
+    @property
+    @beartype
+    def name(self) -> str:
+        if self._name is not None:
+            return self._name
+        return self._value.debugName()
+
+    @name.setter
+    @beartype
+    def name(self, name: str):
+        self._name = name
+        self._value.setDebugName(name)
 
     @property
     def rank(self) -> int | None:
