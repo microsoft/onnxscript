@@ -23,6 +23,7 @@ import numpy as np
 import onnx
 import onnx.defs
 import onnx.helper
+import onnx.reference
 from typing_extensions import TypeAlias
 
 from onnxscript import irbuilder, onnx_opset, tensor, values
@@ -387,11 +388,11 @@ def _ort_to_os_value(v):
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def _call_ort(
+def _prepare_model_and_inputs_for_eager(
     schema: onnx.defs.OpSchema,
     args: Sequence[Any],
     kwargs: Mapping[str, Any],
-    implicit_args=None,
+    implicit_args: Optional[Mapping[str, Any]] = None,
 ):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
@@ -442,24 +443,46 @@ def _call_ort(
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
     model = onnx.shape_inference.infer_shapes(model)
+
+    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
+    session_run_input.update(implicit_args)
+
+    return model, session_run_input, inputs
+
+
+def _call_ort(
+    schema: onnx.defs.OpSchema,
+    args: Sequence[Any],
+    kwargs: Mapping[str, Any],
+    implicit_args=None,
+):
+    # Delay import onnxruntime so that onnxscript can be used without
+    # installing onnxruntime.
+    from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
+        Fail,
+        InvalidArgument,
+        InvalidGraph,
+    )
+
+    model, session_run_input, inputs = _prepare_model_and_inputs_for_eager(
+        schema, args, kwargs, implicit_args
+    )
+
     try:
         session = ort.InferenceSession(
             model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
     except (Fail, InvalidGraph, InvalidArgument) as e:
-        raise RuntimeError(
+        raise EagerModeError(
             f"Unable to create onnxruntime InferenceSession "
             f"for executing {schema.domain}.{schema.name} op "
             f"with onnx model\n{utils.proto2text(model)}"
         ) from e
 
-    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
-    session_run_input.update(implicit_args)
-
     try:
         result = session.run(None, session_run_input)
     except (RuntimeError, Fail) as e:
-        raise RuntimeError(
+        raise EagerModeError(
             f"Unable to execute model operator {schema.name!r} due to {e!r}"
             f"\ninput types:\n"
             f"{pprint.pformat({k: type(v) for k, v in zip(inputs, args)})}"
@@ -481,6 +504,18 @@ class ORTEvaluator(BaseEvaluator):
 
     def _eval(self, schema, inputs, attributes, closure):
         return _call_ort(schema, inputs, attributes, closure)
+
+
+class OnnxReferenceRuntimeEvaluator(Evaluator):
+    """Evaluates ONNX ops using ONNX Runtime."""
+
+    def _eval(self, schema, inputs, attributes, closure):
+        model, session_run_input, _ = _prepare_model_and_inputs_for_eager(
+            schema, inputs, attributes, closure
+        )
+        session = onnx.reference.ReferenceEvaluator(model)
+        result = session.run(None, session_run_input)
+        return [_ort_to_os_value(x) for x in result]
 
 
 ort_evaluator = ORTEvaluator()
