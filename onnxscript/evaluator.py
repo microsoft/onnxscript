@@ -8,10 +8,11 @@ import abc
 import contextlib
 import pprint
 import typing
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, TypeVar, Union
 
 import numpy as np
 import onnx
+import onnx.defs
 import onnx.helper
 from typing_extensions import TypeAlias
 
@@ -21,23 +22,20 @@ if typing.TYPE_CHECKING:
     import onnxruntime as ort
 
 
-UserModeValue: TypeAlias = Union[
-    Optional[np.ndarray], List["UserModeValue"], Tuple["UserModeValue", ...]
-]
+UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
 
-EagerModeValue: TypeAlias = Union[
-    Optional["tensor.Tensor"], List["EagerModeValue"], Tuple["EagerModeValue", ...]
-]
+EagerModeValue: TypeAlias = Union[Optional["tensor.Tensor"], Sequence["EagerModeValue"]]
 
 ExtendedModeValue: TypeAlias = Union[
     Optional["tensor.Tensor"],
-    List["ExtendedModeValue"],
-    Tuple["ExtendedModeValue", ...],
+    Sequence["ExtendedModeValue"],
     np.ndarray,
     int,
     float,
     bool,
 ]
+
+_T = TypeVar("_T")
 
 
 def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> tuple[EagerModeValue, bool]:
@@ -65,17 +63,17 @@ def _adapt_to_eager_mode(inputs: ExtendedModeValue) -> tuple[EagerModeValue, boo
             nonlocal has_array
             has_array = True
             return tensor.Tensor(input)
-        elif isinstance(input, tensor.Tensor):
+        if isinstance(input, tensor.Tensor):
             return input
-        elif isinstance(input, (bool, float)):
+        if isinstance(input, (bool, float)):
             return tensor.Tensor(np.array(input))
-        elif isinstance(input, int):
+        if isinstance(input, int):
             return tensor.Tensor(np.array(input, dtype=np.int64))
-        elif input is None:
+        if input is None:
             return None
-        elif isinstance(input, list):
+        if isinstance(input, list):
             return [adapt(elt) for elt in input]
-        elif isinstance(input, tuple):
+        if isinstance(input, tuple):
             return tuple(adapt(elt) for elt in input)
         raise TypeError(f"Unexpected input type {type(input)}.")
 
@@ -95,13 +93,13 @@ def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
     """
     if isinstance(output, tensor.Tensor):
         return output.value
-    elif output is None:
+    if output is None:
         return None
-    elif isinstance(output, list):
+    if isinstance(output, list):
         return [_adapt_to_user_mode(elt) for elt in output]
-    elif isinstance(output, tuple):
+    if isinstance(output, tuple):
         return tuple(_adapt_to_user_mode(elt) for elt in output)
-    elif isinstance(output, np.ndarray):
+    if isinstance(output, np.ndarray):
         return output
     raise TypeError(f"Unexpected type {type(output)}.")
 
@@ -115,13 +113,15 @@ class Evaluator(abc.ABC):
     supported by onnxscript to those expected by a particular backend.
     """
 
-    def eval(self, schema, inputs, attributes):
-        closure = self.adapt_attributes(schema, attributes)
+    def eval(
+        self, schema: onnx.defs.OpSchema, inputs: Sequence[Any], attributes: Mapping[str, Any]
+    ):
+        attributes, closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)
         outputs = self._eval(schema, inputs, attributes, closure)
         return self.adapt_outputs(schema, outputs)
 
-    def adapt_inputs(self, schema, inputs):
+    def adapt_inputs(self, schema: onnx.defs.OpSchema, inputs: Sequence[Any]):
         """Transform inputs to the expected format for the evaluator.
 
         Enables some syntactic sugar, such as the use of Python scalars,
@@ -129,29 +129,34 @@ class Evaluator(abc.ABC):
         """
         return autocast.dynamic_cast_inputs(schema, *inputs)
 
-    def adapt_attributes(self, schema, attributes):
+    def adapt_attributes(
+        self, schema: onnx.defs.OpSchema, attributes: Mapping[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Transform attributes (in-place) to the expected format for the evaluator.
 
         Returns a closure that can be used to evaluate graph-valued attributes.
         """
         use_graph_attribute = self.use_graph_attribute(schema)
         closure = {}
+        adapted_attributes = {}
         for k, v in attributes.items():
             if isinstance(v, values.OnnxClosure):
                 if use_graph_attribute:
-                    attributes[k] = v.function_ir.to_graph_proto()
+                    adapted_attributes[k] = v.function_ir.to_graph_proto()
                     for pyvar, onnxvar in v.function_ir.outer_scope_variables:
                         closure[onnxvar.value] = v.frame.f_locals[pyvar]
                 else:
-                    attributes[k] = v.function
+                    adapted_attributes[k] = v.function
             elif callable(v):
                 raise ValueError(
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
                     "attribute. Did you forget to decorate it with @graph?"
                 )
-        return closure
+            else:
+                adapted_attributes[k] = v
+        return adapted_attributes, closure
 
-    def adapt_outputs(self, schema, outputs):
+    def adapt_outputs(self, schema: onnx.defs.OpSchema, outputs: Sequence[Any]):
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
@@ -159,15 +164,23 @@ class Evaluator(abc.ABC):
         del schema  # unused
         return outputs[0] if len(outputs) == 1 else outputs
 
-    def use_graph_attribute(self, schema):
+    def use_graph_attribute(self, schema: onnx.defs.OpSchema):
         del schema  # unused
         return True
 
     @abc.abstractmethod
-    def _eval(self, schema, inputs, attributes, closure):
+    def _eval(
+        self,
+        schema: onnx.defs.OpSchema,
+        inputs: Sequence[Any],
+        attributes: Mapping[str, Any],
+        closure: Mapping[str, Any],
+    ):
         pass
 
-    def eval_function(self, function: values.OnnxFunction, args, kwargs):
+    def eval_function(
+        self, function: values.OnnxFunction, args: Sequence[Any], kwargs: Mapping[str, Any]
+    ):
         """Evaluates a function in eager mode.
 
         Override this function to change the evaluator's behavior for functions.
@@ -198,7 +211,7 @@ def _rename_io(prefix, i, arg):
     return f"{prefix}{i}"
 
 
-def _compute_num_outputs(schema, *args, **kwargs):
+def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
     """Returns the number of outputs expected.
     TODO: Use ONNX type inference to replace the special-case handling below.
     """
@@ -227,6 +240,8 @@ _cache_models: dict[Any, ort.InferenceSession] = {}
 
 
 def _cache_(model, providers):
+    # Delay import onnxruntime so that onnxscript can be used without
+    # installing onnxruntime.
     import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
     serialized = model.SerializeToString()
@@ -264,7 +279,14 @@ def _ort_to_os_value(v):
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def _call_ort(schema, args, kwargs, implicit_args=None):
+def _call_ort(
+    schema: onnx.defs.OpSchema,
+    args: Sequence[Any],
+    kwargs: Mapping[str, Any],
+    implicit_args=None,
+):
+    # Delay import onnxruntime so that onnxscript can be used without
+    # installing onnxruntime.
     from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
         Fail,
         InvalidArgument,
@@ -328,7 +350,7 @@ def _call_ort(schema, args, kwargs, implicit_args=None):
     return [_ort_to_os_value(x) for x in result]
 
 
-def _schema_id(schema):
+def _schema_id(schema: onnx.defs.OpSchema) -> tuple[str, str, int]:
     return schema.name, schema.domain, schema.since_version
 
 
@@ -343,16 +365,17 @@ ort_evaluator = ORTEvaluator()
 
 
 class ORTMixedEvaluator(ORTEvaluator):
-    """Evaluates ONNX ops using ONNX Runtime, unless an overriding python implementation
-    is registered. This is useful for higher-order ops such as Scan and SequenceMap,
-    allowing for python-based debugging.
+    """Evaluates ONNX ops using ONNX Runtime, unless an overriding python implementation is registered.
+
+    This is useful for higher-order ops such as Scan and SequenceMap, allowing for
+    python-based debugging.
     """
 
     def __init__(self) -> None:
         super().__init__()
-        self._python_ops: dict[Any, Any] = {}
+        self._python_ops: dict[tuple[str, str, int], Any] = {}
 
-    def use_graph_attribute(self, schema):
+    def use_graph_attribute(self, schema: onnx.defs.OpSchema) -> bool:
         return _schema_id(schema) not in self._python_ops
 
     def _eval(self, schema, inputs, attributes, closure):
@@ -362,10 +385,11 @@ class ORTMixedEvaluator(ORTEvaluator):
         else:
             return super()._eval(schema, inputs, attributes, closure)
 
-    def register(self, opset: Optional[values.Opset] = None):
+    def register(self, opset: Optional[values.Opset] = None) -> Callable[[_T], _T]:
         opset = opset or onnx_opset.default_opset
+        assert opset is not None
 
-        def decorator(function):
+        def decorator(function: _T) -> _T:
             schema = opset[function.__name__]
             self._python_ops[_schema_id(schema)] = function
             return function
@@ -377,7 +401,7 @@ ort_mixed_evaluator = ORTMixedEvaluator()
 
 
 @ort_mixed_evaluator.register()
-def SequenceMap(inputs, attributes):
+def SequenceMap(inputs: Sequence[Any], attributes: Mapping[str, Any]):
     """Evaluates a SequenceMap op."""
     fun = attributes["body"]
 
@@ -418,8 +442,3 @@ def default_as(temp_default: Evaluator):
         yield
     finally:
         set_default(old_default)
-
-
-def eval(schema, inputs, attributes):
-    """Evaluate using current default evaluator"""
-    return default().eval(schema, inputs, attributes)
