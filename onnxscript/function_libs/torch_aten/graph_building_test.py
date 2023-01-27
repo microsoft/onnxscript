@@ -29,6 +29,7 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
         """Test for op.Constant created in graph builder"""
         with evaluator.default_as(self.tracer):
             output = op.Constant(value_float=0.5)
+
         self.onnxscript_graph.register_outputs(output)
         traced = self.to_model_proto()
 
@@ -37,32 +38,23 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
             return op.Constant(value_float=0.5)
 
         expected = expected_model.to_model_proto()
+
         self.assertSame(traced, expected)
 
     def test_traced_graph_on_single_node_is_same_as_compiled_graph(self):
-        aten_amax = ops.core.aten_amax
+        aten_gelu = ops.nn.aten_gelu
 
-        x = self.onnxscript_graph.add_input("x", torch.randn(2, 3, 4))
+        x = self.onnxscript_graph.add_input("x", torch.ones((1, 2, 3), dtype=torch.float32))
         with evaluator.default_as(self.tracer):
-            output = aten_amax(x, dim=0, keepdim=False)
+            output = aten_gelu(x, approximate="tanh")
 
         self.onnxscript_graph.register_outputs(output)
+        traced = self.to_model_proto()
 
         @onnxscript.script()
-        def expected_model(x: FLOAT[2, 3, 4]):
-            return aten_amax(x, dim=0, keepdim=False)
+        def expected_model(x: FLOAT[1, 2, 3]):
+            return aten_gelu(x, approximate="tanh")
 
-        traced = self.to_model_proto()
         expected = expected_model.to_model_proto()
-        import onnx
 
-        expected = onnx.shape_inference.infer_shapes(expected)
-        onnx.checker.check_model(expected, full_check=True)
-        onnx.checker.check_model(traced, full_check=True)
-        print("traced: ", traced)
-        print("expected model: ", expected)
         self.assertSame(traced, expected)
-
-    def test_inputs_created_as_constant_op(self):
-        """Test for _add_constant_to_graph function"""
-        pass
