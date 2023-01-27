@@ -160,7 +160,7 @@ class IRStmt:
         n = helper.make_node(
             self.callee.opname,
             [_opt_var_to_str(x) for x in self.args],
-            list(self.result),
+            [str(x) for x in self.result],
             domain=self.callee.opset.domain,
             name=node_name,
         )
@@ -171,7 +171,7 @@ class IRStmt:
     @property
     def output_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this statement."""
-        return list(self.result)
+        return [str(x) for x in self.result]
 
 
 class IRFunction:
