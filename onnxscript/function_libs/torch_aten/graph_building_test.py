@@ -1,19 +1,18 @@
 """Test cases for graph building functionality."""
 from __future__ import annotations
 
-import onnx.checker
-import onnx.defs
-import onnx.shape_inference
+import unittest
+
 import torch
 
 import onnxscript
+import onnxscript.testing
 from onnxscript import FLOAT, evaluator
 from onnxscript import opset17 as op
 from onnxscript.function_libs.torch_aten import graph_building, ops
-from onnxscript.tests.common import testutils
 
 
-class TestTorchScriptTracingEvaluator(testutils.TestBase):
+class TestTorchScriptTracingEvaluator(unittest.TestCase):
     def setUp(self):
         self.opset_version = 17
         self.onnxscript_graph = graph_building.TorchScriptGraph()
@@ -39,7 +38,7 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
 
         expected = expected_model.to_model_proto()
 
-        self.assertSame(traced, expected)
+        onnxscript.testing.assert_isomorphic(traced, expected)
 
     def test_traced_graph_on_single_node_is_same_as_compiled_graph(self):
         aten_gelu = ops.nn.aten_gelu
@@ -51,10 +50,33 @@ class TestTorchScriptTracingEvaluator(testutils.TestBase):
         self.onnxscript_graph.register_outputs(output)
         traced = self.to_model_proto()
 
-        @onnxscript.script()
+        @onnxscript.script(default_opset=op)
         def expected_model(x: FLOAT[1, 2, 3]):
             return aten_gelu(x, approximate="tanh")
 
         expected = expected_model.to_model_proto()
 
-        self.assertSame(traced, expected)
+        onnxscript.testing.assert_isomorphic(traced, expected)
+
+    @unittest.expectedFailure  # The scripted version does not have output type
+    def test_traced_graph_on_single_node_multi_output_is_same_as_compiled_graph(self):
+        aten_topk = ops.core.aten_topk
+
+        x = self.onnxscript_graph.add_input("x", torch.ones((1, 2, 3), dtype=torch.float32))
+        with evaluator.default_as(self.tracer):
+            output = aten_topk(x, 2)
+
+        self.onnxscript_graph.register_outputs(output)
+        traced = self.to_model_proto()
+
+        @onnxscript.script(default_opset=op)
+        def expected_model(x: FLOAT[1, 2, 3]):
+            values, indices = aten_topk(x, 2)
+            return values, indices
+
+        expected = expected_model.to_model_proto()
+        onnxscript.testing.assert_isomorphic(traced, expected)
+
+
+if __name__ == "__main__":
+    unittest.main()
