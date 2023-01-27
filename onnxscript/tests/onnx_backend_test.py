@@ -43,9 +43,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_onnx_backend_test(self):
         name = "test_abs"
-        code = []
-        for te in enumerate_onnx_tests("node", lambda folder: folder == name):
-            code.append(te)
+        code = list(enumerate_onnx_tests("node", lambda folder: folder == name))
         self.assertEqual(len(code), 1)
 
     @staticmethod

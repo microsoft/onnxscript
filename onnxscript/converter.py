@@ -285,7 +285,7 @@ class Converter:
         # TODO(justinchuby): Can we reduce the O complexity of this function?
         r = candidate
         while r in self.used_vars:
-            r = f"{candidate}_{str(self.nextvar)}"
+            r = f"{candidate}_{self.nextvar}"
             self.nextvar = self.nextvar + 1
         self.used_vars.add(r)
         return r
@@ -310,7 +310,7 @@ class Converter:
     def to_onnx_var(self, val, target=None, info: Optional[sourceinfo.SourceInfo] = None):
         if isinstance(val, values.AttrRef):
             # promote attribute to value
-            result = self.generate_unique_name(target if target else "tmp")
+            result = self.generate_unique_name(target or "tmp")
             attr = self.to_onnx_attr_ref(val, info)
             self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
             return ConverterExpression(result, ConverterExpressionKind.CONST)
@@ -319,7 +319,7 @@ class Converter:
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error message otherwise
-        return self.emit_const(val, target if target else "tmp", info)
+        return self.emit_const(val, target or "tmp", info)
 
     def py_var_to_onnx_var(self, py_var, info: sourceinfo.SourceInfo):
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
@@ -714,7 +714,7 @@ class Converter:
 
             steps_name = self.generate_unique_name(f"{var_name}_step")
             self.emit([steps_name], values.Op(self.default_opset, "Concat"), steps, [attr])
-            if len(squeezed_axes) > 0:
+            if squeezed_axes:
                 sliced_name = self.generate_unique_name(f"{var_name}sliced")
                 self.emit(
                     [sliced_name],
@@ -875,7 +875,7 @@ class Converter:
             opname = node.attr
             if opname in module:
                 return values.Op(module, node.attr)
-            warn(f"'{opname}' is not a known op in '{str(module)}'")
+            warn(f"'{opname}' is not a known op in '{module}'")
             return values.Op(module, node.attr)
         if isinstance(node, ast.Name):
             function_name = node.id
@@ -1039,7 +1039,7 @@ class Converter:
 
         # no break condition
         renamed = [rename(x) for x in live_defs]
-        if len(renamed) == 0:
+        if not renamed:
             self.fail(stmt, "A subgraph for a test do not have any output variable.")
 
         sub_functions = {}

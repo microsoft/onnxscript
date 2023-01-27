@@ -257,11 +257,11 @@ class OnnxBackendTest:
         for test in self.tests:
             rows.append("xs = [")
             for inp in test["inputs"]:
-                rows.append(textwrap.indent(f"{repr(inp)},", "    " * 2))
+                rows.append(textwrap.indent(f"{inp!r},", "    " * 2))
             rows.append("]")
             rows.append("ys = [")
             for out in test["outputs"]:
-                rows.append(textwrap.indent(f"{repr(out)},", "    " * 2))
+                rows.append(textwrap.indent(f"{out!r},", "    " * 2))
             rows.append("]")
             rows.append("feeds = {n: x for n, x in zip(oinf.input_names, xs)}")
             rows.append("got = oinf.run(feeds)")
