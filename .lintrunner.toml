@@ -145,6 +145,7 @@ code = 'EDITORCONFIG-CHECKER'
 include_patterns = ['**']
 exclude_patterns = [
     '**/*.ipynb',
+    '**/*.excalidraw',
 ]
 command = [
     'python',
