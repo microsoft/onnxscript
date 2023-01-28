@@ -46,7 +46,13 @@ pygments_style = "default"
 html_static_path = ["_static"]
 html_theme = "pydata_sphinx_theme"
 html_theme_path = ["_static"]
-html_logo = "_static/logo_main.png"
+html_theme_options = {
+    "logo": {
+        "image_light": "logo-light.png",
+        "image_dark": "logo-dark.png",
+    }
+}
+html_css_files = ["css/custom.css"]
 
 # -- Options for graphviz ----------------------------------------------------
 
