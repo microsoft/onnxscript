@@ -102,7 +102,7 @@ class Tensor:
         axis = Tensor(indices[2])
         steps = Tensor(indices[3])
         result = op.Slice(self, starts, ends, axis, steps)
-        if len(to_squeeze) > 0:
+        if to_squeeze:
             result = Tensor(np.squeeze(result.value, axis=tuple(to_squeeze)))
         return result
 

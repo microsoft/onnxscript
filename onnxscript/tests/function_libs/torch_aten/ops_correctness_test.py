@@ -170,14 +170,6 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 # Modify this section ##########################################################
 
 
-def _amax_amin_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "dim" not in kwargs:
-        kwargs["dim"] = None
-    return args, kwargs
-
-
 def _cat_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -263,6 +255,15 @@ def _topk_input_wrangler(
     return args, kwargs
 
 
+def _where_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # The aten::where op takes condition, x, y as inputs
+    # Swap the first two inputs
+    args[0], args[1] = args[1], args[0]
+    return args, kwargs
+
+
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 
@@ -281,8 +282,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "amax": (core_ops.aten_amax, _amax_amin_input_wrangler),
-    "amin": (core_ops.aten_amin, _amax_amin_input_wrangler),
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -296,7 +295,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "ceil": core_ops.aten_ceil,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
-    "clamp": core_ops.aten_clamp,
     "clone": core_ops.aten_clone,
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
@@ -345,7 +343,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.embedding": core_ops.aten_embedding,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
-    "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
@@ -370,7 +367,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
-    "slice": core_ops.aten_slice,
     "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
     "split": (core_ops.aten_split, _split_input_wrangler),
     "sqrt": core_ops.aten_sqrt,
@@ -384,7 +380,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
-    "where": core_ops.aten_where,
+    "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
     "zeros_like": core_ops.aten_zeros_like,
@@ -395,11 +391,16 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
+    "amax": core_ops.aten_amax,
+    "amin": core_ops.aten_amin,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
+    "clamp": core_ops.aten_clamp,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
+    "nn.functional.linear": nn_ops.aten_linear,
+    "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
 }
@@ -417,18 +418,10 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    xfail("amax", reason="ONNX Runtime 1.13 does not support ReduceMax-18"),
-    xfail("amin", reason="ONNX Runtime 1.13 does not support ReduceMin-18"),
-    xfail("clamp", reason="Enable when ONNX Runtime supports OptionalHasElement-18"),
     skip("empty", reason="Using zeros to simulate empty"),
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
-    xfail("native_layer_norm", reason="ONNX Runtime 1.13 does not support ReduceMean"),
-    xfail(
-        "nn.functional.linear",
-        reason="ONNX Runtime thinks the graph is invalid",
-    ),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="enable when ONNX Runtime does support opset18",
@@ -521,12 +514,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
-    ),
-    skip(
-        "slice",
-        # kwargs {dim, start, end, step} is empty, we cannot give the default value
-        matcher=lambda sample: len(sample.kwargs) == 0,
-        reason="start and end must be 1-D array, cannot be optional, due to ort 1.13 does not support yet",
     ),
 )
 
@@ -699,7 +686,7 @@ class TestOutputConsistency(unittest.TestCase):
                 flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
-                assert len(flattened_torch_outputs) > 0
+                assert flattened_torch_outputs
                 assert len(flattened_torch_outputs) == len(flattened_function_outputs)
 
                 for torch_output, function_output in zip(
