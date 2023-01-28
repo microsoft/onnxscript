@@ -144,7 +144,7 @@ def make_model_from_function_proto(
         input_names,
         output_names,
         domain=function_proto.domain,
-        **(attrs or {}),
+        **attrs,
     )
     graph = onnx.helper.make_graph([node], "node_graph", input_value_infos, output_value_infos)
     model_proto_opset: Iterable[onnx.OperatorSetIdProto] = function_proto.opset_import

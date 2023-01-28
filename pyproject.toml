@@ -113,3 +113,18 @@ convention = "google"
 # D205 Too strict. "1 blank line required between summary line and description"
 # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
 add-ignore = ["D1", "D202", "D205", "D415"]
+
+[tool.refurb]
+python_version = "3.7"
+disable = [
+  "FURB101",
+  "FURB108", # Replace `x == y or x == z` with `x in (y, z)`. Handled by pylint.
+  "FURB113", # Use `x.extend(...)` instead of repeatedly calling `x.append()`
+  "FURB118", # Replace function with `operator.add`
+  "FURB126", # Replace `else: return x` with `return x`. Handled by pylint.
+  "FURB131", # Replace `del x[y]` with `x.pop(y)`
+  "FURB140", # Replace `f(...) for ... in x` with `starmap(f, x)`
+  "FURB141", # Replace `os.path.exists(x)` with `Path(x).exists()`
+  "FURB142", # Replace `for x in y: s.add(...)` with `s.update(... for x in y)`
+  "FURB150", # Replace `os.mkdir(x)` with `Path(x).mkdir()`
+]
