@@ -50,6 +50,7 @@ html_theme_path = ["_static"]
 html_theme_options = {
     "light_logo": "logo-light.png",
     "dark_logo": "logo-dark.png",
+    "sidebar_hide_name": True,
 }
 html_css_files = ["css/custom.css"]
 
