@@ -134,9 +134,9 @@ def _translate_signature(inputs, outputs):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
             return f"{_rename_variable(inp.name)}: {_translate_type(inp.type)}"
-        else:
-            # FunctionProto inputs/outputs are just strings
-            return _rename_variable(inp)
+
+        # FunctionProto inputs/outputs are just strings
+        return _rename_variable(inp)
 
     result = f"({', '.join([input_sig(x) for x in inputs])})"
     if outputs and isinstance(outputs[0], ValueInfoProto):
@@ -252,12 +252,12 @@ class Exporter:
                 metadata = onnx.external_data_helper.ExternalDataInfo(value)
                 name = value.name or "value"
                 text = "external_tensor("
-                text += f"{repr(name)}, {value.data_type}, {repr(list(value.dims))}"
-                text += f", {repr(metadata.location)}"
+                text += f"{name!r}, {value.data_type}, {list(value.dims)!r}"
+                text += f", {metadata.location!r}"
                 if metadata.offset:
-                    text += f", offset={repr(metadata.offset)}"
+                    text += f", offset={metadata.offset!r}"
                 if metadata.length:
-                    text += f", length={repr(metadata.length)}"
+                    text += f", length={metadata.length!r}"
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -325,8 +325,8 @@ class Exporter:
     def lookup(self, var):
         if var in self.constants:
             return self.constants[var]
-        else:
-            return self._rename_variable_s(var)
+
+        return self._rename_variable_s(var)
 
     def _python_make_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):

@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+import math
+
 import numpy as np
 from onnx import TensorProto
 from onnx.helper import make_tensor
@@ -169,11 +171,11 @@ def dft_last_axis(
 
     if op.Cast(inverse, to=TensorProto.BOOL):
         cst_2pi = op.Constant(
-            value=make_tensor("pi", TensorProto.FLOAT, [1], [6.28318530718])
+            value=make_tensor("pi", TensorProto.FLOAT, [1], [math.tau])
         )  #  2pi
     else:
         cst_2pi = op.Constant(
-            value=make_tensor("pi", TensorProto.FLOAT, [1], [-6.28318530718])
+            value=make_tensor("pi", TensorProto.FLOAT, [1], [-math.tau])
         )  #  -2pi
     fft_length_float = op.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
