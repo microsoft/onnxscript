@@ -71,7 +71,7 @@ class TestConverter(testutils.TestBase):
             with self.subTest(f=f.name):
                 model = f.to_model_proto(io_types=FLOAT)
                 if save_text:
-                    with open(TEST_OUTPUT_DIR / f"{f.name}.txt", "w", encoding="utf-8") as fi:
+                    with (TEST_OUTPUT_DIR / f"{f.name}.txt").open("w", encoding="utf-8") as fi:
                         fi.write(printable_graph(model.graph))
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")
@@ -81,7 +81,7 @@ class TestConverter(testutils.TestBase):
                         onnxruntime.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
-                            f"onnxruntime cannot load function " f"{f.name}\n--\n{str(model)}"
+                            f"onnxruntime cannot load function " f"{f.name}\n--\n{model}"
                         ) from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
@@ -372,7 +372,7 @@ class TestConverter(testutils.TestBase):
 
         test_functions = self.validate_save(loops_break, check_ort=True)
         self.assertIn("loop1", test_functions)
-        for name in ["loop1", "loop_range_cond"]:
+        for name in ("loop1", "loop_range_cond"):
             with self.subTest(fct=name):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
@@ -392,7 +392,7 @@ class TestConverter(testutils.TestBase):
 
         test_functions = self.validate_save(loops_while, check_ort=True)
         self.assertIn("loop1", test_functions)
-        for name in ["loop1", "loop_range_cond_only"]:
+        for name in ("loop1", "loop_range_cond_only"):
             with self.subTest(fct=name):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
