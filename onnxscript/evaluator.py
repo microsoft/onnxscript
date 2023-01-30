@@ -383,6 +383,8 @@ def _ort_to_os_value(v):
         return tensor.Tensor(v)
     if isinstance(v, list):
         return [_ort_to_os_value(x) for x in v]
+    if isinstance(v, np.bool_):
+        return tensor.Tensor(np.array(v))
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
