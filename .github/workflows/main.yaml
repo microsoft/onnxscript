@@ -38,10 +38,10 @@ jobs:
             nox-tag: test
           - name: python310-experimental
             python-version: "3.10"
-            nox-tag: function-experiment
+            nox-tag: test-function-experiment
           - name: python310-torch-nightly
             python-version: "3.10"
-            nox-tag: torch-nightly
+            nox-tag: test-torch-nightly
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
