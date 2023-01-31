@@ -26,6 +26,7 @@ jobs:
           - py38
           - py310-experimental
           - py310-torch-nightly
+          - py310-onnx-weekly
         include:
           - name: py310
             python-version: "3.10"
