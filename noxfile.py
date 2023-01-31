@@ -40,7 +40,7 @@ def build(session):
     session.run("python", "-m", "build")
 
 
-@nox.session(python=["3.7", "3.8", "3.9", "3.10"], tags=["test"])
+@nox.session(tags=["test"])
 def test(session):
     """Test onnxscript and documentation."""
     session.install(
@@ -55,7 +55,7 @@ def test(session):
     session.run("pytest", "docs/test", *session.posargs)
 
 
-@nox.session(tags=["function-experiment"])
+@nox.session(tags=["test-function-experiment"])
 def test_onnx_func_expe(session):
     """Test with onnx function experiment builds."""
     session.install(
@@ -81,7 +81,7 @@ def test_onnx_func_expe(session):
     session.run("pytest", "docs/test", *session.posargs)
 
 
-@nox.session(tags=["torch-nightly"])
+@nox.session(tags=["test-torch-nightly"])
 def test_torch_nightly(session):
     """Test with PyTorch nightly (preview) build."""
     session.install(
@@ -97,7 +97,7 @@ def test_torch_nightly(session):
     session.run("pytest", "onnxscript", *session.posargs)
 
 
-@nox.session(tags=["onnx-weekly"])
+@nox.session(tags=["test-onnx-weekly"])
 def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
     session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
