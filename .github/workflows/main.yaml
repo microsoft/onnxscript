@@ -21,27 +21,30 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         name:
-          - python310
-          - python39
-          - python38
-          - python310-experimental
-          - python310-torch-nightly
+          - py310
+          - py39
+          - py38
+          - py310-experimental
+          - py310-torch-nightly
         include:
-          - name: python310
+          - name: py310
             python-version: "3.10"
             nox-tag: test
-          - name: python39
+          - name: py39
             python-version: "3.9"
             nox-tag: test
-          - name: python38
+          - name: py38
             python-version: "3.8"
             nox-tag: test
-          - name: python310-experimental
+          - name: py310-experimental
             python-version: "3.10"
             nox-tag: function-experiment
-          - name: python310-torch-nightly
+          - name: py310-torch-nightly
             python-version: "3.10"
             nox-tag: torch-nightly
+          - name: py310-onnx-weekly
+            python-version: "3.10"
+            nox-tag: onnx-weekly
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3

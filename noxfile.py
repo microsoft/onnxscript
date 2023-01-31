@@ -95,3 +95,13 @@ def test_torch_nightly(session):
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
+
+
+@nox.session(tags=["onnx-weekly"])
+def test_onnx_weekly(session):
+    """Test with ONNX weekly (preview) build."""
+    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
+    session.install("--index-url", "https://test.pypi.org/simple/", "onnx-weekly")
+    session.install(".", "--no-deps")
+    session.run("pip", "list")
+    session.run("pytest", "onnxscript", *session.posargs)
