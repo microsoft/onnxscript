@@ -33,6 +33,7 @@ ExtendedModeValue: TypeAlias = Union[
     int,
     float,
     bool,
+    str,
 ]
 
 _T = TypeVar("_T")
@@ -114,14 +115,17 @@ class Evaluator(abc.ABC):
     """
 
     def eval(
-        self, schema: onnx.defs.OpSchema, inputs: Sequence[Any], attributes: Mapping[str, Any]
+        self,
+        schema: onnx.defs.OpSchema,
+        inputs: Sequence[ExtendedModeValue],
+        attributes: Mapping[str, Any],
     ):
         attributes, closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)
         outputs = self._eval(schema, inputs, attributes, closure)
         return self.adapt_outputs(schema, outputs)
 
-    def adapt_inputs(self, schema: onnx.defs.OpSchema, inputs: Sequence[Any]):
+    def adapt_inputs(self, schema: onnx.defs.OpSchema, inputs: Sequence[ExtendedModeValue]):
         """Transform inputs to the expected format for the evaluator.
 
         Enables some syntactic sugar, such as the use of Python scalars,
@@ -130,11 +134,12 @@ class Evaluator(abc.ABC):
         return autocast.dynamic_cast_inputs(schema, *inputs)
 
     def adapt_attributes(
-        self, schema: onnx.defs.OpSchema, attributes: Mapping[str, Any]
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Transform attributes (in-place) to the expected format for the evaluator.
+        self, schema: onnx.defs.OpSchema, attributes: Mapping[str, ExtendedModeValue]
+    ) -> tuple[dict[str, ExtendedModeValue], dict[str, ExtendedModeValue]]:
+        """Transform attributes to the expected format for the evaluator.
 
-        Returns a closure that can be used to evaluate graph-valued attributes.
+        Returns:
+            A closure that can be used to evaluate graph-valued attributes.
         """
         use_graph_attribute = self.use_graph_attribute(schema)
         closure = {}
@@ -156,7 +161,7 @@ class Evaluator(abc.ABC):
                 adapted_attributes[k] = v
         return adapted_attributes, closure
 
-    def adapt_outputs(self, schema: onnx.defs.OpSchema, outputs: Sequence[Any]):
+    def adapt_outputs(self, schema: onnx.defs.OpSchema, outputs: Sequence[EagerModeValue]):
         """Adapt evaluator's output to convention used in onnxscript.
 
         Onnxscript uses a tuple/sequence only when number of outputs > 1.
@@ -172,14 +177,17 @@ class Evaluator(abc.ABC):
     def _eval(
         self,
         schema: onnx.defs.OpSchema,
-        inputs: Sequence[Any],
-        attributes: Mapping[str, Any],
-        closure: Mapping[str, Any],
+        inputs: Sequence[ExtendedModeValue],
+        attributes: Mapping[str, ExtendedModeValue],
+        closure: Mapping[str, ExtendedModeValue],
     ):
         pass
 
     def eval_function(
-        self, function: values.OnnxFunction, args: Sequence[Any], kwargs: Mapping[str, Any]
+        self,
+        function: values.OnnxFunction,
+        args: Sequence[ExtendedModeValue],
+        kwargs: Mapping[str, ExtendedModeValue],
     ):
         """Evaluates a function in eager mode.
 
