@@ -83,7 +83,7 @@ pytest onnxscript/tests/functions/onnxfns1A_test.py
 ### Run Unit Tests
 
 ```bash
-pytest onnxscript/tests
+pytest onnxscript
 ```
 
 ## Example
