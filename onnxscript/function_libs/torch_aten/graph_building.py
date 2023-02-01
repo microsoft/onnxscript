@@ -68,30 +68,35 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     def __init__(self, value: torch.Value):
         super().__init__(None)
-        self._value = value
-        self._shape = None
-        self._name = None
+        self._torch_value: torch.Value = value
+        self._concrete_value: Optional[np.ndarray] = None
+        self._shape: Optional[Tuple[int | None, ...]] = None
+        self._name: Optional[str] = None
 
     @property
-    def value(self) -> np.ndarray:
-        return None
+    def value(self) -> Optional[np.ndarray]:
+        return self._concrete_value
+
+    @value.setter
+    def value(self, value: np.ndarray):
+        self._concrete_value = value
 
     @property
     @beartype
     def name(self) -> str:
         if self._name is not None:
             return self._name
-        return self._value.debugName()
+        return self._torch_value.debugName()
 
     @name.setter
     @beartype
     def name(self, name: str):
         self._name = name
-        self._value.setDebugName(name)
+        self._torch_value.setDebugName(name)
 
     @property
     def rank(self) -> int | None:
-        value_type = self._value.type()
+        value_type = self._torch_value.type()
         if value_type is None:
             return None
         value_type = typing.cast(torch.TensorType, value_type)
@@ -102,7 +107,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         if self._shape is not None:
             return self._shape
 
-        value_type = self._value.type()
+        value_type = self._torch_value.type()
         if value_type is None:
             return None
         value_type = typing.cast(torch.TensorType, value_type)
@@ -120,18 +125,18 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     def dtype(self):
         # TODO: Return numpy dtype
         return _type_utils.JitScalarType.from_value(
-            self._value, default=_type_utils.JitScalarType.UNDEFINED
+            self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         ).dtype()
 
     @property
     def onnx_dtype(self):
         return _type_utils.JitScalarType.from_value(
-            self._value, _type_utils.JitScalarType.UNDEFINED
+            self._torch_value, _type_utils.JitScalarType.UNDEFINED
         ).onnx_type()
 
     def symbolic_value(self) -> torch.Value:
         """The symbolic Value in torch.Graph."""
-        return self._value
+        return self._torch_value
 
 
 @beartype
@@ -319,6 +324,7 @@ class TorchScriptGraph:
         torch_value = self._torch_graph.addInput(input_name)
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        tensor_value.value = input_value.numpy()
         return tensor_value
 
     @beartype
