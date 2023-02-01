@@ -2399,7 +2399,7 @@ def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
         result = self
     else:
         # Index can be a scalar. Reshape it to a rank 1 tensor.
-        index = op.Reshape(index, op.Constant(value_floats=[-1]))
+        index = op.Reshape(index, op.Constant(value_ints=[-1]))
         index = op.Cast(index, to=INT64.dtype)
 
         result = op.Gather(self, index, axis=dim)
