@@ -344,7 +344,7 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     return result
 
 
-@torch_op("aten::gelu")
+@torch_op("aten::gelu", overload=True)
 def aten_gelu_approximate_none(self: TReal) -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 
@@ -358,7 +358,7 @@ def aten_gelu_approximate_none(self: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::gelu")
+@torch_op("aten::gelu", overload=True)
 def aten_gelu_approximate_tanh(self: TReal) -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 

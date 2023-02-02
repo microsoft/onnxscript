@@ -396,6 +396,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
+    "nn.functional.gelu_approximate_none": nn_ops.aten_gelu_approximate_none,
+    "nn.functional.gelu_approximate_tanh": nn_ops.aten_gelu_approximate_tanh,
+    "nn.functional.gelu": nn_ops.aten_gelu,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
@@ -523,6 +526,15 @@ duplicate_opinfo(
     (
         "arange_start",
         "arange_start_step",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.gelu",
+    (
+        "nn.functional.gelu_approximate_none",
+        "nn.functional.gelu_approximate_tanh",
     ),
 )
 
