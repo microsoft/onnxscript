@@ -1643,8 +1643,8 @@ def aten_embedding(
     indices: TTensor,
     padding_idx: int = -1,
     scale_grad_by_freq: bool = False,
-    sparse: bool = False,
-) -> TTensor: # pylint: disable=unused-argument
+    sparse: bool = False,  # pylint: disable=unused-argument
+) -> TTensor:
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
     return op.Gather(weight, indices)
