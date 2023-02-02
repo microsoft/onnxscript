@@ -1641,7 +1641,9 @@ def aten_einsum(
 def aten_embedding(
     weight: TTensor,
     indices: TTensor,
-    **_,
+    padding_idx: int = -1,
+    scale_grad_by_freq: bool = False,
+    sparse: bool = False,
 ) -> TTensor:
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
