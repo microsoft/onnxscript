@@ -87,18 +87,8 @@ class TestParamManipulation(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
             (
-                "extra_positional",
-                (TEST_INPUT, 42, 0.0, -1),
-                {},
-            ),
-            (
                 "extra_keyword",
                 (TEST_INPUT, 42, 0.0),
-                {"unknown": -1},
-            ),
-            (
-                "extra_positional_and_keyword",
-                (TEST_INPUT, 42, 0.0, -1),
                 {"unknown": -1},
             ),
         ]

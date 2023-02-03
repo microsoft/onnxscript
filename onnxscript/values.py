@@ -326,6 +326,7 @@ class OnnxFunction(Op):
             schemas.append(param_schema)
 
         for attr_name in attributes:
+            # Attributes without default values
             # FIXME(justinchuby): Where can we find the type?
             param_schema = ParamSchema(name=attr_name, type=None, is_input=False)
             schemas.append(param_schema)
