@@ -225,6 +225,11 @@ class Evaluator(abc.ABC):
         """Evaluates a function in eager mode.
 
         Override this function to change the evaluator's behavior for functions.
+
+        Args:
+            function: The OnnxFunction to evaluate.
+            args: The positional arguments to the function.
+            kwargs: The keyword arguments to the function.
         """
         param_schemas = function.param_schemas()
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(

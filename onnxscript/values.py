@@ -3,19 +3,18 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 from __future__ import annotations
-import collections
 
+import collections
 import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, Optional, _GenericAlias, Sequence  # type: ignore[attr-defined]
+from typing import Any, Optional, Sequence, _GenericAlias  # type: ignore[attr-defined]
 
 import onnx
 import onnx.defs
 
 from onnxscript import irbuilder, sourceinfo
-
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -36,6 +35,7 @@ _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
 
 # A special value to indicate that the default value is not specified
 _EmptyDefault = object()
+
 
 class Opset:
     """Represents an ONNX Opset, which consists of a domain name, a version.
@@ -182,6 +182,12 @@ class Op:
         self.opschema = opschema
         self._param_schemas: Optional[tuple[ParamSchema]] = None
 
+    def __call__(self, *args, **kwargs):
+        # FIXME(after #225): Move import to the top of the file.
+        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
+
+        return evaluator.default().eval(self, args, kwargs)
+
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
 
@@ -213,12 +219,6 @@ class Op:
             schemas.append(param_schema)
 
         return schemas
-
-    def __call__(self, *args, **kwargs):
-        # FIXME(after #225): Move import to the top of the file.
-        from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
-
-        return evaluator.default().eval(self, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)

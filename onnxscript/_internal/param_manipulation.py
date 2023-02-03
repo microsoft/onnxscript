@@ -1,13 +1,19 @@
 """Function for manipulating input parameters of an Op or a OnnxFunction."""
 from __future__ import annotations
 
+import collections
+from typing import Any, OrderedDict, Sequence
+
+from onnxscript import values
+
 
 def separate_input_attributes_from_arguments(
-    param_schemas: Sequence[ParamSchema],
+    param_schemas: Sequence[values.ParamSchema],
     args,
     kwargs,
     fill_defaults: bool = True,
-) -> Tuple[List[Any], OrderedDict[str, Any]]:
+    allow_extra_kwargs: bool = False,
+) -> tuple[list[Any], OrderedDict[str, Any]]:
     """Separate Python args and kwargs into ONNX inputs and attributes.
 
     Args:
@@ -26,8 +32,14 @@ def separate_input_attributes_from_arguments(
     if len(args) + len(kwargs) > len(param_schemas):
         raise TypeError("Inputs are more than expected in schema")
 
+    all_param_names = {param.name for param in param_schemas}
+    extra_kwargs = set(kwargs).difference(all_param_names)
+    if extra_kwargs and not allow_extra_kwargs:
+        raise TypeError(f"Unexpected keyword arguments '{extra_kwargs}'")
+
     onnx_inputs = []
-    onnx_attributes = OrderedDict()
+    onnx_attributes = collections.OrderedDict()
+
     for i, param in enumerate(param_schemas):
         if i < len(args):
             if param.is_input:
@@ -39,7 +51,10 @@ def separate_input_attributes_from_arguments(
                 onnx_inputs.append(kwargs[param.name])
             else:
                 onnx_attributes[param.name] = kwargs[param.name]
-        elif param.is_attribute and param.default is not _EmptyDefault:
+        elif (
+            param.is_attribute
+            and param.default is not values._EmptyDefault  # pylint: disable=protected-access
+        ):
             # User did not provide the attribute
             if fill_defaults:
                 onnx_attributes[param.name] = param.default
