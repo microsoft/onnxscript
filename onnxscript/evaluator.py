@@ -140,8 +140,10 @@ class Evaluator(abc.ABC):
             kwargs: The keyword arguments to the op.
         """
         param_schemas = op.param_schemas()
+        # Split happens in the evaluator instead of the Op __call__ method
+        # so that evaluators can control behaviors like whether to fill in default values for attributes.
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs
+            param_schemas, args, kwargs, fill_defaults=False, allow_extra_kwargs=False
         )
         schema = op.get_schema()
         attributes = _unwrap_tensors_in_kwargs(attributes)
@@ -231,8 +233,10 @@ class Evaluator(abc.ABC):
             kwargs: The keyword arguments to the function.
         """
         param_schemas = function.param_schemas()
+        # Split happens in the evaluator instead of the OnnxFunction __call__ method
+        # so that evaluators can control behaviors like whether to fill in default values for attributes.
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs
+            param_schemas, args, kwargs, fill_defaults=False, allow_extra_kwargs=False
         )
         adapted_inputs, has_array = _adapt_to_eager_mode(inputs)
         result = function.function(*adapted_inputs, **attributes)
