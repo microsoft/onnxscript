@@ -107,6 +107,7 @@ def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
 
 
 def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+    """Unwrap tensors in a mapping to numpy arrays."""
     new_kwargs = {}
     for k, v in kwargs.items():
         new_kwargs[k] = v
@@ -114,6 +115,7 @@ def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
             new_kwargs[k] = v.value
 
     return new_kwargs
+
 
 class Evaluator(abc.ABC):
     """Base class for evaluation of ONNX ops.
@@ -126,10 +128,22 @@ class Evaluator(abc.ABC):
 
     def eval(
         self,
-        schema: onnx.defs.OpSchema,
-        inputs: Sequence[ExtendedModeValue],
-        attributes: Mapping[str, Any],
+        op: values.Op,
+        args: Sequence[ExtendedModeValue],
+        kwargs: Mapping[str, Any],
     ):
+        """Evaluates an ONNX op.
+
+        Args:
+            op: The op to evaluate.
+            args: The positional arguments to the op.
+            kwargs: The keyword arguments to the op.
+        """
+        param_schemas = op.param_schemas()
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            param_schemas, args, kwargs
+        )
+        schema = op.get_schema()
         attributes = _unwrap_tensors_in_kwargs(attributes)
         attributes, closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)
@@ -153,7 +167,7 @@ class Evaluator(abc.ABC):
             A closure that can be used to evaluate graph-valued attributes.
         """
         use_graph_attribute = self.use_graph_attribute(schema)
-        closure = {}
+        closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
             if isinstance(v, values.OnnxClosure):
@@ -191,7 +205,15 @@ class Evaluator(abc.ABC):
         inputs: Sequence[ExtendedModeValue],
         attributes: Mapping[str, ExtendedModeValue],
         closure: Mapping[str, ExtendedModeValue],
-    ):
+    ) -> EagerModeValue:
+        """Evaluates an ONNX op given its schema and inputs/attributes.
+
+        Args:
+            schema: The schema of the op to evaluate.
+            inputs: The ONNX inputs to the op.
+            attributes: The ONNX attributes to the op.
+            closure: The closure to use when evaluating graph-valued attributes.
+        """
         pass
 
     def eval_function(
@@ -204,9 +226,12 @@ class Evaluator(abc.ABC):
 
         Override this function to change the evaluator's behavior for functions.
         """
-        inputs, attributes =
-        new_args, has_array = _adapt_to_eager_mode(args)
-        result = function.function(*new_args, **kwargs)
+        param_schemas = function.param_schemas()
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            param_schemas, args, kwargs
+        )
+        adapted_inputs, has_array = _adapt_to_eager_mode(inputs)
+        result = function.function(*adapted_inputs, **attributes)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one

@@ -167,6 +167,11 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto):
 class Op:
     """Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
+
+    Attributes:
+        opset: The Opset that this op belongs to.
+        opname: The name of the op.
+        opschema: The ONNX OpSchema for the op.
     """
 
     def __init__(
@@ -175,16 +180,19 @@ class Op:
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
+        self._param_schemas: Optional[tuple[ParamSchema]] = None
 
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
 
     def get_schema(self) -> onnx.defs.OpSchema:
+        """Returns the ONNX OpSchema for this op."""
         if self.opschema:
             return self.opschema
         return self.opset[self.opname]
 
     def has_schema(self) -> bool:
+        """Returns True if this op has an OpSchema."""
         return self.opschema is not None
 
     def param_schemas(self) -> list[ParamSchema]:
@@ -206,26 +214,11 @@ class Op:
 
         return schemas
 
-    def adapt_kwargs(self, kwargs):
-        """Replaces function-valued attribute-values by their GraphProto representation."""
-        closure: dict[str, Any] = {}
-        for k, v in kwargs.items():
-            if isinstance(v, OnnxClosure):
-                kwargs[k] = v.function_ir.to_graph_proto()
-                for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                    closure[onnxvar.value] = v.frame.f_locals[pyvar]
-            elif callable(v):
-                raise ValueError(
-                    f"Error: function-valued attribute {v.__name__!r} has no graph_proto"
-                    "attribute. Did you forget to decorate it with @graph?"
-                )
-        return kwargs, closure
-
     def __call__(self, *args, **kwargs):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval(self.opschema, args, kwargs)
+        return evaluator.default().eval(self, args, kwargs)
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -262,6 +255,7 @@ class OnnxFunction(Op):
         self.function_ir = irfun
         self.source = source
         self.kwargs = kwargs
+        self._param_schemas: Optional[tuple[ParamSchema]] = None
 
     @property
     def name(self):
@@ -292,8 +286,11 @@ class OnnxFunction(Op):
 
         return evaluator.default().eval_function(self, args, kwargs)
 
-    def param_schemas(self) -> list[ParamSchema]:
+    def param_schemas(self) -> tuple[ParamSchema]:
         """Returns the parameter schemas of this function."""
+        if self._param_schemas is not None:
+            return self._param_schemas
+
         function_ir = self.function_ir
         # The first len(func_ir.inputs) arguments are onnx inputs
         inputs = function_ir.inputs
@@ -324,7 +321,9 @@ class OnnxFunction(Op):
                 is_input=False,
             )
             schemas.append(param_schema)
-        return schemas
+
+        self._param_schemas = tuple(schemas)
+        return self._param_schemas
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
