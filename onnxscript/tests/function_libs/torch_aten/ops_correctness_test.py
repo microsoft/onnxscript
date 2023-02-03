@@ -179,6 +179,17 @@ def _cat_input_wrangler(
     return args, kwargs
 
 
+def _embedding_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    """Remove arguments not present in the aten op signature."""
+    if "max_norm" in kwargs:
+        del kwargs["max_norm"]
+    if "norm_type" in kwargs:
+        del kwargs["norm_type"]
+    return args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -340,8 +351,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
     "nn.functional.elu": nn_ops.aten_elu,
-    "nn.functional.embedding": core_ops.aten_embedding,
-    "nn.functional.gelu": nn_ops.aten_gelu,
+    "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.relu": nn_ops.aten_relu,
@@ -396,6 +406,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
+    "nn.functional.gelu": nn_ops.aten_gelu,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,

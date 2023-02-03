@@ -144,7 +144,9 @@ class Op:
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.eval(self.opschema, args, self._convert_kwargs_to_numpy(kwargs))
+        return evaluator.default().eval(
+            self.opschema, args, self._convert_kwargs_to_numpy(kwargs)
+        )
 
 
 @dataclasses.dataclass(repr=False, eq=False)
