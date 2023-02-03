@@ -214,7 +214,7 @@ class Evaluator(abc.ABC):
             attributes: The ONNX attributes to the op.
             closure: The closure to use when evaluating graph-valued attributes.
         """
-        pass
+        ...
 
     def eval_function(
         self,

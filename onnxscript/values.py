@@ -158,9 +158,11 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto):
     if attr_proto.type == onnx.AttributeProto.STRING:
         return attr_proto.s
     if attr_proto.type == onnx.AttributeProto.FLOATS:
-        return [float(v) for v in attr_proto.f]
+        return [float(v) for v in attr_proto.floats]
     if attr_proto.type == onnx.AttributeProto.INTS:
-        return [int(v) for v in attr_proto.i]
+        return [int(v) for v in attr_proto.ints]
+    if attr_proto.type == onnx.AttributeProto.STRINGS:
+        return [str(v) for v in attr_proto.strings]
     raise TypeError(f"Unsupported attribute type: {attr_proto.type}")
 
 
@@ -180,7 +182,7 @@ class Op:
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
-        self._param_schemas: Optional[tuple[ParamSchema]] = None
+        self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
     def __call__(self, *args, **kwargs):
         # FIXME(after #225): Move import to the top of the file.
@@ -201,8 +203,11 @@ class Op:
         """Returns True if this op has an OpSchema."""
         return self.opschema is not None
 
-    def param_schemas(self) -> list[ParamSchema]:
+    def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas for this op."""
+        if self._param_schemas is not None:
+            return self._param_schemas
+
         op_schema = self.get_schema()
         schemas = []
         for input_ in op_schema.inputs:
@@ -218,7 +223,8 @@ class Op:
             )
             schemas.append(param_schema)
 
-        return schemas
+        self._param_schemas = tuple(schemas)
+        return self._param_schemas  # type: ignore[return-value]
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -255,7 +261,7 @@ class OnnxFunction(Op):
         self.function_ir = irfun
         self.source = source
         self.kwargs = kwargs
-        self._param_schemas: Optional[tuple[ParamSchema]] = None
+        self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
     @property
     def name(self):
@@ -286,7 +292,7 @@ class OnnxFunction(Op):
 
         return evaluator.default().eval_function(self, args, kwargs)
 
-    def param_schemas(self) -> tuple[ParamSchema]:
+    def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
         if self._param_schemas is not None:
             return self._param_schemas
@@ -323,7 +329,7 @@ class OnnxFunction(Op):
             schemas.append(param_schema)
 
         self._param_schemas = tuple(schemas)
-        return self._param_schemas
+        return self._param_schemas  # type: ignore[return-value]
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""

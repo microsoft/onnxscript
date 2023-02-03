@@ -1,3 +1,5 @@
+# mypy: disable-error-code=misc
+
 import collections
 import unittest
 
