@@ -303,6 +303,7 @@ def dft_inv(
     normalize: bool = False,
 ) -> FLOAT[...]:
     """Applies one dimension FFT.
+
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
@@ -341,8 +342,7 @@ def dft(
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
-    print("inverse", inverse)
-    return dft_inv(x, fft_length, axis, onesided=onesided, inverse=inverse, normalize=False)
+    return dft_inv(x, fft_length, axis, onesided=onesided, inverse=inverse, normalize=inverse)
 
 
 @script()
