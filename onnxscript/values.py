@@ -122,13 +122,19 @@ class ParamSchema:
         name: The name of the parameter.
         type: The type of the parameter.
         default: The default value of the parameter.
+        required: Whether the input or attribute is required.
+            For example, `Slice` has two optional inputs `axes` and `steps`.
+            `SoftmaxCrossEntropyLoss` has an optional attribute `ignore_index`.
         is_input: Whether the parameter is an ONNX input.
+        is_variadic_input: Whether the parameter, which has to be an INPUT, is variadic.
     """
 
     name: str
     type: Any = None  # Op input does not have a type, for now
     default: Any = _EmptyDefault
+    required: bool = True
     is_input: bool = True
+    is_variadic_input: bool = False
 
     def __str__(self) -> str:
         """Return a string representation of the parameter.
@@ -212,6 +218,10 @@ class Op:
         schemas = []
         for input_ in op_schema.inputs:
             param_schema = ParamSchema(name=input_.name, is_input=True)
+            if input_.option == onnx.defs.OpSchema.FormalParameterOption.Optional:
+                param_schema = dataclasses.replace(param_schema, required=False)
+            elif input_.option == onnx.defs.OpSchema.FormalParameterOption.Variadic:
+                param_schema = dataclasses.replace(param_schema, is_variadic_input=True)
             schemas.append(param_schema)
         for attr_name, attribute in op_schema.attributes.items():
             default_attr_proto = attribute.default_value
@@ -220,6 +230,7 @@ class Op:
                 type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
                 default=_get_attribute_value(default_attr_proto),
                 is_input=False,
+                required=attribute.required,
             )
             schemas.append(param_schema)
 

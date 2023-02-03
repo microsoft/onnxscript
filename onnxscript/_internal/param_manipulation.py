@@ -28,9 +28,7 @@ def separate_input_attributes_from_arguments(
         - An ordered dictionary of ONNX attribute names and values.
     """
     # args, kwargs and param_schemas should be all in order
-    # user may not specify all attributes
-    if len(args) + len(kwargs) > len(param_schemas):
-        raise TypeError("Inputs are more than expected in schema")
+    # user may not specify all inputs or attributes
 
     all_param_names = {param.name for param in param_schemas}
     extra_kwargs = set(kwargs).difference(all_param_names)
@@ -41,6 +39,11 @@ def separate_input_attributes_from_arguments(
     onnx_attributes = collections.OrderedDict()
 
     for i, param in enumerate(param_schemas):
+        if param.is_variadic_input:
+            # Exhaust all remaining args
+            onnx_inputs.extend(args[i:])
+            args = []
+            continue
         if i < len(args):
             if param.is_input:
                 onnx_inputs.append(args[i])
@@ -60,7 +63,7 @@ def separate_input_attributes_from_arguments(
                 onnx_attributes[param.name] = param.default
             else:
                 continue
-        else:
-            raise TypeError(f"Required argument '{param}' was not provided")
+        elif param.required:
+            raise TypeError(f"Required input '{param}' was not provided")
 
     return onnx_inputs, onnx_attributes
