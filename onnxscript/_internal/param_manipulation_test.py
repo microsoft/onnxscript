@@ -4,10 +4,8 @@ import unittest
 import parameterized
 
 from onnxscript import INT64
-from onnxscript.function_libs.torch_aten.param_manipulation import (
-    ParamSchema,
-    separate_input_attributes_from_arguments,
-)
+from onnxscript.values import ParamSchema
+from onnxscript._internal import param_manipulation
 
 TEST_INPUT = "TEST_INPUT"
 
@@ -76,7 +74,7 @@ class TestParamManipulation(unittest.TestCase):
             ]
         )
 
-        inputs, attributes = separate_input_attributes_from_arguments(
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
             param_schemas, args, kwargs
         )
 
@@ -117,7 +115,7 @@ class TestParamManipulation(unittest.TestCase):
         )
 
         with self.assertRaises(TypeError):
-            _, _ = separate_input_attributes_from_arguments(param_schemas, args, kwargs)
+            _, _ = param_manipulation.separate_input_attributes_from_arguments(param_schemas, args, kwargs)
 
 
 if __name__ == "__main__":

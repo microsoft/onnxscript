@@ -3,18 +3,39 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 from __future__ import annotations
+import collections
 
 import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, Optional, _GenericAlias, Sequence  # type: ignore[attr-defined]
 
 import onnx
 import onnx.defs
 
 from onnxscript import irbuilder, sourceinfo, tensor
 
+
+_ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
+    onnx.defs.OpSchema.AttrType.FLOAT: float,
+    onnx.defs.OpSchema.AttrType.INT: int,
+    onnx.defs.OpSchema.AttrType.STRING: str,
+    onnx.defs.OpSchema.AttrType.TENSOR: None,
+    onnx.defs.OpSchema.AttrType.GRAPH: None,
+    onnx.defs.OpSchema.AttrType.SPARSE_TENSOR: None,
+    onnx.defs.OpSchema.AttrType.TYPE_PROTO: None,
+    onnx.defs.OpSchema.AttrType.FLOATS: Sequence[float],
+    onnx.defs.OpSchema.AttrType.INTS: Sequence[int],
+    onnx.defs.OpSchema.AttrType.STRINGS: Sequence[str],
+    onnx.defs.OpSchema.AttrType.TENSORS: None,
+    onnx.defs.OpSchema.AttrType.GRAPHS: None,
+    onnx.defs.OpSchema.AttrType.SPARSE_TENSORS: None,
+    onnx.defs.OpSchema.AttrType.TYPE_PROTOS: None,
+}
+
+# A special value to indicate that the default value is not specified
+_EmptyDefault = object()
 
 class Opset:
     """Represents an ONNX Opset, which consists of a domain name, a version.
@@ -93,6 +114,56 @@ class Opset:
 # ONNX ops
 
 
+@dataclasses.dataclass(frozen=True)
+class ParamSchema:
+    """A schema for a parameter of an Op or a OnnxFunction.
+
+    Attributes:
+        name: The name of the parameter.
+        type: The type of the parameter.
+        default: The default value of the parameter.
+        is_input: Whether the parameter is an ONNX input.
+    """
+
+    name: str
+    type: Any = None  # Op input does not have a type, for now
+    default: Any = _EmptyDefault
+    is_input: bool = True
+
+    def __str__(self) -> str:
+        """Return a string representation of the parameter.
+
+        E.g. "x: Input[INT64]" or "axis: Attribute[int] = 0"
+        """
+        param_kind = "Input" if self.is_input else "Attribute"
+        text = f"{self.name}: {param_kind}[{self.type}]"
+        if self.default is not _EmptyDefault:
+            text += f" = {self.default}"
+        return text
+
+    @property
+    def is_attribute(self) -> bool:
+        """Returns True if the parameter is an ONNX attribute."""
+        return not self.is_input
+
+
+def _get_attribute_value(attr_proto: onnx.AttributeProto):
+    """Get the default value of an ONNX attribute."""
+    if attr_proto.type == onnx.AttributeProto.UNDEFINED:
+        return _EmptyDefault
+    if attr_proto.type == onnx.AttributeProto.FLOAT:
+        return attr_proto.f
+    if attr_proto.type == onnx.AttributeProto.INT:
+        return attr_proto.i
+    if attr_proto.type == onnx.AttributeProto.STRING:
+        return attr_proto.s
+    if attr_proto.type == onnx.AttributeProto.FLOATS:
+        return [float(v) for v in attr_proto.f]
+    if attr_proto.type == onnx.AttributeProto.INTS:
+        return [int(v) for v in attr_proto.i]
+    raise TypeError(f"Unsupported attribute type: {attr_proto.type}")
+
+
 class Op:
     """Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
@@ -115,6 +186,25 @@ class Op:
 
     def has_schema(self) -> bool:
         return self.opschema is not None
+
+    def param_schemas(self) -> list[ParamSchema]:
+        """Returns the parameter schemas for this op."""
+        op_schema = self.get_schema()
+        schemas = []
+        for input_ in op_schema.inputs:
+            param_schema = ParamSchema(name=input_.name, is_input=True)
+            schemas.append(param_schema)
+        for attr_name, attribute in op_schema.attributes.items():
+            default_attr_proto = attribute.default_value
+            param_schema = ParamSchema(
+                name=attr_name,
+                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
+                default=_get_attribute_value(default_attr_proto),
+                is_input=False,
+            )
+            schemas.append(param_schema)
+
+        return schemas
 
     def adapt_kwargs(self, kwargs):
         """Replaces function-valued attribute-values by their GraphProto representation."""
@@ -212,6 +302,40 @@ class OnnxFunction(Op):
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
         return evaluator.default().eval_function(self, args, kwargs)
+
+    def param_schemas(self) -> list[ParamSchema]:
+        """Returns the parameter schemas of this function."""
+        function_ir = self.function_ir
+        # The first len(func_ir.inputs) arguments are onnx inputs
+        inputs = function_ir.inputs
+        # The rest is onnx attributes
+        attributes = function_ir.attrs
+        # Construct a dictionary of attributes with their names specified in the function
+        # definition
+        attr_name_to_protos = collections.OrderedDict(
+            (attr.name, attr) for attr in function_ir.attr_protos
+        )
+
+        # args with default value are attributes
+        schemas = []
+        for arg in inputs:
+            param_schema = ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True)
+            schemas.append(param_schema)
+
+        for attr_name in attributes:
+            # FIXME(justinchuby): Where can we find the type?
+            param_schema = ParamSchema(name=attr_name, type=None, is_input=False)
+            schemas.append(param_schema)
+
+        for name, attr_value in attr_name_to_protos.items():
+            param_schema = ParamSchema(
+                name=name,
+                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
+                default=_get_attribute_value(attr_value.attr_proto),
+                is_input=False,
+            )
+            schemas.append(param_schema)
+        return schemas
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
