@@ -1146,20 +1146,64 @@ def aten_conv_transpose1d(
     raise NotImplementedError()
 
 
+@torch_op("aten::convolution", trace_only=True)
 def aten_convolution(
-    input: TensorType,
-    weight: TensorType,
-    bias: Optional[TensorType],
+    input: TFloat,
+    weight: TFloat,
+    bias: Optional[TFloat],
     stride: Sequence[int],
-    padding: INT64,
+    padding: Sequence[int],
     dilation: Sequence[int],
     transposed: bool,
-    output_padding: INT64,
+    output_padding: Sequence[int],
     groups: int,
-) -> TensorType:
+) -> TFloat:
     # convolution(Tensor input, Tensor weight, Tensor? bias, int[] stride, SymInt[] padding, int[] dilation, bool transposed, SymInt[] output_padding, int groups) -> Tensor
 
-    raise NotImplementedError()
+    if bias is None:
+        weight_dim_0 = op.Shape(weight, start=0, end=1)
+        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
+        zero = op.CastLike(0.0, input)
+        bias = op.Expand(zero, bias_shape)
+
+    result = _aten_convolution_onnx(
+        input, weight, bias, strides=stride, pads=padding, dilations=dilation, transposed=transposed, output_padding=output_padding, groups=groups
+    )
+
+    return result
+
+
+@torch_op("aten::convolution", overload=True)
+def _aten_convolution_onnx(
+    input: TFloat,
+    weight: TFloat,
+    bias: TFloat,
+    strides: Sequence[int],
+    pads: Sequence[int],
+    dilations: Sequence[int],
+    transposed: bool,
+    output_padding: Sequence[int],
+    groups: int,
+) -> TFloat:
+    """convXd with attributes pre-computed to fit the ONNX spec."""
+
+    expected_shape = op.Size(op.Shape(weight))
+    no_batch = op.Size(op.Shape(input)) == expected_shape
+    if no_batch:
+        input = op.Unsqueeze(input, op.Constant(value_ints=[0]))
+
+    if transposed:
+        result = op.ConvTranspose(
+            input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations, output_padding=output_padding
+        )
+    else:
+        result = op.Conv(
+            input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations
+        )
+
+    if no_batch:
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+    return result
 
 
 def aten_convolution_backward(
