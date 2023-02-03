@@ -331,30 +331,48 @@ def aten_fractional_max_pool3d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::gelu")
+@torch_op("aten::gelu", trace_only=True)
 def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 
     self = op.Cast(self, to=FLOAT.dtype)
 
     if approximate == "tanh":
-        # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
-        cubed = op.Pow(self, 3)
-        inner = op.Mul(0.044715, cubed)
-        inner = op.Add(self, inner)
-        # Prefer explicit graph construction over precomputed constants for clarity.
-        inner = op.Mul(op.Sqrt(op.Div(2.0, _MATH_PI)), inner)
-        inner = op.Tanh(inner)
-        inner = op.Add(inner, 1)
-        inner = op.Mul(self, inner)
-        result = op.Mul(0.5, inner)
+        result = _aten_gelu_approximate_tanh(self)
     else:
-        # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
-        inner = op.Div(self, 1.4142135623730951)
-        erf = op.Erf(inner)
-        inner = op.Add(erf, 1)
-        inner = op.Mul(self, inner)
-        result = op.Mul(0.5, inner)
+        result = _aten_gelu_approximate_none(self)
+    return result
+
+
+@torch_op("aten::gelu", overload=True)
+def _aten_gelu_approximate_none(self: TReal) -> TReal:
+    # gelu(Tensor self, *, str approximate='none') -> Tensor
+
+    self = op.Cast(self, to=FLOAT.dtype)
+    # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
+    inner = op.Div(self, 1.4142135623730951)
+    erf = op.Erf(inner)
+    inner = op.Add(erf, 1)
+    inner = op.Mul(self, inner)
+    result = op.Mul(0.5, inner)
+    return result
+
+
+@torch_op("aten::gelu", overload=True)
+def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
+    # gelu(Tensor self, *, str approximate='none') -> Tensor
+
+    self = op.Cast(self, to=FLOAT.dtype)
+    # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
+    cubed = op.Pow(self, 3)
+    inner = op.Mul(0.044715, cubed)
+    inner = op.Add(self, inner)
+    # Prefer explicit graph construction over precomputed constants for clarity.
+    inner = op.Mul(op.Sqrt(op.Div(2.0, _MATH_PI)), inner)
+    inner = op.Tanh(inner)
+    inner = op.Add(inner, 1)
+    inner = op.Mul(self, inner)
+    result = op.Mul(0.5, inner)
     return result
 
 
