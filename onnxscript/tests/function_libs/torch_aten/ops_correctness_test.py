@@ -182,6 +182,7 @@ def _cat_input_wrangler(
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
+    """Remove arguments not present in the aten op signature."""
     if "max_norm" in kwargs:
         del kwargs["max_norm"]
     if "norm_type" in kwargs:
