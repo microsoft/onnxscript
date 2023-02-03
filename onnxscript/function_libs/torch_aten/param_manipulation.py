@@ -169,8 +169,13 @@ def separate_input_attributes_from_arguments(
                 onnx_inputs.append(kwargs[param.name])
             else:
                 onnx_attributes[param.name] = kwargs[param.name]
-        elif fill_defaults and not param.is_input and param.default is not _EmptyDefault:
-            # Input doesn't have default
-            onnx_attributes[param.name] = param.default
+        elif param.is_attribute and param.default is not _EmptyDefault:
+            # User did not provide the attribute
+            if fill_defaults:
+                onnx_attributes[param.name] = param.default
+            else:
+                continue
+        else:
+            raise TypeError(f"Required argument '{param}' was not provided")
 
     return onnx_inputs, onnx_attributes
