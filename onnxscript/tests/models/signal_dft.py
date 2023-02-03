@@ -264,6 +264,8 @@ def dft_last_axis(
     result = op.Concat(result_real, result_imag, axis=0)
     n_dims = op.Size(op.Shape(result))
 
+    # eager mode fails here: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()
+    print("********", onesided)
     if op.Cast(onesided, to=TensorProto.BOOL):
         half = op.Div(fft_length, two) + op.Mod(fft_length, two)
         n_r_dims_1 = op.Sub(op.Shape(op.Shape(x)), one)
