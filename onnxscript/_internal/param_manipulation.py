@@ -21,11 +21,17 @@ def separate_input_attributes_from_arguments(
         args: The Python positional arguments supplied by the caller.
         kwargs: The Python keyword arguments supplied by the caller.
         fill_defaults: Whether to fill the default values for attributes.
+        allow_extra_kwargs: Whether to allow extra keyword arguments.
+            When set to True, extra/unknown arguments will be ignored.
 
     Returns:
         A tuple of two elements:
         - A list of ONNX inputs.
         - An ordered dictionary of ONNX attribute names and values.
+
+    Raises:
+        TypeError: When allow_extra_kwargs is False and there are unknown kwargs.
+        TypeError: When a required input is not provided.
     """
     # args, kwargs and param_schemas should be all in order
     # user may not specify all inputs or attributes
