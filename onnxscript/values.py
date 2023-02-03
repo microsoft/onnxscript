@@ -153,6 +153,13 @@ class ParamSchema:
         return not self.is_input
 
 
+def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
+    """Get the default value of an ONNX attribute."""
+    if attr_proto.type == onnx.AttributeProto.UNDEFINED:
+        return _EmptyDefault
+    return onnx.helper.get_attribute_value(attr_proto)
+
+
 class Op:
     """Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
@@ -209,7 +216,7 @@ class Op:
             param_schema = ParamSchema(
                 name=attr_name,
                 type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
-                default=onnx.helper.get_attribute_value(default_attr_proto),
+                default=_get_attribute_value(default_attr_proto),
                 is_input=False,
                 required=attribute.required,
             )
@@ -316,7 +323,7 @@ class OnnxFunction(Op):
             param_schema = ParamSchema(
                 name=name,
                 type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
-                default=onnx.helper.get_attribute_value(attr_value.attr_proto),
+                default=_get_attribute_value(attr_value.attr_proto),
                 is_input=False,
                 # All function attributes are required
             )
