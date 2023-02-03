@@ -338,14 +338,14 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     self = op.Cast(self, to=FLOAT.dtype)
 
     if approximate == "tanh":
-        result = aten_gelu_approximate_tanh(self)
+        result = _aten_gelu_approximate_tanh(self)
     else:
-        result = aten_gelu_approximate_none(self)
+        result = _aten_gelu_approximate_none(self)
     return result
 
 
 @torch_op("aten::gelu", overload=True)
-def aten_gelu_approximate_none(self: TReal) -> TReal:
+def _aten_gelu_approximate_none(self: TReal) -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 
     self = op.Cast(self, to=FLOAT.dtype)
@@ -359,7 +359,7 @@ def aten_gelu_approximate_none(self: TReal) -> TReal:
 
 
 @torch_op("aten::gelu", overload=True)
-def aten_gelu_approximate_tanh(self: TReal) -> TReal:
+def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 
     self = op.Cast(self, to=FLOAT.dtype)
