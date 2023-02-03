@@ -213,7 +213,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = function.param_schemas()
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs
+            param_schemas, args, kwargs, fill_defaults=True, allow_extra_kwargs=True
         )
         name_to_schema = {param.name: param for param in param_schemas}
         for name, value in attributes.items():
