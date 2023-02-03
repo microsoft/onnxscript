@@ -29,9 +29,13 @@ class ParamSchema:
     default: Any = _EmptyDefault
     is_input: bool = True
 
-    def __repr__(self) -> str:
-        param_kind = "INPUT" if self.is_input else "ATTRIBUTE"
-        text = f"{self.name}<{param_kind}>: {self.type}"
+    def __str__(self) -> str:
+        """Return a string representation of the parameter.
+
+        E.g. "x: Input[INT64]" or "axis: Attribute[int] = 0"
+        """
+        param_kind = "Input" if self.is_input else "Attribute"
+        text = f"{self.name}: {param_kind}[{self.type}]"
         if self.default is not _EmptyDefault:
             text += f" = {self.default}"
         return text
@@ -43,7 +47,6 @@ class ParamSchema:
 
 
 def extract_param_schema_from_function(onnx_func: values.OnnxFunction) -> List[ParamSchema]:
-
     function_ir = onnx_func.function_ir
     # The first len(func_ir.inputs) arguments are onnx inputs
     inputs = function_ir.inputs
@@ -133,6 +136,7 @@ def separate_input_attributes_from_arguments(
     param_schemas: Sequence[ParamSchema],
     args,
     kwargs,
+    fill_defaults: bool = True,
 ) -> Tuple[List[Any], OrderedDict[str, Any]]:
     """Separate Python args and kwargs into ONNX inputs and attributes.
 
@@ -140,6 +144,7 @@ def separate_input_attributes_from_arguments(
         param_schemas: The parameter schemas of an Op or a OnnxFunction.
         args: The Python positional arguments supplied by the caller.
         kwargs: The Python keyword arguments supplied by the caller.
+        fill_defaults: Whether to fill the default values for attributes.
 
     Returns:
         A tuple of two elements:
@@ -147,7 +152,7 @@ def separate_input_attributes_from_arguments(
         - An ordered dictionary of ONNX attribute names and values.
     """
     # args, kwargs and param_schemas should be all in order
-    # user might not specify all attributes
+    # user may not specify all attributes
     if len(args) + len(kwargs) > len(param_schemas):
         raise TypeError("Inputs are more than expected in schema")
 
@@ -155,17 +160,17 @@ def separate_input_attributes_from_arguments(
     onnx_attributes = OrderedDict()
     for i, param in enumerate(param_schemas):
         if i < len(args):
-            if not param.is_attribute:
+            if param.is_input:
                 onnx_inputs.append(args[i])
             else:
                 onnx_attributes[param.name] = args[i]
         elif param.name in kwargs:
-            if not param.is_attribute:
+            if param.is_input:
                 onnx_inputs.append(kwargs[param.name])
             else:
                 onnx_attributes[param.name] = kwargs[param.name]
-        else:
-            # input doesn't have default
+        elif fill_defaults and not param.is_input and param.default is not _EmptyDefault:
+            # Input doesn't have default
             onnx_attributes[param.name] = param.default
 
     return onnx_inputs, onnx_attributes
