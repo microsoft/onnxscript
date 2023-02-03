@@ -1644,6 +1644,8 @@ def aten_embedding(
     padding_idx: int = -1,
     scale_grad_by_freq: bool = False,
     sparse: bool = False,  # pylint: disable=unused-argument
+    max_norm: float = 0.0,
+    norm_type: float = 0.0
 ) -> TTensor:
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
