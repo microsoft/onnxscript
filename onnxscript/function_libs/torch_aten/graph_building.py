@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import typing
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -17,7 +17,7 @@ from typing_extensions import TypeAlias
 import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
-from onnxscript.function_libs.torch_aten import param_manipulation
+from onnxscript._internal import param_manipulation
 
 __all__ = [
     "TorchScriptTensor",
@@ -141,7 +141,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
 @beartype
 def _unwrap_tensor_to_torch_value(
-    value: Union[ValidArgumentType, Dict[str, ValidArgumentType], Sequence[ValidArgumentType]]
+    value: Union[
+        ValidArgumentType, Mapping[str, ValidArgumentType], Sequence[ValidArgumentType]
+    ]
 ) -> Union[
     ValidTorchValueType,
     Dict[str, ValidTorchValueType],
@@ -164,7 +166,7 @@ def _unwrap_tensor_to_torch_value(
 
 @beartype
 def _wrap_torch_value_to_tensor(
-    value: Union[torch.Value, Dict[str, ValidTorchValueType], Sequence[ValidTorchValueType]]
+    value: Union[torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]]
 ) -> Union[
     ValidArgumentType,
     Dict[str, ValidArgumentType],
@@ -206,10 +208,10 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         self,
         function: onnxscript.OnnxFunction,
         args: Sequence[ValidArgumentType],
-        kwargs: Dict[str, ValidArgumentType],
+        kwargs: Mapping[str, ValidArgumentType],
     ):
         # args/kwargs are TorchScriptTensor/python built-in based
-        param_schemas = param_manipulation.extract_param_schema_from_function(function)
+        param_schemas = function.param_schemas()
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
             param_schemas, args, kwargs
         )
@@ -225,14 +227,14 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
         del closure  # Unused
 
-        param_schemas = param_manipulation.extract_param_schema_from_op_schema(schema)
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, inputs, attributes
-        )
         return self._graph.add_op_call(schema, inputs, attributes)
 
-    def eval(self, schema, inputs, attributes):
-        outputs = self._eval(schema, inputs, attributes, closure=None)
+    def eval(self, op, args, kwargs):
+        param_schemas = op.param_schemas()
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            param_schemas, args, kwargs
+        )
+        outputs = self._eval(op.get_schema(), inputs, attributes, closure=None)
         return outputs
 
 
@@ -267,7 +269,7 @@ def _create_op_call_in_torch_graph(
     opname: str,
     *,
     inputs: Sequence[torch.Value],
-    attributes: Dict[str, Any],
+    attributes: Mapping[str, Any],
     n_outputs: int = 1,
 ) -> Tuple[torch.Value, ...]:
     """Creates a node representing an onnx op in `graph`.
@@ -392,7 +394,7 @@ class TorchScriptGraph:
         self,
         name: str,
         onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: Dict[str, ValidArgumentType],
+        onnx_attributes: Mapping[str, ValidArgumentType],
         n_outputs: int,
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
@@ -421,7 +423,7 @@ class TorchScriptGraph:
         self,
         onnx_op_schema: onnx.defs.OpSchema,
         onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: Dict[str, ValidArgumentType],
+        onnx_attributes: Mapping[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
 
@@ -439,7 +441,7 @@ class TorchScriptGraph:
         self,
         onnx_function: onnxscript.OnnxFunction,
         onnx_inputs: Sequence[ValidInputType],
-        onnx_attributes: Dict[str, ValidArgumentType],
+        onnx_attributes: Mapping[str, ValidArgumentType],
     ):
         self._function_store[onnx_function.name] = onnx_function
 
@@ -456,7 +458,7 @@ class TorchScriptGraph:
 
     @beartype
     def to_model_proto(
-        self, initializers: Dict[str, torch.Tensor], opset_version: Optional[int]
+        self, initializers: Mapping[str, torch.Tensor], opset_version: Optional[int]
     ) -> onnx.ModelProto:
         proto, _, _, _ = self._torch_graph._export_onnx(
             initializers=initializers,
