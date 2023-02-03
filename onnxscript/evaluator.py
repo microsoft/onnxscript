@@ -17,6 +17,7 @@ import onnx.helper
 from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
+from onnxscript._internal import param_manipulation
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -105,6 +106,15 @@ def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
     raise TypeError(f"Unexpected type {type(output)}.")
 
 
+def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+    new_kwargs = {}
+    for k, v in kwargs.items():
+        new_kwargs[k] = v
+        if isinstance(v, tensor.Tensor):
+            new_kwargs[k] = v.value
+
+    return new_kwargs
+
 class Evaluator(abc.ABC):
     """Base class for evaluation of ONNX ops.
 
@@ -120,6 +130,7 @@ class Evaluator(abc.ABC):
         inputs: Sequence[ExtendedModeValue],
         attributes: Mapping[str, Any],
     ):
+        attributes = _unwrap_tensors_in_kwargs(attributes)
         attributes, closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)
         outputs = self._eval(schema, inputs, attributes, closure)
@@ -193,6 +204,7 @@ class Evaluator(abc.ABC):
 
         Override this function to change the evaluator's behavior for functions.
         """
+        inputs, attributes =
         new_args, has_array = _adapt_to_eager_mode(args)
         result = function.function(*new_args, **kwargs)
 
