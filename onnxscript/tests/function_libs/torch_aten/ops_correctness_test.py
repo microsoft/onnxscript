@@ -718,10 +718,10 @@ class TestOutputConsistency(unittest.TestCase):
 
                     # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                     torch.testing.assert_close(
-                        torch.tensor(function_output),
-                        torch_output
+                        torch.tensor(function_output).cpu(),
+                        torch_output.cpu()
                         if isinstance(torch_output, torch.Tensor)
-                        else torch.tensor(torch_output),
+                        else torch.tensor(torch_output).cpu(),
                         rtol=rtol,
                         atol=atol,
                     )
