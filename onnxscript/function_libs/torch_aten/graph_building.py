@@ -326,7 +326,6 @@ class TorchScriptGraph:
         torch_value = self._torch_graph.addInput(input_name)
         torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
-        tensor_value.value = input_value.numpy()
         return tensor_value
 
     @beartype

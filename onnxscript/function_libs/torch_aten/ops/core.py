@@ -58,6 +58,8 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
+    # ORT potentially failed with non-aligned TYPE if we don't cast self/other
+    other = op.CastLike(other, self)
     return op.Add(self, other)
 
 
