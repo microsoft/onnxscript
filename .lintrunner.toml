@@ -34,6 +34,7 @@ init_command = [
     'dlint==0.13.0',
     'flake8-docstrings==1.6.0',
     'flake8-future-annotations==1.0.0',
+    'pep8-naming==0.13.3',
 ]
 
 [[linter]]
