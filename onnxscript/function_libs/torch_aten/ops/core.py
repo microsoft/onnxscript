@@ -1708,7 +1708,7 @@ def aten_empty(size: IntType, dtype: int = FLOAT.dtype) -> TTensor:  # type: ign
 
     # using Zeros to simulate np.empty()
     size = op.Cast(size, to=INT64.dtype)
-    zero = op.Constant(value_float=0)
+    zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
 
     return op.Expand(zero, size)
@@ -3807,7 +3807,7 @@ def aten_ones(size: IntType, dtype: int = FLOAT.dtype):
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     size = op.Cast(size, to=INT64.dtype)
-    one = op.Constant(value_float=1)
+    one = op.Constant(value_float=1.0)
     one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
 
@@ -5346,7 +5346,7 @@ def aten_zeros(size: IntType, dtype: int = FLOAT.dtype):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     size = op.Cast(size, to=INT64.dtype)
-    zero = op.Constant(value_float=0)
+    zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
 
     return op.Expand(zero, size)
