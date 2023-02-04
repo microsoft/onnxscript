@@ -646,7 +646,25 @@ class TestFunctionValidity(unittest.TestCase):
                 func = func_with_wrangler[0]
             else:
                 func = func_with_wrangler
-            self.assertIsInstance(func, onnxscript.OnnxFunction)
+            if not isinstance(func, onnxscript.OnnxFunction):
+                raise AssertionError(
+                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'?"
+                    "If the function is trace_only, please move it to the "
+                    "'OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
+                )
+
+    def test_all_trace_only_functions_are_not_onnx_functions(self):
+        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
+            if isinstance(func_with_wrangler, tuple):
+                func = func_with_wrangler[0]
+            else:
+                func = func_with_wrangler
+            if isinstance(func, onnxscript.OnnxFunction):
+                raise AssertionError(
+                    f"'{func}' is an OnnxFunction. "
+                    "If the function is not trace_only, please move it to the "
+                    "'OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
+                )
 
     @parameterized.parameterized.expand(list(OPINFO_FUNCTION_MAPPING_SCRIPTED.items()))
     @unittest.skipIf(
