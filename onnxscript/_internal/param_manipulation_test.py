@@ -11,7 +11,9 @@ from onnxscript._internal import param_manipulation
 TEST_INPUT = "TEST_INPUT"
 
 
-class TestParamManipulation(unittest.TestCase):
+class TestSeparateInputAttributesFromArguments(unittest.TestCase):
+    """Unit tests for `param_manipulation.separate_input_attributes_from_arguments`."""
+
     @parameterized.parameterized.expand(
         [
             (
@@ -58,9 +60,7 @@ class TestParamManipulation(unittest.TestCase):
             ),
         ]
     )
-    def test_separate_input_attributes_from_arguments_correct_on(
-        self, _, args, kwargs, expected_c
-    ):
+    def test_it_is_correct_on(self, _, args, kwargs, expected_c):
         param_schemas = (
             values.ParamSchema(name="a", type=INT64, is_input=True),
             values.ParamSchema(name="b", type=int, is_input=False),
@@ -93,9 +93,7 @@ class TestParamManipulation(unittest.TestCase):
             ),
         ]
     )
-    def test_separate_input_attributes_from_arguments_raises_on_extra_args(
-        self, _, args, kwargs
-    ):
+    def test_it_raises_on_extra_args(self, _, args, kwargs):
         param_schemas = (
             values.ParamSchema(name="a", type=INT64, is_input=True),
             values.ParamSchema(name="b", type=int, is_input=False),
@@ -113,7 +111,7 @@ class TestParamManipulation(unittest.TestCase):
             (False,),
         ]
     )
-    def test_separate_input_attributes_from_arguments_raises_on_extra_kwargs_when_not_allow_extra_kwargs(
+    def test_it_raises_on_extra_kwargs_when_not_allow_extra_kwargs(
         self,
         fill_defaults: bool,
     ):
@@ -138,7 +136,7 @@ class TestParamManipulation(unittest.TestCase):
             (False,),
         ]
     )
-    def test_separate_input_attributes_from_arguments_does_not_fill_default_when_fill_defaults_is_false(
+    def test_it_does_not_fill_default_when_fill_defaults_is_false(
         self, allow_extra_kwargs: bool
     ):
         param_schemas = (
@@ -166,7 +164,7 @@ class TestParamManipulation(unittest.TestCase):
             (False, False),
         ]
     )
-    def test_separate_input_attributes_from_arguments_raises_on_insufficient_args(
+    def test_it_raises_on_insufficient_args(
         self, fill_defaults: bool, allow_extra_kwargs: bool
     ):
         param_schemas = (
