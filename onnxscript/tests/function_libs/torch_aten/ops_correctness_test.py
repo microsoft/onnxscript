@@ -654,14 +654,14 @@ class TestFunctionValidity(unittest.TestCase):
                 )
 
     def test_all_trace_only_functions_are_not_onnx_functions(self):
-        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
+        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_TRACE_ONLY.values():
             if isinstance(func_with_wrangler, tuple):
                 func = func_with_wrangler[0]
             else:
                 func = func_with_wrangler
             if isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
-                    f"'{func}' is an OnnxFunction. "
+                    f"'{func.name}' is an OnnxFunction. "
                     "If the function is not trace_only, please move it to the "
                     "'OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
                 )
