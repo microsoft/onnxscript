@@ -21,9 +21,9 @@ from onnxscript import values
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
-    _ast_Subscript = ast.Subscript
+    _ast_Subscript = ast.Subscript  # noqa: N816
 else:
-    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]
+    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]  # noqa: N816
 
 logger = logging.getLogger("onnx-script")
 

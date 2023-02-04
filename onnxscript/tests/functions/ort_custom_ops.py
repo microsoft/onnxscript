@@ -13,29 +13,29 @@ def Gelu(X):
 
 
 M_2_SQRTPI = 2.0 / math.sqrt(math.pi)
-alpha = M_2_SQRTPI * M_SQRT1_2 * 0.5
+ALPHA = M_2_SQRTPI * M_SQRT1_2 * 0.5
 
 
 @script()
 def GeluGrad(dY, X):
     phiX = 0.5 * (op.Erf(M_SQRT1_2 * X) + 1.0)
-    XGradPhiX = alpha * X * op.Exp(-0.5 * X * X)
+    XGradPhiX = ALPHA * X * op.Exp(-0.5 * X * X)
     grad = phiX + XGradPhiX
     dX = dY * grad
     return dX
 
 
-kAlpha = M_2_SQRTPI * M_SQRT1_2
-kGamma = 0.044715
-kBeta = kGamma * kAlpha * 3.0
+K_ALPHA = M_2_SQRTPI * M_SQRT1_2
+K_GAMMA = 0.044715
+K_BETA = K_GAMMA * K_ALPHA * 3.0
 
 
 @script()
 def FastGeluGrad(dY, X):
     XCube = X * X * X
-    tanh = op.Tanh(kAlpha * (X + kGamma * XCube))
+    tanh = op.Tanh(K_ALPHA * (X + K_GAMMA * XCube))
     sech_square = 1.0 - tanh * tanh
-    sum = alpha * X + kBeta * XCube
+    sum = ALPHA * X + K_BETA * XCube
     grad = 0.5 * (tanh + sech_square * sum + 1.0)
     return dY * grad
 
