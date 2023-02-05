@@ -677,7 +677,7 @@ class TestFunctionValidity(unittest.TestCase):
         else:
             func = func_with_wrangler
         function_proto = func.to_function_proto()
-        onnx.checker.check_function(function_proto)
+        onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
 class TestOutputConsistency(unittest.TestCase):
