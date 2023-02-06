@@ -67,7 +67,7 @@ def pytype_to_attrtype(
     # Remove Optional wrapper if present, which is represented as an Union[..., type(None)]
     if type_constructor is typing.Union:
         # Filter out type(None), since typing.Optional[X] evaluates to Union[X, type(None)]
-        args = [x for x in get_args(pytype) if x is not type(None)]  # noqa: E721
+        args = [x for x in get_args(pytype) if x is not type(None)]
         if len(args) == 1:
             return pytype_to_attrtype(args[0])
     if type_constructor in _LIST_CONSTRUCTORS:
@@ -103,7 +103,7 @@ def is_value_type(typeinfo: TypeAnnotationValue) -> bool:
     # Handle Union and Optional type-constructors
     if type_constructor is typing.Union:
         # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
-        args = [x for x in get_args(typeinfo) if x is not type(None)]  # noqa: E721
+        args = [x for x in get_args(typeinfo) if x is not type(None)]
         args_value_check = [is_value_type(x) for x in args]
         if all(args_value_check):
             # Handles cases like Optional[INT32] as well as Union[FLOAT16, FLOAT, DOUBLE]

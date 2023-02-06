@@ -6,7 +6,10 @@ include_patterns = [
     '**/*.py',
     '**/*.pyi',
 ]
-exclude_patterns = []
+exclude_patterns = [
+    'docs/**',
+    'onnxscript/tests/models/**',
+]
 command = [
     'python',
     '-m',
@@ -32,7 +35,10 @@ include_patterns = [
     '**/*.py',
     '**/*.pyi',
 ]
-exclude_patterns = []
+exclude_patterns = [
+    'docs/**',
+    'onnxscript/tests/models/**',
+]
 command = [
     'python',
     '-m',

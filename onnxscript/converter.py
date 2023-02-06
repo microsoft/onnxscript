@@ -405,9 +405,9 @@ class Converter:
         # TODO: Refine types
         locals: dict[Any, Any] = {}
         expr = ast.Expression(expr)
-        cpl = compile(expr, filename="<ast>", mode="eval")  # noqa: DUO110
+        cpl = compile(expr, filename="<ast>", mode="eval")
         try:
-            return eval(cpl, self.globals, locals)  # noqa: DUO104
+            return eval(cpl, self.globals, locals)
         except NameError as e:
             raise NameError(
                 self.message(
