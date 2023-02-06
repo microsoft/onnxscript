@@ -127,6 +127,7 @@ ignore = [
     "D205", # D205 Too strict. "1 blank line required between summary line and description"
     "D212",
     "D400",
+    "D401", # First line of docstring should be in imperative mood
     "D415", # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
     "E501",
     "N802", # Nxx: ONNX Script function sometimes use upper case for names.
