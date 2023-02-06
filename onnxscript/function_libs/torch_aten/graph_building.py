@@ -229,13 +229,8 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
 
         return self._graph.add_op_call(schema, inputs, attributes)
 
-    def eval(self, op, args, kwargs):
-        param_schemas = op.param_schemas()
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs
-        )
-        outputs = self._eval(op.get_schema(), inputs, attributes, closure=None)
-        return outputs
+    def eval(self, schema, inputs, attributes):
+        return self._eval(schema, inputs, attributes, closure=None)
 
 
 @beartype
@@ -257,8 +252,7 @@ def _add_attribute_to_torchscript_node(
         if isinstance(value[0], float):
             return node.fs_(key, list(value))
         if isinstance(value[0], int):
-            # Need to use getattr because 'is' is a reserved keyword
-            return getattr(node, "is_")(key, list(value))
+            return node.is_(key, list(value))
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
@@ -320,11 +314,17 @@ class TorchScriptGraph:
             torch_value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
-            torch_value.setType(torch._C.OptionalType.ofTensor())
+            torch_value.setType(
+                torch._C.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
+            )
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
             return tensor_value
         torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(torch._C.TensorType.create_from_tensor(input_value))
+        torch_value.setType(
+            torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
+                input_value
+            )
+        )
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value
 
@@ -459,7 +459,7 @@ class TorchScriptGraph:
     def to_model_proto(
         self, initializers: Mapping[str, torch.Tensor], opset_version: Optional[int]
     ) -> onnx.ModelProto:
-        proto, _, _, _ = self._torch_graph._export_onnx(
+        proto, _, _, _ = self._torch_graph._export_onnx(  # pylint: disable=protected-access
             initializers=initializers,
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
