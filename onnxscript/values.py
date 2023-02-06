@@ -182,7 +182,7 @@ class Op:
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval(self, args, kwargs)
+        return evaluator.default().eval(self.get_schema(), args, kwargs)
 
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
@@ -205,11 +205,14 @@ class Op:
         op_schema = self.get_schema()
         schemas = []
         for input_ in op_schema.inputs:
-            param_schema = ParamSchema(name=input_.name, is_input=True)
-            if input_.option == onnx.defs.OpSchema.FormalParameterOption.Optional:
-                param_schema = dataclasses.replace(param_schema, required=False)
-            elif input_.option == onnx.defs.OpSchema.FormalParameterOption.Variadic:
-                param_schema = dataclasses.replace(param_schema, is_variadic_input=True)
+            param_schema = ParamSchema(
+                name=input_.name,
+                is_input=True,
+                required=(input_.option != onnx.defs.OpSchema.FormalParameterOption.Optional),
+                is_variadic_input=(
+                    input_.option == onnx.defs.OpSchema.FormalParameterOption.Variadic
+                ),
+            )
             schemas.append(param_schema)
         for attr_name, attribute in op_schema.attributes.items():
             default_attr_proto = attribute.default_value

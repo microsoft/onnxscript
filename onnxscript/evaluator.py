@@ -128,24 +128,17 @@ class Evaluator(abc.ABC):
 
     def eval(
         self,
-        op: values.Op,
-        args: Sequence[ExtendedModeValue],
-        kwargs: Mapping[str, Any],
+        schema: onnx.defs.OpSchema,
+        inputs: Sequence[ExtendedModeValue],
+        attributes: Mapping[str, Any],
     ):
         """Evaluates an ONNX op.
 
         Args:
-            op: The op to evaluate.
-            args: The positional arguments to the op.
-            kwargs: The keyword arguments to the op.
+            schema: The OpSchema of the operator to evaluate.
+            inputs: The ONNX inputs to the op.
+            attributes: The ONNX attributes to the op.
         """
-        param_schemas = op.param_schemas()
-        # Split happens in the evaluator instead of the Op __call__ method
-        # so that evaluators can control behaviors like whether to fill in default values for attributes.
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs, fill_defaults=False, allow_extra_kwargs=False
-        )
-        schema = op.get_schema()
         attributes = _unwrap_tensors_in_kwargs(attributes)
         attributes, closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)

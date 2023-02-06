@@ -21,9 +21,9 @@ from onnxscript import values
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
-    _ast_Subscript = ast.Subscript
+    _ast_Subscript = ast.Subscript  # noqa: N816
 else:
-    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]
+    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]  # noqa: N816
 
 logger = logging.getLogger("onnx-script")
 
@@ -405,9 +405,9 @@ class Converter:
         # TODO: Refine types
         locals: dict[Any, Any] = {}
         expr = ast.Expression(expr)
-        cpl = compile(expr, filename="<ast>", mode="eval")  # noqa: DUO110
+        cpl = compile(expr, filename="<ast>", mode="eval")
         try:
-            return eval(cpl, self.globals, locals)  # noqa: DUO104
+            return eval(cpl, self.globals, locals)
         except NameError as e:
             raise NameError(
                 self.message(

@@ -83,7 +83,7 @@ def _stft(
     hop_length=None,
 ):
     try:
-        import torch  # noqa:F401
+        import torch
     except ImportError as e:
         raise ImportError("torch is not installed.") from e
     ft = torch.stft(

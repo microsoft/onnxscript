@@ -6,9 +6,12 @@ onnx-function-experiment
 --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html
 ort-function-experiment-nightly
 protobuf<4
-sphinx<=5.3.0
+
+# Docs site
+furo
+sphinx-copybutton
 sphinx-gallery
-pydata_sphinx_theme
+sphinx>=6
 
 # ATen lib
 beartype
@@ -18,7 +21,6 @@ typing_extensions
 # Testing
 expecttest
 parameterized
-pytest-azurepipelines
 pytest-cov
 pytest-subtests
 pytest-xdist
@@ -28,4 +30,4 @@ torch>=1.13
 
 # Lint
 lintrunner
-lintrunner_adapters>=0.3
+lintrunner_adapters>=0.6.1
