@@ -135,6 +135,10 @@ ignore = [
     "N806",
 ]
 line-length = 120
+ignore-init-module-imports = true
+unfixable = [
+    "F401", # Unused imports
+]
 
 [tool.ruff.pydocstyle]
 convention = "google"
