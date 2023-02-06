@@ -228,58 +228,11 @@ def _upsample_input_wrangler(
     return args, kwargs
 
 
-def _logcumsumexp_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["keepdim"] = args.pop()
-    return args, kwargs
-
-
-def _log_softmax_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["dim"] = args.pop()
-    return args, kwargs
-
-
-def _softmax_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["dim"] = args.pop()
-    return args, kwargs
-
-
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     if kwargs.get("dim") is not None:
-        dim_value = kwargs.pop("dim")  # move 'dim' from kwargs into args
-        if isinstance(dim_value, tuple):
-            # tuple input cannot be handeled in os function, convert to array
-            dim_value = np.array(dim_value, dtype=np.int64)
-        args.append(dim_value)
-    return args, kwargs
-
-
-def _split_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if len(args) >= 3:
-        kwargs["dim"] = args.pop(2)
-    return args, kwargs
-
-
-def _topk_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # TODO(#305): Sole purpose is to workaround attributes must be in kwargs in onnxscript.
-
-    if len(args) >= 3:
-        kwargs["dim"] = args.pop(2)
-    if len(args) >= 3:
-        kwargs["largest"] = args.pop(2)
-    if len(args) >= 3:
-        kwargs["sorted"] = args.pop(2)
+        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
     return args, kwargs
 
 
@@ -347,13 +300,13 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "le": core_ops.aten_le,
     "log10": core_ops.aten_log10,
     "log1p": core_ops.aten_log1p,
-    "log_softmax": (special_ops.aten_special_log_softmax, _log_softmax_input_wrangler),
+    "log_softmax": special_ops.aten_special_log_softmax,
     "log2": core_ops.aten_log2,
     "logaddexp": core_ops.aten_logaddexp,
     "logaddexp2": core_ops.aten_logaddexp2,
     "logcumsumexp": core_ops.aten_logcumsumexp,
     "logdet": core_ops.aten_logdet,
-    "logsumexp": (core_ops.aten_logsumexp, _logcumsumexp_input_wrangler),
+    "logsumexp": core_ops.aten_logsumexp,
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
@@ -394,17 +347,14 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
-    "softmax": (special_ops.aten_special_softmax, _softmax_input_wrangler),
-    "split": (core_ops.aten_split, _split_input_wrangler),
+    "softmax": special_ops.aten_special_softmax,
+    "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
-    "topk": (
-        core_ops.aten_topk,
-        _topk_input_wrangler,
-    ),
+    "topk": core_ops.aten_topk,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
