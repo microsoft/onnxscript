@@ -42,18 +42,18 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         onnxscript.testing.assert_isomorphic(traced, expected)
 
     def test_traced_graph_on_single_node_is_same_as_compiled_graph(self):
-        aten_gelu = ops.nn.aten_gelu
+        aten_relu = ops.nn.aten_relu
 
         x = self.onnxscript_graph.add_input("x", torch.ones((1, 2, 3), dtype=torch.float32))
         with evaluator.default_as(self.tracer):
-            output = aten_gelu(x, approximate="tanh")
+            output = aten_relu(x)
 
         self.onnxscript_graph.register_outputs(output)
         traced = self.to_model_proto()
 
         @onnxscript.script(default_opset=op)
         def expected_model(x: FLOAT[1, 2, 3]):
-            return aten_gelu(x, approximate="tanh")
+            return aten_relu(x)
 
         expected = expected_model.to_model_proto()
 
