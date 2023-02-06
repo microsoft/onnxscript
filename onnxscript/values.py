@@ -4,16 +4,37 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
+import collections
 import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, Optional, _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, Optional, Sequence, _GenericAlias  # type: ignore[attr-defined]
 
 import onnx
 import onnx.defs
 
-from onnxscript import irbuilder, sourceinfo, tensor
+from onnxscript import irbuilder, sourceinfo
+
+_ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
+    onnx.defs.OpSchema.AttrType.FLOAT: float,
+    onnx.defs.OpSchema.AttrType.INT: int,
+    onnx.defs.OpSchema.AttrType.STRING: str,
+    onnx.defs.OpSchema.AttrType.TENSOR: None,
+    onnx.defs.OpSchema.AttrType.GRAPH: None,
+    onnx.defs.OpSchema.AttrType.SPARSE_TENSOR: None,
+    onnx.defs.OpSchema.AttrType.TYPE_PROTO: None,
+    onnx.defs.OpSchema.AttrType.FLOATS: Sequence[float],
+    onnx.defs.OpSchema.AttrType.INTS: Sequence[int],
+    onnx.defs.OpSchema.AttrType.STRINGS: Sequence[str],
+    onnx.defs.OpSchema.AttrType.TENSORS: None,
+    onnx.defs.OpSchema.AttrType.GRAPHS: None,
+    onnx.defs.OpSchema.AttrType.SPARSE_TENSORS: None,
+    onnx.defs.OpSchema.AttrType.TYPE_PROTOS: None,
+}
+
+# A special value to indicate that the default value is not specified
+_EmptyDefault = object()
 
 
 class Opset:
@@ -93,9 +114,60 @@ class Opset:
 # ONNX ops
 
 
+@dataclasses.dataclass(frozen=True)
+class ParamSchema:
+    """A schema for a parameter of an Op or a OnnxFunction.
+
+    Attributes:
+        name: The name of the parameter.
+        type: The type of the parameter.
+        default: The default value of the parameter.
+        required: Whether the input or attribute is required.
+            For example, `Slice` has two optional inputs `axes` and `steps`.
+            `SoftmaxCrossEntropyLoss` has an optional attribute `ignore_index`.
+        is_input: Whether the parameter is an ONNX input.
+        is_variadic_input: Whether the parameter, which has to be an INPUT, is variadic.
+    """
+
+    name: str
+    type: Any = None  # Op input does not have a type, for now
+    default: Any = _EmptyDefault
+    required: bool = True
+    is_input: bool = True
+    is_variadic_input: bool = False
+
+    def __str__(self) -> str:
+        """Return a string representation of the parameter.
+
+        E.g. "x: Input[INT64]" or "axis: Attribute[int] = 0"
+        """
+        param_kind = "Input" if self.is_input else "Attribute"
+        text = f"{self.name}: {param_kind}[{self.type}]"
+        if self.default is not _EmptyDefault:
+            text += f" = {self.default}"
+        return text
+
+    @property
+    def is_attribute(self) -> bool:
+        """Returns True if the parameter is an ONNX attribute."""
+        return not self.is_input
+
+
+def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
+    """Get the default value of an ONNX attribute."""
+    if attr_proto.type == onnx.AttributeProto.UNDEFINED:
+        return _EmptyDefault
+    return onnx.helper.get_attribute_value(attr_proto)
+
+
 class Op:
     """Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
+
+    Attributes:
+        opset: The Opset that this op belongs to.
+        opname: The name of the op.
+        opschema: The ONNX OpSchema for the op.
     """
 
     def __init__(
@@ -104,47 +176,57 @@ class Op:
         self.opset = opset
         self.opname = opname
         self.opschema = opschema
-
-    def is_single_op(self) -> bool:
-        return isinstance(self.opname, str)
-
-    def get_schema(self) -> onnx.defs.OpSchema:
-        if self.opschema:
-            return self.opschema
-        return self.opset[self.opname]
-
-    def has_schema(self) -> bool:
-        return self.opschema is not None
-
-    def adapt_kwargs(self, kwargs):
-        """Replaces function-valued attribute-values by their GraphProto representation."""
-        closure: dict[str, Any] = {}
-        for k, v in kwargs.items():
-            if isinstance(v, OnnxClosure):
-                kwargs[k] = v.function_ir.to_graph_proto()
-                for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                    closure[onnxvar.value] = v.frame.f_locals[pyvar]
-            elif callable(v):
-                raise ValueError(
-                    f"Error: function-valued attribute {v.__name__!r} has no graph_proto"
-                    "attribute. Did you forget to decorate it with @graph?"
-                )
-        return kwargs, closure
-
-    def _convert_kwargs_to_numpy(self, kwargs: dict[str, Any]) -> dict[str, Any]:
-        new_kwargs = {}
-        for k, v in kwargs.items():
-            new_kwargs[k] = v
-            if isinstance(v, tensor.Tensor):
-                new_kwargs[k] = v.value
-
-        return new_kwargs
+        self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
     def __call__(self, *args, **kwargs):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.eval(self.opschema, args, self._convert_kwargs_to_numpy(kwargs))
+        return evaluator.default().eval(self.get_schema(), args, kwargs)
+
+    def is_single_op(self) -> bool:
+        return isinstance(self.opname, str)
+
+    def get_schema(self) -> onnx.defs.OpSchema:
+        """Returns the ONNX OpSchema for this op."""
+        if self.opschema:
+            return self.opschema
+        return self.opset[self.opname]
+
+    def has_schema(self) -> bool:
+        """Returns True if this op has an OpSchema."""
+        return self.opschema is not None
+
+    def param_schemas(self) -> tuple[ParamSchema, ...]:
+        """Returns the parameter schemas for this op."""
+        if self._param_schemas is not None:
+            return self._param_schemas
+
+        op_schema = self.get_schema()
+        schemas = []
+        for input_ in op_schema.inputs:
+            param_schema = ParamSchema(
+                name=input_.name,
+                is_input=True,
+                required=(input_.option != onnx.defs.OpSchema.FormalParameterOption.Optional),
+                is_variadic_input=(
+                    input_.option == onnx.defs.OpSchema.FormalParameterOption.Variadic
+                ),
+            )
+            schemas.append(param_schema)
+        for attr_name, attribute in op_schema.attributes.items():
+            default_attr_proto = attribute.default_value
+            param_schema = ParamSchema(
+                name=attr_name,
+                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
+                default=_get_attribute_value(default_attr_proto),
+                is_input=False,
+                required=attribute.required,
+            )
+            schemas.append(param_schema)
+
+        self._param_schemas = tuple(schemas)
+        return self._param_schemas  # type: ignore[return-value]
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -181,6 +263,7 @@ class OnnxFunction(Op):
         self.function_ir = irfun
         self.source = source
         self.kwargs = kwargs
+        self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
     @property
     def name(self):
@@ -210,6 +293,47 @@ class OnnxFunction(Op):
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
         return evaluator.default().eval_function(self, args, kwargs)
+
+    def param_schemas(self) -> tuple[ParamSchema, ...]:
+        """Returns the parameter schemas of this function."""
+        if self._param_schemas is not None:
+            return self._param_schemas
+
+        function_ir = self.function_ir
+        # The first len(func_ir.inputs) arguments are onnx inputs
+        inputs = function_ir.inputs
+        # The rest is onnx attributes
+        attributes = function_ir.attrs
+        # Construct a dictionary of attributes with their names specified in the function
+        # definition
+        attr_name_to_protos = collections.OrderedDict(
+            (attr.name, attr) for attr in function_ir.attr_protos
+        )
+
+        # args with default value are attributes
+        schemas = []
+        for arg in inputs:
+            param_schema = ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True)
+            schemas.append(param_schema)
+
+        for attr_name in attributes:
+            # Attributes without default values
+            # FIXME(justinchuby): Where can we find the type?
+            param_schema = ParamSchema(name=attr_name, type=None, is_input=False)
+            schemas.append(param_schema)
+
+        for name, attr_value in attr_name_to_protos.items():
+            param_schema = ParamSchema(
+                name=name,
+                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
+                default=_get_attribute_value(attr_value.attr_proto),
+                is_input=False,
+                # All function attributes are required
+            )
+            schemas.append(param_schema)
+
+        self._param_schemas = tuple(schemas)
+        return self._param_schemas  # type: ignore[return-value]
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""

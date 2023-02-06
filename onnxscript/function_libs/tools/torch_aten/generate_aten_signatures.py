@@ -39,7 +39,7 @@ def load_native_function_yaml(yaml_path: str):
 def parse_native_functions_yaml(yaml_path: str) -> tuple[Any, Any]:
     """Parses the native_functions.yaml file."""
     yaml_str, valid_tags = load_native_function_yaml(yaml_path)
-    yaml_struct = yaml.load(yaml_str, Loader=torchgen.gen.LineLoader)  # noqa: DUO109
+    yaml_struct = yaml.load(yaml_str, Loader=torchgen.gen.LineLoader)
     parsed = torchgen.gen.parse_native_yaml_struct(
         yaml_struct, valid_tags, path=yaml_path, skip_native_fns_gen=True
     )

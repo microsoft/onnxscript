@@ -52,6 +52,7 @@ ONNX models and functions:
 ```bash
 pip install onnx onnxruntime pytest
 git clone https://github.com/microsoft/onnx-script
+cd onnx-script
 pip install -e .
 ```
 
@@ -76,13 +77,13 @@ attributes. Examples are in [onnxfns1A.py][onnxfns1A.py]. To validate
 that experimental features are enabled:
 
 ```bash
-pytest onnxscript/test/functions/onnxfns1A_test.py
+pytest onnxscript/tests/functions/onnxfns1A_test.py
 ```
 
 ### Run Unit Tests
 
 ```bash
-pytest onnxscript/test
+pytest onnxscript
 ```
 
 ## Example
@@ -226,4 +227,4 @@ Any use of third-party trademarks or logos is subject to those third-party's pol
 [python-ast]: https://docs.python.org/3/library/ast.html
 [onnx-runtime]: https://onnxruntime.ai
 [onnx-ops]: https://github.com/onnx/onnx/blob/main/docs/Operators.md
-[onnxfns1A.py]: https://github.com/microsoft/onnx-script/blob/main/onnxscript/test/models/onnxfns1A.py
+[onnxfns1A.py]: https://github.com/microsoft/onnx-script/blob/main/onnxscript/tests/models/onnxfns1A.py
