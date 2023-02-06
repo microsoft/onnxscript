@@ -73,7 +73,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._shape: Optional[Tuple[int | None, ...]] = None
         self._name: Optional[str] = None
 
-    @property
+    @property  # type: ignore[override]
     def value(self) -> Optional[np.ndarray]:
         return self._concrete_value
 
@@ -94,7 +94,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._name = name
         self._torch_value.setDebugName(name)
 
-    @property
+    @property  # type: ignore[override]
     def rank(self) -> int | None:
         value_type = self._torch_value.type()
         if value_type is None:
@@ -102,7 +102,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         value_type = typing.cast(torch.TensorType, value_type)
         return value_type.dim()
 
-    @property
+    @property  # type: ignore[override]
     def shape(self) -> Tuple[int | None, ...] | None:
         if self._shape is not None:
             return self._shape
@@ -124,13 +124,13 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @property
     def dtype(self):
         # TODO: Return numpy dtype
-        return _type_utils.JitScalarType.from_value(
+        return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         ).dtype()
 
     @property
     def onnx_dtype(self):
-        return _type_utils.JitScalarType.from_value(
+        return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, _type_utils.JitScalarType.UNDEFINED
         ).onnx_type()
 
@@ -154,14 +154,14 @@ def _unwrap_tensor_to_torch_value(
     if isinstance(value, TorchScriptTensor):
         return value.symbolic_value()
     if isinstance(value, dict):
-        return {k: _unwrap_tensor_to_torch_value(v) for k, v in value.items()}
+        return {k: _unwrap_tensor_to_torch_value(v) for k, v in value.items()}  # type: ignore[misc]
     if isinstance(value, list):
-        return [_unwrap_tensor_to_torch_value(v) for v in value]
+        return [_unwrap_tensor_to_torch_value(v) for v in value]  # type: ignore[misc]
     if isinstance(value, tuple):
-        return tuple(_unwrap_tensor_to_torch_value(v) for v in value)
+        return tuple(_unwrap_tensor_to_torch_value(v) for v in value)  # type: ignore[misc]
 
     # A normal python value
-    return value
+    return value  # type: ignore[return-value]
 
 
 @beartype
@@ -177,13 +177,13 @@ def _wrap_torch_value_to_tensor(
     if isinstance(value, torch.Value):
         return TorchScriptTensor(value)
     if isinstance(value, dict):
-        return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}
+        return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}  # type: ignore[misc]
     if isinstance(value, list):
-        return [_wrap_torch_value_to_tensor(v) for v in value]
+        return [_wrap_torch_value_to_tensor(v) for v in value]  # type: ignore[misc]
     if isinstance(value, tuple):
-        return tuple(_wrap_torch_value_to_tensor(v) for v in value)
+        return tuple(_wrap_torch_value_to_tensor(v) for v in value)  # type: ignore[misc]
 
-    return value
+    return value  # type: ignore[return-value]
 
 
 def _unwrap_tensors_to_torch_values(tensors):
@@ -204,7 +204,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph
 
     @beartype
-    def eval_function(
+    def eval_function(  # type: ignore[override]
         self,
         function: onnxscript.OnnxFunction,
         args: Sequence[ValidArgumentType],
@@ -237,7 +237,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
 def _add_attribute_to_torchscript_node(
     node: torch.Node,
     key: str,
-    value: Union[float, int, str, Sequence[float], Sequence[int], torch.Tensor],
+    value: Union[float, int, str, bytes, Sequence[float], Sequence[int], torch.Tensor],
 ):
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
@@ -245,14 +245,14 @@ def _add_attribute_to_torchscript_node(
     if isinstance(value, int):
         return node.i_(key, value)
     if isinstance(value, (str, bytes)):
-        return node.s_(key, value)
+        return node.s_(key, value)  # type: ignore[arg-type]
     if isinstance(value, torch.Tensor):
         return node.t_(key, value)
     if isinstance(value, Sequence):
         if isinstance(value[0], float):
-            return node.fs_(key, list(value))
+            return node.fs_(key, list(value))  # type: ignore[arg-type]
         if isinstance(value[0], int):
-            return node.is_(key, list(value))
+            return node.is_(key, list(value))  # type: ignore[attr-defined]
         raise TypeError(f"Unsupported sequence type '{type(value)}' for attribute '{key}'")
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
@@ -318,7 +318,7 @@ class TorchScriptGraph:
                 torch._C.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
             )
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
-            return tensor_value
+            return tensor_value  # type: ignore[return-value]
         torch_value = self._torch_graph.addInput(input_name)
         torch_value.setType(
             torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
@@ -459,7 +459,12 @@ class TorchScriptGraph:
     def to_model_proto(
         self, initializers: Mapping[str, torch.Tensor], opset_version: Optional[int]
     ) -> onnx.ModelProto:
-        proto, _, _, _ = self._torch_graph._export_onnx(  # pylint: disable=protected-access
+        (
+            proto,
+            _,
+            _,
+            _,
+        ) = self._torch_graph._export_onnx(  # pylint: disable=protected-access # type: ignore[attr-defined]
             initializers=initializers,
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs

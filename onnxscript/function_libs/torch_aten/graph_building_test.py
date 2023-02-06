@@ -1,4 +1,5 @@
 """Test cases for graph building functionality."""
+# mypy: disable-errer-code="arg-type,valid-type"
 from __future__ import annotations
 
 import unittest
