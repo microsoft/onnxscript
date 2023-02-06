@@ -262,7 +262,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 with self.subTest(
                     x_shape=x.shape,
                     le=list(le),
-                    ax=ax,
+                    ax=str(ax),
                     expected_shape=expected.shape,
                 ):
                     case = onnx_script_test_case.FunctionTestParams(
@@ -301,7 +301,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 with self.subTest(
                     c_shape=c.shape,
                     le=list(le),
-                    ax=ax,
+                    ax=str(ax),
                     expected_shape=expected1.shape,
                 ):
                     case = onnx_script_test_case.FunctionTestParams(

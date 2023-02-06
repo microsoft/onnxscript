@@ -17,6 +17,7 @@ import onnx.helper
 from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
+from onnxscript._internal import param_manipulation
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -105,6 +106,17 @@ def _adapt_to_user_mode(output: ExtendedModeValue) -> UserModeValue:
     raise TypeError(f"Unexpected type {type(output)}.")
 
 
+def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+    """Unwrap tensors in a mapping to numpy arrays."""
+    new_kwargs = {}
+    for k, v in kwargs.items():
+        new_kwargs[k] = v
+        if isinstance(v, tensor.Tensor):
+            new_kwargs[k] = v.value
+
+    return new_kwargs
+
+
 class Evaluator(abc.ABC):
     """Base class for evaluation of ONNX ops.
 
@@ -120,6 +132,14 @@ class Evaluator(abc.ABC):
         inputs: Sequence[ExtendedModeValue],
         attributes: Mapping[str, Any],
     ):
+        """Evaluates an ONNX op.
+
+        Args:
+            schema: The OpSchema of the operator to evaluate.
+            inputs: The ONNX inputs to the op.
+            attributes: The ONNX attributes to the op.
+        """
+        attributes = _unwrap_tensors_in_kwargs(attributes)
         attributes, closure = self.adapt_attributes(schema, attributes)
         inputs = self.adapt_inputs(schema, inputs)
         outputs = self._eval(schema, inputs, attributes, closure)
@@ -142,7 +162,7 @@ class Evaluator(abc.ABC):
             A closure that can be used to evaluate graph-valued attributes.
         """
         use_graph_attribute = self.use_graph_attribute(schema)
-        closure = {}
+        closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
             if isinstance(v, values.OnnxClosure):
@@ -180,8 +200,15 @@ class Evaluator(abc.ABC):
         inputs: Sequence[ExtendedModeValue],
         attributes: Mapping[str, ExtendedModeValue],
         closure: Mapping[str, ExtendedModeValue],
-    ):
-        pass
+    ) -> EagerModeValue:
+        """Evaluates an ONNX op given its schema and inputs/attributes.
+
+        Args:
+            schema: The schema of the op to evaluate.
+            inputs: The ONNX inputs to the op.
+            attributes: The ONNX attributes to the op.
+            closure: The closure to use when evaluating graph-valued attributes.
+        """
 
     def eval_function(
         self,
@@ -192,9 +219,20 @@ class Evaluator(abc.ABC):
         """Evaluates a function in eager mode.
 
         Override this function to change the evaluator's behavior for functions.
+
+        Args:
+            function: The OnnxFunction to evaluate.
+            args: The positional arguments to the function.
+            kwargs: The keyword arguments to the function.
         """
-        new_args, has_array = _adapt_to_eager_mode(args)
-        result = function.function(*new_args, **kwargs)
+        param_schemas = function.param_schemas()
+        # Split happens in the evaluator instead of the OnnxFunction __call__ method
+        # so that evaluators can control behaviors like whether to fill in default values for attributes.
+        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+            param_schemas, args, kwargs, fill_defaults=False, allow_extra_kwargs=False
+        )
+        adapted_inputs, has_array = _adapt_to_eager_mode(inputs)
+        result = function.function(*adapted_inputs, **attributes)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one

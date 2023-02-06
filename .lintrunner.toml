@@ -50,6 +50,7 @@ exclude_patterns = [
     'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
+    'onnxscript/tests/eager_mode_test.py',
     'onnxscript/tests/eager_test.py',
     'onnxscript/tests/external_tensor_test.py',
     'onnxscript/tests/functions/**',
