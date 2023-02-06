@@ -135,9 +135,9 @@ class Evaluator(abc.ABC):
         """Evaluates an ONNX op.
 
         Args:
-            op: The op to evaluate.
-            args: The positional arguments to the op.
-            kwargs: The keyword arguments to the op.
+            schema: The OpSchema of the operator to evaluate.
+            inputs: The ONNX inputs to the op.
+            attributes: The ONNX attributes to the op.
         """
         attributes = _unwrap_tensors_in_kwargs(attributes)
         attributes, closure = self.adapt_attributes(schema, attributes)
