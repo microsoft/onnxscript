@@ -10,6 +10,7 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 import numpy as np
 import onnx
 import packaging.version
+import parameterized
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -42,6 +43,22 @@ FLOAT_TYPES = (
     torch.float32,
     torch.float64,
 )
+
+
+def onnx_older_than(version: str) -> bool:
+    """Returns True if the ONNX version is older than the given version."""
+    return (
+        packaging.version.parse(onnx.__version__).release
+        < packaging.version.parse(version).release
+    )
+
+
+def torch_older_than(version: str) -> bool:
+    """Returns True if the torch version is older than the given version."""
+    return (
+        packaging.version.parse(torch.__version__).release
+        < packaging.version.parse(version).release
+    )
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -194,7 +211,7 @@ def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Remove the self argument
-    if packaging.version.parse(torch.__version__) <= packaging.version.parse("1.13.1"):
+    if torch_older_than("2.0"):
         args.pop(0)
     return args, kwargs
 
@@ -572,6 +589,47 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
+class TestFunctionValidity(unittest.TestCase):
+    def test_all_script_functions_are_onnx_functions(self):
+        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
+            if isinstance(func_with_wrangler, tuple):
+                func = func_with_wrangler[0]
+            else:
+                func = func_with_wrangler
+            if not isinstance(func, onnxscript.OnnxFunction):
+                raise AssertionError(
+                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'?"
+                    "If the function is trace_only, please move it to the "
+                    "'OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
+                )
+
+    def test_all_trace_only_functions_are_not_onnx_functions(self):
+        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_TRACE_ONLY.values():
+            if isinstance(func_with_wrangler, tuple):
+                func = func_with_wrangler[0]
+            else:
+                func = func_with_wrangler
+            if isinstance(func, onnxscript.OnnxFunction):
+                raise AssertionError(
+                    f"'{func.name}' is an OnnxFunction. "
+                    "If the function is not trace_only, please move it to the "
+                    "'OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
+                )
+
+    @parameterized.parameterized.expand(list(OPINFO_FUNCTION_MAPPING_SCRIPTED.items()))
+    @unittest.skipIf(
+        onnx_older_than("1.14"),
+        "Function checker is not available before ONNX 1.14",
+    )
+    def test_script_function_passes_checker(self, _, func_with_wrangler):
+        if isinstance(func_with_wrangler, tuple):
+            func = func_with_wrangler[0]
+        else:
+            func = func_with_wrangler
+        function_proto = func.to_function_proto()
+        onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
+
+
 class TestOutputConsistency(unittest.TestCase):
     """Test output consistency between exported ONNX models and PyTorch eager mode.
 
@@ -581,14 +639,6 @@ class TestOutputConsistency(unittest.TestCase):
     def setUp(self) -> None:
         torch.manual_seed(42)
         np.random.seed(42)
-
-    def test_all_script_functions_are_onnx_functions(self):
-        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
-            if isinstance(func_with_wrangler, tuple):
-                func = func_with_wrangler[0]
-            else:
-                func = func_with_wrangler
-            self.assertIsInstance(func, onnxscript.OnnxFunction)
 
     @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],
