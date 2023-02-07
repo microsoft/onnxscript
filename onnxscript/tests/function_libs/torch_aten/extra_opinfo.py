@@ -3,7 +3,7 @@ Test data for aten operators which don't exist in PyTorch file:
 pytorch/torch/testing/_internal/common_methods_invocations.py.
 """
 
-from functools import partial
+import functools
 from typing import Tuple, List
 
 import torch
@@ -18,7 +18,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 
 def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
-    make_arg = partial(make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
+    make_arg = functools.partial(make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
 
     # Ordered as shapes for input, weight, bias,
     # and a dict of values of (stride, padding, dilation, groups)

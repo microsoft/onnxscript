@@ -7,7 +7,6 @@ import unittest
 import warnings
 from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
 
-import extra_opinfo
 import numpy as np
 import onnx
 import parameterized
@@ -20,6 +19,7 @@ import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
+from onnxscript.tests.function_libs.torch_aten import extra_opinfo
 from onnxscript.tests.common import version_utils
 
 T = TypeVar("T")
