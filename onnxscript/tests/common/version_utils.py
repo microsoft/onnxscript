@@ -1,7 +1,7 @@
 """Version utils for testing."""
 
-import packaging.version
 import onnx
+import packaging.version
 import torch
 
 

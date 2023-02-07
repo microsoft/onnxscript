@@ -154,11 +154,11 @@ def _unwrap_tensor_to_torch_value(
     if isinstance(value, TorchScriptTensor):
         return value.symbolic_value()
     if isinstance(value, dict):
-        return {k: _unwrap_tensor_to_torch_value(v) for k, v in value.items()}  # type: ignore[misc]
+        return {k: _unwrap_tensor_to_torch_value(v) for k, v in value.items()}  # type: ignore[misc,return-value]
     if isinstance(value, list):
-        return [_unwrap_tensor_to_torch_value(v) for v in value]  # type: ignore[misc]
+        return [_unwrap_tensor_to_torch_value(v) for v in value]  # type: ignore[misc,return-value]
     if isinstance(value, tuple):
-        return tuple(_unwrap_tensor_to_torch_value(v) for v in value)  # type: ignore[misc]
+        return tuple(_unwrap_tensor_to_torch_value(v) for v in value)  # type: ignore[misc,return-value]
 
     # A normal python value
     return value  # type: ignore[return-value]
@@ -177,11 +177,11 @@ def _wrap_torch_value_to_tensor(
     if isinstance(value, torch.Value):
         return TorchScriptTensor(value)
     if isinstance(value, dict):
-        return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}  # type: ignore[misc]
+        return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}  # type: ignore[misc,return-value]
     if isinstance(value, list):
-        return [_wrap_torch_value_to_tensor(v) for v in value]  # type: ignore[misc]
+        return [_wrap_torch_value_to_tensor(v) for v in value]  # type: ignore[misc,return-value]
     if isinstance(value, tuple):
-        return tuple(_wrap_torch_value_to_tensor(v) for v in value)  # type: ignore[misc]
+        return tuple(_wrap_torch_value_to_tensor(v) for v in value)  # type: ignore[misc,return-value]
 
     return value  # type: ignore[return-value]
 
@@ -326,7 +326,7 @@ class TorchScriptGraph:
             )
         )
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
-        return tensor_value
+        return tensor_value  # type: ignore[return-value]
 
     @beartype
     def register_outputs(
@@ -464,7 +464,7 @@ class TorchScriptGraph:
             _,
             _,
             _,
-        ) = self._torch_graph._export_onnx(  # pylint: disable=protected-access # type: ignore[attr-defined]
+        ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
             initializers=initializers,
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
