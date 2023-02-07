@@ -108,23 +108,37 @@ disable = [
 
 [tool.pydocstyle]
 convention = "google"
-# D1 is for missing docstrings, which is not yet enforced.
-# D202 Too strict. "No blank lines allowed after function docstring"
-# D205 Too strict. "1 blank line required between summary line and description"
-# D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
-add-ignore = ["D1", "D202", "D205", "D415"]
 
-[tool.refurb]
-python_version = "3.7"
-disable = [
-  "FURB101",
-  "FURB108", # Replace `x == y or x == z` with `x in (y, z)`. Handled by pylint.
-  "FURB113", # Use `x.extend(...)` instead of repeatedly calling `x.append()`
-  "FURB118", # Replace function with `operator.add`
-  "FURB126", # Replace `else: return x` with `return x`. Handled by pylint.
-  "FURB131", # Replace `del x[y]` with `x.pop(y)`
-  "FURB140", # Replace `f(...) for ... in x` with `starmap(f, x)`
-  "FURB141", # Replace `os.path.exists(x)` with `Path(x).exists()`
-  "FURB142", # Replace `for x in y: s.add(...)` with `s.update(... for x in y)`
-  "FURB150", # Replace `os.mkdir(x)` with `Path(x).mkdir()`
+[tool.ruff]
+target-version = "py37"
+select = [
+    "D", # pydocstyle
+    "E", # pycodestyle
+    "F", # Pyflakes
+    "W", # pycodestyle
+    "B", # flake8-bugbear
+    "N", # pep8-naming
+    "YTT", # flake8-2020
+    "RUF", # Ruff-specific rules
 ]
+ignore = [
+    "D1", # D1 is for missing docstrings, which is not yet enforced.
+    "D202", # D202 Too strict. "No blank lines allowed after function docstring"
+    "D205", # D205 Too strict. "1 blank line required between summary line and description"
+    "D212",
+    "D400",
+    "D401", # First line of docstring should be in imperative mood
+    "D415", # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
+    "E501",
+    "N802", # Nxx: ONNX Script function sometimes use upper case for names.
+    "N803",
+    "N806",
+]
+line-length = 120
+ignore-init-module-imports = true
+unfixable = [
+    "F401", # Unused imports
+]
+
+[tool.ruff.pydocstyle]
+convention = "google"

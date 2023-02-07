@@ -10,7 +10,6 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 import extra_opinfo
 import numpy as np
 import onnx
-import packaging.version
 import parameterized
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
@@ -21,6 +20,7 @@ import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
+from onnxscript.tests.common import version_utils
 
 T = TypeVar("T")
 
@@ -44,22 +44,6 @@ FLOAT_TYPES = (
     torch.float32,
     torch.float64,
 )
-
-
-def onnx_older_than(version: str) -> bool:
-    """Returns True if the ONNX version is older than the given version."""
-    return (
-        packaging.version.parse(onnx.__version__).release
-        < packaging.version.parse(version).release
-    )
-
-
-def torch_older_than(version: str) -> bool:
-    """Returns True if the torch version is older than the given version."""
-    return (
-        packaging.version.parse(torch.__version__).release
-        < packaging.version.parse(version).release
-    )
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -215,7 +199,7 @@ def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Remove the self argument
-    if torch_older_than("2.0"):
+    if version_utils.torch_older_than("2.0"):
         args.pop(0)
     return args, kwargs
 
@@ -623,7 +607,7 @@ class TestFunctionValidity(unittest.TestCase):
 
     @parameterized.parameterized.expand(list(OPINFO_FUNCTION_MAPPING_SCRIPTED.items()))
     @unittest.skipIf(
-        onnx_older_than("1.14"),
+        version_utils.onnx_older_than("1.14"),
         "Function checker is not available before ONNX 1.14",
     )
     def test_script_function_passes_checker(self, _, func_with_wrangler):

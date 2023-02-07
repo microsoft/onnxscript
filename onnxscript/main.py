@@ -61,13 +61,14 @@ def script(
     """Main decorator. Declares a function as an onnx function.
 
     Args:
-        opset: opset the function belongs to (see :ref:`l-api-opsets`)
+        opset: Opset the function belongs to (see :ref:`l-api-opsets`).
+        default_opset: Opset to use for operators not in the function's opset.
+        kwargs: Additional keyword arguments.
 
     Returns:
         an instance of :class:`onnxscript.values.OnnxFunction`
 
     Example:
-
     ::
 
         @script()
@@ -124,7 +125,6 @@ def graph():
         and retrieves the GraphProto representation previously generated.
 
     Example:
-
     ::
 
         @script()

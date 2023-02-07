@@ -12,7 +12,7 @@ import onnxscript
 # -- Project information -----------------------------------------------------
 
 project = "onnx-script"
-copyright = "2022, onnx"
+copyright = "2023, onnx"
 author = "onnx"
 version = onnxscript.__version__
 release = version
@@ -31,10 +31,11 @@ extensions = [
     "sphinx.ext.graphviz",
     "sphinx.ext.doctest",
     "sphinx.ext.napoleon",
+    "sphinx_copybutton",
 ]
 
 templates_path = ["_templates"]
-source_suffix = [".rst"]
+source_suffix = [".rst", ".md"]
 
 master_doc = "index"
 language = "en"
@@ -44,13 +45,12 @@ pygments_style = "default"
 # -- Options for HTML output -------------------------------------------------
 
 html_static_path = ["_static"]
-html_theme = "pydata_sphinx_theme"
+html_theme = "furo"
 html_theme_path = ["_static"]
 html_theme_options = {
-    "logo": {
-        "image_light": "logo-light.png",
-        "image_dark": "logo-dark.png",
-    }
+    "light_logo": "logo-light.png",
+    "dark_logo": "logo-dark.png",
+    "sidebar_hide_name": True,
 }
 html_css_files = ["css/custom.css"]
 
@@ -60,17 +60,14 @@ graphviz_output_format = "svg"
 
 # -- Options for intersphinx extension ---------------------------------------
 
-# Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {"https://docs.python.org/": None}
-
-# -- Options for Sphinx Gallery ----------------------------------------------
-
 intersphinx_mapping = {
     "python": (f"https://docs.python.org/{sys.version_info.major}", None),
     "matplotlib": ("https://matplotlib.org/", None),
     "numpy": ("https://docs.scipy.org/doc/numpy/", None),
     "onnxruntime": ("https://onnxruntime.ai/docs/api/python/", None),
 }
+
+# -- Options for Sphinx Gallery ----------------------------------------------
 
 sphinx_gallery_conf = {
     "examples_dirs": ["examples"],

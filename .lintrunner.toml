@@ -1,24 +1,22 @@
 # Configuration for lintrunner https://github.com/suo/lintrunner
 
 [[linter]]
-code = 'FLAKE8'
+code = 'RUFF'
 include_patterns = [
     '**/*.py',
     '**/*.pyi',
 ]
 exclude_patterns = [
-    '.git/**',
-    '.lintrunner/**',
     'docs/**',
+    'onnxscript/tests/models/**',
 ]
 command = [
     'python',
     '-m',
     'lintrunner_adapters',
     'run',
-    'flake8_linter',
-    '--docstring-convention=google',
-    '--',
+    'ruff_linter',
+    '--config=pyproject.toml',
     '@{{PATHSFILE}}'
 ]
 init_command = [
@@ -28,13 +26,38 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
-    'flake8==5.0.4',
-    'flake8-bugbear==22.10.27',
-    'flake8-pyi==22.10.0',
-    'dlint==0.13.0',
-    'flake8-docstrings==1.6.0',
-    'flake8-future-annotations==1.0.0',
+    'ruff==0.0.241',
 ]
+
+[[linter]]
+code = 'RUFF-FIX'
+include_patterns = [
+    '**/*.py',
+    '**/*.pyi',
+]
+exclude_patterns = [
+    'docs/**',
+    'onnxscript/tests/models/**',
+]
+command = [
+    'python',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'ruff_fix_linter',
+    '--config=pyproject.toml',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
+    '--dry-run={{DRYRUN}}',
+    'ruff==0.0.241',
+]
+is_formatter = true
 
 [[linter]]
 code = 'MYPY'

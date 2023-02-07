@@ -291,7 +291,7 @@ class TestConverter(testutils.TestBase):
         """Test that use of None as an actual parameter is accepted."""
 
         @script()
-        def clipmax(x: FLOAT, max: FLOAT):  # noqa: F821
+        def clipmax(x: FLOAT, max: FLOAT):
             return op.Clip(x, None, max)
 
         self.validate_save(clipmax)
