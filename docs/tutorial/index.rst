@@ -30,6 +30,18 @@ to indicate an omitted optional input, as shown below:
 
 .. literalinclude:: examples/omitted_input.py
 
+**Using optional inputs**
+
+The example below shows a definition of ``Clip`` as an *onnxscript* function.
+The ``Clip`` operator has input arguments that are *optional*: the *min* and *max* inputs.
+``OptionalHasElement`` and ``OptionalGetElement`` operators can be used to utilize optional
+inputs within an *onnxscript* function, as shown below:
+
+.. literalinclude:: examples/clip.py
+
+This pattern will not work in eager-mode execution as
+``OptionalHasElement`` and ``OptionalGetElement`` operators do not take None as inputs.
+
 **Specifying attribute-parameter values**
 
 The example below illustrates how to specify attribute-values in a call.
