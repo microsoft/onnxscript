@@ -7,6 +7,7 @@ import unittest
 import warnings
 from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
 
+import extra_opinfo
 import numpy as np
 import onnx
 import packaging.version
@@ -183,6 +184,9 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
+
+# Append extra op_db into the op database for testing
+OPS_DB.extend(extra_opinfo.op_db)
 
 # Modify this section ##########################################################
 
@@ -373,10 +377,11 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
-    "nn.functional.gelu": nn_ops.aten_gelu,
+    "convolution": core_ops.aten_convolution,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
+    "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
