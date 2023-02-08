@@ -305,7 +305,9 @@ class TorchScriptGraph:
         return self._torch_graph
 
     @beartype
-    def add_input(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
+    def add_input(
+        self, input_name: str, input_value: Optional[torch.Tensor] = None
+    ) -> TorchScriptTensor:
         # TODO: Take in a TorchScriptTensor?
         # TODO: Support dynamic shapes
         if input_value is None:
