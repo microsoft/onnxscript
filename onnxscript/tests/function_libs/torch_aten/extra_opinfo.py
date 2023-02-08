@@ -21,7 +21,7 @@ def sample_inputs_convolution(
 
     # Ordered as shapes for input, weight, bias,
     # and a dict of values of (stride, padding, dilation, groups)
-    cases: Tuple = (
+    cases: tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], dict[str, Any]] = (
         (
             (1, 3, 4),
             (3, 3, 3),
