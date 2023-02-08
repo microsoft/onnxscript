@@ -9,14 +9,14 @@ from typing import List, Tuple
 import torch
 from torch import testing as torch_testing
 
-from torch.testing._internal import common_cuda
-from torch.testing._internal import common_dtype
-from torch.testing._internal import common_utils
+from torch.testing._internal import common_cuda, common_dtype, common_utils
 from torch.testing._internal.opinfo import core as opinfo_core
 
 
 
-def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):  # pylint: disable=unused-argument
+def sample_inputs_convolution(
+    op_info, device, dtype, requires_grad, **kwargs
+):  # pylint: disable=unused-argument
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
@@ -95,7 +95,8 @@ OP_DB: List[opinfo_core.OpInfo] = [
             dtypesIfCUDA=common_dtype.floating_and_complex_types_and(
                 torch.float16,
                 torch.chalf,  # type: ignore[attr-defined]
-                *[torch.bfloat16] if (common_cuda.CUDA11OrLater or common_utils.TEST_WITH_ROCM) else [],
+                *[torch.bfloat16] if (common_cuda.CUDA11OrLater or common_utils.TEST_WITH_ROCM)
+                else [],
             ),
             sample_inputs_func=sample_inputs_convolution,
             supports_forward_ad=True,
@@ -104,6 +105,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
             gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
             skips=(),
             supports_expanded_weight=True,
-                    supports_out=False,
+            supports_out=False,
         ),
 ]
