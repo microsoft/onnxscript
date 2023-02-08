@@ -95,10 +95,13 @@ def aten_addmm(
 ) -> TFloat:
     # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
+    # TODO(titaiwang): op.Gemm seems needed to take care of corner case according to old symbolic_fn.
+    # Currently, it shows op-level validation failing on bloom.
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
     return op.Add(scaled_self, scaled_mat1_mat2)
+    # return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
 def aten_addmv(
@@ -138,11 +141,11 @@ def aten_affine_grid_generator_backward(
 
     raise NotImplementedError()
 
-@torch_op("aten::alias", trace_only=True)
+@torch_op("aten::alias")
 def aten_alias(self: TensorType) -> TensorType:
     # alias(Tensor(a) self) -> Tensor(a)
 
-    return self
+    return op.Identity(self)
 
 
 def aten_alias_copy(self: TensorType) -> TensorType:
@@ -1481,7 +1484,7 @@ def aten_cumprod_backward(
 
     raise NotImplementedError()
 
-@torch_op("aten::cumsum")
+@torch_op("aten::cumsum", trace_only=True)
 def aten_cumsum(self: TensorType, dim: int, dtype: int = -1) -> TensorType:
     # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
     if dtype == -1:
@@ -2942,7 +2945,7 @@ def aten_margin_ranking_loss(
 
     raise NotImplementedError()
 
-@torch_op("aten::masked_fill", trace_only=True)
+@torch_op("aten::masked_fill")
 def aten_masked_fill(self: TensorType, mask: TensorType, value: TensorType) -> TensorType:
     # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
     mask_cast = op.Cast(mask, to=BOOL.dtype)
