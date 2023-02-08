@@ -30,6 +30,8 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
+_DEFAULT_OUTPUT_PADDING = (0,)
+_DEFAULT_TRANSPOSED = False
 
 
 @torch_op("aten::abs")
@@ -1069,7 +1071,15 @@ def aten_conv2d(
         bias = op.Expand(zero, bias_shape)
 
     result = _aten_convolution_onnx(
-        input, weight, bias, strides=strides, pads=pads, dilations=dilations, groups=groups
+        input,
+        weight,
+        bias,
+        strides=strides,
+        pads=pads,
+        dilations=dilations,
+        transposed=_DEFAULT_TRANSPOSED,
+        output_padding=_DEFAULT_OUTPUT_PADDING,
+        groups=groups,
     )
 
     return result
@@ -1153,7 +1163,15 @@ def aten_convolution(
         bias = op.Expand(zero, bias_shape)
 
     result = _aten_convolution_onnx(
-        input, weight, bias, strides=strides, pads=pads, dilations=dilations, transposed=transposed, output_padding=output_padding, groups=groups
+        input,
+        weight,
+        bias,
+        strides=strides,
+        pads=pads,
+        dilations=dilations,
+        transposed=transposed,
+        output_padding=output_padding,
+        groups=groups,
     )
 
     return result
@@ -1167,11 +1185,11 @@ def _aten_convolution_onnx(
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
-    transposed: bool = False,
-    output_padding: Sequence[int] = (0,),
+    transposed: bool,
+    output_padding: Sequence[int],
     groups: int = 1,
 ) -> TFloat:
-    """convXd with attributes pre-computed to fit the ONNX spec."""
+    """ConvXd with attributes pre-computed to fit the ONNX spec."""
 
     weight_size = op.Size(op.Shape(weight))
     no_batch = op.Size(op.Shape(input)) != weight_size
@@ -1181,11 +1199,24 @@ def _aten_convolution_onnx(
 
     if transposed:
         result = op.ConvTranspose(
-            input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations, output_padding=output_padding
+            input,
+            weight,
+            bias,
+            strides=strides,
+            pads=pads,
+            group=groups,
+            dilations=dilations,
+            output_padding=output_padding,
         )
     else:
         result = op.Conv(
-            input, weight, bias, strides=strides, pads=pads, group=groups, dilations=dilations
+            input,
+            weight,
+            bias,
+            strides=strides,
+            pads=pads,
+            group=groups,
+            dilations=dilations,
         )
 
     if no_batch:
