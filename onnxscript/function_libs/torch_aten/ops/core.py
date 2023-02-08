@@ -138,11 +138,11 @@ def aten_affine_grid_generator_backward(
 
     raise NotImplementedError()
 
-
+@torch_op("aten::alias", trace_only=True)
 def aten_alias(self: TensorType) -> TensorType:
     # alias(Tensor(a) self) -> Tensor(a)
 
-    raise NotImplementedError()
+    return self
 
 
 def aten_alias_copy(self: TensorType) -> TensorType:
@@ -526,7 +526,7 @@ def aten_avg_pool1d(
 
     raise NotImplementedError()
 
-
+@torch_op("aten::baddbmm")
 def aten_baddbmm(
     self: TensorType,
     batch1: TensorType,
@@ -535,8 +535,12 @@ def aten_baddbmm(
     alpha: float = 1.0,
 ) -> TensorType:
     # baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
-
-    raise NotImplementedError()
+    batch_mul = op.MatMul(batch1, batch2)
+    alpha_cast = op.CastLike(alpha, self)
+    mul_a = op.Mul(batch_mul, alpha_cast)
+    beta_cast = op.CastLike(beta, self)
+    mul_b = op.Mul(self, beta_cast)
+    return op.Add(mul_a, mul_b)
 
 
 def aten_bartlett_window(window_length: int) -> TensorType:
@@ -1477,11 +1481,14 @@ def aten_cumprod_backward(
 
     raise NotImplementedError()
 
-
-def aten_cumsum(self: TensorType, dim: int, dtype: Optional[int] = None) -> TensorType:
+@torch_op("aten::cumsum")
+def aten_cumsum(self: TensorType, dim: int, dtype: int = -1) -> TensorType:
     # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
-
-    raise NotImplementedError()
+    if dtype == -1:
+        cast = self
+    else:
+        cast = op.Cast(self, to=dtype)
+    return op.CumSum(cast, dim)
 
 
 def aten_data(self: TensorType) -> TensorType:
@@ -2935,11 +2942,12 @@ def aten_margin_ranking_loss(
 
     raise NotImplementedError()
 
-
+@torch_op("aten::masked_fill", trace_only=True)
 def aten_masked_fill(self: TensorType, mask: TensorType, value: TensorType) -> TensorType:
     # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
-
-    raise NotImplementedError()
+    mask_cast = op.Cast(mask, to=BOOL.dtype)
+    value_cast = op.CastLike(value, self)
+    return op.Where(mask_cast, value_cast, self)
 
 
 def aten_masked_scatter(self: TensorType, mask: TensorType, source: TensorType) -> TensorType:
@@ -4523,6 +4531,13 @@ def aten_segment_reduce(
 
     raise NotImplementedError()
 
+@torch_op("aten::select")
+def aten_select(
+    self: TensorType, dim: int, index: int
+) -> TensorType:
+    # select(Tensor self, int dim, int index) -> Tensor
+
+    return op.Gather(self, index, axis=dim)
 
 def aten_select_backward(
     grad_output: TensorType, input_sizes: INT64, dim: int, index: int
