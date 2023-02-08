@@ -93,10 +93,11 @@ OP_DB: List[opinfo_core.OpInfo] = [
             aten_name="convolution",
             dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
             dtypesIfCUDA=common_dtype.floating_and_complex_types_and(
-                torch.float16,
-                torch.chalf,  # type: ignore[attr-defined]
-                *[torch.bfloat16] if (common_cuda.CUDA11OrLater or common_utils.TEST_WITH_ROCM)
-                else [],
+            torch.float16,
+            torch.chalf,  # type: ignore[attr-defined]
+            *[torch.bfloat16]
+            if (common_cuda.CUDA11OrLater or common_utils.TEST_WITH_ROCM)
+            else [],
             ),
             sample_inputs_func=sample_inputs_convolution,
             supports_forward_ad=True,
