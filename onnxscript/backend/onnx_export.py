@@ -134,9 +134,9 @@ def _translate_signature(inputs, outputs):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
             return f"{_rename_variable(inp.name)}: {_translate_type(inp.type)}"
-        else:
-            # FunctionProto inputs/outputs are just strings
-            return _rename_variable(inp)
+
+        # FunctionProto inputs/outputs are just strings
+        return _rename_variable(inp)
 
     result = f"({', '.join([input_sig(x) for x in inputs])})"
     if outputs and isinstance(outputs[0], ValueInfoProto):
@@ -252,12 +252,12 @@ class Exporter:
                 metadata = onnx.external_data_helper.ExternalDataInfo(value)
                 name = value.name or "value"
                 text = "external_tensor("
-                text += f"{repr(name)}, {value.data_type}, {repr(list(value.dims))}"
-                text += f", {repr(metadata.location)}"
+                text += f"{name!r}, {value.data_type}, {list(value.dims)!r}"
+                text += f", {metadata.location!r}"
                 if metadata.offset:
-                    text += f", offset={repr(metadata.offset)}"
+                    text += f", offset={metadata.offset!r}"
                 if metadata.length:
-                    text += f", length={repr(metadata.length)}"
+                    text += f", length={metadata.length!r}"
                 attributes.append((at.name, text))
                 continue
             attributes.append((at.name, repr(value)))
@@ -325,8 +325,8 @@ class Exporter:
     def lookup(self, var):
         if var in self.constants:
             return self.constants[var]
-        else:
-            return self._rename_variable_s(var)
+
+        return self._rename_variable_s(var)
 
     def _python_make_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):
@@ -421,6 +421,7 @@ def export_template(
         autopep_options: :epkg:`autopep8` options
         function_name: main function name in the code
         clean_code: clean the code
+        use_operators: use Python operators.
         rename: rename variable name to get shorter names
         inline_const: replace ONNX constants inline if compact
 
@@ -456,9 +457,9 @@ def export_template(
     # containers
     context = {
         "main_model": model_onnx,
-        "python_make_node": exporter._python_make_node,  # pylint: disable=protected-access  # noqa: E501
-        "python_make_node_graph": exporter._python_make_node_graph,  # pylint: disable=protected-access  # noqa: E501
-        "python_make_node_name": _python_make_node_name,  # pylint: disable=protected-access  # noqa: E501
+        "python_make_node": exporter._python_make_node,  # pylint: disable=protected-access
+        "python_make_node_graph": exporter._python_make_node_graph,  # pylint: disable=protected-access
+        "python_make_node_name": _python_make_node_name,  # pylint: disable=protected-access
         "unique_function_domain_version": unique_function_domain_version_sorted,
         "rename": rename_variable,
         "translate_sig": _translate_signature,
@@ -530,8 +531,8 @@ def export_template(
 
 def export2python(
     model_onnx,
-    opset=None,  # pylint: disable=unused-argument
-    verbose=True,  # pylint: disable=unused-argument
+    opset=None,
+    verbose=True,
     name=None,
     rename=False,
     autopep_options=None,
@@ -551,6 +552,7 @@ def export2python(
         rename: rename the names to get shorter names
         autopep_options: :epkg:`autopep8` options
         function_name: main function name
+        use_operators: use Python operators.
         clean_code: clean the code
         inline_const: replace ONNX constants inline if compact
 
@@ -572,6 +574,8 @@ def export2python(
         code = export2python(onx)
         print(code)
     """
+    del opset  # unused
+    del verbose  # unused
     if isinstance(model_onnx, str):
         model_onnx = onnx.load(model_onnx)
 

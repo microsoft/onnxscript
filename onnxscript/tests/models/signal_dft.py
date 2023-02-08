@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+import math
+
 import numpy as np
 from onnx import TensorProto
 from onnx.helper import make_tensor
@@ -118,7 +120,11 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
 
 @script()
 def dft_last_axis(
-    x: FLOAT[...], fft_length: INT64[1], onesided=False, inverse=False, normalize=False
+    x: FLOAT[...],
+    fft_length: INT64[1],
+    onesided: bool = False,
+    inverse: bool = False,
+    normalize: bool = False,
 ) -> FLOAT[...]:
     """See PR https://github.com/onnx/onnx/pull/3741/.
 
@@ -169,11 +175,11 @@ def dft_last_axis(
 
     if op.Cast(inverse, to=TensorProto.BOOL):
         cst_2pi = op.Constant(
-            value=make_tensor("pi", TensorProto.FLOAT, [1], [6.28318530718])
+            value=make_tensor("pi", TensorProto.FLOAT, [1], [math.tau])
         )  #  2pi
     else:
         cst_2pi = op.Constant(
-            value=make_tensor("pi", TensorProto.FLOAT, [1], [-6.28318530718])
+            value=make_tensor("pi", TensorProto.FLOAT, [1], [-math.tau])
         )  #  -2pi
     fft_length_float = op.Cast(fft_length, to=1)
     p = (k / fft_length_float * cst_2pi) * n
@@ -258,8 +264,6 @@ def dft_last_axis(
     result = op.Concat(result_real, result_imag, axis=0)
     n_dims = op.Size(op.Shape(result))
 
-    # eager mode fails here: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()
-    print("********", onesided)
     if op.Cast(onesided, to=TensorProto.BOOL):
         half = op.Div(fft_length, two) + op.Mod(fft_length, two)
         n_r_dims_1 = op.Sub(op.Shape(op.Shape(x)), one)
@@ -294,11 +298,12 @@ def dft_inv(
     x: FLOAT[...],
     fft_length: INT64[1],
     axis: INT64[1],
-    onesided=False,
-    inverse=False,
-    normalize=False,
+    onesided: bool = False,
+    inverse: bool = False,
+    normalize: bool = False,
 ) -> FLOAT[...]:
     """Applies one dimension FFT.
+
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
@@ -324,17 +329,20 @@ def dft_inv(
     return final
 
 
-@script()
+@script(default_opset=op)
 def dft(
-    x: FLOAT[...], fft_length: INT64[1], axis: INT64[1], inverse=False, onesided=False
+    x: FLOAT[...],
+    fft_length: INT64[1],
+    axis: INT64[1],
+    inverse: bool = False,
+    onesided: bool = False,
 ) -> FLOAT[...]:
     """Applies one dimensional FFT.
 
     The function moves the considered axis to the last position
     calls dft_last_axis, and moves the axis to its original position.
     """
-    # return dft_inv._libcall(x, fft_length, axis, onesided, inverse, inverse)
-    return dft_inv(x, fft_length, axis, onesided, inverse, inverse)
+    return dft_inv(x, fft_length, axis, onesided=onesided, inverse=inverse, normalize=inverse)
 
 
 @script()
@@ -344,7 +352,7 @@ def stft(
     hop_length: INT64[1],
     n_frames: INT64[1],
     window: FLOAT["N"],
-    onesided=False,
+    onesided: bool = False,
 ) -> FLOAT[...]:
     """Applies one dimensional FFT with window weights.
 

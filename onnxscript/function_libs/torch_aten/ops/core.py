@@ -1641,8 +1641,10 @@ def aten_einsum(
 def aten_embedding(
     weight: TTensor,
     indices: TTensor,
-    **_,
-) -> TTensor:
+    padding_idx: int = -1,
+    scale_grad_by_freq: bool = False,
+    sparse: bool = False,
+):  # pylint: disable=unused-argument
     # embedding(Tensor weight, Tensor indices, int padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor
 
     return op.Gather(weight, indices)
@@ -1706,7 +1708,7 @@ def aten_empty(size: IntType, dtype: int = FLOAT.dtype) -> TTensor:  # type: ign
 
     # using Zeros to simulate np.empty()
     size = op.Cast(size, to=INT64.dtype)
-    zero = op.Constant(value_float=0)
+    zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
 
     return op.Expand(zero, size)
@@ -2399,7 +2401,7 @@ def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
         result = self
     else:
         # Index can be a scalar. Reshape it to a rank 1 tensor.
-        index = op.Reshape(index, op.Constant(value_floats=[-1]))
+        index = op.Reshape(index, op.Constant(value_ints=[-1]))
         index = op.Cast(index, to=INT64.dtype)
 
         result = op.Gather(self, index, axis=dim)
@@ -3805,7 +3807,7 @@ def aten_ones(size: IntType, dtype: int = FLOAT.dtype):
     # ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     size = op.Cast(size, to=INT64.dtype)
-    one = op.Constant(value_float=1)
+    one = op.Constant(value_float=1.0)
     one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
 
@@ -5344,7 +5346,7 @@ def aten_zeros(size: IntType, dtype: int = FLOAT.dtype):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     size = op.Cast(size, to=INT64.dtype)
-    zero = op.Constant(value_float=0)
+    zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
 
     return op.Expand(zero, size)

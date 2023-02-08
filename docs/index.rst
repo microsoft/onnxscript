@@ -1,27 +1,37 @@
-onnxscript: authoring onnx scripts
-==================================
+.. include:: abbreviations.rst
 
-ONNXScript is a subset of Python that can be used to author ONNX functions (as well as ONNX models).
+Overview
+========
 
-.. toctree::
-    :maxdepth: 1
+|onnxscript| enables developers to naturally author ONNX functions and
+models using a subset of Python. It is intended to be:
 
-    tutorial/index
-    open/index
-    api/index
-    auto_examples/index
+* **Expressive:** enables the authoring of all ONNX functions.
+* **Simple and concise:** function code is natural and simple.
+* **Debuggable:** allows for eager-mode evaluation that enables
+  debugging the code using standard python debuggers.
 
-*onnxscript* implements two main functionalities:
+Note however that |onnxscript| does **not** intend to support the entirety
+of the Python language.
 
-- a converter which translates a python function into ONNX; the converter analyzes the python
-  code using its abstract syntax tree and converts that tree into an ONNX graph
-  equivalent to the function.
-- a runtime that allows such functions to be executed (in an "eager mode"); this runtime relies on
-  *onnxruntime* for executing every operation described in
-  `ONNX Operators <https://github.com/onnx/onnx/blob/main/docs/Operators.md>`_).
+|onnxscript| provides a few major capabilities for authoring and debugging
+ONNX models and functions:
 
-The runtime is intended to help understand and debug function-definitions, and performance
-is not a goal for this mode.
+* A converter which translates a Python |onnxscript| function into an
+  ONNX graph, accomplished by traversing the Python Abstract Syntax Tree
+  to build an ONNX graph equivalent of the function.
+
+* A runtime shim that allows such functions to be evaluated
+  (in an "eager mode"). This functionality currently relies on
+  ONNX Runtime for executing ONNX ops
+  and there is a Python-only reference runtime for ONNX underway that
+  will also be supported.
+
+* A converter that translates ONNX models and functions into |onnxscript|.
+  This capability can be used to fully round-trip ONNX Script ↔ ONNX graph.
+
+Note that the runtime is intended to help understand and debug function definitions.
+Performance is not a goal here.
 
 **Example**
 
@@ -41,19 +51,35 @@ The following toy example illustrates how to use onnxscript.
 
 
 The decorator parses the code of the function and converts it into an intermediate
-representation. If it fails, it produces an error message indicating the line where
-the error was detected. If it succeeds, the corresponding ONNX representation
-of the function (a value of type FunctionProto) can be generated as shown below:
+representation. If it fails, it produces an error message indicating the error detected.
+If it succeeds, the corresponding ONNX representation of the function
+(a value of type FunctionProto) can be generated as shown below:
 
 ::
 
   fp = MatmulAdd.to_function_proto()  # returns an onnx.FunctionProto
 
+One can similarly generate an ONNX Model. There are a few differences between
+ONNX models and ONNX functions. For example, ONNX models must specify the
+type of inputs and outputs (unlike ONNX functions).
+The following example illustrates how we can generate an ONNX Model:
+
+::
+
+    from onnxscript import script
+    from onnxscript import opset15 as op
+    from onnxscript import FLOAT
+
+    @script()
+    def MatmulAddModel(X : FLOAT[64, 128] , Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOAT[64, 10]:
+        return op.MatMul(X, Wt) + Bias
+
+    model = MatmulAddModel.to_model_proto() # returns an onnx.ModelProto
 
 **Eager mode**
 
 Eager evaluation mode is mostly use to debug and check intermediate results
-are as expected. The function defined above can be called as below, and this
+are as expected. The function defined earlier can be called as below, and this
 executes in an eager-evaluation mode.
 
 ::
@@ -64,6 +90,13 @@ executes in an eager-evaluation mode.
     wt = np.array([[0, 1], [2, 3]], dtype=np.float32)
     bias = np.array([0, 1], dtype=np.float32)
     result = MatmulAdd(x, wt, bias)
+
+.. toctree::
+    :maxdepth: 1
+
+    tutorial/index
+    api/index
+    auto_examples/index
 
 **License**
 

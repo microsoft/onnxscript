@@ -21,7 +21,7 @@ class EvaluatorTest(unittest.TestCase):
             return seq2
 
         x = np.array([0.0, 1.0], dtype=np.float32)
-        expected = [t * t for t in [x, x + 1, x + 2]]
+        expected = [t * t for t in (x, x + 1, x + 2)]
 
         # Test using (current) default evaluator
         output = seq_map(x)

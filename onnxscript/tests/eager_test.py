@@ -83,7 +83,7 @@ def _stft(
     hop_length=None,
 ):
     try:
-        import torch  # noqa:F401
+        import torch
     except ImportError as e:
         raise ImportError("torch is not installed.") from e
     ft = torch.stft(
@@ -160,7 +160,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
 
         for c in cs:
             x = _complex2float(c)
-            for s in [4, 5, 6]:
+            for s in (4, 5, 6):
                 le = np.array([s], dtype=np.int64)
                 we = np.array([1] * le[0], dtype=np.float32)
                 expected1 = _fft(c, le)
@@ -226,7 +226,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
     def test_dft_cfft(self, x, y):
         c = x + 1j * y
         x = _complex2float(c)
-        for s in [4, 5, 6]:
+        for s in (4, 5, 6):
             le = np.array([s], dtype=np.int64)
             for ax in range(len(c.shape)):
                 nax = np.array([ax], dtype=np.int64)
@@ -254,7 +254,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
     )
     def test_dft_rifft(self, x_):
         x = x_[..., np.newaxis]
-        for s in [4, 5, 6]:
+        for s in (4, 5, 6):
             le = np.array([s], dtype=np.int64)
             for ax in range(len(x_.shape)):
                 expected = _ifft(x_, le, axis=ax)
@@ -262,7 +262,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 with self.subTest(
                     x_shape=x.shape,
                     le=list(le),
-                    ax=ax,
+                    ax=str(ax),
                     expected_shape=expected.shape,
                 ):
                     case = onnx_script_test_case.FunctionTestParams(
@@ -291,7 +291,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         c = x + 1j * y
 
         x = _complex2float(c)
-        for s in [4, 5, 6]:
+        for s in (4, 5, 6):
             le = np.array([s], dtype=np.int64)
             for ax in range(len(c.shape)):
                 nax = np.array([ax], dtype=np.int64)
@@ -301,7 +301,7 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
                 with self.subTest(
                     c_shape=c.shape,
                     le=list(le),
-                    ax=ax,
+                    ax=str(ax),
                     expected_shape=expected1.shape,
                 ):
                     case = onnx_script_test_case.FunctionTestParams(

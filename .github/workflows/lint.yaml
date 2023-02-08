@@ -8,6 +8,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}-${{ github.event_name == 'workflow_dispatch' }}
+  cancel-in-progress: true
+
 jobs:
   optional-lint:
     name: Optional Lint
@@ -58,7 +62,7 @@ jobs:
           set +e
           if ! lintrunner --force-color --all-files --tee-json=lint.json; then
               echo ""
-              echo -e "\e[1m\e[36mYou can reproduce these results locally by using \`lintrunner\`.\e[0m"
+              echo -e "\e[1m\e[36mYou can reproduce these results locally by using \`lintrunner -m main\`.\e[0m"
               exit 1
           fi
       - name: Produce SARIF
