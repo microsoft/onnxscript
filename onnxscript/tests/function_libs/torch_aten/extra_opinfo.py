@@ -12,9 +12,7 @@ from torch.testing._internal import common_dtype, common_utils
 from torch.testing._internal.opinfo import core as opinfo_core
 
 
-def sample_inputs_convolution(
-    op_info, device, dtype, requires_grad, **kwargs
-):
+def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
