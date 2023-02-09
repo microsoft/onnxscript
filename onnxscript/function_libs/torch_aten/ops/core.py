@@ -366,7 +366,6 @@ def aten_arange_start_step(
         end = op.Cast(end, to=FLOAT.dtype)
         start = op.Cast(start, to=FLOAT.dtype)
         step = op.Cast(step, to=FLOAT.dtype)
-        result = op.Range(start, end, step)
         result = op.Cast(op.Range(start, end, step), to=dtype)
 
     return result
