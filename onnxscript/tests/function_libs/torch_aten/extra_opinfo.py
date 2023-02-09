@@ -90,7 +90,7 @@ def sample_inputs_convolution(
         ),
     )
 
-    for input_shape, weight, bias, kwargs in cases:
+    for input_shape, weight, bias, kwargs in cases:  # type: ignore[assignment]
         yield opinfo_core.SampleInput(
             make_arg(input_shape),
             args=(make_arg(weight), make_arg(bias) if bias is not None else bias),
