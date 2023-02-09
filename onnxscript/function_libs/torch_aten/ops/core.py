@@ -298,7 +298,7 @@ def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1)
         result = op.Range(zero, end, one)
     else:
         # Cast input to float if dtype is not supported by Range,
-        # because the input dtype may be e.g. bool
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
         end = op.Cast(end, to=FLOAT.dtype)
@@ -328,7 +328,7 @@ def aten_arange_start(
         result = op.Range(start, end, one)
     else:
         # Cast input to float if dtype is not supported by Range,
-        # because the input dtype may be e.g. bool
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
         end = op.Cast(end, to=FLOAT.dtype)
@@ -360,7 +360,7 @@ def aten_arange_start_step(
         result = op.Range(start, end, step)
     else:
         # Cast input to float if dtype is not supported by Range,
-        # because the input dtype may be e.g. bool
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
         end = op.Cast(end, to=FLOAT.dtype)
