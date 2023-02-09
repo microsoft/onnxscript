@@ -1,24 +1,22 @@
 # Configuration for lintrunner https://github.com/suo/lintrunner
 
 [[linter]]
-code = 'FLAKE8'
+code = 'RUFF'
 include_patterns = [
     '**/*.py',
     '**/*.pyi',
 ]
 exclude_patterns = [
-    '.git/**',
-    '.lintrunner/**',
     'docs/**',
+    'onnxscript/tests/models/**',
 ]
 command = [
     'python',
     '-m',
     'lintrunner_adapters',
     'run',
-    'flake8_linter',
-    '--docstring-convention=google',
-    '--',
+    'ruff_linter',
+    '--config=pyproject.toml',
     '@{{PATHSFILE}}'
 ]
 init_command = [
@@ -28,13 +26,38 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
-    'flake8==5.0.4',
-    'flake8-bugbear==22.10.27',
-    'flake8-pyi==22.10.0',
-    'dlint==0.13.0',
-    'flake8-docstrings==1.6.0',
-    'flake8-future-annotations==1.0.0',
+    'ruff==0.0.241',
 ]
+
+[[linter]]
+code = 'RUFF-FIX'
+include_patterns = [
+    '**/*.py',
+    '**/*.pyi',
+]
+exclude_patterns = [
+    'docs/**',
+    'onnxscript/tests/models/**',
+]
+command = [
+    'python',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'ruff_fix_linter',
+    '--config=pyproject.toml',
+    '@{{PATHSFILE}}'
+]
+init_command = [
+    'python',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
+    '--dry-run={{DRYRUN}}',
+    'ruff==0.0.241',
+]
+is_formatter = true
 
 [[linter]]
 code = 'MYPY'
@@ -44,17 +67,18 @@ include_patterns = [
 ]
 exclude_patterns = [
     # FIXME: Fix typing annotations in these files
+    'onnxscript/converter_test.py',
     'onnxscript/converter.py',
+    'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'onnxscript/test/converter_test.py',
-    'onnxscript/test/eager_test.py',
-    'onnxscript/test/loop_test.py',
-    'onnxscript/test/operator_test.py',
-    'onnxscript/test/evaluator_test.py',
-    'onnxscript/test/external_tensor_test.py',
-    'onnxscript/test/type_annotation_test.py',
-    'onnxscript/test/functions/**',
+    'onnxscript/tests/eager_mode_test.py',
+    'onnxscript/tests/eager_test.py',
+    'onnxscript/tests/external_tensor_test.py',
+    'onnxscript/tests/functions/**',
+    'onnxscript/tests/loop_test.py',
+    'onnxscript/tests/operator_test.py',
+    'onnxscript/type_annotation_test.py',
 ]
 command = [
     'python',
@@ -83,8 +107,7 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'onnxscript/test/models/**',
-    'onnxscript/test/onnx_backend_test_code/**',
+    'onnxscript/tests/onnx_backend_test_code/**',
 ]
 command = [
     'python',
@@ -113,13 +136,12 @@ include_patterns = [
     '**/*.py',
 ]
 exclude_patterns = [
-    'onnxscript/test/models/**',
-    'onnxscript/test/onnx_backend_test_code/**',
     'docs/examples/**',
     'docs/tutorial/examples/**',
-    'onnxscript/test/functions/**',
-    'onnxscript/test/models/**',
-    'onnxscript/test/converter_test.py',
+    'onnxscript/converter_test.py',
+    'onnxscript/tests/functions/**',
+    'onnxscript/tests/models/**',
+    'onnxscript/tests/onnx_backend_test_code/**',
 ]
 command = [
     'python',

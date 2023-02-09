@@ -21,9 +21,9 @@ from onnxscript import values
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
-    _ast_Subscript = ast.Subscript
+    _ast_Subscript = ast.Subscript  # noqa: N816
 else:
-    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]
+    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]  # noqa: N816
 
 logger = logging.getLogger("onnx-script")
 
@@ -285,41 +285,43 @@ class Converter:
         # TODO(justinchuby): Can we reduce the O complexity of this function?
         r = candidate
         while r in self.used_vars:
-            r = f"{candidate}_{str(self.nextvar)}"
+            r = f"{candidate}_{self.nextvar}"
             self.nextvar = self.nextvar + 1
         self.used_vars.add(r)
         return r
 
-    def to_onnx_attr_ref(self, val: values.AttrRef):
+    def to_onnx_attr_ref(self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]):
         pytype = val.typeinfo
+        attrtype = ta.pytype_to_attrtype(pytype)
         attrname = None
-        if pytype is float:
+        if attrtype is onnx.AttributeProto.FLOAT:
             attrname = "value_float"
-        elif pytype is int:
+        elif attrtype is onnx.AttributeProto.INT:
             attrname = "value_int"
-        elif pytype is str:
+        elif attrtype is onnx.AttributeProto.STRING:
             attrname = "value_string"
-        elif pytype is List[int]:
+        elif attrtype is onnx.AttributeProto.INTS:
             attrname = "value_ints"
         else:
-            self.fail(val, f"Unsupported attribute type {pytype!r}.")
+            msg = f"Unsupported attribute type {pytype!r}."
+            fail(info.msg(msg) if info else msg)
         return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
 
-    def to_onnx_var(self, val, target=None, info=None):
+    def to_onnx_var(self, val, target=None, info: Optional[sourceinfo.SourceInfo] = None):
         if isinstance(val, values.AttrRef):
             # promote attribute to value
-            result = self.generate_unique_name(target if target else "tmp")
-            attr = self.to_onnx_attr_ref(val)
+            result = self.generate_unique_name(target or "tmp")
+            attr = self.to_onnx_attr_ref(val, info)
             self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
-            return result
+            return ConverterExpression(result, ConverterExpressionKind.CONST)
         if isinstance(val, values.Dynamic):
             return val.value
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error message otherwise
-        return self.emit_const(val, target if target else "tmp", info)
+        return self.emit_const(val, target or "tmp", info)
 
-    def py_var_to_onnx_var(self, py_var, info):
+    def py_var_to_onnx_var(self, py_var, info: sourceinfo.SourceInfo):
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring):
@@ -341,7 +343,6 @@ class Converter:
             self.bind(x, values.Dynamic(r, values.DynamicKind.Output, info))
             return r
 
-        # [ self.to_onnx_var(self.lookup(pvar)) for pvar in inputs ]
         onnx_inputs = inputs
         onnx_outputs = [rename(x) for x in outputs]
         self.emit(
@@ -404,9 +405,9 @@ class Converter:
         # TODO: Refine types
         locals: dict[Any, Any] = {}
         expr = ast.Expression(expr)
-        cpl = compile(expr, filename="<ast>", mode="eval")  # noqa: DUO110
+        cpl = compile(expr, filename="<ast>", mode="eval")
         try:
-            return eval(cpl, self.globals, locals)  # noqa: DUO104
+            return eval(cpl, self.globals, locals)
         except NameError as e:
             raise NameError(
                 self.message(
@@ -713,7 +714,7 @@ class Converter:
 
             steps_name = self.generate_unique_name(f"{var_name}_step")
             self.emit([steps_name], values.Op(self.default_opset, "Concat"), steps, [attr])
-            if len(squeezed_axes) > 0:
+            if squeezed_axes:
                 sliced_name = self.generate_unique_name(f"{var_name}sliced")
                 self.emit(
                     [sliced_name],
@@ -874,7 +875,7 @@ class Converter:
             opname = node.attr
             if opname in module:
                 return values.Op(module, node.attr)
-            warn(f"'{opname}' is not a known op in '{str(module)}'")
+            warn(f"'{opname}' is not a known op in '{module}'")
             return values.Op(module, node.attr)
         if isinstance(node, ast.Name):
             function_name = node.id
@@ -1038,7 +1039,7 @@ class Converter:
 
         # no break condition
         renamed = [rename(x) for x in live_defs]
-        if len(renamed) == 0:
+        if not renamed:
             self.fail(stmt, "A subgraph for a test do not have any output variable.")
 
         sub_functions = {}

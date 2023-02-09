@@ -17,6 +17,7 @@ on:
   pull_request:
     # The branches below must be a subset of the branches above
     branches: [ "main" ]
+    types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     - cron: '25 16 * * 4'
 
@@ -28,6 +29,8 @@ jobs:
       actions: read
       contents: read
       security-events: write
+    # Do not run on drafts to make reviewing easier
+    if: github.event.pull_request.draft == false
 
     strategy:
       fail-fast: false
@@ -51,7 +54,7 @@ jobs:
 
         # Details on CodeQL's query packs refer to : https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         queries: security-extended,security-and-quality
-
+        config-file: ./.github/codeql/codeql-config.yml
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below)

@@ -14,13 +14,20 @@
 
 from __future__ import annotations
 
+import math
 from typing import Optional, Sequence
 
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
-from onnxscript.function_libs.torch_aten.typing import TFloat, TFloatOrBFloat16, TReal
+from onnxscript.function_libs.torch_aten.tensor_typing import (
+    TFloat,
+    TFloatOrBFloat16,
+    TReal,
+)
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+_MATH_PI = math.pi
 
 
 @torch_op("aten::aten_adaptive_avg_pool1d")
@@ -324,29 +331,48 @@ def aten_fractional_max_pool3d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::gelu")
+@torch_op("aten::gelu", trace_only=True)
 def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     # gelu(Tensor self, *, str approximate='none') -> Tensor
 
     self = op.Cast(self, to=FLOAT.dtype)
 
     if approximate == "tanh":
-        # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
-        cubed = op.Pow(self, 3)
-        inner = op.Mul(0.044715, cubed)
-        inner = op.Add(self, inner)
-        inner = op.Mul(op.Sqrt(op.Div(2.0, 3.141592653589793)), inner)
-        inner = op.Tanh(inner)
-        inner = op.Add(inner, 1)
-        inner = op.Mul(self, inner)
-        result = op.Mul(0.5, inner)
+        result = _aten_gelu_approximate_tanh(self)
     else:
-        # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
-        inner = op.Div(self, 1.4142135623730951)
-        erf = op.Erf(inner)
-        inner = op.Add(erf, 1)
-        inner = op.Mul(self, inner)
-        result = op.Mul(0.5, inner)
+        result = _aten_gelu_approximate_none(self)
+    return result
+
+
+@torch_op("aten::gelu", overload=True)
+def _aten_gelu_approximate_none(self: TReal) -> TReal:
+    # gelu(Tensor self, *, str approximate='none') -> Tensor
+
+    self = op.Cast(self, to=FLOAT.dtype)
+    # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
+    inner = op.Div(self, 1.4142135623730951)
+    erf = op.Erf(inner)
+    inner = op.Add(erf, 1)
+    inner = op.Mul(self, inner)
+    result = op.Mul(0.5, inner)
+    return result
+
+
+@torch_op("aten::gelu", overload=True)
+def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
+    # gelu(Tensor self, *, str approximate='none') -> Tensor
+
+    self = op.Cast(self, to=FLOAT.dtype)
+    # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
+    cubed = op.Pow(self, 3)
+    inner = op.Mul(0.044715, cubed)
+    inner = op.Add(self, inner)
+    # Prefer explicit graph construction over precomputed constants for clarity.
+    inner = op.Mul(op.Sqrt(op.Div(2.0, _MATH_PI)), inner)
+    inner = op.Tanh(inner)
+    inner = op.Add(inner, 1)
+    inner = op.Mul(self, inner)
+    result = op.Mul(0.5, inner)
     return result
 
 
@@ -413,7 +439,7 @@ def aten_hardswish_backward(grad_output: TensorType, self: TensorType) -> Tensor
     raise NotImplementedError()
 
 
-def aten_hardtanh(self: TensorType, min_val: float = -1, max_val: float = 1) -> TensorType:
+def aten_hardtanh(self: TensorType, min_val: float = -1.0, max_val: float = 1.0) -> TensorType:
     # hardtanh(Tensor self, Scalar min_val=-1, Scalar max_val=1) -> Tensor
 
     raise NotImplementedError()
@@ -484,20 +510,15 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::linear")
+@torch_op("aten::linear", trace_only=True)
 def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TFloat:
     # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
 
-    # FIXME(justinchuby): Enable the test
-    # INVALID_GRAPH : This is an invalid model.
-    # In Node, ("", OptionalHasElement, "", -1) : () -> ("output0",) ,
-    # Error Node () has input size 0 not in range [min=1, max=1]
-
     # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
     # Optimizers may consider this path and replace it with Gemm
-    result = op.MatMul(input, weight)
-    if op.OptionalHasElement(bias):
-        bias = op.OptionalGetElement(bias)
+    weight_transposed = op.Transpose(weight, perm=[1, 0])
+    result = op.MatMul(input, weight_transposed)
+    if bias is not None:
         result = op.Add(result, bias)
     return result
 
@@ -668,8 +689,8 @@ def aten_mse_loss_backward(
 def aten_multi_margin_loss(
     self: TensorType,
     target: TensorType,
-    p: float = 1,
-    margin: float = 1,
+    p: float = 1.0,
+    margin: float = 1.0,
     weight: Optional[TensorType] = None,
     reduction: int = 1,
 ) -> TensorType:
@@ -1090,7 +1111,7 @@ def aten_soft_margin_loss_backward(
     raise NotImplementedError()
 
 
-def aten_softplus(self: TensorType, beta: float = 1, threshold: float = 20) -> TensorType:
+def aten_softplus(self: TensorType, beta: float = 1.0, threshold: float = 20.0) -> TensorType:
     # softplus(Tensor self, Scalar beta=1, Scalar threshold=20) -> Tensor
 
     raise NotImplementedError()
