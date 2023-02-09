@@ -4760,23 +4760,9 @@ def aten_sparse_mask(self: TensorType, mask: TensorType) -> TensorType:
 @torch_op("aten::split")
 def aten_split(self: TTensor, split_size: INT64, dim: int = 0) -> TTensor:
     # split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]
-    from onnxscript.onnx_opset import opset17 as op17
 
-    return op17.SplitToSequence(self, split_size, axis=dim)
     return op.SplitToSequence(self, split_size, axis=dim)
 
-
-def test_aten_split():
-    import numpy as np
-    a = np.arange(10, dtype=np.float32).reshape(5,2)
-    s = 2
-    dim = 0
-    b = aten_split(a, s)
-    print(b)
-    print("------------------")
-
-test_aten_split()
-exit(0)
 
 def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> TensorType:
     # split_copy.Tensor(Tensor self, SymInt split_size, int dim=0) -> Tensor[]
