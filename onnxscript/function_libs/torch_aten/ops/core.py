@@ -1182,7 +1182,7 @@ def _aten_convolution_onnx(
     pads: Sequence[int],
     dilations: Sequence[int],
     transposed: bool = False,
-    output_padding: Sequence[int] = [0],
+    output_padding: Sequence[int] = (0,),
     groups: int = 1,
 ) -> TFloat:
     """ConvXd with attributes pre-computed to fit the ONNX spec."""
