@@ -1487,7 +1487,7 @@ def aten_cumprod_backward(
     raise NotImplementedError()
 
 @torch_op("aten::cumsum", trace_only=True)
-def aten_cumsum(self: TRealUnlessInt16OrInt8, dim: int, dtype: int = -1) -> TRealUnlessInt16OrInt8:
+def aten_cumsum(self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64], dtype: int = -1) -> TRealUnlessInt16OrInt8:
     # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
     if dtype == -1:
         cast = self

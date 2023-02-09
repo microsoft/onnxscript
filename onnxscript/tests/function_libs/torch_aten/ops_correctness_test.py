@@ -247,7 +247,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "alias": core_ops.aten_alias,
+    # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -425,6 +425,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="cat does not support zero-dim tensors yet",
     ),
+    # skip(
+    #     "cumsum",
+    #     matcher=lambda sample: isinstance(sample.args[0], torch.Tensor),
+    #     reason="cumsum does not support scalar.",
+    # ),
     skip(
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
