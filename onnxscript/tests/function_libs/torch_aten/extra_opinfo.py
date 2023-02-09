@@ -62,19 +62,21 @@ def sample_inputs_convolution(
                 "groups": 1,
             },
         ),
-        (
-            (1, 3, 224, 224, 224),
-            (32, 3, 3, 3, 3),
-            (32,),
-            {
-                "stride": (2, 2, 2),
-                "padding": (1, 1, 1),
-                "dilation": (1, 1, 1),
-                "transposed": False,
-                "output_padding": [0, 0, 0],
-                "groups": 1,
-            },
-        ),
+        # FIXME(jiz): Uncomment out these test data once
+        # torch 2.0 is released.
+        # (
+        #     (1, 3, 224, 224, 224),
+        #     (32, 3, 3, 3, 3),
+        #     (32,),
+        #     {
+        #         "stride": (2, 2, 2),
+        #         "padding": (1, 1, 1),
+        #         "dilation": (1, 1, 1),
+        #         "transposed": False,
+        #         "output_padding": [0, 0, 0],
+        #         "groups": 1,
+        #     },
+        # ),
         (
             (2, 4, 6, 6),
             (4, 1, 3, 3),
