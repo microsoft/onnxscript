@@ -99,6 +99,7 @@ init_command = [
     'pip_init',
     '--dry-run={{DRYRUN}}',
     'mypy==1.0.0',
+    'types-PyYAML==6.0.12.4',
 ]
 
 [[linter]]
