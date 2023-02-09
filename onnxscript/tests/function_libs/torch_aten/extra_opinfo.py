@@ -4,24 +4,25 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 """
 
 import functools
-from typing import Any, List, Tuple
+from typing import Any, List
 
 import torch
 from torch import testing as torch_testing
-from torch.testing._internal import common_cuda, common_dtype, common_utils
+from torch.testing._internal import common_dtype, common_utils
 from torch.testing._internal.opinfo import core as opinfo_core
 
 
 def sample_inputs_convolution(
     op_info, device, dtype, requires_grad, **kwargs
-):  # pylint: disable=unused-argument
+):
+    del op_info
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
 
     # Ordered as shapes for input, weight, bias,
     # and a dict of values of (stride, padding, dilation, groups)
-    cases: tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], dict[str, Any]] = (
+    cases: tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...], dict[str, Any]] = (  # type: ignore[assignment]
         (
             (1, 3, 4),
             (3, 3, 3),
@@ -31,7 +32,7 @@ def sample_inputs_convolution(
                 "padding": (2,),
                 "dilation": (1,),
                 "transposed": False,
-                "output_padding": (0,),
+                "output_padding": [0,],
                 "groups": 1,
             },
         ),
@@ -44,7 +45,7 @@ def sample_inputs_convolution(
                 "padding": (2,),
                 "dilation": (1,),
                 "transposed": True,
-                "output_padding": (0,),
+                "output_padding": [0,],
                 "groups": 1,
             },
         ),
@@ -57,7 +58,20 @@ def sample_inputs_convolution(
                 "padding": (1, 1),
                 "dilation": (1, 1),
                 "transposed": False,
-                "output_padding": (0, 0),
+                "output_padding": [0, 0],
+                "groups": 1,
+            },
+        ),
+        (
+            (1, 3, 224, 224, 224),
+            (32, 3, 3, 3, 3),
+            (32,),
+            {
+                "stride": (2, 2, 2),
+                "padding": (1, 1, 1),
+                "dilation": (1, 1, 1),
+                "transposed": False,
+                "output_padding": [0, 0, 0],
                 "groups": 1,
             },
         ),
@@ -70,7 +84,7 @@ def sample_inputs_convolution(
                 "padding": (1, 1),
                 "dilation": (1, 1),
                 "transposed": True,
-                "output_padding": (0, 0),
+                "output_padding": [0, 0],
                 "groups": 4,
             },
         ),
@@ -95,7 +109,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_fwgrad_bwgrad=True,
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
         skips=(),
-        supports_expanded_weight=True,
         supports_out=False,
     ),
 ]

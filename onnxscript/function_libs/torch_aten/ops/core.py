@@ -30,8 +30,6 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
-_DEFAULT_OUTPUT_PADDING = (0,)
-_DEFAULT_TRANSPOSED = False
 
 
 @torch_op("aten::abs")
@@ -1077,8 +1075,6 @@ def aten_conv2d(
         strides=strides,
         pads=pads,
         dilations=dilations,
-        transposed=_DEFAULT_TRANSPOSED,
-        output_padding=_DEFAULT_OUTPUT_PADDING,
         groups=groups,
     )
 
@@ -1185,8 +1181,8 @@ def _aten_convolution_onnx(
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
-    transposed: bool,
-    output_padding: Sequence[int],
+    transposed: bool = False,
+    output_padding: Sequence[int] = [0],
     groups: int = 1,
 ) -> TFloat:
     """ConvXd with attributes pre-computed to fit the ONNX spec."""
