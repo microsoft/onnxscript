@@ -287,7 +287,11 @@ def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1)
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
 
-    if _range_supported(dtype):
+    if dtype == -1:
+        zero = op.CastLike(0.0, end)
+        one = op.CastLike(1.0, end)
+        result = op.Range(zero, end, one)
+    elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         zero = op.Cast(0, to=dtype)
         one = op.Cast(1, to=dtype)
@@ -297,15 +301,10 @@ def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1)
         # because the input dtype may be e.g. bool
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end_ = end
         end = op.Cast(end, to=FLOAT.dtype)
         zero = op.Constant(value_float=0.0)
         one = op.Constant(value_float=1.0)
-        result = op.Range(zero, end, one)
-        if dtype != -1:
-            result = op.Cast(result, to=dtype)
-        else:
-            result = op.CastLike(result, end_)
+        result = op.Cast(op.Range(zero, end, one), to=dtype)
 
     return result
 
@@ -319,7 +318,10 @@ def aten_arange_start(
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
 
-    if _range_supported(dtype):
+    if dtype == -1:
+        one = op.CastLike(1.0, end)
+        result = op.Range(start, end, one)
+    elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
         one = op.Cast(1, to=dtype)
@@ -329,15 +331,10 @@ def aten_arange_start(
         # because the input dtype may be e.g. bool
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end_ = end
         end = op.Cast(end, to=FLOAT.dtype)
         start = op.Cast(start, to=FLOAT.dtype)
         one = op.Constant(value_float=1.0)
-        result = op.Range(start, end, one)
-        if dtype != -1:
-            result = op.Cast(result, to=dtype)
-        else:
-            result = op.CastLike(result, end_)
+        result = op.Cast(op.Range(start, end, one), to=dtype)
 
     return result
 
@@ -354,7 +351,9 @@ def aten_arange_start_step(
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
 
-    if _range_supported(dtype):
+    if dtype == -1:
+        result = op.Range(start, end, step)
+    elif _range_supported(dtype):
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
         step = op.Cast(step, to=dtype)
@@ -364,15 +363,11 @@ def aten_arange_start_step(
         # because the input dtype may be e.g. bool
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end_ = end
         end = op.Cast(end, to=FLOAT.dtype)
         start = op.Cast(start, to=FLOAT.dtype)
         step = op.Cast(step, to=FLOAT.dtype)
         result = op.Range(start, end, step)
-        if dtype != -1:
-            result = op.Cast(result, to=dtype)
-        else:
-            result = op.CastLike(result, end_)
+        result = op.Cast(op.Range(start, end, step), to=dtype)
 
     return result
 
