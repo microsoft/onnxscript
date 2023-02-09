@@ -269,6 +269,17 @@ def aten_any(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def _range_supported(dtype: int) -> bool:
+    """Returns true if the dtype is supported by the ONNX Range op."""
+    return dtype in {
+        DOUBLE.dtype,
+        FLOAT.dtype,
+        INT16.dtype,
+        INT32.dtype,
+        INT64.dtype,
+    }
+
+
 @torch_op("aten::arange", trace_only=True)
 def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1) -> TensorType:
     # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
@@ -276,17 +287,25 @@ def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1)
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
 
-    # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
-    # which Range does not support. The output type is ensured because the output
-    # is casted to the specified dtype.
-    if dtype != -1:
-        end = op.Cast(end, to=DOUBLE.dtype)
-
-    zero = op.CastLike(0, end)
-    one = op.CastLike(1, end)
-    result = op.Range(zero, end, one)
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
+    if _range_supported(dtype):
+        end = op.Cast(end, to=dtype)
+        zero = op.Cast(0, to=dtype)
+        one = op.Cast(1, to=dtype)
+        result = op.Range(zero, end, one)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bool
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        end_ = end
+        end = op.Cast(end, to=FLOAT.dtype)
+        zero = op.Constant(value_float=0.0)
+        one = op.Constant(value_float=1.0)
+        result = op.Range(zero, end, one)
+        if dtype != -1:
+            result = op.Cast(result, to=dtype)
+        else:
+            result = op.CastLike(result, end_)
 
     return result
 
@@ -300,17 +319,25 @@ def aten_arange_start(
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
 
-    # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
-    # which Range does not support. The output type is ensured because the output
-    # is casted to the specified dtype.
-    if dtype != -1:
-        start = op.Cast(start, to=DOUBLE.dtype)
-        end = op.Cast(end, to=DOUBLE.dtype)
-
-    one = op.CastLike(1, end)
-    result = op.Range(start, end, one)
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
+    if _range_supported(dtype):
+        end = op.Cast(end, to=dtype)
+        start = op.Cast(start, to=dtype)
+        one = op.Cast(1, to=dtype)
+        result = op.Range(start, end, one)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bool
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        end_ = end
+        end = op.Cast(end, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        one = op.Constant(value_float=1.0)
+        result = op.Range(start, end, one)
+        if dtype != -1:
+            result = op.Cast(result, to=dtype)
+        else:
+            result = op.CastLike(result, end_)
 
     return result
 
@@ -327,17 +354,25 @@ def aten_arange_start_step(
     # NOTE: trace_only because both if branches need to be the same type, but we have
     # a cast in the if branch.
 
-    # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
-    # which Range does not support. The output type is ensured because the output
-    # is casted to the specified dtype.
-    if dtype != -1:
-        start = op.Cast(start, to=DOUBLE.dtype)
-        end = op.Cast(end, to=DOUBLE.dtype)
-        step = op.Cast(step, to=DOUBLE.dtype)
-
-    result = op.Range(start, end, step)
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
+    if _range_supported(dtype):
+        end = op.Cast(end, to=dtype)
+        start = op.Cast(start, to=dtype)
+        step = op.Cast(step, to=dtype)
+        result = op.Range(start, end, step)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bool
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        end_ = end
+        end = op.Cast(end, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        step = op.Cast(step, to=FLOAT.dtype)
+        result = op.Range(start, end, step)
+        if dtype != -1:
+            result = op.Cast(result, to=dtype)
+        else:
+            result = op.CastLike(result, end_)
 
     return result
 
@@ -4856,9 +4891,7 @@ def aten_sum_dim_IntList(
 
 
 @torch_op("aten::sum", overload=True)
-def _aten_sum_dim_onnx(
-    self: TReal, dim: INT64, keepdim: bool = False
-) -> TReal:
+def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))

@@ -247,9 +247,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -354,6 +351,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
 ] = {
     "amax": core_ops.aten_amax,
     "amin": core_ops.aten_amin,
+    "arange_start_step": core_ops.aten_arange_start_step,
+    "arange_start": core_ops.aten_arange_start,
+    "arange": core_ops.aten_arange,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
@@ -582,7 +582,7 @@ class TestFunctionValidity(unittest.TestCase):
                 func = func_with_wrangler
             if not isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
-                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'?"
+                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
                     "If the function is trace_only, please move it to the "
                     "'OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
                 )
