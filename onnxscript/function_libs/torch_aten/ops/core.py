@@ -24,6 +24,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
+    TrealOrUInt8,
 )
 from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
@@ -97,6 +98,7 @@ def aten_addmm(
 
     # TODO(titaiwang): op.Gemm seems needed to take care of corner case according to old symbolic_fn.
     # Currently, it shows op-level validation failing on bloom.
+
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
@@ -142,7 +144,7 @@ def aten_affine_grid_generator_backward(
     raise NotImplementedError()
 
 @torch_op("aten::alias")
-def aten_alias(self: TensorType) -> TensorType:
+def aten_alias(self: TTensor) -> TTensor:
     # alias(Tensor(a) self) -> Tensor(a)
 
     return op.Identity(self)
@@ -531,12 +533,12 @@ def aten_avg_pool1d(
 
 @torch_op("aten::baddbmm")
 def aten_baddbmm(
-    self: TensorType,
-    batch1: TensorType,
-    batch2: TensorType,
+    self: TrealOrUInt8,
+    batch1: TRealUnlessInt16OrInt8,
+    batch2: TRealUnlessInt16OrInt8,
     beta: float = 1.0,
     alpha: float = 1.0,
-) -> TensorType:
+) -> TRealUnlessInt16OrInt8:
     # baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
     batch_mul = op.MatMul(batch1, batch2)
     alpha_cast = op.CastLike(alpha, self)
@@ -1485,7 +1487,7 @@ def aten_cumprod_backward(
     raise NotImplementedError()
 
 @torch_op("aten::cumsum", trace_only=True)
-def aten_cumsum(self: TensorType, dim: int, dtype: int = -1) -> TensorType:
+def aten_cumsum(self: TRealUnlessInt16OrInt8, dim: int, dtype: int = -1) -> TRealUnlessInt16OrInt8:
     # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
     if dtype == -1:
         cast = self
@@ -2946,7 +2948,7 @@ def aten_margin_ranking_loss(
     raise NotImplementedError()
 
 @torch_op("aten::masked_fill")
-def aten_masked_fill(self: TensorType, mask: TensorType, value: TensorType) -> TensorType:
+def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
     mask_cast = op.Cast(mask, to=BOOL.dtype)
     value_cast = op.CastLike(value, self)
@@ -4536,8 +4538,8 @@ def aten_segment_reduce(
 
 @torch_op("aten::select")
 def aten_select(
-    self: TensorType, dim: int, index: int
-) -> TensorType:
+    self: TTensor, dim: int, index: int
+) -> TTensor:
     # select(Tensor self, int dim, int index) -> Tensor
 
     return op.Gather(self, index, axis=dim)
