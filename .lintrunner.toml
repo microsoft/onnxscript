@@ -98,7 +98,8 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
-    'mypy==0.991',
+    'mypy==1.0.0',
+    'types-PyYAML==6.0.12.4',
 ]
 
 [[linter]]
