@@ -4908,6 +4908,8 @@ def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
 
 @torch_op("aten::sum", overload=True)
 def aten_sum_dim_none(self: TReal, keepdim: bool = False) -> TReal:
+    # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
+
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
