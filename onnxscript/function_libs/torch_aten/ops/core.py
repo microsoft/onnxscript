@@ -3062,10 +3062,19 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_max(self: TensorType) -> TensorType:
+@torch_op("aten::max", trace_only=True)
+def aten_max(self: TensorType, dim_or_other, keepdim = None) -> TensorType:
     # max(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    indices = 0
+    if dim_or_other == None and keepdim == None:
+        result = op.ReduceMax(self)
+    if keepdim == None:
+        result = op.Max(self, dim_or_other)
+    else:
+        result = op.ReduceMax(self, axes=dim_or_other, keepdims=keepdim)
+        indices = op.ArgMax(self, axis=dim_or_other, keepdims=keepdim)
+    return result, indices
 
 
 def aten_max_pool1d(

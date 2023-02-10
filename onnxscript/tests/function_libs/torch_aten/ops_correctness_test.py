@@ -327,6 +327,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "logsumexp": core_ops.aten_logsumexp,
     "lt": core_ops.aten_lt,
     "matmul": core_ops.aten_matmul,
+    "max": core_ops.aten_max,
     "maximum": core_ops.aten_maximum,
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
