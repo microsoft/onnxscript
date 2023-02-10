@@ -179,7 +179,7 @@ lintrunner --all-files
 To format files:
 
 ```bash
-lintrunner -main -a
+lintrunner f -m main
 ```
 
 Use `--output oneline` to produce a compact list of lint errors, useful when
