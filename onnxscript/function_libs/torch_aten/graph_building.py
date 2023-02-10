@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import typing
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+import warnings
 
 import numpy as np
 import onnx
@@ -486,12 +487,14 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        # print("===========ONNX model: \n", onnx_model)
         onnx_model = onnx.shape_inference.infer_shapes(
             onnx_model, check_type=True, strict_mode=False
         )
-        # print("===========ONNX model with inferred shapes: \n", onnx_model)
-        print("[Success] ONNX model exported")
+        try:
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except onnx.checker.ValidationError as e:
+            warnings.warn(f"ONNX model is invalid: {e}")
+
         return onnx_model
 
     def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
