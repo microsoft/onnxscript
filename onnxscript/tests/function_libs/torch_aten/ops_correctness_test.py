@@ -366,7 +366,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
     "cumsum": core_ops.aten_cumsum,
-    "nn.functional.gelu": nn_ops.aten_gelu,
     "convolution": core_ops.aten_convolution,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
