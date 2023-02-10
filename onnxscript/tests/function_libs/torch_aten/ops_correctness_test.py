@@ -304,6 +304,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
+    "native_batch_norm": core_ops.aten_native_batch_norm,
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,
@@ -692,7 +693,10 @@ class TestOutputConsistency(unittest.TestCase):
                 flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
                 assert flattened_torch_outputs
-                assert len(flattened_torch_outputs) == len(flattened_function_outputs)
+                if op.name == 'native_batch_norm' and not cpu_sample.args[4]:
+                    assert(len(flattened_function_outputs) == 1)
+                else:
+                    assert len(flattened_torch_outputs) == len(flattened_function_outputs)
 
                 for torch_output, function_output in zip(
                     flattened_torch_outputs, flattened_function_outputs
