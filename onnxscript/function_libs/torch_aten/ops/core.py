@@ -21,10 +21,10 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloatOrBFloat16,
     TInt,
     TReal,
+    TrealOrUInt8,
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
-    TrealOrUInt8,
 )
 from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
@@ -142,6 +142,7 @@ def aten_affine_grid_generator_backward(
     # affine_grid_generator_backward(Tensor grad, int[] size, bool align_corners) -> Tensor
 
     raise NotImplementedError()
+
 
 @torch_op("aten::alias")
 def aten_alias(self: TTensor) -> TTensor:
@@ -530,6 +531,7 @@ def aten_avg_pool1d(
     # avg_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, bool ceil_mode=False, bool count_include_pad=True) -> Tensor
 
     raise NotImplementedError()
+
 
 @torch_op("aten::baddbmm")
 def aten_baddbmm(
@@ -1486,14 +1488,30 @@ def aten_cumprod_backward(
 
     raise NotImplementedError()
 
+
 @torch_op("aten::cumsum", trace_only=True)
-def aten_cumsum(self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64], dtype: int = -1) -> TRealUnlessInt16OrInt8:
+def aten_cumsum(
+    self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64], dtype: int = -1
+) -> TRealUnlessInt16OrInt8:
     # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
+
     if dtype == -1:
         cast = self
     else:
         cast = op.Cast(self, to=dtype)
-    return op.CumSum(cast, dim)
+    return _aten_cumsum_onnx(cast, dim)
+
+
+@torch_op("aten::cumsum", overload=True)
+def _aten_cumsum_onnx(
+    self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64]
+) -> TRealUnlessInt16OrInt8:
+    if op.Size(op.Shape(self)) == 0:
+        # A scalar
+        result = op.Identity(self)
+    else:
+        result = op.CumSum(self, dim)
+    return result
 
 
 def aten_data(self: TensorType) -> TensorType:
@@ -2796,7 +2814,7 @@ def aten_logcumsumexp(self: TFloatOrBFloat16, dim: INT64) -> TFloatOrBFloat16:
 
     if op.Size(op.Shape(self)) == 0:
         # A scalar
-        result = self
+        result = op.Identity(self)
     else:
         # FIXME(justinchuby): Ensure numerical stability
         result = op.Log(op.CumSum(op.Exp(self), dim))
@@ -2946,6 +2964,7 @@ def aten_margin_ranking_loss(
     # margin_ranking_loss(Tensor input1, Tensor input2, Tensor target, float margin=0.0, int reduction=Mean) -> Tensor
 
     raise NotImplementedError()
+
 
 @torch_op("aten::masked_fill")
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
@@ -4536,13 +4555,13 @@ def aten_segment_reduce(
 
     raise NotImplementedError()
 
+
 @torch_op("aten::select")
-def aten_select(
-    self: TTensor, dim: int, index: int
-) -> TTensor:
+def aten_select(self: TTensor, dim: int, index: int) -> TTensor:
     # select(Tensor self, int dim, int index) -> Tensor
 
     return op.Gather(self, index, axis=dim)
+
 
 def aten_select_backward(
     grad_output: TensorType, input_sizes: INT64, dim: int, index: int
