@@ -21,6 +21,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloatOrBFloat16,
     TInt,
     TReal,
+    TrealOrUInt8,
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
@@ -95,10 +96,14 @@ def aten_addmm(
 ) -> TFloat:
     # addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
+    # TODO(titaiwang): op.Gemm seems needed to take care of corner case according to old symbolic_fn.
+    # Currently, it shows op-level validation failing on bloom.
+
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
     return op.Add(scaled_self, scaled_mat1_mat2)
+    # return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
 def aten_addmv(
@@ -139,10 +144,11 @@ def aten_affine_grid_generator_backward(
     raise NotImplementedError()
 
 
-def aten_alias(self: TensorType) -> TensorType:
+@torch_op("aten::alias")
+def aten_alias(self: TTensor) -> TTensor:
     # alias(Tensor(a) self) -> Tensor(a)
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_alias_copy(self: TensorType) -> TensorType:
@@ -527,16 +533,21 @@ def aten_avg_pool1d(
     raise NotImplementedError()
 
 
+@torch_op("aten::baddbmm")
 def aten_baddbmm(
-    self: TensorType,
-    batch1: TensorType,
-    batch2: TensorType,
+    self: TrealOrUInt8,
+    batch1: TRealUnlessInt16OrInt8,
+    batch2: TRealUnlessInt16OrInt8,
     beta: float = 1.0,
     alpha: float = 1.0,
-) -> TensorType:
+) -> TRealUnlessInt16OrInt8:
     # baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
-
-    raise NotImplementedError()
+    batch_mul = op.MatMul(batch1, batch2)
+    alpha_cast = op.CastLike(alpha, self)
+    mul_a = op.Mul(batch_mul, alpha_cast)
+    beta_cast = op.CastLike(beta, self)
+    mul_b = op.Mul(self, beta_cast)
+    return op.Add(mul_a, mul_b)
 
 
 def aten_bartlett_window(window_length: int) -> TensorType:
@@ -1537,10 +1548,29 @@ def aten_cumprod_backward(
     raise NotImplementedError()
 
 
-def aten_cumsum(self: TensorType, dim: int, dtype: Optional[int] = None) -> TensorType:
+@torch_op("aten::cumsum", trace_only=True)
+def aten_cumsum(
+    self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64], dtype: int = -1
+) -> TRealUnlessInt16OrInt8:
     # cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor
 
-    raise NotImplementedError()
+    if dtype == -1:
+        cast = self
+    else:
+        cast = op.Cast(self, to=dtype)
+    return _aten_cumsum_onnx(cast, dim)
+
+
+@torch_op("aten::cumsum", overload=True)
+def _aten_cumsum_onnx(
+    self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64]
+) -> TRealUnlessInt16OrInt8:
+    if op.Size(op.Shape(self)) == 0:
+        # A scalar
+        result = op.Identity(self)
+    else:
+        result = op.CumSum(self, dim)
+    return result
 
 
 def aten_data(self: TensorType) -> TensorType:
@@ -2843,7 +2873,7 @@ def aten_logcumsumexp(self: TFloatOrBFloat16, dim: INT64) -> TFloatOrBFloat16:
 
     if op.Size(op.Shape(self)) == 0:
         # A scalar
-        result = self
+        result = op.Identity(self)
     else:
         # FIXME(justinchuby): Ensure numerical stability
         result = op.Log(op.CumSum(op.Exp(self), dim))
@@ -2995,10 +3025,12 @@ def aten_margin_ranking_loss(
     raise NotImplementedError()
 
 
-def aten_masked_fill(self: TensorType, mask: TensorType, value: TensorType) -> TensorType:
+@torch_op("aten::masked_fill")
+def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
-
-    raise NotImplementedError()
+    mask_cast = op.Cast(mask, to=BOOL.dtype)
+    value_cast = op.CastLike(value, self)
+    return op.Where(mask_cast, value_cast, self)
 
 
 def aten_masked_scatter(self: TensorType, mask: TensorType, source: TensorType) -> TensorType:
@@ -4581,6 +4613,13 @@ def aten_segment_reduce(
     # segment_reduce(Tensor data, str reduce, *, Tensor? lengths=None, Tensor? indices=None, Tensor? offsets=None, int axis=0, bool unsafe=False, Scalar? initial=None) -> Tensor
 
     raise NotImplementedError()
+
+
+@torch_op("aten::select")
+def aten_select(self: TTensor, dim: int, index: int) -> TTensor:
+    # select(Tensor self, int dim, int index) -> Tensor
+
+    return op.Gather(self, index, axis=dim)
 
 
 def aten_select_backward(
