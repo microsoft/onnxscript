@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import typing
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 import warnings
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
