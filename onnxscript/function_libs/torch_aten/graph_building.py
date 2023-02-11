@@ -348,6 +348,14 @@ class TorchScriptGraph:
         return
 
     def _add_constant_to_graph(self, constant) -> torch.Value:
+        if isinstance(constant, bool):
+            # Be sure to put bool before int, because bool is a subclass of int
+            return _create_op_call_in_torch_graph(
+                self._torch_graph,
+                "onnx::Constant",
+                inputs=(),
+                attributes=dict(value=torch.tensor(constant, dtype=torch.bool)),
+            )[0]
         if isinstance(constant, float):
             return _create_op_call_in_torch_graph(
                 self._torch_graph,
