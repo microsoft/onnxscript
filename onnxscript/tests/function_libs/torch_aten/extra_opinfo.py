@@ -43,14 +43,14 @@ def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
         ),
     )
 
-    for input_shape, weight, bias, kwargs in cases:
+    for input_shape, weight, bias, kwargs in cases:  # type: ignore[assignment]
         # Batched
         yield opinfo_core.SampleInput(make_arg(input_shape), args=(
             make_arg(weight),
             make_arg(bias) if bias is not None else bias
         ), kwargs=kwargs)
         # Unbatched
-        yield opinfo_core.SampleInput(make_arg(input_shape[1:]), args=(
+        yield opinfo_core.SampleInput(make_arg(input_shape[1:]), args=(  # type: ignore[index]
             make_arg(weight),
             make_arg(bias) if bias is not None else bias
         ), kwargs=kwargs)
