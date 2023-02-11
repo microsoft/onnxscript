@@ -14,7 +14,8 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
-    make_arg = functools.partial(torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
 
     # Ordered as shapes for input, weight, bias,
     # and a dict of values of (stride, padding, dilation, groups)
@@ -45,15 +46,17 @@ def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
 
     for input_shape, weight, bias, kwargs in cases:  # type: ignore[assignment]
         # Batched
-        yield opinfo_core.SampleInput(make_arg(input_shape), args=(
-            make_arg(weight),
-            make_arg(bias) if bias is not None else bias
-        ), kwargs=kwargs)
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape),
+            args=(make_arg(weight), make_arg(bias) if bias is not None else bias),
+            kwargs=kwargs,
+        )
         # Unbatched
-        yield opinfo_core.SampleInput(make_arg(input_shape[1:]), args=(  # type: ignore[index]
-            make_arg(weight),
-            make_arg(bias) if bias is not None else bias
-        ), kwargs=kwargs)
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape[1:]),  # type: ignore[index]
+            args=(make_arg(weight), make_arg(bias) if bias is not None else bias),
+            kwargs=kwargs,
+        )
 
 
 def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
@@ -170,8 +173,8 @@ OP_DB: List[opinfo_core.OpInfo] = [
     ),
     opinfo_core.OpInfo(
         "nn.functional.conv3d",
-        aliases=('conv3d',),
-        aten_name='conv3d',
+        aliases=("conv3d",),
+        aten_name="conv3d",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_conv3d,
         supports_forward_ad=True,
