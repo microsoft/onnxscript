@@ -1124,6 +1124,7 @@ def aten_conv2d(
         input,
         weight,
         bias,
+        transposed=False,
         strides=strides,
         pads=pads,
         dilations=dilations,
@@ -1214,10 +1215,10 @@ def aten_convolution(
         input,
         weight,
         bias,
+        transposed,
         strides=strides,
         pads=pads,
         dilations=dilations,
-        transposed=transposed,
         output_padding=output_padding,
         groups=groups,
     )
@@ -1230,14 +1231,19 @@ def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
     bias: TFloat,
+    transposed: BOOL,
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
-    transposed: bool = False,
     output_padding: Sequence[int] = (0,),
     groups: int = 1,
 ) -> TFloat:
     """ConvXd with attributes pre-computed to fit the ONNX spec."""
+
+    # NOTE: transposed must be an input because when provided as an attribute,
+    # it will be an integer, not a boolean, which will fail the if condition.
+    # Alternatively we could cast transposed to BOOL.
+    # E.g. `if op.Cast(transposed, BOOL.dtype): ...`
 
     weight_size = op.Size(op.Shape(weight))
     no_batch = op.Size(op.Shape(input)) != weight_size

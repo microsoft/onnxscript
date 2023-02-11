@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import typing
+import warnings
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -347,6 +348,14 @@ class TorchScriptGraph:
         return
 
     def _add_constant_to_graph(self, constant) -> torch.Value:
+        if isinstance(constant, bool):
+            # Be sure to put bool before int, because bool is a subclass of int
+            return _create_op_call_in_torch_graph(
+                self._torch_graph,
+                "onnx::Constant",
+                inputs=(),
+                attributes=dict(value=torch.tensor(constant, dtype=torch.bool)),
+            )[0]
         if isinstance(constant, float):
             return _create_op_call_in_torch_graph(
                 self._torch_graph,
@@ -486,12 +495,14 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        # print("===========ONNX model: \n", onnx_model)
         onnx_model = onnx.shape_inference.infer_shapes(
             onnx_model, check_type=True, strict_mode=False
         )
-        # print("===========ONNX model with inferred shapes: \n", onnx_model)
-        print("[Success] ONNX model exported")
+        try:
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except onnx.checker.ValidationError as e:
+            warnings.warn(f"ONNX model is invalid: {e}")
+
         return onnx_model
 
     def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
