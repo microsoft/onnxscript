@@ -348,56 +348,38 @@ class TorchScriptGraph:
         return
 
     def _add_constant_to_graph(self, constant) -> torch.Value:
-        if isinstance(constant, bool):
-            # Be sure to put bool before int, because bool is a subclass of int
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.bool)),
-            )[0]
-        if isinstance(constant, float):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
-            )[0]
-        if isinstance(constant, int):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
-            )[0]
         if constant is None:
             value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
             return value
-        if isinstance(constant, (tuple, list)) and all(
+
+        if isinstance(constant, bool):
+            # Be sure to put bool before int, because bool is a subclass of int
+            value = torch.tensor(constant, dtype=torch.bool)
+        elif isinstance(constant, float):
+            value = torch.tensor(constant, dtype=torch.float)
+        elif isinstance(constant, int):
+            value = torch.tensor(constant, dtype=torch.int64)
+        elif isinstance(constant, (tuple, list)) and all(
             isinstance(val, int) for val in constant
         ):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
-            )[0]
-        if isinstance(constant, (tuple, list)) and all(
+            value = torch.tensor(constant, dtype=torch.int64)
+        elif isinstance(constant, (tuple, list)) and all(
             isinstance(val, float) for val in constant
         ):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
-            )[0]
-
-        raise TypeError(
-            f"Constant input '{constant}' of type '{type(constant)}' is not supported"
-        )
+            value = torch.tensor(constant, dtype=torch.float)
+        else:
+            raise TypeError(
+                f"Constant input '{constant}' of type '{type(constant)}' is not supported"
+            )
+        return _create_op_call_in_torch_graph(
+            self._torch_graph,
+            "onnx::Constant",
+            inputs=(),
+            attributes=dict(value=value),
+        )[0]
 
     @beartype
     def _add_torchscript_op_call(
