@@ -357,19 +357,19 @@ class TorchScriptGraph:
 
         if isinstance(constant, bool):
             # Be sure to put bool before int, because bool is a subclass of int
-            value = torch.tensor(constant, dtype=torch.bool)
+            constant_tensor = torch.tensor(constant, dtype=torch.bool)
         elif isinstance(constant, float):
-            value = torch.tensor(constant, dtype=torch.float)
+            constant_tensor = torch.tensor(constant, dtype=torch.float)
         elif isinstance(constant, int):
-            value = torch.tensor(constant, dtype=torch.int64)
+            constant_tensor = torch.tensor(constant, dtype=torch.int64)
         elif isinstance(constant, (tuple, list)) and all(
             isinstance(val, int) for val in constant
         ):
-            value = torch.tensor(constant, dtype=torch.int64)
+            constant_tensor = torch.tensor(constant, dtype=torch.int64)
         elif isinstance(constant, (tuple, list)) and all(
             isinstance(val, float) for val in constant
         ):
-            value = torch.tensor(constant, dtype=torch.float)
+            constant_tensor = torch.tensor(constant, dtype=torch.float)
         else:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
@@ -378,7 +378,7 @@ class TorchScriptGraph:
             self._torch_graph,
             "onnx::Constant",
             inputs=(),
-            attributes=dict(value=value),
+            attributes=dict(value=constant_tensor),
         )[0]
 
     @beartype
