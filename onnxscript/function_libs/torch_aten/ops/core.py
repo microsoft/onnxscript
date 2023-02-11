@@ -1124,6 +1124,7 @@ def aten_conv2d(
         input,
         weight,
         bias,
+        transposed=False,
         strides=strides,
         pads=pads,
         dilations=dilations,
@@ -1234,8 +1235,8 @@ def _aten_convolution_onnx(
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
-    output_padding: Sequence[int],
-    groups: int,
+    output_padding: Sequence[int] = [0],
+    groups: int = 1,
 ) -> TFloat:
     """ConvXd with attributes pre-computed to fit the ONNX spec."""
 
