@@ -15,7 +15,8 @@ from torch.testing._internal.opinfo import core as opinfo_core
 def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
-        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
 
     # Ordered as shapes for input, weight, bias,
     # and a dict of values of (stride, padding, dilation, groups)
