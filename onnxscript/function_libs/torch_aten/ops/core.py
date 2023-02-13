@@ -1887,7 +1887,7 @@ def aten_empty_quantized(
 @torch_op("aten::empty_strided")
 def aten_empty_strided(
     size: INT64, stride: INT64  # pylint: disable=unused-argument
-) -> TTensor:
+) -> TTensor:  # type: ignore[type-var]
     # empty_strided(SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # using Zeros to simulate empty()
@@ -2116,7 +2116,7 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
 
 
 @torch_op("aten::fill")
-def aten_fill(self: TTensor, value: TTensor) -> TFloat:
+def aten_fill(self: TTensor, value: TTensor) -> TTensor:
     # fill.Tensor(Tensor self, Tensor value) -> Tensor
 
     shape = op.Shape(self)
