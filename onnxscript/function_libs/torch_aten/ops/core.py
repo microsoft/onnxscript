@@ -1226,54 +1226,19 @@ def aten_conv_tbc_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::conv_transpose1d", trace_only=True)
 def aten_conv_transpose1d(
-    input: TFloat,
-    weight: TFloat,
-    bias: Optional[TFloat] = None,
+    input: TensorType,
+    weight: TensorType,
+    bias: Optional[TensorType] = None,
     stride: Sequence[int] = (1,),
     padding: Sequence[int] = (0,),
     output_padding: Sequence[int] = (0,),
     groups: int = 1,
     dilation: Sequence[int] = (1,),
-) -> TFloat:
+) -> TensorType:
     # conv_transpose1d(Tensor input, Tensor weight, Tensor? bias=None, int[1] stride=1, int[1] padding=0, int[1] output_padding=0, int groups=1, int[1] dilation=1) -> Tensor
 
-    if not isinstance(padding, Sequence):
-        padding = (padding,)
-    pads = [*padding, *padding]
-
-    if not isinstance(dilation, Sequence):
-        dilation = (dilation,)
-    dilations = list(dilation)
-
-    if not isinstance(stride, Sequence):
-        stride = (stride,)
-    strides = list(stride)
-
-    if not isinstance(output_padding, Sequence):
-        output_padding = (output_padding,)
-    output_padding = list(output_padding)
-
-    if bias is None:
-        weight_dim_0 = op.Shape(weight, start=0, end=1)
-        bias_shape = op.Expand(weight_dim_0, op.Constant(value_ints=[1]))
-        zero = op.CastLike(0.0, input)
-        bias = op.Expand(zero, bias_shape)
-
-    result = _aten_convolution_onnx(
-        input,
-        weight,
-        bias,
-        transposed=True,
-        strides=strides,
-        pads=pads,
-        dilations=dilations,
-        output_padding=output_padding,
-        groups=groups,
-    )
-
-    return result
+    raise NotImplementedError()
 
 
 @torch_op("aten::convolution", trace_only=True)
