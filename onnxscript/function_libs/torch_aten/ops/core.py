@@ -275,44 +275,77 @@ def aten_any(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::arange")
+def _range_supported(dtype: int) -> bool:
+    """Returns true if the dtype is supported by the ONNX Range op."""
+    return dtype in {
+        DOUBLE.dtype,
+        FLOAT.dtype,
+        INT16.dtype,
+        INT32.dtype,
+        INT64.dtype,
+    }
+
+
+@torch_op("aten::arange", trace_only=True)
 def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1) -> TensorType:
     # arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
-    # which Range does not support. The output type is ensured because the output
-    # is casted to the specified dtype.
-    if dtype != -1:
-        end = op.Cast(end, to=DOUBLE.dtype)
+    # NOTE: trace_only because both if branches need to be the same type, but we have
+    # a cast in the if branch.
 
-    result = op.Range(0, end, 1)
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
+    if dtype == -1:
+        zero = op.CastLike(0.0, end)
+        one = op.CastLike(1.0, end)
+        result = op.Range(zero, end, one)
+    elif _range_supported(dtype):
+        end = op.Cast(end, to=dtype)
+        zero = op.Cast(0, to=dtype)
+        one = op.Cast(1, to=dtype)
+        result = op.Range(zero, end, one)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        end = op.Cast(end, to=FLOAT.dtype)
+        zero = op.Constant(value_float=0.0)
+        one = op.Constant(value_float=1.0)
+        result = op.Cast(op.Range(zero, end, one), to=dtype)
 
     return result
 
 
-@torch_op("aten::arange", overload=True)
+@torch_op("aten::arange", overload=True, trace_only=True)
 def aten_arange_start(
     start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, dtype: int = -1
 ) -> TensorType:
     # arange.start(Scalar start, Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
-    # which Range does not support. The output type is ensured because the output
-    # is casted to the specified dtype.
-    if dtype != -1:
-        start = op.Cast(start, to=DOUBLE.dtype)
-        end = op.Cast(end, to=DOUBLE.dtype)
+    # NOTE: trace_only because both if branches need to be the same type, but we have
+    # a cast in the if branch.
 
-    result = op.Range(start, end, 1)
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
+    if dtype == -1:
+        one = op.CastLike(1.0, end)
+        result = op.Range(start, end, one)
+    elif _range_supported(dtype):
+        end = op.Cast(end, to=dtype)
+        start = op.Cast(start, to=dtype)
+        one = op.Cast(1, to=dtype)
+        result = op.Range(start, end, one)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        end = op.Cast(end, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        one = op.Constant(value_float=1.0)
+        result = op.Cast(op.Range(start, end, one), to=dtype)
 
     return result
 
 
-@torch_op("aten::arange", overload=True)
+@torch_op("aten::arange", overload=True, trace_only=True)
 def aten_arange_start_step(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
@@ -321,17 +354,25 @@ def aten_arange_start_step(
 ) -> TensorType:
     # arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    # Cast input to double if dtype is specified, because the input dtype may be e.g. bool
-    # which Range does not support. The output type is ensured because the output
-    # is casted to the specified dtype.
-    if dtype != -1:
-        start = op.Cast(start, to=DOUBLE.dtype)
-        end = op.Cast(end, to=DOUBLE.dtype)
-        step = op.Cast(step, to=DOUBLE.dtype)
+    # NOTE: trace_only because both if branches need to be the same type, but we have
+    # a cast in the if branch.
 
-    result = op.Range(start, end, step)
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
+    if dtype == -1:
+        result = op.Range(start, end, step)
+    elif _range_supported(dtype):
+        end = op.Cast(end, to=dtype)
+        start = op.Cast(start, to=dtype)
+        step = op.Cast(step, to=dtype)
+        result = op.Range(start, end, step)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        end = op.Cast(end, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        step = op.Cast(step, to=FLOAT.dtype)
+        result = op.Cast(op.Range(start, end, step), to=dtype)
 
     return result
 
@@ -1083,6 +1124,7 @@ def aten_conv2d(
         input,
         weight,
         bias,
+        transposed=False,
         strides=strides,
         pads=pads,
         dilations=dilations,
@@ -1173,10 +1215,10 @@ def aten_convolution(
         input,
         weight,
         bias,
+        transposed,
         strides=strides,
         pads=pads,
         dilations=dilations,
-        transposed=transposed,
         output_padding=output_padding,
         groups=groups,
     )
@@ -1189,14 +1231,19 @@ def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
     bias: TFloat,
+    transposed: BOOL,
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
-    transposed: bool = False,
     output_padding: Sequence[int] = (0,),
     groups: int = 1,
 ) -> TFloat:
     """ConvXd with attributes pre-computed to fit the ONNX spec."""
+
+    # NOTE: transposed must be an input because when provided as an attribute,
+    # it will be an integer, not a boolean, which will fail the if condition.
+    # Alternatively we could cast transposed to BOOL.
+    # E.g. `if op.Cast(transposed, BOOL.dtype): ...`
 
     weight_size = op.Size(op.Shape(weight))
     no_batch = op.Size(op.Shape(input)) != weight_size
@@ -1803,16 +1850,25 @@ def aten_empty(size: IntType, dtype: int = FLOAT.dtype) -> TTensor:  # type: ign
     return op.Expand(zero, size)
 
 
-@torch_op("aten::empty_like")
+@torch_op("aten::empty_like", trace_only=True)
 def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
     # empty_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    shape = op.Shape(self)
+    # NOTE: trace_only because both if branches need to be the same type, but we have
+    # a cast in the if branch.
+
     if dtype == -1:
         zero = op.CastLike(0, self)
     else:
         zero = op.Cast(0, to=dtype)
 
+    return _aten_empty_like_onnx(self, zero)
+
+
+@torch_op("aten::empty_like", overload=True)
+def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
+
+    shape = op.Shape(self)
     return op.Expand(zero, shape)
 
 
@@ -3903,7 +3959,7 @@ def aten_ones(size: IntType, dtype: int = FLOAT.dtype):
     return op.Expand(one, size)
 
 
-@torch_op("aten::ones_like")
+@torch_op("aten::ones_like", trace_only=True)
 def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
     """ones_like.
 
@@ -3912,11 +3968,20 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
     """
     # ones_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    shape = op.Shape(self)
+    # NOTE: trace_only because both if branches need to be the same type, but we have
+    # a cast in the if branch.
+
     if dtype == -1:
         one = op.CastLike(1, self)
     else:
         one = op.Cast(1, to=dtype)
+    return _aten_ones_like_onnx(self, one)
+
+
+@torch_op("aten::ones_like", overload=True)
+def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
+
+    shape = op.Shape(self)
     return op.Expand(one, shape)
 
 
@@ -4906,20 +4971,25 @@ def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1.0) -> Te
 def aten_sum_dim_IntList(
     self: TReal, dim: Optional[INT64] = None, keepdim: bool = False, dtype: int = -1
 ) -> TReal:
-    # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
+    # sum(Tensor self, SymInt dim, bool keepdim, *, ScalarType? dtype=None) -> Tensor
+
+    # NOTE: trace_only because both if branches need to be the same type, but we have
+    # a cast in the if branch.
 
     # TODO: Combine the overloads when OptionalHasElement() works
     if dim is None:
-        return aten_sum_dim_none(self, keepdim=keepdim, dtype=dtype)
-    return _aten_sum_dim_onnx(self, dim, keepdim=keepdim, dtype=dtype)
+        result = _aten_sum_dim_none(self, keepdim=keepdim)
+    else:
+        result = _aten_sum_dim_onnx(self, dim, keepdim=keepdim)
+
+    if dtype != -1:
+        result = op.Cast(result, to=dtype)
+
+    return result
 
 
 @torch_op("aten::sum", overload=True)
-def _aten_sum_dim_onnx(
-    self: TReal, dim: INT64, keepdim: bool = False, dtype: int = -1
-) -> TReal:
-    # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
-
+def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
@@ -4929,26 +4999,18 @@ def _aten_sum_dim_onnx(
         dim = op.Cast(dim, to=INT64.dtype)
     result = op.ReduceSum(self, dim, keepdims=keepdim)
 
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
-
     if self_is_scalar:
         result = op.Squeeze(result)
     return result
 
 
 @torch_op("aten::sum", overload=True)
-def aten_sum_dim_none(self: TReal, keepdim: bool = False, dtype: int = -1) -> TReal:
-    # sum(Tensor self, *, ScalarType? dtype=None) -> Tensor
-
+def _aten_sum_dim_none(self: TReal, keepdim: bool = False) -> TReal:
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     result = op.ReduceSum(self, keepdims=keepdim)
-
-    if dtype != -1:
-        result = op.Cast(result, to=dtype)
 
     if self_is_scalar:
         result = op.Squeeze(result)
@@ -5450,14 +5512,23 @@ def aten_zeros(size: IntType, dtype: int = FLOAT.dtype):
     return op.Expand(zero, size)
 
 
-@torch_op("aten::zeros_like")
+@torch_op("aten::zeros_like", trace_only=True)
 def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
     # zeros_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
-    shape = op.Shape(self)
+    # NOTE: trace_only because both if branches need to be the same type, but we have
+    # a cast in the if branch.
+
     if dtype == -1:
         zero = op.CastLike(0, self)
     else:
         zero = op.Cast(0, to=dtype)
 
+    return _aten_zeros_like_onnx(self, zero)
+
+
+@torch_op("aten::zeros_like", overload=True)
+def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
+
+    shape = op.Shape(self)
     return op.Expand(zero, shape)
