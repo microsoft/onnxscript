@@ -696,10 +696,7 @@ class TestOutputConsistency(unittest.TestCase):
                 flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
                 assert flattened_torch_outputs
-                if op.name == 'native_batch_norm' and not cpu_sample.args[4]:
-                    assert(len(flattened_function_outputs) == 1)
-                else:
-                    assert len(flattened_torch_outputs) == len(flattened_function_outputs)
+                assert len(flattened_torch_outputs) == len(flattened_function_outputs)
 
                 for torch_output, function_output in zip(
                     flattened_torch_outputs, flattened_function_outputs
