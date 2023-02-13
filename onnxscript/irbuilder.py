@@ -81,7 +81,7 @@ class IRVar:
         return f"{self.__class__.__name__}({self.name!r}, {self.typeinfo!r})"
 
     def typed_str(self):
-        return f"{self.name} : {str(self.typeinfo)}"
+        return f"{self.name} : {self.typeinfo}"
 
     def to_value_info(self, use_default_type: bool = True):
         """Converts the content of this class into :class:`onnx.ValueInfoProto`.
@@ -119,6 +119,14 @@ class IRAttributeValue:
             return f"{self.attr_proto.name} = @{self.attr_proto.ref_attr_name}"
         # self.name + " = " + self.value
         return helper.printable_attribute(self.attr_proto)
+
+    @property
+    def name(self):
+        return self.attr_proto.name
+
+    @property
+    def type(self):
+        return self.attr_proto.type
 
 
 class IRStmt:

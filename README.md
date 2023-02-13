@@ -52,6 +52,7 @@ ONNX models and functions:
 ```bash
 pip install onnx onnxruntime pytest
 git clone https://github.com/microsoft/onnx-script
+cd onnx-script
 pip install -e .
 ```
 
@@ -76,13 +77,13 @@ attributes. Examples are in [onnxfns1A.py][onnxfns1A.py]. To validate
 that experimental features are enabled:
 
 ```bash
-pytest onnxscript/test/functions/onnxfns1A_test.py
+pytest onnxscript/tests/functions/onnxfns1A_test.py
 ```
 
 ### Run Unit Tests
 
 ```bash
-pytest onnxscript/test
+pytest onnxscript
 ```
 
 ## Example
@@ -152,7 +153,7 @@ return the same results with the same inputs.
 
 ### Coding Style
 
-We use `flake8`, `black`, `isort`, and `mypy` to check code formatting and use `lintrunner` to run all linters.
+We use `ruff`, `black`, `isort`, and `mypy` etc. to check code formatting and use `lintrunner` to run all linters.
 You can install the dependencies and initialize with
 
 ```sh
@@ -166,7 +167,7 @@ If you want to see what lintrunner init will install, run `lintrunner init --dry
 To lint local changes:
 
 ```bash
-lintrunner
+lintrunner -m main
 ```
 
 To lint all files:
@@ -178,11 +179,13 @@ lintrunner --all-files
 To format files:
 
 ```bash
-lintrunner -a
+lintrunner f -m main
 ```
 
 Use `--output oneline` to produce a compact list of lint errors, useful when
 there are many errors to fix.
+
+See all available options with `lintrunner -h`.
 
 To read more about lintrunner, see [wiki](https://github.com/pytorch/pytorch/wiki/lintrunner).
 To update an existing linting rule or create a new one, modify `.lintrunner.toml` or create a
@@ -226,4 +229,4 @@ Any use of third-party trademarks or logos is subject to those third-party's pol
 [python-ast]: https://docs.python.org/3/library/ast.html
 [onnx-runtime]: https://onnxruntime.ai
 [onnx-ops]: https://github.com/onnx/onnx/blob/main/docs/Operators.md
-[onnxfns1A.py]: https://github.com/microsoft/onnx-script/blob/main/onnxscript/test/models/onnxfns1A.py
+[onnxfns1A.py]: https://github.com/microsoft/onnx-script/blob/main/onnxscript/tests/models/onnxfns1A.py

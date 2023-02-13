@@ -77,8 +77,8 @@ class OnnxBackendTest:
                 loaded = to_list(seq)  # type: ignore[assignment]
             except Exception:  # pylint: disable=W0703
                 try:
-                    loaded = onnx.load_model_from_string(serialized)
-                except Exception:  # pragma: no cover
+                    loaded = onnx.load_model_from_string(serialized)  # type: ignore[assignment]
+                except Exception:
                     raise RuntimeError(
                         f"Unable to read {full!r}, error is {e}, "
                         f"content is {serialized[:100]!r}."
@@ -257,11 +257,11 @@ class OnnxBackendTest:
         for test in self.tests:
             rows.append("xs = [")
             for inp in test["inputs"]:
-                rows.append(textwrap.indent(f"{repr(inp)},", "    " * 2))
+                rows.append(textwrap.indent(f"{inp!r},", "    " * 2))
             rows.append("]")
             rows.append("ys = [")
             for out in test["outputs"]:
-                rows.append(textwrap.indent(f"{repr(out)},", "    " * 2))
+                rows.append(textwrap.indent(f"{out!r},", "    " * 2))
             rows.append("]")
             rows.append("feeds = {n: x for n, x in zip(oinf.input_names, xs)}")
             rows.append("got = oinf.run(feeds)")

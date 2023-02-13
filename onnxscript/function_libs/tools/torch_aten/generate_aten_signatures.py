@@ -39,7 +39,7 @@ def load_native_function_yaml(yaml_path: str):
 def parse_native_functions_yaml(yaml_path: str) -> tuple[Any, Any]:
     """Parses the native_functions.yaml file."""
     yaml_str, valid_tags = load_native_function_yaml(yaml_path)
-    yaml_struct = yaml.load(yaml_str, Loader=torchgen.gen.LineLoader)  # noqa: DUO109
+    yaml_struct = yaml.load(yaml_str, Loader=torchgen.gen.LineLoader)
     parsed = torchgen.gen.parse_native_yaml_struct(
         yaml_struct, valid_tags, path=yaml_path, skip_native_fns_gen=True
     )
@@ -66,23 +66,23 @@ def create_list_type(arg: torchgen.model.Argument) -> cg.TypeRef:
 def arg_type_to_str(arg_type: torchgen.model.Type) -> str:
     if arg_type.is_base_ty_like(torchgen.model.BaseTy.Tensor):
         return "TensorType"
-    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.SymInt):
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.SymInt):
         return "INT64"
-    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.Scalar):
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.Scalar):
         return "float"
-    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.float):
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.float):
         return "float"
-    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.int):
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.int):
         return "int"
-    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.bool):
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.bool):
         return "bool"
-    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.str):
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.str):
         return "str"
-    elif arg_type.is_base_ty_like(torchgen.model.BaseTy.ScalarType):
+    if arg_type.is_base_ty_like(torchgen.model.BaseTy.ScalarType):
         return "int"
-    else:
-        # Anything unhandled is a string option.
-        return "str"
+
+    # Anything unhandled is a string option.
+    return "str"
 
 
 def type_is_builtin(arg_type: str) -> bool:

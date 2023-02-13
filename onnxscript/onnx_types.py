@@ -172,6 +172,7 @@ class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
 
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
     """Converts an onnx type into the string representation of the type in *onnx-script*.
+
     Args:
         onnx_type: an instance of onnx TypeProto
 
@@ -193,7 +194,7 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
                     shape.append(repr(d.dim_param))
                 else:
                     shape.append("None")
-            if len(shape) == 0:
+            if not shape:
                 return name
             return f"{name}[{','.join(shape)}]"
         return f"{name}[...]"

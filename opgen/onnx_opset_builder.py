@@ -10,7 +10,12 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Iterable, Optional, TextIO
 
-from onnx.defs import AttributeProto, OpSchema, get_all_schemas_with_history
+from onnx.defs import (
+    AttributeProto,
+    OpSchema,
+    get_all_schemas_with_history,
+    onnx_opset_version,
+)
 from onnx.helper import get_attribute_value
 
 import opgen.pygen as cg
@@ -100,6 +105,38 @@ class OpsetsBuilder:
     def _log_unsupported(self, error: UnsupportedOpError):
         self.unsupported_ops.setdefault(error.message, []).append(error)
 
+    def _make_opset_module(self, domain: str, version: int):
+        if version > 1:
+            base_type = cg.TypeRef(
+                _make_module_name(self.module_base_name, domain, version - 1),
+                _make_class_name(domain, version - 1),
+            )
+        else:
+            base_type = OpsetBaseTypeRef()
+
+        opset = OpsetModule(
+            self.module_base_name,
+            domain,
+            version,
+            cg.ClassDef(
+                _make_class_name(domain, version),
+                cg.FunctionDef(
+                    "__new__",
+                    cg.Arg("cls"),
+                    body=cg.ThunkStmt(
+                        f"return Opset.__new__(cls, " f"{domain!r}, {version!r})"
+                    ),
+                ),
+                cg.FunctionDef(
+                    "__init__", cg.Arg("self"), body=cg.ThunkStmt("super().__init__()")
+                ),
+                bases=[base_type],
+            ),
+        )
+
+        self.all_modules.append(opset)
+        return opset
+
     def _make_opset_modules(self):
         domains = {}
         schemas: list[OpSchema] = sorted(
@@ -120,35 +157,7 @@ class OpsetsBuilder:
             if version in domain_opsets:
                 opset = domain_opsets[version]
             else:
-                if version > 1:
-                    base_type = cg.TypeRef(
-                        _make_module_name(self.module_base_name, domain, version - 1),
-                        _make_class_name(domain, version - 1),
-                    )
-                else:
-                    base_type = OpsetBaseTypeRef()
-
-                opset = OpsetModule(
-                    self.module_base_name,
-                    domain,
-                    version,
-                    cg.ClassDef(
-                        _make_class_name(domain, version),
-                        cg.FunctionDef(
-                            "__new__",
-                            cg.Arg("cls"),
-                            body=cg.ThunkStmt(
-                                f"return Opset.__new__(cls, " f"{domain!r}, {version!r})"
-                            ),
-                        ),
-                        cg.FunctionDef(
-                            "__init__", cg.Arg("self"), body=cg.ThunkStmt("super().__init__()")
-                        ),
-                        bases=[base_type],
-                    ),
-                )
-
-                self.all_modules.append(opset)
+                opset = self._make_opset_module(domain, version)
                 domain_opsets[version] = opset
 
             try:
@@ -161,6 +170,9 @@ class OpsetsBuilder:
                 if not isinstance(error, UnsupportedOpError):
                     error = UnsupportedOpError(qualname, str(error))
                 self._log_unsupported(error)
+
+        if onnx_opset_version() not in domains[""]:
+            self._make_opset_module("", onnx_opset_version())
 
         for module in self.all_modules:
             module.accept(cg.DocCommentBuilder())
@@ -441,7 +453,7 @@ class OpsetsBuilder:
         writer.write(dashline)
         writer.write("# flake8: noqa\n")
         writer.write("# mypy: disable-error-code=override\n")
-        writer.write("# pylint: disable=W0221,W0222,W0237,W0246,R0901\n")
+        writer.write("# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611\n")
         writer.write(dashline)
         writer.write("\n")
 
