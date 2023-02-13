@@ -1331,7 +1331,9 @@ def aten_convolution_overrideable(
 
 
 @torch_op("aten::copy")
-def aten_copy(self: TensorType, src: TensorType, non_blocking: bool = False) -> TensorType:
+def aten_copy(
+    self: TTensor, src: TTensor, non_blocking: bool = False  # pylint: disable=unused-argument
+) -> TTensor:
     # copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor
 
     self = op.Identity(src)
@@ -1883,7 +1885,9 @@ def aten_empty_quantized(
 
 
 @torch_op("aten::empty_strided")
-def aten_empty_strided(size: INT64, stride: INT64) -> TensorType:
+def aten_empty_strided(
+    size: INT64, stride: INT64  # pylint: disable=unused-argument
+) -> TTensor:
     # empty_strided(SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # using Zeros to simulate empty()
@@ -2112,7 +2116,7 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
 
 
 @torch_op("aten::fill")
-def aten_fill(self: TensorType, value: TensorType) -> TensorType:
+def aten_fill(self: TTensor, value: TTensor) -> TFloat:
     # fill.Tensor(Tensor self, Tensor value) -> Tensor
 
     shape = op.Shape(self)
@@ -3743,8 +3747,8 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
 
 @torch_op("aten::native_dropout", trace_only=True)
 def aten_native_dropout(
-    input: TensorType, p: float, train: Optional[bool]
-) -> tuple[TensorType, TensorType]:
+    input: TTensor, p: float, train: Optional[bool]
+) -> tuple[TTensor, TTensor]:
     # native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)
 
     if not train:
