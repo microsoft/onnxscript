@@ -367,7 +367,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
+    "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
+    "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     "ones_like": core_ops.aten_ones_like,
@@ -460,6 +462,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.adaptive_avg_pool3d",
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.conv1d",
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+        reason="String padding is not accepted by aten::conv1d",
     ),
     skip(
         "nn.functional.conv2d",
