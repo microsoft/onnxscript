@@ -252,9 +252,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -273,7 +270,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
     "empty": core_ops.aten_empty,
-    "empty_like": core_ops.aten_empty_like,
     "eq": core_ops.aten_eq,
     "equal": core_ops.aten_equal,
     "exp": core_ops.aten_exp,
@@ -324,7 +320,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
         _upsample_input_wrangler,
     ),
     "nonzero": core_ops.aten_nonzero,
-    "ones_like": core_ops.aten_ones_like,
     "ones": core_ops.aten_ones,
     "permute": core_ops.aten_permute,
     "pow": core_ops.aten_pow,
@@ -353,7 +348,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
-    "zeros_like": core_ops.aten_zeros_like,
 }
 
 
@@ -363,19 +357,25 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
 ] = {
     "amax": core_ops.aten_amax,
     "amin": core_ops.aten_amin,
+    "arange_start_step": core_ops.aten_arange_start_step,
+    "arange_start": core_ops.aten_arange_start,
+    "arange": core_ops.aten_arange,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
     "cumsum": core_ops.aten_cumsum,
     "convolution": core_ops.aten_convolution,
+    "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "ones_like": core_ops.aten_ones_like,
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
+    "zeros_like": core_ops.aten_zeros_like,
 }
 
 OPINFO_FUNCTION_MAPPING: dict[
@@ -593,7 +593,7 @@ class TestFunctionValidity(unittest.TestCase):
                 func = func_with_wrangler
             if not isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
-                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'?"
+                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
                     "If the function is trace_only, please move it to the "
                     "'OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
                 )
