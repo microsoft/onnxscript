@@ -2118,10 +2118,10 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
 @torch_op("aten::fill")
 def aten_fill(self: TTensor, value: TTensor) -> TTensor:
     # fill.Tensor(Tensor self, Tensor value) -> Tensor
-
+    # after fill, the self Tensor should keep origianl type
     shape = op.Shape(self)
-    value = op.Cast(value, to=FLOAT.dtype)  # the value might be bool type
     result = op.Expand(value, shape)
+    result = op.CastLike(result, self)
     return result
 
 
@@ -3745,17 +3745,14 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::native_dropout", trace_only=True)
+@torch_op("aten::native_dropout")
 def aten_native_dropout(
-    input: TTensor, p: float, train: Optional[bool]
+    input: TTensor, p: float, train: bool = True
 ) -> tuple[TTensor, TTensor]:
     # native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)
 
-    if not train:
-        result = input, None
-    else:
-        result = op.Dropout(input, p, train)
-    return result
+    result, mask = op.Dropout(input, p, train)
+    return result, mask
 
 
 def aten_native_dropout_backward(
