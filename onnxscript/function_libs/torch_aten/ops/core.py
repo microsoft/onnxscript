@@ -3934,16 +3934,23 @@ def aten_negative(self: TensorType) -> TensorType:
 def aten_new_empty(self: TTensor, size: INT64) -> TTensor:
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
+    # using zero to simulate empty array
     zero = op.Constant(value_float=0.0)
-    return op.Expand(zero, size)
+    result = op.Expand(zero, size)
+    result = op.CastLike(result, self)
+    return result
 
 
 @torch_op("aten::new_empty_strided")
-def aten_new_empty_strided(self: TTensor, size: INT64, stride: INT64) -> TTensor:
+def aten_new_empty_strided(
+    self: TTensor, size: INT64, stride: INT64  # pylint: disable=unused-argument
+) -> TTensor:
     # new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    zero = op.Constant(value_float=0.0)
-    return op.ConstantOfShape(size)
+    # using zero to simulate empty array
+    result = op.ConstantOfShape(size)
+    result = op.CastLike(result, self)
+    return result
 
 
 @torch_op("aten::new_full")
