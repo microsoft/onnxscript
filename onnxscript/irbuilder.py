@@ -403,14 +403,7 @@ class IRFunction:
         # default values for attributes. The function has then two
         # lists, one list for attributes without default values,
         # another one for attributes with default values.
-        # If this *attribute_proto* is not available,
-        # all attributes with a default value are moved to the first
-        # list, default values are removed.
-        # TODO: remove this when onnx==1.13.0 is released.
-        if hasattr(onnx.FunctionProto, "attribute_proto"):
-            atts = self.attrs
-        else:
-            atts = self.attrs + [a.attr_proto.name for a in self.attr_protos]
+        attrs = self.attrs
 
         f = helper.make_function(
             self.domain,
@@ -419,11 +412,11 @@ class IRFunction:
             outputs=[y.name for y in self.outputs],
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
-            attributes=atts,
+            attributes=attrs,
             doc_string=self.docstring,
         )
-        if hasattr(onnx.FunctionProto, "attribute_proto"):
-            f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+        f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+
         return f
 
 

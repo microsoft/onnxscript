@@ -29,7 +29,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pyyaml",
 )
 ONNX = "onnx==1.13"
-ONNX_RUNTIME = "onnxruntime==1.13.1"
+ONNX_RUNTIME = "onnxruntime==1.14"
 PYTORCH = "torch==1.13"
 
 
