@@ -34,7 +34,7 @@ class TestConverter(unittest.TestCase):
             )
 
             # Convert model to python:
-            pymodel = proto2python(model, clean_code=False)
+            pymodel = proto2python(model)
             self.assertIn(
                 "external_tensor('weight', 1, [1024, 10], 'weight', length=40960)", pymodel
             )

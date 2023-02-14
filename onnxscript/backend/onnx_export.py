@@ -405,9 +405,7 @@ def export_template(
     model_onnx,
     template,
     name=None,
-    autopep_options=None,
     function_name="main_function",
-    clean_code=True,
     use_operators=False,
     rename=False,
     inline_const: bool = False,
@@ -418,9 +416,7 @@ def export_template(
         model_onnx: string or ONNX graph
         template: exporting template
         name: to overwrite onnx name
-        autopep_options: :epkg:`autopep8` options
         function_name: main function name in the code
-        clean_code: clean the code
         use_operators: use Python operators.
         rename: rename variable name to get shorter names
         inline_const: replace ONNX constants inline if compact
@@ -518,14 +514,7 @@ def export_template(
     final += "\n"
     if "\nreturn" in final:
         raise SyntaxError(f"The produced code is wrong.\n{final}")
-    if clean_code:
-        # delayed import to avoid raising an exception if not installed.
-        import autopep8  # pylint: disable=import-outside-toplevel
 
-        cleaned_code = autopep8.fix_code(final, options=autopep_options)
-        if "\nreturn" in cleaned_code:
-            raise SyntaxError(f"The cleaned code is wrong.\n{final}\n------{cleaned_code}")
-        return cleaned_code
     return final
 
 
@@ -535,10 +524,8 @@ def export2python(
     verbose=True,
     name=None,
     rename=False,
-    autopep_options=None,
     function_name="main",
     use_operators=False,
-    clean_code=True,
     inline_const: bool = False,
 ):
     """Exports an ONNX model to the *python* syntax.
@@ -550,10 +537,8 @@ def export2python(
         verbose: inserts prints
         name: to overwrite onnx name
         rename: rename the names to get shorter names
-        autopep_options: :epkg:`autopep8` options
         function_name: main function name
         use_operators: use Python operators.
-        clean_code: clean the code
         inline_const: replace ONNX constants inline if compact
 
     Returns:
@@ -585,8 +570,6 @@ def export2python(
         model_onnx,
         template=_template_python,
         name=name,
-        autopep_options=autopep_options,
-        clean_code=clean_code,
         function_name=function_name,
         use_operators=use_operators,
         rename=rename,
