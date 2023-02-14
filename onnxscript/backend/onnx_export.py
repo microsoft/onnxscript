@@ -406,7 +406,6 @@ def export_template(
     template,
     name=None,
     function_name="main_function",
-    clean_code=True,
     use_operators=False,
     rename=False,
     inline_const: bool = False,
@@ -418,7 +417,6 @@ def export_template(
         template: exporting template
         name: to overwrite onnx name
         function_name: main function name in the code
-        clean_code: clean the code
         use_operators: use Python operators.
         rename: rename variable name to get shorter names
         inline_const: replace ONNX constants inline if compact
@@ -528,7 +526,6 @@ def export2python(
     rename=False,
     function_name="main",
     use_operators=False,
-    clean_code=True,
     inline_const: bool = False,
 ):
     """Exports an ONNX model to the *python* syntax.
@@ -542,7 +539,6 @@ def export2python(
         rename: rename the names to get shorter names
         function_name: main function name
         use_operators: use Python operators.
-        clean_code: clean the code
         inline_const: replace ONNX constants inline if compact
 
     Returns:
@@ -574,7 +570,6 @@ def export2python(
         model_onnx,
         template=_template_python,
         name=name,
-        clean_code=clean_code,
         function_name=function_name,
         use_operators=use_operators,
         rename=rename,
