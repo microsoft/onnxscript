@@ -1288,8 +1288,8 @@ def _aten_upsample_nearest2d_onnx(
         output_size,
         mode="nearest",
         # NOTE(justinchuby): Both asymmetric and pytorch_half_pixel pass the test
-        # I used pytorch_half_pixel because it has pytorch in the name
-        coordinate_transformation_mode="pytorch_half_pixel",
+        # I used asymmetric because it aligns with the torch.onnx exporter
+        coordinate_transformation_mode="asymmetric",
         nearest_mode="floor",
     )
 
