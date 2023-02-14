@@ -3930,16 +3930,20 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_new_empty(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::new_empty")
+def aten_new_empty(self: TTensor, size: INT64) -> TTensor:
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    zero = op.Constant(value_float=0.0)
+    return op.Expand(zero, size)
 
 
-def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> TensorType:
+@torch_op("aten::new_empty_strided")
+def aten_new_empty_strided(self: TTensor, size: INT64, stride: INT64) -> TTensor:
     # new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    zero = op.Constant(value_float=0.0)
+    return op.ConstantOfShape(size)
 
 
 @torch_op("aten::new_full")
@@ -5561,14 +5565,6 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     # __xor__.Tensor(Tensor self, Tensor other) -> Tensor
 
     raise NotImplementedError()
-
-
-@torch_op("aten::zero")
-def aten_zero(self: TTensor) -> TTensor:
-    # not auto generated, manually add
-    shape = op.Shape(self)
-    zero = op.Constant(value_float=0.0)
-    op.Expand(zero, shape)
 
 
 @torch_op("aten::zeros")
