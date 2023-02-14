@@ -5563,6 +5563,14 @@ def aten_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::zero")
+def aten_zero(self: TTensor) -> TTensor:
+    # not auto generated, manually add
+    shape = op.Shape(self)
+    zero = op.Constant(value_float=0.0)
+    op.Expand(zero, shape)
+
+
 @torch_op("aten::zeros")
 def aten_zeros(size: IntType, dtype: int = FLOAT.dtype):
     # zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
