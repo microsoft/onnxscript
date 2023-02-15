@@ -3946,7 +3946,10 @@ def aten_new_empty(self: TTensor, size: INT64, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::new_empty_strided")
 def aten_new_empty_strided(
-    self: TTensor, size: INT64, stride: INT64, dtype: int = -1  # pylint: disable=unused-argument
+    self: TTensor,
+    size: INT64,
+    stride: INT64,
+    dtype: int = -1  # pylint: disable=unused-argument
 ) -> TTensor:
     # new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
