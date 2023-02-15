@@ -4859,6 +4859,7 @@ def aten_slice(
     else:
         step = op.Constant(value_ints=[1])
 
+    # TODO(titaiwang): Delete this Cast when we have type promotion
     return op.Cast(op.Slice(self, start, end, dim, step), to=FLOAT.dtype)
 
 
