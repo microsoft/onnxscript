@@ -3948,8 +3948,8 @@ def aten_new_empty(self: TTensor, size: INT64, dtype: int = -1) -> TTensor:
 def aten_new_empty_strided(
     self: TTensor,
     size: INT64,
-    stride: INT64,
-    dtype: int = -1  # pylint: disable=unused-argument
+    stride: INT64,  # pylint: disable=unused-argument
+    dtype: int = -1
 ) -> TTensor:
     # new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
