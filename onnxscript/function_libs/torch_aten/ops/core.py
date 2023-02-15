@@ -3152,6 +3152,8 @@ def aten_margin_ranking_loss(
 @torch_op("aten::masked_fill")
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
+    # NOTE: Do not attempt to cast `mask` to BOOL because mask should not take any other types.
+    # `mask` coming in as other types is often an error and should fail the model.
     value_cast = op.CastLike(value, self)
     return op.Where(mask, value_cast, self)
 
