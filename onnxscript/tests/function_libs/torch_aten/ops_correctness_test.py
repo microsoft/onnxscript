@@ -398,8 +398,8 @@ EXPECTED_SKIPS_OR_FAILS = (
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
-    skip("new_empty", reason="Using zeros to simulate empty"),
-    skip("new_empty_strided", reason="Using zeros to simulate empty"),
+    xfail("new_empty", reason="Using zeros to simulate empty"),
+    xfail("new_empty_strided", reason="Using zeros to simulate empty"),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="enable when ONNX Runtime does support opset18",

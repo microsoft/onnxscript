@@ -3931,25 +3931,31 @@ def aten_negative(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::new_empty")
-def aten_new_empty(self: TTensor, size: INT64) -> TTensor:
+def aten_new_empty(self: TTensor, size: INT64, dtype: int = -1) -> TTensor:
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # using zero to simulate empty array
     zero = op.Constant(value_float=0.0)
     result = op.Expand(zero, size)
-    result = op.CastLike(result, self)
+    if dtype == -1:
+        result = op.CastLike(result, self)
+    else:
+        result = op.Cast(result, to=dtype)
     return result
 
 
 @torch_op("aten::new_empty_strided")
 def aten_new_empty_strided(
-    self: TTensor, size: INT64, stride: INT64  # pylint: disable=unused-argument
+    self: TTensor, size: INT64, stride: INT64, dtype = -1  # pylint: disable=unused-argument
 ) -> TTensor:
     # new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     # using zero to simulate empty array
-    result = op.ConstantOfShape(size)
-    result = op.CastLike(result, self)
+    zero = op.ConstantOfShape(size)
+    if dtype == -1:
+        result = op.CastLike(zero, self)
+    else:
+        result = op.Cast(zero, to=dtype)
     return result
 
 
