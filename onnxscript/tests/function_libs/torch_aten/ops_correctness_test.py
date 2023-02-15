@@ -300,6 +300,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
+    "narrow": core_ops.aten_narrow,
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,

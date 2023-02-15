@@ -3742,10 +3742,25 @@ def aten_nansum(
     raise NotImplementedError()
 
 
-def aten_narrow(self: TensorType, dim: int, start: INT64, length: INT64) -> TensorType:
+@torch_op("aten::narrow")
+def aten_narrow(self: TTensor, dim: INT64, start: INT64, length: INT64) -> TTensor:
     # narrow(Tensor(a) self, int dim, SymInt start, SymInt length) -> Tensor(a)
 
-    raise NotImplementedError()
+    dim_rank = op.Size(op.Shape(dim))
+    if dim_rank == 0:
+        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+
+    start_rank = op.Size(op.Shape(start))
+    if start_rank == 0:
+        start = op.Reshape(start, op.Constant(value_ints=[-1]))
+
+    length_rank = op.Size(op.Shape(length))
+    if length_rank == 0:
+        length = op.Reshape(length, op.Constant(value_ints=[-1]))
+
+    end = op.Add(start, length)
+    result = op.Slice(self, start, end, dim)
+    return result
 
 
 def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) -> TensorType:
