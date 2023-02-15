@@ -4008,7 +4008,10 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
 
 @torch_op("aten::normal")
 def aten_normal(
-    self: TTensor, mean: float = 0.0, std: float = 1.0, generator: str = "none"
+    self: TTensor,
+    mean: float = 0.0,
+    std: float = 1.0,
+    generator: str = "none",  # pylint: disable=unused-argument
 ) -> TTensor:
     # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
 
