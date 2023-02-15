@@ -3991,12 +3991,13 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
     raise NotImplementedError()
 
 
+@torch_op("aten::normal")
 def aten_normal(
-    self: TensorType, mean: float = 0.0, std: float = 1.0, generator: Optional[str] = None
-) -> TensorType:
+    self: TTensor, mean: float = 0.0, std: float = 1.0, generator: str = "none"
+) -> TTensor:
     # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
 
-    raise NotImplementedError()
+    return op.RandomNormalLike(self, mean=mean, scale=std)
 
 
 def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
