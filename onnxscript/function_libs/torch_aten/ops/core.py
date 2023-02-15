@@ -59,6 +59,8 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
+    # TODO(titaiwang): Delete this when we have type promotion
+    other = op.CastLike(other, self)
     return op.Add(self, other)
 
 
@@ -205,7 +207,7 @@ def aten_amax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> 
 
     # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
     if dim is None:
-        return opset17.ReduceMax(self, keepdims=keepdim)
+        return op.ReduceMax(self, dim, keepdims=keepdim)
     if not isinstance(dim, Sequence):
         dims = [dim]
     else:
@@ -216,11 +218,11 @@ def aten_amax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> 
 @torch_op("aten::amax", overload=True)
 def _aten_amax_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
     # TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14
-    if opset17.Size(opset17.Shape(self)) == 0:
+    if op.Size(op.Shape(self)) == 0:
         # Scalar
         result = self
     else:
-        result = opset17.ReduceMax(self, axes=axes, keepdims=keepdims)
+        result = op.ReduceMax(self, axes, keepdims=keepdims)
     return result
 
 
@@ -230,7 +232,7 @@ def aten_amin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> 
 
     # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
     if dim is None:
-        return opset17.ReduceMin(self, keepdims=keepdim)
+        return op.ReduceMin(self, dim, keepdims=keepdim)
     if not isinstance(dim, Sequence):
         dims = [dim]
     else:
@@ -241,11 +243,11 @@ def aten_amin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> 
 @torch_op("aten::amin", overload=True)
 def _aten_amin_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
     # TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14
-    if opset17.Size(opset17.Shape(self)) == 0:
+    if op.Size(op.Shape(self)) == 0:
         # Scalar
         result = self
     else:
-        result = opset17.ReduceMin(self, axes=axes, keepdims=keepdims)
+        result = op.ReduceMin(self, axes, keepdims=keepdims)
     return result
 
 
@@ -765,7 +767,7 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
 @torch_op("aten::bitwise_not")
 def aten_bitwise_not(self: TInt) -> TInt:
     # bitwise_not(Tensor self) -> Tensor
-
+    self = op.Cast(self, to=INT64.dtype)
     return op.BitwiseNot(self)
 
 
@@ -3874,18 +3876,18 @@ def _aten_native_layer_norm_onnx(
 ) -> Tuple[TReal, TReal, TReal]:
 
     # FIXME(justinchuby): Use opset18 when it is supported by onnxruntime
-    mean = opset17.ReduceMean(input, axes=axes)
-    numerator = opset17.Sub(input, mean)
-    power_num = opset17.Pow(numerator, 2.0)
-    variance = opset17.ReduceMean(power_num, axes=axes)
-    variance_eps = opset17.Add(variance, eps)
-    denominator = opset17.Sqrt(variance_eps)
-    result = opset17.Div(numerator, denominator)
-    weight = opset17.CastLike(weight, result)
-    result = opset17.Mul(result, weight)
-    bias = opset17.CastLike(bias, result)
-    result = opset17.Add(result, bias)
-    rdenominator = opset17.Reciprocal(denominator)
+    mean = op.ReduceMean(input, axes)
+    numerator = op.Sub(input, mean)
+    power_num = op.Pow(numerator, 2.0)
+    variance = op.ReduceMean(power_num, axes)
+    variance_eps = op.Add(variance, eps)
+    denominator = op.Sqrt(variance_eps)
+    result = op.Div(numerator, denominator)
+    weight = op.CastLike(weight, result)
+    result = op.Mul(result, weight)
+    bias = op.CastLike(bias, result)
+    result = op.Add(result, bias)
+    rdenominator = op.Reciprocal(denominator)
     return result, mean, rdenominator
 
 
@@ -4848,7 +4850,7 @@ def aten_slice(
     else:
         step = op.Constant(value_ints=[1])
 
-    return op.Slice(self, start, end, dim, step)
+    return op.Cast(op.Slice(self, start, end, dim, step), to=FLOAT.dtype)
 
 
 def aten_slice_backward(
