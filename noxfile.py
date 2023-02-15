@@ -10,7 +10,6 @@ nox.options.error_on_missing_interpreters = False
 
 
 COMMON_TEST_DEPENDENCIES = (
-    "autopep8",
     "click",
     "jinja2",
     'numpy==1.23.5; python_version>="3.8"',

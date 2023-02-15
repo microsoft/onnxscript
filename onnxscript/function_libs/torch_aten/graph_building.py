@@ -299,7 +299,8 @@ class TorchScriptGraph:
     def __init__(self):
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
-        self._function_store: Dict[str, onnxscript.OnnxFunction] = {}
+        # key: (name, domain)
+        self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
 
     @property
     def torch_graph(self):
@@ -435,7 +436,8 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
-        self._function_store[onnx_function.name] = onnx_function
+        identifier = (onnx_function.name, onnx_function.function_ir.domain)
+        self._function_store[identifier] = onnx_function
 
         # Compute outputs from the function schema
 
