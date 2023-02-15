@@ -26,7 +26,6 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TRealUnlessInt16OrInt8,
     TTensor,
 )
-from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -57,10 +56,10 @@ def aten_acosh(self: TFloat) -> TFloat:
 @torch_op("aten::add")
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
-    alpha = op.CastLike(alpha, other)
-    other = op.Mul(other, alpha)
     # TODO(titaiwang): Delete this when we have type promotion
     other = op.CastLike(other, self)
+    alpha = op.CastLike(alpha, other)
+    other = op.Mul(other, alpha)
     return op.Add(self, other)
 
 
@@ -767,8 +766,16 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
 @torch_op("aten::bitwise_not")
 def aten_bitwise_not(self: TInt) -> TInt:
     # bitwise_not(Tensor self) -> Tensor
-    self = op.Cast(self, to=INT64.dtype)
+    # TODO(titaiwang): Support BOOL input
     return op.BitwiseNot(self)
+
+
+@torch_op("aten::bitwise_not", overload=True)
+def aten_bitwise_not_bool(self: BOOL) -> BOOL:
+    # bitwise_not(Tensor self) -> Tensor
+    # FIXME(titaiwang): This is a hack to get around the fact that we don't have op.BitwiseNot supporting bool now.
+    # We should remove this once we have a proper implementation.
+    return op.Not(self)
 
 
 @torch_op("aten::bitwise_or")
@@ -3148,9 +3155,8 @@ def aten_margin_ranking_loss(
 @torch_op("aten::masked_fill")
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
-    mask_cast = op.Cast(mask, to=BOOL.dtype)
     value_cast = op.CastLike(value, self)
-    return op.Where(mask_cast, value_cast, self)
+    return op.Where(mask, value_cast, self)
 
 
 def aten_masked_scatter(self: TensorType, mask: TensorType, source: TensorType) -> TensorType:
@@ -3650,7 +3656,8 @@ def aten_msort(self: TensorType) -> TensorType:
 @torch_op("aten::mul")
 def aten_mul(self: TReal, other: TReal) -> TReal:
     # mul.Tensor(Tensor self, Tensor other) -> Tensor
-
+    # TODO(titaiwang): Delete this when we have type promotion
+    other = op.CastLike(other, self)
     return op.Mul(self, other)
 
 
@@ -4699,6 +4706,7 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
     alpha = op.CastLike(alpha, self)
+
     return op.Sub(other, op.Mul(self, alpha))
 
 
@@ -5019,9 +5027,10 @@ def aten_stft(
 @torch_op("aten::sub")
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     # sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
+    # TODO(titaiwang): Delete this when we have type promotion
+    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
-
     return op.Sub(self, other)
 
 
