@@ -256,14 +256,6 @@ def aten_cross_entropy(
         result, prob = op.SoftmaxCrossEntropyLoss(self, target, weight, reduction=reduction, ignore_index=ignore_index)
     return result
 
-# import numpy as np
-# a = np.array([[-7.5, 4.3, -9.9],[5.5, 6.7, 8.5]], dtype=np.float32)
-# t = np.array([0, 1], dtype=np.int64)
-# w = np.array([6.8, 7.4, -2.1], dtype=np.float32)
-
-# result = aten_cross_entropy(a, t, weight=w)
-# print(result)
-# exit(0)
 
 @torch_op("aten::elu")
 def aten_elu(
