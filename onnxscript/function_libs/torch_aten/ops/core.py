@@ -3796,7 +3796,7 @@ def aten_native_batch_norm_backward(
 def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
     # native_channel_shuffle(Tensor self, int groups) -> Tensor
 
-    raise NotImplementedError()
+    return None
 
 
 def aten_native_dropout(
