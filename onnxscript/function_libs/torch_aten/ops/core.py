@@ -1398,10 +1398,14 @@ def aten_convolution_overrideable(
     raise NotImplementedError()
 
 
-def aten_copy(self: TensorType, src: TensorType, non_blocking: bool = False) -> TensorType:
+@torch_op("aten::copy")
+def aten_copy(
+    self: TTensor, src: TTensor, non_blocking: bool = False  # pylint: disable=unused-argument
+) -> TTensor:
     # copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor
 
-    raise NotImplementedError()
+    self = op.Identity(src)
+    return self
 
 
 def aten_copysign(self: TensorType, other: TensorType) -> TensorType:
@@ -1948,10 +1952,17 @@ def aten_empty_quantized(
     raise NotImplementedError()
 
 
-def aten_empty_strided(size: INT64, stride: INT64) -> TensorType:
+@torch_op("aten::empty_strided")
+def aten_empty_strided(
+    size: INT64, stride: INT64  # pylint: disable=unused-argument
+) -> TTensor:  # type: ignore[type-var]
     # empty_strided(SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    # using Zeros to simulate empty()
+    size = op.Cast(size, to=INT64.dtype)
+    zero = op.Constant(value_float=0.0)
+
+    return op.Expand(zero, size)
 
 
 @torch_op("aten::eq")
@@ -2172,10 +2183,15 @@ def aten_feature_dropout(input: TensorType, p: float, train: bool) -> TensorType
     raise NotImplementedError()
 
 
-def aten_fill(self: TensorType, value: TensorType) -> TensorType:
+@torch_op("aten::fill")
+def aten_fill(self: TTensor, value: TTensor) -> TTensor:
     # fill.Tensor(Tensor self, Tensor value) -> Tensor
 
-    raise NotImplementedError()
+    # after fill, the self Tensor should keep origianl type
+    shape = op.Shape(self)
+    expanded = op.Expand(value, shape)
+    result = op.CastLike(expanded, self)
+    return result
 
 
 def aten_fix(self: TensorType) -> TensorType:
@@ -3799,12 +3815,14 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::native_dropout")
 def aten_native_dropout(
-    input: TensorType, p: float, train: Optional[bool]
-) -> tuple[TensorType, TensorType]:
+    input: TFloatOrBFloat16, p: float, train: bool = True
+) -> Tuple[TFloatOrBFloat16, BOOL]:
     # native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)
 
-    raise NotImplementedError()
+    result, mask = op.Dropout(input, p, train)
+    return result, mask
 
 
 def aten_native_dropout_backward(
