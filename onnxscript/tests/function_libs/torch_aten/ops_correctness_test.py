@@ -394,8 +394,8 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    skip("empty", reason="Using zeros to simulate empty"),
-    skip("empty_like", reason="Using zeros_like to simulate empty_like"),
+    xfail("empty", reason="Using zeros to simulate empty"),
+    xfail("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     xfail(
@@ -449,6 +449,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
+    ),
+    skip(
+        "normal",
+        matcher=lambda sample: len(sample.args) > 0 and isinstance(sample.args[0], torch.Tensor),
+        reason="only float type is accepted for args[0] (mean)",
     ),
     skip(
         "nn.functional.adaptive_avg_pool1d",

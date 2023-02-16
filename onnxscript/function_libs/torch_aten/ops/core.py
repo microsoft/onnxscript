@@ -4015,7 +4015,12 @@ def aten_normal(
 ) -> TTensor:
     # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
 
-    return op.RandomNormalLike(self, mean=mean, scale=std)
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.RandomNormalLike(self, mean=mean, scale=std)
+    return result
 
 
 def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
