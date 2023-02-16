@@ -490,7 +490,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.cross_entropy",
-        matcher=lambda sample: sample.args[0].dtype == torch.float,
+        matcher=lambda sample: sample.args[0].dtype != torch.int,
         reason="ort can only accept int value for the [target] parameter",
     ),
     skip(
