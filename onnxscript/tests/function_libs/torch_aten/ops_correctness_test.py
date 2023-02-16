@@ -303,6 +303,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "narrow": core_ops.aten_narrow,
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
+    "new_empty": core_ops.aten_new_empty,
+    "new_empty_strided": core_ops.aten_new_empty_strided,
     "new_full": core_ops.aten_new_full,
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
@@ -398,6 +400,8 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
+    xfail("new_empty", reason="Using zeros to simulate empty"),
+    xfail("new_empty_strided", reason="Using zeros to simulate empty"),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="enable when ONNX Runtime does support opset18",
