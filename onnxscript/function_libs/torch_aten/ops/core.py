@@ -769,6 +769,12 @@ def aten_bitwise_not(self: TInt) -> TInt:
     return op.BitwiseNot(self)
 
 
+@torch_op("aten::bitwise_not", overload=True)
+def aten_bitwise_not_bool(self: BOOL) -> BOOL:
+    # bitwise_not(Tensor self) -> Tensor
+    return op.Not(self)
+
+
 @torch_op("aten::bitwise_or")
 def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     # bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor
@@ -3146,9 +3152,10 @@ def aten_margin_ranking_loss(
 @torch_op("aten::masked_fill")
 def aten_masked_fill(self: TTensor, mask: BOOL, value: TTensor) -> TTensor:
     # masked_fill.Tensor(Tensor self, Tensor mask, Tensor value) -> Tensor
-    mask_cast = op.Cast(mask, to=BOOL.dtype)
+    # NOTE: Do not attempt to cast `mask` to BOOL because mask should not take any other types.
+    # `mask` coming in as other types is often an error and should fail the model.
     value_cast = op.CastLike(value, self)
-    return op.Where(mask_cast, value_cast, self)
+    return op.Where(mask, value_cast, self)
 
 
 def aten_masked_scatter(self: TensorType, mask: TensorType, source: TensorType) -> TensorType:
@@ -3945,16 +3952,36 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_new_empty(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::new_empty")
+def aten_new_empty(self: TTensor, size: INT64, dtype: int = -1) -> TTensor:
     # new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    # using zero to simulate empty array
+    zero = op.Constant(value_float=0.0)
+    result = op.Expand(zero, size)
+    if dtype == -1:
+        result = op.CastLike(result, self)
+    else:
+        result = op.Cast(result, to=dtype)
+    return result
 
 
-def aten_new_empty_strided(self: TensorType, size: INT64, stride: INT64) -> TensorType:
+@torch_op("aten::new_empty_strided")
+def aten_new_empty_strided(
+    self: TTensor,
+    size: INT64,
+    stride: INT64,  # pylint: disable=unused-argument
+    dtype: int = -1,
+) -> TTensor:
     # new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    # using zero to simulate empty array
+    zero = op.ConstantOfShape(size)
+    if dtype == -1:
+        result = op.CastLike(zero, self)
+    else:
+        result = op.Cast(zero, to=dtype)
+    return result
 
 
 @torch_op("aten::new_full")
