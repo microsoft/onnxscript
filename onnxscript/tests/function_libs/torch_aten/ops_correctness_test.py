@@ -394,8 +394,8 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    xfail("empty", reason="Using zeros to simulate empty"),
-    xfail("empty_like", reason="Using zeros_like to simulate empty_like"),
+    skip("empty", reason="Using zeros to simulate empty"),
+    skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     xfail(
