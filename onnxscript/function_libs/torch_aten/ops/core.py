@@ -3809,7 +3809,9 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
 
 
 @torch_op("aten::native_dropout")
-def aten_native_dropout(input: TTensor, p: float, train: bool = True) -> Tuple[TTensor, BOOL]:
+def aten_native_dropout(
+    input: TFloatOrBFloat16, p: float, train: bool = True
+) -> Tuple[TFloatOrBFloat16, BOOL]:
     # native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)
 
     result, mask = op.Dropout(input, p, train)
