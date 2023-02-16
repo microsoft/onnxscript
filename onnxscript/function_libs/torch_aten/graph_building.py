@@ -204,6 +204,9 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def graph(self) -> TorchScriptGraph:
         return self._graph
 
+    def eval(self, schema, inputs, attributes):
+        return self._graph.add_op_call(schema, inputs, attributes)
+
     @beartype
     def eval_function(  # type: ignore[override]
         self,
@@ -224,14 +227,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
                 attributes[name] = float(value)
         return self._graph.add_function_call(function, inputs, attributes)
-
-    def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
-        del closure  # Unused
-
-        return self._graph.add_op_call(schema, inputs, attributes)
-
-    def eval(self, schema, inputs, attributes):
-        return self._eval(schema, inputs, attributes, closure=None)
 
 
 @beartype

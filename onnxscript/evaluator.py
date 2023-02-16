@@ -14,7 +14,7 @@ import numpy as np
 import onnx
 import onnx.defs
 import onnx.helper
-from typing_extensions import TypeAlias
+from typing_extensions import Protocol, TypeAlias, runtime_checkable
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 from onnxscript._internal import param_manipulation
@@ -117,7 +117,40 @@ def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
     return new_kwargs
 
 
-class Evaluator(abc.ABC):
+@runtime_checkable
+class Evaluator(Protocol):
+    """Protocol for evaluating ONNX ops."""
+
+    def eval(
+        self,
+        schema: onnx.defs.OpSchema,
+        inputs: Sequence[ExtendedModeValue],
+        attributes: Mapping[str, Any],
+    ):
+        """Evaluates an ONNX op.
+
+        Args:
+            schema: The OpSchema of the operator to evaluate.
+            inputs: The ONNX inputs to the op.
+            attributes: The ONNX attributes to the op.
+        """
+
+    def eval_function(
+        self,
+        function: values.OnnxFunction,
+        args: Sequence[ExtendedModeValue],
+        kwargs: Mapping[str, ExtendedModeValue],
+    ):
+        """Evaluates an OnnxFunction.
+
+        Args:
+            function: The OnnxFunction to evaluate.
+            args: The positional arguments to the function.
+            kwargs: The keyword arguments to the function.
+        """
+
+
+class BaseEvaluator(Evaluator, abc.ABC):
     """Base class for evaluation of ONNX ops.
 
     The execution of onnxscript functions in eager-mode is dispatched to an Evaluator
@@ -400,7 +433,7 @@ def _schema_id(schema: onnx.defs.OpSchema) -> tuple[str, str, int]:
     return schema.name, schema.domain, schema.since_version
 
 
-class ORTEvaluator(Evaluator):
+class ORTEvaluator(BaseEvaluator):
     """Evaluates ONNX ops using ONNX Runtime."""
 
     def _eval(self, schema, inputs, attributes, closure):
