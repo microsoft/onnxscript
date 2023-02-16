@@ -239,18 +239,31 @@ def aten_conv_depthwise3d(
     raise NotImplementedError()
 
 
-def aten_cross_entropy_loss(
-    self: TensorType,
-    target: TensorType,
-    weight: Optional[TensorType] = None,
-    reduction: int = 1,
+@torch_op("aten::cross_entropy", trace_only=True)
+def aten_cross_entropy(
+    self: TFloatOrBFloat16,
+    target: Sequence[int],
+    weight: Optional[TFloatOrBFloat16] = None,
+    reduction: str = "mean",
     ignore_index: INT64 = -100,
     label_smoothing: float = 0.0,
-) -> TensorType:
+) -> TFloatOrBFloat16:
     # cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor
 
-    raise NotImplementedError()
+    if weight is None:
+        result, prob = op.SoftmaxCrossEntropyLoss(self, target, reduction=reduction, ignore_index=ignore_index)
+    else:
+        result, prob = op.SoftmaxCrossEntropyLoss(self, target, weight, reduction=reduction, ignore_index=ignore_index)
+    return result
 
+# import numpy as np
+# a = np.array([[-7.5, 4.3, -9.9],[5.5, 6.7, 8.5]], dtype=np.float32)
+# t = np.array([0, 1], dtype=np.int64)
+# w = np.array([6.8, 7.4, -2.1], dtype=np.float32)
+
+# result = aten_cross_entropy(a, t, weight=w)
+# print(result)
+# exit(0)
 
 @torch_op("aten::elu")
 def aten_elu(
