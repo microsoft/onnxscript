@@ -407,6 +407,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="enable when ONNX Runtime does support opset18",
     ),
     xfail("normal", reason="Random numbers are not close"),
+    xfail("normal", variant_name="number_mean", reason="Random numbers are not close"),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
