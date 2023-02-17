@@ -278,7 +278,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
             args,
             kwargs,
             fill_defaults=False,
-            allow_extra_kwargs=self.allow_extra_kwargs,
+            allow_extra_kwargs=self._ignore_unknown_function_kwargs,
         )
         adapted_inputs, has_array = _adapt_to_eager_mode(inputs)
         result = function.function(*adapted_inputs, **attributes)
