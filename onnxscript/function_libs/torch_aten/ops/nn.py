@@ -239,7 +239,7 @@ def aten_conv_depthwise3d(
     raise NotImplementedError()
 
 
-@torch_op("aten::cross_entropy", trace_only=True)
+@torch_op("aten::cross_entropy")
 def aten_cross_entropy(
     self: TFloatOrBFloat16,
     target: Sequence[int],
