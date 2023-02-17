@@ -45,7 +45,7 @@ class ORTEvaluatorTest(unittest.TestCase):
         x = np.array(0.0, dtype=np.float32)
         expected = np.array(1.0, dtype=np.float32)
         with evaluator.default_as(evaluator.ORTEvaluator(ignore_unknown_function_kwargs=True)):
-            output = test_function(x, unknown=42)
+            output = test_function(x, unknown=42)  # pylint: disable=unexpected-keyword-arg
 
         np.testing.assert_equal(output, expected)
 
@@ -57,7 +57,7 @@ class ORTEvaluatorTest(unittest.TestCase):
         x = np.array(0.0, dtype=np.float32)
         with evaluator.default_as(evaluator.ORTEvaluator()):
             with self.assertRaises(TypeError):
-                _ = test_function(x, unknown=42)
+                _ = test_function(x, unknown=42)  # pylint: disable=unexpected-keyword-arg
 
 
 if __name__ == "__main__":
