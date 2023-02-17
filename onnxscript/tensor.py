@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
-from onnx import TensorProto
 import onnx.helper
+from onnx import TensorProto
 
 from onnxscript import onnx_opset
 
