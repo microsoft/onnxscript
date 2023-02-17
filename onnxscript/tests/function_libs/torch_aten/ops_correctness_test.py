@@ -274,18 +274,21 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clone": core_ops.aten_clone,
+    # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
     "empty": core_ops.aten_empty,
+    # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
     "eq": core_ops.aten_eq,
     "equal": core_ops.aten_equal,
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,
     "expand": core_ops.aten_expand,
     "erf": core_ops.aten_erf,
+    "fill": core_ops.aten_fill,
     "fmod": core_ops.aten_fmod,
     "full": (core_ops.aten_full, _full_input_wrangler),
     "full_like": core_ops.aten_full_like,
@@ -310,6 +313,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
+    # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_empty": core_ops.aten_new_empty,
@@ -490,7 +494,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.cross_entropy",
-        matcher=lambda sample: sample.args[0].dtype == torch.float,
+        matcher=lambda sample: sample.args[0].dtype != torch.int,
         reason="ort can only accept int value for the [target] parameter",
     ),
     skip(
