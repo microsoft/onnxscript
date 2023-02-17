@@ -245,7 +245,7 @@ def aten_cross_entropy(
     target: Sequence[int],
     weight: Optional[TFloatOrBFloat16] = None,
     reduction: str = "mean",
-    ignore_index: INT64 = -100,
+    ignore_index: int = -100,
     label_smoothing: float = 0.0,
 ) -> TFloatOrBFloat16:
     # cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor
