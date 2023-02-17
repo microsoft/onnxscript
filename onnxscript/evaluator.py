@@ -159,6 +159,18 @@ class BaseEvaluator(Evaluator, abc.ABC):
     supported by onnxscript to those expected by a particular backend.
     """
 
+    def __init__(self, ignore_unknown_function_kwargs: bool = False):
+        """Initializes a BaseEvaluator.
+
+        Args:
+            ignore_unknown_function_kwargs: Whether to ignore unknown keyword arguments
+                when evaluating an OnnxFunction. This is useful when using the
+                evaluator to validate operators programmatically, where
+                additional keyword arguments that is not part of the signature
+                may be provided to the function.
+        """
+        self._ignore_unknown_function_kwargs = ignore_unknown_function_kwargs
+
     def eval(
         self,
         schema: onnx.defs.OpSchema,
@@ -262,7 +274,11 @@ class BaseEvaluator(Evaluator, abc.ABC):
         # Split happens in the evaluator instead of the OnnxFunction __call__ method
         # so that evaluators can control behaviors like whether to fill in default values for attributes.
         inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs, fill_defaults=False, allow_extra_kwargs=False
+            param_schemas,
+            args,
+            kwargs,
+            fill_defaults=False,
+            allow_extra_kwargs=self.allow_extra_kwargs,
         )
         adapted_inputs, has_array = _adapt_to_eager_mode(inputs)
         result = function.function(*adapted_inputs, **attributes)
