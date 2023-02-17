@@ -187,7 +187,7 @@ def _cat_input_wrangler(
 def _cross_entropy_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    # Remove the self argument
+    # change torch.Tensor type to np.array to avoid crash
     if "weight" in kwargs:
         if isinstance(kwargs["weight"], torch.Tensor):
             kwargs["weight"] = np.array(kwargs["weight"])
