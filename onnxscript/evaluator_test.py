@@ -55,7 +55,7 @@ class ORTEvaluatorTest(unittest.TestCase):
             return op.Add(x, y)
 
         x = np.array(0.0, dtype=np.float32)
-        with evaluator.default_as(evaluator.ORTEvaluator(ignore_unknown_function_kwargs=True)):
+        with evaluator.default_as(evaluator.ORTEvaluator()):
             with self.assertRaises(TypeError):
                 _ = test_function(x, unknown=42)
 
