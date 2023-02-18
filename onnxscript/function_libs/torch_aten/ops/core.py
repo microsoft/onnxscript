@@ -3765,10 +3765,25 @@ def aten_nansum(
     raise NotImplementedError()
 
 
-def aten_narrow(self: TensorType, dim: int, start: INT64, length: INT64) -> TensorType:
+@torch_op("aten::narrow")
+def aten_narrow(self: TTensor, dim: INT64, start: INT64, length: INT64) -> TTensor:
     # narrow(Tensor(a) self, int dim, SymInt start, SymInt length) -> Tensor(a)
 
-    raise NotImplementedError()
+    dim_rank = op.Size(op.Shape(dim))
+    if dim_rank == 0:
+        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+
+    start_rank = op.Size(op.Shape(start))
+    if start_rank == 0:
+        start = op.Reshape(start, op.Constant(value_ints=[-1]))
+
+    length_rank = op.Size(op.Shape(length))
+    if length_rank == 0:
+        length = op.Reshape(length, op.Constant(value_ints=[-1]))
+
+    end = op.Add(start, length)
+    result = op.Slice(self, start, end, dim)
+    return result
 
 
 def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) -> TensorType:
@@ -4036,12 +4051,20 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
     raise NotImplementedError()
 
 
+@torch_op("aten::normal")
 def aten_normal(
-    self: TensorType, mean: float = 0.0, std: float = 1.0, generator: Optional[str] = None
-) -> TensorType:
+    self: TTensor,
+    mean: float = 0.0,
+    std: float = 1.0,
+) -> TFloat:  # type: ignore[type-var]
     # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
 
-    raise NotImplementedError()
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    result = op.RandomNormalLike(self, mean=mean, scale=std)
+    return result
 
 
 def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
