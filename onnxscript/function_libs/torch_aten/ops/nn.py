@@ -251,12 +251,12 @@ def aten_cross_entropy(
     # cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor
 
     if op.OptionalHasElement(weight):
-        result, _ = op.SoftmaxCrossEntropyLoss(
-            self, target, reduction=reduction, ignore_index=ignore_index
+        result = op.SoftmaxCrossEntropyLoss(
+            self, target, weight, reduction=reduction, ignore_index=ignore_index
         )
     else:
-        result, _ = op.SoftmaxCrossEntropyLoss(
-            self, target, weight, reduction=reduction, ignore_index=ignore_index
+        result = op.SoftmaxCrossEntropyLoss(
+            self, target, reduction=reduction, ignore_index=ignore_index
         )
     return result
 
