@@ -313,6 +313,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
+    "narrow": core_ops.aten_narrow,
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
@@ -336,6 +337,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
         _upsample_input_wrangler,
     ),
     "nonzero": core_ops.aten_nonzero,
+    "normal": core_ops.aten_normal,
     "ones": core_ops.aten_ones,
     "permute": core_ops.aten_permute,
     "pow": core_ops.aten_pow,
@@ -419,6 +421,8 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.upsample_nearest2d",
         reason="enable when ONNX Runtime does support opset18",
     ),
+    xfail("normal", reason="Random numbers are not close"),
+    xfail("normal", variant_name="number_mean", reason="Random numbers are not close"),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
@@ -465,6 +469,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
+    ),
+    skip(
+        "normal",
+        matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
+        reason="ORT only accept float type for args[0] 'mean'",
     ),
     skip(
         "nn.functional.adaptive_avg_pool1d",
