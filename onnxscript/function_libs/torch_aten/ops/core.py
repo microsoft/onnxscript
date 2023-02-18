@@ -4056,7 +4056,7 @@ def aten_normal(
     self: TTensor,
     mean: float = 0.0,
     std: float = 1.0,
-) -> TFloat:
+) -> TFloat:  # type: ignore[type-var]
     # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
 
     self_rank = op.Size(op.Shape(self))
