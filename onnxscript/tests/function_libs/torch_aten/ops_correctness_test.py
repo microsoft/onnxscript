@@ -462,7 +462,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "normal",
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
-        reason="only float type is accepted for args[0] (mean)",
+        reason="ORT only accept float type for args[0] 'mean'",
     ),
     skip(
         "nn.functional.adaptive_avg_pool1d",
