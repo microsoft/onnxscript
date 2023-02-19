@@ -119,6 +119,7 @@ select = [
     "N", # pep8-naming
     "YTT", # flake8-2020
     "RUF", # Ruff-specific rules
+    "TID252", # Disallow relative imports
 ]
 ignore = [
     "D1", # D1 is for missing docstrings, which is not yet enforced.
@@ -138,6 +139,11 @@ ignore-init-module-imports = true
 unfixable = [
     "F401", # Unused imports
 ]
+
+[tool.ruff.flake8-tidy-imports]
+# Disallow all relative imports.
+ban-relative-imports = "all"
+
 
 [tool.ruff.pydocstyle]
 convention = "google"
