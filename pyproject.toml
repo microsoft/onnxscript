@@ -144,6 +144,5 @@ unfixable = [
 # Disallow all relative imports.
 ban-relative-imports = "all"
 
-
 [tool.ruff.pydocstyle]
 convention = "google"
