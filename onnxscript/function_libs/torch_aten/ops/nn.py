@@ -741,6 +741,7 @@ def aten_multilabel_margin_loss_forward(
     raise NotImplementedError()
 
 
+@torch_op("aten::nll_loss", trace_only=True)
 def aten_nll_loss(
     self: TensorType,
     target: TensorType,
@@ -750,7 +751,29 @@ def aten_nll_loss(
 ) -> TensorType:
     # nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
 
-    raise NotImplementedError()
+    reduction_vals = ["none", "mean", "sum"]
+    reduction = reduction_vals[reduction]
+
+    rank_self = op.Size(op.Shape(self))
+    if rank_self <= 1:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+        rank_target = op.Size(op.Shape(target))
+        if rank_self - rank_target == 1:  # rank(target) == rank(self) - 1
+            target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+
+    if op.OptionalHasElement(weight):
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, weight=weight, ignore_index=ignore_index, reduction=reduction
+        )
+    else:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, ignore_index=ignore_index, reduction=reduction
+        )
+
+    if rank_self <= 1:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_nll_loss2d(

@@ -204,6 +204,16 @@ def _full_input_wrangler(
     return args, kwargs
 
 
+def _nll_loss_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "reduction" in kwargs:
+        reduction_vals = ["none", "mean", "sum"]
+        value = kwargs["reduction"]
+        kwargs["reduction"] = reduction_vals.index(value)
+    return args, kwargs
+
+
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -378,6 +388,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
+    # "nn.functional.cross_entropy_loss": nn_ops.aten_cross_entropy_loss,  # not in OPS_DB
+    "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     "ones_like": core_ops.aten_ones_like,
@@ -590,6 +602,8 @@ def _convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
             continue
         if key == "dtype":
             value = TORCH_TYPE_TO_ONNX[value]
+        if isinstance(value, torch.Tensor):
+            value = np.array(value)
         new_kwargs[key] = value
     return new_kwargs
 
@@ -699,6 +713,9 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+                if i == 7:
+                    print(cpu_sample)
+
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
