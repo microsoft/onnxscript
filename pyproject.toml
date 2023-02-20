@@ -129,10 +129,11 @@ ignore = [
     "D400",
     "D401", # First line of docstring should be in imperative mood
     "D415", # D415 Not yet enforced. "First line should end with a period, question mark, or exclamation point"
-    "E501",
+    "E501", # Line length. Not enforced because black will handle formatting
     "N802", # Nxx: ONNX Script function sometimes use upper case for names.
     "N803",
     "N806",
+    "N999", # Invalid module name
 ]
 line-length = 120
 ignore-init-module-imports = true
