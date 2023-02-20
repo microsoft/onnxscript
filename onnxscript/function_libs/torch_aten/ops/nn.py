@@ -239,24 +239,26 @@ def aten_conv_depthwise3d(
     raise NotImplementedError()
 
 
-@torch_op("aten::cross_entropy")
-def aten_cross_entropy(
+@torch_op("aten::cross_entropy_loss", trace_only=True)
+def aten_cross_entropy_loss(
     self: TFloatOrBFloat16,
     target: Sequence[int],
     weight: Optional[TFloatOrBFloat16] = None,
-    reduction: str = "mean",
+    reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
-    label_smoothing: float = 0.0,
+    label_smoothing: float = 0.0,  # this was ignored due to ONNX not support
 ) -> TFloatOrBFloat16:
     # cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor
 
+    reduction_vals = ["none", "mean", "sum"]
+    reduction_str = reduction_vals[reduction]
     if op.OptionalHasElement(weight):
         result = op.SoftmaxCrossEntropyLoss(
-            self, target, weight, reduction=reduction, ignore_index=ignore_index
+            self, target, weight, reduction=reduction_str, ignore_index=ignore_index
         )
     else:
         result = op.SoftmaxCrossEntropyLoss(
-            self, target, reduction=reduction, ignore_index=ignore_index
+            self, target, reduction=reduction_str, ignore_index=ignore_index
         )
     return result
 

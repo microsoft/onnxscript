@@ -184,16 +184,6 @@ def _cat_input_wrangler(
     return args, kwargs
 
 
-def _cross_entropy_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # change torch.Tensor type to np.array to avoid crash
-    if "weight" in kwargs:
-        if isinstance(kwargs["weight"], torch.Tensor):
-            kwargs["weight"] = np.array(kwargs["weight"])
-    return args, kwargs
-
-
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -323,7 +313,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
-    "nn.functional.cross_entropy": (nn_ops.aten_cross_entropy, _cross_entropy_input_wrangler),
+    # "nn.functional.cross_entropy_loss": nn_ops.aten_cross_entropy_loss,  # not is OPS_DB
     "nn.functional.celu": nn_ops.aten_celu,
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
@@ -500,11 +490,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.conv2d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
-    ),
-    skip(
-        "nn.functional.cross_entropy",
-        matcher=lambda sample: sample.args[0].dtype != torch.int,
-        reason="ort can only accept int value for the [target] parameter",
     ),
     skip(
         "nn.functional.upsample_nearest2d",
