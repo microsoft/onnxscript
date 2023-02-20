@@ -761,7 +761,8 @@ def aten_nll_loss(
         if rank_self - rank_target == 1:  # rank(target) == rank(self) - 1
             target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
-    if op.OptionalHasElement(weight):
+    # if op.OptionalHasElement(weight):
+    if weight is not None:
         result = op.NegativeLogLikelihoodLoss(
             self, target, weight=weight, ignore_index=ignore_index, reduction=reduction
         )
