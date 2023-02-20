@@ -743,19 +743,19 @@ def aten_multilabel_margin_loss_forward(
 
 @torch_op("aten::nll_loss", trace_only=True)
 def aten_nll_loss(
-    self: TensorType,
-    target: TensorType,
-    weight: Optional[TensorType] = None,
+    self: TFloat,
+    target: Sequence[INT64],
+    weight: Optional[TFloat] = None,
     reduction: int = 1,
     ignore_index: INT64 = -100,
-) -> TensorType:
+) -> TFloat:
     # nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
 
     reduction_vals = ["none", "mean", "sum"]
     reduction = reduction_vals[reduction]
 
     rank_self = op.Size(op.Shape(self))
-    if rank_self <= 1:
+    if rank_self == 1:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         rank_target = op.Size(op.Shape(target))
         if rank_self - rank_target == 1:  # rank(target) == rank(self) - 1
@@ -770,7 +770,7 @@ def aten_nll_loss(
             self, target, ignore_index=ignore_index, reduction=reduction
         )
 
-    if rank_self <= 1:
+    if rank_self == 1:
         result = op.Squeeze(result)
 
     return result
