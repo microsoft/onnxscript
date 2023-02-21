@@ -1075,10 +1075,14 @@ def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0.0) -> Te
     raise NotImplementedError()
 
 
-def aten_contiguous(self: TensorType, memory_format: str = "contiguous_format") -> TensorType:
+@torch_op("aten::contiguous", trace_only=True)
+def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> TTensor:
     # contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)
 
-    raise NotImplementedError()
+    if memory_format == "contiguous_format" or memory_format == "preserve_format":
+        return self
+    else:
+        raise ("Not implemented in onnx for ")
 
 
 @torch_op("aten::conv1d", trace_only=True)
