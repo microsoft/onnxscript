@@ -324,6 +324,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
+    # "nn.functional.cross_entropy_loss": nn_ops.aten_cross_entropy_loss,  # not in OPS_DB
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
@@ -388,7 +389,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
-    # "nn.functional.cross_entropy_loss": nn_ops.aten_cross_entropy_loss,  # not in OPS_DB
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
     # "nn.functional.nll_loss2d": (nn_ops.aten_nll_loss2d, _nll_loss_input_wrangler),  # not in OPS_DB
     # "nn.functional.nll_loss_nd": (nn_ops.aten_nll_loss_nd, _nll_loss_input_wrangler),  # not in OPS_DB
