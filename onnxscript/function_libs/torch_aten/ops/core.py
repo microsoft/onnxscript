@@ -1830,10 +1830,18 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
 
 
 @torch_op("aten::dropout")
-def aten_dropout(input: TFloat, p: float = 0, training: bool = True) -> TFloat:
+def aten_dropout(input: TFloat, p: float = 0.0, training: bool = True) -> TFloat:
     # dropout(Tensor input, float p, bool train) -> Tensor
 
-    result, mask = op.Dropout(input, p, training)
+    rank_input = op.Size(op.Shape(input))
+    if rank_input == 0:
+        input = op.Reshape(input, op.Constant(value_ints=[-1]))
+
+    result, _ = op.Dropout(input, p, training)
+
+    if rank_input == 0:
+        result = op.Squeeze(result)
+
     return result
 
 
@@ -3838,11 +3846,11 @@ def aten_native_channel_shuffle(self: TensorType, groups: int) -> TensorType:
 
 @torch_op("aten::native_dropout")
 def aten_native_dropout(
-    input: TFloatOrBFloat16, p: float, train: bool = True
+    input: TFloatOrBFloat16, p: float, training: bool = True
 ) -> Tuple[TFloatOrBFloat16, BOOL]:
     # native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)
 
-    result, mask = op.Dropout(input, p, train)
+    result, mask = op.Dropout(input, p, training)
     return result, mask
 
 
