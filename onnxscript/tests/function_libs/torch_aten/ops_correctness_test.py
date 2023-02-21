@@ -184,6 +184,15 @@ def _cat_input_wrangler(
     return args, kwargs
 
 
+def _dropout_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "training" in kwargs:
+        kwargs["train"] = kwargs["training"]
+        kwargs.pop("training")
+    return args, kwargs
+
+
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -314,7 +323,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
-    "nn.functional.dropout": core_ops.aten_dropout,
+    "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
@@ -494,7 +503,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.dropout",
-        matcher=lambda sample: sample.kwargs.get("p", 0.0) >= 0.0,
+        matcher=lambda sample: sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is randomly so the result not match",
     ),
     skip(
