@@ -899,7 +899,7 @@ def aten_nll_loss_nd(
     target: Sequence[INT64],
     weight: Optional[TFloat] = None,
     reduction: int = 1,
-    ignore_index: INT64 = -100,
+    ignore_index: int = -100,
 ) -> TFloat:
     # nll_loss_nd(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
 
