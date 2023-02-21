@@ -270,6 +270,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
+    "nn.functional.dropout": core_ops.aten_dropout,
     "empty": core_ops.aten_empty,
     # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
     "eq": core_ops.aten_eq,

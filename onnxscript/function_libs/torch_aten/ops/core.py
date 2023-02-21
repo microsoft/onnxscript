@@ -1829,10 +1829,12 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     return op.MatMul(self, tensor)
 
 
-def aten_dropout(input: TensorType, p: float, train: bool) -> TensorType:
+@torch_op("aten::dropout")
+def aten_dropout(input: TFloat, p: float = 0, training: bool = True) -> TFloat:
     # dropout(Tensor input, float p, bool train) -> Tensor
 
-    raise NotImplementedError()
+    result, mask = op.Dropout(input, p, training)
+    return result
 
 
 def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
