@@ -503,7 +503,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.dropout",
-        matcher=lambda sample: sample.kwargs.get("p", 0.0) > 0.0,
+        matcher=lambda sample: len(sample.kwargs)==0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is randomly so the result not match",
     ),
     skip(
