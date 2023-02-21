@@ -148,3 +148,6 @@ ban-relative-imports = "all"
 
 [tool.ruff.pydocstyle]
 convention = "google"
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["TID252"] # Allow relative imports in init files
