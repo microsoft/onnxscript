@@ -774,7 +774,7 @@ def _aten_nll_loss_weight(
     if rank_self == 1:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         rank_target = op.Size(op.Shape(target))
-        if rank_self - rank_target == 1:  # rank(target) == rank(self) - 1
+        if rank_target == 0:
             target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
     result = op.NegativeLogLikelihoodLoss(
@@ -800,7 +800,7 @@ def _aten_nll_loss_none(
     if rank_self == 1:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         rank_target = op.Size(op.Shape(target))
-        if rank_self - rank_target == 1:  # rank(target) == rank(self) - 1
+        if rank_target == 0:
             target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
     result = op.NegativeLogLikelihoodLoss(
