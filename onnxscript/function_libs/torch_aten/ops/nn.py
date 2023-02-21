@@ -813,16 +813,24 @@ def _aten_nll_loss_none(
     return result
 
 
+@torch_op("aten::nll_loss2d", trace_only=True)
 def aten_nll_loss2d(
-    self: TensorType,
-    target: TensorType,
-    weight: Optional[TensorType] = None,
+    self: TFloat,
+    target: Sequence[INT64],
+    weight: Optional[TFloat] = None,
     reduction: int = 1,
     ignore_index: INT64 = -100,
-) -> TensorType:
+) -> TFloat:
     # nll_loss2d(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
 
-    raise NotImplementedError()
+    reduction_vals = ["none", "mean", "sum"]
+    reduction_str = reduction_vals[reduction]
+
+    if weight is None:
+        result = _aten_nll_loss_none(self, target, reduction=reduction_str, ignore_index=ignore_index)
+    else:
+        result = _aten_nll_loss_weight(self, target, weight, reduction=reduction_str, ignore_index=ignore_index)
+    return result
 
 
 def aten_nll_loss2d_backward(
@@ -877,16 +885,24 @@ def aten_nll_loss_forward(
     raise NotImplementedError()
 
 
+@torch_op("aten::nll_loss_nd", trace_only=True)
 def aten_nll_loss_nd(
-    self: TensorType,
-    target: TensorType,
-    weight: Optional[TensorType] = None,
+    self: TFloat,
+    target: Sequence[INT64],
+    weight: Optional[TFloat] = None,
     reduction: int = 1,
     ignore_index: INT64 = -100,
-) -> TensorType:
+) -> TFloat:
     # nll_loss_nd(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
 
-    raise NotImplementedError()
+    reduction_vals = ["none", "mean", "sum"]
+    reduction_str = reduction_vals[reduction]
+
+    if weight is None:
+        result = _aten_nll_loss_none(self, target, reduction=reduction_str, ignore_index=ignore_index)
+    else:
+        result = _aten_nll_loss_weight(self, target, weight, reduction=reduction_str, ignore_index=ignore_index)
+    return result
 
 
 def aten_one_hot(self: TensorType, num_classes: int = -1) -> TensorType:
