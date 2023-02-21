@@ -421,8 +421,6 @@ class TestConverter(testutils.TestBase):
             eager = False
 
         def check_function(x, name, expected, eager=True):
-            if skip_check_ort is not None and name in skip_check_ort:
-                return
             with self.subTest(name=name):
                 onx = test_functions[name]
                 session = onnxruntime.InferenceSession(onx.SerializeToString())
