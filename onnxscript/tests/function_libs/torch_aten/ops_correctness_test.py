@@ -324,7 +324,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
-    # "nn.functional.cross_entropy_loss": nn_ops.aten_cross_entropy_loss,  # not in OPS_DB
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
