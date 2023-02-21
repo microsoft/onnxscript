@@ -204,6 +204,9 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def graph(self) -> TorchScriptGraph:
         return self._graph
 
+    def eval(self, schema, inputs, attributes):
+        return self._graph.add_op_call(schema, inputs, attributes)
+
     @beartype
     def eval_function(  # type: ignore[override]
         self,
@@ -224,14 +227,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
                 attributes[name] = float(value)
         return self._graph.add_function_call(function, inputs, attributes)
-
-    def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
-        del closure  # Unused
-
-        return self._graph.add_op_call(schema, inputs, attributes)
-
-    def eval(self, schema, inputs, attributes):
-        return self._eval(schema, inputs, attributes, closure=None)
 
 
 @beartype
@@ -299,7 +294,8 @@ class TorchScriptGraph:
     def __init__(self):
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
-        self._function_store: Dict[str, onnxscript.OnnxFunction] = {}
+        # key: (name, domain)
+        self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
 
     @property
     def torch_graph(self):
@@ -435,7 +431,8 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
-        self._function_store[onnx_function.name] = onnx_function
+        identifier = (onnx_function.name, onnx_function.function_ir.domain)
+        self._function_store[identifier] = onnx_function
 
         # Compute outputs from the function schema
 
