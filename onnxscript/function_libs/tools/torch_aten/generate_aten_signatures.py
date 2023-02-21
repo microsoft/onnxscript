@@ -237,7 +237,7 @@ def create_signature(func: torchgen.model.NativeFunction) -> cg.FunctionDef:
         *py_args,
         return_type=create_return_type(func.func.returns),
         body=[
-            cg.ThunkExpr(f'"""{func.func}"""'),
+            cg.ThunkStmt(f'"""{func.func}"""'),
             cg.Raise(cg.Call(cg.Name("NotImplementedError"))),  # type: ignore[list-item]
         ],
     )
