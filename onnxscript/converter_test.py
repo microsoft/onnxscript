@@ -404,21 +404,10 @@ class TestConverter(testutils.TestBase):
         res = loops_while.loop_range_cond_only(x)
         self.assertEqual(res.tolist(), [0, 10, -20])
 
-    @unittest.skipIf(
-        sys.version_info[:2] < (3, 8), reason="Notation [...] not supported in python 3.7."
-    )
     def test_getitem(self):
         from onnxscript.tests.models import getitem
 
-        if sys.version_info[:2] >= (3, 8):
-            skip_check_ort = None
-        else:
-            # negative indices are not supported in python 3.7
-            # one constant is evaluated as float
-            skip_check_ort = ["getitem_i_slice_neg", "getitem_i_slice_step"]
-        test_functions = self.validate_save(
-            getitem, check_ort=True, skip_check_ort=skip_check_ort
-        )
+        test_functions = self.validate_save(getitem, check_ort=True, skip_check_ort=None)
 
         # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
         # expression.
@@ -523,9 +512,6 @@ class TestConverter(testutils.TestBase):
             return
         raise AssertionError("No raised exception.")
 
-    @unittest.skipIf(
-        sys.version_info[:2] < (3, 8), reason="Notation [...] not supported in python 3.7."
-    )
     def test_getitem_failure(self):
         def f1(A: FLOAT[...]) -> FLOAT[...]:
             zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
