@@ -36,5 +36,29 @@ class EvaluatorTest(unittest.TestCase):
         np.testing.assert_equal(output, expected)
 
 
+class ORTEvaluatorTest(unittest.TestCase):
+    def test_it_ignores_unknown_function_kwargs_when_option_set_to_true(self):
+        @script()
+        def test_function(x, y: float = 1.0):
+            return op.Add(x, y)
+
+        x = np.array(0.0, dtype=np.float32)
+        expected = np.array(1.0, dtype=np.float32)
+        with evaluator.default_as(evaluator.ORTEvaluator(ignore_unknown_function_kwargs=True)):
+            output = test_function(x, unknown=42)  # pylint: disable=unexpected-keyword-arg
+
+        np.testing.assert_equal(output, expected)
+
+    def test_it_raise_on_unknown_function_kwargs_by_default(self):
+        @script()
+        def test_function(x, y: float = 1.0):
+            return op.Add(x, y)
+
+        x = np.array(0.0, dtype=np.float32)
+        with evaluator.default_as(evaluator.ORTEvaluator()):
+            with self.assertRaises(TypeError):
+                _ = test_function(x, unknown=42)  # pylint: disable=unexpected-keyword-arg
+
+
 if __name__ == "__main__":
     unittest.main()
