@@ -19,6 +19,6 @@ from onnxscript.onnx_types import TensorType
 def aten_nested_to_padded_tensor(
     self: TensorType, padding: float, output_size: Optional[int] = None
 ) -> TensorType:
-    # nested_to_padded_tensor(Tensor self, float padding, int[]? output_size=None) -> Tensor
+    """nested_to_padded_tensor(Tensor self, float padding, int[]? output_size=None) -> Tensor"""
 
     raise NotImplementedError()
