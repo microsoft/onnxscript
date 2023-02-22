@@ -5029,10 +5029,11 @@ def aten_square(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_squeeze(self: TensorType) -> TensorType:
+@torch_op("aten::squeeze")
+def aten_squeeze(self: TTensor, dim: int = None) -> TTensor:
     """squeeze(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Squeeze(self, axes=dim)
 
 
 def aten_squeeze_copy(self: TensorType) -> TensorType:
