@@ -106,7 +106,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         code = onnx_export.export2python(proto, rename=True, use_operators=True)
         self.assertIn("v4 = v2 > v1", code)
 
-    @parameterized.parameterized.expand(
+    @parameterized.parameterized.expand(  # type: ignore[misc]
         [
             (backend_test.name, backend_test)
             for backend_test in onnx_backend.enumerate_onnx_tests("node")
@@ -131,12 +131,12 @@ class TestOnnxBackEnd(unittest.TestCase):
             TypeError,
             ValueError,
             AttributeError,
-            onnxruntime_pybind11_state.Fail,
-            onnxruntime_pybind11_state.NotImplemented,
-            onnxruntime_pybind11_state.InvalidArgument,
+            onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
+            onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
+            onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
         ) as e:
             self.skipTest(f"Unable to load the model: {e}")
-        except onnxruntime_pybind11_state.RuntimeException as e:
+        except onnxruntime_pybind11_state.RuntimeException as e:  # pylint: disable=c-extension-no-member
             self.skipTest(f"Unable to run the model: {e}")
         except AssertionError as e:
             self.skipTest(f"ORT result mismatches with the expected: {e}")
@@ -164,9 +164,9 @@ class TestOnnxBackEnd(unittest.TestCase):
         # Opset may be different when an binary operator is used.
         if backend_test.onnx_model.ir_version != proto.ir_version:
             if (
-                not backend_test.name.startswith(
+                not backend_test.name.startswith(  # pylint: disable=too-many-boolean-expressions
                     "test_add"
-                )  # pylint: disable=too-many-boolean-expressions
+                )
                 and not backend_test.name.startswith("test_and")
                 and not backend_test.name.startswith("test_div")
                 and not backend_test.name.startswith("test_equal")
@@ -203,7 +203,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
         # Check converted onnx
         def _load_function(_):
-            return session
+            return session  # noqa: F821
 
         def _run_function(obj, *inputs):
             print("    run ONNX")
