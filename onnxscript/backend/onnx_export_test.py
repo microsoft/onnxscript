@@ -67,15 +67,15 @@ SKIP_TESTS = (
     ),
     skip(
         r"test_loop",
-        "Change when the converter supports support something like 'while i < n and cond:'"
+        "Change when the converter supports support something like 'while i < n and cond:'",
     ),
     skip(
         r"^test_range_float_type_positive_delta_expanded",
-        "Change when the converter supports support something like 'while i < n and cond:'"
+        "Change when the converter supports support something like 'while i < n and cond:'",
     ),
     skip(
         r"^test_range_int32_type_negative_delta_expanded",
-        "Change when the converter supports support something like 'while i < n and cond:'"
+        "Change when the converter supports support something like 'while i < n and cond:'",
     ),
 )
 
