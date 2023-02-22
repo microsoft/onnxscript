@@ -248,8 +248,6 @@ class TestOnnxBackEnd(unittest.TestCase):
         # Check eager mode
         backend_test.run(lambda _: main_function, exec_main)
 
-        del session  # Release memory
-
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
