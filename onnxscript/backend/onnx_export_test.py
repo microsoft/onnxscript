@@ -24,13 +24,14 @@ from onnxscript.tests.models import type_double
 class SkipInfo:
     pattern: Pattern
     reason: str
+    condition: bool
 
 
-def skip(pattern: str | Pattern, reason: str):
+def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
     if isinstance(pattern, str):
         pattern = re.compile(pattern)
 
-    return SkipInfo(pattern, reason)
+    return SkipInfo(pattern, reason, condition)
 
 
 SKIP_TESTS = (
@@ -51,6 +52,11 @@ SKIP_TESTS = (
     skip(
         r"^test_lstm_with_peepholes",
         "LSTM has an undefined number of outputs. Current implementation of eager mode is not aware of them",
+    ),
+    skip(
+        r"^test_optional_get_element_tensor",
+        "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
+        condition=ort.__version__ == "1.14.0",
     ),
 )
 
@@ -116,7 +122,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         self, _: str, backend_test: onnx_backend.OnnxBackendTest
     ):
         for skip_info in SKIP_TESTS:
-            if skip_info.pattern.match(backend_test.name):
+            if skip_info.pattern.match(backend_test.name) and skip_info.condition:
                 self.skipTest(skip_info.reason)
 
         self.assertIn(backend_test.name, repr(backend_test))
