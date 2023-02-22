@@ -3,19 +3,12 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-# pylint: disable=too-many-boolean-expressions
-
-import importlib
 import os
 import unittest
 
 import onnxruntime as ort
-from onnx.helper import __file__ as onnx_file
-from onnxruntime.capi import onnxruntime_pybind11_state
 
-import onnxscript
-from onnxscript import evaluator
-from onnxscript.backend import onnx_backend, onnx_export
+from onnxscript.backend import onnx_backend
 
 
 def load_function(obj):

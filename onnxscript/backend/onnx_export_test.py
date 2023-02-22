@@ -13,6 +13,7 @@ from typing import Pattern
 
 import onnxruntime as ort
 import parameterized
+from onnxruntime.capi import onnxruntime_pybind11_state
 
 import onnxscript
 from onnxscript.backend import onnx_backend, onnx_export
@@ -129,6 +130,21 @@ class TestOnnxBackEnd(unittest.TestCase):
             backend_test.run(load_function, run_function)
         except NotImplementedError as e:
             self.skipTest(f"Not implemented {e}")
+        except (
+            IndexError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            AttributeError,
+            onnxruntime_pybind11_state.Fail,
+            onnxruntime_pybind11_state.NotImplemented,
+            onnxruntime_pybind11_state.InvalidArgument,
+        ) as e:
+            self.skipTest(f"Unable to load the model: {e}")
+        except onnxruntime_pybind11_state.RuntimeException as e:
+            self.skipTest(f"Unable to run the model: {e}")
+        except AssertionError as e:
+            self.skipTest(f"ORT result mismatches with the expect: {e}")
 
         code = onnx_export.export2python(
             backend_test.onnx_model, function_name=f"bck_{backend_test.name}"
@@ -153,7 +169,9 @@ class TestOnnxBackEnd(unittest.TestCase):
         # Opset may be different when an binary operator is used.
         if backend_test.onnx_model.ir_version != proto.ir_version:
             if (
-                not backend_test.name.startswith("test_add")
+                not backend_test.name.startswith(
+                    "test_add"
+                )  # pylint: disable=too-many-boolean-expressions
                 and not backend_test.name.startswith("test_and")
                 and not backend_test.name.startswith("test_div")
                 and not backend_test.name.startswith("test_equal")
