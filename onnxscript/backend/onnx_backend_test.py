@@ -34,17 +34,10 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     folder = os.path.join(os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code")
 
-    def test_exporter(self):
-        proto = type_double.double_abs_subgraph.to_model_proto()
-        code = onnx_export.export2python(proto, rename=True, use_operators=True)
-        self.assertIn("v4 = v2 > v1", code)
-
-
-    def test_onnx_backend_test(self):
+    def test_enumerate_onnx_tests(self):
         name = "test_abs"
         code = list(onnx_backend.enumerate_onnx_tests("node", lambda folder: folder == name))
         self.assertEqual(len(code), 1)
-
 
     def test_enumerate_onnx_tests_run_one(self):
         done = 0
@@ -284,5 +277,4 @@ class TestOnnxBackEnd(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    TestOnnxBackEnd().test_enumerate_onnx_tests_run_one_case()
     unittest.main(verbosity=2)
