@@ -1,6 +1,7 @@
 """Version utils for testing."""
 
 import onnx
+import onnxruntime
 import packaging.version
 import torch
 
@@ -23,8 +24,6 @@ def torch_older_than(version: str) -> bool:
 
 def onnxruntime_older_than(version: str) -> bool:
     """Returns True if the onnxruntime version is older than the given version."""
-    import onnxruntime
-
     return (
         packaging.version.parse(onnxruntime.__version__).release
         < packaging.version.parse(version).release
