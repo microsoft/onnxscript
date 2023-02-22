@@ -212,7 +212,7 @@ def _upsample_input_wrangler(
         kwargs["scales_w"] = kwargs["scale_factor"]
         del kwargs["scale_factor"]
     if "size" in kwargs:
-        kwargs["size"] = np.array(kwargs["size"])
+        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
     return args, kwargs
 
 
