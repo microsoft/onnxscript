@@ -3074,7 +3074,7 @@ def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
 
     if op.Size(op.Shape(self)) == 0:
         # A scalar
-        result = op.Identity(self)
+        result = self
     else:
         result = op.ReduceLogSumExp(self, dim, keepdims=keepdim)
     return result
