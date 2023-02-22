@@ -222,7 +222,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
         # Check converted onnx
         def _load_function(_):
-            return session  # noqa: F821
+            return session
 
         def _run_function(obj, *inputs):
             print("    run ONNX")
