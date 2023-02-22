@@ -2,23 +2,57 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+from __future__ import annotations
 
-# pylint: disable=too-many-boolean-expressions
-
+import dataclasses
 import importlib
-import os
 import pathlib
+import re
 import unittest
+from typing import Pattern
 
 import onnxruntime as ort
 import parameterized
-from onnx.helper import __file__ as onnx_file
-from onnxruntime.capi import onnxruntime_pybind11_state
 
 import onnxscript
-from onnxscript import evaluator
 from onnxscript.backend import onnx_backend, onnx_export
 from onnxscript.tests.models import type_double
+
+
+@dataclasses.dataclass
+class SkipTest:
+    pattern: Pattern
+    reason: str
+
+
+def skip(pattern: str | Pattern, reason: str):
+    if isinstance(pattern, str):
+        pattern = re.compile(pattern)
+
+    return SkipTest(pattern, reason)
+
+
+SKIP_TESTS = (
+    skip(r"^test_flatten_negative_axis1", "Long running"),
+    skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
+    skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
+    skip(
+        r"^test_split",
+        "split has an undefined number of outputs. Current implementation of eager mode is not aware of them",
+    ),
+    skip(
+        r"^test_lstm_defaults",
+        "LSTM has an undefined number of outputs. Current implementation of eager mode is not aware of them",
+    ),
+    skip(
+        r"^test_lstm_with_initial_bias",
+        "LSTM has an undefined number of outputs. Current implementation of eager mode is not aware of them",
+    ),
+    skip(
+        r"^test_lstm_with_peepholes",
+        "LSTM has an undefined number of outputs. Current implementation of eager mode is not aware of them",
+    ),
+)
 
 
 def load_function(obj):
@@ -65,9 +99,7 @@ def exec_main(f, *inputs):
 
 class TestOnnxBackEnd(unittest.TestCase):
 
-    test_folder = os.path.join(
-        os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code"
-    )
+    test_folder = pathlib.Path(__file__).parent.parent / "tests" / "onnx_backend_test_code"
 
     def test_export2python(self):
         proto = type_double.double_abs_subgraph.to_model_proto()
@@ -83,8 +115,9 @@ class TestOnnxBackEnd(unittest.TestCase):
     def test_enumerate_onnx_tests_run(
         self, _: str, backend_test: onnx_backend.OnnxBackendTest
     ):
-        if "_scan_" in backend_test.name or "test_scan" in backend_test.name:
-            self.skipTest("Operator Scan is not supported by onnx-script")
+        for skip_info in SKIP_TESTS:
+            if skip_info.pattern.match(backend_test.name):
+                self.skipTest(skip.reason)
 
         self.assertIn(backend_test.name, repr(backend_test))
         self.assertGreater(len(backend_test), 0)
@@ -108,7 +141,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             # TODO: change change when the converter supports
             # support something like 'while i < n and cond:'
             return
-        functions = extract_functions(backend_test.name, code, pathlib.Path(self.test_folder))
+        functions = extract_functions(backend_test.name, code, self.test_folder)
         main_function = functions[f"bck_{backend_test.name}"]
         self.assertIsNotNone(main_function)
         proto = main_function.to_model_proto()
@@ -141,17 +174,19 @@ class TestOnnxBackEnd(unittest.TestCase):
                     f"{proto}"
                 )
 
+        try:
+            session = ort.InferenceSession(proto.SerializeToString())
+        except Exception as e:
+            raise AssertionError(
+                f"Unable to load onnx for test {backend_test.name!r}.\n"
+                f"{onnxscript.proto2text(proto)}\n"
+                f"-----\n"
+                f"{backend_test.onnx_model}"
+            ) from e
+
         # Check converted onnx
         def _load_function(_):
-            try:
-                return ort.InferenceSession(proto.SerializeToString())
-            except Exception as e:
-                raise AssertionError(
-                    f"Unable to load onnx for test {backend_test.name!r}.\n"
-                    f"{onnxscript.proto2text(proto)}\n"
-                    f"-----\n"
-                    f"{backend_test.onnx_model}"
-                ) from e
+            return session
 
         def _run_function(obj, *inputs):
             print("    run ONNX")
@@ -186,6 +221,8 @@ class TestOnnxBackEnd(unittest.TestCase):
             self.skipTest(backend_test.name)
 
         backend_test.run(lambda _: main_function, exec_main)
+
+        del session  # Release memory
 
 
 if __name__ == "__main__":
