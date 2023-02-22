@@ -11,64 +11,51 @@ import unittest
 
 import onnxruntime as ort
 from onnx.helper import __file__ as onnx_file
-from onnxruntime.capi.onnxruntime_pybind11_state import (
-    Fail,
-    InvalidArgument,
-    NotImplemented,
-    RuntimeException,
-)
+from onnxruntime.capi import onnxruntime_pybind11_state
 
 import onnxscript
 from onnxscript import evaluator
-from onnxscript.backend.onnx_backend import enumerate_onnx_tests
-from onnxscript.backend.onnx_export import export2python
+from onnxscript.backend import onnx_backend, onnx_export
 from onnxscript.tests.models import type_double
 
 
-def print_code(code, begin=1):
-    """Returns the code with line number."""
-    rows = code.split("\n")
-    return "\n".join(f"{int(i + begin):03} {s}" for i, s in enumerate(rows))
+def load_function(obj):
+    return ort.InferenceSession(obj.SerializeToString())
 
+def run_function(obj, *inputs):
+    names = [i.name for i in obj.get_inputs()]
+    if len(names) < len(inputs):
+        raise AssertionError(f"Got {len(inputs)} inputs but expecting {len(names)}.")
+    feeds = {names[i]: inputs[i] for i in range(len(inputs))}
+    got = obj.run(None, feeds)
+    return got
 
 class TestOnnxBackEnd(unittest.TestCase):
 
     folder = os.path.join(os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code")
 
     def test_exporter(self):
-
         proto = type_double.double_abs_subgraph.to_model_proto()
-        code = export2python(proto, rename=True, use_operators=True)
+        code = onnx_export.export2python(proto, rename=True, use_operators=True)
         self.assertIn("v4 = v2 > v1", code)
+
 
     def test_onnx_backend_test(self):
         name = "test_abs"
-        code = list(enumerate_onnx_tests("node", lambda folder: folder == name))
+        code = list(onnx_backend.enumerate_onnx_tests("node", lambda folder: folder == name))
         self.assertEqual(len(code), 1)
 
-    @staticmethod
-    def load_fct(obj):
-        return ort.InferenceSession(obj.SerializeToString())
-
-    @staticmethod
-    def run_fct(obj, *inputs):
-        names = [i.name for i in obj.get_inputs()]
-        if len(names) < len(inputs):
-            raise AssertionError(f"Got {len(inputs)} inputs but expecting {len(names)}.")
-        feeds = {names[i]: inputs[i] for i in range(len(inputs))}
-        got = obj.run(None, feeds)
-        return got
 
     def test_enumerate_onnx_tests_run_one(self):
         done = 0
-        for te in enumerate_onnx_tests("node", lambda folder: folder == "test_abs"):
-            self.assertIn(te.name, repr(te))
-            self.assertGreater(len(te), 0)
-            te.run(TestOnnxBackEnd.load_fct, TestOnnxBackEnd.run_fct)
+        for backend_test in onnx_backend.enumerate_onnx_tests("node", lambda folder: folder == "test_abs"):
+            self.assertIn(backend_test.name, repr(backend_test))
+            self.assertGreater(len(backend_test), 0)
+            backend_test.run(load_function, run_function)
             done += 1
         self.assertEqual(done, 1)
 
-    def verify(self, name, content, more_context=None):  # pylint: disable=unused-argument
+    def verify(self, name, content):
         if not os.path.exists(TestOnnxBackEnd.folder):
             os.mkdir(TestOnnxBackEnd.folder)
             init = os.path.join(TestOnnxBackEnd.folder, "__init__.py")
@@ -92,13 +79,13 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def common_test_enumerate_onnx_tests_run(self, valid, verbose=0):
         with self.assertRaises(FileNotFoundError):
-            list(enumerate_onnx_tests("NNN"))
+            list(onnx_backend.enumerate_onnx_tests("NNN"))
         missed = []
         load_failed = []
         exec_failed = []
         mismatch = []
         success = 0
-        for te in enumerate_onnx_tests("node"):
+        for te in onnx_backend.enumerate_onnx_tests("node"):
             if "_scan_" in te.name or "test_scan" in te.name:
                 # Operator Scan is not supported by onnx-script.
                 continue
@@ -114,7 +101,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                 self.assertIn(te.name, repr(te))
                 self.assertGreater(len(te), 0)
                 try:
-                    te.run(TestOnnxBackEnd.load_fct, TestOnnxBackEnd.run_fct)
+                    te.run(load_function, run_function)
                 except NotImplementedError as e:
                     missed.append((te, e))
                     continue
@@ -124,13 +111,13 @@ class TestOnnxBackEnd(unittest.TestCase):
                     TypeError,
                     ValueError,
                     AttributeError,
-                    Fail,
-                    NotImplemented,
-                    InvalidArgument,
+                    onnxruntime_pybind11_state.Fail,
+                    onnxruntime_pybind11_state.NotImplemented,
+                    onnxruntime_pybind11_state.InvalidArgument,
                 ) as e:
                     load_failed.append((te, e))
                     continue
-                except RuntimeException as e:
+                except onnxruntime_pybind11_state.RuntimeException as e:
                     exec_failed.append((te, e))
                     continue
                 except AssertionError as e:
@@ -139,7 +126,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                 success += 1
                 if verbose > 1:
                     print("  convert into python")
-                code = export2python(te.onnx_model, function_name=f"bck_{te.name}")
+                code = onnx_export.export2python(te.onnx_model, function_name=f"bck_{te.name}")
                 self.assertIn("@script()", code)
                 self.assertIn(f"def bck_{te.name}(", code)
                 if verbose > 1:
@@ -188,7 +175,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         )
 
                 # check converted onnx
-                def load_fct(_):
+                def load_function(_):
                     if verbose > 2:
                         print("    load ONNX")
                     try:
@@ -205,7 +192,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                         print("    done.")
                     return session
 
-                def run_fct(obj, *inputs):
+                def run_function(obj, *inputs):
                     if verbose > 2:
                         print("    run ONNX")
                         for i, inp in enumerate(inputs):
@@ -218,7 +205,7 @@ class TestOnnxBackEnd(unittest.TestCase):
                                     f"{inp.ravel().tolist()!r}"
                                 )
                     try:
-                        res = TestOnnxBackEnd.run_fct(obj, *inputs)
+                        res = run_function(obj, *inputs)
                     except Exception as e:
                         raise AssertionError(
                             f"Unable to run test {te.name!r} after conversion.\n"  # noqa: B023
@@ -230,7 +217,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
                 if verbose > 1:
                     print("  check ModelProto")
-                te.run(load_fct, run_fct)
+                te.run(load_function, run_function)
 
                 # check eager mode
                 if not te.name.startswith("test_split") and te.name not in {
