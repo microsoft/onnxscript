@@ -8,10 +8,10 @@
 import importlib
 import os
 import pathlib
-import parameterized
 import unittest
 
 import onnxruntime as ort
+import parameterized
 from onnx.helper import __file__ as onnx_file
 from onnxruntime.capi import onnxruntime_pybind11_state
 
@@ -23,6 +23,7 @@ from onnxscript.tests.models import type_double
 
 def load_function(obj):
     return ort.InferenceSession(obj.SerializeToString())
+
 
 def run_function(obj, *inputs):
     names = [i.name for i in obj.get_inputs()]
@@ -54,15 +55,19 @@ def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     }
     return functions
 
+
 def exec_main(f, *inputs):
     output = f(*inputs)
     if isinstance(output, tuple):
         return list(output)
     return [output]
 
+
 class TestOnnxBackEnd(unittest.TestCase):
 
-    test_folder = os.path.join(os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code")
+    test_folder = os.path.join(
+        os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code"
+    )
 
     def test_export2python(self):
         proto = type_double.double_abs_subgraph.to_model_proto()
@@ -70,9 +75,14 @@ class TestOnnxBackEnd(unittest.TestCase):
         self.assertIn("v4 = v2 > v1", code)
 
     @parameterized.parameterized.expand(
-        [(backend_test.name, backend_test) for backend_test in onnx_backend.enumerate_onnx_tests("node")]
+        [
+            (backend_test.name, backend_test)
+            for backend_test in onnx_backend.enumerate_onnx_tests("node")
+        ]
     )
-    def test_enumerate_onnx_tests_run(self, _: str, backend_test: onnx_backend.OnnxBackendTest):
+    def test_enumerate_onnx_tests_run(
+        self, _: str, backend_test: onnx_backend.OnnxBackendTest
+    ):
         if "_scan_" in backend_test.name or "test_scan" in backend_test.name:
             self.skipTest("Operator Scan is not supported by onnx-script")
 
@@ -83,7 +93,9 @@ class TestOnnxBackEnd(unittest.TestCase):
         except NotImplementedError as e:
             self.skipTest(f"Not implemented {e}")
 
-        code = onnx_export.export2python(backend_test.onnx_model, function_name=f"bck_{backend_test.name}")
+        code = onnx_export.export2python(
+            backend_test.onnx_model, function_name=f"bck_{backend_test.name}"
+        )
         self.assertIn("@script()", code)
         self.assertIn(f"def bck_{backend_test.name}(", code)
 

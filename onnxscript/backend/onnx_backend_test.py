@@ -22,6 +22,7 @@ from onnxscript.tests.models import type_double
 def load_function(obj):
     return ort.InferenceSession(obj.SerializeToString())
 
+
 def run_function(obj, *inputs):
     names = [i.name for i in obj.get_inputs()]
     if len(names) < len(inputs):
@@ -29,6 +30,7 @@ def run_function(obj, *inputs):
     feeds = {names[i]: inputs[i] for i in range(len(inputs))}
     got = obj.run(None, feeds)
     return got
+
 
 class TestOnnxBackEnd(unittest.TestCase):
 
@@ -41,7 +43,9 @@ class TestOnnxBackEnd(unittest.TestCase):
 
     def test_enumerate_onnx_tests_run_one(self):
         done = 0
-        for backend_test in onnx_backend.enumerate_onnx_tests("node", lambda folder: folder == "test_abs"):
+        for backend_test in onnx_backend.enumerate_onnx_tests(
+            "node", lambda folder: folder == "test_abs"
+        ):
             self.assertIn(backend_test.name, repr(backend_test))
             self.assertGreater(len(backend_test), 0)
             backend_test.run(load_function, run_function)
