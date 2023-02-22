@@ -2876,17 +2876,25 @@ def aten_kthvalue(
     raise NotImplementedError()
 
 
+@torch_op("aten::layer_norm", trace_only=True)
 def aten_layer_norm(
-    input: TensorType,
+    input: TReal,
     normalized_shape: Sequence[int],
-    weight: Optional[TensorType] = None,
-    bias: Optional[TensorType] = None,
+    weight: Optional[TReal] = None,
+    bias: Optional[TReal] = None,
     eps: float = 1e-05,
     cudnn_enable: bool = True,
 ) -> TensorType:
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
-    raise NotImplementedError()
+    axes = [-i for i in range(len(normalized_shape), 0, -1)]
+    if weight is None:
+        weight = op.CastLike(1, input)
+    if bias is None:
+        bias = op.CastLike(0, input)
+
+    result, _, _ =  _aten_native_layer_norm_onnx(input, weight, bias, axes=axes, eps=eps)
+    return result
 
 
 def aten_lcm(self: TensorType, other: TensorType) -> TensorType:
