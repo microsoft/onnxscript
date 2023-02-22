@@ -753,7 +753,7 @@ def aten_nll_loss(
     reduction_vals = ["none", "mean", "sum"]
     reduction_str = reduction_vals[reduction]
 
-    if op.OptionalHasElement(weight):
+    if weight is not None:
         result = _aten_nll_loss_weight(
             self, target, weight, reduction=reduction_str, ignore_index=ignore_index
         )
@@ -830,7 +830,7 @@ def aten_nll_loss2d(
     reduction_vals = ["none", "mean", "sum"]
     reduction_str = reduction_vals[reduction]
 
-    if op.OptionalHasElement(weight):
+    if weight is not None:
         result = _aten_nll_loss_weight(
             self, target, weight, reduction=reduction_str, ignore_index=ignore_index
         )
@@ -906,7 +906,7 @@ def aten_nll_loss_nd(
     reduction_vals = ["none", "mean", "sum"]
     reduction_str = reduction_vals[reduction]
 
-    if op.OptionalHasElement(weight):
+    if weight is not None:
         result = _aten_nll_loss_weight(
             self, target, weight, reduction=reduction_str, ignore_index=ignore_index
         )
