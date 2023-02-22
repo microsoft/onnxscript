@@ -34,7 +34,6 @@ def skip(pattern: str | Pattern, reason: str):
 
 
 SKIP_TESTS = (
-    skip(r"^test_flatten_negative_axis1", "Long running"),
     skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
     skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
     skip(
@@ -52,10 +51,6 @@ SKIP_TESTS = (
     skip(
         r"^test_lstm_with_peepholes",
         "LSTM has an undefined number of outputs. Current implementation of eager mode is not aware of them",
-    ),
-    skip(
-        r"^test_sce_mean_expanded",
-        "Long running",
     ),
 )
 
@@ -144,7 +139,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         except onnxruntime_pybind11_state.RuntimeException as e:
             self.skipTest(f"Unable to run the model: {e}")
         except AssertionError as e:
-            self.skipTest(f"ORT result mismatches with the expect: {e}")
+            self.skipTest(f"ORT result mismatches with the expected: {e}")
 
         code = onnx_export.export2python(
             backend_test.onnx_model, function_name=f"bck_{backend_test.name}"
