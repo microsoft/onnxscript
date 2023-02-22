@@ -94,6 +94,6 @@ dmypy.json
 onnxscript/tests/models/testoutputs/*
 docs/auto_examples/*
 onnxscript/tests/mylib.onnxlib
-onnxscript/tests/onnx_backend_test_code
+**/onnx_backend_test_code/**
 *.onnxlib
 *.onnx
