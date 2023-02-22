@@ -4641,16 +4641,18 @@ def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_resolve_conj(self: TensorType) -> TensorType:
+@torch_op("aten::resolve_conj")
+def aten_resolve_conj(self: TTensor) -> TensorType:
     """resolve_conj(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
-def aten_resolve_neg(self: TensorType) -> TensorType:
+@torch_op("aten::resolve_neg")
+def aten_resolve_neg(self: TTensor) -> TensorType:
     """resolve_neg(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_result_type(tensor: TensorType, other: TensorType) -> int:
