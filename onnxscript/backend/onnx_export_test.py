@@ -210,16 +210,6 @@ class TestOnnxBackEnd(unittest.TestCase):
         backend_test.run(_load_function, _run_function)
 
         # Check eager mode
-        if backend_test.name.startswith("test_split") or backend_test.name in {
-            "test_lstm_defaults",
-            "test_lstm_with_initial_bias",
-            "test_lstm_with_peepholes",
-        }:
-            # split has an undefined number of outputs.
-            # current implementation of eager mode is not aware of them.
-            # same goes for lstm
-            self.skipTest(backend_test.name)
-
         backend_test.run(lambda _: main_function, exec_main)
 
         del session  # Release memory
