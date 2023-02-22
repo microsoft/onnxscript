@@ -28,6 +28,13 @@ class SkipInfo:
 
 
 def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
+    """Create a SkipInfo object.
+
+    Args:
+        pattern: A string or a regular expression to match the ONNX backend test name.
+        reason: The reason why the test is skipped.
+        condition: If False, the test is not skipped.
+    """
     if isinstance(pattern, str):
         pattern = re.compile(pattern)
 
