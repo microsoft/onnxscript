@@ -20,7 +20,7 @@ from onnxscript.tests.models import type_double
 
 
 @dataclasses.dataclass
-class SkipTest:
+class SkipInfo:
     pattern: Pattern
     reason: str
 
@@ -29,7 +29,7 @@ def skip(pattern: str | Pattern, reason: str):
     if isinstance(pattern, str):
         pattern = re.compile(pattern)
 
-    return SkipTest(pattern, reason)
+    return SkipInfo(pattern, reason)
 
 
 SKIP_TESTS = (
@@ -51,6 +51,10 @@ SKIP_TESTS = (
     skip(
         r"^test_lstm_with_peepholes",
         "LSTM has an undefined number of outputs. Current implementation of eager mode is not aware of them",
+    ),
+    skip(
+        r"^test_sce_mean_expanded",
+        "Long running",
     ),
 )
 
@@ -112,12 +116,12 @@ class TestOnnxBackEnd(unittest.TestCase):
             for backend_test in onnx_backend.enumerate_onnx_tests("node")
         ]
     )
-    def test_enumerate_onnx_tests_run(
+    def test_export2python_produces_correct_onnx_script_model(
         self, _: str, backend_test: onnx_backend.OnnxBackendTest
     ):
         for skip_info in SKIP_TESTS:
             if skip_info.pattern.match(backend_test.name):
-                self.skipTest(skip.reason)
+                self.skipTest(skip_info.reason)
 
         self.assertIn(backend_test.name, repr(backend_test))
         self.assertGreater(len(backend_test), 0)
