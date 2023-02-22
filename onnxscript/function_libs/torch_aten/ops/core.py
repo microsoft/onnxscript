@@ -1080,7 +1080,7 @@ def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> 
     # contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)
 
     if memory_format in ["contiguous_format", "preserve_format"]:
-        return self
+        return op.Identity(self)
     else:
         raise NotImplementedError()
 
