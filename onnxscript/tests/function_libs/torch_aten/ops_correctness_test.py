@@ -5,10 +5,20 @@ import copy
 import dataclasses
 import unittest
 import warnings
-from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterable,
+    Optional,
+    Sequence,
+    Type,
+    TypeVar,
+)
 
 import numpy as np
 import onnx
+import packaging.version
 import parameterized
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
@@ -16,6 +26,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
 
 import onnxscript
+import onnxscript.evaluator
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
@@ -64,6 +75,7 @@ class DecorateMeta:
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
     matcher: Optional[Callable[[Any], bool]] = None
+    evaluator_class: Optional[Type[onnxscript.evaluator.Evaluator]] = None
 
 
 def xfail(
@@ -97,6 +109,7 @@ def skip(
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
+    evaluator_class: Optional[Type[onnxscript.evaluator.Evaluator]] = None,
 ) -> DecorateMeta:
     """Skips an OpInfo test.
 
@@ -115,6 +128,7 @@ def skip(
         dtypes=dtypes,
         reason=reason,
         matcher=matcher,
+        evaluator_class=evaluator_class,
     )
 
 
@@ -601,7 +615,9 @@ def _convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
     return new_kwargs
 
 
-def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
+def _should_skip_test_sample(
+    op_name: str, sample, evaluator: onnxscript.evaluator.Evaluator
+) -> Optional[str]:
     """Returns a reason if a test sample should be skipped."""
     if op_name not in OP_WITH_SKIPPED_SUBTESTS:
         return None
@@ -610,6 +626,10 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
             if decorator_meta.matcher(sample):
+                return decorator_meta.reason
+            if decorator_meta.evaluator_class is not None and isinstance(
+                evaluator, decorator_meta.evaluator_class
+            ):
                 return decorator_meta.reason
     return None
 
@@ -655,11 +675,31 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
+def _get_test_class_name(cls, num, params_dict) -> str:
+    del cls  # unused
+    del num  # unused
+    return params_dict["name"]
+
+
+@parameterized.parameterized_class(
+    [
+        {"name": "TestOutputConsistencyOrt", "evaluator": onnxscript.evaluator.ort_evaluator},
+        {
+            "name": "TestOutputConsistencyReferenceRuntime",
+            "evaluator": onnxscript.evaluator.OnnxReferenceRuntimeEvaluator(),
+        },
+    ],
+    class_name_func=_get_test_class_name,
+)
 class TestOutputConsistency(unittest.TestCase):
     """Test output consistency between exported ONNX models and PyTorch eager mode.
 
-    This is a parameterized test suite.
+    This is a parameterized test suite. It runs both ONNX Runtime and the reference
+    runtime as the ONNX backend. Test cases are parameterized by `@common_device_type.ops`.
     """
+
+    name: Optional[str] = None
+    evaluator: Optional[onnxscript.evaluator.Evaluator] = None
 
     def setUp(self) -> None:
         torch.manual_seed(42)
@@ -671,7 +711,7 @@ class TestOutputConsistency(unittest.TestCase):
     )
     @add_decorate_info(
         OPS_DB,
-        "TestOutputConsistency",
+        name,  # type: ignore[arg-type]
         "test_output_match",
         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
     )
@@ -679,6 +719,10 @@ class TestOutputConsistency(unittest.TestCase):
         """Base test method for testing each opset, used by instantiate_device_type_tests."""
         # device is provided by instantiate_device_type_tests, but we only want to run in cpu.
         assert device == "cpu"
+        if isinstance(self.evaluator, onnxscript.evaluator.OnnxReferenceRuntimeEvaluator) and (
+            packaging.version.parse(onnx.__version__) <= packaging.version.parse("1.13")
+        ):
+            self.skipTest("ONNX reference runtime requires ONNX 1.14 or higher")
 
         samples = op.sample_inputs(
             device,
@@ -706,7 +750,8 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
-                skip_reason = _should_skip_test_sample(op.name, cpu_sample)
+                assert self.evaluator is not None
+                skip_reason = _should_skip_test_sample(op.name, cpu_sample, self.evaluator)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
                     warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
@@ -716,7 +761,9 @@ class TestOutputConsistency(unittest.TestCase):
                 if input_wrangler:
                     input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
-                function_output = onnx_function(*input_onnx, **kwargs_onnx)
+
+                with onnxscript.evaluator.default_as(self.evaluator):
+                    function_output = onnx_function(*input_onnx, **kwargs_onnx)
 
                 # TODO: add pytree structure comparison.
                 flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
@@ -737,7 +784,9 @@ class TestOutputConsistency(unittest.TestCase):
                         rtol = None
                         atol = None
 
-                    if not isinstance(function_output, np.ndarray):
+                    if function_output is not None and not isinstance(
+                        function_output, np.ndarray
+                    ):
                         # An onnxscript tensor
                         function_output = function_output.value
 
@@ -752,9 +801,24 @@ class TestOutputConsistency(unittest.TestCase):
                     )
 
 
+# pylint: disable=undefined-variable
+# TestOutputConsistencyOrt is created by the parameterized_class
+# decorator for TestOutputConsistency
 common_device_type.instantiate_device_type_tests(
-    TestOutputConsistency, globals(), only_for="cpu"
+    TestOutputConsistencyOrt,  # type: ignore[name-defined] # noqa: F821
+    globals(),
+    only_for="cpu",
 )
+
+# TestOutputConsistencyReferenceRuntime is created by the parameterized_class
+# decorator for TestOutputConsistency
+# TODO(justinchuby): Enable this once the reference runtime is stable enough
+# common_device_type.instantiate_device_type_tests(
+#     TestOutputConsistencyReferenceRuntime,  # type: ignore[name-defined]
+#     globals(),
+#     only_for="cpu",
+# )
+# pylint: enable=undefined-variable
 
 
 if __name__ == "__main__":

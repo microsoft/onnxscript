@@ -1,12 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
-# pylint: disable=import-outside-toplevel
+from __future__ import annotations
 
 import itertools
 import unittest
+from typing import Optional
 
 import numpy as np
+import onnx
+import packaging.version
 import parameterized
+import torch
 
+import onnxscript.evaluator
 from onnxscript.tests.common import onnx_script_test_case
 from onnxscript.tests.models import signal_dft
 
@@ -82,10 +87,6 @@ def _stft(
     onesided=False,
     hop_length=None,
 ):
-    try:
-        import torch
-    except ImportError as e:
-        raise ImportError("torch is not installed.") from e
     ft = torch.stft(
         torch.from_numpy(x),
         n_fft=fft_length,
@@ -111,7 +112,32 @@ def _stft(
     return ft.numpy(), tr.astype(np.float32)
 
 
+@parameterized.parameterized_class(
+    [
+        {"name": "OrtEvaluator", "evaluator": onnxscript.evaluator.ort_evaluator},
+    ]
+    + (
+        # The ReferenceRuntime is not well implemented before 1.14
+        [
+            {
+                "name": "OnnxReferenceRuntimeEvaluator",
+                "evaluator": onnxscript.evaluator.OnnxReferenceRuntimeEvaluator(),
+            },
+        ]
+        if packaging.version.parse(onnx.__version__) >= packaging.version.parse("1.13")
+        else []
+    ),
+)
 class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
+    evaluator: Optional[onnxscript.evaluator.Evaluator] = None
+
+    def setUp(self):
+        assert self.evaluator is not None
+        onnxscript.evaluator.set_default(self.evaluator)
+
+    def tearDown(self) -> None:
+        onnxscript.evaluator.set_default(onnxscript.evaluator.ort_evaluator)
+
     @parameterized.parameterized.expand(
         itertools.product(
             [False, True],

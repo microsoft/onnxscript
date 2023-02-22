@@ -14,6 +14,7 @@ import numpy as np
 import onnx
 import onnx.defs
 import onnx.helper
+import onnx.reference
 from typing_extensions import Protocol, TypeAlias, runtime_checkable
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
@@ -307,9 +308,9 @@ def _rename_io(prefix, i, arg):
 
 
 def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
-    """Returns the number of outputs expected.
-    TODO: Use ONNX type inference to replace the special-case handling below.
-    """
+    """Returns the number of outputs expected."""
+
+    # TODO: Use ONNX type inference to replace the special-case handling below.
     if schema.domain == "":
         if schema.name == "BatchNormalization":
             if not kwargs.get("training_mode", 0):
@@ -331,20 +332,20 @@ def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
     return len(schema.outputs)
 
 
-_cache_models: dict[Any, ort.InferenceSession] = {}
+_cached_models: dict[Any, ort.InferenceSession] = {}
 
 
-def _cache_(model, providers):
+def _create_or_get_session(model: onnx.ModelProto, providers: Sequence[str]):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
     import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
     serialized = model.SerializeToString()
-    key = serialized, tuple(providers)
-    if key in _cache_models:
-        return _cache_models[key]
+    key = serialized, tuple(sorted(providers))
+    if key in _cached_models:
+        return _cached_models[key]
     session = ort.InferenceSession(serialized, providers=providers)
-    _cache_models[key] = session
+    _cached_models[key] = session
     return session
 
 
@@ -369,25 +370,32 @@ def _ort_to_os_value(v):
         return tensor.Tensor(v)
     if isinstance(v, list):
         return [_ort_to_os_value(x) for x in v]
+    if isinstance(
+        v,
+        (
+            np.bool_,
+            np.float16,
+            np.float32,
+            np.float64,
+            np.uint8,
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+        ),
+    ):
+        return tensor.Tensor(np.array(v))
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
 
 
-def _call_ort(
+def _prepare_model_and_inputs_for_eager(
     schema: onnx.defs.OpSchema,
     args: Sequence[Any],
     kwargs: Mapping[str, Any],
-    implicit_args=None,
+    implicit_args: Optional[Mapping[str, Any]] = None,
 ):
-    # Delay import onnxruntime so that onnxscript can be used without
-    # installing onnxruntime.
-    from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
-        Fail,
-        InvalidArgument,
-        InvalidGraph,
-    )
-
     implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
     args = [_os_to_ort_value(x) for x in args]
@@ -416,23 +424,44 @@ def _call_ort(
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
     model = onnx.shape_inference.infer_shapes(model)
-    # onnx.checker.check_model(model)
+
+    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
+    session_run_input.update(implicit_args)
+
+    return model, session_run_input, inputs
+
+
+def _call_ort(
+    schema: onnx.defs.OpSchema,
+    args: Sequence[Any],
+    kwargs: Mapping[str, Any],
+    implicit_args=None,
+):
+    # Delay import onnxruntime so that onnxscript can be used without
+    # installing onnxruntime.
+    from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
+        Fail,
+        InvalidArgument,
+        InvalidGraph,
+    )
+
+    model, session_run_input, inputs = _prepare_model_and_inputs_for_eager(
+        schema, args, kwargs, implicit_args
+    )
+
     try:
-        session = _cache_(model, ["CPUExecutionProvider"])
+        session = _create_or_get_session(model, ("CPUExecutionProvider",))
     except (Fail, InvalidGraph, InvalidArgument) as e:
-        raise RuntimeError(
+        raise EagerModeError(
             f"Unable to create onnxruntime InferenceSession "
             f"for executing {schema.domain}.{schema.name} op "
             f"with onnx model\n{utils.proto2text(model)}"
         ) from e
 
-    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
-    session_run_input.update(implicit_args)
-
     try:
         result = session.run(None, session_run_input)
     except (RuntimeError, Fail) as e:
-        raise RuntimeError(
+        raise EagerModeError(
             f"Unable to execute model operator {schema.name!r} due to {e!r}"
             f"\ninput types:\n"
             f"{pprint.pformat({k: type(v) for k, v in zip(inputs, args)})}"
@@ -454,6 +483,18 @@ class ORTEvaluator(BaseEvaluator):
 
     def _eval(self, schema, inputs, attributes, closure):
         return _call_ort(schema, inputs, attributes, closure)
+
+
+class OnnxReferenceRuntimeEvaluator(Evaluator):
+    """Evaluates ONNX ops using ONNX Runtime."""
+
+    def _eval(self, schema, inputs, attributes, closure):
+        model, session_run_input, _ = _prepare_model_and_inputs_for_eager(
+            schema, inputs, attributes, closure
+        )
+        session = onnx.reference.ReferenceEvaluator(model)
+        result = session.run(None, session_run_input)
+        return [_ort_to_os_value(x) for x in result]
 
 
 ort_evaluator = ORTEvaluator()

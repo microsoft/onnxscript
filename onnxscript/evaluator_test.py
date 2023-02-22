@@ -35,6 +35,10 @@ class EvaluatorTest(unittest.TestCase):
         output = seq_map[evaluator.ort_evaluator](x)
         np.testing.assert_equal(output, expected)
 
+        # Test using ONNX Reference Runtime
+        output = seq_map[evaluator.OnnxReferenceRuntimeEvaluator()](x)
+        np.testing.assert_equal(output, expected)
+
 
 class ORTEvaluatorTest(unittest.TestCase):
     def test_it_ignores_unknown_function_kwargs_when_option_set_to_true(self):
