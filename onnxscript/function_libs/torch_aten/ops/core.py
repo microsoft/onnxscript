@@ -3072,7 +3072,12 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
 def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
     """logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor"""
 
-    return op.ReduceLogSumExp(self, dim, keepdims=keepdim)
+    if op.Size(op.Shape(self)) == 0:
+        # A scalar
+        result = self
+    else:
+        result = op.ReduceLogSumExp(self, dim, keepdims=keepdim)
+    return result
 
 
 def aten_lshift(self: TensorType, other: TensorType) -> TensorType:
