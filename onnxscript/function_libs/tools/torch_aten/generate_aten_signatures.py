@@ -237,7 +237,7 @@ def create_signature(func: torchgen.model.NativeFunction) -> cg.FunctionDef:
         *py_args,
         return_type=create_return_type(func.func.returns),
         body=[
-            cg.ThunkStmt(f"# {func.func}"),
+            cg.ThunkStmt(f'"""{func.func}"""'),
             cg.Raise(cg.Call(cg.Name("NotImplementedError"))),  # type: ignore[list-item]
         ],
     )
@@ -262,10 +262,7 @@ def copyright_header() -> str:
         # Copyright (c) Microsoft Corporation. All rights reserved.
         # Licensed under the MIT License.
         {dashline}
-        # mypy: disable-error-code=misc
-        # mypy: disable-error-code=type-arg
-        # mypy: disable-error-code=valid-type
-        # mypy: disable-error-code=assignment
+        # mypy: disable-error-code="misc,arg-type,type-arg,valid-type,assignment,return-value"
         """
     )
 
