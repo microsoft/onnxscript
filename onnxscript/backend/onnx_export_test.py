@@ -58,6 +58,18 @@ SKIP_TESTS = (
         "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
         condition=ort.__version__ == "1.14.0",
     ),
+    skip(
+        r"test_loop",
+        "Change when the converter supports support something like 'while i < n and cond:'"
+    ),
+    skip(
+        r"^test_range_float_type_positive_delta_expanded",
+        "Change when the converter supports support something like 'while i < n and cond:'"
+    ),
+    skip(
+        r"^test_range_int32_type_negative_delta_expanded",
+        "Change when the converter supports support something like 'while i < n and cond:'"
+    ),
 )
 
 
@@ -155,13 +167,7 @@ class TestOnnxBackEnd(unittest.TestCase):
 
         if backend_test.name == "test_resize_downsample_scales_cubic":
             self.assertIn("Resize(X, None, scales,", code)
-        if "test_loop" in backend_test.name or backend_test.name in {
-            "test_range_float_type_positive_delta_expanded",
-            "test_range_int32_type_negative_delta_expanded",
-        }:
-            # TODO: change change when the converter supports
-            # support something like 'while i < n and cond:'
-            return
+
         functions = extract_functions(backend_test.name, code, self.test_folder)
         main_function = functions[f"bck_{backend_test.name}"]
         self.assertIsNotNone(main_function)
