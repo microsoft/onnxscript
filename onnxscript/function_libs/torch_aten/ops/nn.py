@@ -253,11 +253,11 @@ def aten_cross_entropy_loss(
     reduction_vals = ["none", "mean", "sum"]
     reduction_str = reduction_vals[reduction]
     if op.OptionalHasElement(weight):
-        result = op.SoftmaxCrossEntropyLoss(
+        result, _ = op.SoftmaxCrossEntropyLoss(
             self, target, weight, reduction=reduction_str, ignore_index=ignore_index
         )
     else:
-        result = op.SoftmaxCrossEntropyLoss(
+        result, _ = op.SoftmaxCrossEntropyLoss(
             self, target, reduction=reduction_str, ignore_index=ignore_index
         )
     return result
