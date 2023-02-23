@@ -572,7 +572,7 @@ ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
 assert INDETERMINISTIC_OPS.issubset(
     TESTED_OPS
-), f"{INDETERMINISTIC_OPS - TESTED_OPS} not in OPS_DB"
+), f"{INDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
 
 TORCH_TYPE_TO_ONNX = {
     torch.bool: onnx.TensorProto.BOOL,
