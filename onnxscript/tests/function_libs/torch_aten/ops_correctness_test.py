@@ -212,7 +212,7 @@ def _upsample_input_wrangler(
         kwargs["scales_w"] = kwargs["scale_factor"]
         del kwargs["scale_factor"]
     if "size" in kwargs:
-        kwargs["size"] = np.array(kwargs["size"])
+        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
     return args, kwargs
 
 
@@ -321,10 +321,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
-    "nn.functional.upsample_nearest2d": (
-        nn_ops.aten_upsample_nearest2d,
-        _upsample_input_wrangler,
-    ),
     "nonzero": core_ops.aten_nonzero,
     "normal": core_ops.aten_normal,
     "ones": core_ops.aten_ones,
@@ -382,6 +378,10 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "nn.functional.upsample_nearest2d": (
+        nn_ops.aten_upsample_nearest2d,
+        _upsample_input_wrangler,
+    ),
     "ones_like": core_ops.aten_ones_like,
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
@@ -402,16 +402,23 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
+    *(
+        # ONNX Runtime 1.13 skips
+        (
+            xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
+            xfail(
+                "nn.functional.upsample_nearest2d",
+                reason="ONNX Runtime 1.13 does support opset18",
+            ),
+        )
+        if version_utils.onnxruntime_older_than("1.14")
+        else ()
+    ),
     skip("empty", reason="Using zeros to simulate empty"),
     skip("empty_like", reason="Using zeros_like to simulate empty_like"),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
-    xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
     skip("new_empty", reason="Using zeros to simulate empty"),
     skip("new_empty_strided", reason="Using zeros to simulate empty"),
-    xfail(
-        "nn.functional.upsample_nearest2d",
-        reason="enable when ONNX Runtime does support opset18",
-    ),
     xfail("normal", reason="Random numbers are not close"),
     xfail("normal", variant_name="number_mean", reason="Random numbers are not close"),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
