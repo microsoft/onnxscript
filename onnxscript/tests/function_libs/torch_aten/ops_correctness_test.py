@@ -203,6 +203,15 @@ def _embedding_input_wrangler(
     return args, kwargs
 
 
+def _empty_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    """Remove arguments not present in the aten op signature."""
+    if "requires_grad" in kwargs:
+        del kwargs["requires_grad"]
+    return args, kwargs
+
+
 def _full_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -278,7 +287,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
-    "empty": core_ops.aten_empty,
+    "empty": (core_ops.aten_empty, _empty_input_wrangler),
     # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
     "eq": core_ops.aten_eq,
     "equal": core_ops.aten_equal,
@@ -754,21 +763,24 @@ class TestOutputConsistency(unittest.TestCase):
                         # An onnxscript tensor
                         function_output = function_output.value
 
+                    actual = torch.tensor(function_output)
+                    expected = (
+                        torch_output
+                        if isinstance(torch_output, torch.Tensor)
+                        else torch.tensor(torch_output)
+                    )
+
                     if op.name in UNDETERMINISTIC_OPS:
                         # Check shape and dtype only for ops that are known to be
                         # undeterministic
-                        self.assertEqual(torch_output.shape, function_output.shape)
-                        self.assertEqual(torch_output.dtype, function_output.dtype)
+                        self.assertEqual(actual.shape, expected.shape)
+                        self.assertEqual(actual.dtype, expected.dtype)
                         continue
 
                     # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                     torch.testing.assert_close(
-                        torch.tensor(function_output),
-                        (
-                            torch_output
-                            if isinstance(torch_output, torch.Tensor)
-                            else torch.tensor(torch_output)
-                        ),
+                        actual,
+                        expected,
                         rtol=rtol,
                         atol=atol,
                         check_device=False,
