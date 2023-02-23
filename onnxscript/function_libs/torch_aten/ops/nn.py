@@ -1343,7 +1343,7 @@ def aten_upsample_nearest1d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::upsample_nearest2d")
+@torch_op("aten::upsample_nearest2d", trace_only=True)
 def aten_upsample_nearest2d(
     self: TReal,
     size: INT64,
@@ -1352,11 +1352,22 @@ def aten_upsample_nearest2d(
 ) -> TReal:
     """upsample_nearest2d(Tensor self, SymInt[2] output_size, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
+    # NOTE: trace_only because optional attributes are not supported by ONNX
+    # TODO(justinchuby): Conditionally use scales
+    del scales_h
+    del scales_w
+
+    return _aten_upsample_nearest2d_onnx(self, size)
+
+
+@torch_op("aten::upsample_nearest2d", overload=True)
+def _aten_upsample_nearest2d_onnx(
+    self: TReal,
+    size: INT64,
+) -> TReal:
     self_shape = op.Shape(self)
     batch_channel = self_shape[:2]  # type: ignore[index]
     output_size = op.Concat(batch_channel, size, axis=0)
-
-    # TODO(justinchuby): Conditionally use scales
 
     return op.Resize(
         self,
@@ -1364,7 +1375,10 @@ def aten_upsample_nearest2d(
         None,
         output_size,
         mode="nearest",
+        # NOTE(justinchuby): Both asymmetric and pytorch_half_pixel pass the test
+        # I used asymmetric because it aligns with the torch.onnx exporter
         coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
     )
 
 
