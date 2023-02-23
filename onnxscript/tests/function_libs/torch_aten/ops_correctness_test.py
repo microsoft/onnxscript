@@ -330,6 +330,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
     "reshape": core_ops.aten_reshape,
+    "resolve_conj": core_ops.aten_resolve_conj,
+    "resolve_neg": core_ops.aten_resolve_neg,
     "round": core_ops.aten_round,
     "rsqrt": core_ops.aten_rsqrt,
     "rsub": core_ops.aten_rsub,
