@@ -406,7 +406,7 @@ class IRFunction:
         # If this *attribute_proto* is not available,
         # all attributes with a default value are moved to the first
         # list, default values are removed.
-        # TODO: remove this when onnx==1.13.0 is released.
+        # TODO: remove this when onnx with attribute_proto is released.
         if hasattr(onnx.FunctionProto, "attribute_proto"):
             atts = self.attrs
         else:

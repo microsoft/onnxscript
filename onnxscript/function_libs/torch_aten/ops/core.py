@@ -3086,7 +3086,12 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
 def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
     """logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor"""
 
-    return op.ReduceLogSumExp(self, dim, keepdims=keepdim)
+    if op.Size(op.Shape(self)) == 0:
+        # A scalar
+        result = self
+    else:
+        result = op.ReduceLogSumExp(self, dim, keepdims=keepdim)
+    return result
 
 
 def aten_lshift(self: TensorType, other: TensorType) -> TensorType:
@@ -4655,16 +4660,18 @@ def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_resolve_conj(self: TensorType) -> TensorType:
+@torch_op("aten::resolve_conj")
+def aten_resolve_conj(self: TTensor) -> TTensor:
     """resolve_conj(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
-def aten_resolve_neg(self: TensorType) -> TensorType:
+@torch_op("aten::resolve_neg")
+def aten_resolve_neg(self: TTensor) -> TTensor:
     """resolve_neg(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_result_type(tensor: TensorType, other: TensorType) -> int:

@@ -6,6 +6,7 @@
 
 import os
 import textwrap
+from typing import Iterator
 
 import numpy
 import onnx
@@ -274,7 +275,7 @@ class OnnxBackendTest:
         return final
 
 
-def enumerate_onnx_tests(series, fct_filter=None):
+def enumerate_onnx_tests(series, fct_filter=None) -> Iterator[OnnxBackendTest]:
     """Collects test from a sub folder of `onnx/backend/test`.
     Works as an enumerator to start processing them
     without waiting or storing too much of them.
@@ -285,7 +286,7 @@ def enumerate_onnx_tests(series, fct_filter=None):
         fct_filter: function `lambda testname: boolean` to load or skip
             the test, None for all
 
-    Returns:
+    Yields:
         list of @see cl OnnxBackendTest
     """
     root = os.path.dirname(backend_folder)
