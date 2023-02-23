@@ -407,7 +407,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
 }
 
 # These ops are not deterministic, so we check shape and dtype only
-INDETERMINISTIC_OPS: frozenset[str] = frozenset(
+NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
     (
         "empty_like",
         "empty",
@@ -570,9 +570,9 @@ OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
-assert INDETERMINISTIC_OPS.issubset(
+assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
-), f"{INDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
+), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
 
 TORCH_TYPE_TO_ONNX = {
     torch.bool: onnx.TensorProto.BOOL,
@@ -772,9 +772,9 @@ class TestOutputConsistency(unittest.TestCase):
                         else torch.tensor(torch_output)
                     )
 
-                    if op.name in INDETERMINISTIC_OPS:
+                    if op.name in NONDETERMINISTIC_OPS:
                         # Check shape and dtype only for ops that are known to be
-                        # indeterministic
+                        # nondeterministic
                         self.assertEqual(actual.shape, expected.shape)
                         self.assertEqual(actual.dtype, expected.dtype)
                         continue
