@@ -443,8 +443,11 @@ class Converter:
 
                 # Create GraphProto attribute
                 val = val.to_graph_proto()
-            return self.ir_builder.make_attr(attr_name, val)
-        return self.ir_builder.make_attr(attr_name, self.eval_constant_expr(expr))
+        else:
+            val = self.eval_constant_expr(expr)
+        if val is None:
+            return None
+        return self.ir_builder.make_attr(attr_name, val)
 
     def translate_docstring(self, node):
         if hasattr(node.value, "value"):
@@ -753,6 +756,7 @@ class Converter:
         args = [self.translate_opt_expr(x) for x in node.args]
         args = autocast.static_cast_inputs(self, callee.get_schema(), *args)
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
+        attrs = [attr for attr in attrs if attr is not None]
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, op, left, right):
