@@ -64,6 +64,7 @@ class DecorateMeta:
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
     matcher: Optional[Callable[[Any], bool]] = None
+    active_if: bool = True
 
 
 def xfail(
@@ -72,14 +73,16 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
+    active_if: bool = True,
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
     Args:
         op_name: The name of the operator.
         variant_name: Optional OpInfo variant_test_name.
-        dtypes: The dtypes to expect the failure.
         reason: The reason for the failure.
+        dtypes: The dtypes to expect the failure.
+        active_if: Whether the xfail is active.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -87,6 +90,7 @@ def xfail(
         decorator=unittest.expectedFailure,
         dtypes=dtypes,
         reason=reason,
+        active_if=active_if,
     )
 
 
@@ -97,16 +101,18 @@ def skip(
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
+    active_if: bool = True,
 ) -> DecorateMeta:
     """Skips an OpInfo test.
 
     Args:
         op_name: The name of the operator.
         variant_name: Optional OpInfo variant_test_name.
-        dtypes: The dtypes to skip.
         reason: The reason for skipping.
+        dtypes: The dtypes to skip.
         matcher: A function that matches the test sample input. It is used only when
             xfail is in the SKIP_SUBTESTS list.
+        active_if: Whether the skip is active.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -115,6 +121,7 @@ def skip(
         dtypes=dtypes,
         reason=reason,
         matcher=matcher,
+        active_if=active_if,
     )
 
 
@@ -137,6 +144,7 @@ def add_decorate_info(
             test_class_name,
             base_test_name,
             dtypes=decorate_meta.dtypes,
+            active_if=decorate_meta.active_if,
         )
         decorators.append(new_decorator)
         opinfo.decorators = tuple(decorators)
@@ -389,6 +397,17 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "zeros_like": core_ops.aten_zeros_like,
 }
 
+# These ops are not deterministic, so we check shape and dtype only
+UNDETERMINISTIC_OPS = frozenset(
+    (
+        "empty_like",
+        "empty",
+        "new_empty_strided",
+        "new_empty",
+        "normal",
+    )
+)
+
 OPINFO_FUNCTION_MAPPING: dict[
     str,
     onnxscript.OnnxFunction
@@ -402,25 +421,17 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    *(
-        # ONNX Runtime 1.13 skips
-        (
-            xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
-            xfail(
-                "nn.functional.upsample_nearest2d",
-                reason="ONNX Runtime 1.13 does support opset18",
-            ),
-        )
-        if version_utils.onnxruntime_older_than("1.14")
-        else ()
+    xfail(
+        "logsumexp",
+        reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18",
+        active_if=version_utils.onnxruntime_older_than("1.14"),
     ),
-    skip("empty", reason="Using zeros to simulate empty"),
-    skip("empty_like", reason="Using zeros_like to simulate empty_like"),
+    xfail(
+        "nn.functional.upsample_nearest2d",
+        reason="ONNX Runtime 1.13 does support opset18",
+        active_if=version_utils.onnxruntime_older_than("1.14"),
+    ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
-    skip("new_empty", reason="Using zeros to simulate empty"),
-    skip("new_empty_strided", reason="Using zeros to simulate empty"),
-    xfail("normal", reason="Random numbers are not close"),
-    xfail("normal", variant_name="number_mean", reason="Random numbers are not close"),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
@@ -743,14 +754,24 @@ class TestOutputConsistency(unittest.TestCase):
                         # An onnxscript tensor
                         function_output = function_output.value
 
+                    if op.name in UNDETERMINISTIC_OPS:
+                        # Check shape and dtype only for ops that are known to be
+                        # undeterministic
+                        self.assertEqual(torch_output.shape, function_output.shape)
+                        self.assertEqual(torch_output.dtype, function_output.dtype)
+                        continue
+
                     # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                     torch.testing.assert_close(
-                        torch.tensor(function_output).cpu(),
-                        torch_output.cpu()
-                        if isinstance(torch_output, torch.Tensor)
-                        else torch.tensor(torch_output).cpu(),
+                        torch.tensor(function_output),
+                        (
+                            torch_output
+                            if isinstance(torch_output, torch.Tensor)
+                            else torch.tensor(torch_output)
+                        ),
                         rtol=rtol,
                         atol=atol,
+                        check_device=False,
                     )
 
 
