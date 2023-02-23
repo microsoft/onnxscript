@@ -450,9 +450,6 @@ class Converter:
         if hasattr(node.value, "value"):
             # python 3.8+
             return self.emit_docstring(node.value.value)
-        if hasattr(node.value, "s"):
-            # python 3.7
-            return self.emit_docstring(node.value.s)
         raise TypeError(
             f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
         )
@@ -812,9 +809,6 @@ class Converter:
             if hasattr(node.operand, "value"):
                 # python 3.8+
                 val = node.operand.value
-            elif hasattr(node.operand, "n"):
-                # python 3.7
-                val = float(node.operand.n)
             else:
                 raise TypeError(
                     f"Unable to guess constant value from type {type(node.operand)!r} "
@@ -918,9 +912,6 @@ class Converter:
             if index_of_stmt == 0 and hasattr(node, "value"):
                 if hasattr(node.value, "value") and isinstance(node.value.value, str):
                     # python 3.8+
-                    return self.translate_docstring(node)
-                if hasattr(node.value, "s") and isinstance(node.value.s, str):
-                    # python 3.7
                     return self.translate_docstring(node)
         if isinstance(node, ast.FunctionDef):
             return self.translate_nested_function_def(node)
