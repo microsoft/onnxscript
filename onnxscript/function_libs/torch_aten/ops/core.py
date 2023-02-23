@@ -269,10 +269,60 @@ def aten_angle(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_any(self: TensorType) -> TensorType:
+@torch_op("aten::any", trace_only=True)
+def aten_any(self: BOOL, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.Constant(value_float=0.0)
+    minus_1 = op.Constant(value_ints=[-1])
+    self = op.Cast(self, to=FLOAT.dtype)
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        self = op.Reshape(self, minus_1)
+
+    if op.OptionalHasElement(dim):
+        result = op.Greater(self, zero)
+        result_int = op.Cast(result, to=FLOAT.dtype)
+        dim = op.Reshape(dim, minus_1)
+        dims = op.Cast(dim, to=INT64.dtype)
+        result_sum = op.ReduceSum(result_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result = op.Greater(result_sum, zero)
+    else:  # kwarg{dim,keepdim} was not given
+        result = op.Greater(self, zero)
+        result_rank = op.Size(op.Shape(result))
+        if result_rank > 0:  # need return rank=0 result
+            result_int = op.Cast(result, to=FLOAT.dtype)
+            result_sum = op.ReduceSum(result_int, keepdims=0, noop_with_empty_axes=0)
+            result = op.Greater(result_sum, zero)
+
+    if self_rank == 0:
+        result = op.Squeeze(result)
+
+    '''
+    zero = op.Constant(value_float=0.0)
+    minus_1 = op.Constant(value_ints=[-1])
+    self = op.Cast(self, to=FLOAT.dtype)
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        self = op.Reshape(self, minus_1)
+
+    if op.OptionalHasElement(dim):
+        dim = op.Reshape(dim, minus_1)
+        dims = op.Cast(dim, to=INT64.dtype)
+        self_sum = op.ReduceSum(self, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result = op.Greater(self_sum, zero)
+    else:  # kwarg{dim,keepdim} was not given
+        result = op.Greater(self, zero)
+        result_rank = op.Size(op.Shape(result))
+        if result_rank > 0:  # need return rank=0 result
+            result_int = op.Cast(result, to=FLOAT.dtype)
+            result_sum = op.ReduceSum(result_int, keepdims=0, noop_with_empty_axes=0)
+            result = op.Greater(result_sum, zero)
+    '''
+    if self_rank == 0:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def _range_supported(dtype: int) -> bool:

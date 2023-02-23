@@ -252,6 +252,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
+    "any": core_ops.aten_any,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -428,6 +429,12 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
+    # skip(
+    #     "any",
+    #     matcher=lambda sample: len(sample.kwargs) != 0,
+    #     reason="arange overload takes single argument",
+    # ),
+
     skip(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
@@ -708,6 +715,10 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+
+                if i == 10:
+                    print("10")
+
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
