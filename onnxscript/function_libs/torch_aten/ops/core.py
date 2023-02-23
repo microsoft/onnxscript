@@ -4642,14 +4642,14 @@ def aten_reshape_as(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::resolve_conj")
-def aten_resolve_conj(self: TTensor) -> TensorType:
+def aten_resolve_conj(self: TTensor) -> TTensor:
     """resolve_conj(Tensor(a) self) -> Tensor(a)"""
 
     return op.Identity(self)
 
 
 @torch_op("aten::resolve_neg")
-def aten_resolve_neg(self: TTensor) -> TensorType:
+def aten_resolve_neg(self: TTensor) -> TTensor:
     """resolve_neg(Tensor(a) self) -> Tensor(a)"""
 
     return op.Identity(self)
