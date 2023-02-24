@@ -1077,12 +1077,12 @@ def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0.0) -> Te
 
 @torch_op("aten::contiguous", trace_only=True)
 def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> TTensor:
-    # contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)
+    """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
     if memory_format in ["contiguous_format", "preserve_format"]:
         return op.Identity(self)
     else:
-        raise NotImplementedError()
+        raise NotImplementedError()  # TODO: find some fundamental solutoin to solve this kind of error
 
 
 @torch_op("aten::conv1d", trace_only=True)
@@ -1831,7 +1831,7 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
 
 @torch_op("aten::dropout")
 def aten_dropout(input: TFloat, p: float = 0.5, train: bool = True) -> TFloat:
-    # dropout(Tensor input, float p, bool train) -> Tensor
+    """dropout(Tensor input, float p, bool train) -> Tensor"""
 
     rank_input = op.Size(op.Shape(input))
     if rank_input == 0:
