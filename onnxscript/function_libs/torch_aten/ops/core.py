@@ -1125,10 +1125,17 @@ def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0.0) -> Te
     raise NotImplementedError()
 
 
-def aten_contiguous(self: TensorType, memory_format: str = "contiguous_format") -> TensorType:
+@torch_op("aten::contiguous", trace_only=True)
+def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> TTensor:
     """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    if memory_format in ["contiguous_format", "preserve_format"]:
+        return op.Identity(self)
+    else:
+        # TODO: Find out a way to annotate constraints for argument, as part of the function meta data structure.
+        raise NotImplementedError(
+            "memory_format value supports 'contiguous_format' or 'preserve_format' only."
+        )
 
 
 @torch_op("aten::conv1d", trace_only=True)
@@ -1875,10 +1882,20 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     return op.MatMul(self, tensor)
 
 
-def aten_dropout(input: TensorType, p: float, train: bool) -> TensorType:
+@torch_op("aten::dropout")
+def aten_dropout(input: TFloat, p: float = 0.5, train: bool = True) -> TFloat:
     """dropout(Tensor input, float p, bool train) -> Tensor"""
 
-    raise NotImplementedError()
+    rank_input = op.Size(op.Shape(input))
+    if rank_input == 0:
+        input = op.Reshape(input, op.Constant(value_ints=[-1]))
+
+    result, _ = op.Dropout(input, p, train)
+
+    if rank_input == 0:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
