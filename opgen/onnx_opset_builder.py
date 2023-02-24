@@ -419,8 +419,7 @@ class OpsetsBuilder:
                 )
             )
 
-        for arg in sorted(attr_args, key=lambda p: p.has_default_value):
-            yield arg
+        yield from sorted(attr_args, key=lambda p: p.has_default_value)
 
     def _make_union_typeref(self, onnx_types: list[str]) -> cg.TypingRefs.Union:
         return cg.TypeRef.make_composite_if_multiple(
