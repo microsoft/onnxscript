@@ -64,7 +64,7 @@ class DecorateMeta:
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
     matcher: Optional[Callable[[Any], bool]] = None
-    active_if: bool = True
+    enabled_if: bool = True
 
 
 def xfail(
@@ -73,7 +73,7 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
-    active_if: bool = True,
+    enabled_if: bool = True,
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
@@ -82,7 +82,7 @@ def xfail(
         variant_name: Optional OpInfo variant_test_name.
         reason: The reason for the failure.
         dtypes: The dtypes to expect the failure.
-        active_if: Whether the xfail is active.
+        enabled_if: Whether the xfail is enabled.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -90,7 +90,7 @@ def xfail(
         decorator=unittest.expectedFailure,
         dtypes=dtypes,
         reason=reason,
-        active_if=active_if,
+        enabled_if=enabled_if,
     )
 
 
@@ -101,7 +101,7 @@ def skip(
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
-    active_if: bool = True,
+    enabled_if: bool = True,
 ) -> DecorateMeta:
     """Skips an OpInfo test.
 
@@ -112,7 +112,7 @@ def skip(
         dtypes: The dtypes to skip.
         matcher: A function that matches the test sample input. It is used only when
             the skip is in the SKIP_SUBTESTS list.
-        active_if: Whether the skip is active.
+        enabled_if: Whether the skip is enabled.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -121,7 +121,7 @@ def skip(
         dtypes=dtypes,
         reason=reason,
         matcher=matcher,
-        active_if=active_if,
+        enabled_if=enabled_if,
     )
 
 
@@ -144,7 +144,7 @@ def add_decorate_info(
             test_class_name,
             base_test_name,
             dtypes=decorate_meta.dtypes,
-            active_if=decorate_meta.active_if,
+            active_if=decorate_meta.enabled_if,
         )
         decorators.append(new_decorator)
         opinfo.decorators = tuple(decorators)
@@ -433,12 +433,12 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "logsumexp",
         reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18",
-        active_if=version_utils.onnxruntime_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.14"),
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="ONNX Runtime 1.13 does support opset18",
-        active_if=version_utils.onnxruntime_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.14"),
     ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
