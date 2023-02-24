@@ -142,9 +142,6 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
             if hasattr(stmt.value, "value") and isinstance(stmt.value.value, str):
                 # python 3.8+
                 return live_out
-            if hasattr(stmt.value, "s") and isinstance(stmt.value.s, str):
-                # python 3.7
-                return live_out
         if isinstance(stmt, ast.FunctionDef):
             return live_out
         if is_print_call(stmt):
