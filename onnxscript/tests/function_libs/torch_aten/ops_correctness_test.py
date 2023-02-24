@@ -111,7 +111,7 @@ def skip(
         reason: The reason for skipping.
         dtypes: The dtypes to skip.
         matcher: A function that matches the test sample input. It is used only when
-            xfail is in the SKIP_SUBTESTS list.
+            the skip is in the SKIP_SUBTESTS list.
         active_if: Whether the skip is active.
     """
     return DecorateMeta(
