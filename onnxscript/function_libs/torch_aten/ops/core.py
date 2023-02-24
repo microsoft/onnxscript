@@ -1085,12 +1085,6 @@ def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> 
         # TODO: Find out a way to annotate constraints for argument, as part of the function meta data structure.
         raise NotImplementedError("memory_format value supports 'contiguous_format' or 'preserve_format' only.")
 
-import numpy as np
-a = np.array([1,2,3], dtype=np.float32)
-result = aten_contiguous(a, "contiguous_format")
-print(result)
-exit(0)
-
 
 @torch_op("aten::conv1d", trace_only=True)
 def aten_conv1d(
