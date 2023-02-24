@@ -1083,7 +1083,9 @@ def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> 
         return op.Identity(self)
     else:
         # TODO: Find out a way to annotate constraints for argument, as part of the function meta data structure.
-        raise NotImplementedError("memory_format value supports 'contiguous_format' or 'preserve_format' only.")
+        raise NotImplementedError(
+            "memory_format value supports 'contiguous_format' or 'preserve_format' only."
+        )
 
 
 @torch_op("aten::conv1d", trace_only=True)
