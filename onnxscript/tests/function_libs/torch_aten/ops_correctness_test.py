@@ -192,6 +192,15 @@ def _cat_input_wrangler(
     return args, kwargs
 
 
+def _dropout_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "training" in kwargs:
+        kwargs["train"] = kwargs["training"]
+        kwargs.pop("training")
+    return args, kwargs
+
+
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -331,6 +340,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
+    "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
@@ -386,6 +396,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
     "cumsum": core_ops.aten_cumsum,
+    "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
@@ -518,6 +529,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.conv2d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
+    ),
+    skip(
+        "nn.functional.dropout",
+        matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
+        reason="dropout is random so the result not match",
     ),
     skip(
         "nn.functional.upsample_nearest2d",
