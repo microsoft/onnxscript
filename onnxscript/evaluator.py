@@ -8,13 +8,23 @@ import abc
 import contextlib
 import pprint
 import typing
-from typing import Any, Callable, Mapping, Optional, Sequence, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Mapping,
+    Optional,
+    Protocol,
+    Sequence,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 
 import numpy as np
 import onnx
 import onnx.defs
 import onnx.helper
-from typing_extensions import Protocol, TypeAlias, runtime_checkable
+from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
 from onnxscript._internal import param_manipulation
