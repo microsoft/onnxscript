@@ -422,6 +422,7 @@ class Converter:
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
         into an ONNX attribute value, or
+        * Expr evaluates to None, in which case None is returned, or
         * Expr must be an attribute-reference, that is a name representing an
         attribute-parameter of a containing function.
         """
@@ -443,8 +444,17 @@ class Converter:
 
                 # Create GraphProto attribute
                 val = val.to_graph_proto()
-            return self.ir_builder.make_attr(attr_name, val)
-        return self.ir_builder.make_attr(attr_name, self.eval_constant_expr(expr))
+        else:
+            val = self.eval_constant_expr(expr)
+
+        # In ONNX, there is no way to explicitly specify a None value for an attribute.
+        # Instead, the attribute must be omitted from the attribute list.
+        # Hence, we do not create an attribute-proto if the value is None.
+        # The caller is responsible for omitting such attribute-values from the list of attributes
+        # in a NodeProto.
+        if val is None:
+            return None
+        return self.ir_builder.make_attr(attr_name, val)
 
     def translate_docstring(self, node):
         if hasattr(node.value, "value"):
@@ -753,6 +763,10 @@ class Converter:
         args = [self.translate_opt_expr(x) for x in node.args]
         args = autocast.static_cast_inputs(self, callee.get_schema(), *args)
         attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
+        # In ONNX, there is no way to explicitly specify a None value for an attribute.
+        # Instead, the attribute must be omitted from the attribute list.
+        # Hence, we do not create an attribute-proto if the value is None.
+        attrs = [attr for attr in attrs if attr is not None]
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, op, left, right):
