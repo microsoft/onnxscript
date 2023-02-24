@@ -64,6 +64,7 @@ class DecorateMeta:
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
     matcher: Optional[Callable[[Any], bool]] = None
+    enabled_if: bool = True
 
 
 def xfail(
@@ -72,14 +73,16 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
+    enabled_if: bool = True,
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
     Args:
         op_name: The name of the operator.
         variant_name: Optional OpInfo variant_test_name.
-        dtypes: The dtypes to expect the failure.
         reason: The reason for the failure.
+        dtypes: The dtypes to expect the failure.
+        enabled_if: Whether the xfail is enabled.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -87,6 +90,7 @@ def xfail(
         decorator=unittest.expectedFailure,
         dtypes=dtypes,
         reason=reason,
+        enabled_if=enabled_if,
     )
 
 
@@ -97,16 +101,18 @@ def skip(
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
+    enabled_if: bool = True,
 ) -> DecorateMeta:
     """Skips an OpInfo test.
 
     Args:
         op_name: The name of the operator.
         variant_name: Optional OpInfo variant_test_name.
-        dtypes: The dtypes to skip.
         reason: The reason for skipping.
+        dtypes: The dtypes to skip.
         matcher: A function that matches the test sample input. It is used only when
-            xfail is in the SKIP_SUBTESTS list.
+            the skip is in the SKIP_SUBTESTS list.
+        enabled_if: Whether the skip is enabled.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -115,6 +121,7 @@ def skip(
         dtypes=dtypes,
         reason=reason,
         matcher=matcher,
+        enabled_if=enabled_if,
     )
 
 
@@ -137,6 +144,7 @@ def add_decorate_info(
             test_class_name,
             base_test_name,
             dtypes=decorate_meta.dtypes,
+            active_if=decorate_meta.enabled_if,
         )
         decorators.append(new_decorator)
         opinfo.decorators = tuple(decorators)
@@ -184,6 +192,15 @@ def _cat_input_wrangler(
     return args, kwargs
 
 
+def _dropout_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "training" in kwargs:
+        kwargs["train"] = kwargs["training"]
+        kwargs.pop("training")
+    return args, kwargs
+
+
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -192,6 +209,15 @@ def _embedding_input_wrangler(
         del kwargs["max_norm"]
     if "norm_type" in kwargs:
         del kwargs["norm_type"]
+    return args, kwargs
+
+
+def _empty_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    """Remove arguments not present in the aten op signature."""
+    if "requires_grad" in kwargs:
+        del kwargs["requires_grad"]
     return args, kwargs
 
 
@@ -270,7 +296,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
-    "empty": core_ops.aten_empty,
+    "empty": (core_ops.aten_empty, _empty_input_wrangler),
     # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
     "eq": core_ops.aten_eq,
     "equal": core_ops.aten_equal,
@@ -314,6 +340,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
+    "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
@@ -369,6 +396,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
     "cumsum": core_ops.aten_cumsum,
+    "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
@@ -389,6 +417,17 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "zeros_like": core_ops.aten_zeros_like,
 }
 
+# These ops are not deterministic, so we check shape and dtype only
+NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
+    (
+        "empty_like",
+        "empty",
+        "new_empty_strided",
+        "new_empty",
+        "normal",
+    )
+)
+
 OPINFO_FUNCTION_MAPPING: dict[
     str,
     onnxscript.OnnxFunction
@@ -402,25 +441,17 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    *(
-        # ONNX Runtime 1.13 skips
-        (
-            xfail("logsumexp", reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18"),
-            xfail(
-                "nn.functional.upsample_nearest2d",
-                reason="ONNX Runtime 1.13 does support opset18",
-            ),
-        )
-        if version_utils.onnxruntime_older_than("1.14")
-        else ()
+    xfail(
+        "logsumexp",
+        reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18",
+        enabled_if=version_utils.onnxruntime_older_than("1.14"),
     ),
-    skip("empty", reason="Using zeros to simulate empty"),
-    skip("empty_like", reason="Using zeros_like to simulate empty_like"),
+    xfail(
+        "nn.functional.upsample_nearest2d",
+        reason="ONNX Runtime 1.13 does support opset18",
+        enabled_if=version_utils.onnxruntime_older_than("1.14"),
+    ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
-    skip("new_empty", reason="Using zeros to simulate empty"),
-    skip("new_empty_strided", reason="Using zeros to simulate empty"),
-    xfail("normal", reason="Random numbers are not close"),
-    xfail("normal", variant_name="number_mean", reason="Random numbers are not close"),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
@@ -500,6 +531,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="String padding is not accepted by aten::conv2d",
     ),
     skip(
+        "nn.functional.dropout",
+        matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
+        reason="dropout is random so the result not match",
+    ),
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
@@ -550,7 +586,9 @@ OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
-
+assert NONDETERMINISTIC_OPS.issubset(
+    TESTED_OPS
+), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
 
 TORCH_TYPE_TO_ONNX = {
     torch.bool: onnx.TensorProto.BOOL,
@@ -743,14 +781,27 @@ class TestOutputConsistency(unittest.TestCase):
                         # An onnxscript tensor
                         function_output = function_output.value
 
+                    actual = torch.tensor(function_output)
+                    expected = (
+                        torch_output
+                        if isinstance(torch_output, torch.Tensor)
+                        else torch.tensor(torch_output)
+                    )
+
+                    if op.name in NONDETERMINISTIC_OPS:
+                        # Check shape and dtype only for ops that are known to be
+                        # nondeterministic
+                        self.assertEqual(actual.shape, expected.shape)
+                        self.assertEqual(actual.dtype, expected.dtype)
+                        continue
+
                     # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
                     torch.testing.assert_close(
-                        torch.tensor(function_output).cpu(),
-                        torch_output.cpu()
-                        if isinstance(torch_output, torch.Tensor)
-                        else torch.tensor(torch_output).cpu(),
+                        actual,
+                        expected,
                         rtol=rtol,
                         atol=atol,
+                        check_device=False,
                     )
 
 
