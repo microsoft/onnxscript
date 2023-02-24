@@ -96,9 +96,9 @@ def run_function(obj, *inputs):
 def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     """Write the content into a file and import all OnnxFunctions from it."""
     if not test_folder.exists():
-        test_folder.mkdir()
+        test_folder.mkdir(exist_ok=True, parents=True)
         init = test_folder / "__init__.py"
-        init.touch()
+        init.touch(exist_ok=True)
     file = test_folder / f"{name}.py"
     file.write_text(content, encoding="utf-8")
 
