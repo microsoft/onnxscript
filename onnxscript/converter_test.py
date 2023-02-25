@@ -28,6 +28,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 from packaging.version import Version
 
 from onnxscript import OnnxFunction, converter, graph, script, tensor
+from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import onnx_script_test_case, testutils
@@ -615,13 +616,24 @@ class TestConverter(testutils.TestBase):
     def test_none_attribute(self):
         @script()
         def explicit_none(X):
-            return op.Squeeze(X, axes=None)
+            return op11.Squeeze(X, axes=None)
 
         @script()
         def implicit_none(X):
-            return op.Squeeze(X)
+            return op11.Squeeze(X)
 
         self.assertSame(explicit_none, implicit_none)
+
+    def test_input_and_attr1(self):
+        @script()
+        def positional(X, shape):
+            return op.Expand(X, shape)
+
+        @script()
+        def keyword(X, shape):
+            return op.Expand(shape=shape, input=X)
+
+        self.assertSame(positional, keyword)
 
 
 if __name__ == "__main__":

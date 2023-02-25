@@ -18,6 +18,7 @@ import onnxscript
 from onnxscript import analysis, autocast, irbuilder, onnx_types, sourceinfo
 from onnxscript import type_annotation as ta
 from onnxscript import values
+from onnxscript._internal import param_manipulation
 
 use_subscript = sys.version_info[:2] >= (3, 9)
 if use_subscript:
@@ -754,15 +755,23 @@ class Converter:
         return values.Op(self.default_opset, "Squeeze"), [tmp, axis.name], []
 
     def translate_call_expr(self, node):
-        """Translates a call-expression.
-        For now, the handling of positional and named arguments is slightly different
-        from standard Python. We implicitly map named arguments to ONNX attributes, and
-        positional arguments to ONNX inputs.
-        """
+        """Translates a call-expression."""
         callee = self.translate_callee_expr(node.func)
-        args = [self.translate_opt_expr(x) for x in node.args]
+        param_schemas = callee.param_schemas()
+        # If the callee's schema is available, we use it to determine the inputs and attributes.
+        # Otherwise, we map named arguments to attributes and positional arguments to inputs.
+        if param_schemas:
+            kwargs = {x.arg: x.value for x in node.keywords}
+            args, attrs = param_manipulation.separate_input_attributes_from_arguments(
+                param_schemas, node.args, kwargs, fill_defaults=False
+            )
+            args = [self.translate_opt_expr(x) for x in args]
+            attrs = [self.translate_attr(x, y) for x, y in attrs.items()]
+        else:
+            args = [self.translate_opt_expr(x) for x in node.args]
+            attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
         args = autocast.static_cast_inputs(self, callee.get_schema(), *args)
-        attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
+
         # In ONNX, there is no way to explicitly specify a None value for an attribute.
         # Instead, the attribute must be omitted from the attribute list.
         # Hence, we do not create an attribute-proto if the value is None.
