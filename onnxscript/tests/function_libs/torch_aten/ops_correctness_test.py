@@ -370,7 +370,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "softmax": special_ops.aten_special_softmax,
     "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
-    "squeeze": core_ops.aten_squeeze,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
@@ -413,6 +412,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     ),
     "ones_like": core_ops.aten_ones_like,
     "slice": core_ops.aten_slice,
+    "squeeze": core_ops.aten_squeeze,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
     "zeros_like": core_ops.aten_zeros_like,
@@ -556,6 +556,13 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
+    ),
+    skip(
+        "squeeze",
+        matcher=lambda sample: len(sample.args) > 0
+        and len(sample.input.shape)
+        and sample.input.shape[sample.args[0]] != 1,
+        reason="Cannot select an axis to squeeze out which has size not equal to one",
     ),
 )
 
