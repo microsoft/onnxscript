@@ -2064,6 +2064,7 @@ def aten_expand(self: TTensor, size: TInt) -> TTensor:
     size = op.Cast(size, to=INT64.dtype)
     return op.Expand(self, size)
 
+
 @torch_op("aten::expand_as")
 def aten_expand_as(self: TTensor, other: TTensor) -> TTensor:
     """expand_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
