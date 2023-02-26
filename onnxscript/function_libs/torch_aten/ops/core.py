@@ -273,52 +273,24 @@ def aten_angle(self: TensorType) -> TensorType:
 def aten_any(self: BOOL, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
-    zero = op.Constant(value_float=0.0)
     minus_1 = op.Constant(value_ints=[-1])
-    self = op.Cast(self, to=FLOAT.dtype)
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
         self = op.Reshape(self, minus_1)
 
-    if op.OptionalHasElement(dim):
-        result = op.Greater(self, zero)
-        result_int = op.Cast(result, to=FLOAT.dtype)
-        dim = op.Reshape(dim, minus_1)
-        dims = op.Cast(dim, to=INT64.dtype)
-        result_sum = op.ReduceSum(result_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
-        result = op.Greater(result_sum, zero)
-    else:  # kwarg{dim,keepdim} was not given
-        result = op.Greater(self, zero)
-        result_rank = op.Size(op.Shape(result))
-        if result_rank > 0:  # need return rank=0 result
-            result_int = op.Cast(result, to=FLOAT.dtype)
-            result_sum = op.ReduceSum(result_int, keepdims=0, noop_with_empty_axes=0)
-            result = op.Greater(result_sum, zero)
-
-    if self_rank == 0:
-        result = op.Squeeze(result)
-
-    '''
+    self = op.Abs(self)  # change negative to positive then do op.Greater()
     zero = op.Constant(value_float=0.0)
-    minus_1 = op.Constant(value_ints=[-1])
-    self = op.Cast(self, to=FLOAT.dtype)
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        self = op.Reshape(self, minus_1)
+    result = op.Greater(self, zero)
+    result_float = op.Cast(result, to=FLOAT.dtype)  # for op.ReduceMax() cannot calculate BOOL value
 
     if op.OptionalHasElement(dim):
         dim = op.Reshape(dim, minus_1)
         dims = op.Cast(dim, to=INT64.dtype)
-        self_sum = op.ReduceSum(self, dims, keepdims=keepdim, noop_with_empty_axes=0)
-        result = op.Greater(self_sum, zero)
-    else:  # kwarg{dim,keepdim} was not given
-        result = op.Greater(self, zero)
-        result_rank = op.Size(op.Shape(result))
-        if result_rank > 0:  # need return rank=0 result
-            result_int = op.Cast(result, to=FLOAT.dtype)
-            result_sum = op.ReduceSum(result_int, keepdims=0, noop_with_empty_axes=0)
-            result = op.Greater(result_sum, zero)
-    '''
+        result_max = op.ReduceMax(result_float, dims, keepdims=keepdim, noop_with_empty_axes=0)
+    else:
+        result_max = op.ReduceMax(result_float, keepdims=0, noop_with_empty_axes=0)
+
+    result = op.Greater(result_max, zero)
     if self_rank == 0:
         result = op.Squeeze(result)
 
@@ -2091,11 +2063,13 @@ def aten_expand(self: TTensor, size: TInt) -> TTensor:
     size = op.Cast(size, to=INT64.dtype)
     return op.Expand(self, size)
 
-
-def aten_expand_as(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::expand_as")
+def aten_expand_as(self: TTensor, other: TTensor) -> TTensor:
     """expand_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    shape = op.Shape(other)
+    result = op.Expand(self, shape)
+    return result
 
 
 def aten_expand_copy(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:
