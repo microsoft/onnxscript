@@ -390,7 +390,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
 ] = {
     "amax": core_ops.aten_amax,
     "amin": core_ops.aten_amin,
-    "any": core_ops.aten_any,  # TODO: add more testcase which element is 0.0, 0.1, -0.1 etc.
+    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,

@@ -281,7 +281,8 @@ def aten_any(self: BOOL, dim: Optional[int] = None, keepdim: bool = True) -> BOO
     self = op.Abs(self)  # change negative to positive then do op.Greater()
     zero = op.Constant(value_float=0.0)
     result = op.Greater(self, zero)
-    result_float = op.Cast(result, to=FLOAT.dtype)  # for op.ReduceMax() cannot calculate BOOL value
+    # for op.ReduceMax() cannot calculate BOOL value
+    result_float = op.Cast(result, to=FLOAT.dtype)
 
     if op.OptionalHasElement(dim):
         dim = op.Reshape(dim, minus_1)
