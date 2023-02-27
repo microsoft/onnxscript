@@ -44,14 +44,19 @@ values for the attributes ``start`` and ``end``.
 
 .. literalinclude:: examples/firstdim.py
 
-In the translation of a call to an ONNX operator, keyword arguments (aka named arguments)
-of Python are translated into attribute parameters (of ONNX), while positional arguments
+In the translation of a call to an ONNX operator, the translator makes use of the
+opschema specification of the operator to map the actual parameters to appropriate input
+parameters and attribute parameters. Since the ONNX specification does not indicate any
+ordering for attribute parameters, it is recommended that attribute parameters be specified
+using keyword arguments (aka named arguments).
+
+If the translator does not have an opschema for the called op, it uses the following
+strategy to map the actual parameters to appropriate input parameters and attribute parameters.
+Keyword arguments of Python are translated into attribute parameters (of ONNX), while positional arguments
 are translated into normal value-parameters.
-Thus, ``X`` is treated as a normal value-parameter (in ONNX) for this particular call, while
-``start`` and ``end`` are treated as attribute-parameters.
-This is a limitation of the current converter and is proposed to be relaxed
-when schema information is available for the callee indicating which are
-value-parameters and which are attribute-parameters.
+Thus, in the above example, ``X`` is treated as a normal value-parameter for this particular call, while
+``start`` and ``end`` are treated as attribute-parameters (when an opschema is unavailable).
+
 
 **Specifying tensor-valued attributes**
 
