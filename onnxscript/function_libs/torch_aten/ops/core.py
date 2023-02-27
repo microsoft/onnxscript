@@ -4000,7 +4000,7 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::new_empty")
+@torch_op("aten::new_empty", trace_only=True)
 def aten_new_empty(self: TTensor, size: INT64, dtype: int = -1) -> TTensor:
     """new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
@@ -4014,7 +4014,7 @@ def aten_new_empty(self: TTensor, size: INT64, dtype: int = -1) -> TTensor:
     return result
 
 
-@torch_op("aten::new_empty_strided")
+@torch_op("aten::new_empty_strided", trace_only=True)
 def aten_new_empty_strided(
     self: TTensor,
     size: INT64,

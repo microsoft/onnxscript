@@ -333,8 +333,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
-    "new_empty": core_ops.aten_new_empty,
-    "new_empty_strided": core_ops.aten_new_empty_strided,
     "new_full": core_ops.aten_new_full,
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
@@ -402,6 +400,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     # "native_layer_norm": core_ops.aten_layer_norm,  # FIXME: 3 outputs != 1 output
     "native_layer_norm": core_ops.aten_native_layer_norm,
+    "new_empty": core_ops.aten_new_empty,
+    "new_empty_strided": core_ops.aten_new_empty_strided,
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,

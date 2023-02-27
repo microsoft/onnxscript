@@ -612,6 +612,17 @@ class TestConverter(testutils.TestBase):
 
         self.assertSame(inc_alpha, inc_alpha_expanded)
 
+    def test_none_attribute(self):
+        @script()
+        def explicit_none(X):
+            return op.Squeeze(X, axes=None)
+
+        @script()
+        def implicit_none(X):
+            return op.Squeeze(X)
+
+        self.assertSame(explicit_none, implicit_none)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
