@@ -333,9 +333,7 @@ class TorchScriptGraph:
         return tensor_value  # type: ignore[return-value]
 
     @beartype
-    def add_initializer(
-        self, input_name: str, input_value: torch.Tensor
-    ) -> None:
+    def add_initializer(self, input_name: str, input_value: torch.Tensor) -> None:
         self._initializers[input_name] = input_value
 
     @beartype
@@ -457,9 +455,7 @@ class TorchScriptGraph:
         return result
 
     @beartype
-    def to_model_proto(
-        self, opset_version: int
-    ) -> onnx.ModelProto:
+    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
         (
             proto,
             _,
