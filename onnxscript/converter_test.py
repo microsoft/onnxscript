@@ -614,6 +614,11 @@ class TestConverter(testutils.TestBase):
         self.assertSame(inc_alpha, inc_alpha_expanded)
 
     def test_none_attribute(self):
+        """Test converter handles a None value specified as an attribute value.
+        Use Squeeze from opset 11 as an example, since it has an attribute named "axes"
+        that is optional.
+        """
+
         @script()
         def explicit_none(X):
             return op11.Squeeze(X, axes=None)
@@ -624,7 +629,9 @@ class TestConverter(testutils.TestBase):
 
         self.assertSame(explicit_none, implicit_none)
 
-    def test_input_and_attr1(self):
+    def test_input_and_attr_classification(self):
+        """Test that inputs and attributes are classified correctly, when positional and keyword arguments are used."""
+
         @script()
         def positional(X, shape):
             return op.Expand(X, shape)
