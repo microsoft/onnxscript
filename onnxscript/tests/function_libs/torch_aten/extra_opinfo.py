@@ -175,25 +175,25 @@ def sample_inputs_layer_norm(
         ((0, 1), (1,), 1e-5),
     )
 
-    for input_shape, normalized_shape, eps in cases:  # type: ignore[assignment]
+    for input_shape, normalized_shape, eps in cases:  # type: ignore[misc]
         # Shape of weight and bias should be the same as normalized_shape
-        weight = make_arg(normalized_shape)
-        bias = make_arg(normalized_shape)
+        weight = make_arg(normalized_shape)  # type: ignore[has-type]
+        bias = make_arg(normalized_shape)  # type: ignore[has-type]
         yield opinfo_core.SampleInput(
-            make_arg(input_shape),
-            args=(normalized_shape, weight, bias, eps),
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, weight, bias, eps),  # type: ignore[has-type]
         )
         yield opinfo_core.SampleInput(
-            make_arg(input_shape),
-            args=(normalized_shape, None, bias, eps),
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, None, bias, eps),  # type: ignore[has-type]
         )
         yield opinfo_core.SampleInput(
-            make_arg(input_shape),
-            args=(normalized_shape, weight, None, eps),
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, weight, None, eps),  # type: ignore[has-type]
         )
         yield opinfo_core.SampleInput(
-            make_arg(input_shape),
-            args=(normalized_shape, None, None, eps),
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, None, None, eps),  # type: ignore[has-type]
         )
 
 
