@@ -95,9 +95,9 @@ executes in an eager-evaluation mode.
     :maxdepth: 1
 
     tutorial/index
-    api/index
     auto_examples/index
-
+    api/index
+    
 **License**
 
 onnxscript comes with a `MIT <https://github.com/microsoft/onnx-script/blob/main/LICENSE>`_ license.

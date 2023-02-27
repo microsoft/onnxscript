@@ -113,11 +113,46 @@ type annotation).
 
 .. literalinclude:: examples/leakyrelu.py
 
+The (ONNX) types of attributes supported and their corresponding (Python) type annotations are shown
+in the table below. Other types of ONNX attributes are not yet supported.
+
+======================   ======================
+ONNX Type                Python Type Annotation
+======================   ======================
+AttributeProto.FLOAT     float
+AttributeProto.INT       int, bool
+AttributeProto.STRING    str
+AttributeProto.FLOATS    Sequence[float]
+AttributeProto.INTS      Sequence[int]
+AttributeProto.STRINGS   Sequence[str]
+======================   ======================
+   
+**Automatic promotion of attribute-parameters to values**
+
 As illustrated in the above example, when an attribute-parameter is used in a context
 requiring a value-parameter, the converter will automatically convert the attribute
 into a tensor-value. Specifically, in the sub-expression ``alpha * X``, the attribute
 parameter ``alpha`` is used as a value-parameter of the call to the ``Mul`` op (denoted
-by the ``*``) and is automatically converted.
+by the ``*``) and is automatically converted. Thus,
+
+.. literalinclude:: examples/leakyrelu.py
+
+is expanded to the following:
+
+.. literalinclude:: examples/leakyrelu2.py
+
+**Automatic casts for constant values**
+
+The converter also automatically introduces casts (via the ONNX ``CastLike`` op)
+when constants are used in a context where they are constrained to be of the
+same type as some other (non-constant) operand. For example, the expression
+``2 * X`` is expanded to ``op.CastLike(2, X) * X``, which allows the same
+code to work for different types of ``X``.
+
+*Control-Flow*
+
+The support for control-flow constructs in |onnxscript| is limited by
+requirements of ONNX control-flow ops.
 
 **Conditional statements**
 
