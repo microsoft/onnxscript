@@ -159,8 +159,9 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
-def sample_inputs_layer_norm(op_info, device, dtype, requires_grad):  # pylint: disable=unused-argument
-
+def sample_inputs_layer_norm(
+    op_info, device, dtype, requires_grad, **kwargs  # pylint: disable=unused-argument
+):
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
@@ -174,7 +175,7 @@ def sample_inputs_layer_norm(op_info, device, dtype, requires_grad):  # pylint: 
         ((0, 1), (1,), 1e-5),
     )
 
-    for input_shape, normalized_shape, eps in cases:
+    for input_shape, normalized_shape, eps in cases:  # type: ignore[assignment]
         # Shape of weight and bias should be the same as normalized_shape
         weight = make_arg(normalized_shape)
         bias = make_arg(normalized_shape)
