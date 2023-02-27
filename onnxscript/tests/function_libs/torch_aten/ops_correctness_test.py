@@ -398,7 +398,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
-    # "native_layer_norm": core_ops.aten_layer_norm,  # FIXME: 3 outputs != 1 output
+    "layer_norm": core_ops.aten_layer_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
@@ -747,6 +747,10 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+
+                if i == 4:
+                    print("0")
+
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
