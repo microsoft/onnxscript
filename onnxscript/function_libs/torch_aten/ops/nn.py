@@ -22,6 +22,7 @@ from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
+    TInt,
     TReal,
 )
 from onnxscript.onnx_opset import opset18 as op
@@ -749,11 +750,12 @@ def aten_nll_loss(
     reduction: int = 1,
     ignore_index: int = -100,
 ) -> TFloat:
-    # nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
+    """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
+
     reduction_vals = ["none", "mean", "sum"]
     reduction_str = reduction_vals[reduction]
 
-    if weight is not None:
+    if op.OptionalHasElement(weight):
         result = _aten_nll_loss_weight(
             self, target, weight, reduction=reduction_str, ignore_index=ignore_index
         )
@@ -767,12 +769,11 @@ def aten_nll_loss(
 @torch_op("aten::nll_loss", overload=True)
 def _aten_nll_loss_weight(
     self: TFloat,
-    target: Sequence[INT64],
+    target: TInt,
     weight: TFloat,
     reduction: str,
     ignore_index: int,
 ) -> TFloat:
-    # nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
 
     rank_self = op.Size(op.Shape(self))
     if rank_self == 1:
@@ -794,11 +795,10 @@ def _aten_nll_loss_weight(
 @torch_op("aten::nll_loss", overload=True)
 def _aten_nll_loss_none(
     self: TFloat,
-    target: Sequence[INT64],
+    target: TInt,
     reduction: str,
     ignore_index: int,
 ) -> TFloat:
-    # nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
 
     rank_self = op.Size(op.Shape(self))
     if rank_self == 1:
@@ -825,12 +825,12 @@ def aten_nll_loss2d(
     reduction: int = 1,
     ignore_index: int = -100,
 ) -> TFloat:
-    # nll_loss2d(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
+    """nll_loss2d(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
     reduction_vals = ["none", "mean", "sum"]
     reduction_str = reduction_vals[reduction]
 
-    if weight is not None:
+    if op.OptionalHasElement(weight):
         result = _aten_nll_loss_weight(
             self, target, weight, reduction=reduction_str, ignore_index=ignore_index
         )
