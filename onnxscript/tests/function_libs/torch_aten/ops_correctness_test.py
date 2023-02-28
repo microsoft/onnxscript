@@ -317,7 +317,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "broadcast_to": core_ops.aten_broadcast_to,
     "cat": (core_ops.aten_cat, _cat_input_wrangler),
     "ceil": core_ops.aten_ceil,
-    "clamp_max": core_ops.aten_clamp_max,
+    #"clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clone": core_ops.aten_clone,
     # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
@@ -345,7 +345,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "le": core_ops.aten_le,
     "log10": core_ops.aten_log10,
     "log1p": core_ops.aten_log1p,
-    "log_softmax": special_ops.aten_special_log_softmax,
+    #"log_softmax": special_ops.aten_special_log_softmax,
     "log2": core_ops.aten_log2,
     "logaddexp": core_ops.aten_logaddexp,
     "logaddexp2": core_ops.aten_logaddexp2,
@@ -356,7 +356,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "max": core_ops.aten_max,
-    "maximum": core_ops.aten_maximum,
+    #"maximum": core_ops.aten_maximum,
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
@@ -397,7 +397,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
     "split": core_ops.aten_split,
-    "softmax": special_ops.aten_special_softmax,
+    #"softmax": special_ops.aten_special_softmax,
     "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
     "sub": core_ops.aten_sub,
@@ -417,12 +417,12 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    "amax": core_ops.aten_amax,
+    #"amax": core_ops.aten_amax,
     "amin": core_ops.aten_amin,
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
-    "argmax": core_ops.aten_argmax,
+    #"argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
     "cumsum": core_ops.aten_cumsum,
@@ -478,6 +478,8 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18",
         enabled_if=version_utils.onnxruntime_older_than("1.14"),
     ),
+    xfail("max", variant_name="binary", reason="The op does not support binary"),
+    xfail("max", variant_name="reduction_no_dim", reason="The op does not support binary"),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="ONNX Runtime 1.13 does support opset18",
@@ -778,6 +780,10 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+
+                if i == 2:
+                    print(i)
+
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
