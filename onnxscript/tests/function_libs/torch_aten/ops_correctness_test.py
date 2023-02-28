@@ -257,38 +257,6 @@ def _where_input_wrangler(
     return args, kwargs
 
 
-def _softmax_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["dim"] = args.pop()
-    return args, kwargs
-
-
-def _split_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if len(args) >= 3:
-        kwargs["dim"] = args.pop(2)
-    return args, kwargs
-
-
-def _topk_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # TODO(#305): Sole purpose is to workaround attributes must be in kwargs in onnxscript.
-
-    if len(args) >= 3:
-        kwargs["dim"] = args.pop(2)
-    if len(args) >= 3:
-        kwargs["largest"] = args.pop(2)
-    if len(args) >= 3:
-        kwargs["sorted"] = args.pop(2)
-    # The aten::where op takes condition, x, y as inputs
-    # Swap the first two inputs
-    args[0], args[1] = args[1], args[0]
-    return args, kwargs
-
-
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 
