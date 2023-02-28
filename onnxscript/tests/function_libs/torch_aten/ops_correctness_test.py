@@ -415,6 +415,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
+    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
     "nn.functional.cross_entropy": (nn_ops.aten_cross_entropy_loss, _cross_entropy_input_wrangler),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
