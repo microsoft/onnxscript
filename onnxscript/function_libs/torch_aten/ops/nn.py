@@ -248,10 +248,26 @@ def aten_cross_entropy_loss(
     ignore_index: int = -100,
     label_smoothing: float = 0.0,  # this was ignored due to ONNX not support
 ) -> TFloatOrBFloat16:
-    # cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor
+    """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
 
-    reduction_vals = ["none", "mean", "sum"]
-    reduction_str = reduction_vals[reduction]
+    if reduction == 0:  # "none"
+        result = _aten_cross_entropy_loss_onnx(self, target, weight, "none", ignore_index)
+    elif reduction == 1:  # "mean"
+        result = _aten_cross_entropy_loss_onnx(self, target, weight, "mean", ignore_index)
+    elif reduction == 2:  # "sum"
+        result = _aten_cross_entropy_loss_onnx(self, target, weight, "sum", ignore_index)
+
+    return result
+
+
+@torch_op("aten::cross_entropy_loss", overload=True)
+def _aten_cross_entropy_loss_onnx(
+    self: TFloatOrBFloat16,
+    target: Sequence[int],
+    weight: Optional[TFloatOrBFloat16],
+    reduction_str: str,
+    ignore_index: int,
+):
     if op.OptionalHasElement(weight):
         result, _ = op.SoftmaxCrossEntropyLoss(
             self, target, weight, reduction=reduction_str, ignore_index=ignore_index
@@ -260,6 +276,7 @@ def aten_cross_entropy_loss(
         result, _ = op.SoftmaxCrossEntropyLoss(
             self, target, reduction=reduction_str, ignore_index=ignore_index
         )
+
     return result
 
 
