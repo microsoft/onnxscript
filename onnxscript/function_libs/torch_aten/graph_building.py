@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import typing
+import warnings
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -203,6 +204,9 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def graph(self) -> TorchScriptGraph:
         return self._graph
 
+    def eval(self, schema, inputs, attributes):
+        return self._graph.add_op_call(schema, inputs, attributes)
+
     @beartype
     def eval_function(  # type: ignore[override]
         self,
@@ -223,14 +227,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                 # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
                 attributes[name] = float(value)
         return self._graph.add_function_call(function, inputs, attributes)
-
-    def _eval(self, schema: onnx.defs.OpSchema, inputs, attributes, closure: Any):
-        del closure  # Unused
-
-        return self._graph.add_op_call(schema, inputs, attributes)
-
-    def eval(self, schema, inputs, attributes):
-        return self._eval(schema, inputs, attributes, closure=None)
 
 
 @beartype
@@ -298,7 +294,8 @@ class TorchScriptGraph:
     def __init__(self):
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
-        self._function_store: Dict[str, onnxscript.OnnxFunction] = {}
+        # key: (name, domain)
+        self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
 
     @property
     def torch_graph(self):
@@ -347,48 +344,38 @@ class TorchScriptGraph:
         return
 
     def _add_constant_to_graph(self, constant) -> torch.Value:
-        if isinstance(constant, float):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
-            )[0]
-        if isinstance(constant, int):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
-            )[0]
         if constant is None:
             value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
             return value
-        if isinstance(constant, (tuple, list)) and all(
+
+        if isinstance(constant, bool):
+            # Be sure to put bool before int, because bool is a subclass of int
+            constant_tensor = torch.tensor(constant, dtype=torch.bool)
+        elif isinstance(constant, float):
+            constant_tensor = torch.tensor(constant, dtype=torch.float)
+        elif isinstance(constant, int):
+            constant_tensor = torch.tensor(constant, dtype=torch.int64)
+        elif isinstance(constant, (tuple, list)) and all(
             isinstance(val, int) for val in constant
         ):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.int64)),
-            )[0]
-        if isinstance(constant, (tuple, list)) and all(
+            constant_tensor = torch.tensor(constant, dtype=torch.int64)
+        elif isinstance(constant, (tuple, list)) and all(
             isinstance(val, float) for val in constant
         ):
-            return _create_op_call_in_torch_graph(
-                self._torch_graph,
-                "onnx::Constant",
-                inputs=(),
-                attributes=dict(value=torch.tensor(constant, dtype=torch.float)),
-            )[0]
-
-        raise TypeError(
-            f"Constant input '{constant}' of type '{type(constant)}' is not supported"
-        )
+            constant_tensor = torch.tensor(constant, dtype=torch.float)
+        else:
+            raise TypeError(
+                f"Constant input '{constant}' of type '{type(constant)}' is not supported"
+            )
+        return _create_op_call_in_torch_graph(
+            self._torch_graph,
+            "onnx::Constant",
+            inputs=(),
+            attributes=dict(value=constant_tensor),
+        )[0]
 
     @beartype
     def _add_torchscript_op_call(
@@ -444,7 +431,8 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
-        self._function_store[onnx_function.name] = onnx_function
+        identifier = (onnx_function.name, onnx_function.function_ir.domain)
+        self._function_store[identifier] = onnx_function
 
         # Compute outputs from the function schema
 
@@ -486,12 +474,14 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        # print("===========ONNX model: \n", onnx_model)
         onnx_model = onnx.shape_inference.infer_shapes(
             onnx_model, check_type=True, strict_mode=False
         )
-        # print("===========ONNX model with inferred shapes: \n", onnx_model)
-        print("[Success] ONNX model exported")
+        try:
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except onnx.checker.ValidationError as e:
+            warnings.warn(f"ONNX model is invalid: {e}")
+
         return onnx_model
 
     def apply(self, graph_pass: Callable, *args, **kwargs) -> None:

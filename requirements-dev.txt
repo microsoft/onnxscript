@@ -1,11 +1,11 @@
 click
-numpy==1.23.5
+numpy
 matplotlib
 --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html
 onnx-function-experiment
 --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html
 ort-function-experiment-nightly
-protobuf<4
+typing_extensions
 
 # Docs site
 furo
@@ -15,8 +15,6 @@ sphinx>=6
 
 # ATen lib
 beartype
-types-PyYAML
-typing_extensions
 
 # Testing
 expecttest

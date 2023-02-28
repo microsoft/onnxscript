@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
+import onnx.helper
 from onnx import TensorProto
-from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 
 from onnxscript import onnx_opset
 
@@ -47,9 +47,8 @@ class Tensor:
         return self.value.dtype
 
     @property
-    def onnx_dtype(self) -> TensorProto.DataType:
-        # FIXME: NP_TYPE_TO_TENSOR_TYPE is deprecated
-        return NP_TYPE_TO_TENSOR_TYPE[self.dtype]
+    def onnx_dtype(self) -> int:
+        return onnx.helper.np_dtype_to_tensor_dtype(self.dtype)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.value!r})"

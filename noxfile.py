@@ -10,12 +10,9 @@ nox.options.error_on_missing_interpreters = False
 
 
 COMMON_TEST_DEPENDENCIES = (
-    "autopep8",
     "click",
     "jinja2",
-    'numpy==1.23.5; python_version>="3.8"',
-    'numpy; python_version<"3.8"',
-    "protobuf<4",
+    "numpy==1.23.5",
     "typing_extensions",
     "beartype",
     "types-PyYAML",
@@ -29,7 +26,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pyyaml",
 )
 ONNX = "onnx==1.13"
-ONNX_RUNTIME = "onnxruntime==1.13.1"
+ONNX_RUNTIME = "onnxruntime==1.14"
 PYTORCH = "torch==1.13"
 
 
@@ -100,8 +97,8 @@ def test_torch_nightly(session):
 @nox.session(tags=["test-onnx-weekly"])
 def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
-    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH, "wheel")
-    session.install("--index-url", "https://test.pypi.org/simple/", "onnx-weekly")
+    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
+    session.install("-r", "requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)

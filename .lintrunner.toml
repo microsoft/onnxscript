@@ -26,7 +26,7 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
-    'ruff==0.0.241',
+    'ruff==0.0.248',
 ]
 
 [[linter]]
@@ -55,7 +55,7 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
-    'ruff==0.0.241',
+    'ruff==0.0.248',
 ]
 is_formatter = true
 
@@ -98,7 +98,8 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
-    'mypy==0.991',
+    'mypy==1.0.0',
+    'types-PyYAML==6.0.12.4',
 ]
 
 [[linter]]

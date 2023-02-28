@@ -187,7 +187,7 @@ class Op:
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
 
-    def get_schema(self) -> onnx.defs.OpSchema:
+    def get_schema(self) -> Optional[onnx.defs.OpSchema]:
         """Returns the ONNX OpSchema for this op."""
         if self.opschema:
             return self.opschema
@@ -195,14 +195,16 @@ class Op:
 
     def has_schema(self) -> bool:
         """Returns True if this op has an OpSchema."""
-        return self.opschema is not None
+        return self.get_schema() is not None
 
-    def param_schemas(self) -> tuple[ParamSchema, ...]:
-        """Returns the parameter schemas for this op."""
+    def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
+        """Returns the parameter schemas for this op, if it has one."""
         if self._param_schemas is not None:
             return self._param_schemas
 
         op_schema = self.get_schema()
+        if op_schema is None:
+            return None
         schemas = []
         for input_ in op_schema.inputs:
             param_schema = ParamSchema(
