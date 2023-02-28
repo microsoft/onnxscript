@@ -26,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: Apache Software License",
 ]
-dependencies = ["numpy", "protobuf<4", "onnx", "typing_extensions"]
+dependencies = ["numpy", "onnx", "typing_extensions"]
 
 [tool.setuptools.dynamic]
 version = {attr = "onnxscript.__version__"}
