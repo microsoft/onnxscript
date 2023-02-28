@@ -826,6 +826,8 @@ def aten_nll_loss2d(
 ) -> TensorType:
     """nll_loss2d(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
+    raise NotImplementedError()
+
 
 def aten_nll_loss2d_backward(
     grad_output: TensorType,

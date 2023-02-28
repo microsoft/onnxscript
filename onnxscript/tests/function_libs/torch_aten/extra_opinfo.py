@@ -6,7 +6,6 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 import functools
 from typing import Any, List
 
-import itertools
 import torch
 from torch import testing as torch_testing
 from torch.testing._internal import common_dtype, common_utils
