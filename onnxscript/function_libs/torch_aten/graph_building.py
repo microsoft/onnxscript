@@ -306,7 +306,6 @@ class TorchScriptGraph:
         self, input_name: str, input_value: Optional[torch.Tensor] = None
     ) -> TorchScriptTensor:
         # TODO: Take in a TorchScriptTensor?
-        # TODO: Support dynamic shapes
         if input_value is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
@@ -319,11 +318,14 @@ class TorchScriptGraph:
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
             return tensor_value  # type: ignore[return-value]
         torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(
-            torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
-                input_value
-            )
+        torchscript_input_value = torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
+            input_value
         )
+        rank = torchscript_input_value.dim()
+        # We set sizes all to be dynamic as default, as function layers are no longer relying on the shape type inference pass in exporter
+        # TODO(titaiwang): design static_axes once public API is decided
+        torch_value.setType(torchscript_input_value.with_sizes([None] * rank))
+        # torch_value.setType(torchscript_input_value)
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
@@ -481,7 +483,6 @@ class TorchScriptGraph:
             onnx.checker.check_model(onnx_model, full_check=True)
         except onnx.checker.ValidationError as e:
             warnings.warn(f"ONNX model is invalid: {e}")
-
         return onnx_model
 
     def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
