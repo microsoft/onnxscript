@@ -3378,12 +3378,10 @@ def aten_maximum(self: TReal, other: TReal) -> TReal:
     return op.Max(self, other)
 
 
-@torch_op("aten::mean")
-def aten_mean(self: TReal, dim: INT64, keepdim: BOOL = False, dtype: Optional[int] = None) -> TReal:
-# def aten_mean(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+def aten_mean(self: TensorType, dtype: Optional[int] = None) -> TensorType:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
-    return op.ReduceMean(self, keepdims=0)
+    raise NotImplementedError()
 
 
 def aten_median(self: TensorType) -> TensorType:
