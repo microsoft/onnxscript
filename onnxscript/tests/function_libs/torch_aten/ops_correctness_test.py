@@ -253,7 +253,9 @@ def _sum_input_wrangler(
 def _where_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["dim"] = args.pop()
+    # The aten::where op takes condition, x, y as inputs
+    # Swap the first two inputs
+    args[0], args[1] = args[1], args[0]
     return args, kwargs
 
 
@@ -364,7 +366,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
-    "split": core_ops.aten_split,
     "softmax": special_ops.aten_special_softmax,
     "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
@@ -754,10 +755,6 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
-
-                if i == 8:
-                    print(i)
-
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
