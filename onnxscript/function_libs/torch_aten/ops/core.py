@@ -3258,7 +3258,7 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
 
 
 @torch_op("aten::max", trace_only=True)
-def aten_max(self: TReal, dim_or_other: TReal = None, keepdim = None) -> TReal:
+def aten_max(self: TReal, dim_or_other: TReal = None, keepdim: BOOL = None) -> TReal:
     """max(Tensor self) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
