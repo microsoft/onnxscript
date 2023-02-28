@@ -64,13 +64,13 @@ class Role:
 
 
 class NodePredicate:
-    always: "NodePredicate"
+    always: NodePredicate
 
     def __init__(
         self,
         role: Optional[Role] = None,
         type_: Optional[Type[TNode]] = None,
-        func: Optional[Callable[["Node"], bool]] = None,
+        func: Optional[Callable[[Node], bool]] = None,
     ):
         _assert_instance(role, (Role, NoneType))
         _assert_instance(type_, (type, NoneType))
@@ -78,7 +78,7 @@ class NodePredicate:
         self.type = type_
         self.func = func
 
-    def matches(self, node: "Node"):
+    def matches(self, node: Node):
         _assert_instance(node, Node)
         matches = True
         if self.role:
@@ -114,7 +114,7 @@ class Node(ABC):
         return ".".join(names)
 
     @property
-    def parent_module(self) -> Optional["Module"]:
+    def parent_module(self) -> Optional[Module]:
         return first_or_none(self.get_ancestors_of_type(Module))
 
     @property
@@ -146,7 +146,7 @@ class Node(ABC):
         return self._first_child is not None
 
     @property
-    def children(self) -> Iterable["Node"]:
+    def children(self) -> Iterable[Node]:
         current_node = self.first_child
         while current_node is not None:
             # save next then yield to allow removing/replacing nodes while iterating
@@ -154,7 +154,7 @@ class Node(ABC):
             yield current_node
             current_node = next_node
 
-    def get_children(self, predicate: NodePredicate) -> Iterable["Node"]:
+    def get_children(self, predicate: NodePredicate) -> Iterable[Node]:
         _assert_instance(predicate, NodePredicate)
         yield from filter(predicate.matches, self.children)
 
@@ -168,7 +168,7 @@ class Node(ABC):
 
     def get_ancestors(
         self, predicate: Optional[NodePredicate] = None, and_self=False
-    ) -> Iterable["Node"]:
+    ) -> Iterable[Node]:
         current_node = self if and_self else self.parent
         while current_node:
             # save next then yield to allow removing/replacing nodes while iterating
@@ -185,22 +185,22 @@ class Node(ABC):
         _assert_instance(type_, type)
         return self.get_ancestors(NodePredicate(type_=type_), and_self=and_self)
 
-    def _set_parent(self, child: "Node"):
+    def _set_parent(self, child: Node):
         if child._parent is not None:
             raise ValueError(f"node is already has a parent: {child.parent!r}")
         child._parent = self
 
-    def _get_single_child(self, role: Role) -> Optional["Node"]:
+    def _get_single_child(self, role: Role) -> Optional[Node]:
         return first_or_none(self.get_children_in_role(role))
 
-    def _set_single_child(self, node: "Node", role: Role):
+    def _set_single_child(self, node: Node, role: Role):
         current_node = self._get_single_child(role)
         if current_node:
             current_node.replace(node)
         else:
             self.append_child(node, role)
 
-    def append_children(self, children: Optional[Union["Node", Iterable["Node"]]], role: Role):
+    def append_children(self, children: Optional[Union[Node, Iterable[Node]]], role: Role):
         _assert_instance(role, Role)
         if children is None:
             return
@@ -211,7 +211,7 @@ class Node(ABC):
             for child in children:
                 self.append_child(child, role)
 
-    def append_child(self, child: "Node", role: Role):
+    def append_child(self, child: Node, role: Role):
         _assert_instance(role, Role)
         if child is None:
             return
@@ -228,7 +228,7 @@ class Node(ABC):
             child._prev_sibling = self._last_child
             self._last_child = child
 
-    def insert_child_before(self, next_sibling: Optional["Node"], child: "Node", role: Role):
+    def insert_child_before(self, next_sibling: Optional[Node], child: Node, role: Role):
         _assert_instance(next_sibling, (Node, type(None)))
         _assert_instance(child, Node)
         _assert_instance(role, Role)
@@ -249,7 +249,7 @@ class Node(ABC):
 
         next_sibling._prev_sibling = child
 
-    def prepend_child(self, child: "Node", role: Role):
+    def prepend_child(self, child: Node, role: Role):
         _assert_instance(child, Node)
         _assert_instance(role, Role)
         self.insert_child_before(self.first_child, child, role)
@@ -270,7 +270,7 @@ class Node(ABC):
         self._prev_sibling = None
         self._next_sibling = None
 
-    def replace(self, new_node: Optional["Node"]):
+    def replace(self, new_node: Optional[Node]):
         if new_node is None:
             self.remove()
             return
@@ -310,10 +310,10 @@ class Node(ABC):
         self._next_sibling = None
 
     @abstractmethod
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         pass
 
-    def _dispatch_visit(self, dispatch: Callable[[TNode, "VisitKind"], bool]):
+    def _dispatch_visit(self, dispatch: Callable[[TNode, VisitKind], bool]):
         visitor = dispatch.__self__
         visitor.enter(self)
         if dispatch(self) is True:
@@ -327,7 +327,7 @@ class Node(ABC):
 
 
 class Expr(Node, ABC):
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_expr)
 
 
@@ -336,7 +336,7 @@ class ThunkExpr(Expr):
         super().__init__()
         self.code = code
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_thunk_expr)
 
 
@@ -345,7 +345,7 @@ class Name(Expr):
         super().__init__()
         self.identifier = identifier
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_name)
 
 
@@ -354,7 +354,7 @@ class Constant(Expr):
         super().__init__()
         self.value = value
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_constant)
 
 
@@ -394,7 +394,7 @@ class BinOp(Expr):
     def right(self):
         return first(self.get_children_in_role(BinOp.Roles.Right))
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_binop)
 
 
@@ -416,7 +416,7 @@ class Subscript(Expr):
     def slice(self):
         return first(self.get_children_in_role(Subscript.Roles.Slice))
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_subscript)
 
 
@@ -432,7 +432,7 @@ class Starred(Expr):
     def expr(self):
         return first(self.get_children_in_role(Starred.Roles.Expr))
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_starred)
 
 
@@ -452,10 +452,10 @@ class Call(Expr):
         return first(self.get_children_in_role(Call.Roles.Func))
 
     @property
-    def args(self) -> Iterable["Expr"]:
+    def args(self) -> Iterable[Expr]:
         return self.get_children_in_role(Call.Roles.Args)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_call)
 
 
@@ -475,25 +475,25 @@ class Lambda(Expr):
         return first(self.get_children_in_role(Lambda.Roles.Body))
 
     @property
-    def args(self) -> Iterable["Expr"]:
+    def args(self) -> Iterable[Expr]:
         return self.get_children_in_role(Lambda.Roles.Args)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_lambda)
 
 
 class TupleExpr(ExprList):
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_tuple_expr)
 
 
 class ListExpr(ExprList):
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_list_expr)
 
 
 class SetExpr(ExprList):
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_set_expr)
 
 
@@ -517,12 +517,12 @@ class DictElem(Expr):
     def value(self) -> Expr:
         return first(self.get_children_in_role(DictElem.Roles.Value))
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_dict_elem)
 
 
 class DictExpr(ExprList[DictElem]):
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_dict_expr)
 
 
@@ -534,31 +534,29 @@ class TypeRef(Expr):
         self,
         module: Optional[str],
         name: str,
-        *typeargs: "TypeRef",
+        *typeargs: TypeRef,
         default_value: Optional[Constant] = None,
     ):
         super().__init__()
         self.module = module
         self.name = name
         self.default_value = default_value or Constant(None)
-        self.imported_by: Optional["ImportBase"] = None
+        self.imported_by: Optional[ImportBase] = None
         self.append_children(typeargs, TypeRef.Roles.TypeArgs)
 
     @property
-    def typeargs(self) -> Iterable["TypeRef"]:
+    def typeargs(self) -> Iterable[TypeRef]:
         return self.get_children_in_role(TypeRef.Roles.TypeArgs)
 
-    def append_typearg(self, typearg: "TypeRef"):
+    def append_typearg(self, typearg: TypeRef):
         _assert_instance(typearg, TypeRef)
         self.append_child(typearg, TypeRef.Roles.TypeArgs)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_typeref)
 
     @staticmethod
-    def make_composite_if_multiple(
-        composite_type: "TypeRef", *typeargs: "TypeRef"
-    ) -> "TypeRef":
+    def make_composite_if_multiple(composite_type: TypeRef, *typeargs: TypeRef) -> TypeRef:
         if len(typeargs) == 0:
             return NoneTypeRef
         elif len(typeargs) == 1:
@@ -568,7 +566,7 @@ class TypeRef(Expr):
 
 
 class BuiltinTypeRef(TypeRef):
-    def __init__(self, name: str, *typeargs: "TypeRef", **kwargs):
+    def __init__(self, name: str, *typeargs: TypeRef, **kwargs):
         super().__init__(None, name, *typeargs, **kwargs)
 
 
@@ -692,7 +690,7 @@ class Arg(Node):
     def has_default_value(self) -> bool:
         return self.default_value is not None
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_arg)
 
 
@@ -705,7 +703,7 @@ class BlockStmt(Stmt, ABC):
 
 
 class Pass(Stmt):
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_pass)
 
 
@@ -725,7 +723,7 @@ class ThunkStmt(Stmt):
                 else:
                     self.append_child(thunk, ThunkStmt.Roles.Thunk)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_thunk_stmt)
 
 
@@ -774,7 +772,7 @@ class FunctionDef(BlockStmt):
         _assert_instance(stmt, Stmt)
         self.append_child(stmt, FunctionDef.Roles.Body)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_functiondef)
 
 
@@ -808,7 +806,7 @@ class ClassDef(BlockStmt):
         _assert_instance(stmt, Stmt)
         self.append_child(stmt, ClassDef.Roles.Body)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_classdef)
 
 
@@ -824,7 +822,7 @@ class Return(Stmt):
     def expr(self):
         return self._get_single_child(Return.Roles.Expr)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_return)
 
 
@@ -864,7 +862,7 @@ class Assign(Stmt):
     def type(self, expr: Optional[TypeRef]):
         self._set_single_child(expr, Assign.Roles.Type)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_assign)
 
 
@@ -901,7 +899,7 @@ class If(BlockStmt):
     def false_body(self) -> Iterable[Stmt]:
         return self.get_children_in_role(If.Roles.FalseBody)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_if)
 
 
@@ -917,7 +915,7 @@ class Raise(Node):
     def expr(self):
         return first(self.get_children_in_role(Raise.Roles.Expr))
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_raise)
 
 
@@ -927,7 +925,7 @@ class Alias(Node):
         self.name = name
         self.alias = alias
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_alias)
 
 
@@ -945,7 +943,7 @@ class ImportBase(Stmt, ABC):
 
 
 class Import(ImportBase):
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_import)
 
 
@@ -955,7 +953,7 @@ class ImportFrom(ImportBase):
         self.module = module
         self.level = level
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_importfrom)
 
 
@@ -975,7 +973,7 @@ class Module(Node):
     def append_body(self, *stmts: Node):
         self.append_children(stmts, Module.Roles.Body)
 
-    def accept(self, visitor: "Visitor"):
+    def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_module)
 
 
