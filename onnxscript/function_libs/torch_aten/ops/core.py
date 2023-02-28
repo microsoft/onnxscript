@@ -5057,11 +5057,10 @@ def aten_square(self: TensorType) -> TensorType:
 def aten_squeeze(self: TTensor, dim: Optional[int] = None) -> TTensor:
     """squeeze(Tensor(a) self) -> Tensor(a)"""
 
-    rank = op.Size(op.Shape(self))
-    if rank == 0:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
-
     if op.OptionalHasElement(dim):
+        rank = op.Size(op.Shape(self))
+        if rank == 0:
+            self = op.Reshape(self, op.Constant(value_ints=[-1]))
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result = op.Squeeze(self, dims)
     else:
