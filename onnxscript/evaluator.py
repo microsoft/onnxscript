@@ -332,7 +332,6 @@ def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
                     "Operator Split: the number of expected outputs defines the split. "
                     "This information is unknown here."
                 )
-            return args[1].size  # the size of args[1]
         if schema.name == "Scan":
             scan_body = kwargs["body"]
             return len(scan_body.output)
