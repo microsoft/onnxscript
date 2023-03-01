@@ -409,6 +409,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
+    "layer_norm": core_ops.aten_layer_norm,
+    "max": core_ops.aten_max,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
@@ -428,7 +430,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     ),
     "ones_like": core_ops.aten_ones_like,
     "slice": core_ops.aten_slice,
-    "squeeze": core_ops.aten_squeeze,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
     "zeros_like": core_ops.aten_zeros_like,
@@ -577,13 +578,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
-    ),
-    skip(
-        "squeeze",
-        matcher=lambda sample: len(sample.args) > 0
-        and len(sample.input.shape) > 0
-        and sample.input.shape[sample.args[0]] != 1,
-        reason="Cannot select an axis to squeeze out which has size not equal to one",
     ),
 )
 
@@ -775,6 +769,10 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+
+                if i == 5:
+                    print(i)
+
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
