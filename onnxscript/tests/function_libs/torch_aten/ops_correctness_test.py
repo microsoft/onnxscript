@@ -559,13 +559,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
     ),
-    skip(
-        "squeeze",
-        matcher=lambda sample: len(sample.args)
-        and len(sample.input.shape)
-        and sample.input.shape[sample.args[0]] != 1,
-        reason="Cannot select an axis to squeeze out which has size not equal to one",
-    ),
 )
 
 duplicate_opinfo(
@@ -756,10 +749,6 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
-
-                if i == 5:
-                    print(i)
-
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
