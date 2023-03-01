@@ -3258,7 +3258,9 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
 
 
 @torch_op("aten::max", trace_only=True)
-def aten_max(self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None) -> TReal:
+def aten_max(
+    self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None
+) -> TReal:
     """max(Tensor self) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
@@ -3267,17 +3269,16 @@ def aten_max(self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOO
 
     output = 1
 
-    if dim_or_other is None and keepdim is None:
-        result = _aten_max_with_no_dim(self)
-    elif keepdim is None:
+    if op.OptionalHasElement(dim_or_other):
         if isinstance(dim_or_other, int):
-            result, indices = _aten_max_with_dim(self, dim_or_other)
+            if not op.OptionalHasElement(keepdim):
+                keepdim = False
+            result, indices = _aten_max_with_dim(self, dim_or_other, keepdim)
             output = 2
         else:  # dim_or_other is tensor
             result = _aten_max_with_other(self, dim_or_other)
     else:
-        result, indices = _aten_max_with_dim_Keepdim(self, dim_or_other, keepdim)
-        output = 2
+        result = _aten_max_with_no_dim(self)
 
     if self_rank == 0:
         result = op.Squeeze(result)
@@ -3287,14 +3288,6 @@ def aten_max(self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOO
             indices = op.Squeeze(indices)
         return result, indices
     return result
-
-
-@torch_op("aten::max", overload=True)
-def _aten_max_with_dim(self: TReal, dim: int) -> tuple[TReal, TInt]:
-    dims = op.Reshape(dim, op.Constant(value_int=[-1]))
-    result = op.ReduceMax(self, dims, keepdims=0)
-    indices = op.ArgMax(self, axis=dim, keepdims=0)
-    return result, indices
 
 
 @torch_op("aten::max", overload=True)
@@ -3310,7 +3303,7 @@ def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op("aten::max", overload=True)
-def _aten_max_with_dim_Keepdim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
+def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
     result = op.ReduceMax(self, dims, keepdims=keepdim)
     indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
