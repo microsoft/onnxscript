@@ -3285,7 +3285,7 @@ def aten_max(
 
     if output == 2:
         if self_rank == 0:
-            indices = op.Squeeze(indices)
+            indices = op.Squeeze(indices)  # type: ignore[has-type]
         return result, indices
     return result
 
