@@ -5133,11 +5133,9 @@ def aten_sspaddmm(
 
 
 @torch_op("aten::stack")
-def aten_stack(
-    tensors: Union[TTensorOrString, Sequence[TTensorOrString]], dim: int = 0
-) -> TTensorOrString:
+def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-    # TODO(titaiwang): Would ListConstruct be a case? https://github.com/microsoft/onnx-script/issues/481
+    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnx-script/issues/481
     # If so, right now we do not support it.
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
