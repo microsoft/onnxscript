@@ -281,14 +281,14 @@ def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> 
     zero = op.Constant(value_float=0.0)
     result = op.Not(op.Equal(self, zero))
     # because op.ReduceMax() cannot calculate BOOL value
-    result_float = op.Cast(result, to=FLOAT.dtype)
+    result_int = op.Cast(result, to=INT64.dtype)
 
     if op.OptionalHasElement(dim):
         dim = op.Reshape(dim, minus_1)
         dims = op.Cast(dim, to=INT64.dtype)
-        result_max = op.ReduceMax(result_float, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result_max = op.ReduceMax(result_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
     else:
-        result_max = op.ReduceMax(result_float, keepdims=0, noop_with_empty_axes=0)
+        result_max = op.ReduceMax(result_int, keepdims=0, noop_with_empty_axes=0)
 
     result = op.Greater(result_max, zero)
     if self_rank == 0:
