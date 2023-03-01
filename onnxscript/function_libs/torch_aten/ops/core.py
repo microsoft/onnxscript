@@ -2904,36 +2904,15 @@ def aten_layer_norm(
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
     axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    axes = op.Constant(value_ints=axes_list)
+    start_axis = axes_list[0]
     if not op.OptionalHasElement(weight):
-        weight = op.CastLike(1, input)
+        one = op.Constant(value_float=1.0)
+        weight = op.Expand(one, op.Shape(input, start=start_axis))
     if not op.OptionalHasElement(bias):
-        bias = op.CastLike(0, input)
+        zero = op.Constant(value_float=0.0)
+        bias = op.Expand(zero, op.Shape(input, start=start_axis))
 
-    result = _aten_layer_norm_onnx(input, weight, bias, axes, eps)
-    return result
-
-
-@torch_op("aten::layer_norm", overload=True)
-def _aten_layer_norm_onnx(
-    input: TReal,
-    weight: TReal,
-    bias: TReal,
-    axes: Sequence[int],
-    eps: float,
-) -> TReal:
-
-    mean = op.ReduceMean(input, axes)
-    numerator = op.Sub(input, mean)
-    power_num = op.Pow(numerator, 2.0)
-    variance = op.ReduceMean(power_num, axes)
-    variance_eps = op.Add(variance, eps)
-    denominator = op.Sqrt(variance_eps)
-    result = op.Div(numerator, denominator)
-    weight = op.CastLike(weight, result)
-    result = op.Mul(result, weight)
-    bias = op.CastLike(bias, result)
-    result = op.Add(result, bias)
+    result, _, _ = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
     return result
 
 
