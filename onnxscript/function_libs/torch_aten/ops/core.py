@@ -2893,17 +2893,27 @@ def aten_kthvalue(
     raise NotImplementedError()
 
 
+@torch_op("aten::layer_norm", trace_only=True)
 def aten_layer_norm(
-    input: TensorType,
+    input: TReal,
     normalized_shape: Sequence[int],
-    weight: Optional[TensorType] = None,
-    bias: Optional[TensorType] = None,
+    weight: Optional[TReal] = None,
+    bias: Optional[TReal] = None,
     eps: float = 1e-05,
-    cudnn_enable: bool = True,
-) -> TensorType:
+) -> TReal:
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
-    raise NotImplementedError()
+    axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
+    start_axis = axes_list[0]
+    if not op.OptionalHasElement(weight):
+        one = op.Constant(value_float=1.0)
+        weight = op.Expand(one, op.Shape(input, start=start_axis))
+    if not op.OptionalHasElement(bias):
+        zero = op.Constant(value_float=0.0)
+        bias = op.Expand(zero, op.Shape(input, start=start_axis))
+
+    result, _, _ = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
+    return result
 
 
 def aten_lcm(self: TensorType, other: TensorType) -> TensorType:
@@ -3966,12 +3976,13 @@ def aten_native_layer_norm(
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
-    axes = [-i for i in range(len(normalized_shape), 0, -1)]
-    if weight is None:
+    axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
+    axes = op.Constant(value_ints=axes_list)
+    if not op.OptionalHasElement(weight):
         weight = op.CastLike(1, input)
-    if bias is None:
+    if not op.OptionalHasElement(bias):
         bias = op.CastLike(0, input)
-    return _aten_native_layer_norm_onnx(input, weight, bias, axes=axes, eps=eps)
+    return _aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
 
 
 @torch_op("aten::native_layer_norm", overload=True)
@@ -3984,18 +3995,18 @@ def _aten_native_layer_norm_onnx(
 ) -> Tuple[TReal, TReal, TReal]:
 
     # FIXME(justinchuby): Use opset18 when it is supported by onnxruntime
-    mean = opset17.ReduceMean(input, axes=axes)
-    numerator = opset17.Sub(input, mean)
-    power_num = opset17.Pow(numerator, 2.0)
-    variance = opset17.ReduceMean(power_num, axes=axes)
-    variance_eps = opset17.Add(variance, eps)
-    denominator = opset17.Sqrt(variance_eps)
-    result = opset17.Div(numerator, denominator)
-    weight = opset17.CastLike(weight, result)
-    result = opset17.Mul(result, weight)
-    bias = opset17.CastLike(bias, result)
-    result = opset17.Add(result, bias)
-    rdenominator = opset17.Reciprocal(denominator)
+    mean = op.ReduceMean(input, axes)
+    numerator = op.Sub(input, mean)
+    power_num = op.Pow(numerator, 2.0)
+    variance = op.ReduceMean(power_num, axes)
+    variance_eps = op.Add(variance, eps)
+    denominator = op.Sqrt(variance_eps)
+    result = op.Div(numerator, denominator)
+    weight = op.CastLike(weight, result)
+    result = op.Mul(result, weight)
+    bias = op.CastLike(bias, result)
+    result = op.Add(result, bias)
+    rdenominator = op.Reciprocal(denominator)
     return result, mean, rdenominator
 
 
