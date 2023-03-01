@@ -804,9 +804,10 @@ def _aten_nll_loss_none(
     rank_self = op.Size(op.Shape(self))
     if rank_self == 1:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-        rank_target = op.Size(op.Shape(target))
-        if rank_target == 0:
-            target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+
+    rank_target = op.Size(op.Shape(target))
+    if rank_target == 0:
+        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
     result = op.NegativeLogLikelihoodLoss(
         self, target, ignore_index=ignore_index, reduction=reduction
