@@ -270,7 +270,7 @@ def aten_angle(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::any", trace_only=True)
-def aten_any(self: BOOL, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
+def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
     minus_1 = op.Constant(value_ints=[-1])
@@ -278,10 +278,9 @@ def aten_any(self: BOOL, dim: Optional[int] = None, keepdim: bool = True) -> BOO
     if self_rank == 0:
         self = op.Reshape(self, minus_1)
 
-    self = op.Abs(self)  # change negative to positive then do op.Greater()
     zero = op.Constant(value_float=0.0)
-    result = op.Greater(self, zero)
-    # for op.ReduceMax() cannot calculate BOOL value
+    result = op.Not(op.Equal(self, zero))
+    # because op.ReduceMax() cannot calculate BOOL value
     result_float = op.Cast(result, to=FLOAT.dtype)
 
     if op.OptionalHasElement(dim):
