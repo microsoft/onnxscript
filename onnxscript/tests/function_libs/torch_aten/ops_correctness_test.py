@@ -420,7 +420,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
     "nn.functional.cross_entropy": (
         nn_ops.aten_cross_entropy_loss,
-        _cross_entropy_input_wrangler
+        _cross_entropy_input_wrangler,
     ),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
