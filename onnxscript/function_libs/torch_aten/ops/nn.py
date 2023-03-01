@@ -254,7 +254,7 @@ def aten_cross_entropy_loss(
         result = _aten_cross_entropy_loss_onnx(self, target, weight, "none", ignore_index)
     elif reduction == 1:  # "mean"
         result = _aten_cross_entropy_loss_onnx(self, target, weight, "mean", ignore_index)
-    elif reduction == 2:  # "sum"
+    else:  # "sum"
         result = _aten_cross_entropy_loss_onnx(self, target, weight, "sum", ignore_index)
 
     return result
