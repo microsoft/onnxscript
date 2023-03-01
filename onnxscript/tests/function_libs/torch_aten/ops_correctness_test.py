@@ -559,8 +559,8 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "squeeze",
-        matcher=lambda sample: len(sample.args) > 0
-        and len(sample.input.shape) > 0
+        matcher=lambda sample: len(sample.args)
+        and len(sample.input.shape)
         and sample.input.shape[sample.args[0]] != 1,
         reason="Cannot select an axis to squeeze out which has size not equal to one",
     ),
