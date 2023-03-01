@@ -21,6 +21,7 @@ from onnxscript import (
     INT16,
     INT32,
     INT64,
+    STRING,
     UINT8,
     UINT16,
     UINT32,
@@ -60,7 +61,7 @@ RealType = Union[
 ]
 
 TTensor = TypeVar("TTensor", bound=_TensorType)
-TTensorOrString = TypeVar("TTensorOrString", bound=Union[_TensorType, str])
+TTensorOrString = TypeVar("TTensorOrString", bound=Union[_TensorType, STRING])
 TFloat = TypeVar("TFloat", bound=_FloatType)
 TFloatOrBFloat16 = TypeVar("TFloatOrBFloat16", bound=Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16])
 TInt = TypeVar("TInt", bound=IntType)
