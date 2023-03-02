@@ -3994,7 +3994,9 @@ def aten_native_layer_norm(
         zero = op.Constant(value_float=0.0)
         bias = op.Expand(zero, op.Shape(input, start=start_axis))
 
-    result, mean, rdenominator = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
+    result, mean, rdenominator = op.LayerNormalization(
+        input, weight, bias, axis=start_axis, epsilon=eps
+    )
 
     return result, mean, rdenominator
 
