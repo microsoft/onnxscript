@@ -3965,7 +3965,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[int],
+    normalized_shape: Sequence[INT64],
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
