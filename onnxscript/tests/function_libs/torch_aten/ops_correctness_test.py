@@ -413,6 +413,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
+    "min": core_ops.aten_min,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
