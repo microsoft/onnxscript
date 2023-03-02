@@ -4889,8 +4889,8 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Sub(other, op.Mul(self, alpha))
 
 
-@torch_op("aten::scalar_tensor")  # type: ignore[type-var]
-def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:
+@torch_op("aten::scalar_tensor")
+def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     return op.Cast(s, to=dtype)
