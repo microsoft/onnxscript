@@ -3978,12 +3978,6 @@ def aten_native_layer_norm(
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
-    # axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    # axes = op.Constant(value_ints=axes_list)
-    # if not op.OptionalHasElement(weight):
-    #     weight = op.CastLike(1, input)
-    # if not op.OptionalHasElement(bias):
-    #     bias = op.CastLike(0, input)
 
     axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
     start_axis = axes_list[0]
