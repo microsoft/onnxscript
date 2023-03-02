@@ -1091,10 +1091,39 @@ def aten_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0.0) -> TensorType:
+@torch_op("aten::constant_pad_nd", trace_only=True)
+#def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTensor:
+def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTensor:
     """constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor"""
 
-    raise NotImplementedError()
+# test case 中的 pad 数据，是从后向前数 axis，start-end
+# onnx 要求 x1_start, x2_start,... x1_end, x2_end,..., 不满秩的话，要指定axes
+
+
+    # The desired order of paddings is
+    # dim_0_begin, dim_1_begin, ... , dim_0_end, ..., dim_n_end.
+    # n is the dimension of input.
+    # assume zero-dimensions in the beginning
+    rank = len(self.shape)
+    paddings = list(pad[:]) + [0] * (rank * 2 - len(pad))
+    # reverse order and collate first beginnings and then ends
+    paddings = paddings[-2::-2] + paddings[-1::-2]
+    paddings = op.Constant(value_ints=paddings)
+    result = op.Pad(self, paddings, value)
+    return result
+
+
+# def test_constant_pad_nd():
+#     import numpy as np
+#     a = np.array([[-1.27,  6.93 ,  1.33]], dtype=np.float32)
+#     print(a.shape)
+#     b = np.array([0, 2, 0, 1], dtype=np.int64)
+#     c = aten_constant_pad_nd(a, b, value=1.0)
+#     print(c.shape)
+#     print(c)
+
+# test_constant_pad_nd()
+# exit(0)
 
 
 @torch_op("aten::contiguous", trace_only=True)
@@ -4878,10 +4907,11 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Sub(other, op.Mul(self, alpha))
 
 
-def aten_scalar_tensor(s: float) -> TensorType:
+@torch_op("aten::scalar_tensor")
+def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Cast(s, to=dtype)
 
 
 def aten_scatter_add(

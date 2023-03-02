@@ -373,6 +373,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsqrt": core_ops.aten_rsqrt,
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
+    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -407,6 +408,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "argmin": core_ops.aten_argmin,
     "clamp": core_ops.aten_clamp,
     "cumsum": core_ops.aten_cumsum,
+    "constant_pad_nd": core_ops.aten_constant_pad_nd,
     "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
