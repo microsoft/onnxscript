@@ -199,11 +199,11 @@ def sample_inputs_layer_norm(
 
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
-        "layer_norm",
-        aliases=("layer_norm",),
-        aten_name="layer_norm",
+        "convolution",
+        aliases=("convolution",),
+        aten_name="convolution",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
-        sample_inputs_func=sample_inputs_layer_norm,
+        sample_inputs_func=sample_inputs_convolution,
         supports_forward_ad=True,
         supports_fwgrad_bwgrad=True,
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
@@ -211,11 +211,11 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "convolution",
-        aliases=("convolution",),
-        aten_name="convolution",
+        "layer_norm",
+        aliases=("layer_norm",),
+        aten_name="layer_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
-        sample_inputs_func=sample_inputs_convolution,
+        sample_inputs_func=sample_inputs_layer_norm,
         supports_forward_ad=True,
         supports_fwgrad_bwgrad=True,
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
