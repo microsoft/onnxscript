@@ -17,15 +17,14 @@ from onnxscript.tests.common import version_utils
 @unittest.skipIf(version_utils.torch_older_than("2.0"), "torchscript in 1.13 not supported")
 class TestTorchScriptTracingEvaluator(unittest.TestCase):
     def setUp(self):
+        # FIXME: Currently this must match with the import line
+        # `from onnxscript import opset17 as op`, which restricts opset to be 17 in these
+        # tests anyways.
         self.opset_version = 17
+        # TODO: Add test for initializer. Currently skipped since to `assert_isomorphic`
+        # does not check for initializers.
         self.onnxscript_graph = graph_building.TorchScriptGraph()
         self.tracer = graph_building.TorchScriptTracingEvaluator(self.onnxscript_graph)
-
-    def to_model_proto(self):
-        # TODO(titaiwang): initializer API
-        return self.onnxscript_graph.to_model_proto(
-            initializers={}, opset_version=self.opset_version
-        )
 
     def test_traced_constant_op_is_same_as_compiled_graph(self):
         """Test for op.Constant created in graph builder"""
@@ -33,7 +32,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
             output = op.Constant(value_float=0.5)
 
         self.onnxscript_graph.register_outputs(output)
-        traced = self.to_model_proto()
+        traced = self.onnxscript_graph.to_model_proto(self.opset_version)
 
         @onnxscript.script()
         def expected_model():
@@ -51,7 +50,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
             output = aten_relu(x)
 
         self.onnxscript_graph.register_outputs(output)
-        traced = self.to_model_proto()
+        traced = self.onnxscript_graph.to_model_proto(self.opset_version)
 
         @onnxscript.script(default_opset=op)
         def expected_model(x: FLOAT[1, 2, 3]):
@@ -70,7 +69,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
             output = aten_topk(x, 2)
 
         self.onnxscript_graph.register_outputs(output)
-        traced = self.to_model_proto()
+        traced = self.onnxscript_graph.to_model_proto(self.opset_version)
 
         @onnxscript.script(default_opset=op)
         def expected_model(x: FLOAT[1, 2, 3]):
