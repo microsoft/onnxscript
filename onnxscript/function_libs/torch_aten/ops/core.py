@@ -2061,6 +2061,8 @@ def aten_expand(self: TTensor, size: TInt) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
 
     size = op.Cast(size, to=INT64.dtype)
+    # To support -1 dim.
+    size = op.Abs(size)
     return op.Expand(self, size)
 
 
