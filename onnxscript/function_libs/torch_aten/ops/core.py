@@ -3426,7 +3426,8 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
 
 
 @torch_op("aten::max", trace_only=True)
-def aten_min(self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None
+def aten_min(
+    self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None
 ) -> TReal:
     """min(Tensor self) -> Tensor"""
 
