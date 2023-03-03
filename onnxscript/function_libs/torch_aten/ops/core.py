@@ -269,10 +269,32 @@ def aten_angle(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_any(self: TensorType) -> TensorType:
+@torch_op("aten::any", trace_only=True)
+def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    minus_1 = op.Constant(value_ints=[-1])
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        self = op.Reshape(self, minus_1)
+
+    zero = op.Constant(value_float=0.0)
+    result = op.Not(op.Equal(self, zero))
+    # because op.ReduceMax() cannot calculate BOOL value
+    result_float = op.Cast(result, to=FLOAT.dtype)
+
+    if op.OptionalHasElement(dim):
+        dim = op.Reshape(dim, minus_1)
+        dims = op.Cast(dim, to=INT64.dtype)
+        result_max = op.ReduceMax(result_float, dims, keepdims=keepdim, noop_with_empty_axes=0)
+    else:
+        result_max = op.ReduceMax(result_float, keepdims=0, noop_with_empty_axes=0)
+
+    result = op.Greater(result_max, zero)
+    if self_rank == 0:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def _range_supported(dtype: int) -> bool:
@@ -2039,13 +2061,18 @@ def aten_expand(self: TTensor, size: TInt) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
 
     size = op.Cast(size, to=INT64.dtype)
+    # To support -1 dim.
+    size = op.Abs(size)
     return op.Expand(self, size)
 
 
-def aten_expand_as(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::expand_as")
+def aten_expand_as(self: TTensor, other: TTensor) -> TTensor:
     """expand_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    shape = op.Shape(other)
+    result = op.Expand(self, shape)
+    return result
 
 
 def aten_expand_copy(self: TensorType, size: INT64, implicit: bool = False) -> TensorType:

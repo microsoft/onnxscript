@@ -296,10 +296,15 @@ class TorchScriptGraph:
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
+        self._initializers: Dict[str, torch.Tensor] = {}
 
     @property
     def torch_graph(self):
         return self._torch_graph
+
+    @property
+    def initializers(self) -> Mapping[str, torch.Tensor]:
+        return self._initializers
 
     @beartype
     def add_input(
@@ -328,6 +333,10 @@ class TorchScriptGraph:
         # torch_value.setType(torchscript_input_value)
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
+
+    @beartype
+    def add_initializer(self, input_name: str, input_value: torch.Tensor) -> None:
+        self._initializers[input_name] = input_value
 
     @beartype
     def register_outputs(
@@ -448,16 +457,14 @@ class TorchScriptGraph:
         return result
 
     @beartype
-    def to_model_proto(
-        self, initializers: Mapping[str, torch.Tensor], opset_version: Optional[int]
-    ) -> onnx.ModelProto:
+    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
         (
             proto,
             _,
             _,
             _,
         ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
-            initializers=initializers,
+            initializers=self.initializers,
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
