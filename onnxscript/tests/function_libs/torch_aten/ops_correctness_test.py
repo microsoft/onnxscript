@@ -192,6 +192,17 @@ def _cat_input_wrangler(
     return args, kwargs
 
 
+def _cross_entropy_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "reduction" in kwargs:
+        reduction_vals = ["none", "mean", "sum"]
+        value = kwargs["reduction"]
+        idx = reduction_vals.index(value)
+        kwargs["reduction"] = idx
+    return args, kwargs
+
+
 def _dropout_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -303,6 +314,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "exp": core_ops.aten_exp,
     "exp2": core_ops.aten_exp2,
     "expand": core_ops.aten_expand,
+    "expand_as": core_ops.aten_expand_as,
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
     "fmod": core_ops.aten_fmod,
@@ -388,6 +400,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
 ] = {
     "amax": core_ops.aten_amax,
     "amin": core_ops.aten_amin,
+    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -407,6 +420,11 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
+    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
+    "nn.functional.cross_entropy": (
+        nn_ops.aten_cross_entropy_loss,
+        _cross_entropy_input_wrangler,
+    ),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.upsample_nearest2d": (
@@ -532,6 +550,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.conv2d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
+    ),
+    skip(
+        "nn.functional.cross_entropy",
+        matcher=lambda sample: not isinstance(sample.kwargs.get("weight"), int),
+        reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[weight] is int type",
     ),
     skip(
         "nn.functional.dropout",
