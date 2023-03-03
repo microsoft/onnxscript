@@ -5283,6 +5283,12 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::sym_int", trace_only=True)
+def aten_sym_size(self: TReal, dim: int) -> INT64:
+    """sym_int(Tensor self, int dim) -> Tensor"""
+    end = dim + 1
+    return op.Shape(self, start=dim, end=end)
+
 def aten_symeig(
     self: TensorType, eigenvectors: bool = False, upper: bool = True
 ) -> tuple[TensorType, TensorType]:
