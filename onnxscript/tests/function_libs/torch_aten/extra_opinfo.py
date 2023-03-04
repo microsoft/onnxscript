@@ -159,6 +159,44 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
+def sample_inputs_layer_norm(
+    op_info, device, dtype, requires_grad, **kwargs  # pylint: disable=unused-argument
+):
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # Ordered as input shape, normalized_shape, eps
+    cases: tuple[tuple[int], tuple[int], float] = (  # type: ignore[assignment]
+        ((1, 2, 3), (1, 2, 3), 0.5),
+        ((2, 2, 3), (2, 3), -0.5),
+        ((1,), (1,), 1e-5),
+        ((1, 2), (2,), 1e-5),
+        ((0, 1), (1,), 1e-5),
+    )
+
+    for input_shape, normalized_shape, eps in cases:  # type: ignore[misc]
+        # Shape of weight and bias should be the same as normalized_shape
+        weight = make_arg(normalized_shape)  # type: ignore[has-type]
+        bias = make_arg(normalized_shape)  # type: ignore[has-type]
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, weight, bias, eps),  # type: ignore[has-type]
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, None, bias, eps),  # type: ignore[has-type]
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, weight, None, eps),  # type: ignore[has-type]
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape),  # type: ignore[has-type]
+            args=(normalized_shape, None, None, eps),  # type: ignore[has-type]
+        )
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "convolution",
@@ -178,6 +216,18 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="conv3d",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_conv3d,
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
+        skips=(),
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "layer_norm",
+        aliases=("layer_norm",),
+        aten_name="layer_norm",
+        dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
+        sample_inputs_func=sample_inputs_layer_norm,
         supports_forward_ad=True,
         supports_fwgrad_bwgrad=True,
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
