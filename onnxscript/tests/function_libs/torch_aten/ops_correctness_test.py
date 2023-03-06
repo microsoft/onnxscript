@@ -381,6 +381,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "softmax": special_ops.aten_special_softmax,
     "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
+    "stack": core_ops.aten_stack,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
