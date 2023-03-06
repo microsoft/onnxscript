@@ -3990,7 +3990,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[int],
+    normalized_shape: INT64,
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
@@ -4003,37 +4003,24 @@ def aten_native_layer_norm(
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
+
     axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    axes = op.Constant(value_ints=axes_list)
+    start_axis = axes_list[0]
+
     if not op.OptionalHasElement(weight):
-        weight = op.CastLike(1, input)
+        one = op.Constant(value_floats=[1.0])
+        weight = op.Expand(one, op.Shape(input, start=start_axis))
+        weight = op.CastLike(weight, input)
+
     if not op.OptionalHasElement(bias):
-        bias = op.CastLike(0, input)
-    return _aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
+        result, mean, rdenominator = op.LayerNormalization(
+            input, weight, axis=start_axis, epsilon=eps
+        )
+    else:
+        result, mean, rdenominator = op.LayerNormalization(
+            input, weight, bias, axis=start_axis, epsilon=eps
+        )
 
-
-@torch_op("aten::native_layer_norm", overload=True)
-def _aten_native_layer_norm_onnx(
-    input: TReal,
-    weight: TReal,
-    bias: TReal,
-    axes: Sequence[int],
-    eps: float,
-) -> Tuple[TReal, TReal, TReal]:
-
-    # FIXME(justinchuby): Use opset18 when it is supported by onnxruntime
-    mean = op.ReduceMean(input, axes)
-    numerator = op.Sub(input, mean)
-    power_num = op.Pow(numerator, 2.0)
-    variance = op.ReduceMean(power_num, axes)
-    variance_eps = op.Add(variance, eps)
-    denominator = op.Sqrt(variance_eps)
-    result = op.Div(numerator, denominator)
-    weight = op.CastLike(weight, result)
-    result = op.Mul(result, weight)
-    bias = op.CastLike(bias, result)
-    result = op.Add(result, bias)
-    rdenominator = op.Reciprocal(denominator)
     return result, mean, rdenominator
 
 
