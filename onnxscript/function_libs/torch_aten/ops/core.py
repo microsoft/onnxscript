@@ -1108,7 +1108,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     rank = op.Size(op.Shape(self))
     zero_count = op.Sub(op.Mul(rank, 2), op.Size(pad))
     zero_count = op.Reshape(zero_count, op.Constant(value_int=[-1]))
-    zero = op.Constant(value_int=0)
+    zero = op.Constant(value_ints=[0])
     zeros = op.Expand(zero, zero_count)
     torch_paddings = op.Concat(pad, zeros, axis=0)
     size_d = op.Size(torch_paddings)
