@@ -25,6 +25,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
+    TTensorOrString,
 )
 from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
@@ -2059,7 +2060,6 @@ def aten_exp2(self: TFloat) -> TFloat:
 @torch_op("aten::expand")
 def aten_expand(self: TTensor, size: TInt) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
-
     size = op.Cast(size, to=INT64.dtype)
     # To support -1 dim.
     size = op.Abs(size)
@@ -5207,10 +5207,12 @@ def aten_sspaddmm(
     raise NotImplementedError()
 
 
-def aten_stack(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::stack")
+def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-
-    raise NotImplementedError()
+    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnx-script/issues/481
+    # If so, right now we do not support it.
+    return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
 def aten_std(self: TensorType, unbiased: bool = True) -> TensorType:
