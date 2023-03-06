@@ -1122,6 +1122,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     starts = op.Constant(value_ints=[-1])
     ends = starts - size_d
     even_padding = op.Slice(torch_paddings, starts, ends, axes, steps)
+
     onnx_padding = op.Concat(odd_padding, even_padding, axis=0)
     result = op.Pad(self, onnx_padding, value)
 
