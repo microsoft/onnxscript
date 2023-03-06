@@ -3990,7 +3990,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[INT64],
+    normalized_shape: INT64,
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
@@ -4006,16 +4006,20 @@ def aten_native_layer_norm(
 
     axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
     start_axis = axes_list[0]
-    if not op.OptionalHasElement(weight):
-        one = op.Constant(value_float=1.0)
-        weight = op.Expand(one, op.Shape(input, start=start_axis))
-    if not op.OptionalHasElement(bias):
-        zero = op.Constant(value_float=0.0)
-        bias = op.Expand(zero, op.Shape(input, start=start_axis))
 
-    result, mean, rdenominator = op.LayerNormalization(
-        input, weight, bias, axis=start_axis, epsilon=eps
-    )
+    if not op.OptionalHasElement(weight):
+        one = op.Constant(value_floats=[1.0])
+        weight = op.Expand(one, op.Shape(input, start=start_axis))
+        weight = op.CastLike(weight, input)
+
+    if not op.OptionalHasElement(bias):
+        result, mean, rdenominator = op.LayerNormalization(
+            input, weight, axis=start_axis, epsilon=eps
+        )
+    else:
+        result, mean, rdenominator = op.LayerNormalization(
+            input, weight, bias, axis=start_axis, epsilon=eps
+        )
 
     return result, mean, rdenominator
 
