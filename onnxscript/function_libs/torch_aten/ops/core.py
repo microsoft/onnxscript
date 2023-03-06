@@ -1106,7 +1106,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     # paddings = paddings[-2::-2] + paddings[-1::-2]
 
     rank = op.Size(op.Shape(self))
-    zero_count = rank * 2 - op.Size(pad)
+    zero_count = op.Sub(op.Mul(rank, 2), op.Size(pad))
     zero_count = op.Reshape(zero_count, op.Constant(value_int=[-1]))
     zero = op.Constant(value_int=0)
     zeros = op.Expand(zero, zero_count)
@@ -1116,11 +1116,11 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     steps = op.Constant(value_ints=[-2])
 
     starts = op.Constant(value_ints=[-2])
-    ends = starts - size_d
+    ends = op.Sub(starts, size_d)
     odd_elements = op.Slice(torch_paddings, starts, ends, axes, steps)
 
     starts = op.Constant(value_ints=[-1])
-    ends = starts - size_d
+    ends = op.Sub(starts, size_d)
     even_elements = op.Slice(torch_paddings, starts, ends, axes, steps)
 
     onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
