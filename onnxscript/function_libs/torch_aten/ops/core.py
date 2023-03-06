@@ -5135,7 +5135,7 @@ def aten_squeeze(self: TTensor, dim: Optional[int] = None) -> TTensor:
         if rank == 0:
             self = op.Reshape(self, op.Constant(value_ints=[-1]))
         # check if specified dimension equal to 1
-        starts = op.Constant(value_ints=[dim])
+        starts = op.Reshape(dim, op.Constant(value_ints=[-1]))
         ends = op.Add(dim, op.Constant(value_ints=[1]))
         shape = op.Shape(self)
         dim_value = op.Slice(shape, starts, ends)
