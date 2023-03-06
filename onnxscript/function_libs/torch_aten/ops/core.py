@@ -1106,7 +1106,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     # paddings = paddings[-2::-2] + paddings[-1::-2]
 
     rank = op.Size(op.Shape(self))
-    zero_count = op.Sub(op.Mul(rank, 2), op.Size(pad))
+    zero_count = op.Sub(op.Mul(rank, op.Constant(value_int=2)), op.Size(pad))
     zero_count = op.Reshape(zero_count, op.Constant(value_int=[-1]))
     zero = op.Constant(value_ints=[0])
     zeros = op.Expand(zero, zero_count)
