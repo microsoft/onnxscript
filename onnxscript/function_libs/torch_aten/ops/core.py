@@ -1105,23 +1105,24 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     # reverse order and collate first beginnings and then ends
     # paddings = paddings[-2::-2] + paddings[-1::-2]
 
+    neg_1 = op.Constant(value_ints=[-1])
+
     rank = op.Size(op.Shape(self))
     zero_count = op.Sub(op.Mul(rank, op.Constant(value_int=2)), op.Size(pad))
-    zero_count = op.Reshape(zero_count, op.Constant(value_ints=[-1]))
+    zero_count = op.Reshape(zero_count, neg_1)
     zero = op.Constant(value_ints=[0])
     zeros = op.Expand(zero, zero_count)
     torch_paddings = op.Concat(pad, zeros, axis=0)
     size_d = op.Size(torch_paddings)
-    axes = op.Constant(value_ints=[0])
     steps = op.Constant(value_ints=[-2])
 
-    starts = op.Constant(value_ints=[-2])
+    starts = steps
     ends = op.Sub(starts, size_d)
-    odd_elements = op.Slice(torch_paddings, starts, ends, axes, steps)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
 
-    starts = op.Constant(value_ints=[-1])
+    starts = neg_1
     ends = op.Sub(starts, size_d)
-    even_elements = op.Slice(torch_paddings, starts, ends, axes, steps)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
 
     onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
     result = op.Pad(self, onnx_padding, value)
