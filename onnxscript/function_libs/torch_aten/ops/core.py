@@ -279,6 +279,7 @@ def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> 
     if self_rank == 0:
         self = op.Reshape(self, negative_one)
 
+    # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
     self_bool = op.Cast(self, to=BOOL.dtype)
     # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
     self_int = op.Cast(self_bool, to=INT64.dtype)
