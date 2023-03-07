@@ -1,5 +1,5 @@
-Class Converter
-===============
+Converter
+=========
 
 .. autoclass:: onnxscript.converter.Converter
     :members:
