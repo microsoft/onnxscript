@@ -27,7 +27,7 @@ COMMON_TEST_DEPENDENCIES = (
 )
 ONNX = "onnx==1.13.1"
 ONNX_RUNTIME = "onnxruntime==1.14.1"
-PYTORCH = "torch==1.13.1"
+PYTORCH = "torch==1.13"
 
 
 @nox.session(tags=["build"])
