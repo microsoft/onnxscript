@@ -780,17 +780,24 @@ def aten_nll_loss(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    reduction_vals = ["none", "mean", "sum"]
-    reduction_str = reduction_vals[reduction]
+    if reduction == 0:  # "none"
+        result = _aten_nll_loss_onnx(
+            self, target, weight, reduction="none", ignore_index=ignore_index
+        )
+    elif reduction == 1:  # "mean"
+        result = _aten_nll_loss_onnx(
+            self, target, weight, reduction="mean", ignore_index=ignore_index
+        )
+    else:  # "sum"
+        result = _aten_nll_loss_onnx(
+            self, target, weight, reduction="sum", ignore_index=ignore_index
+        )
 
-    result = _aten_nll_loss_weight(
-        self, target, weight, reduction=reduction_str, ignore_index=ignore_index
-    )
     return result
 
 
 @torch_op("aten::nll_loss", overload=True)
-def _aten_nll_loss_weight(
+def _aten_nll_loss_onnx(
     self: TFloat,
     target: TInt,
     weight: TFloat = None,
