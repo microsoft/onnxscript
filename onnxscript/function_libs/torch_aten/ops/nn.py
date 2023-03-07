@@ -772,7 +772,7 @@ def aten_multilabel_margin_loss_forward(
 @torch_op("aten::nll_loss", trace_only=True)
 def aten_nll_loss(
     self: TFloat,
-    target: Sequence[int],
+    target: INT64,
     weight: Optional[TFloat] = None,
     reduction: int = 1,
     ignore_index: int = -100,
