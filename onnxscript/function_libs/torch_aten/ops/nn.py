@@ -22,7 +22,6 @@ from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
-    TInt,
     TReal,
 )
 from onnxscript.onnx_opset import opset18 as op
@@ -780,30 +779,12 @@ def aten_nll_loss(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    if reduction == 0:  # "none"
-        result = _aten_nll_loss_onnx(
-            self, target, weight, reduction="none", ignore_index=ignore_index
-        )
-    elif reduction == 1:  # "mean"
-        result = _aten_nll_loss_onnx(
-            self, target, weight, reduction="mean", ignore_index=ignore_index
-        )
-    else:  # "sum"
-        result = _aten_nll_loss_onnx(
-            self, target, weight, reduction="sum", ignore_index=ignore_index
-        )
-
-    return result
-
-
-@torch_op("aten::nll_loss", overload=True)
-def _aten_nll_loss_onnx(
-    self: TFloat,
-    target: TInt,
-    weight: TFloat = None,
-    reduction: str = "none",
-    ignore_index: int = -100,
-) -> TFloat:
+    if reduction == 0:
+        reduction_str = "none"
+    elif reduction == 1:
+        reduction_str = "mean"
+    else:
+        reduction_str = "sum"
 
     rank_self = op.Size(op.Shape(self))
     if rank_self == 1:  # self rank should be at least 2
@@ -814,7 +795,7 @@ def _aten_nll_loss_onnx(
         target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
 
     result = op.NegativeLogLikelihoodLoss(
-        self, target, weight, ignore_index=ignore_index, reduction=reduction
+        self, target, weight, ignore_index=ignore_index, reduction=reduction_str
     )
 
     if rank_self == 1:
