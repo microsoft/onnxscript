@@ -1108,7 +1108,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     neg_1 = op.Constant(value_ints=[-1])
 
     rank = op.Size(op.Shape(self))
-    zero_count = op.Sub(op.Mul(rank, op.Constant(value_int=2)), op.Size(pad))
+    zero_count = op.Sub(op.Mul(rank, 2), op.Size(pad))
     zero_count = op.Reshape(zero_count, neg_1)
     zero = op.Constant(value_ints=[0])
     zeros = op.Expand(zero, zero_count)
@@ -1125,9 +1125,7 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
 
     onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
-    result = op.Pad(self, onnx_padding, value)
-
-    return result
+    return op.Pad(self, onnx_padding, value)
 
 
 @torch_op("aten::contiguous", trace_only=True)
