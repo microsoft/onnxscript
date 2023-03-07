@@ -274,24 +274,24 @@ def aten_angle(self: TensorType) -> TensorType:
 def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
-    minus_1 = op.Constant(value_ints=[-1])
+    negative_one = op.Constant(value_ints=[-1])
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, minus_1)
+        self = op.Reshape(self, negative_one)
 
-    zero = op.Constant(value_float=0.0)
-    result = op.Not(op.Equal(self, zero))
-    # because op.ReduceMax() cannot calculate BOOL value
-    result_float = op.Cast(result, to=FLOAT.dtype)
+    # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
+    self_bool = op.Cast(self, to=BOOL.dtype)
+    # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
+    self_int = op.Cast(self_bool, to=INT64.dtype)
 
     if op.OptionalHasElement(dim):
-        dim = op.Reshape(dim, minus_1)
+        dim = op.Reshape(dim, negative_one)
         dims = op.Cast(dim, to=INT64.dtype)
-        result_max = op.ReduceMax(result_float, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result_max = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
     else:
-        result_max = op.ReduceMax(result_float, keepdims=0, noop_with_empty_axes=0)
+        result_max = op.ReduceMax(self_int, keepdims=0, noop_with_empty_axes=0)
 
-    result = op.Greater(result_max, zero)
+    result = op.Greater(result_max, op.Constant(value_int=0))
     if self_rank == 0:
         result = op.Squeeze(result)
 
@@ -2061,7 +2061,8 @@ def aten_exp2(self: TFloat) -> TFloat:
 def aten_expand(self: TTensor, size: TInt) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
     size = op.Cast(size, to=INT64.dtype)
-    # To support -1 dim.
+    # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
+    # To support -1 dim, we need to convert -1 to 1.
     size = op.Abs(size)
     return op.Expand(self, size)
 
