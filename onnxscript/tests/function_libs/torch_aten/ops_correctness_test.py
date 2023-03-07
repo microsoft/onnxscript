@@ -513,11 +513,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
-        "expand",
-        matcher=lambda sample: (np.array(sample.args[0]) > 0).all() is np.bool_(False),
-        reason="Negative value is not supported",
-    ),
-    skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",

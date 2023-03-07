@@ -2093,7 +2093,8 @@ def aten_exp2(self: TFloat) -> TFloat:
 def aten_expand(self: TTensor, size: TInt) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
     size = op.Cast(size, to=INT64.dtype)
-    # To support -1 dim.
+    # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
+    # To support -1 dim, we need to convert -1 to 1.
     size = op.Abs(size)
     return op.Expand(self, size)
 
