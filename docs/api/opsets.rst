@@ -1,8 +1,5 @@
-opsets and types
+Opsets and Types
 ================
-
-.. contents::
-    :local:
 
 .. _l-api-opsets:
 
@@ -11,14 +8,20 @@ Opsets
 
 .. automodule:: onnxscript.onnx_opset
 
-    .. autodata:: opset15
-        :annotation: All operators defined in opset 15 for the main domain.
+    .. autodata:: opset19
+        :annotation: All operators defined in opset 19 for the main domain.
+
+    .. autodata:: opset18
+        :annotation: All operators defined in opset 18 for the main domain.
+
+    .. autodata:: opset17
+        :annotation: All operators defined in opset 17 for the main domain.
 
     .. autodata:: opset16
         :annotation: All operators defined in opset 16 for the main domain.
 
-    .. autodata:: opset17
-        :annotation: All operators defined in opset 17 for the main domain.
+    .. autodata:: opset15
+        :annotation: All operators defined in opset 15 for the main domain.
 
 Types
 +++++
