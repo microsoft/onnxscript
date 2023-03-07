@@ -274,24 +274,23 @@ def aten_angle(self: TensorType) -> TensorType:
 def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
-    minus_1 = op.Constant(value_ints=[-1])
+    negative_one = op.Constant(value_ints=[-1])
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, minus_1)
+        self = op.Reshape(self, negative_one)
 
-    zero = op.Constant(value_float=0.0)
-    result = op.Not(op.Equal(self, zero))
+    result = op.Cast(self, to=BOOL.dtype)
     # because op.ReduceMax() cannot calculate BOOL value
     result_float = op.Cast(result, to=FLOAT.dtype)
 
     if op.OptionalHasElement(dim):
-        dim = op.Reshape(dim, minus_1)
+        dim = op.Reshape(dim, negative_one)
         dims = op.Cast(dim, to=INT64.dtype)
         result_max = op.ReduceMax(result_float, dims, keepdims=keepdim, noop_with_empty_axes=0)
     else:
         result_max = op.ReduceMax(result_float, keepdims=0, noop_with_empty_axes=0)
 
-    result = op.Greater(result_max, zero)
+    result = op.Greater(result_max, op.Constant(value_float=0.0))
     if self_rank == 0:
         result = op.Squeeze(result)
 
