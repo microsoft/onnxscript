@@ -89,17 +89,18 @@ pytest onnxscript
 ## Example
 
 ```python
-from onnx import TensorProto
-from onnx.helper import make_tensor
-from onnxscript import script, INT64, FLOAT
+from onnx
+from onnxscript import script
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript import opset15 as op
+from onnxscript.onnx_opset import opset15 as op
+from onnxscript.onnx_types import FLOAT
 
 # We use the script decorator to indicate that
 # this is meant to be translated to ONNX.
 @script()
-def Hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
+def onnx_hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
+    """Hardmax is similar to ArgMax, with the result being encoded OneHot style."""
     # The type annotation on X indicates that it is a float tensor of
     # unknown rank. The type annotation on axis indicates that it will
     # be treated as an int attribute in ONNX.
@@ -112,14 +113,17 @@ def Hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
     # use the Constant operator to create constant tensors
     zero = op.Constant(value_ints=[0])
     depth = op.GatherElements(xshape, zero)
-    empty_shape = op.Constant(value_ints=[])
+    empty_shape = op.Constant(value_ints=[0])
     depth = op.Reshape(depth, empty_shape)
-    # Constant Array must be defined with function
-    # make_tensor from onnx package.
-    values = op.Constant(value=make_tensor(
-      'cst01', TensorProto.FLOAT, [2], [0, 1]))
+    values = op.Constant(value_ints=[0, 1])
     cast_values = op.CastLike(values, X)
     return op.OneHot(argmax, depth, cast_values, axis=axis)
+
+# onnx_model is an in-memory ModelProto
+onnx_model = onnx_hardmax.to_model_proto()
+
+# Save the ONNX model at a given path
+onnx.save(onnx_model, "hardmax.onnx")
 ```
 
 The decorator parses the code of the function, converting it into an
