@@ -366,6 +366,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
+    "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
@@ -438,7 +439,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     ),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
-    "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
