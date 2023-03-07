@@ -3426,7 +3426,7 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::max", trace_only=True)
+@torch_op("aten::min", trace_only=True)
 def aten_min(
     self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None
 ) -> TReal:
@@ -3459,19 +3459,19 @@ def aten_min(
     return result
 
 
-@torch_op("aten::max", overload=True)
+@torch_op("aten::min", overload=True)
 def _aten_min_with_no_dim(self: TReal) -> TReal:
     result = op.ReduceMin(self, keepdims=0)
     return result
 
 
-@torch_op("aten::max", overload=True)
+@torch_op("aten::min", overload=True)
 def _aten_min_with_other(self: TReal, other: TReal) -> TReal:
     result = op.Min(self, other)
     return result
 
 
-@torch_op("aten::max", overload=True)
+@torch_op("aten::min", overload=True)
 # def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
 def _aten_min_with_dim(self: TReal, dim: int, keepdim: bool):
     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
