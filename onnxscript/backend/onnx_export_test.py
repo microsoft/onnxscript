@@ -63,7 +63,7 @@ SKIP_TESTS = (
     skip(
         r"^test_optional_get_element_tensor",
         "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
-        condition=ort.__version__ == "1.14.0",
+        condition=ort.__version__[:4] == "1.14",
     ),
     skip(
         r"test_loop",
@@ -123,7 +123,6 @@ def exec_main(f, *inputs):
 
 
 class TestOnnxBackEnd(unittest.TestCase):
-
     test_folder = pathlib.Path(__file__).parent.parent / "tests" / "onnx_backend_test_code"
 
     def test_export2python(self):

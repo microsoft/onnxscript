@@ -25,6 +25,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
+    TTensorOrString,
 )
 from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
@@ -273,24 +274,24 @@ def aten_angle(self: TensorType) -> TensorType:
 def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
-    minus_1 = op.Constant(value_ints=[-1])
+    negative_one = op.Constant(value_ints=[-1])
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, minus_1)
+        self = op.Reshape(self, negative_one)
 
-    zero = op.Constant(value_float=0.0)
-    result = op.Not(op.Equal(self, zero))
-    # because op.ReduceMax() cannot calculate BOOL value
-    result_float = op.Cast(result, to=FLOAT.dtype)
+    # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
+    self_bool = op.Cast(self, to=BOOL.dtype)
+    # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
+    self_int = op.Cast(self_bool, to=INT64.dtype)
 
     if op.OptionalHasElement(dim):
-        dim = op.Reshape(dim, minus_1)
+        dim = op.Reshape(dim, negative_one)
         dims = op.Cast(dim, to=INT64.dtype)
-        result_max = op.ReduceMax(result_float, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result_max = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
     else:
-        result_max = op.ReduceMax(result_float, keepdims=0, noop_with_empty_axes=0)
+        result_max = op.ReduceMax(self_int, keepdims=0, noop_with_empty_axes=0)
 
-    result = op.Greater(result_max, zero)
+    result = op.Greater(result_max, op.Constant(value_int=0))
     if self_rank == 0:
         result = op.Squeeze(result)
 
@@ -1091,10 +1092,40 @@ def aten_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0.0) -> TensorType:
+@torch_op("aten::constant_pad_nd")
+def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTensor:
     """constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # The desired order of paddings is
+    # dim_0_begin, dim_1_begin, ... , dim_0_end, ..., dim_n_end.
+    # n is the dimension of input.
+    # assume zero-dimensions in the beginning
+    # rank = len(self.shape)  # rank must be scalar
+    # paddings = list(pad[:]) + [0] * (rank * 2 - len(pad))
+    # reverse order and collate first beginnings and then ends
+    # paddings = paddings[-2::-2] + paddings[-1::-2]
+
+    neg_1 = op.Constant(value_ints=[-1])
+
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Sub(op.Mul(rank, 2), op.Size(pad))
+    zero_count = op.Reshape(zero_count, neg_1)
+    zero = op.Constant(value_ints=[0])
+    zeros = op.Expand(zero, zero_count)
+    torch_paddings = op.Concat(pad, zeros, axis=0)
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+    return op.Pad(self, onnx_padding, value)
 
 
 @torch_op("aten::contiguous", trace_only=True)
@@ -2059,9 +2090,9 @@ def aten_exp2(self: TFloat) -> TFloat:
 @torch_op("aten::expand")
 def aten_expand(self: TTensor, size: TInt) -> TTensor:
     """expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"""
-
     size = op.Cast(size, to=INT64.dtype)
-    # To support -1 dim.
+    # NOTE: PyTorch supports `not changing dim` by -1, but ONNX supports `not changing dim` by 1.
+    # To support -1 dim, we need to convert -1 to 1.
     size = op.Abs(size)
     return op.Expand(self, size)
 
@@ -3990,7 +4021,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[int],
+    normalized_shape: INT64,
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
@@ -4003,37 +4034,24 @@ def aten_native_layer_norm(
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
+
     axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    axes = op.Constant(value_ints=axes_list)
+    start_axis = axes_list[0]
+
     if not op.OptionalHasElement(weight):
-        weight = op.CastLike(1, input)
+        one = op.Constant(value_floats=[1.0])
+        weight = op.Expand(one, op.Shape(input, start=start_axis))
+        weight = op.CastLike(weight, input)
+
     if not op.OptionalHasElement(bias):
-        bias = op.CastLike(0, input)
-    return _aten_native_layer_norm_onnx(input, weight, bias, axes, eps)
+        result, mean, rdenominator = op.LayerNormalization(
+            input, weight, axis=start_axis, epsilon=eps
+        )
+    else:
+        result, mean, rdenominator = op.LayerNormalization(
+            input, weight, bias, axis=start_axis, epsilon=eps
+        )
 
-
-@torch_op("aten::native_layer_norm", overload=True)
-def _aten_native_layer_norm_onnx(
-    input: TReal,
-    weight: TReal,
-    bias: TReal,
-    axes: Sequence[int],
-    eps: float,
-) -> Tuple[TReal, TReal, TReal]:
-
-    # FIXME(justinchuby): Use opset18 when it is supported by onnxruntime
-    mean = op.ReduceMean(input, axes)
-    numerator = op.Sub(input, mean)
-    power_num = op.Pow(numerator, 2.0)
-    variance = op.ReduceMean(power_num, axes)
-    variance_eps = op.Add(variance, eps)
-    denominator = op.Sqrt(variance_eps)
-    result = op.Div(numerator, denominator)
-    weight = op.CastLike(weight, result)
-    result = op.Mul(result, weight)
-    bias = op.CastLike(bias, result)
-    result = op.Add(result, bias)
-    rdenominator = op.Reciprocal(denominator)
     return result, mean, rdenominator
 
 
@@ -4878,10 +4896,11 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Sub(other, op.Mul(self, alpha))
 
 
-def aten_scalar_tensor(s: float) -> TensorType:
+@torch_op("aten::scalar_tensor")
+def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Cast(s, to=dtype)
 
 
 def aten_scatter_add(
@@ -5159,10 +5178,12 @@ def aten_sspaddmm(
     raise NotImplementedError()
 
 
-def aten_stack(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::stack")
+def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-
-    raise NotImplementedError()
+    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnx-script/issues/481
+    # If so, right now we do not support it.
+    return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
 def aten_std(self: TensorType, unbiased: bool = True) -> TensorType:
