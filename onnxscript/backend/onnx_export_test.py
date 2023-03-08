@@ -14,7 +14,6 @@ from typing import Pattern
 import onnxruntime as ort
 import parameterized
 from onnxruntime.capi import onnxruntime_pybind11_state
-from packaging.version import Version
 
 import onnxscript
 from onnxscript.backend import onnx_backend, onnx_export
