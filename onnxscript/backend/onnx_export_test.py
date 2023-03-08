@@ -64,7 +64,7 @@ SKIP_TESTS = (
     skip(
         r"^test_optional_get_element_tensor",
         "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
-        condition=Version(ort.__version__).base_version == "1.14",
+        condition=ort.__version__[:4] == "1.14",
     ),
     skip(
         r"test_loop",

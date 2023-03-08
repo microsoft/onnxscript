@@ -116,7 +116,7 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
     #         skip_test_names=[])
 
     @unittest.skipIf(
-        Version(onnxruntime.__version__).base_version == "1.14",
+        onnxruntime.__version__[:4] == "1.14",
         reason="onnxruntime 1.14 Segfaults.",
     )
     def test_onnxfns_space_to_depth(self):
