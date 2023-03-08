@@ -14,6 +14,7 @@ from typing import Pattern
 import onnxruntime as ort
 import parameterized
 from onnxruntime.capi import onnxruntime_pybind11_state
+from packaging.version import Version
 
 import onnxscript
 from onnxscript.backend import onnx_backend, onnx_export
@@ -63,7 +64,7 @@ SKIP_TESTS = (
     skip(
         r"^test_optional_get_element_tensor",
         "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
-        condition=ort.__version__ == "1.14.1",
+        condition=Version(ort.__version__).base_version == "1.14",
     ),
     skip(
         r"test_loop",
@@ -123,7 +124,6 @@ def exec_main(f, *inputs):
 
 
 class TestOnnxBackEnd(unittest.TestCase):
-
     test_folder = pathlib.Path(__file__).parent.parent / "tests" / "onnx_backend_test_code"
 
     def test_export2python(self):
@@ -161,7 +161,9 @@ class TestOnnxBackEnd(unittest.TestCase):
             onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
         ) as e:
             self.skipTest(f"Unable to load the model: {e}")
-        except onnxruntime_pybind11_state.RuntimeException as e:  # pylint: disable=c-extension-no-member
+        except (
+            onnxruntime_pybind11_state.RuntimeException
+        ) as e:  # pylint: disable=c-extension-no-member
             self.skipTest(f"Unable to run the model: {e}")
         except AssertionError as e:
             self.skipTest(f"ORT result mismatches with the expected: {e}")
