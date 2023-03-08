@@ -6,11 +6,16 @@
 import unittest
 
 import onnx
+import pytest
 
-from onnxscript.tests.common import onnx_script_test_case
+from onnxscript.tests.common import onnx_script_test_case, version_utils
 from onnxscript.tests.models import onnxfns1
 
 
+@pytest.mark.xfail(
+    version_utils.onnxruntime_older_than("1.15"),
+    reason="ORT 1.14 does not support IR version 9",
+)
 class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
     @classmethod
     def setUpClass(cls):
@@ -57,10 +62,6 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
     def test_onnxfns_hard_softsign(self):
         self.run_onnx_test(onnxfns1.Softsign)
 
-    @unittest.skipIf(
-        not hasattr(onnx.FunctionProto, "attribute_proto"),
-        reason="current onnx does not support default values",
-    )
     def test_onnxfns_hard_clip(self):
         self.run_onnx_test(
             onnxfns1.Clip,
