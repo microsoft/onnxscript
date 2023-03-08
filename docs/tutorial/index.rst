@@ -111,7 +111,7 @@ The converter uses the type annotation on the formal input parameters to make th
 Thus, in the example below, ``alpha`` is treated as an attribute parameter (because of its ``float``
 type annotation).
 
-.. literalinclude:: examples/leakyrelu.py
+.. literalinclude:: examples/leaky_relu.py
 
 The (ONNX) types of attributes supported and their corresponding (Python) type annotations are shown
 in the table below. Other types of ONNX attributes are not yet supported.
