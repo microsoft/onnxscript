@@ -54,10 +54,12 @@ def blackman_window(window_length):
     cos4 = op.Cos((ni * FOUR_PI) / N_minus_1)
     return (0.42 - (cos2 * 0.5)) + (cos4 * 0.08)
 
-
 @script()
 def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
-    """Switches two axis. The function assumes `axis1 < axis2`."""
+    """Switches two axis. The function assumes `axis1 < axis2`.
+    Both axis1 and axis2 are assumed to be positive. Specifically, the convention
+    of using negative axes to count backwards from the end is not supported.
+    """
     zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
     one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
     shape = op.Shape(x)
@@ -102,6 +104,58 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
 
     # Reshape into its final shape.
     final_shape = op.Concat(pre_dim1, dim2, between, dim1_size, post_dim2, axis=0)
+    return op.Reshape(transposed, final_shape)
+
+@script()
+def move_axis(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
+    """Moves axis1 to a new position axis2. All other axes retain their relative order.
+    Thus, `output[pre, middle, axis2val, axis1val, post] = input[pre, axis1val, middle, axis2val, post]`
+    The function assumes `axis1 < axis2`.
+    Both axis1 and axis2 are assumed to be positive. Specifically, the convention
+    of using negative axes to count backwards from the end is not supported.
+    """
+    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
+    shape = op.Shape(x)
+    n_dims = op.Shape(shape)
+    axis2_1 = axis2 - one
+    n_dims_1 = n_dims - one
+
+    # Flatten axes [0, ..., axis1-1] into a single axis
+    pre_dim1 = op.Slice(shape, zero, axis1, zero)
+    if axis1 == zero:
+        pre_dim1_size = op.Identity(one)
+    else:
+        pre_dim1_size = op.ReduceProd(pre_dim1)
+
+    # Flatten axes [axis1+1, ..., axis2] into a single axis
+    between = op.Slice(shape, op.Add(axis1, one), op.Add(axis2, one), zero)
+    between_size = op.ReduceProd(between)
+
+    # Flatten axes [axis2+1, ...] into a single axis
+    post_dim2 = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
+    if axis2 == n_dims_1:
+        post_dim2_size = op.Identity(one)
+    else:
+        post_dim2_size = op.ReduceProd(post_dim2)
+
+    dim1_size = op.Slice(shape, axis1, op.Add(axis1, one), zero)
+    dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
+
+    new_shape = op.Concat(
+        pre_dim1_size,
+        dim1_size,
+        between_size,
+        post_dim2_size,
+        axis=0,
+    )
+    reshaped = op.Reshape(x, new_shape)
+
+    # Transpose
+    transposed = op.Transpose(reshaped, perm=[0, 2, 1, 3])
+
+    # Reshape into its final shape.
+    final_shape = op.Concat(pre_dim1, between, dim1_size, post_dim2, axis=0)
     return op.Reshape(transposed, final_shape)
 
 
@@ -336,7 +390,7 @@ def stft(
     one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
     mtwo = op.Constant(value=make_tensor("mtwo", TensorProto.INT64, [1], [-2]))
     zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
-    last_axis = op.Sub(op.Shape(op.Shape(x)), one)
+    last_axis = op.Shape(op.Shape(x)) - one
     axis = op.Constant(value=make_tensor("axis", TensorProto.INT64, [1], [-2]))
     axis2 = op.Constant(value=make_tensor("axis2", TensorProto.INT64, [1], [-3]))
     window_size = op.Shape(window)
@@ -346,13 +400,13 @@ def stft(
     nf = op.Squeeze(n_frames, zero)
     for fs in range(nf):
         fs64 = op.Cast(fs, to=7)
-        begin = op.Mul(fs64, hop_length)
-        end = op.Add(begin, window_size)
+        begin = fs64 * hop_length
+        end = begin + window_size
         sliced_x = op.Slice(x, begin, end, axis)
 
         # sliced_x may be smaller
         new_dim = op.Shape(sliced_x, start=-2, end=-1)
-        missing = op.Sub(window_size, new_dim)
+        missing = window_size - new_dim
         new_shape = op.Concat(
             op.Shape(sliced_x, start=0, end=-2),
             missing,
@@ -374,10 +428,10 @@ def stft(
     # calling weighted dft with weights=window
     shape_x = op.Shape(new_x)
     shape_x_short = op.Slice(shape_x, zero, mtwo, zero)
-    shape_x_short_one = op.Add(op.Mul(shape_x_short, zero), one)
+    shape_x_short_one = (shape_x_short * zero) + one
     window_shape = op.Concat(shape_x_short_one, window_size, one, axis=0)
     weights = op.Reshape(window, window_shape)
-    weighted_new_x = op.Mul(new_x, weights)
+    weighted_new_x = new_x * weights
 
     result = dft(weighted_new_x, fft_length, last_axis, onesided, False)
 
@@ -385,6 +439,4 @@ def stft(
     two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))
     three = op.Constant(value=make_tensor("three", TensorProto.INT64, [1], [3]))
     dim = op.Shape(op.Shape(result))
-    ax1 = op.Sub(dim, three)
-    ax2 = op.Sub(dim, two)
-    return switch_axes(result, ax1, ax2)
+    return switch_axes(result, dim - three, dim - two)
