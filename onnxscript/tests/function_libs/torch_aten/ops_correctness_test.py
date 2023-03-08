@@ -464,16 +464,6 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    xfail(
-        "logsumexp",
-        reason="ONNX Runtime 1.13 does not support ReduceLogSumExp-18",
-        enabled_if=version_utils.onnxruntime_older_than("1.14"),
-    ),
-    xfail(
-        "nn.functional.upsample_nearest2d",
-        reason="ONNX Runtime 1.13 does support opset18",
-        enabled_if=version_utils.onnxruntime_older_than("1.14"),
-    ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
