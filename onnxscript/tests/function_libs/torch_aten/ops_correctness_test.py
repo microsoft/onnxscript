@@ -312,6 +312,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clone": core_ops.aten_clone,
+    "constant_pad_nd": core_ops.aten_constant_pad_nd,
     # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
@@ -385,6 +386,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsqrt": core_ops.aten_rsqrt,
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
+    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
