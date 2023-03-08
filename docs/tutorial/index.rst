@@ -45,13 +45,13 @@ values for the attributes ``start`` and ``end``.
 .. literalinclude:: examples/firstdim.py
 
 In the translation of a call to an ONNX operator, the translator makes use of the
-opschema specification of the operator to map the actual parameters to appropriate input
+``OpSchema`` specification of the operator to map the actual parameters to appropriate input
 parameters and attribute parameters. Since the ONNX specification does not indicate any
 ordering for attribute parameters, it is recommended that attribute parameters be specified
 using keyword arguments (aka named arguments).
 
 If the translator does not have an opschema for the called op, it uses the following
-strategy to map the actual parameters to appropriate input parameters and attribute parameters.
+strategy to map the actual parameters to appropriate input parameters and attribute parameters:
 Keyword arguments of Python are translated into attribute parameters (of ONNX), while positional arguments
 are translated into normal value-parameters.
 Thus, in the above example, ``X`` is treated as a normal value-parameter for this particular call, while

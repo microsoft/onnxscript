@@ -6,11 +6,16 @@
 import unittest
 
 import onnx
+import pytest
 
-from onnxscript.tests.common import onnx_script_test_case
+from onnxscript.tests.common import onnx_script_test_case, version_utils
 from onnxscript.tests.models import onnxfns1
 
 
+@pytest.mark.xfail(
+    version_utils.onnxruntime_older_than("1.15") and not version_utils.onnx_older_than("1.14"),
+    reason="ORT <=1.14 does not support IR version 9 produced by ONNX 1.14",
+)
 class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
     @classmethod
     def setUpClass(cls):
