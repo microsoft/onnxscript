@@ -5,6 +5,7 @@
 
 import unittest
 
+import onnx
 import pytest
 
 from onnxscript.tests.common import onnx_script_test_case, version_utils
