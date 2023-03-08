@@ -61,6 +61,10 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
     def test_onnxfns_hard_softsign(self):
         self.run_onnx_test(onnxfns1.Softsign)
 
+    @unittest.skipIf(
+        not hasattr(onnx.FunctionProto, "attribute_proto"),
+        reason="current onnx does not support default values",
+    )
     def test_onnxfns_hard_clip(self):
         self.run_onnx_test(
             onnxfns1.Clip,
