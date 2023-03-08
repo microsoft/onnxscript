@@ -135,11 +135,11 @@ into a tensor-value. Specifically, in the sub-expression ``alpha * X``, the attr
 parameter ``alpha`` is used as a value-parameter of the call to the ``Mul`` op (denoted
 by the ``*``) and is automatically converted. Thus,
 
-.. literalinclude:: examples/leakyrelu.py
+.. literalinclude:: examples/leaky_relu.py
 
 is expanded to the following:
 
-.. literalinclude:: examples/leakyrelu2.py
+.. literalinclude:: examples/leaky_relu_attr_promoted.py
 
 **Automatic casts for constant values**
 
