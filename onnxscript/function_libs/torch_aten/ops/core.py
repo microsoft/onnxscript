@@ -3371,8 +3371,7 @@ def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op("aten::max", overload=True)
-# def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
-def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
+def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
     result = op.ReduceMax(self, dims, keepdims=keepdim)
     indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
@@ -3502,8 +3501,7 @@ def _aten_min_with_other(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op("aten::min", overload=True)
-# def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
-def _aten_min_with_dim(self: TReal, dim: int, keepdim: bool):
+def _aten_min_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
     result = op.ReduceMin(self, dims, keepdims=keepdim)
     indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
