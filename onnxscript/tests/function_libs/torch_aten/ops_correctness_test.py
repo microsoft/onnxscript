@@ -400,9 +400,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    "min_dim": core_ops.aten_min_dim,
-    "min_other": core_ops.aten_min_other,
-    "min": core_ops.aten_min,
     "amax": core_ops.aten_amax,
     "amin": core_ops.aten_amin,
     "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
@@ -422,6 +419,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
+    "min_dim": core_ops.aten_min_dim,
+    "min_other": core_ops.aten_min_other,
+    "min": core_ops.aten_min,
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
