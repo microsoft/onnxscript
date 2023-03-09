@@ -680,13 +680,20 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
+
+
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
+        functions = set()
         for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
             if isinstance(func_with_wrangler, tuple):
                 func = func_with_wrangler[0]
             else:
                 func = func_with_wrangler
+            functions.add(func)
+
+        # TODO(justinchuby): Add from the registry
+        for func in functions:
             if not isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
                     f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
@@ -720,7 +727,10 @@ class TestFunctionValidity(unittest.TestCase):
         function_proto = func.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
+# TODO: create an evaluator that captures the full graph and then compute using
+# the full graph. This will be useful for testing the full graph.
 
+# TODO(justinchuby): Parameterize this and construct different backends
 class TestOutputConsistency(unittest.TestCase):
     """Test output consistency between exported ONNX models and PyTorch eager mode.
 
