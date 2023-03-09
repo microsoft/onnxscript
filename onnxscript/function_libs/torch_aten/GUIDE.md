@@ -13,16 +13,28 @@ An example of an ATen op, `add`, is the following:
 
 ```python
 @torch_op("aten::add")  # (1)
-def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:  # (2)
-    """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""  # (3)
+def aten_add(  # (2)
+    self: TReal,  # (3)
+    other: TReal,
+    alpha: float = 1.0
+) -> TReal:
+    """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""  # (4)
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
-    return op.Add(self, other)  # (4)
+    return op.Add(self, other)  # (5)
 ```
 
-The ATen `add` operator defines an `alpha` parameter that will scale the second operand. In the example above, we see
+The ATen `add` operator defines an `alpha` parameter that will scale the second operand. In the example above, we
 
-1.
+1. Register the function with the library using the `torch_op` decorator
+2. Declares the function `aten_add`. The naming rule is `f"aten_{op_name}"`. The name is generated.
+3. Declares the arguments to the function. The types are the most compatible types with ONNX the function can accept (See Function signature). ONNX `Input`s are annotated as tensors (`TReal` in this case). ONNX `Attribute`s are annotated using native Python types, following the ONNX Script syntax.
+
+Every function template in the `atenlib` has a reference signature from PyTorch [`native_functions.yaml`](https://github.com/pytorch/pytorch/blob/44d8e6c2aa80dbeb2afc1e4471dc1b66bf47779a/aten/src/ATen/native/native_functions.yaml#L497) (4). `atenlib` functions should typically follow this signature.
+
+
+## Getting started
+
 
 
 ### Function signature
@@ -42,6 +54,12 @@ The ATen `add` operator defines an `alpha` parameter that will scale the second 
 ### DType dependent logic
 
 ## Style guide
+
+### Robustness
+
+### Simplicity
+
+## Testing
 
 ## Checklist
 
