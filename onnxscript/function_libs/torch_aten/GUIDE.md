@@ -33,8 +33,62 @@ The ATen `add` operator defines an `alpha` parameter that will scale the second 
 Every function template in the `atenlib` has a reference signature from PyTorch [`native_functions.yaml`](https://github.com/pytorch/pytorch/blob/44d8e6c2aa80dbeb2afc1e4471dc1b66bf47779a/aten/src/ATen/native/native_functions.yaml#L497) (4). `atenlib` functions should typically follow this signature.
 
 
-## Getting started
+## Writing a new op
 
+Now that we have an idea of what a function should look like, let's see how to implement a new op. Consider `gelu` as an example:
+
+First, we find the operator in `onnxscript/function_libs/torch_aten/ops/nn.py`.
+
+```python
+def aten_gelu(self: TensorType, approximate: str = "none") -> TensorType:
+    """gelu(Tensor self, *, str approximate='none') -> Tensor"""
+
+    raise NotImplementedError()
+```
+
+Then we write the function body:
+
+```
+    self = op.Cast(self, to=FLOAT.dtype)
+
+    if approximate == "tanh":
+        result = _aten_gelu_approximate_tanh(self)
+    else:
+        result = _aten_gelu_approximate_none(self)
+    return result
+
+
+@torch_op("aten::gelu", overload=True)
+def _aten_gelu_approximate_none(self: TReal) -> TReal:
+    """gelu(Tensor self, *, str approximate='none') -> Tensor"""
+
+    self = op.Cast(self, to=FLOAT.dtype)
+    # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
+    inner = op.Div(self, 1.4142135623730951)
+    erf = op.Erf(inner)
+    inner = op.Add(erf, 1)
+    inner = op.Mul(self, inner)
+    result = op.Mul(0.5, inner)
+    return result
+
+
+@torch_op("aten::gelu", overload=True)
+def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
+    """gelu(Tensor self, *, str approximate='none') -> Tensor"""
+
+    self = op.Cast(self, to=FLOAT.dtype)
+    # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
+    cubed = op.Pow(self, 3)
+    inner = op.Mul(0.044715, cubed)
+    inner = op.Add(self, inner)
+    # Prefer explicit graph construction over precomputed constants for clarity.
+    inner = op.Mul(op.Sqrt(op.Div(2.0, _MATH_PI)), inner)
+    inner = op.Tanh(inner)
+    inner = op.Add(inner, 1)
+    inner = op.Mul(self, inner)
+    result = op.Mul(0.5, inner)
+    return result
+```
 
 
 ### Function signature
