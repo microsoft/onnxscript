@@ -955,10 +955,30 @@ def aten_choose_qparams_optimized(
     raise NotImplementedError()
 
 
-def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
+@torch_op("aten::chunk")
+def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
     """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    # get size of specified dim
+    self_shape = op.Shape(self)
+    dim_size = op.Gather(self_shape, dim, axis=0)
+    # cal size/chunk, get number of data in one chunk
+    num_per_chunk = op.Div(dim_size, chunks)
+    if op.Mod(dim_size, chunks) > 0:
+        # cannot be divisible, then num_in_chunk + 1
+        num_per_chunk = op.Add(num_per_chunk, 1)
+
+    # cal real chunk number
+    num_chunk = op.Div(dim_size, num_per_chunk)
+    # get something like [n, n, n, n, ...], total num_chunk
+    list_split = op.Expand(num_per_chunk, op.Reshape(num_chunk, neg_1))
+
+    remainder = op.Mod(dim_size, num_per_chunk)
+    if remainder > 0:  # num_chunk should be +1
+        # append the remainder to the [n, n, n, n, ..., r]
+        list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
+    return op.Split(self, list_split, axis=dim)
 
 
 @torch_op("aten::clamp", trace_only=True)
