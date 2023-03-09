@@ -3371,7 +3371,7 @@ def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op("aten::max", overload=True)
-# def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal,TInt]:
+# def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
 def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
     result = op.ReduceMax(self, dims, keepdims=keepdim)
