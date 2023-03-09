@@ -1,4 +1,17 @@
-"""Test op correctness by comparing with PyTorch results."""
+"""Test op correctness by comparing with PyTorch results.
+
+## How to add a new operator test
+
+1. To enable test cases for an operator, add an entry to the
+`OPINFO_FUNCTION_MAPPING_SCRIPTED` map, run the test and follow instruction in
+error messages if there are any.
+2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
+Prefer xfail over skip when possible.
+3. If the OpInfo needs to be adjusted to fit the aten signature, create an input
+wrangler function. See `_cat_input_wrangler` for an example.
+4. If the OpInfo needs to be duplicated to test multiple overloads, use
+`duplicate_opinfo` to create a new OpInfo with a new name.
+"""
 from __future__ import annotations
 
 import copy
