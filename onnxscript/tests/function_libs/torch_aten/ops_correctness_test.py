@@ -400,6 +400,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
+    "min_dim": core_ops.aten_min_dim,
+    "min_other": core_ops.aten_min_other,
+    "min": core_ops.aten_min,
     "amax": core_ops.aten_amax,
     "amin": core_ops.aten_amin,
     "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
@@ -416,7 +419,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
-    "min": core_ops.aten_min,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
@@ -504,6 +506,21 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
+        "min",  # aten_mean
+        matcher=lambda sample: len(sample.args) > 0,
+        reason="only support one tensor as input",
+    ),
+    skip(
+        "min_other",  # aten_min_other(self, other)
+        matcher=lambda sample: len(sample.args) == 0 or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="only support one(input) and another(args) tensor",
+    ),
+    skip(
+        "min_dim",  # aten_min_dim(self, dim)
+        matcher=lambda sample: len(sample.args) == 0 or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
+        reason="only support one(input) and another(args) tensor",
+    ),
+    skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
@@ -578,6 +595,15 @@ duplicate_opinfo(
     (
         "arange_start",
         "arange_start_step",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "min",
+    (
+        "min_other",
+        "min_dim",
     ),
 )
 
