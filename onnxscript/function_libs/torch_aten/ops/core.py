@@ -970,7 +970,7 @@ def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
         num_per_chunk = op.Add(num_per_chunk, 1)
 
     # cal real chunk number
-    num_chunk = op.Div(dim_size, num_chunk)
+    num_chunk = op.Div(dim_size, num_per_chunk)
     # get something like [n, n, n, n, ...], total num_chunk
     list_split = op.Expand(num_per_chunk, op.Reshape(num_chunk, neg_1))
 
@@ -980,16 +980,6 @@ def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
         list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
     return op.Split(self, list_split, axis=dim)
 
-
-# def test_aten_chunk():
-#     import numpy as np
-#     for i in range(14,27):
-#         a = np.arange(i)
-#         result = aten_chunk(a, 5)
-#         print(result)
-
-# test_aten_chunk()
-# exit(0)
 
 @torch_op("aten::clamp", trace_only=True)
 def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = None) -> TReal:
