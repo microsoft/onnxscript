@@ -3501,59 +3501,6 @@ def aten_min_other(self: TReal, other: TReal) -> TReal:
     return result
 
 
-# @torch_op("aten::min", trace_only=True)
-# def aten_min(
-#     self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None
-# ) -> TReal:
-#     """min(Tensor self) -> Tensor"""
-
-#     self_rank = op.Size(op.Shape(self))
-#     if self_rank == 0:
-#         self = op.Reshape(self, op.Constant(value_int=[-1]))
-
-#     output = 1
-
-#     if op.OptionalHasElement(dim_or_other):
-#         if isinstance(dim_or_other, int):
-#             if not op.OptionalHasElement(keepdim):
-#                 keepdim = False
-#             result, indices = _aten_min_with_dim(self, dim_or_other, keepdim)
-#             output = 2
-#         else:  # dim_or_other is tensor
-#             result = _aten_min_with_other(self, dim_or_other)
-#     else:
-#         result = _aten_min_with_no_dim(self)
-
-#     if self_rank == 0:
-#         result = op.Squeeze(result)
-
-#     if output == 2:
-#         if self_rank == 0:
-#             indices = op.Squeeze(indices)  # type: ignore[has-type]
-#         return result, indices
-#     return result
-
-
-# @torch_op("aten::min", overload=True)
-# def _aten_min_with_no_dim(self: TReal) -> TReal:
-#     result = op.ReduceMin(self, keepdims=0)
-#     return result
-
-
-# @torch_op("aten::min", overload=True)
-# def _aten_min_with_other(self: TReal, other: TReal) -> TReal:
-#     result = op.Min(self, other)
-#     return result
-
-
-# @torch_op("aten::min", overload=True)
-# def _aten_min_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
-#     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
-#     result = op.ReduceMin(self, dims, keepdims=keepdim)
-#     indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
-#     return result, indices
-
-
 @torch_op("aten::minimum")
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
