@@ -965,7 +965,7 @@ def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
     dim_size = op.Gather(self_shape, dim, axis=0)
     # cal size/chunk, get number of data in one chunk
     num_per_chunk = op.Div(dim_size, chunks)
-    if op.Mod(dim_size, chunks) > 0:
+    if op.Mod(dim_size, chunks) > 0:  # type: ignore[operator]
         # cannot be divisible, then num_in_chunk + 1
         num_per_chunk = op.Add(num_per_chunk, 1)
 
@@ -975,7 +975,7 @@ def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
     list_split = op.Expand(num_per_chunk, op.Reshape(num_chunk, neg_1))
 
     remainder = op.Mod(dim_size, num_per_chunk)
-    if remainder > 0:  # num_chunk should be +1
+    if remainder > 0:  # type: ignore[operator]
         # append the remainder to the [n, n, n, n, ..., r]
         list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
     return op.Split(self, list_split, axis=dim)
