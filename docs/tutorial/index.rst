@@ -44,14 +44,19 @@ values for the attributes ``start`` and ``end``.
 
 .. literalinclude:: examples/firstdim.py
 
-In the translation of a call to an ONNX operator, keyword arguments (aka named arguments)
-of Python are translated into attribute parameters (of ONNX), while positional arguments
+In the translation of a call to an ONNX operator, the translator makes use of the
+``OpSchema`` specification of the operator to map the actual parameters to appropriate input
+parameters and attribute parameters. Since the ONNX specification does not indicate any
+ordering for attribute parameters, it is recommended that attribute parameters be specified
+using keyword arguments (aka named arguments).
+
+If the translator does not have an opschema for the called op, it uses the following
+strategy to map the actual parameters to appropriate input parameters and attribute parameters:
+Keyword arguments of Python are translated into attribute parameters (of ONNX), while positional arguments
 are translated into normal value-parameters.
-Thus, ``X`` is treated as a normal value-parameter (in ONNX) for this particular call, while
-``start`` and ``end`` are treated as attribute-parameters.
-This is a limitation of the current converter and is proposed to be relaxed
-when schema information is available for the callee indicating which are
-value-parameters and which are attribute-parameters.
+Thus, in the above example, ``X`` is treated as a normal value-parameter for this particular call, while
+``start`` and ``end`` are treated as attribute-parameters (when an opschema is unavailable).
+
 
 **Specifying tensor-valued attributes**
 
@@ -106,13 +111,48 @@ The converter uses the type annotation on the formal input parameters to make th
 Thus, in the example below, ``alpha`` is treated as an attribute parameter (because of its ``float``
 type annotation).
 
-.. literalinclude:: examples/leakyrelu.py
+.. literalinclude:: examples/leaky_relu.py
+
+The (ONNX) types of attributes supported and their corresponding (Python) type annotations are shown
+in the table below. Other types of ONNX attributes are not yet supported.
+
+======================   ======================
+ONNX Type                Python Type Annotation
+======================   ======================
+AttributeProto.FLOAT     float
+AttributeProto.INT       int, bool
+AttributeProto.STRING    str
+AttributeProto.FLOATS    Sequence[float]
+AttributeProto.INTS      Sequence[int]
+AttributeProto.STRINGS   Sequence[str]
+======================   ======================
+
+**Automatic promotion of attribute-parameters to values**
 
 As illustrated in the above example, when an attribute-parameter is used in a context
 requiring a value-parameter, the converter will automatically convert the attribute
 into a tensor-value. Specifically, in the sub-expression ``alpha * X``, the attribute
 parameter ``alpha`` is used as a value-parameter of the call to the ``Mul`` op (denoted
-by the ``*``) and is automatically converted.
+by the ``*``) and is automatically converted. Thus,
+
+.. literalinclude:: examples/leaky_relu.py
+
+is expanded to the following:
+
+.. literalinclude:: examples/leaky_relu_attr_promoted.py
+
+**Automatic casts for constant values**
+
+The converter also automatically introduces casts (via the ONNX ``CastLike`` op)
+when constants are used in a context where they are constrained to be of the
+same type as some other (non-constant) operand. For example, the expression
+``2 * X`` is expanded to ``op.CastLike(2, X) * X``, which allows the same
+code to work for different types of ``X``.
+
+*Control-Flow*
+
+The support for control-flow constructs in |onnxscript| is limited by
+requirements of ONNX control-flow ops.
 
 **Conditional statements**
 
