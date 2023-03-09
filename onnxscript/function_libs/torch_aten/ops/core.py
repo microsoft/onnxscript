@@ -3461,7 +3461,7 @@ def aten_min(self: TReal) -> TReal:
     """min(Tensor self) -> Tensor"""
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_int=[-1]))
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     result = op.ReduceMin(self, keepdims=0)
 
@@ -3473,11 +3473,13 @@ def aten_min(self: TReal) -> TReal:
 
 @torch_op("aten::min", overload=True)
 def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+    neg_1 = op.Constant(value_ints=[-1])
+
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_int=[-1]))
+        self = op.Reshape(self, neg_1)
 
-    dims = op.Reshape(dim, op.Constant(value_int=[-1]))
+    dims = op.Reshape(dim, neg_1)
     result = op.ReduceMin(self, dims, keepdims=keepdim)
     indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
 
@@ -3492,7 +3494,7 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
 def aten_min_other(self: TReal, other: TReal) -> TReal:
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_int=[-1]))
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     result = op.Min(self, other)
 
