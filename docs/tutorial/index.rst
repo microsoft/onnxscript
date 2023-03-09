@@ -126,7 +126,7 @@ AttributeProto.FLOATS    Sequence[float]
 AttributeProto.INTS      Sequence[int]
 AttributeProto.STRINGS   Sequence[str]
 ======================   ======================
-   
+
 **Automatic promotion of attribute-parameters to values**
 
 As illustrated in the above example, when an attribute-parameter is used in a context
