@@ -1,4 +1,4 @@
-values
+Values
 ======
 
 .. autoclass:: onnxscript.values.Opset
