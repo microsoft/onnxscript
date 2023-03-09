@@ -117,4 +117,25 @@ def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
 
 ## Checklist
 
+
+## Dynamic and static optionals
+
+
+@script()
+aten_squeeze(self: TTensor, dim: Optional[int] = None):
+    ...
+
+caller:
+
+static optional
+output = aten_squeeze(self)
+output = aten_squeeze(self, dim)
+
+dynamic optional
+dim: OptionalTensor type in ONNX: {None, concrete tensor}
+
+output = aten_squeeze(self, dim)
+`output = aten_squeeze(self)` doesn't work
+
+
 [^1]: https://pytorch.org/cppdocs/#aten
