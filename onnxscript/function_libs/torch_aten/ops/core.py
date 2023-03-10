@@ -200,53 +200,27 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::amax", trace_only=True)
-def aten_amax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+@torch_op("aten::amax")
+def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
-    if dim is None:
-        return opset17.ReduceMax(self, keepdims=keepdim)
-    if not isinstance(dim, Sequence):
-        dims = [dim]
+    dim_is_empty = op.Size(dim) == 0
+    if dim_is_empty:
+        result = op.ReduceMax(self, keepdims=keepdim)
     else:
-        dims = list(dim)
-    return _aten_amax_onnx(self, axes=dims, keepdims=keepdim)
-
-
-@torch_op("aten::amax", overload=True)
-def _aten_amax_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
-    """TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14"""
-    if opset17.Size(opset17.Shape(self)) == 0:
-        # Scalar
-        result = self
-    else:
-        result = opset17.ReduceMax(self, axes=axes, keepdims=keepdims)
+        result = op.ReduceMax(self, axes, keepdims=keepdims)
     return result
 
 
-@torch_op("aten::amin", trace_only=True)
-def aten_amin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+@torch_op("aten::amin")
+def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
-    if dim is None:
-        return opset17.ReduceMin(self, keepdims=keepdim)
-    if not isinstance(dim, Sequence):
-        dims = [dim]
+    dim_is_empty = op.Size(dim) == 0
+    if dim_is_empty:
+        result = op.ReduceMin(self, keepdims=keepdim)
     else:
-        dims = list(dim)
-    return _aten_amin_onnx(self, axes=dims, keepdims=keepdim)
-
-
-@torch_op("aten::amin", overload=True)
-def _aten_amin_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
-    """TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14"""
-    if opset17.Size(opset17.Shape(self)) == 0:
-        # Scalar
-        result = self
-    else:
-        result = opset17.ReduceMin(self, axes=axes, keepdims=keepdims)
+        result = op.ReduceMin(self, axes, keepdims=keepdims)
     return result
 
 
