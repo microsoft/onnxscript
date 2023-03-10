@@ -28,6 +28,7 @@ from torch.testing._internal import common_device_type, common_methods_invocatio
 from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
 import onnxruntime as ort
+import onnxruntime.capi.onnxruntime_pybind11_state
 
 import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
@@ -61,7 +62,7 @@ FLOAT_TYPES = (
     torch.float64,
 )
 
-TEST_OPSET_VERSION = 17
+TEST_OPSET_VERSION = 18
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -731,7 +732,9 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
-def _capture_graph_and_evaluate_torch_script_evaluator(test_class, function: Callable, args, kwargs):
+def _capture_graph_and_evaluate_torch_script_evaluator(
+    test_class, function: Callable, args, kwargs
+):
     """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
     del test_class  # Unused
 
@@ -747,6 +750,15 @@ def _capture_graph_and_evaluate_torch_script_evaluator(test_class, function: Cal
             input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
             onnxscript_args.append(input)
             ort_inputs[input_name] = arg
+        elif isinstance(arg, Sequence):
+            sequence_input = []
+            for j, subarg in enumerate(arg):
+                if isinstance(subarg, np.ndarray):
+                    input_name = f"input_{i}_{j}"
+                    input = onnxscript_graph.add_input(input_name, torch.tensor(subarg))
+                    sequence_input.append(input)
+                    ort_inputs[input_name] = subarg
+            onnxscript_args.append(sequence_input)
         else:
             onnxscript_args.append(arg)
     for key, value in kwargs.items():
@@ -764,7 +776,13 @@ def _capture_graph_and_evaluate_torch_script_evaluator(test_class, function: Cal
     onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
     session = ort.InferenceSession(onnx_model.SerializeToString())
 
-    return session.run(None, ort_inputs)
+    try:
+        return session.run(None, ort_inputs)
+    except onnxruntime.capi.onnxruntime_pybind11_state.Fail as e:
+        raise AssertionError(
+            f"ONNX Runtime failed to evaluate the model:\n"
+            f"{onnxscript.proto2text(onnx_model)}"
+        ) from e
 
 
 def _get_test_class_name(cls, num, params_dict) -> str:
@@ -781,6 +799,9 @@ def _get_test_class_name(cls, num, params_dict) -> str:
         },
         {
             "function_evaluator": _capture_graph_and_evaluate_torch_script_evaluator,
+            "skip_test": unittest.SkipTest("only torch>=2.0 is supported")
+            if version_utils.torch_older_than("2.0")
+            else None,
             "name": "TestOutputConsistency_FullGraph",
         },
     ],
@@ -796,6 +817,9 @@ class TestOutputConsistency(unittest.TestCase):
     # and returns the output of the function.
     function_evaluator: Callable
 
+    # Unittest skip if not None
+    skip_test: Optional[unittest.SkipTest] = None
+
     def setUp(self) -> None:
         torch.manual_seed(42)
         np.random.seed(42)
@@ -806,8 +830,8 @@ class TestOutputConsistency(unittest.TestCase):
     )
     def test_output_match(self, device: str, dtype: torch.dtype, op):
         """Base test method for testing each opset, used by instantiate_device_type_tests."""
-        # device is provided by instantiate_device_type_tests, but we only want to run in cpu.
-        assert device == "cpu"
+        if self.skip_test is not None:
+            raise self.skip_test
 
         samples = op.sample_inputs(
             device,
