@@ -3459,20 +3459,13 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
 @torch_op("aten::min")
 def aten_min(self: TReal) -> TReal:
     """min(Tensor self) -> Tensor"""
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    result = op.ReduceMin(self, keepdims=0)
-
-    if self_rank == 0:
-        result = op.Squeeze(result)
-
-    return result
+    return op.ReduceMin(self, keepdims=0)
 
 
 @torch_op("aten::min", overload=True)
 def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+
     neg_1 = op.Constant(value_ints=[-1])
 
     self_rank = op.Size(op.Shape(self))
@@ -3492,16 +3485,8 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
 
 @torch_op("aten::min", overload=True)
 def aten_min_other(self: TReal, other: TReal) -> TReal:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    result = op.Min(self, other)
-
-    if self_rank == 0:
-        result = op.Squeeze(result)
-
-    return result
+    return op.Min(self, other)
 
 
 @torch_op("aten::minimum")
