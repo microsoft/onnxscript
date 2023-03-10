@@ -1532,7 +1532,7 @@ def aten_cov(
 
 
 @torch_op("aten::cross")
-def aten_cross(self: TensorType, other: TensorType, dim: int = -1) -> TensorType:
+def aten_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
     """cross(Tensor self, Tensor other, int? dim=None) -> Tensor"""
 
     zero = op.Constant(value_ints=[0])
