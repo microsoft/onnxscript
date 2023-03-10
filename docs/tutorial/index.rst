@@ -5,7 +5,8 @@ Tutorial
 
 In this tutorial, we illustrate the features supported by |onnxscript| using examples.
 
-**Basic Features**
+Basic Features
+--------------
 
 The example below shows a definition of ``Softplus`` as an |onnxscript| function.
 
@@ -27,7 +28,8 @@ Similarly, constant literals such as ``1.0`` are allowed as syntactic
 shorthand (in contexts such as in the above example) and are implicitly promoted
 into an ONNX tensor constant.
 
-**Omitting optional inputs**
+Omitting optional inputs
+------------------------
 
 Some of the input arguments of ONNX ops are *optional*: for example, the *min*
 and *max* inputs of the ``Clip`` operator. The value ``None`` can be used
@@ -36,7 +38,8 @@ omitted in the case of trailing inputs:
 
 .. literalinclude:: examples/omitted_input.py
 
-**Specifying attribute-parameter values**
+Specifying attribute-parameter values
+-------------------------------------
 
 The example below illustrates how to specify attribute-values in a call.
 In this example, we call the ONNX operator ``Shape`` and specify the attribute
@@ -58,7 +61,8 @@ Thus, in the above example, ``X`` is treated as a normal value-parameter for thi
 ``start`` and ``end`` are treated as attribute-parameters (when an opschema is unavailable).
 
 
-**Specifying tensor-valued attributes**
+Specifying tensor-valued attributes
+-----------------------------------
 
 Tensor constants can be created using the ONNX utility ``make_tensor`` and these
 can be used as attribute values, as shown below:
@@ -76,7 +80,8 @@ This works for scalar constants. However, if the user wants to
 create an 1-dimensional tensor containing a single value, instead of a 0-dimensional
 tensor, they need to do so more explicitly (as in the previous example).
 
-**Semantics: Script Constants**
+Semantics: Script Constants
+---------------------------
 
 Attributes in ONNX are required to be constant values. In |onnxscript|, the
 expression specified as an attribute is evaluated at script-time (when the
@@ -101,7 +106,8 @@ Thus, the example shown above is equivalent to the following:
 
 .. literalinclude:: examples/tensor_attr2.py
 
-**Specifying formal attribute parameters of functions**
+Specifying formal attribute parameters of functions
+---------------------------------------------------
 
 The (formal) input parameters of Python functions are treated by the converter as representing
 either attribute-parameters or input value parameters (of the generated ONNX function).
@@ -127,7 +133,8 @@ AttributeProto.INTS      Sequence[int]
 AttributeProto.STRINGS   Sequence[str]
 ======================   ======================
 
-**Automatic promotion of attribute-parameters to values**
+Automatic promotion of attribute-parameters to values
+-----------------------------------------------------
 
 As illustrated in the above example, when an attribute-parameter is used in a context
 requiring a value-parameter, the converter will automatically convert the attribute
@@ -141,7 +148,8 @@ is expanded to the following:
 
 .. literalinclude:: examples/leaky_relu_attr_promoted.py
 
-**Automatic casts for constant values**
+Automatic casts for constant values
+-----------------------------------
 
 The converter also automatically introduces casts (via the ONNX ``CastLike`` op)
 when constants are used in a context where they are constrained to be of the
@@ -149,12 +157,14 @@ same type as some other (non-constant) operand. For example, the expression
 ``2 * X`` is expanded to ``op.CastLike(2, X) * X``, which allows the same
 code to work for different types of ``X``.
 
-*Control-Flow*
+Control-Flow
+------------
 
 The support for control-flow constructs in |onnxscript| is limited by
 requirements of ONNX control-flow ops.
 
-**Conditional statements**
+Conditional statements
+~~~~~~~~~~~~~~~~~~~~~~
 
 The function definition below illustrates the use of conditionals.
 
@@ -163,7 +173,8 @@ The function definition below illustrates the use of conditionals.
 The use of conditional statements requires that any variable that is *used* in the code
 has a *definition* of the same variable along all possible paths to the use.
 
-**Loops**
+Loops
+~~~~~
 
 ONNX implements a loop operator doing a fixed number of iterations
 and/or a loop breaking if a condition is not true anymore.
@@ -181,7 +192,8 @@ Third example mixes both types of loops.
 
 .. literalinclude:: examples/forwhileloop.py
 
-**Encoding Higher-Order Ops: Scan**
+Encoding Higher-Order Ops: Scan
+-------------------------------
 
 ONNX allows graph-valued attributes. This is the mechanism used to define (quasi)
 higher-order ops, such as *If*, *Loop*, *Scan*, and *SequenceMap*.
