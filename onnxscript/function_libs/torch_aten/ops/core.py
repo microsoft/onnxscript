@@ -5573,10 +5573,14 @@ def aten_true_divide(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_trunc(self: TensorType) -> TensorType:
+@torch_op("aten::trunc")
+def aten_trunc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """trunc(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # Reference https://github.com/onnx/onnx/issues/4588
+    integer_parts = op.Floor(op.Abs(self))
+    is_negative = self < 0
+    return op.Where(is_negative, op.Neg(integer_parts), integer_parts)
 
 
 def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
