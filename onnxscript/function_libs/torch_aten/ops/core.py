@@ -5577,7 +5577,7 @@ def aten_true_divide(self: TensorType, other: TensorType) -> TensorType:
 def aten_trunc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """trunc(Tensor self) -> Tensor"""
 
-    # Reference https://github.com/onnx/onnx/issues/4588
+    # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-1463970126
     integer_parts = op.Floor(op.Abs(self))
     is_negative = self < 0
     return op.Where(is_negative, op.Neg(integer_parts), integer_parts)
