@@ -180,8 +180,8 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_all(self: TTensor, dim: Optional[int] = None, keepdim: Optional[bool] = False) -> TTensor:
     """all(Tensor self) -> Tensor"""
 
-    rank_self = op.Size(op.Shape(self))
-    if rank_self == 0:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
     self_bool = op.Cast(self, to=BOOL.dtype)
@@ -194,7 +194,7 @@ def aten_all(self: TTensor, dim: Optional[int] = None, keepdim: Optional[bool] =
         result_int = op.ReduceMin(self_int, keepdims=keepdim)
     result = op.Cast(result_int, to=BOOL.dtype)
 
-    if rank_self == 0:
+    if self_rank == 0:
         result = op.Squeeze(result)
 
     return result
