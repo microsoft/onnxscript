@@ -33,7 +33,8 @@ ONNX models and functions:
 Note that the runtime is intended to help understand and debug function definitions.
 Performance is not a goal here.
 
-**Example**
+Example
+=======
 
 The following toy example illustrates how to use onnxscript.
 
@@ -76,7 +77,8 @@ The following example illustrates how we can generate an ONNX Model:
 
     model = MatmulAddModel.to_model_proto() # returns an onnx.ModelProto
 
-**Eager mode**
+Eager mode
+==========
 
 Eager evaluation mode is mostly use to debug and check intermediate results
 are as expected. The function defined earlier can be called as below, and this
@@ -98,6 +100,7 @@ executes in an eager-evaluation mode.
     auto_examples/index
     api/index
 
-**License**
+License
+=======
 
 onnxscript comes with a `MIT <https://github.com/microsoft/onnx-script/blob/main/LICENSE>`_ license.
