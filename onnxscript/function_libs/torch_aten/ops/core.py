@@ -1541,12 +1541,14 @@ def aten_cross(self: TensorType, other: TensorType, dim: int = -1) -> TensorType
     three = op.Constant(value_ints=[3])
     axes = op.Expand(dim, op.Constant(value_ints=[1]))
 
+    # Reference https://en.wikipedia.org/w/index.php?title=Cross_product&oldid=1143125073
     a1 = op.Slice(self, zero, one, axes)
     a2 = op.Slice(self, one, two, axes)
     a3 = op.Slice(self, two, three, axes)
     b1 = op.Slice(other, zero, one, axes)
     b2 = op.Slice(other, one, two, axes)
     b3 = op.Slice(other, two, three, axes)
+    # Broadcasting is implicitly supported by Mul
     c1 = op.Sub(op.Mul(a2, b3), op.Mul(a3, b2))
     c2 = op.Sub(op.Mul(a3, b1), op.Mul(a1, b3))
     c3 = op.Sub(op.Mul(a1, b2), op.Mul(a2, b1))
