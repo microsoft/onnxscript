@@ -5579,7 +5579,7 @@ def aten_trunc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 
     # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-1463970126
     integer_parts = op.Floor(op.Abs(self))
-    is_negative = self < 0
+    is_negative = op.Less(self, 0.0)
     return op.Where(is_negative, op.Neg(integer_parts), integer_parts)
 
 
