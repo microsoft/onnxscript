@@ -1531,10 +1531,29 @@ def aten_cov(
     raise NotImplementedError()
 
 
-def aten_cross(self: TensorType, other: TensorType, dim: Optional[int] = None) -> TensorType:
+@torch_op("aten::cross")
+def aten_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
     """cross(Tensor self, Tensor other, int? dim=None) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    two = op.Constant(value_ints=[2])
+    three = op.Constant(value_ints=[3])
+    axes = op.Expand(dim, op.Constant(value_ints=[1]))
+
+    # Reference https://en.wikipedia.org/w/index.php?title=Cross_product&oldid=1143125073
+    a1 = op.Slice(self, zero, one, axes)
+    a2 = op.Slice(self, one, two, axes)
+    a3 = op.Slice(self, two, three, axes)
+    b1 = op.Slice(other, zero, one, axes)
+    b2 = op.Slice(other, one, two, axes)
+    b3 = op.Slice(other, two, three, axes)
+    # Broadcasting is implicitly supported by Mul
+    c1 = op.Sub(op.Mul(a2, b3), op.Mul(a3, b2))
+    c2 = op.Sub(op.Mul(a3, b1), op.Mul(a1, b3))
+    c3 = op.Sub(op.Mul(a1, b2), op.Mul(a2, b1))
+
+    return op.Concat(c1, c2, c3, axis=dim)
 
 
 def aten_crow_indices(self: TensorType) -> TensorType:
@@ -2009,7 +2028,6 @@ def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::empty_like", overload=True)
 def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)
 
@@ -4236,7 +4254,6 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::ones_like", overload=True)
 def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(one, shape)
 
@@ -5790,6 +5807,5 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::zeros_like", overload=True)
 def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)

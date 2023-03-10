@@ -305,6 +305,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    "cross": core_ops.aten_cross,
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
@@ -751,7 +752,7 @@ class TestOutputConsistency(unittest.TestCase):
             assert callable(onnx_function_and_wrangler)
             onnx_function = onnx_function_and_wrangler
 
-        for (i, cpu_sample) in enumerate(samples):
+        for i, cpu_sample in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
             # Provide the repr to subtest because tensors are not serializable in parallel test runs
             with self.subTest(
