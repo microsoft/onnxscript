@@ -322,19 +322,18 @@ class TorchScriptGraph:
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             torch_value.setType(
-                torch._C.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
+                torch.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
             )
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
             return tensor_value  # type: ignore[return-value]
         torch_value = self._torch_graph.addInput(input_name)
-        torchscript_input_value = torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
+        torchscript_input_value = torch.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
             input_value
         )
         rank = torchscript_input_value.dim()
         # We set sizes all to be dynamic as default, as function layers are no longer relying on the shape type inference pass in exporter
         # TODO(titaiwang): design static_axes once public API is decided
         torch_value.setType(torchscript_input_value.with_sizes([None] * rank))
-        # torch_value.setType(torchscript_input_value)
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
@@ -392,6 +391,14 @@ class TorchScriptGraph:
             attributes=dict(value=constant_tensor),
         )[0]
 
+    def _add_concat_sequence_to_graph(self, inputs, axis: int = 0) -> torch.Value:
+        return _create_op_call_in_torch_graph(
+            self._torch_graph,
+            "onnx::Concat",
+            inputs=inputs,
+            attributes=dict(axis=axis),
+        )[0]
+
     @beartype
     def _add_torchscript_op_call(
         self,
@@ -404,7 +411,12 @@ class TorchScriptGraph:
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if not isinstance(input, torch.Value):
+            if isinstance(input, (tuple, list)) and all(
+                isinstance(ele, torch.Value) for ele in input
+            ):
+                # Supports list of tensors
+                graph_inputs.append(self._add_concat_sequence_to_graph(input))
+            elif not isinstance(input, torch.Value):
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
@@ -429,7 +441,6 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
-
         result = self._add_torchscript_op_call(
             f"onnx::{onnx_op_schema.name}",
             onnx_inputs,
@@ -450,7 +461,6 @@ class TorchScriptGraph:
         self._function_store[identifier] = onnx_function
 
         # Compute outputs from the function schema
-
         result = self._add_torchscript_op_call(
             f"{onnx_function.function_ir.domain}::{onnx_function.name}",
             onnx_inputs,
