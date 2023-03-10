@@ -752,7 +752,7 @@ class TestOutputConsistency(unittest.TestCase):
             assert callable(onnx_function_and_wrangler)
             onnx_function = onnx_function_and_wrangler
 
-        for (i, cpu_sample) in enumerate(samples):
+        for i, cpu_sample in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
             # Provide the repr to subtest because tensors are not serializable in parallel test runs
             with self.subTest(

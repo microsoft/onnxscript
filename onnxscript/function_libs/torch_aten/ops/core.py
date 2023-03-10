@@ -2026,7 +2026,6 @@ def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::empty_like", overload=True)
 def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)
 
@@ -4253,7 +4252,6 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::ones_like", overload=True)
 def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(one, shape)
 
@@ -5807,6 +5805,5 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::zeros_like", overload=True)
 def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)
