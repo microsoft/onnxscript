@@ -176,10 +176,28 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_all(self: TensorType) -> TensorType:
+@torch_op("aten::all")
+def aten_all(self: TTensor, dim: Optional[int] = None, keepdim: Optional[bool] = False) -> TTensor:
     """all(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    rank_self = op.Size(op.Shape(self))
+    if rank_self == 0:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+
+    self_bool = op.Cast(self, to=BOOL.dtype)
+    self_int = op.Cast(self_bool, to=INT64.dtype)
+
+    if op.OptionalHasElement(dim):
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result_int = op.ReduceMin(self_int, dims, keepdims=keepdim)
+    else:
+        result_int = op.ReduceMin(self_int, keepdims=keepdim)
+    result = op.Cast(result_int, to=BOOL.dtype)
+
+    if rank_self == 0:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_allclose(
@@ -2863,10 +2881,11 @@ def aten_isclose(
     raise NotImplementedError()
 
 
+@torch_op("aten::isfinite")
 def aten_isfinite(self: TensorType) -> TensorType:
     """isfinite(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Not(op.IsInf(self))
 
 
 @torch_op("aten::isinf")
@@ -5131,10 +5150,11 @@ def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> Tensor
     raise NotImplementedError()
 
 
-def aten_split_with_sizes(self: TensorType, split_sizes: INT64, dim: int = 0) -> TensorType:
+@torch_op("aten::split_with_sizes")
+def aten_split_with_sizes(self: TTensor, split_sizes: INT64, dim: int = 0) -> TTensor:
     """split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]"""
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_sizes, axis=dim)
 
 
 def aten_split_with_sizes_copy(

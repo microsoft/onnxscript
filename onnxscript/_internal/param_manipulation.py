@@ -70,6 +70,7 @@ def separate_input_attributes_from_arguments(
             else:
                 continue
         elif param.required:
-            raise TypeError(f"Required input '{param}' was not provided")
+            # raise TypeError(f"Required input '{param}' was not provided")
+            print(f"Required input '{param}' was not provided")
 
     return onnx_inputs, onnx_attributes

@@ -283,6 +283,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
         Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
 ] = {
+    "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
@@ -323,6 +324,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
+    "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
     "le": core_ops.aten_le,
@@ -380,6 +382,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
     "softmax": special_ops.aten_special_softmax,
+    "split_with_sizes": core_ops.aten_split_with_sizes,
     "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
     "stack": core_ops.aten_stack,
@@ -759,6 +762,9 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+                if i == 9:
+                    print(i)
+
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
