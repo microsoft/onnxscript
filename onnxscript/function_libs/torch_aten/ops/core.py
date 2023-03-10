@@ -965,7 +965,7 @@ def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
     dim_size = op.Gather(self_shape, dim, axis=0)
     # Compute size/chunk to get the number of data in one chunk
     num_per_chunk = op.Div(dim_size, chunks)
-    num_per_chunk = op.Cast(op.Mod(dim_size, chunks) > 0, to=INT64.dtype) + num_per_chunk
+    num_per_chunk = op.Cast(op.Mod(dim_size, chunks) > 0, to=INT64.dtype) + num_per_chunk  # type: ignore[operator]
 
     # Compute real chunk number
     num_chunk = op.Div(dim_size, num_per_chunk)
