@@ -1531,10 +1531,27 @@ def aten_cov(
     raise NotImplementedError()
 
 
-def aten_cross(self: TensorType, other: TensorType, dim: Optional[int] = None) -> TensorType:
+@torch_op("aten::cross")
+def aten_cross(self: TensorType, other: TensorType, dim: int = -1) -> TensorType:
     """cross(Tensor self, Tensor other, int? dim=None) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    two = op.Constant(value_ints=[2])
+    three = op.Constant(value_ints=[3])
+    axes = op.Expand(dim, op.Constant(value_ints=[1]))
+
+    a1 = op.Slice(self, zero, one, axes)
+    a2 = op.Slice(self, one, two, axes)
+    a3 = op.Slice(self, two, three, axes)
+    b1 = op.Slice(other, zero, one, axes)
+    b2 = op.Slice(other, one, two, axes)
+    b3 = op.Slice(other, two, three, axes)
+    c1 = op.Sub(op.Mul(a2, b3), op.Mul(a3, b2))
+    c2 = op.Sub(op.Mul(a3, b1), op.Mul(a1, b3))
+    c3 = op.Sub(op.Mul(a1, b2), op.Mul(a2, b1))
+
+    return op.Concat(c1, c2, c3, axis=dim)
 
 
 def aten_crow_indices(self: TensorType) -> TensorType:

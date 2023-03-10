@@ -305,6 +305,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    "cross": core_ops.aten_cross,
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
