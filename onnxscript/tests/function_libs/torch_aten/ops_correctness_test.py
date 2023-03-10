@@ -27,11 +27,14 @@ import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
+import onnxruntime as ort
 
 import onnxscript
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
+from onnxscript.function_libs.torch_aten import graph_building
+from onnxscript import evaluator
 from onnxscript.tests.common import version_utils
 from onnxscript.tests.function_libs.torch_aten import extra_opinfo
 
@@ -57,6 +60,8 @@ FLOAT_TYPES = (
     torch.float32,
     torch.float64,
 )
+
+TEST_OPSET_VERSION = 18
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -680,8 +685,6 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
-
-
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
         functions = set()
@@ -727,15 +730,49 @@ class TestFunctionValidity(unittest.TestCase):
         function_proto = func.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
-# TODO: create an evaluator that captures the full graph and then compute using
-# the full graph. This will be useful for testing the full graph.
 
-# TODO(justinchuby): Parameterize this and construct different backends
+def _capture_graph_and_evaluate_torch_script_evaluator(function: Callable, args, kwargs):
+    """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
+    # Initialize the ONNX graph
+    onnxscript_graph = graph_building.TorchScriptGraph()
+    tracer = graph_building.TorchScriptTracingEvaluator(onnxscript_graph)
+    count = 0
+    inputs = {}
+    for arg in args:
+        if isinstance(arg, torch.Tensor):
+            onnxscript_graph.add_input(f"input_{count}", arg)
+            inputs[f"input_{count}"] = arg
+            count += 1
+    for key, value in kwargs.items():
+        if isinstance(value, torch.Tensor):
+            onnxscript_graph.add_input(key, value)
+            inputs[key] = value
+    with evaluator.default_as(tracer):
+        outputs = function(*args, **kwargs)
+    onnxscript_graph.register_outputs(outputs)
+    onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
+    session = ort.InferenceSession(onnx_model.SerializeToString())
+    return session.run(None, inputs)
+
+
+@parameterized.parameterized_class(
+    [
+        {"function_evaluator": lambda f, args, kwargs: f(*args, **kwargs), "name": "eager"},
+        {
+            "function_evaluator": _capture_graph_and_evaluate_torch_script_evaluator,
+            "name": "full_graph",
+        },
+    ]
+)
 class TestOutputConsistency(unittest.TestCase):
     """Test output consistency between exported ONNX models and PyTorch eager mode.
 
     This is a parameterized test suite.
     """
+
+    # The function evaluator to use. This is a function that takes a function and its arguments
+    # and returns the output of the function.
+    function_evaluator: Callable
 
     def setUp(self) -> None:
         torch.manual_seed(42)
@@ -774,7 +811,7 @@ class TestOutputConsistency(unittest.TestCase):
             assert callable(onnx_function_and_wrangler)
             onnx_function = onnx_function_and_wrangler
 
-        for (i, cpu_sample) in enumerate(samples):
+        for i, cpu_sample in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
             # Provide the repr to subtest because tensors are not serializable in parallel test runs
             with self.subTest(
@@ -792,7 +829,9 @@ class TestOutputConsistency(unittest.TestCase):
                 if input_wrangler:
                     input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
-                function_output = onnx_function(*input_onnx, **kwargs_onnx)
+                function_output = self.function_evaluator(
+                    onnx_function, input_onnx, kwargs_onnx
+                )
 
                 # TODO: add pytree structure comparison.
                 flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
