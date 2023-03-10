@@ -34,7 +34,7 @@ from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
 from onnxscript.function_libs.torch_aten import graph_building
-from onnxscript import evaluator
+import onnxscript.evaluator
 from onnxscript.tests.common import version_utils
 from onnxscript.tests.function_libs.torch_aten import extra_opinfo
 
@@ -61,7 +61,7 @@ FLOAT_TYPES = (
     torch.float64,
 )
 
-TEST_OPSET_VERSION = 18
+TEST_OPSET_VERSION = 17
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -731,38 +731,60 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
-def _capture_graph_and_evaluate_torch_script_evaluator(function: Callable, args, kwargs):
+def _capture_graph_and_evaluate_torch_script_evaluator(test_class, function: Callable, args, kwargs):
     """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
+    del test_class  # Unused
+
     # Initialize the ONNX graph
     onnxscript_graph = graph_building.TorchScriptGraph()
     tracer = graph_building.TorchScriptTracingEvaluator(onnxscript_graph)
-    count = 0
-    inputs = {}
-    for arg in args:
-        if isinstance(arg, torch.Tensor):
-            onnxscript_graph.add_input(f"input_{count}", arg)
-            inputs[f"input_{count}"] = arg
-            count += 1
+    ort_inputs = {}
+    onnxscript_args = []
+    onnxscript_kwargs = {}
+    for i, arg in enumerate(args):
+        if isinstance(arg, np.ndarray):
+            input_name = f"input_{i}"
+            input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
+            onnxscript_args.append(input)
+            ort_inputs[input_name] = arg
+        else:
+            onnxscript_args.append(arg)
     for key, value in kwargs.items():
-        if isinstance(value, torch.Tensor):
-            onnxscript_graph.add_input(key, value)
-            inputs[key] = value
-    with evaluator.default_as(tracer):
-        outputs = function(*args, **kwargs)
+        if isinstance(value, np.ndarray):
+            input = onnxscript_graph.add_input(key, torch.tensor(value))
+            ort_inputs[key] = value
+            onnxscript_kwargs[key] = input
+        else:
+            onnxscript_kwargs[key] = value
+
+    with onnxscript.evaluator.default_as(tracer):
+        outputs = function(*onnxscript_args, **onnxscript_kwargs)
     onnxscript_graph.register_outputs(outputs)
+
     onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
     session = ort.InferenceSession(onnx_model.SerializeToString())
-    return session.run(None, inputs)
+
+    return session.run(None, ort_inputs)
+
+
+def _get_test_class_name(cls, num, params_dict) -> str:
+    del cls  # unused
+    del num  # unused
+    return params_dict["name"]
 
 
 @parameterized.parameterized_class(
     [
-        {"function_evaluator": lambda f, args, kwargs: f(*args, **kwargs), "name": "eager"},
+        {
+            "function_evaluator": lambda _, f, args, kwargs: f(*args, **kwargs),
+            "name": "TestOutputConsistency_Eager",
+        },
         {
             "function_evaluator": _capture_graph_and_evaluate_torch_script_evaluator,
-            "name": "full_graph",
+            "name": "TestOutputConsistency_FullGraph",
         },
-    ]
+    ],
+    class_name_func=_get_test_class_name,
 )
 class TestOutputConsistency(unittest.TestCase):
     """Test output consistency between exported ONNX models and PyTorch eager mode.
@@ -781,12 +803,6 @@ class TestOutputConsistency(unittest.TestCase):
     @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],
         allowed_dtypes=TESTED_DTYPES,
-    )
-    @add_decorate_info(
-        OPS_DB,
-        "TestOutputConsistency",
-        "test_output_match",
-        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
     )
     def test_output_match(self, device: str, dtype: torch.dtype, op):
         """Base test method for testing each opset, used by instantiate_device_type_tests."""
@@ -880,9 +896,17 @@ class TestOutputConsistency(unittest.TestCase):
                     )
 
 
-common_device_type.instantiate_device_type_tests(
-    TestOutputConsistency, globals(), only_for="cpu"
-)
+# The name needs to match the parameterized_class name.
+for _test_class_name in ("TestOutputConsistency_Eager", "TestOutputConsistency_FullGraph"):
+    add_decorate_info(
+        OPS_DB,
+        _test_class_name,
+        "test_output_match",
+        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
+    )
+    common_device_type.instantiate_device_type_tests(
+        globals()[_test_class_name], globals(), only_for="cpu"
+    )
 
 
 if __name__ == "__main__":
