@@ -960,23 +960,21 @@ def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
     """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
 
     neg_1 = op.Constant(value_ints=[-1])
-    # get size of specified dim
+    # Get size of specified dim
     self_shape = op.Shape(self)
     dim_size = op.Gather(self_shape, dim, axis=0)
-    # cal size/chunk, get number of data in one chunk
+    # Compute size/chunk to get the number of data in one chunk
     num_per_chunk = op.Div(dim_size, chunks)
-    if op.Mod(dim_size, chunks) > 0:  # type: ignore[operator]
-        # cannot be divisible, then num_in_chunk + 1
-        num_per_chunk = op.Add(num_per_chunk, 1)
+    num_per_chunk = op.Cast(op.Mod(dim_size, chunks) > 0, to=INT64.dtype) + num_per_chunk
 
-    # cal real chunk number
+    # Compute real chunk number
     num_chunk = op.Div(dim_size, num_per_chunk)
-    # get something like [n, n, n, n, ...], total num_chunk
+    # Get something like [n, n, n, n, ...], total num_chunk
     list_split = op.Expand(num_per_chunk, op.Reshape(num_chunk, neg_1))
 
     remainder = op.Mod(dim_size, num_per_chunk)
     if remainder > 0:  # type: ignore[operator]
-        # append the remainder to the [n, n, n, n, ..., r]
+        # Append the remainder to the [n, n, n, n, ..., r]
         list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
     return op.Split(self, list_split, axis=dim)
 
