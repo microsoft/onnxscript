@@ -28,6 +28,7 @@ COMMON_TEST_DEPENDENCIES = (
 ONNX = "onnx==1.13.1"
 ONNX_RUNTIME = "onnxruntime==1.14.1"
 PYTORCH = "torch==1.13.1"
+PYTEST_RANDOMLY = "pytest-randomly"
 
 
 @nox.session(tags=["build"])
@@ -102,3 +103,19 @@ def test_onnx_weekly(session):
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
+
+
+@nox.session(tags=["test-random-ordering"])
+def test_random_ordering(session):
+    """Run onnxscript test in random order to reduce test dependencies."""
+    session.install(
+        *COMMON_TEST_DEPENDENCIES,
+        PYTORCH,
+        ONNX,
+        ONNX_RUNTIME,
+        PYTEST_RANDOMLY,
+    )
+    session.install(".", "--no-deps")
+    session.run("pip", "list")
+    session.run("pytest", "onnxscript", *session.posargs)
+    session.run("pytest", "docs/test", *session.posargs)
