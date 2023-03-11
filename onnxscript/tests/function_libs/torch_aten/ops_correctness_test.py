@@ -340,6 +340,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "broadcast_to": core_ops.aten_broadcast_to,
     "cat": (core_ops.aten_cat, _cat_input_wrangler),
     "ceil": core_ops.aten_ceil,
+    "chunk": core_ops.aten_chunk,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clone": core_ops.aten_clone,
