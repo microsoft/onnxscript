@@ -203,16 +203,11 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        # FIXME(justinchuby): Remove this condition when ORT doesn't core dump on rank 0 input.
-        result = self
+    dim_is_empty = op.Size(dim) == 0
+    if dim_is_empty:
+        result = op.ReduceMax(self, keepdims=keepdim)
     else:
-        dim_is_empty = op.Size(dim) == 0
-        if dim_is_empty:
-            result = op.ReduceMax(self, keepdims=keepdim)
-        else:
-            result = op.ReduceMax(self, dim, keepdims=keepdim)
+        result = op.ReduceMax(self, dim, keepdims=keepdim)
     return result
 
 
@@ -220,16 +215,11 @@ def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
 def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        # FIXME(justinchuby): Remove this condition when ORT doesn't core dump on rank 0 input.
-        result = self
+    dim_is_empty = op.Size(dim) == 0
+    if dim_is_empty:
+        result = op.ReduceMin(self, keepdims=keepdim)
     else:
-        dim_is_empty = op.Size(dim) == 0
-        if dim_is_empty:
-            result = op.ReduceMin(self, keepdims=keepdim)
-        else:
-            result = op.ReduceMin(self, dim, keepdims=keepdim)
+        result = op.ReduceMin(self, dim, keepdims=keepdim)
     return result
 
 
@@ -4052,7 +4042,21 @@ def aten_native_layer_norm(
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
+    
+    # Use Python to manipulate
     start_axis = -len(normalized_shape)
+    return _aten_native_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
+
+
+@torch_op("aten::native_layer_norm", overload=True)
+def _aten_native_layer_norm_onnx(
+    input: TReal,
+    weight: Optional[TReal],
+    bias: Optional[TReal],
+    axis: int,
+    eps: float,
+) -> Tuple[TReal, TReal, TReal]:
+    """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
     if not op.OptionalHasElement(weight):
         one = op.Constant(value_floats=[1.0])
