@@ -4034,7 +4034,7 @@ def aten_native_layer_norm(
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
-    
+
     # Use Python to manipulate
     start_axis = -len(normalized_shape)
     return _aten_native_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
