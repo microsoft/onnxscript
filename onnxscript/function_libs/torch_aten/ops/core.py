@@ -4052,16 +4052,16 @@ def _aten_native_layer_norm_onnx(
 
     if not op.OptionalHasElement(weight):
         one = op.Constant(value_floats=[1.0])
-        weight = op.Expand(one, op.Shape(input, start=start_axis))
+        weight = op.Expand(one, op.Shape(input, start=axis))
         weight = op.CastLike(weight, input)
 
     if not op.OptionalHasElement(bias):
         result, mean, rdenominator = op.LayerNormalization(
-            input, weight, axis=start_axis, epsilon=eps
+            input, weight, axis=axis, epsilon=eps
         )
     else:
         result, mean, rdenominator = op.LayerNormalization(
-            input, weight, bias, axis=start_axis, epsilon=eps
+            input, weight, bias, axis=axis, epsilon=eps
         )
 
     return result, mean, rdenominator
