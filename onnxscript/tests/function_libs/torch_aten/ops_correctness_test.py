@@ -22,7 +22,6 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 
 import numpy as np
 import onnx
-import onnx.shape_inference
 import onnxruntime as ort
 import onnxruntime.capi.onnxruntime_pybind11_state
 import parameterized
@@ -273,6 +272,15 @@ def _full_input_wrangler(
     return args, kwargs
 
 
+def _native_layer_norm_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Convert normalized_shape back to a list
+    normalized_shape_position = 1
+    args[normalized_shape_position] = args[normalized_shape_position].tolist()
+    return args, kwargs
+
+
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -448,7 +456,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
-    "native_layer_norm": core_ops.aten_native_layer_norm,
+    "native_layer_norm": (core_ops.aten_native_layer_norm, _native_layer_norm_input_wrangler),
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
     "nn.functional.conv1d": core_ops.aten_conv1d,
@@ -925,8 +933,8 @@ class TestOutputConsistency(unittest.TestCase):
                 assert flattened_torch_outputs
                 assert len(flattened_torch_outputs) == len(flattened_function_outputs)
 
-                for torch_output, function_output in zip(
-                    flattened_torch_outputs, flattened_function_outputs
+                for j, (torch_output, function_output) in enumerate(
+                    zip(flattened_torch_outputs, flattened_function_outputs)
                 ):
                     if dtype == torch.float32:
                         # Relax atol and rtol for float32 based on empirical results
@@ -956,13 +964,16 @@ class TestOutputConsistency(unittest.TestCase):
                         continue
 
                     # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
-                    torch.testing.assert_close(
-                        actual,
-                        expected,
-                        rtol=rtol,
-                        atol=atol,
-                        check_device=False,
-                    )
+                    try:
+                        torch.testing.assert_close(
+                            actual,
+                            expected,
+                            rtol=rtol,
+                            atol=atol,
+                            check_device=False,
+                        )
+                    except AssertionError as e:
+                        raise AssertionError(f"Output {j} mismatch") from e
 
 
 # The name needs to match the parameterized_class name.
