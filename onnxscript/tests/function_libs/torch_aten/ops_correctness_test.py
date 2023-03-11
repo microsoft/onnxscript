@@ -347,6 +347,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    "cross": core_ops.aten_cross,
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
@@ -430,6 +431,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     "topk": core_ops.aten_topk,
+    "trunc": core_ops.aten_trunc,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
