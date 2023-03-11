@@ -203,24 +203,16 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    dim_is_empty = op.Size(dim) == 0
-    if dim_is_empty:
-        result = op.ReduceMax(self, keepdims=keepdim)
-    else:
-        result = op.ReduceMax(self, dim, keepdims=keepdim)
-    return result
+    # ReduceMax reduces all dimensions when dim is empty
+    return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
 @torch_op("aten::amin")
 def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    dim_is_empty = op.Size(dim) == 0
-    if dim_is_empty:
-        result = op.ReduceMin(self, keepdims=keepdim)
-    else:
-        result = op.ReduceMin(self, dim, keepdims=keepdim)
-    return result
+    # ReduceMin reduces all dimensions when dim is empty
+    return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
 def aten_aminmax(
