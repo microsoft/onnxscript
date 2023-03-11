@@ -789,18 +789,25 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
             symbolic_outputs = (symbolic_outputs,)
         # We need to set the size of the output tensors for the model to be valid
         for output, symbolic_output in zip(outputs, symbolic_outputs):
+            output = (
+                output
+                if isinstance(output, torch.Tensor)
+                else torch.tensor(output, device="cpu")
+            )
             symbolic_output.shape = output.shape
+            symbolic_output.dtype = output.dtype
 
         onnxscript_graph.register_outputs(symbolic_outputs)
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
-        session = ort.InferenceSession(onnx_model.SerializeToString())
 
         try:
+            session = ort.InferenceSession(onnx_model.SerializeToString())
             return session.run(None, ort_inputs)
         except (
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
         ) as e:
             raise AssertionError(
                 f"ONNX Runtime failed to evaluate:\n"

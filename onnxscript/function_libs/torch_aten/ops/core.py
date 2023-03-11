@@ -4003,7 +4003,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: INT64,
+    normalized_shape: Sequence[int],
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
@@ -5297,7 +5297,6 @@ def aten_symeig(
 def aten_t(self: TTensor) -> TTensor:
     """t(Tensor(a) self) -> Tensor(a)"""
 
-    # TODO(justinchuby): Make rank a function
     rank = op.Size(op.Shape(self))
     if rank == 0 or rank == 1:  # pylint: disable=consider-using-in
         result = self
