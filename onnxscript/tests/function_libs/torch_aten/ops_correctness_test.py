@@ -7,6 +7,8 @@
 error messages if there are any.
 2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
 Prefer xfail over skip when possible.
+    2a. If a test is now failing because of xpass, because some previous errors
+    are now fixed, removed the corresponding xfail.
 3. If the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
 4. If the OpInfo needs to be duplicated to test multiple overloads, use
@@ -986,7 +988,9 @@ class TestOutputConsistency(unittest.TestCase):
                             check_device=False,
                         )
                     except AssertionError as e:
-                        raise AssertionError(f"Output {j} mismatch") from e
+                        if len(flattened_torch_outputs) > 1:
+                            raise AssertionError(f"Output {j} mismatch") from e
+                        raise
 
 
 # The name needs to match the parameterized_class name.
