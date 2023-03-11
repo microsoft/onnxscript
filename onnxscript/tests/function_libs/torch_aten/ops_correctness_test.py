@@ -516,6 +516,16 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
+        "amax",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
+    ),
+    skip(
+        "amin",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
+    ),
+    skip(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
