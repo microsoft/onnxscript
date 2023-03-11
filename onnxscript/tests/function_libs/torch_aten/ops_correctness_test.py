@@ -22,20 +22,21 @@ from typing import Any, Callable, Collection, Iterable, Optional, Sequence, Type
 
 import numpy as np
 import onnx
+import onnx.shape_inference
+import onnxruntime as ort
+import onnxruntime.capi.onnxruntime_pybind11_state
 import parameterized
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
 from torch.utils import _pytree as pytree
-import onnxruntime as ort
-import onnxruntime.capi.onnxruntime_pybind11_state
 
 import onnxscript
+import onnxscript.evaluator
+from onnxscript.function_libs.torch_aten import graph_building
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
-from onnxscript.function_libs.torch_aten import graph_building
-import onnxscript.evaluator
 from onnxscript.tests.common import version_utils
 from onnxscript.tests.function_libs.torch_aten import extra_opinfo
 
@@ -202,6 +203,18 @@ OPS_DB.extend(extra_opinfo.OP_DB)
 # Modify this section ##########################################################
 
 
+def _amin_amax_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "dim" not in kwargs:
+        # Supply an empty dim to match the aten signature
+        kwargs["dim"] = np.array([], dtype=np.int64)
+    else:
+        # Convert dim to a numpy array
+        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64).reshape((-1,))
+    return args, kwargs
+
+
 def _cat_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -308,6 +321,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "add": core_ops.aten_add,
     "addmm": core_ops.aten_addmm,
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
+    "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
+    "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -419,8 +434,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    "amax": core_ops.aten_amax,
-    "amin": core_ops.aten_amin,
     "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
@@ -732,57 +745,82 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
-def _capture_graph_and_evaluate_torch_script_evaluator(
-    test_class, function: Callable, args, kwargs
-):
-    """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
+def _graph_executor(test_class, outputs: Sequence[Any]):
+    """Eagerly executes a function."""
     del test_class  # Unused
 
-    # Initialize the ONNX graph
-    onnxscript_graph = graph_building.TorchScriptGraph()
-    tracer = graph_building.TorchScriptTracingEvaluator(onnxscript_graph)
-    ort_inputs = {}
-    onnxscript_args = []
-    onnxscript_kwargs = {}
-    for i, arg in enumerate(args):
-        if isinstance(arg, np.ndarray):
-            input_name = f"input_{i}"
-            input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
-            onnxscript_args.append(input)
-            ort_inputs[input_name] = arg
-        elif isinstance(arg, Sequence):
-            sequence_input = []
-            for j, subarg in enumerate(arg):
-                if isinstance(subarg, np.ndarray):
-                    input_name = f"input_{i}_{j}"
-                    input = onnxscript_graph.add_input(input_name, torch.tensor(subarg))
-                    sequence_input.append(input)
-                    ort_inputs[input_name] = subarg
-            onnxscript_args.append(sequence_input)
-        else:
-            onnxscript_args.append(arg)
-    for key, value in kwargs.items():
-        if isinstance(value, np.ndarray):
-            input = onnxscript_graph.add_input(key, torch.tensor(value))
-            ort_inputs[key] = value
-            onnxscript_kwargs[key] = input
-        else:
-            onnxscript_kwargs[key] = value
+    def _capture_graph_and_evaluate_torch_script_evaluator(function: Callable, args, kwargs):
+        """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
 
-    with onnxscript.evaluator.default_as(tracer):
-        outputs = function(*onnxscript_args, **onnxscript_kwargs)
-    onnxscript_graph.register_outputs(outputs)
+        # Initialize the ONNX graph
+        onnxscript_graph = graph_building.TorchScriptGraph()
+        tracer = graph_building.TorchScriptTracingEvaluator(onnxscript_graph)
+        ort_inputs = {}
+        onnxscript_args = []
+        onnxscript_kwargs = {}
+        for i, arg in enumerate(args):
+            if isinstance(arg, np.ndarray):
+                input_name = f"input_{i}"
+                input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
+                onnxscript_args.append(input)
+                ort_inputs[input_name] = arg
+            elif isinstance(arg, Sequence):
+                sequence_input = []
+                for j, subarg in enumerate(arg):
+                    if isinstance(subarg, np.ndarray):
+                        input_name = f"input_{i}_{j}"
+                        input = onnxscript_graph.add_input(input_name, torch.tensor(subarg))
+                        sequence_input.append(input)
+                        ort_inputs[input_name] = subarg
+                onnxscript_args.append(sequence_input)
+            else:
+                onnxscript_args.append(arg)
+        for key, value in kwargs.items():
+            if isinstance(value, np.ndarray):
+                input = onnxscript_graph.add_input(key, torch.tensor(value))
+                ort_inputs[key] = value
+                onnxscript_kwargs[key] = input
+            else:
+                onnxscript_kwargs[key] = value
 
-    onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
-    session = ort.InferenceSession(onnx_model.SerializeToString())
+        with onnxscript.evaluator.default_as(tracer):
+            symbolic_outputs = function(*onnxscript_args, **onnxscript_kwargs)
+        if not isinstance(symbolic_outputs, Sequence):
+            symbolic_outputs = (symbolic_outputs,)
+        # We need to set the size of the output tensors for the model to be valid
+        for output, symbolic_output in zip(outputs, symbolic_outputs):
+            symbolic_output.shape = output.shape
 
-    try:
-        return session.run(None, ort_inputs)
-    except onnxruntime.capi.onnxruntime_pybind11_state.Fail as e:
-        raise AssertionError(
-            f"ONNX Runtime failed to evaluate the model:\n"
-            f"{onnxscript.proto2text(onnx_model)}"
-        ) from e
+        onnxscript_graph.register_outputs(symbolic_outputs)
+
+        onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
+        session = ort.InferenceSession(onnx_model.SerializeToString())
+
+        try:
+            return session.run(None, ort_inputs)
+        except (
+            onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
+        ) as e:
+            raise AssertionError(
+                f"ONNX Runtime failed to evaluate:\n"
+                f"Inputs: {ort_inputs}\n"
+                f"Model:\n"
+                f"{onnxscript.proto2text(onnx_model)}"
+            ) from e
+
+    return _capture_graph_and_evaluate_torch_script_evaluator
+
+
+def _eager_executor(test_class, outputs):
+    """Eagerly executes a function."""
+    del test_class  # Unused
+    del outputs  # Unused
+
+    def executor(function, args, kwargs):
+        return function(*args, **kwargs)
+
+    return executor
 
 
 def _get_test_class_name(cls, num, params_dict) -> str:
@@ -794,11 +832,11 @@ def _get_test_class_name(cls, num, params_dict) -> str:
 @parameterized.parameterized_class(
     [
         {
-            "function_evaluator": lambda _, f, args, kwargs: f(*args, **kwargs),
+            "function_executor": _eager_executor,
             "name": "TestOutputConsistency_Eager",
         },
         {
-            "function_evaluator": _capture_graph_and_evaluate_torch_script_evaluator,
+            "function_executor": _graph_executor,
             "skip_test": unittest.SkipTest("only torch>=2.0 is supported")
             if version_utils.torch_older_than("2.0")
             else None,
@@ -815,7 +853,7 @@ class TestOutputConsistency(unittest.TestCase):
 
     # The function evaluator to use. This is a function that takes a function and its arguments
     # and returns the output of the function.
-    function_evaluator: Callable
+    function_executor: Callable
 
     # Unittest skip if not None
     skip_test: Optional[unittest.SkipTest] = None
@@ -869,12 +907,12 @@ class TestOutputConsistency(unittest.TestCase):
                 if input_wrangler:
                     input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
-                function_output = self.function_evaluator(
-                    onnx_function, input_onnx, kwargs_onnx
-                )
 
                 # TODO: add pytree structure comparison.
                 flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
+                function_output = self.function_executor(flattened_torch_outputs)(
+                    onnx_function, input_onnx, kwargs_onnx
+                )
                 flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
                 assert flattened_torch_outputs

@@ -27,7 +27,6 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TTensor,
     TTensorOrString,
 )
-from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -204,11 +203,16 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    dim_is_empty = op.Size(dim) == 0
-    if dim_is_empty:
-        result = op.ReduceMax(self, keepdims=keepdim)
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        # FIXME(justinchuby): Remove this condition when ORT doesn't core dump on rank 0 input.
+        result = self
     else:
-        result = op.ReduceMax(self, axes, keepdims=keepdims)
+        dim_is_empty = op.Size(dim) == 0
+        if dim_is_empty:
+            result = op.ReduceMax(self, keepdims=keepdim)
+        else:
+            result = op.ReduceMax(self, dim, keepdims=keepdim)
     return result
 
 
@@ -216,11 +220,16 @@ def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
 def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    dim_is_empty = op.Size(dim) == 0
-    if dim_is_empty:
-        result = op.ReduceMin(self, keepdims=keepdim)
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        # FIXME(justinchuby): Remove this condition when ORT doesn't core dump on rank 0 input.
+        result = self
     else:
-        result = op.ReduceMin(self, axes, keepdims=keepdims)
+        dim_is_empty = op.Size(dim) == 0
+        if dim_is_empty:
+            result = op.ReduceMin(self, keepdims=keepdim)
+        else:
+            result = op.ReduceMin(self, dim, keepdims=keepdim)
     return result
 
 
@@ -1983,7 +1992,6 @@ def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::empty_like", overload=True)
 def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)
 
@@ -4210,7 +4218,6 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::ones_like", overload=True)
 def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(one, shape)
 
@@ -5764,6 +5771,5 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::zeros_like", overload=True)
 def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)
