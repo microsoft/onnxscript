@@ -4003,22 +4003,19 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[int],
+    normalized_shape: INT64,
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,
 ) -> Tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    # Use python to manipulate the axes
     # https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
     # The mean and standard-deviation are calculated over the last D dimensions,
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
-
-    axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    start_axis = axes_list[0]
+    start_axis = op.Neg(op.Size(normalized_shape))
 
     if not op.OptionalHasElement(weight):
         one = op.Constant(value_floats=[1.0])
