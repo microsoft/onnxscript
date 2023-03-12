@@ -95,11 +95,12 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._name = name
         self._torch_value.setDebugName(name)
 
-    @property  # type: ignore[override]
-    def rank(self) -> int | None:
+    @property
+    def rank(self) -> int:
         value_type = self._torch_value.type()
         if value_type is None:
-            return None
+            # Use -1 to indicate unknown rank to maintain int output
+            return -1
         value_type = typing.cast(torch.TensorType, value_type)
         return value_type.dim()
 
@@ -322,17 +323,11 @@ class TorchScriptGraph:
             torch_value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
-            torch_value.setType(
-                torch._C.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
-            )
+            torch_value.setType(torch.OptionalType.ofTensor())
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
             return tensor_value  # type: ignore[return-value]
         torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(
-            torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
-                input_value
-            )
-        )
+        torch_value.setType(torch.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 

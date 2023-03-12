@@ -2955,24 +2955,38 @@ def aten_kthvalue(
 @torch_op("aten::layer_norm", trace_only=True)
 def aten_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[int],
+    normalized_shape: INT64,
     weight: Optional[TReal] = None,
     bias: Optional[TReal] = None,
     eps: float = 1e-05,
 ) -> TReal:
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
-    axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    start_axis = axes_list[0]
+    start_axis = -len(normalized_shape)
+
+    return _aten_layer_norm_onnx()
+
+
+@torch_op("aten::layer_norm", overload=True)
+def _aten_layer_norm_onnx(
+    input: TReal,
+    weight: Optional[TReal],
+    bias: Optional[TReal],
+    axis: int,
+    eps: float = 1e-05,
+) -> TReal:
+    """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
+
     if not op.OptionalHasElement(weight):
         one = op.Constant(value_float=1.0)
-        weight = op.Expand(one, op.Shape(input, start=start_axis))
+        weight = op.Expand(one, op.Shape(input, start=axis))
     if not op.OptionalHasElement(bias):
         zero = op.Constant(value_float=0.0)
-        bias = op.Expand(zero, op.Shape(input, start=start_axis))
+        bias = op.Expand(zero, op.Shape(input, start=axis))
 
-    result, _, _ = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
+    result, _, _ = op.LayerNormalization(input, weight, bias, axis=axis, epsilon=eps)
     return result
+
 
 
 def aten_lcm(self: TensorType, other: TensorType) -> TensorType:
@@ -4022,7 +4036,7 @@ def aten_native_group_norm_backward(
 @torch_op("aten::native_layer_norm", trace_only=True)
 def aten_native_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[int],
+    normalized_shape: INT64,
     weight: Optional[TReal],
     bias: Optional[TReal],
     eps: float,

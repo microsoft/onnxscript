@@ -86,6 +86,9 @@ class DecorateMeta:
     reason: str
     matcher: Optional[Callable[[Any], bool]] = None
     enabled_if: bool = True
+    # The test_class_name to apply the decorator to. If None, the decorator is
+    # applied to all test classes.
+    test_class_name: Optional[str] = None
 
 
 def xfail(
@@ -95,6 +98,7 @@ def xfail(
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
     enabled_if: bool = True,
+    test_class_name: Optional[str] = None,
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
@@ -104,6 +108,8 @@ def xfail(
         reason: The reason for the failure.
         dtypes: The dtypes to expect the failure.
         enabled_if: Whether the xfail is enabled.
+        test_class_name: The test class name to apply the xfail to. If None, the
+            xfail is applied to all test classes.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -112,6 +118,7 @@ def xfail(
         dtypes=dtypes,
         reason=reason,
         enabled_if=enabled_if,
+        test_class_name=test_class_name,
     )
 
 
@@ -123,6 +130,7 @@ def skip(
     dtypes: Optional[Collection[torch.dtype]] = None,
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
+    test_class_name: Optional[str] = None,
 ) -> DecorateMeta:
     """Skips an OpInfo test.
 
@@ -134,6 +142,8 @@ def skip(
         matcher: A function that matches the test sample input. It is used only when
             the skip is in the SKIP_SUBTESTS list.
         enabled_if: Whether the skip is enabled.
+        test_class_name: The test class name to apply the skip to. If None, the skip
+            is applied to all test classes.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -143,6 +153,7 @@ def skip(
         reason=reason,
         matcher=matcher,
         enabled_if=enabled_if,
+        test_class_name=test_class_name,
     )
 
 
@@ -162,7 +173,7 @@ def add_decorate_info(
         decorators = list(opinfo.decorators)
         new_decorator = opinfo_core.DecorateInfo(
             decorate_meta.decorator,
-            test_class_name,
+            decorate_meta.test_class_name or test_class_name,
             base_test_name,
             dtypes=decorate_meta.dtypes,
             active_if=decorate_meta.enabled_if,
@@ -513,6 +524,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_0", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals"),
     xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals"),
+    xfail("any", reason="fixme: ORT shape inference error", test_class_name="TestOutputConsistency_FullGraph"),
+    xfail("cat", reason="fixme: TorchScriptEvaluator does not support TensorSequence. Enable after #484", test_class_name="TestOutputConsistency_FullGraph"),
+    xfail("chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistency_FullGraph"),
+    xfail("index_select", reason="fixme: ORT shape inference error on rank-0 input", test_class_name="TestOutputConsistency_FullGraph"),
+    xfail("chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistency_FullGraph"),
 )
 
 
