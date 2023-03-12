@@ -1891,6 +1891,8 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
 def aten_dropout(input: TFloat, p: float = 0.5, train: bool = True) -> TFloat:
     """dropout(Tensor input, float p, bool train) -> Tensor"""
 
+    # The attribute train is actually int. So we need to cast it to a BOOL tensor.
+    train = op.Cast(train, to=BOOL.dtype)
     rank_input = op.Size(op.Shape(input))
     if rank_input == 0:
         input = op.Reshape(input, op.Constant(value_ints=[-1]))
