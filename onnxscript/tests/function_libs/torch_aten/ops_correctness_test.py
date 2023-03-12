@@ -285,15 +285,6 @@ def _full_input_wrangler(
     return args, kwargs
 
 
-def _native_layer_norm_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Convert normalized_shape back to a list
-    normalized_shape_position = 1
-    args[normalized_shape_position] = args[normalized_shape_position].tolist()
-    return args, kwargs
-
-
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -472,7 +463,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
-    "native_layer_norm": (core_ops.aten_native_layer_norm, _native_layer_norm_input_wrangler),
+    "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
     "nn.functional.conv1d": core_ops.aten_conv1d,
@@ -801,6 +792,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
             if isinstance(arg, np.ndarray):
                 input_name = f"input_{i}"
                 input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
+                input.shape = arg.shape
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
             elif isinstance(arg, Sequence):
@@ -809,6 +801,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
                     if isinstance(subarg, np.ndarray):
                         input_name = f"input_{i}_{j}"
                         input = onnxscript_graph.add_input(input_name, torch.tensor(subarg))
+                        input.shape = subarg.shape
                         sequence_input.append(input)
                         ort_inputs[input_name] = subarg
                 onnxscript_args.append(sequence_input)
@@ -817,6 +810,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
         for key, value in kwargs.items():
             if isinstance(value, np.ndarray):
                 input = onnxscript_graph.add_input(key, torch.tensor(value))
+                input.shape = value.shape
                 ort_inputs[key] = value
                 onnxscript_kwargs[key] = input
             else:
