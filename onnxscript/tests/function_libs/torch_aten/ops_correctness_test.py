@@ -792,9 +792,9 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
         onnxscript_args = []
         onnxscript_kwargs = {}
         for i, arg in enumerate(args):
-            if isinstance(arg, np.ndarray):
+            if isinstance(arg, np.ndarray) or arg is None:
                 input_name = f"input_{i}"
-                input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
+                input = onnxscript_graph.add_input(input_name, torch.tensor(arg) if arg is not None else None)
                 input.value = arg
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
@@ -811,8 +811,8 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
             else:
                 onnxscript_args.append(arg)
         for key, value in kwargs.items():
-            if isinstance(value, np.ndarray):
-                input = onnxscript_graph.add_input(key, torch.tensor(value))
+            if isinstance(value, np.ndarray) or value is None:
+                input = onnxscript_graph.add_input(key, torch.tensor(value) if value is not None else None)
                 input.value = value
                 ort_inputs[key] = value
                 onnxscript_kwargs[key] = input
@@ -844,6 +844,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
         ) as e:
             raise AssertionError(
                 f"ONNX Runtime failed to evaluate:\n"

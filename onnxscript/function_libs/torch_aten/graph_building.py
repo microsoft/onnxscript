@@ -316,17 +316,15 @@ class TorchScriptGraph:
     ) -> TorchScriptTensor:
         # TODO: Take in a TorchScriptTensor?
         # TODO: Support dynamic shapes
+        torch_value = self._torch_graph.addInput(input_name)
         if input_value is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
-            torch_value = _create_op_call_in_torch_graph(
-                self._torch_graph, "prim::Constant", inputs=(), attributes={}
-            )[0]
+            # We keep the input instead of replacing it with a constant to
+            # preserve the input signature.
             torch_value.setType(torch.OptionalType.ofTensor())
-            tensor_value = _wrap_torch_value_to_tensor(torch_value)
-            return tensor_value  # type: ignore[return-value]
-        torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(torch.TensorType.create_from_tensor(input_value))
+        else:
+            torch_value.setType(torch.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
