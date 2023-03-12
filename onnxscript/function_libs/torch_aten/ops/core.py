@@ -2964,7 +2964,7 @@ def aten_layer_norm(
 
     start_axis = -len(normalized_shape)
 
-    return _aten_layer_norm_onnx()
+    return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
 
 
 @torch_op("aten::layer_norm", overload=True)
@@ -5342,10 +5342,11 @@ def aten_t(self: TTensor) -> TTensor:
     """t(Tensor(a) self) -> Tensor(a)"""
 
     rank = op.Size(op.Shape(self))
-    if rank == 0 or rank == 1:  # pylint: disable=consider-using-in
-        result = self
-    else:
+    if rank == 2:
         result = op.Transpose(self, perm=[1, 0])
+    else:
+        # rank < 2
+        result = self
     return result
 
 
@@ -5506,9 +5507,8 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
 def aten_transpose(self, dim0: int, dim1: int):
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
-    # FIXME(justinchuby): onnxscript raises Unsupported expression type
-    # Script the function when this is fixed
-    self_rank = len(self.shape)  # type: ignore[attr-defined]
+    # Use trace only to construct the prem attribute in Transpose
+    self_rank = len(self)  # type: ignore[attr-defined]
 
     if self_rank == 0:
         result = self
