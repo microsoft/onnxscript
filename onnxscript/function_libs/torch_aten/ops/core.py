@@ -5508,7 +5508,7 @@ def aten_transpose(self, dim0: int, dim1: int):
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
     # Use trace only to construct the prem attribute in Transpose
-    self_rank = len(self)  # type: ignore[attr-defined]
+    self_rank = len(self.shape)  # type: ignore[attr-defined]
 
     if self_rank == 0:
         result = self
