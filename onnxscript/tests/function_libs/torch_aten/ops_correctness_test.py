@@ -512,16 +512,17 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    xfail("logcumsumexp", reason="naive implementation not numerically stable"),
-    xfail("round", variant_name="decimals_0", reason="The op does not support decimals yet", test_class_name="TestOutputConsistency_Eager"),
-    xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
-    xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"),
     xfail("any", reason="fixme: ORT shape inference error", test_class_name="TestOutputConsistency_FullGraph"),
     xfail("cat", reason="fixme: TorchScriptEvaluator does not support TensorSequence. Enable after #484", test_class_name="TestOutputConsistency_FullGraph"),
     xfail("chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistency_FullGraph"),
     xfail("index_select", reason="fixme: ORT shape inference error on rank-0 input", test_class_name="TestOutputConsistency_FullGraph"),
-    xfail("stack", reason="enable after #484", test_class_name="TestOutputConsistency_FullGraph"),
+    xfail("logcumsumexp", reason="naive implementation not numerically stable"),
+    xfail("round", variant_name="decimals_0", reason="The op does not support decimals yet", test_class_name="TestOutputConsistency_Eager"),
+    xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
+    xfail("round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"),
     xfail("split", reason="fixme: split produces a Sequence type but is set incorrectly in this test", test_class_name="TestOutputConsistency_FullGraph"),
+    xfail("stack", reason="enable after #484", test_class_name="TestOutputConsistency_FullGraph"),
+    xfail("t", reason="ORT Graph attribute inferencing failed on rank-1 input", test_class_name="TestOutputConsistency_FullGraph"),
 )
 
 
