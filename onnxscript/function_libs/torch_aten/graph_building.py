@@ -95,12 +95,11 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._name = name
         self._torch_value.setDebugName(name)
 
-    @property
-    def rank(self) -> int:
+    @property  # type: ignore[override]
+    def rank(self) -> int | None:
         value_type = self._torch_value.type()
         if value_type is None:
-            # Use -1 to indicate unknown rank to maintain int output
-            return -1
+            return None
         value_type = typing.cast(torch.TensorType, value_type)
         return value_type.dim()
 
