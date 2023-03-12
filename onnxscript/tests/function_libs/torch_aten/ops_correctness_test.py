@@ -795,7 +795,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
             if isinstance(arg, np.ndarray):
                 input_name = f"input_{i}"
                 input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
-                input.shape = arg.shape
+                input.value = arg
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
             elif isinstance(arg, Sequence):
@@ -804,7 +804,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
                     if isinstance(subarg, np.ndarray):
                         input_name = f"input_{i}_{j}"
                         input = onnxscript_graph.add_input(input_name, torch.tensor(subarg))
-                        input.shape = subarg.shape
+                        input.value = subarg
                         sequence_input.append(input)
                         ort_inputs[input_name] = subarg
                 onnxscript_args.append(sequence_input)
@@ -813,7 +813,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
         for key, value in kwargs.items():
             if isinstance(value, np.ndarray):
                 input = onnxscript_graph.add_input(key, torch.tensor(value))
-                input.shape = value.shape
+                input.value = value
                 ort_inputs[key] = value
                 onnxscript_kwargs[key] = input
             else:
