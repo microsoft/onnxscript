@@ -175,10 +175,35 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_all(self: TensorType) -> TensorType:
+@torch_op("aten::all")
+def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(self)) == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        result_int = op.ReduceMin(self_int, keepdims=0)
+        result = op.Cast(result_int, to=BOOL.dtype)
+
+    return result
+
+
+@torch_op("aten::all", overload=True)
+def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
+    """all(Tensor self) -> Tensor"""
+
+    if op.Size(op.Shape(self)) == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result_int = op.ReduceMin(self_int, dims, keepdims=keepdim)
+        result = op.Cast(result_int, to=BOOL.dtype)
+
+    return result
 
 
 def aten_allclose(
@@ -2866,10 +2891,13 @@ def aten_isclose(
     raise NotImplementedError()
 
 
+@torch_op("aten::isfinite")
 def aten_isfinite(self: TensorType) -> TensorType:
     """isfinite(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    not_inf = op.Not(op.IsInf(self))
+    not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
+    return op.And(not_inf, not_nan)
 
 
 @torch_op("aten::isinf")
@@ -3475,10 +3503,31 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_min(self: TensorType) -> TensorType:
+@torch_op("aten::min")
+def aten_min(self: TReal) -> TReal:
     """min(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.ReduceMin(self, keepdims=0)
+
+
+@torch_op("aten::min", overload=True)
+def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+        indices = op.Constant(value_int=0)
+    else:
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMin(self, dims, keepdims=keepdim)
+        indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
+
+    return result, indices
+
+
+@torch_op("aten::min", overload=True)
+def aten_min_other(self: TReal, other: TReal) -> TReal:
+
+    return op.Min(self, other)
 
 
 @torch_op("aten::minimum")
@@ -5143,10 +5192,11 @@ def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> Tensor
     raise NotImplementedError()
 
 
-def aten_split_with_sizes(self: TensorType, split_sizes: INT64, dim: int = 0) -> TensorType:
+@torch_op("aten::split_with_sizes")
+def aten_split_with_sizes(self: TTensor, split_sizes: INT64, dim: int = 0) -> TTensor:
     """split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]"""
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_sizes, axis=dim)
 
 
 def aten_split_with_sizes_copy(
