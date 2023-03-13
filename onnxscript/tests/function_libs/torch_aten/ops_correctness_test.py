@@ -298,6 +298,16 @@ def _upsample_input_wrangler(
     return args, kwargs
 
 
+def _permute_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Change the dims argument back to a list because ONNX Transpose does not
+    # support dynamic perms
+    kwargs["dims"] = args.pop()
+    kwargs["dims"] = kwargs["dims"].tolist()
+    return args, kwargs
+
+
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -411,7 +421,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nonzero": core_ops.aten_nonzero,
     "normal": core_ops.aten_normal,
     "ones": core_ops.aten_ones,
-    "permute": core_ops.aten_permute,
+    "permute": (core_ops.aten_permute, _permute_input_wrangler),
     "pow": core_ops.aten_pow,
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
@@ -532,6 +542,43 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
+        "max",
+        variant_name="binary",
+        reason="fixme: current implementation gets shape inference error",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
+        "max",
+        variant_name="reduction_with_dim",
+        reason="fixme: current implementation gets shape inference error",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
+        "new_full",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
+        "nn.functional.adaptive_avg_pool1d",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
+        "nn.functional.adaptive_avg_pool3d",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
+        "nn.functional.upsample_nearest2d",
+        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
+        "repeat",
+        reason="fixme: shape inference error. Enable after onnx/onnx#4982",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
         "round",
         variant_name="decimals_0",
         reason="The op does not support decimals yet",
@@ -543,6 +590,12 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "split",
+        reason="fixme: split produces a Sequence type but is set incorrectly in this test",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
+        "split",
+        variant_name="list_args",
         reason="fixme: split produces a Sequence type but is set incorrectly in this test",
         test_class_name="TestOutputConsistency_FullGraph",
     ),

@@ -2969,11 +2969,11 @@ def aten_layer_norm(
 
     if weight is None:
         one = op.Constant(value_float=1.0)
-        weight = op.Expand(one, op.Shape(input, start=axis))
+        weight = op.Expand(one, op.Shape(input, start=start_axis))
 
     if bias is None:
         zero = op.Constant(value_float=0.0)
-        bias = op.Expand(zero, op.Shape(input, start=axis))
+        bias = op.Expand(zero, op.Shape(input, start=start_axis))
 
     return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
 
@@ -4058,11 +4058,11 @@ def aten_native_layer_norm(
 
     if weight is None:
         one = op.Constant(value_floats=[1.0])
-        weight = op.Expand(one, op.Shape(input, start=axis))
+        weight = op.Expand(one, op.Shape(input, start=start_axis))
         weight = op.CastLike(weight, input)
 
     result, mean, rdenominator = op.LayerNormalization(
-        input, weight, bias, axis=axis, epsilon=eps
+        input, weight, bias, axis=start_axis, epsilon=eps
     )
 
     return result, mean, rdenominator

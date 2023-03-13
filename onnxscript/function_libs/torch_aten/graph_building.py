@@ -1,7 +1,7 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
-import logging
 
+import logging
 import typing
 import warnings
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
