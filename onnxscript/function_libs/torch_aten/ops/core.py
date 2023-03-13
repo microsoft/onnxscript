@@ -195,22 +195,14 @@ def aten_all(self: TTensor) -> TTensor:
 def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> TTensor:
     """all(Tensor self) -> Tensor"""
 
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
-
-    self_bool = op.Cast(self, to=BOOL.dtype)
-    self_int = op.Cast(self_bool, to=INT64.dtype)
-
-    if op.OptionalHasElement(dim):
+    if op.Size(op.Shape(self)) == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result_int = op.ReduceMin(self_int, dims, keepdims=keepdim)
-    else:
-        result_int = op.ReduceMin(self_int, keepdims=keepdim)
-    result = op.Cast(result_int, to=BOOL.dtype)
-
-    if self_rank == 0:
-        result = op.Squeeze(result)
+        result = op.Cast(result_int, to=BOOL.dtype)
 
     return result
 
