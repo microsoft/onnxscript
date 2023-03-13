@@ -971,8 +971,11 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
 
+        # Disable all ORT optimizations
+        session_options = onnxruntime.SessionOptions()
+        session_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
         try:
-            session = ort.InferenceSession(onnx_model.SerializeToString())
+            session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
             return session.run(None, ort_inputs)
         except (
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
