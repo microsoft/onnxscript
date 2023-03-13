@@ -2701,15 +2701,39 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
+@torch_op("aten::index_put", trace_only=True)
 def aten_index_put(
-    self: TensorType,
+    self: TReal,
     indices: Optional[Sequence[TensorType]],
     values: TensorType,
     accumulate: bool = False,
-) -> TensorType:
+) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    raise NotImplementedError()
+    a = self.shape[1]
+    b = indices[0].shape[0]
+    shape = op.Constant(value_ints=[a,b])
+    new_ind = op.Expand(indices[0], shape)
+    new_ind_t = op.Transpose(new_ind)
+    result =  op.ScatterElements(self, new_ind_t, values)
+    return result
+
+    # if accumulate:
+    #     result = op.Add(self, values)
+    # else:
+    #     result = self
+    # return result
+
+# def test_aten_index_put():
+#     import numpy as np
+#     a = np.zeros((5,5), dtype=np.float32)
+#     b0 = np.array([[0,0,0,0,0,],[2,2,2,2,2]], dtype=np.int64)
+#     b = np.array([0,2], dtype=np.int64)
+#     c = np.ones((2,5), dtype=np.float32)
+#     r = aten_index_put(a, b, c, True)
+#     print(r)
+# test_aten_index_put()
+# exit(0)
 
 
 def aten_index_reduce(

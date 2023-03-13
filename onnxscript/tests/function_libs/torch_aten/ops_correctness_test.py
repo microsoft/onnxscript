@@ -325,6 +325,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
+    "index_put": core_ops.aten_index_put,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
     "le": core_ops.aten_le,
