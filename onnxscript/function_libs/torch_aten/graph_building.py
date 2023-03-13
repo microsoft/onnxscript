@@ -391,11 +391,21 @@ class TorchScriptGraph:
             attributes=dict(value=constant_tensor),
         )[0]
 
+    @beartype
     def _add_concat_sequence_to_graph(self, inputs, axis: int = 0) -> torch.Value:
+
+        # inputs could be a mixed list of torch.Value and int/float/bool
+        torchvalue_inputs = []
+        for input in inputs:
+            if not isinstance(input, torch.Value):
+                torchvalue_inputs.append(self._add_constant_to_graph(input))
+            else:
+                torchvalue_inputs.append(input)
+
         return _create_op_call_in_torch_graph(
             self._torch_graph,
             "onnx::Concat",
-            inputs=inputs,
+            inputs=torchvalue_inputs,
             attributes=dict(axis=axis),
         )[0]
 
@@ -407,11 +417,12 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
         n_outputs: int,
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if isinstance(input, (tuple, list)) and all(
+            if isinstance(input, (tuple, list)) and any(
                 isinstance(ele, torch.Value) for ele in input
             ):
                 # Supports list of tensors
