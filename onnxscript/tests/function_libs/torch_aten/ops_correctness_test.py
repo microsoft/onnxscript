@@ -607,6 +607,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistency_FullGraph",
     ),
     xfail(
+        "split_with_sizes",
+        reason="fixme: split produces a Sequence type but is set incorrectly in this test",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
         "stack", reason="enable after #484", test_class_name="TestOutputConsistency_FullGraph"
     ),
     xfail(

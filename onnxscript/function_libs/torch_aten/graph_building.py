@@ -481,7 +481,7 @@ class TorchScriptGraph:
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
         onnx_model = onnx.shape_inference.infer_shapes(
-            onnx_model, check_type=True, strict_mode=False
+            onnx_model, check_type=True, strict_mode=False, data_prop=True
         )
         try:
             onnx.checker.check_model(onnx_model, full_check=True)
