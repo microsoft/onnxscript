@@ -283,6 +283,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
         Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
 ] = {
+    "all_dim": core_ops.aten_all_dim,
     "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
@@ -479,6 +480,16 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
+        "all",
+        matcher=lambda sample: not (len(sample.kwargs) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    skip(
+        "all_dim",
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    ),
+    skip(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
@@ -576,6 +587,8 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="Empty perm is not supported",
     ),
 )
+
+duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 
 duplicate_opinfo(
     OPS_DB,
@@ -765,9 +778,6 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
-                if i == 9:
-                    print(i)
-
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test

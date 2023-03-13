@@ -177,9 +177,22 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
 
 
 @torch_op("aten::all")
-def aten_all(
-    self: TTensor, dim: Optional[int] = None, keepdim: Optional[bool] = False
-) -> TTensor:
+def aten_all(self: TTensor) -> TTensor:
+    """all(Tensor self) -> Tensor"""
+
+    if op.Size(op.Shape(self)) == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        result_int = op.ReduceMin(self_int, keepdims=0)
+        result = op.Cast(result_int, to=BOOL.dtype)
+
+    return result
+
+
+@torch_op("aten::all", overload=True)
+def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> TTensor:
     """all(Tensor self) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
@@ -2923,7 +2936,9 @@ def aten_isclose(
 def aten_isfinite(self: TensorType) -> TensorType:
     """isfinite(Tensor self) -> Tensor"""
 
-    return op.Not(op.IsInf(self))
+    not_inf = op.Not(op.IsInf(self))
+    not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
+    return op.And(not_inf, not_nan)
 
 
 @torch_op("aten::isinf")
