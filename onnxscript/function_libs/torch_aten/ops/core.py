@@ -3466,19 +3466,13 @@ def aten_min(self: TReal) -> TReal:
 @torch_op("aten::min", overload=True)
 def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
 
-    neg_1 = op.Constant(value_ints=[-1])
-
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        self = op.Reshape(self, neg_1)
-
-    dims = op.Reshape(dim, neg_1)
-    result = op.ReduceMin(self, dims, keepdims=keepdim)
-    indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
-
-    if self_rank == 0:
-        result = op.Squeeze(result)
-        indices = op.Squeeze(indices)  # type: ignore[has-type]
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+        indices = op.Constant(value_int=0)
+    else:
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMin(self, dims, keepdims=keepdim)
+        indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
 
     return result, indices
 

@@ -508,19 +508,19 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "min",  # aten_mean
         matcher=lambda sample: len(sample.args) > 0,
-        reason="only support one tensor as input",
+        reason="this ATen overload only supports one tensor as input by design",
     ),
     skip(
         "min_other",  # aten_min_other(self, other)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
-        reason="only support one(input) tensor and another(args) tensor",
+        reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
     skip(
         "min_dim",  # aten_min_dim(self, dim)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
-        reason="only support one(input) tensor and another(args) int",
+        reason="this ATen overload only support one tensor as input and another int as args",
     ),
     skip(
         "nonzero",
