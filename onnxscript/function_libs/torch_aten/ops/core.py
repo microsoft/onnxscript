@@ -177,7 +177,7 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
 
 
 @torch_op("aten::all")
-def aten_all(self: TTensor) -> TTensor:
+def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:
@@ -192,7 +192,7 @@ def aten_all(self: TTensor) -> TTensor:
 
 
 @torch_op("aten::all", overload=True)
-def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> TTensor:
+def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:
