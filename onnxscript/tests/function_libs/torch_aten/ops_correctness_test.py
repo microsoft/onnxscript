@@ -873,7 +873,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
         onnxscript_graph = graph_building.TorchScriptGraph()
         tracer = graph_building.TorchScriptTracingEvaluator(onnxscript_graph)
         ort_inputs = {}
-        onnxscript_args = []
+        onnxscript_args: list[Any] = []
         onnxscript_kwargs = {}
         for i, arg in enumerate(args):
             if arg is None and isinstance(function, onnxscript.OnnxFunction):
