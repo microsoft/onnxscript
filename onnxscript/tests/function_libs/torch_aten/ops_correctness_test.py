@@ -792,9 +792,15 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
         onnxscript_args = []
         onnxscript_kwargs = {}
         for i, arg in enumerate(args):
-            if isinstance(arg, np.ndarray) or arg is None:
+            if arg is None and isinstance(function, onnxscript.OnnxFunction):
+                # For optional inputs, if the function is an OnnxFunction, we
+                # need to skip the input to create a static optional in the ONNX graph.
+                # If the function is a python function, we need to pass in None
+                # to avoid a TypeError.
+                continue
+            if isinstance(arg, np.ndarray):
                 input_name = f"input_{i}"
-                input = onnxscript_graph.add_input(input_name, torch.tensor(arg) if arg is not None else None)
+                input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
                 input.value = arg
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
@@ -811,8 +817,14 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
             else:
                 onnxscript_args.append(arg)
         for key, value in kwargs.items():
-            if isinstance(value, np.ndarray) or value is None:
-                input = onnxscript_graph.add_input(key, torch.tensor(value) if value is not None else None)
+            if value is None and isinstance(function, onnxscript.OnnxFunction):
+                # For optional inputs, if the function is an OnnxFunction, we
+                # need to skip the input to create a static optional in the ONNX graph.
+                # If the function is a python function, we need to pass in None
+                # to avoid a TypeError.
+                continue
+            if isinstance(value, np.ndarray):
+                input = onnxscript_graph.add_input(key, torch.tensor(value))
                 input.value = value
                 ort_inputs[key] = value
                 onnxscript_kwargs[key] = input
