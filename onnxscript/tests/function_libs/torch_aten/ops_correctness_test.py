@@ -344,6 +344,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
+    "min_dim": core_ops.aten_min_dim,
+    "min_other": core_ops.aten_min_other,
+    "min": core_ops.aten_min,
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
@@ -520,6 +523,23 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
+        "min",  # aten_mean
+        matcher=lambda sample: len(sample.args) > 0,
+        reason="this ATen overload only supports one tensor as input by design",
+    ),
+    skip(
+        "min_other",  # aten_min_other(self, other)
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another tensor as args",
+    ),
+    skip(
+        "min_dim",  # aten_min_dim(self, dim)
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another int as args",
+    ),
+    skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
@@ -596,6 +616,15 @@ duplicate_opinfo(
     (
         "arange_start",
         "arange_start_step",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "min",
+    (
+        "min_other",
+        "min_dim",
     ),
 )
 
