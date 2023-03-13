@@ -2964,7 +2964,16 @@ def aten_layer_norm(
 ) -> TReal:
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
+    # trace_only to use Python to obtain start_axis
     start_axis = -len(normalized_shape)
+
+    if weight is None:
+        one = op.Constant(value_float=1.0)
+        weight = op.Expand(one, op.Shape(input, start=axis))
+
+    if bias is None:
+        zero = op.Constant(value_float=0.0)
+        bias = op.Expand(zero, op.Shape(input, start=axis))
 
     return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
 
@@ -2972,20 +2981,14 @@ def aten_layer_norm(
 @torch_op("aten::layer_norm", overload=True)
 def _aten_layer_norm_onnx(
     input: TReal,
-    weight: Optional[TReal],
+    weight: TReal,
     bias: Optional[TReal],
     axis: int,
     eps: float = 1e-05,
 ) -> TReal:
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
-    if not op.OptionalHasElement(weight):
-        one = op.Constant(value_float=1.0)
-        weight = op.Expand(one, op.Shape(input, start=axis))
-    if not op.OptionalHasElement(bias):
-        zero = op.Constant(value_float=0.0)
-        bias = op.Expand(zero, op.Shape(input, start=axis))
-
+    # TODO(justinchuby): Use OptionalHasElement after onnx/onnx#4982
     result, _, _ = op.LayerNormalization(input, weight, bias, axis=axis, epsilon=eps)
     return result
 
@@ -4052,32 +4055,15 @@ def aten_native_layer_norm(
 
     # Use Python to manipulate
     start_axis = -len(normalized_shape)
-    return _aten_native_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
 
-
-@torch_op("aten::native_layer_norm", overload=True)
-def _aten_native_layer_norm_onnx(
-    input: TReal,
-    weight: Optional[TReal],
-    bias: Optional[TReal],
-    axis: int,
-    eps: float,
-) -> Tuple[TReal, TReal, TReal]:
-    """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
-
-    if not op.OptionalHasElement(weight):
+    if weight is None:
         one = op.Constant(value_floats=[1.0])
         weight = op.Expand(one, op.Shape(input, start=axis))
         weight = op.CastLike(weight, input)
 
-    if not op.OptionalHasElement(bias):
-        result, mean, rdenominator = op.LayerNormalization(
-            input, weight, axis=axis, epsilon=eps
-        )
-    else:
-        result, mean, rdenominator = op.LayerNormalization(
-            input, weight, bias, axis=axis, epsilon=eps
-        )
+    result, mean, rdenominator = op.LayerNormalization(
+        input, weight, bias, axis=axis, epsilon=eps
+    )
 
     return result, mean, rdenominator
 
