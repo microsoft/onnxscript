@@ -312,7 +312,10 @@ class TorchScriptGraph:
 
     @beartype
     def add_input(
-        self, input_name: str, input_value: Optional[torch.Tensor] = None
+        self,
+        input_name: str,
+        input_value: Optional[torch.Tensor] = None,
+        dynamic_axes: bool = False,
     ) -> TorchScriptTensor:
         # TODO: Take in a TorchScriptTensor?
         if input_value is None:
@@ -330,10 +333,13 @@ class TorchScriptGraph:
         torchscript_input_value = torch.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
             input_value
         )
-        rank = torchscript_input_value.dim()
-        # We set sizes all to be dynamic as default, as function layers are no longer relying on the shape type inference pass in exporter
-        # TODO(titaiwang): design static_axes once public API is decided
-        torch_value.setType(torchscript_input_value.with_sizes([None] * rank))
+        if dynamic_axes:
+            rank = torchscript_input_value.dim()
+            # We set input sizes all to be dynamic to initialize the model conversion,
+            # and nodes are also set to be dynamic in exporter function: _fill_tensor_meta.
+            torch_value.setType(torchscript_input_value.with_sizes([None] * rank))
+        else:
+            torch_value.setType(torchscript_input_value)
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
