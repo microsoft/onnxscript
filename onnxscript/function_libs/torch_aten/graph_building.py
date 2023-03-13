@@ -1,5 +1,6 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
+import logging
 
 import typing
 import warnings
@@ -484,13 +485,13 @@ class TorchScriptGraph:
         )
         try:
             onnx.checker.check_model(onnx_model, full_check=True)
-        except onnx.checker.ValidationError as e:
+        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             warnings.warn(f"ONNX model is invalid: {e}")
-        except onnx.shape_inference.InferenceError as e:
-            raise RuntimeError(
-                f"ONNX model is invalid:\n{onnxscript.proto2text(onnx_model)}\n"
-                f"TorchScript graph:\n{self.torch_graph}\n"
-            ) from e
+            logging.debug(
+                "ONNX model:\n%s\n\nTorchScript graph:\n%s",
+                onnxscript.proto2text(onnx_model),
+                self.torch_graph,
+            )
 
         return onnx_model
 
