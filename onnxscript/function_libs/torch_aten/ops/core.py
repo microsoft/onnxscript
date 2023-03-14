@@ -176,10 +176,35 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_all(self: TensorType) -> TensorType:
+@torch_op("aten::all")
+def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(self)) == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        result_int = op.ReduceMin(self_int, keepdims=0)
+        result = op.Cast(result_int, to=BOOL.dtype)
+
+    return result
+
+
+@torch_op("aten::all", overload=True)
+def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
+    """all(Tensor self) -> Tensor"""
+
+    if op.Size(op.Shape(self)) == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result_int = op.ReduceMin(self_int, dims, keepdims=keepdim)
+        result = op.Cast(result_int, to=BOOL.dtype)
+
+    return result
 
 
 def aten_allclose(
@@ -955,10 +980,28 @@ def aten_choose_qparams_optimized(
     raise NotImplementedError()
 
 
-def aten_chunk(self: TensorType, chunks: int, dim: int = 0) -> TensorType:
+@torch_op("aten::chunk")
+def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
     """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    # Get size of specified dim
+    self_shape = op.Shape(self)
+    dim_size = op.Gather(self_shape, dim, axis=0)
+    # Compute size/chunk to get the number of data in one chunk
+    num_per_chunk = op.Div(dim_size, chunks)
+    num_per_chunk = op.Cast(op.Mod(dim_size, chunks) > 0, to=INT64.dtype) + num_per_chunk  # type: ignore[operator]
+
+    # Compute real chunk number
+    num_chunk = op.Div(dim_size, num_per_chunk)
+    # Get something like [n, n, n, n, ...], total num_chunk
+    list_split = op.Expand(num_per_chunk, op.Reshape(num_chunk, neg_1))
+
+    remainder = op.Mod(dim_size, num_per_chunk)
+    if remainder > 0:  # type: ignore[operator]
+        # Append the remainder to the [n, n, n, n, ..., r]
+        list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
+    return op.Split(self, list_split, axis=dim)
 
 
 @torch_op("aten::clamp", trace_only=True)
@@ -1092,10 +1135,40 @@ def aten_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_constant_pad_nd(self: TensorType, pad: INT64, value: float = 0.0) -> TensorType:
+@torch_op("aten::constant_pad_nd")
+def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTensor:
     """constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # The desired order of paddings is
+    # dim_0_begin, dim_1_begin, ... , dim_0_end, ..., dim_n_end.
+    # n is the dimension of input.
+    # assume zero-dimensions in the beginning
+    # rank = len(self.shape)  # rank must be scalar
+    # paddings = list(pad[:]) + [0] * (rank * 2 - len(pad))
+    # reverse order and collate first beginnings and then ends
+    # paddings = paddings[-2::-2] + paddings[-1::-2]
+
+    neg_1 = op.Constant(value_ints=[-1])
+
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Sub(op.Mul(rank, 2), op.Size(pad))
+    zero_count = op.Reshape(zero_count, neg_1)
+    zero = op.Constant(value_ints=[0])
+    zeros = op.Expand(zero, zero_count)
+    torch_paddings = op.Concat(pad, zeros, axis=0)
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+    return op.Pad(self, onnx_padding, value)
 
 
 @torch_op("aten::contiguous", trace_only=True)
@@ -1501,10 +1574,29 @@ def aten_cov(
     raise NotImplementedError()
 
 
-def aten_cross(self: TensorType, other: TensorType, dim: Optional[int] = None) -> TensorType:
+@torch_op("aten::cross")
+def aten_cross(self: TTensor, other: TTensor, dim: int = -1) -> TTensor:
     """cross(Tensor self, Tensor other, int? dim=None) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    two = op.Constant(value_ints=[2])
+    three = op.Constant(value_ints=[3])
+    axes = op.Expand(dim, op.Constant(value_ints=[1]))
+
+    # Reference https://en.wikipedia.org/w/index.php?title=Cross_product&oldid=1143125073
+    a1 = op.Slice(self, zero, one, axes)
+    a2 = op.Slice(self, one, two, axes)
+    a3 = op.Slice(self, two, three, axes)
+    b1 = op.Slice(other, zero, one, axes)
+    b2 = op.Slice(other, one, two, axes)
+    b3 = op.Slice(other, two, three, axes)
+    # Broadcasting is implicitly supported by Mul
+    c1 = op.Sub(op.Mul(a2, b3), op.Mul(a3, b2))
+    c2 = op.Sub(op.Mul(a3, b1), op.Mul(a1, b3))
+    c3 = op.Sub(op.Mul(a1, b2), op.Mul(a2, b1))
+
+    return op.Concat(c1, c2, c3, axis=dim)
 
 
 def aten_crow_indices(self: TensorType) -> TensorType:
@@ -1979,7 +2071,6 @@ def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::empty_like", overload=True)
 def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)
 
@@ -2833,10 +2924,13 @@ def aten_isclose(
     raise NotImplementedError()
 
 
+@torch_op("aten::isfinite")
 def aten_isfinite(self: TensorType) -> TensorType:
     """isfinite(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    not_inf = op.Not(op.IsInf(self))
+    not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
+    return op.And(not_inf, not_nan)
 
 
 @torch_op("aten::isinf")
@@ -3426,10 +3520,31 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_min(self: TensorType) -> TensorType:
+@torch_op("aten::min")
+def aten_min(self: TReal) -> TReal:
     """min(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.ReduceMin(self, keepdims=0)
+
+
+@torch_op("aten::min", overload=True)
+def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+        indices = op.Constant(value_int=0)
+    else:
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMin(self, dims, keepdims=keepdim)
+        indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
+
+    return result, indices
+
+
+@torch_op("aten::min", overload=True)
+def aten_min_other(self: TReal, other: TReal) -> TReal:
+
+    return op.Min(self, other)
 
 
 @torch_op("aten::minimum")
@@ -4206,7 +4321,6 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::ones_like", overload=True)
 def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(one, shape)
 
@@ -4866,10 +4980,11 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Sub(other, op.Mul(self, alpha))
 
 
-def aten_scalar_tensor(s: float) -> TensorType:
+@torch_op("aten::scalar_tensor")
+def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Cast(s, to=dtype)
 
 
 def aten_scatter_add(
@@ -5100,10 +5215,11 @@ def aten_split_copy(self: TensorType, split_size: INT64, dim: int = 0) -> Tensor
     raise NotImplementedError()
 
 
-def aten_split_with_sizes(self: TensorType, split_sizes: INT64, dim: int = 0) -> TensorType:
+@torch_op("aten::split_with_sizes")
+def aten_split_with_sizes(self: TTensor, split_sizes: INT64, dim: int = 0) -> TTensor:
     """split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]"""
 
-    raise NotImplementedError()
+    return op.SplitToSequence(self, split_sizes, axis=dim)
 
 
 def aten_split_with_sizes_copy(
@@ -5544,10 +5660,14 @@ def aten_true_divide(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_trunc(self: TensorType) -> TensorType:
+@torch_op("aten::trunc")
+def aten_trunc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """trunc(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # Reference https://github.com/onnx/onnx/issues/4588#issuecomment-1463970126
+    integer_parts = op.Floor(op.Abs(self))
+    is_negative = op.Less(self, 0.0)
+    return op.Where(is_negative, op.Neg(integer_parts), integer_parts)
 
 
 def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
@@ -5778,6 +5898,5 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
 
 @torch_op("aten::zeros_like", overload=True)
 def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
-
     shape = op.Shape(self)
     return op.Expand(zero, shape)

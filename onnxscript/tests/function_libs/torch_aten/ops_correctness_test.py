@@ -283,6 +283,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
         Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
 ] = {
+    "all_dim": core_ops.aten_all_dim,
+    "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
@@ -298,12 +300,15 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "broadcast_to": core_ops.aten_broadcast_to,
     "cat": (core_ops.aten_cat, _cat_input_wrangler),
     "ceil": core_ops.aten_ceil,
+    "chunk": core_ops.aten_chunk,
     "clamp_max": core_ops.aten_clamp_max,
     "clamp_min": core_ops.aten_clamp_min,
     "clone": core_ops.aten_clone,
+    "constant_pad_nd": core_ops.aten_constant_pad_nd,
     # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
     "cos": core_ops.aten_cos,
     "cosh": core_ops.aten_cosh,
+    "cross": core_ops.aten_cross,
     # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
     "div": core_ops.aten_div,
     "dot": core_ops.aten_dot,
@@ -322,6 +327,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
+    "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
     "le": core_ops.aten_le,
@@ -338,6 +344,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
+    "min_dim": core_ops.aten_min_dim,
+    "min_other": core_ops.aten_min_other,
+    "min": core_ops.aten_min,
     "minimum": core_ops.aten_minimum,
     "mm": core_ops.aten_mm,
     "mul": core_ops.aten_mul,
@@ -373,11 +382,13 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsqrt": core_ops.aten_rsqrt,
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
+    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
     "softmax": special_ops.aten_special_softmax,
+    "split_with_sizes": core_ops.aten_split_with_sizes,
     "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
     "stack": core_ops.aten_stack,
@@ -386,6 +397,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     "topk": core_ops.aten_topk,
+    "trunc": core_ops.aten_trunc,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
@@ -472,6 +484,16 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
+        "all",
+        matcher=lambda sample: not (len(sample.kwargs) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    skip(
+        "all_dim",
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    ),
+    skip(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
@@ -500,6 +522,23 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
+    ),
+    skip(
+        "min",  # aten_mean
+        matcher=lambda sample: len(sample.args) > 0,
+        reason="this ATen overload only supports one tensor as input by design",
+    ),
+    skip(
+        "min_other",  # aten_min_other(self, other)
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another tensor as args",
+    ),
+    skip(
+        "min_dim",  # aten_min_dim(self, dim)
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another int as args",
     ),
     skip(
         "nonzero",
@@ -570,12 +609,23 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
 )
 
+duplicate_opinfo(OPS_DB, "all", ("all_dim",))
+
 duplicate_opinfo(
     OPS_DB,
     "arange",
     (
         "arange_start",
         "arange_start_step",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "min",
+    (
+        "min_other",
+        "min_dim",
     ),
 )
 
@@ -750,7 +800,7 @@ class TestOutputConsistency(unittest.TestCase):
             assert callable(onnx_function_and_wrangler)
             onnx_function = onnx_function_and_wrangler
 
-        for (i, cpu_sample) in enumerate(samples):
+        for i, cpu_sample in enumerate(samples):
             inputs = (cpu_sample.input, *cpu_sample.args)
             # Provide the repr to subtest because tensors are not serializable in parallel test runs
             with self.subTest(
