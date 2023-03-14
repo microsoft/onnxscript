@@ -2782,8 +2782,8 @@ def aten_index_put_bool(
         new_ind_t = op.Transpose(new_ind)
 
         # values must have same rank with input(self)
-        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):
-            values = op.Unsqueeze(values, op.Constant(value_ints=[0]))  # type: ignore[operator]
+        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
+            values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
 
         if accumulate:
             zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
