@@ -5253,7 +5253,7 @@ def aten_squeeze(self: TTensor) -> TTensor:
 @torch_op("aten::squeeze", overload=True)
 def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
     result = self
-    if op.Size(op.Shape(self)) > 0:
+    if op.Size(op.Shape(self)) > 0:  # type: ignore[operator]
         # check if specified dimension is 1, do squeeze
         shape = op.Shape(self)
         dim_size = op.Gather(shape, dim, axis=0)
