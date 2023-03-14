@@ -5243,27 +5243,24 @@ def aten_square(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::squeeze", trace_only=True)
-def aten_squeeze(self: TTensor, dim: Optional[int] = None) -> TTensor:
+@torch_op("aten::squeeze")
+def aten_squeeze(self: TTensor) -> TTensor:
     """squeeze(Tensor(a) self) -> Tensor(a)"""
 
-    if op.OptionalHasElement(dim):
-        neg_1 = op.Constant(value_ints=[-1])
-        rank = op.Size(op.Shape(self))
-        if rank == 0:
-            self = op.Reshape(self, neg_1)
-        # check if specified dimension equal to 1
-        starts = op.Reshape(dim, neg_1)
-        ends = op.Add(dim, op.Constant(value_ints=[1]))
+    return op.Squeeze(self)
+
+
+@torch_op("aten::squeeze", overload=True)
+def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
+
+    result = self
+    if op.Size(op.Shape(self)) > 0:
+        # check if specified dimension is 1, do squeeze
         shape = op.Shape(self)
-        dim_value = op.Slice(shape, starts, ends, op.Constant(value_ints=[0]))
-        if dim_value != 1:
-            result = self
-        else:
-            dims = op.Reshape(dim, neg_1)
+        dim_size = op.Gather(shape, dim, axis=0)
+        if dim_size == 1:
+            dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
             result = op.Squeeze(self, dims)
-    else:
-        result = op.Squeeze(self)
 
     return result
 
