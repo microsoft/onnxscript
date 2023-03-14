@@ -1913,19 +1913,16 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
 
 
 @torch_op("aten::dropout")
-def aten_dropout(input: TFloat, p: float = 0.5, train: bool = True) -> TFloat:
+def aten_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     """dropout(Tensor input, float p, bool train) -> Tensor"""
 
-    # The attribute train is actually int. So we need to cast it to a BOOL tensor.
-    train = op.Cast(train, to=BOOL.dtype)
-    rank_input = op.Size(op.Shape(input))
-    if rank_input == 0:
+    input_is_scalar = op.Size(op.Shape(input)) == 0
+    if input_is_scalar:
         input = op.Reshape(input, op.Constant(value_ints=[-1]))
-
-    result, _ = op.Dropout(input, p, train)
-
-    if rank_input == 0:
+        result, _ = op.Dropout(input, p, train)
         result = op.Squeeze(result)
+    else:
+        result, _ = op.Dropout(input, p, train)
 
     return result
 
@@ -3512,7 +3509,6 @@ def aten_min(self: TReal) -> TReal:
 
 @torch_op("aten::min", overload=True)
 def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
-
     if op.Size(op.Shape(self)) == 0:
         result = self
         indices = op.Constant(value_int=0)
@@ -3526,7 +3522,6 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
 
 @torch_op("aten::min", overload=True)
 def aten_min_other(self: TReal, other: TReal) -> TReal:
-
     return op.Min(self, other)
 
 

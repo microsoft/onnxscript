@@ -973,7 +973,9 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
 
         # Disable all ORT optimizations
         session_options = onnxruntime.SessionOptions()
-        session_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+        session_options.graph_optimization_level = (
+            onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+        )
         try:
             session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
             return session.run(None, ort_inputs)
