@@ -23,7 +23,7 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
 
     @unittest.skipIf(
         not hasattr(onnx.FunctionProto, "attribute_proto"),
-        reason="current onnx does not support default values",
+        reason="ONNX 1.13 does not support default values",
     )
     @pytest.mark.xfail(
         version_utils.onnxruntime_older_than("1.15")
@@ -50,7 +50,7 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
 
     @unittest.skipIf(
         not hasattr(onnx.FunctionProto, "attribute_proto"),
-        reason="current onnx does not support default values",
+        reason="ONNX 1.13 does not support default values",
     )
     @pytest.mark.xfail(
         version_utils.onnxruntime_older_than("1.15")
@@ -62,7 +62,7 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
 
     @unittest.skipIf(
         not hasattr(onnx.FunctionProto, "attribute_proto"),
-        reason="current onnx does not support default values",
+        reason="ONNX 1.13 does not support default values",
     )
     @pytest.mark.xfail(
         version_utils.onnxruntime_older_than("1.15")
