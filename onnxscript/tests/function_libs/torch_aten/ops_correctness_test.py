@@ -9,7 +9,7 @@ error messages if there are any.
 Prefer xfail over skip when possible.
     2a. If a test is now failing because of xpass, because some previous errors
     are now fixed, removed the corresponding xfail.
-3. If the OpInfo needs to be adjusted to fit the aten signature, create an input
+3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
 4. If the OpInfo needs to be duplicated to test multiple overloads, use
 `duplicate_opinfo` to create a new OpInfo with a new name.
