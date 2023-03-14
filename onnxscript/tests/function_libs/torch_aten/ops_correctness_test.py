@@ -325,6 +325,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
+    "index_put_bool": core_ops.aten_index_put_bool,
     "index_put": core_ops.aten_index_put,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
@@ -507,6 +508,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
+        "index_put",
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
+        reason="this Aten overload only support tensor(int) as args",
+    ),
+    skip(
+        "index_put_bool",
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
+        reason="this Aten overload only support tensor(bool) as args",
+    ),
+    skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
@@ -584,6 +595,8 @@ duplicate_opinfo(
     ),
 )
 
+duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+
 duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
@@ -595,6 +608,7 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "new_full", ("full",))
+
 
 # END OF SECTION TO MODIFY #####################################################
 

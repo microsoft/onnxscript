@@ -2701,39 +2701,68 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_put", trace_only=True)
+@torch_op("aten::index_put")
 def aten_index_put(
     self: TReal,
-    indices: Optional[Sequence[TensorType]],
-    values: TensorType,
+    indices: Sequence[TReal],
+    values: TReal,
     accumulate: bool = False,
 ) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    a = self.shape[1]
-    b = indices[0].shape[0]
-    shape = op.Constant(value_ints=[a,b])
-    new_ind = op.Expand(indices[0], shape)
+    index = op.SequenceAt(indices, 0)
+    self_rank_1 = op.Gather(op.Shape(self), 1)
+    index_rank_0 = op.Gather(op.Shape(index), 0)
+    neg_1 = op.Constant(value_ints=[-1])
+    shape = op.Concat(op.Reshape(self_rank_1, neg_1), op.Reshape(index_rank_0, neg_1), axis=0)
+    new_ind = op.Expand(index, shape)
     new_ind_t = op.Transpose(new_ind)
-    result =  op.ScatterElements(self, new_ind_t, values)
+
+    if accumulate:
+        zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+        result = op.ScatterElements(zeros, new_ind_t, values)
+        result = op.Add(result, self)
+    else:
+        result = op.ScatterElements(self, new_ind_t, values)
     return result
 
-    # if accumulate:
-    #     result = op.Add(self, values)
-    # else:
-    #     result = self
-    # return result
 
-# def test_aten_index_put():
-#     import numpy as np
-#     a = np.zeros((5,5), dtype=np.float32)
-#     b0 = np.array([[0,0,0,0,0,],[2,2,2,2,2]], dtype=np.int64)
-#     b = np.array([0,2], dtype=np.int64)
-#     c = np.ones((2,5), dtype=np.float32)
-#     r = aten_index_put(a, b, c, True)
-#     print(r)
-# test_aten_index_put()
-# exit(0)
+@torch_op("aten::index_put_bool", overload=True)
+def aten_index_put_bool(
+    self: TReal,
+    indices: BOOL,
+    values: TReal,
+    accumulate: bool = False,
+) -> TReal:
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
+
+    index = op.SequenceAt(indices, 0)
+    ind_float = op.Cast(index, to=FLOAT.dtype)
+    if op.ReduceSum(ind_float) == 0:
+        result = self
+    else:
+        index = op.ArgMax(ind_float)
+        self_rank_1 = op.Gather(op.Shape(self), 1)
+        index_rank_0 = op.Gather(op.Shape(index), 0)
+        neg_1 = op.Constant(value_ints=[-1])
+        shape = op.Concat(
+            op.Reshape(self_rank_1, neg_1), op.Reshape(index_rank_0, neg_1), axis=0
+        )
+        new_ind = op.Expand(index, shape)
+        new_ind_t = op.Transpose(new_ind)
+
+        # values must have same rank with input(self)
+        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):
+            values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
+
+        if accumulate:
+            zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+            result = op.ScatterElements(zeros, new_ind_t, values)
+            result = op.Add(result, self)
+        else:
+            result = op.ScatterElements(self, new_ind_t, values)
+
+    return result
 
 
 def aten_index_reduce(
