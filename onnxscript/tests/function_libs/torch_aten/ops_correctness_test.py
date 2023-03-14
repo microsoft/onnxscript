@@ -448,6 +448,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "split_with_sizes": core_ops.aten_split_with_sizes,
     "split": core_ops.aten_split,
     "sqrt": core_ops.aten_sqrt,
+    "squeeze_dim": core_ops.aten_squeeze_dim,
+    "squeeze": core_ops.aten_squeeze,
     "stack": core_ops.aten_stack,
     "sub": core_ops.aten_sub,
     "t": core_ops.aten_t,
@@ -757,6 +759,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
     ),
+    skip(
+        "squeeze",
+        matcher=lambda sample: not (len(sample.args) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    skip(
+        "squeeze_dim",
+        matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="this Aten overload only support one tensor as input and one int as args by design",
+    ),
 )
 
 duplicate_opinfo(OPS_DB, "all", ("all_dim",))
@@ -790,6 +802,9 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "new_full", ("full",))
+
+duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+
 
 # END OF SECTION TO MODIFY #####################################################
 
