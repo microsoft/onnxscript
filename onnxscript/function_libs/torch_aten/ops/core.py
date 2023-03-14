@@ -2755,7 +2755,7 @@ def aten_index_put(
 @torch_op("aten::index_put_bool", overload=True)
 def aten_index_put_bool(
     self: TReal,
-    indices: BOOL,
+    indices: Sequence[BOOL],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
