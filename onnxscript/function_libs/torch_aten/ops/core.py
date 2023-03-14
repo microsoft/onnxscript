@@ -5264,6 +5264,15 @@ def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
     return result
 
 
+@torch_op("aten::squeeze", overload=True)
+def aten_squeeze_dims(self: TTensor, dims: Sequence[int]) -> TTensor:
+    result = self
+    if op.Size(op.Shape(self)) > 0:
+        result = op.Squeeze(self, dims)
+
+    return result
+
+
 def aten_squeeze_copy(self: TensorType) -> TensorType:
     """squeeze_copy(Tensor self) -> Tensor"""
 
