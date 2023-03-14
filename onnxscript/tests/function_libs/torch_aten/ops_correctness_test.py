@@ -18,8 +18,9 @@ Prefer xfail over skip when possible.
     are now fixed, removed the corresponding xfail.
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
-4. If the OpInfo needs to be duplicated to test multiple overloads, use
-`duplicate_opinfo` to create a new OpInfo with a new name.
+4. To test different ONNX functions that are registered as overloads of the same
+    op, use `duplicate_opinfo` to create new OpInfo with new names and map each
+    to one overload.
 """
 from __future__ import annotations
 
