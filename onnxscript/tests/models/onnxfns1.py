@@ -16,7 +16,7 @@
 # Element-type annotation for tensors
 
 from onnxscript import script
-from onnxscript.onnx_opset import opset17 as op
+from onnxscript.onnx_opset import opset18 as op
 
 
 @script()
