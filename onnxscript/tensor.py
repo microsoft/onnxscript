@@ -63,7 +63,7 @@ class Tensor:
         return float(self.value)
 
     def __len__(self) -> int:
-        return len(self.value)
+        return self.shape[0]
 
     def __index__(self) -> int:
         return self.value.__index__()
