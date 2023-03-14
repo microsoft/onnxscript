@@ -95,8 +95,8 @@ executes in an eager-evaluation mode.
     :maxdepth: 1
 
     tutorial/index
-    api/index
     auto_examples/index
+    api/index
 
 **License**
 

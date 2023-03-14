@@ -36,7 +36,7 @@ def sum(z):
 
 @script()
 def l2norm(x: FLOAT["N"], y: FLOAT["N"]) -> FLOAT[1]:  # noqa: F821
-    return op.sqrt(sum(diff_square(x, y)))
+    return op.Sqrt(sum(diff_square(x, y)))
 
 
 #%%
