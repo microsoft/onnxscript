@@ -658,7 +658,7 @@ duplicate_opinfo(
 
 duplicate_opinfo(OPS_DB, "new_full", ("full",))
 
-duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim","squeeze_dims",))
 
 
 # END OF SECTION TO MODIFY #####################################################
