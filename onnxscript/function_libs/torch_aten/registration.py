@@ -30,7 +30,9 @@ class Registry:
     def __init__(self):
         self._registry: dict[str, OverloadedFunction] = {}
 
-    def register(self, func: Any, name: str, *, overload: bool = False, private: bool = False) -> None:
+    def register(
+        self, func: Any, name: str, *, overload: bool = False, private: bool = False
+    ) -> None:
         """Register a function."""
 
         if overload:
@@ -79,7 +81,6 @@ def torch_op(
         registry = default_registry
 
     def wrapper(func: Callable[..., Any]) -> onnxscript.OnnxFunction | Callable[..., Any]:
-
         if trace_only:
             processed_func = func
         else:
