@@ -410,6 +410,7 @@ class IRFunction:
             atts = self.attrs
         else:
             atts = self.attrs + [a.attr_proto.name for a in self.attr_protos]
+
         f = helper.make_function(
             self.domain,
             self.name,
