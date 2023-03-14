@@ -66,12 +66,8 @@ def test_onnx_func_expe(session):
         "--pre",
         "ort-function-experiment-nightly",
     )
-    session.install(
-        "-f",
-        "https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html",
-        "--pre",
-        "onnx-function-experiment",
-    )
+
+    session.install("-r", "requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
