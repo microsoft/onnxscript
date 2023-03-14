@@ -563,6 +563,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistency_FullGraph",
     ),
     xfail(
+        "min_dim",
+        variant_name="reduction_with_dim",
+        reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistency_FullGraph",
