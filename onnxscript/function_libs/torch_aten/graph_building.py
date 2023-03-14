@@ -399,8 +399,15 @@ class TorchScriptGraph:
 
     @beartype
     def _add_concat_sequence_to_graph(self, inputs, axis: int = 0) -> torch.Value:
+        """Add Concat node to convert List[Tensors] to Tensor[s]
 
+        For example:
+            inputs: [2, 4, TensorA, 1, TensorB]
+            outputs: Tensor([Tensor(2), Tensor(4), TensorA, Tensor(1), TensorB])
+
+        """
         # inputs could be a mixed list of torch.Value and int/float/bool
+        # We need to convert all the constants to Tensors before concatenate
         torchvalue_inputs = []
         for input in inputs:
             if not isinstance(input, torch.Value):
