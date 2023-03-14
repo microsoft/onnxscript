@@ -17,10 +17,7 @@ from onnxscript.tests.common import version_utils
 @unittest.skipIf(version_utils.torch_older_than("2.0"), "torchscript in 1.13 not supported")
 class TestTorchScriptTracingEvaluator(unittest.TestCase):
     def setUp(self):
-        # FIXME: Currently this must match with the import line
-        # `from onnxscript import opset17 as op`, which restricts opset to be 17 in these
-        # tests anyways.
-        self.opset_version = 17
+        self.opset_version = 18
         # TODO: Add test for initializer. Currently skipped since to `assert_isomorphic`
         # does not check for initializers.
         self.onnxscript_graph = graph_building.TorchScriptGraph()
