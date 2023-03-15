@@ -20,14 +20,15 @@ COMMON_TEST_DEPENDENCIES = (
     "packaging",
     "parameterized",
     "pytest-cov",
+    "pytest-randomly",
     "pytest-subtests",
     "pytest-xdist",
     "pytest!=7.1.0",
     "pyyaml",
 )
-ONNX = "onnx==1.13"
-ONNX_RUNTIME = "onnxruntime==1.14"
-PYTORCH = "torch==1.13"
+ONNX = "onnx==1.13.1"
+ONNX_RUNTIME = "onnxruntime==1.14.1"
+PYTORCH = "torch==1.13.1"
 
 
 @nox.session(tags=["build"])
@@ -66,12 +67,8 @@ def test_onnx_func_expe(session):
         "--pre",
         "ort-function-experiment-nightly",
     )
-    session.install(
-        "-f",
-        "https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html",
-        "--pre",
-        "onnx-function-experiment",
-    )
+
+    session.install("-r", "requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)

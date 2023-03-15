@@ -327,11 +327,15 @@ def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
         if schema.name == "LSTM":
             return 3
         if schema.name == "Split":
-            if len(args) == 1:
+            if len(args) == 1 and "num_outputs" not in kwargs:
                 raise EagerModeError(
                     "Operator Split: the number of expected outputs defines the split. "
                     "This information is unknown here."
                 )
+            if len(args) == 2:  # has argument(split)
+                return len(args[1])
+            else:  # no argument(split), check attribute(num_outputs)
+                return kwargs["num_outputs"]
         if schema.name == "Scan":
             scan_body = kwargs["body"]
             return len(scan_body.output)
