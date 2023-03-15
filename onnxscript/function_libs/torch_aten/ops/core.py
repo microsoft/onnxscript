@@ -222,7 +222,7 @@ def aten_allclose(
     right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
     not_close = op.Not(op.LessOrEqual(left_part, right_part))
     not_close_int = op.Cast(not_close, to=UINT64.dtype)
-    any_not_close = op.Cast(op.ReduceSum(isclose_int), to=BOOL.dtype)
+    any_not_close = op.Cast(op.ReduceSum(not_close_int), to=BOOL.dtype)
 
     return op.Not(any_not_close)
 
