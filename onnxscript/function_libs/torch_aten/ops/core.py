@@ -2701,10 +2701,10 @@ def aten_index_put(
 
     index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
     # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
-    self_rank_1 = op.Gather(op.Shape(self), 1)
-    index_rank_0 = op.Gather(op.Shape(index), 0)
+    self_dim_1 = op.Gather(op.Shape(self), 1)
+    index_dim_0 = op.Gather(op.Shape(index), 0)
     neg_1 = op.Constant(value_ints=[-1])
-    shape = op.Concat(op.Reshape(self_rank_1, neg_1), op.Reshape(index_rank_0, neg_1), axis=0)
+    shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
     new_ind = op.Expand(index, shape)
     new_ind_t = op.Transpose(new_ind)
 
@@ -2728,7 +2728,7 @@ def aten_index_put_bool(
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
     index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    ind_float = op.Cast(index, to=FLOAT.dtype)
+    ind_float = op.Cast(index, to=FLOAT.dtype)  # TODO: ReduceSum() cannot accept INT input
     # if all False, return self
     if op.ReduceSum(ind_float) == 0:
         result = self
@@ -2736,11 +2736,11 @@ def aten_index_put_bool(
         # change array([F,F,T,F,F]) to array([2])
         index = op.ArgMax(ind_float)  # assume index only have 1 True
         # change array([2]) to array([2,2,2,2,2])
-        self_rank_1 = op.Gather(op.Shape(self), 1)
+        self_dim_1 = op.Gather(op.Shape(self), 1)
         index_rank_0 = op.Gather(op.Shape(index), 0)
         neg_1 = op.Constant(value_ints=[-1])
         shape = op.Concat(
-            op.Reshape(self_rank_1, neg_1), op.Reshape(index_rank_0, neg_1), axis=0
+            op.Reshape(self_dim_1, neg_1), op.Reshape(index_rank_0, neg_1), axis=0
         )
         new_ind = op.Expand(index, shape)
         new_ind_t = op.Transpose(new_ind)
