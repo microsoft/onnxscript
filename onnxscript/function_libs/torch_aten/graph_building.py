@@ -1,6 +1,7 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
 
+import logging
 import typing
 import warnings
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
@@ -322,17 +323,11 @@ class TorchScriptGraph:
             torch_value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
-            torch_value.setType(
-                torch._C.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
-            )
+            torch_value.setType(torch.OptionalType.ofTensor())
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
             return tensor_value  # type: ignore[return-value]
         torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(
-            torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
-                input_value
-            )
-        )
+        torch_value.setType(torch.TensorType.create_from_tensor(input_value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
@@ -486,12 +481,17 @@ class TorchScriptGraph:
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
         onnx_model = onnx.shape_inference.infer_shapes(
-            onnx_model, check_type=True, strict_mode=False
+            onnx_model, check_type=True, strict_mode=False, data_prop=True
         )
         try:
             onnx.checker.check_model(onnx_model, full_check=True)
-        except onnx.checker.ValidationError as e:
+        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             warnings.warn(f"ONNX model is invalid: {e}")
+            logging.debug(
+                "ONNX model:\n%s\n\nTorchScript graph:\n%s",
+                onnxscript.proto2text(onnx_model),
+                self.torch_graph,
+            )
 
         return onnx_model
 
