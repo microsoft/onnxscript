@@ -2708,7 +2708,7 @@ def aten_index_put(
     new_ind = op.Expand(index, shape)
     new_ind_t = op.Transpose(new_ind)
 
-    if accumulate:
+    if op.Cast(accumulate, to=INT64.dtype):
         # put values into zeros array first, then add to input
         zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
         result = op.ScatterElements(zeros, new_ind_t, values)
@@ -2749,7 +2749,7 @@ def aten_index_put_bool(
         if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
             values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
 
-        if accumulate:
+        if op.Cast(accumulate, to=INT64.dtype):
             zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
             result = op.ScatterElements(zeros, new_ind_t, values)
             result = op.Add(result, self)
