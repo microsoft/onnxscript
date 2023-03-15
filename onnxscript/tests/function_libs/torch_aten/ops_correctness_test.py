@@ -986,7 +986,6 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
                 input_name = f"input_{i}"
                 input = onnxscript_graph.add_input(
                     input_name,
-                    torch.tensor(arg),
                     torch.tensor(arg).shape,
                     torch.tensor(arg).dtype,
                 )
@@ -1000,7 +999,6 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
                         input_name = f"input_{i}_{j}"
                         input = onnxscript_graph.add_input(
                             input_name,
-                            torch.tensor(subarg),
                             torch.tensor(subarg).shape,
                             torch.tensor(subarg).dtype,
                         )
@@ -1014,7 +1012,6 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
             if isinstance(value, np.ndarray):
                 input = onnxscript_graph.add_input(
                     key,
-                    torch.tensor(value),
                     torch.tensor(value).shape,
                     torch.tensor(value).dtype,
                 )
