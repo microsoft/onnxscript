@@ -572,12 +572,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "nn.functional.nll_loss",
         matcher=lambda sample: "weight" in sample.kwargs,
-        reason="",
+        reason="this Aten overload doesn't accept weight as kwargs",
     ),
     skip(
         "nn.functional.nll_loss_weight",
         matcher=lambda sample: not ("weight" in sample.kwargs),
-        reason="",
+        reason="this Aten overload need weight as kwargs",
     ),
     skip(
         "nn.functional.upsample_nearest2d",
