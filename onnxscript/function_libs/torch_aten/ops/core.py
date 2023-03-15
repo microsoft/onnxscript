@@ -2892,7 +2892,7 @@ def aten_isclose(
     other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False  # pylint: disable=unused-argument
+    equal_nan: bool = False,  # pylint: disable=unused-argument
 ) -> BOOL:
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
