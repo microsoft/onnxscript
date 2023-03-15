@@ -20,9 +20,9 @@ COMMON_TEST_DEPENDENCIES = (
     "packaging",
     "parameterized",
     "pytest-cov",
+    "pytest-randomly",
     "pytest-subtests",
     "pytest-xdist",
-    "pytest-randomly",
     "pytest!=7.1.0",
     "pyyaml",
 )
