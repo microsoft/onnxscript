@@ -27,7 +27,6 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TTensor,
     TTensorOrString,
 )
-from onnxscript.onnx_opset import opset17
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -225,54 +224,20 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::amax", trace_only=True)
-def aten_amax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+@torch_op("aten::amax")
+def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
-    if dim is None:
-        return opset17.ReduceMax(self, keepdims=keepdim)
-    if not isinstance(dim, Sequence):
-        dims = [dim]
-    else:
-        dims = list(dim)
-    return _aten_amax_onnx(self, axes=dims, keepdims=keepdim)
+    # ReduceMax reduces all dimensions when dim is empty
+    return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
-@torch_op("aten::amax", overload=True)
-def _aten_amax_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
-    """TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14"""
-    if opset17.Size(opset17.Shape(self)) == 0:
-        # Scalar
-        result = self
-    else:
-        result = opset17.ReduceMax(self, axes=axes, keepdims=keepdims)
-    return result
-
-
-@torch_op("aten::amin", trace_only=True)
-def aten_amin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+@torch_op("aten::amin")
+def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
-    # TODO(justinchuby): Make dim INT64 after we upgrade to onnxruntime 1.14
-    if dim is None:
-        return opset17.ReduceMin(self, keepdims=keepdim)
-    if not isinstance(dim, Sequence):
-        dims = [dim]
-    else:
-        dims = list(dim)
-    return _aten_amin_onnx(self, axes=dims, keepdims=keepdim)
-
-
-@torch_op("aten::amin", overload=True)
-def _aten_amin_onnx(self: TReal, axes: Sequence[int], keepdims: bool) -> TReal:
-    """TODO(justinchuby): Use opset18 after we upgrade to onnxruntime 1.14"""
-    if opset17.Size(opset17.Shape(self)) == 0:
-        # Scalar
-        result = self
-    else:
-        result = opset17.ReduceMin(self, axes=axes, keepdims=keepdims)
-    return result
+    # ReduceMin reduces all dimensions when dim is empty
+    return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
 def aten_aminmax(
@@ -1948,17 +1913,16 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
 
 
 @torch_op("aten::dropout")
-def aten_dropout(input: TFloat, p: float = 0.5, train: bool = True) -> TFloat:
+def aten_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     """dropout(Tensor input, float p, bool train) -> Tensor"""
 
-    rank_input = op.Size(op.Shape(input))
-    if rank_input == 0:
+    input_is_scalar = op.Size(op.Shape(input)) == 0
+    if input_is_scalar:
         input = op.Reshape(input, op.Constant(value_ints=[-1]))
-
-    result, _ = op.Dropout(input, p, train)
-
-    if rank_input == 0:
+        result, _ = op.Dropout(input, p, train)
         result = op.Squeeze(result)
+    else:
+        result, _ = op.Dropout(input, p, train)
 
     return result
 
@@ -3018,23 +2982,39 @@ def aten_kthvalue(
 @torch_op("aten::layer_norm", trace_only=True)
 def aten_layer_norm(
     input: TReal,
-    normalized_shape: Sequence[int],
+    normalized_shape: INT64,
     weight: Optional[TReal] = None,
     bias: Optional[TReal] = None,
     eps: float = 1e-05,
 ) -> TReal:
     """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
 
-    axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    start_axis = axes_list[0]
-    if not op.OptionalHasElement(weight):
+    # trace_only to use Python to obtain start_axis
+    start_axis = -len(normalized_shape)
+
+    if weight is None:
         one = op.Constant(value_float=1.0)
         weight = op.Expand(one, op.Shape(input, start=start_axis))
-    if not op.OptionalHasElement(bias):
+
+    if bias is None:
         zero = op.Constant(value_float=0.0)
         bias = op.Expand(zero, op.Shape(input, start=start_axis))
 
-    result, _, _ = op.LayerNormalization(input, weight, bias, axis=start_axis, epsilon=eps)
+    return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
+
+
+@torch_op("aten::layer_norm", overload=True)
+def _aten_layer_norm_onnx(
+    input: TReal,
+    weight: TReal,
+    bias: Optional[TReal],
+    axis: int,
+    eps: float = 1e-05,
+) -> TReal:
+    """layer_norm(Tensor input, int[] normalized_shape, Tensor? weight=None, Tensor? bias=None, float eps=1e-05, bool cudnn_enable=True) -> Tensor"""
+
+    # TODO(justinchuby): Use OptionalHasElement after onnx/onnx#4982
+    result, _, _ = op.LayerNormalization(input, weight, bias, axis=axis, epsilon=eps)
     return result
 
 
@@ -3529,7 +3509,6 @@ def aten_min(self: TReal) -> TReal:
 
 @torch_op("aten::min", overload=True)
 def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
-
     if op.Size(op.Shape(self)) == 0:
         result = self
         indices = op.Constant(value_int=0)
@@ -3543,7 +3522,6 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
 
 @torch_op("aten::min", overload=True)
 def aten_min_other(self: TReal, other: TReal) -> TReal:
-
     return op.Min(self, other)
 
 
@@ -4113,29 +4091,23 @@ def aten_native_layer_norm(
 ) -> Tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    # Use python to manipulate the axes
     # https://pytorch.org/docs/stable/generated/torch.nn.LayerNorm.html#torch.nn.LayerNorm
     # The mean and standard-deviation are calculated over the last D dimensions,
     # where D is the dimension of normalized_shape. For example, if normalized_shape is
     # (3, 5) (a 2-dimensional shape), the mean and standard-deviation are computed
     # over the last 2 dimensions of the input (i.e. input.mean((-2, -1))).
 
-    axes_list = [-i for i in range(len(normalized_shape), 0, -1)]
-    start_axis = axes_list[0]
+    # Use Python to manipulate
+    start_axis = -len(normalized_shape)
 
-    if not op.OptionalHasElement(weight):
+    if weight is None:
         one = op.Constant(value_floats=[1.0])
         weight = op.Expand(one, op.Shape(input, start=start_axis))
         weight = op.CastLike(weight, input)
 
-    if not op.OptionalHasElement(bias):
-        result, mean, rdenominator = op.LayerNormalization(
-            input, weight, axis=start_axis, epsilon=eps
-        )
-    else:
-        result, mean, rdenominator = op.LayerNormalization(
-            input, weight, bias, axis=start_axis, epsilon=eps
-        )
+    result, mean, rdenominator = op.LayerNormalization(
+        input, weight, bias, axis=start_axis, epsilon=eps
+    )
 
     return result, mean, rdenominator
 
@@ -5429,12 +5401,12 @@ def aten_symeig(
 def aten_t(self: TTensor) -> TTensor:
     """t(Tensor(a) self) -> Tensor(a)"""
 
-    # TODO(justinchuby): Make rank a function
     rank = op.Size(op.Shape(self))
-    if rank == 0 or rank == 1:  # pylint: disable=consider-using-in
-        result = self
-    else:
+    if rank == 2:
         result = op.Transpose(self, perm=[1, 0])
+    else:
+        # rank < 2
+        result = self
     return result
 
 
@@ -5595,8 +5567,7 @@ def aten_trace_backward(grad: TensorType, sizes: INT64) -> TensorType:
 def aten_transpose(self, dim0: int, dim1: int):
     """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
 
-    # FIXME(justinchuby): onnxscript raises Unsupported expression type
-    # Script the function when this is fixed
+    # Use trace only to construct the prem attribute in Transpose
     self_rank = len(self.shape)  # type: ignore[attr-defined]
 
     if self_rank == 0:
