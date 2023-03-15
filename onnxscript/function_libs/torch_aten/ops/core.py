@@ -2737,10 +2737,10 @@ def aten_index_put_bool(
         index = op.ArgMax(ind_float)  # assume index only have 1 True
         # change array([2]) to array([2,2,2,2,2])
         self_dim_1 = op.Gather(op.Shape(self), 1)
-        index_rank_0 = op.Gather(op.Shape(index), 0)
+        index_dim_0 = op.Gather(op.Shape(index), 0)
         neg_1 = op.Constant(value_ints=[-1])
         shape = op.Concat(
-            op.Reshape(self_dim_1, neg_1), op.Reshape(index_rank_0, neg_1), axis=0
+            op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0
         )
         new_ind = op.Expand(index, shape)
         new_ind_t = op.Transpose(new_ind)
