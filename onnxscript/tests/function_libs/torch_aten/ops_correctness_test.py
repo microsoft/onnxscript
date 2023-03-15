@@ -560,6 +560,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistency_Eager",
     ),
     xfail(
+        "allclose",
+        reason="allclose return Tenosr(BOOL) but torch return Scalar(bool)",
+        test_class_name="TestOutputConsistency_FullGraph",
+    ),
+    xfail(
         "any",
         reason="fixme: ORT shape inference error",
         test_class_name="TestOutputConsistency_FullGraph",
