@@ -206,16 +206,26 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
+@torch_op("aten::allclose")
 def aten_allclose(
-    self: TensorType,
-    other: TensorType,
+    self: TReal,
+    other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
     equal_nan: bool = False,
-) -> bool:
+) -> BOOL:
     """allclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> bool"""
 
-    raise NotImplementedError()
+    # FIXME: check equal_nan when self and other are all NaN
+    # |input - other| <= atol + rtol x |other|
+    left_part = op.Abs(op.Sub(self, other))
+    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
+    isclose_bool = op.Not(op.LessOrEqual(left_part, right_part))
+    isclose_int = op.Cast(isclose_bool, to=INT64.dtype)
+    result_all = op.ReduceSum(isclose_int)
+    result = op.Not(op.Cast(result_all, to=BOOL.dtype))
+
+    return result
 
 
 def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
@@ -2876,16 +2886,22 @@ def aten_is_vulkan_available() -> bool:
     raise NotImplementedError()
 
 
+@torch_op("aten::isclose")
 def aten_isclose(
-    self: TensorType,
-    other: TensorType,
+    self: TReal,
+    other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False,
-) -> TensorType:
+    equal_nan: bool = False
+) -> BOOL:
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
-    raise NotImplementedError()
+    # FIXME: check equal_nan when self and other are all NaN
+    # |input - other| <= atol + rtol x |other|
+    left_part = op.Abs(op.Sub(self, other))
+    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
+    result = op.LessOrEqual(left_part, right_part)
+    return result
 
 
 @torch_op("aten::isfinite")

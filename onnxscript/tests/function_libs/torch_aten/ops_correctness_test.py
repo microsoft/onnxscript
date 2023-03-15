@@ -358,6 +358,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ],
 ] = {
     "all_dim": core_ops.aten_all_dim,
+    "allclose": core_ops.aten_allclose,
     "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
@@ -403,6 +404,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
+    "isclose": core_ops.aten_isclose,
     "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
@@ -552,6 +554,11 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
+    xfail(
+        "allclose",
+        reason="allclose return Tenosr(BOOL) but torch return Scalar(bool)",
+        test_class_name="TestOutputConsistency_Eager",
+    ),
     xfail(
         "any",
         reason="fixme: ORT shape inference error",
