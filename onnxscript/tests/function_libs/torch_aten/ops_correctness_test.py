@@ -984,7 +984,12 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
         for i, arg in enumerate(args):
             if isinstance(arg, np.ndarray):
                 input_name = f"input_{i}"
-                input = onnxscript_graph.add_input(input_name, torch.tensor(arg))
+                input = onnxscript_graph.add_input(
+                    input_name,
+                    torch.tensor(arg),
+                    torch.tensor(arg).shape,
+                    torch.tensor(arg).dtype,
+                )
                 input.value = arg
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
@@ -993,7 +998,12 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
                 for j, subarg in enumerate(arg):
                     if isinstance(subarg, np.ndarray):
                         input_name = f"input_{i}_{j}"
-                        input = onnxscript_graph.add_input(input_name, torch.tensor(subarg))
+                        input = onnxscript_graph.add_input(
+                            input_name,
+                            torch.tensor(subarg),
+                            torch.tensor(subarg).shape,
+                            torch.tensor(subarg).dtype,
+                        )
                         input.value = subarg
                         sequence_input.append(input)
                         ort_inputs[input_name] = subarg
@@ -1002,7 +1012,12 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
                 onnxscript_args.append(arg)
         for key, value in kwargs.items():
             if isinstance(value, np.ndarray):
-                input = onnxscript_graph.add_input(key, torch.tensor(value))
+                input = onnxscript_graph.add_input(
+                    key,
+                    torch.tensor(value),
+                    torch.tensor(value).shape,
+                    torch.tensor(value).dtype,
+                )
                 input.value = value
                 ort_inputs[key] = value
                 onnxscript_kwargs[key] = input

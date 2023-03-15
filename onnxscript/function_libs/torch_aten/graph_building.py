@@ -315,7 +315,7 @@ class TorchScriptGraph:
     def add_input(
         self,
         input_name: Optional[str],
-        shape: Optional[torch.Size] = None,
+        shape: Optional[Union[torch.Size, Sequence[Union[int, str, None]]]] = None,
         dtype: Optional[torch.dtype] = None,
     ) -> TorchScriptTensor:
         if input_name is None:
@@ -327,10 +327,10 @@ class TorchScriptGraph:
             torch_value.setType(torch.OptionalType.ofTensor())
         else:
             torch_value = self._torch_graph.addInput(input_name)
-            torch_value.setType(torch_value.type().with_dtype(dtype))
+            torch_value.setType(torch_value.type().with_dtype(dtype))  # type: ignore[arg-type]
             torch_value.setType(
                 torch_value.type().with_sizes(
-                    [dim if isinstance(dim, int) else None for dim in shape]
+                    [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
                 )
             )
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
