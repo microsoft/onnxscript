@@ -794,7 +794,7 @@ def aten_nll_loss(
         result = op.NegativeLogLikelihoodLoss(
             self, target, ignore_index=ignore_index, reduction="mean"
         )
-    else:
+    else:  # assert reduction == 2
         result = op.NegativeLogLikelihoodLoss(
             self, target, ignore_index=ignore_index, reduction="sum"
         )
