@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64, UINT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     IntType,
@@ -220,12 +220,11 @@ def aten_allclose(
     # |input - other| <= atol + rtol x |other|
     left_part = op.Abs(op.Sub(self, other))
     right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
-    isclose_bool = op.Not(op.LessOrEqual(left_part, right_part))
-    isclose_int = op.Cast(isclose_bool, to=INT64.dtype)
-    result_all = op.ReduceSum(isclose_int)
-    result = op.Not(op.Cast(result_all, to=BOOL.dtype))
+    not_close = op.Not(op.LessOrEqual(left_part, right_part))
+    not_close_int = op.Cast(not_close, to=UINT64.dtype)
+    any_not_close = op.Cast(op.ReduceSum(isclose_int), to=BOOL.dtype)
 
-    return result
+    return op.Not(any_not_close)
 
 
 def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
