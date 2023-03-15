@@ -2728,7 +2728,8 @@ def aten_index_put_bool(
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
     index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    ind_float = op.Cast(index, to=FLOAT.dtype)  # TODO: ReduceSum() cannot accept INT input
+    # FIXME: ORT ReduceSum fails on INT input even though ONNX allows it
+    ind_float = op.Cast(index, to=FLOAT.dtype)
     # if all False, return self
     if op.ReduceSum(ind_float) == 0:
         result = self
