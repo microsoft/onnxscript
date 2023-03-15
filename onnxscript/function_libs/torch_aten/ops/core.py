@@ -1362,7 +1362,7 @@ def aten_convolution(
     return result
 
 
-@torch_op("aten::convolution", overload=True)
+@torch_op("aten::convolution", private=True)
 def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
@@ -1767,7 +1767,7 @@ def aten_cumsum(
     return _aten_cumsum_onnx(cast, dim)
 
 
-@torch_op("aten::cumsum", overload=True)
+@torch_op("aten::cumsum", private=True)
 def _aten_cumsum_onnx(
     self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64]
 ) -> TRealUnlessInt16OrInt8:
@@ -2033,7 +2033,7 @@ def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
     return _aten_empty_like_onnx(self, zero)
 
 
-@torch_op("aten::empty_like", overload=True)
+@torch_op("aten::empty_like", private=True)
 def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(zero, shape)
@@ -2722,7 +2722,7 @@ def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     return _aten_index_select_onnx(self, index, dim=dim)
 
 
-@torch_op("aten::index_select", overload=True)
+@torch_op("aten::index_select", private=True)
 def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
@@ -3003,7 +3003,7 @@ def aten_layer_norm(
     return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
 
 
-@torch_op("aten::layer_norm", overload=True)
+@torch_op("aten::layer_norm", private=True)
 def _aten_layer_norm_onnx(
     input: TReal,
     weight: TReal,
@@ -3402,20 +3402,19 @@ def aten_max(
     return result
 
 
-@torch_op("aten::max", overload=True)
+@torch_op("aten::max", private=True)
 def _aten_max_with_no_dim(self: TReal) -> TReal:
     result = op.ReduceMax(self, keepdims=0)
     return result
 
 
-@torch_op("aten::max", overload=True)
+@torch_op("aten::max", private=True)
 def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
     result = op.Max(self, other)
     return result
 
 
-@torch_op("aten::max", overload=True)
-# def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
+@torch_op("aten::max", private=True)
 def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
     result = op.ReduceMax(self, dims, keepdims=keepdim)
@@ -4291,7 +4290,7 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
     return _aten_ones_like_onnx(self, one)
 
 
-@torch_op("aten::ones_like", overload=True)
+@torch_op("aten::ones_like", private=True)
 def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(one, shape)
@@ -5321,7 +5320,7 @@ def aten_sum_dim_IntList(
     return result
 
 
-@torch_op("aten::sum", overload=True)
+@torch_op("aten::sum", private=True)
 def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
@@ -5337,7 +5336,7 @@ def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     return result
 
 
-@torch_op("aten::sum", overload=True)
+@torch_op("aten::sum", private=True)
 def _aten_sum_dim_none(self: TReal, keepdim: bool = False) -> TReal:
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
@@ -5863,7 +5862,7 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
     return _aten_zeros_like_onnx(self, zero)
 
 
-@torch_op("aten::zeros_like", overload=True)
+@torch_op("aten::zeros_like", private=True)
 def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(zero, shape)
