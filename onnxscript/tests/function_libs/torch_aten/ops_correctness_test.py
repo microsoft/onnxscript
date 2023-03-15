@@ -366,6 +366,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
+    "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
@@ -569,6 +570,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="dropout is random so the result not match",
     ),
     skip(
+        "nn.functional.nll_loss",
+        matcher=lambda sample: "weight" in sample.kwargs,
+        reason="",
+    ),
+    skip(
+        "nn.functional.nll_loss_weight",
+        matcher=lambda sample: not ("weight" in sample.kwargs),
+        reason="",
+    ),
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
@@ -599,6 +610,8 @@ duplicate_opinfo(
         "arange_start_step",
     ),
 )
+
+duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
 
 duplicate_opinfo(
     OPS_DB,
