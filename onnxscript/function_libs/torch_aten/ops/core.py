@@ -2693,7 +2693,7 @@ def aten_index_copy(
 @torch_op("aten::index_put")
 def aten_index_put(
     self: TReal,
-    indices: Sequence[TReal],
+    indices: Sequence[INT64],
     values: TReal,
     accumulate: bool = False,
 ) -> TReal:
