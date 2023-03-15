@@ -313,33 +313,26 @@ class TorchScriptGraph:
     @beartype
     def add_input(
         self,
-        input_name: str,
-        input_value: Optional[torch.Tensor] = None,
-        dynamic_axes: bool = False,
+        input_name: Optional[str],
+        shape: Optional[torch.Size] = None,
+        dtype: Optional[torch.dtype] = None,
     ) -> TorchScriptTensor:
-        # TODO: Take in a TorchScriptTensor?
-        if input_value is None:
+        if input_name is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
             torch_value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
-            torch_value.setType(
-                torch.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
-            )
-            tensor_value = _wrap_torch_value_to_tensor(torch_value)
-            return tensor_value  # type: ignore[return-value]
-        torch_value = self._torch_graph.addInput(input_name)
-        torchscript_input_value = torch.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
-            input_value
-        )
-        if dynamic_axes:
-            rank = torchscript_input_value.dim()
-            # We set input sizes all to be dynamic to initialize the model conversion,
-            # and nodes are also set to be dynamic in exporter function: _fill_tensor_meta.
-            torch_value.setType(torchscript_input_value.with_sizes([None] * rank))
+            torch_value.setType(torch.OptionalType.ofTensor())
         else:
-            torch_value.setType(torchscript_input_value)
+            torch_value = self._torch_graph.addInput(input_name)
+            torch_value.setType(torch_value.type().with_dtype(dtype))
+            torch_value.setType(
+                torch_value.type().with_sizes(
+                    [dim if isinstance(dim, int) else None for dim in shape]
+                )
+            )
+
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
@@ -398,31 +391,6 @@ class TorchScriptGraph:
         )[0]
 
     @beartype
-    def _add_concat_sequence_to_graph(self, inputs, axis: int = 0) -> torch.Value:
-        """Add Concat node to convert List[Tensors] to Tensor[s]
-
-        For example:
-            inputs: [2, 4, TensorA, 1, TensorB]
-            outputs: Tensor([Tensor(2), Tensor(4), TensorA, Tensor(1), TensorB])
-
-        """
-        # inputs could be a mixed list of torch.Value and int/float/bool
-        # We need to convert all the constants to Tensors before concatenate
-        torchvalue_inputs = []
-        for input in inputs:
-            if not isinstance(input, torch.Value):
-                torchvalue_inputs.append(self._add_constant_to_graph(input))
-            else:
-                torchvalue_inputs.append(input)
-
-        return _create_op_call_in_torch_graph(
-            self._torch_graph,
-            "onnx::Concat",
-            inputs=torchvalue_inputs,
-            attributes=dict(axis=axis),
-        )[0]
-
-    @beartype
     def _add_torchscript_op_call(
         self,
         name: str,
@@ -435,12 +403,7 @@ class TorchScriptGraph:
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if isinstance(input, (tuple, list)) and any(
-                isinstance(ele, torch.Value) for ele in input
-            ):
-                # Supports list of tensors
-                graph_inputs.append(self._add_concat_sequence_to_graph(input))
-            elif not isinstance(input, torch.Value):
+            if not isinstance(input, torch.Value):
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
