@@ -62,6 +62,9 @@ class Tensor:
     def __float__(self) -> float:
         return float(self.value)
 
+    def __len__(self) -> int:
+        return self.shape[0]
+
     def __index__(self) -> int:
         return self.value.__index__()
 
