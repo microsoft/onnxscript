@@ -769,16 +769,77 @@ def aten_multilabel_margin_loss_forward(
     raise NotImplementedError()
 
 
+@torch_op("aten::nll_loss")
 def aten_nll_loss(
-    self: TensorType,
-    target: TensorType,
-    weight: Optional[TensorType] = None,
+    self: TFloat,
+    target: INT64,
     reduction: int = 1,
-    ignore_index: INT64 = -100,
-) -> TensorType:
+    ignore_index: int = -100,
+) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    raise NotImplementedError()
+    rank_self = op.Size(op.Shape(self))
+    if rank_self == 1:  # self rank should be at least 2
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+
+    rank_target = op.Size(op.Shape(target))
+    if rank_target == 0:  # target rank should be at least 1
+        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+
+    if reduction == 0:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, ignore_index=ignore_index, reduction="none"
+        )
+    elif reduction == 1:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, ignore_index=ignore_index, reduction="mean"
+        )
+    else:  # assert reduction == 2
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, ignore_index=ignore_index, reduction="sum"
+        )
+
+    if rank_self == 1:
+        result = op.Squeeze(result)
+
+    return result
+
+
+@torch_op("aten::nll_loss", overload=True)
+def aten_nll_loss_weight(
+    self: TFloat,
+    target: INT64,
+    weight: TFloat,
+    reduction: int = 1,
+    ignore_index: int = -100,
+) -> TFloat:
+    """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
+
+    rank_self = op.Size(op.Shape(self))
+    if rank_self == 1:  # self rank should be at least 2
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+
+    rank_target = op.Size(op.Shape(target))
+    if rank_target == 0:  # target rank should be at least 1
+        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+
+    if reduction == 0:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, weight, ignore_index=ignore_index, reduction="none"
+        )
+    elif reduction == 1:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, weight, ignore_index=ignore_index, reduction="mean"
+        )
+    else:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, weight, ignore_index=ignore_index, reduction="sum"
+        )
+
+    if rank_self == 1:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_nll_loss2d(
