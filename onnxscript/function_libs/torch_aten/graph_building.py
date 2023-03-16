@@ -397,7 +397,19 @@ class TorchScriptGraph:
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if not isinstance(input, torch.Value):
+            if isinstance(input, Sequence) and all(
+                isinstance(elem, torch.Value) for elem in input
+            ):
+                # If all elements in the Sequence are torch.Values we know it
+                # should be a Sequence input in ONNX.
+                input_sequence = _create_op_call_in_torch_graph(
+                    self._torch_graph,
+                    "onnx::SequenceConstruct",
+                    inputs=input,
+                    attributes={},
+                )[0]
+                graph_inputs.append(input_sequence)
+            elif not isinstance(input, torch.Value):
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
