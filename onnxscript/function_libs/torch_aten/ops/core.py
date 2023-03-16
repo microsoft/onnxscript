@@ -2708,7 +2708,7 @@ def aten_index_put(
     new_ind = op.Expand(index, shape)
     new_ind_t = op.Transpose(new_ind)
 
-    if op.Cast(accumulate, to=INT64.dtype):
+    if op.Cast(accumulate, to=BOOL.dtype):
         # put values into zeros array first, then add to input
         zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
         result = op.ScatterElements(zeros, new_ind_t, values)
@@ -2729,13 +2729,13 @@ def aten_index_put_bool(
 
     index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
     # FIXME: ORT ArgMax fails on INT input even though ONNX allows it
-    ind_float = op.Cast(index, to=FLOAT.dtype)
+    index_int = op.Cast(index, to=INT32.dtype)
     # if all False, return self
-    if op.ReduceSum(ind_float) == 0:
+    if op.ReduceSum(index_int) == 0:
         result = self
     else:
         # change array([F,F,T,F,F]) to array([2])
-        index = op.ArgMax(ind_float)  # assume index only have 1 True
+        index = op.ArgMax(index_int)  # assume index only have 1 True
         # change array([2]) to array([2,2,2,2,2])
         self_dim_1 = op.Gather(op.Shape(self), 1)
         index_dim_0 = op.Gather(op.Shape(index), 0)
