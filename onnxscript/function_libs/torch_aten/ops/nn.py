@@ -260,7 +260,7 @@ def aten_cross_entropy_loss(
     return result
 
 
-@torch_op("aten::cross_entropy_loss", overload=True)
+@torch_op("aten::cross_entropy_loss", private=True)
 def _aten_cross_entropy_loss_onnx(
     self: TFloatOrBFloat16,
     target: Sequence[int],
@@ -372,7 +372,7 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     return result
 
 
-@torch_op("aten::gelu", overload=True)
+@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_none(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
@@ -386,7 +386,7 @@ def _aten_gelu_approximate_none(self: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::gelu", overload=True)
+@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
@@ -1361,7 +1361,7 @@ def aten_upsample_nearest2d(
     return _aten_upsample_nearest2d_onnx(self, size)
 
 
-@torch_op("aten::upsample_nearest2d", overload=True)
+@torch_op("aten::upsample_nearest2d", private=True)
 def _aten_upsample_nearest2d_onnx(
     self: TReal,
     size: INT64,
