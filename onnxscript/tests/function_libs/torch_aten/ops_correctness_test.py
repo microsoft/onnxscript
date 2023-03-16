@@ -987,7 +987,7 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
 
         with onnxscript.evaluator.default_as(tracer):
             symbolic_outputs = function(*onnxscript_args, **onnxscript_kwargs)
-        if not isinstance(symbolic_outputs, tuple):
+        if not isinstance(symbolic_outputs, Sequence):
             symbolic_outputs = (symbolic_outputs,)
 
         # We need to set the size of the output tensors for the ONNX model to be valid
