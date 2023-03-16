@@ -625,22 +625,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
     ),
     xfail(
-        "split",
-        reason="fixme: split produces a Sequence type but is set incorrectly in this test",
-        test_class_name="TestOutputConsistency_FullGraph",
-    ),
-    xfail(
-        "split",
-        variant_name="list_args",
-        reason="fixme: split produces a Sequence type but is set incorrectly in this test",
-        test_class_name="TestOutputConsistency_FullGraph",
-    ),
-    xfail(
-        "split_with_sizes",
-        reason="fixme: split produces a Sequence type but is set incorrectly in this test",
-        test_class_name="TestOutputConsistency_FullGraph",
-    ),
-    xfail(
         "stack", reason="enable after #484", test_class_name="TestOutputConsistency_FullGraph"
     ),
     xfail(
@@ -1011,10 +995,16 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
 
         with onnxscript.evaluator.default_as(tracer):
             symbolic_outputs = function(*onnxscript_args, **onnxscript_kwargs)
-        if not isinstance(symbolic_outputs, Sequence):
+        if not isinstance(symbolic_outputs, tuple):
             symbolic_outputs = (symbolic_outputs,)
-        # We need to set the size of the output tensors for the model to be valid
+
+        # We need to set the size of the output tensors for the ONNX model to be valid
         for output, symbolic_output in zip(outputs, symbolic_outputs):
+            if isinstance(output, Sequence):
+                # Output is a sequence, set the type correctly to ListType
+                symbolic_output.dtype = output[0].dtype
+                symbolic_output.symbolic_value().setType(torch.ListType.ofTensors())
+                continue
             output = (
                 output
                 if isinstance(output, torch.Tensor)
@@ -1148,11 +1138,20 @@ class TestOutputConsistency(unittest.TestCase):
                     input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
 
-                # TODO: add pytree structure comparison.
                 flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
+                if op.name.startswith("split"):
+                    # Hack for handling split
+                    # Split returns a Sequence that should be treats as a single
+                    # value. So we wrap it into a tuple.
+                    # TODO(justinchuby): Find a more general solution
+                    flattened_torch_outputs = (flattened_torch_outputs,)
+
                 function_output = self.function_executor(flattened_torch_outputs)(
                     onnx_function, input_onnx, kwargs_onnx
                 )
+                # Finally we re-flatten everything
+                # TODO: add pytree structure comparison.
+                flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
                 assert flattened_torch_outputs
