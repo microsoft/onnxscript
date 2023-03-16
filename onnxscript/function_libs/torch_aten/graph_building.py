@@ -400,6 +400,8 @@ class TorchScriptGraph:
             if isinstance(input, Sequence) and all(
                 isinstance(elem, torch.Value) for elem in input
             ):
+                # If all elements in the Sequence are torch.Values we know it
+                # should be a Sequence input in ONNX.
                 input_sequence = _create_op_call_in_torch_graph(
                     self._torch_graph,
                     "onnx::SequenceConstruct",
