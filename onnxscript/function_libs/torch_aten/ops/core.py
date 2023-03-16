@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     IntType,
@@ -206,16 +206,26 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
+@torch_op("aten::allclose")
 def aten_allclose(
-    self: TensorType,
-    other: TensorType,
+    self: TReal,
+    other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False,
-) -> bool:
+    equal_nan: bool = False,  # pylint: disable=unused-argument
+) -> BOOL:
     """allclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> bool"""
 
-    raise NotImplementedError()
+    # FIXME: check equal_nan when self and other are all NaN
+    # |input - other| <= atol + rtol x |other|
+    left_part = op.Abs(op.Sub(self, other))
+    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
+    is_close = op.LessOrEqual(left_part, right_part)
+    is_close_int = op.Cast(is_close, to=INT8.dtype)
+
+    # If min is 0, some elements are not close -> allclose is False
+    # If min is 1, all elements are close -> allclose is True
+    return op.Cast(op.ReduceMin(is_close_int, keepdims=0), to=BOOL.dtype)
 
 
 def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
@@ -2876,16 +2886,22 @@ def aten_is_vulkan_available() -> bool:
     raise NotImplementedError()
 
 
+@torch_op("aten::isclose")
 def aten_isclose(
-    self: TensorType,
-    other: TensorType,
+    self: TReal,
+    other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False,
-) -> TensorType:
+    equal_nan: bool = False,  # pylint: disable=unused-argument
+) -> BOOL:
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
-    raise NotImplementedError()
+    # FIXME: check equal_nan when self and other are all NaN
+    # |input - other| <= atol + rtol x |other|
+    left_part = op.Abs(op.Sub(self, other))
+    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
+    result = op.LessOrEqual(left_part, right_part)
+    return result
 
 
 @torch_op("aten::isfinite")
