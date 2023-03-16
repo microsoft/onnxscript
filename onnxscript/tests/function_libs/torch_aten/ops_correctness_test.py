@@ -358,6 +358,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ],
 ] = {
     "all_dim": core_ops.aten_all_dim,
+    "allclose": core_ops.aten_allclose,
     "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
     "acos": core_ops.aten_acos,
@@ -405,6 +406,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "gt": core_ops.aten_gt,
     "index_put_bool": core_ops.aten_index_put_bool,
     "index_put": core_ops.aten_index_put,
+    "isclose": core_ops.aten_isclose,
     "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
     "log": core_ops.aten_log,
