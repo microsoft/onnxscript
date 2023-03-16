@@ -397,7 +397,7 @@ class TorchScriptGraph:
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if isinstance(input, Sequence) and any(
+            if isinstance(input, Sequence) and all(
                 isinstance(elem, torch.Value) for elem in input
             ):
                 input_sequence = _create_op_call_in_torch_graph(
