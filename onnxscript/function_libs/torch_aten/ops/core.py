@@ -2873,7 +2873,7 @@ def aten_is_same_size(self: TTensor, other: TTensor) -> BOOL:
     """is_same_size(Tensor self, Tensor other) -> bool"""
 
     # shape should be the same, but different shape cannot be use op.Equal()
-    # so need compare the rank, if have same rank, then compare shape
+    # so need compare the rank first, if rank is same, then compare shape
     self_rank = op.Size(op.Shape(self))
     other_rank = op.Size(op.Shape(other))
     result = op.Equal(self_rank, other_rank)
