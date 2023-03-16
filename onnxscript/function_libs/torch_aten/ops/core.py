@@ -2851,7 +2851,7 @@ def aten_is_neg(self: TensorType) -> bool:
 
 
 @torch_op("aten::is_nonzero")
-def aten_is_nonzero(self: TensorType) -> bool:
+def aten_is_nonzero(self: Union[TReal, BOOL]) -> BOOL:
     """is_nonzero(Tensor self) -> bool"""
 
     # if size != 1, return False
@@ -2940,21 +2940,21 @@ def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
 
 
 @torch_op("aten::isnan")
-def aten_isnan(self: TFloat) -> BOOL:
+def aten_isnan(self: TReal) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
     return op.IsNaN(self)
 
 
 @torch_op("aten::isneginf")
-def aten_isneginf(self: TensorType) -> TensorType:
+def aten_isneginf(self: TReal) -> BOOL:
     """isneginf(Tensor self) -> Tensor"""
 
     return op.And(op.Less(self, 0), op.IsInf(self))
 
 
 @torch_op("aten::isposinf")
-def aten_isposinf(self: TensorType) -> TensorType:
+def aten_isposinf(self: TReal) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
     return op.And(op.Greater(self, 0), op.IsInf(self))
