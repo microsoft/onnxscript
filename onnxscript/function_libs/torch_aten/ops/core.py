@@ -2924,7 +2924,7 @@ def aten_isclose(
 
 
 @torch_op("aten::isfinite")
-def aten_isfinite(self: TensorType) -> TensorType:
+def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
     not_inf = op.Not(op.IsInf(self))
@@ -2940,7 +2940,7 @@ def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
 
 
 @torch_op("aten::isnan")
-def aten_isnan(self: TReal) -> BOOL:
+def aten_isnan(self: TFloatOrBFloat16) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
     return op.IsNaN(self)
