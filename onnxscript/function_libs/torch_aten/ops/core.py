@@ -5658,10 +5658,35 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> TensorType:
+@torch_op("aten::unfold", trace_only=True)
+def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     """unfold(Tensor(a) self, int dimension, int size, int step) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    dim_size = op.Shape(self, start=dimension, end=dimension+1)
+    # target = ((i-size)/step + 1) * step = i-size+step
+    N = dim_size - size + step
+    N = int((len(self) - size)/step + 1) * step
+    b = op.SequenceEmpty()
+    dims = op.Constant(value_ints=[dimension])
+    for i in range(0,N,step):
+        starts = op.Constant(value_ints=[i])
+        ends = starts + size
+        a = op.Slice(self, starts, ends, dims)
+        b = op.SequenceInsert(b, a)
+    c = op.ConcatFromSequence(b, axis=-1)
+    return c
+
+def test_aten_unfold():
+    import numpy as np
+    a = np.arange(1., 8).astype(np.float32)
+    #a = np.reshape(a, (4,3))
+    r = aten_unfold(a, 0, 2, 1)
+    print(r)
+    r = aten_unfold(a, 0, 2, 2)
+    print(r)
+
+test_aten_unfold()
+exit(0)
 
 
 def aten_unfold_backward(
