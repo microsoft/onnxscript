@@ -558,11 +558,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistency_FullGraph",
     ),
     xfail(
-        "cat",
-        reason="fixme: TorchScriptEvaluator does not support TensorSequence. Enable after #484",
-        test_class_name="TestOutputConsistency_FullGraph",
-    ),
-    xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistency_FullGraph"
     ),
     xfail(
@@ -623,9 +618,6 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
     xfail(
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
-    ),
-    xfail(
-        "stack", reason="enable after #484", test_class_name="TestOutputConsistency_FullGraph"
     ),
     xfail(
         "t",
