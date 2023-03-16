@@ -222,7 +222,7 @@ def aten_allclose(
     right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
     is_close = op.LessOrEqual(left_part, right_part)
     is_close_int = op.Cast(is_close, to=INT8.dtype)
-    
+
     # If min is 0, some elements are not close -> allclose is False
     # If min is 1, all elements are close -> allclose is True
     return op.Cast(op.ReduceMin(is_close_int, keepdims=0), to=BOOL.dtype)
