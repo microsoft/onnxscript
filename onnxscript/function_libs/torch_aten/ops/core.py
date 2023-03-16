@@ -2750,7 +2750,7 @@ def aten_index_put_bool(
         if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
             values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
 
-        if op.Cast(accumulate, to=INT64.dtype):
+        if op.Cast(accumulate, to=BOOL.dtype):
             zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
             result = op.ScatterElements(zeros, new_ind_t, values)
             result = op.Add(result, self)
