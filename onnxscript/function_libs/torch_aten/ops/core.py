@@ -16,8 +16,8 @@ from typing import Any, Optional, Sequence, Tuple, Union
 from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
-    RealType,
     IntType,
+    RealType,
     TFloat,
     TFloatOrBFloat16,
     TInt,
