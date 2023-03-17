@@ -1151,15 +1151,15 @@ class TestOutputConsistency(unittest.TestCase):
                     input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
 
-                flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
+                reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 if op.name.startswith("split"):
                     # Hack for handling split
                     # Split returns a Sequence that should be treats as a single
                     # value. So we wrap it into a tuple.
                     # TODO(justinchuby): Find a more general solution
-                    flattened_torch_outputs = (flattened_torch_outputs,)
+                    reference_torch_outputs = [reference_torch_outputs,]
 
-                function_output = self.function_executor(flattened_torch_outputs)(
+                function_output = self.function_executor(reference_torch_outputs)(
                     onnx_function, input_onnx, kwargs_onnx
                 )
                 # Finally we re-flatten everything
