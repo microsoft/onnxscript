@@ -406,6 +406,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "gt": core_ops.aten_gt,
     # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
+    "index_put_bool": core_ops.aten_index_put_bool,
+    "index_put": core_ops.aten_index_put,
     "isclose": core_ops.aten_isclose,
     "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
@@ -686,6 +688,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
+        "index_put",
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
+        reason="this Aten overload only support tensor(int) as args",
+    ),
+    skip(
+        "index_put_bool",
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
+        reason="this Aten overload only support tensor(bool) as args",
+    ),
+    skip(
         "min",  # aten_mean
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
@@ -801,6 +813,8 @@ duplicate_opinfo(
         "arange_start_step",
     ),
 )
+
+duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 
 duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
 
