@@ -5662,34 +5662,45 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
 def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     """unfold(Tensor(a) self, int dimension, int size, int step) -> Tensor(a)"""
 
-    dim_size = op.Shape(self, start=dimension, end=dimension+1)
-    # target = ((i-size)/step + 1) * step = i-size+step
-    N = dim_size - size + step
-    N = int((len(self) - size)/step + 1) * step
-    b = op.SequenceEmpty()
-    dims = op.Constant(value_ints=[dimension])
-    for i in range(0,N,step):
-        starts = op.Constant(value_ints=[i])
-        ends = starts + size
-        a = op.Slice(self, starts, ends, dims)
-        a_t = op.Transpose(a)
-        print(a)
-        print(a_t)
-        b = op.SequenceInsert(b, a_t)
-    c = op.ConcatFromSequence(b, axis=-1)
-    return c
+    self_shape = op.Shape(self)
+    self_rank = op.Size(self_shape)
+    if self_rank == 0:
+        r = op.Unsqueeze(self, 0)
+    else:
+        dims = op.Constant(value_ints=[dimension])
+        dim_size = op.Gather(self_shape, dims, axis=0)
 
-def test_aten_unfold():
-    import numpy as np
-    a = np.arange(1., 8).astype(np.float32)
-    #a = np.reshape(a, (4,3))
-    r = aten_unfold(a, 0, 2, 1)
-    print(r)
-    r = aten_unfold(a, 0, 2, 2)
-    print(r)
+        # target = ((i-size)/step + 1) * step != i-size+step
+        N = ((dim_size - size)/step + 1)*step
+        N = op.Squeeze(N)
+        # N = int((len(self) - size)/step + 1) * step
+        b = op.SequenceEmpty()
+        dims = op.Constant(value_ints=[dimension])
+        for i in range(0,N,step):
+            starts = op.Constant(value_ints=[i])
+            ends = starts + size
+            a = op.Slice(self, starts, ends, dims)
+            a_sq = op.Unsqueeze(a, 0)
+            a_t = op.Transpose(a_sq)
+            b = op.SequenceInsert(b, a_t)
+        c = op.ConcatFromSequence(b, axis=-1)
+        c_shape = op.Shape(c)
+        p = len(c_shape) - dimension - 1
+        perm = list(range(p, len(c_shape))) + list(range(0,p))
+        r = op.Transpose(c, perm=perm)
+    return r
 
-test_aten_unfold()
-exit(0)
+# def test_aten_unfold():
+#     import numpy as np
+#     a = np.arange(1., 8).astype(np.float32)
+#     #a = np.reshape(a, (4,3))
+#     r = aten_unfold(a, 0, 2, 1)
+#     print(r)
+#     r = aten_unfold(a, 0, 2, 2)
+#     print(r)
+
+# test_aten_unfold()
+# exit(0)
 
 
 def aten_unfold_backward(

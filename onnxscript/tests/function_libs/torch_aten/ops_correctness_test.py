@@ -480,6 +480,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tanh": core_ops.aten_tanh,
     "topk": core_ops.aten_topk,
     "trunc": core_ops.aten_trunc,
+    "unfold": core_ops.aten_unfold,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
@@ -1121,6 +1122,9 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
+
+                if i == 12:
+                    print(i)
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
