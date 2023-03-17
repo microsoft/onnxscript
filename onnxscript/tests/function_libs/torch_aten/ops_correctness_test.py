@@ -1073,7 +1073,7 @@ def run_test_output_match(
     test_suite: unittest.TestCase,
     device: str,
     dtype: torch.dtype,
-    op,
+    op: opinfo_core.OpInfo,
     function_executor: Callable,
 ):
     """Base test method for testing each opset, used by instantiate_device_type_tests.
