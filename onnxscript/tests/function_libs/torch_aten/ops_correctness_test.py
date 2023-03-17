@@ -1208,7 +1208,9 @@ class TestOutputConsistencyEager(unittest.TestCase):
         [info for info in OPS_DB if info.name in TESTED_OPS],
         allowed_dtypes=TESTED_DTYPES,
     )
-    def test_output_match_opinfo_(self, device: str, dtype: torch.dtype, op):
+    def test_output_match_opinfo_(
+        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+    ):
         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
         run_test_output_match(self, device, dtype, op, _eager_executor)
 
@@ -1237,7 +1239,9 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
     @unittest.skipIf(
         version_utils.torch_older_than("2.0"), reason="only torch>=2.0 is supported"
     )
-    def test_output_match_opinfo_(self, device: str, dtype: torch.dtype, op):
+    def test_output_match_opinfo_(
+        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+    ):
         """Base test method for testing each op by running the full ONNX graph."""
         run_test_output_match(self, device, dtype, op, _graph_executor)
 
