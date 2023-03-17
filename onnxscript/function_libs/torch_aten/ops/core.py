@@ -5672,7 +5672,10 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         starts = op.Constant(value_ints=[i])
         ends = starts + size
         a = op.Slice(self, starts, ends, dims)
-        b = op.SequenceInsert(b, a)
+        a_t = op.Transpose(a)
+        print(a)
+        print(a_t)
+        b = op.SequenceInsert(b, a_t)
     c = op.ConcatFromSequence(b, axis=-1)
     return c
 
