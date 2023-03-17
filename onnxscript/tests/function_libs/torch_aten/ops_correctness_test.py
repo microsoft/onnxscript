@@ -1144,7 +1144,7 @@ def run_test_output_match(
                 if dtype == torch.float32:
                     # Relax atol and rtol for float32 based on empirical results
                     # The current most relaxed values are for aten::native_layer_norm
-                    rtol = 3.7e-5
+                    rtol = 3.0e-5
                     atol = 1.8e-4
                 else:
                     rtol = None
@@ -1183,8 +1183,8 @@ def run_test_output_match(
                     raise
 
 
-class TestOutputConsistency(unittest.TestCase):
-    """Test output consistency between exported ONNX models and PyTorch eager mode.
+class TestOutputConsistency_Eager(unittest.TestCase):
+    """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
 
     This is a parameterized test suite.
     """
@@ -1195,22 +1195,33 @@ class TestOutputConsistency(unittest.TestCase):
 
     @add_decorate_info(
         OPS_DB,
-        "TestOutputConsistency",
-        "test_output_match_eager_",
+        "TestOutputConsistency_Eager",
+        "test_output_match_opinfo_",
         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
     )
     @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],
         allowed_dtypes=TESTED_DTYPES,
     )
-    def test_output_match_eager_(self, device: str, dtype: torch.dtype, op):
+    def test_output_match_opinfo_(self, device: str, dtype: torch.dtype, op):
         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
         run_test_output_match(self, device, dtype, op, _eager_executor)
 
+
+class TestOutputConsistency_FullGraph(unittest.TestCase):
+    """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
+
+    This is a parameterized test suite.
+    """
+
+    def setUp(self) -> None:
+        torch.manual_seed(42)
+        np.random.seed(42)
+
     @add_decorate_info(
         OPS_DB,
-        "TestOutputConsistency",
-        "test_output_match_graph_",
+        "TestOutputConsistency_FullGraph",
+        "test_output_match_opinfo_",
         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
     )
     @common_device_type.ops(  # type: ignore[misc]
@@ -1220,13 +1231,17 @@ class TestOutputConsistency(unittest.TestCase):
     @unittest.skipIf(
         version_utils.torch_older_than("2.0"), reason="only torch>=2.0 is supported"
     )
-    def test_output_match_graph_(self, device: str, dtype: torch.dtype, op):
+    def test_output_match_opinfo_(self, device: str, dtype: torch.dtype, op):
         """Base test method for testing each op by running the full ONNX graph."""
         run_test_output_match(self, device, dtype, op, _graph_executor)
 
 
 common_device_type.instantiate_device_type_tests(
-    TestOutputConsistency, globals(), only_for="cpu"
+    TestOutputConsistency_Eager, globals(), only_for="cpu"
+)
+
+common_device_type.instantiate_device_type_tests(
+    TestOutputConsistency_FullGraph, globals(), only_for="cpu"
 )
 
 if __name__ == "__main__":
