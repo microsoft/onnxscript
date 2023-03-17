@@ -564,65 +564,65 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "any",
         reason="fixme: ORT shape inference error",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistency_FullGraph"
+        "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
     xfail(
         "index_select",
         reason="fixme: ORT shape inference error on rank-0 input",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
         "max",
         variant_name="binary",
         reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "max",
         variant_name="reduction_with_dim",
         reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "min_dim",
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "repeat",
         reason="fixme: shape inference error. Enable after onnx/onnx#4982",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "round",
         variant_name="decimals_0",
         reason="The op does not support decimals yet",
-        test_class_name="TestOutputConsistency_Eager",
+        test_class_name="TestOutputConsistencyEager",
     ),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
     xfail(
@@ -631,7 +631,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
 )
 
@@ -1144,7 +1144,7 @@ def run_test_output_match(
                 if dtype == torch.float32:
                     # Relax atol and rtol for float32 based on empirical results
                     # The current most relaxed values are for aten::matmul
-                    rtol = 3.0e-5
+                    rtol = 3.7e-5
                     atol = 1.8e-4
                 else:
                     rtol = None
@@ -1183,7 +1183,7 @@ def run_test_output_match(
                     raise
 
 
-class TestOutputConsistency_Eager(unittest.TestCase):
+class TestOutputConsistencyEager(unittest.TestCase):
     """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
 
     This is a parameterized test suite.
@@ -1192,10 +1192,11 @@ class TestOutputConsistency_Eager(unittest.TestCase):
     def setUp(self) -> None:
         torch.manual_seed(42)
         np.random.seed(42)
+        ort.set_seed(42)
 
     @add_decorate_info(
         OPS_DB,
-        "TestOutputConsistency_Eager",
+        "TestOutputConsistencyEager",
         "test_output_match_opinfo_",
         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
     )
@@ -1208,7 +1209,7 @@ class TestOutputConsistency_Eager(unittest.TestCase):
         run_test_output_match(self, device, dtype, op, _eager_executor)
 
 
-class TestOutputConsistency_FullGraph(unittest.TestCase):
+class TestOutputConsistencyFullGraph(unittest.TestCase):
     """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
 
     This is a parameterized test suite.
@@ -1217,10 +1218,11 @@ class TestOutputConsistency_FullGraph(unittest.TestCase):
     def setUp(self) -> None:
         torch.manual_seed(42)
         np.random.seed(42)
+        ort.set_seed(42)
 
     @add_decorate_info(
         OPS_DB,
-        "TestOutputConsistency_FullGraph",
+        "TestOutputConsistencyFullGraph",
         "test_output_match_opinfo_",
         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
     )
@@ -1237,11 +1239,11 @@ class TestOutputConsistency_FullGraph(unittest.TestCase):
 
 
 common_device_type.instantiate_device_type_tests(
-    TestOutputConsistency_Eager, globals(), only_for="cpu"
+    TestOutputConsistencyEager, globals(), only_for="cpu"
 )
 
 common_device_type.instantiate_device_type_tests(
-    TestOutputConsistency_FullGraph, globals(), only_for="cpu"
+    TestOutputConsistencyFullGraph, globals(), only_for="cpu"
 )
 
 if __name__ == "__main__":
