@@ -404,11 +404,16 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
+    # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
+    # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": core_ops.aten_index_put_bool,
     "index_put": core_ops.aten_index_put,
     "isclose": core_ops.aten_isclose,
     "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
+    "isnan": core_ops.aten_isnan,
+    "isneginf": core_ops.aten_isneginf,
+    "isposinf": core_ops.aten_isposinf,
     "log": core_ops.aten_log,
     "le": core_ops.aten_le,
     "log10": core_ops.aten_log10,
