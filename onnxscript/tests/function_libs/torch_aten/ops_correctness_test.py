@@ -1123,8 +1123,13 @@ class TestOutputConsistency(unittest.TestCase):
                 kwargs=repr(cpu_sample.kwargs),
             ):
 
-                if i == 12:
+
+                if i in [1,2,5,6,9,10]:
                     print(i)
+                    print(cpu_sample.args)
+
+                # else:
+                #     continue
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
