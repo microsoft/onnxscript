@@ -16,6 +16,7 @@ from typing import Any, Optional, Sequence, Tuple, Union
 from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
+    RealType,
     IntType,
     TFloat,
     TFloatOrBFloat16,
@@ -2851,7 +2852,7 @@ def aten_is_neg(self: TensorType) -> bool:
 
 
 @torch_op("aten::is_nonzero")
-def aten_is_nonzero(self: Union[TReal, BOOL]) -> BOOL:
+def aten_is_nonzero(self: Union[RealType, BOOL]) -> BOOL:
     """is_nonzero(Tensor self) -> bool"""
 
     # if size != 1, return False
@@ -2872,12 +2873,12 @@ def aten_is_pinned(self: TensorType, device: Optional[str] = None) -> bool:
 def aten_is_same_size(self: TTensor, other: TTensor) -> BOOL:
     """is_same_size(Tensor self, Tensor other) -> bool"""
 
-    # shape should be the same, but different shape cannot be use op.Equal()
-    # so need compare the rank first, if rank is same, then compare shape
+    # Cannot compare different shape of two tensors using op.Equal()
+    # So we need to compare the rank first, if rank is same, then compare shape
     self_rank = op.Size(op.Shape(self))
     other_rank = op.Size(op.Shape(other))
     result = op.Equal(self_rank, other_rank)
-    if result:
+    if result:  # Same rank, then compare shape
         self_shape = op.Shape(self)
         other_shape = op.Shape(other)
         result_bool = op.Equal(self_shape, other_shape)
