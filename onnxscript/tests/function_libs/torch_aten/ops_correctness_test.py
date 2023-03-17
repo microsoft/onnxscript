@@ -965,7 +965,9 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
-def _graph_executor(outputs: Sequence[Any]):
+def _graph_executor(
+    outputs: Sequence[Any],
+) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
 
     def _capture_graph_and_evaluate_torch_script_evaluator(function: Callable, args, kwargs):
@@ -1054,7 +1056,9 @@ def _graph_executor(outputs: Sequence[Any]):
     return _capture_graph_and_evaluate_torch_script_evaluator
 
 
-def _eager_executor(outputs):
+def _eager_executor(
+    outputs,
+) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
 
     del outputs  # Unused
