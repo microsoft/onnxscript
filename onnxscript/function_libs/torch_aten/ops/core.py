@@ -5665,45 +5665,34 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     self_shape = op.Shape(self)
     self_rank = op.Size(self_shape)
     if self_rank == 0:
-        r = op.Unsqueeze(self, 0)
+        result = op.Unsqueeze(self, 0)
     else:
         dims = op.Constant(value_ints=[dimension])
         dim_size = op.Gather(self_shape, dims, axis=0)
-
         # target = ((i-size)/step + 1) * step != i-size+step
-        N = ((dim_size - size)/step + 1)*step
-        N = op.Squeeze(N)
-        # N = int((len(self) - size)/step + 1) * step
-        b = op.SequenceEmpty()
+        N = op.Squeeze(((dim_size - size)/step + 1)*step)
+        seq_result = op.SequenceEmpty()
 
-        #perm = list(range(0, self_rank))
-        #perm.append(perm.pop(dimension))
-
-        for i in range(0,N,step):
+        for i in range(0, N, step):
             starts = op.Constant(value_ints=[i])
             ends = starts + size
-            a = op.Slice(self, starts, ends, dims)
-            #a = op.Unsqueeze(a, 0)
-            #a = op.Transpose(a)
-            b = op.SequenceInsert(b, a)
-        c = op.ConcatFromSequence(b, axis=dimension, new_axis=1)
-        c_shape = op.Shape(c)
-        perm = list(range(0, dimension+1)) + list(range(len(c_shape)-1,dimension,-1))
-        #perm = list(range(0, len(c_shape)))
-        #perm[0], perm[dimension+1] = perm[dimension+1], perm[0]
-        r = op.Transpose(c, perm=perm)
+            slice_result = op.Slice(self, starts, ends, dims)
+            seq_result = op.SequenceInsert(seq_result, slice_result)
+        concat_result = op.ConcatFromSequence(seq_result, axis=dimension, new_axis=1)
 
-    return r
-
-# def test_aten_unfold():
-#     import numpy as np
-#     a = np.arange(0., 100).astype(np.float32)
-#     a = np.reshape(a, (10,10))
-#     r = aten_unfold(a, 0, 1, 2)
-#     print(r)
-
-# test_aten_unfold()
-# exit(0)
+        N = op.Squeeze(op.Size(op.Shape(concat_result)))
+        seq_perm = op.SequenceEmpty()  # FIXME: op.SequenceEmpty(dtype=INT64.dtype) doesn't work
+        dim_plus_1 = dimension + 1
+        for i in range(0, N):
+            if i != dim_plus_1:
+                idx_int = op.Constant(value_int=i)
+                idx_float = op.Cast(idx_int, to=FLOAT.dtype)
+                seq_perm = op.SequenceInsert(seq_perm, idx_float)
+        seq_perm = op.SequenceInsert(seq_perm, op.Cast(dim_plus_1, to=FLOAT.dtype))
+        concat_perm = op.ConcatFromSequence(seq_perm, axis=0, new_axis=1)
+        perm = op.Cast(concat_perm, to=INT64.dtype)
+        result = op.Transpose(concat_result, perm=perm)
+    return result
 
 
 def aten_unfold_backward(

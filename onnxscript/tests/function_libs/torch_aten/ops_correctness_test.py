@@ -480,7 +480,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tanh": core_ops.aten_tanh,
     "topk": core_ops.aten_topk,
     "trunc": core_ops.aten_trunc,
-    "unfold": core_ops.aten_unfold,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
@@ -528,6 +527,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
+    "unfold": core_ops.aten_unfold,
     "zeros_like": core_ops.aten_zeros_like,
 }
 
@@ -1122,14 +1122,6 @@ class TestOutputConsistency(unittest.TestCase):
                 inputs=repr(inputs),
                 kwargs=repr(cpu_sample.kwargs),
             ):
-
-
-                if i in [1,2,5,6,9,10]:
-                    print(i)
-                    print(cpu_sample.args)
-
-                # else:
-                #     continue
                 skip_reason = _should_skip_test_sample(op.name, cpu_sample)
                 if skip_reason is not None:
                     # Cannot use self.skip because pytest would skip the entire test
@@ -1159,9 +1151,6 @@ class TestOutputConsistency(unittest.TestCase):
 
                 assert flattened_torch_outputs
                 assert len(flattened_torch_outputs) == len(flattened_function_outputs)
-
-                print(flattened_torch_outputs[0].shape)
-                continue
 
                 for j, (torch_output, function_output) in enumerate(
                     zip(flattened_torch_outputs, flattened_function_outputs)
