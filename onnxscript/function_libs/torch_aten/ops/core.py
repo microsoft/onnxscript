@@ -17,6 +17,7 @@ from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     IntType,
+    RealType,
     TFloat,
     TFloatOrBFloat16,
     TInt,
@@ -2700,15 +2701,74 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
+@torch_op("aten::index_put")
 def aten_index_put(
-    self: TensorType,
-    indices: Optional[Sequence[TensorType]],
-    values: TensorType,
+    self: TReal,
+    indices: Sequence[INT64],
+    values: TReal,
     accumulate: bool = False,
-) -> TensorType:
+) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    raise NotImplementedError()
+    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
+    # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
+    self_dim_1 = op.Gather(op.Shape(self), 1)
+    index_dim_0 = op.Gather(op.Shape(index), 0)
+    neg_1 = op.Constant(value_ints=[-1])
+    shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
+    new_ind = op.Expand(index, shape)
+    new_ind_t = op.Transpose(new_ind)
+
+    if op.Cast(accumulate, to=BOOL.dtype):
+        # put values into zeros array first, then add to input
+        zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+        result = op.ScatterElements(zeros, new_ind_t, values)
+        result = op.Add(result, self)
+    else:
+        result = op.ScatterElements(self, new_ind_t, values)
+    return result
+
+
+@torch_op("aten::index_put_bool", overload=True)
+def aten_index_put_bool(
+    self: TReal,
+    indices: Sequence[BOOL],
+    values: TReal,
+    accumulate: bool = False,
+) -> TReal:
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
+
+    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
+    # FIXME: ORT ArgMax fails on INT64 input even though ONNX allows it
+    index_int = op.Cast(index, to=INT32.dtype)
+    # if all False, return self
+    if op.ReduceSum(index_int) == 0:
+        result = self
+    else:
+        # change array([F,F,T,F,F]) to array([2])
+        index = op.ArgMax(index_int)  # assume index only have 1 True
+        # change array([2]) to array([2,2,2,2,2])
+        self_dim_1 = op.Gather(op.Shape(self), 1)
+        index_dim_0 = op.Gather(op.Shape(index), 0)
+        neg_1 = op.Constant(value_ints=[-1])
+        shape = op.Concat(
+            op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0
+        )
+        new_ind = op.Expand(index, shape)
+        new_ind_t = op.Transpose(new_ind)
+
+        # values must have same rank with input(self)
+        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
+            values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
+
+        if op.Cast(accumulate, to=BOOL.dtype):
+            zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+            result = op.ScatterElements(zeros, new_ind_t, values)
+            result = op.Add(result, self)
+        else:
+            result = op.ScatterElements(self, new_ind_t, values)
+
+    return result
 
 
 def aten_index_reduce(
@@ -2850,10 +2910,16 @@ def aten_is_neg(self: TensorType) -> bool:
     raise NotImplementedError()
 
 
-def aten_is_nonzero(self: TensorType) -> bool:
+@torch_op("aten::is_nonzero")
+def aten_is_nonzero(self: Union[RealType, BOOL]) -> BOOL:
     """is_nonzero(Tensor self) -> bool"""
 
-    raise NotImplementedError()
+    # if size != 1, return False
+    # else [0],[True],[0.0] return True, others return False
+    result = op.Not(op.Size(self) != 1)
+    if result:
+        result = op.Cast(self, to=BOOL.dtype)
+    return result
 
 
 def aten_is_pinned(self: TensorType, device: Optional[str] = None) -> bool:
@@ -2862,10 +2928,23 @@ def aten_is_pinned(self: TensorType, device: Optional[str] = None) -> bool:
     raise NotImplementedError()
 
 
-def aten_is_same_size(self: TensorType, other: TensorType) -> bool:
+@torch_op("aten::is_same_size")
+def aten_is_same_size(self: TTensor, other: TTensor) -> BOOL:
     """is_same_size(Tensor self, Tensor other) -> bool"""
 
-    raise NotImplementedError()
+    # Cannot compare different shape of two tensors using op.Equal()
+    # So we need to compare the rank first, if rank is same, then compare shape
+    self_rank = op.Size(op.Shape(self))
+    other_rank = op.Size(op.Shape(other))
+    result = op.Equal(self_rank, other_rank)
+    if result:  # Same rank, then compare shape
+        self_shape = op.Shape(self)
+        other_shape = op.Shape(other)
+        result_bool = op.Equal(self_shape, other_shape)
+        result_int = op.Cast(result_bool, to=INT8.dtype)
+        result = op.Cast(op.ReduceMin(result_int, keepdims=0), to=BOOL.dtype)
+
+    return result
 
 
 def aten_is_set_to(self: TensorType, tensor: TensorType) -> bool:
@@ -2905,7 +2984,7 @@ def aten_isclose(
 
 
 @torch_op("aten::isfinite")
-def aten_isfinite(self: TensorType) -> TensorType:
+def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
     not_inf = op.Not(op.IsInf(self))
@@ -2920,22 +2999,25 @@ def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
     return op.IsInf(self)
 
 
-def aten_isnan(self: TensorType) -> TensorType:
+@torch_op("aten::isnan")
+def aten_isnan(self: TFloatOrBFloat16) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.IsNaN(self)
 
 
-def aten_isneginf(self: TensorType) -> TensorType:
+@torch_op("aten::isneginf")
+def aten_isneginf(self: TReal) -> BOOL:
     """isneginf(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.And(op.Less(self, 0), op.IsInf(self))
 
 
-def aten_isposinf(self: TensorType) -> TensorType:
+@torch_op("aten::isposinf")
+def aten_isposinf(self: TReal) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.And(op.Greater(self, 0), op.IsInf(self))
 
 
 def aten_isreal(self: TensorType) -> TensorType:
