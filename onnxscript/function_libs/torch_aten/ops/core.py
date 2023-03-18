@@ -5752,7 +5752,7 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         dims = op.Constant(value_ints=[dimension])
         dim_size = op.Gather(self_shape, dims, axis=0)
         # target = ((i-size)/step + 1) * step != i-size+step
-        target_end = op.Squeeze(((dim_size - size)/step + 1)*step)
+        target_end = op.Squeeze(((dim_size - size) / step + 1) * step)
         seq_result = op.SequenceEmpty()
 
         for i in range(0, target_end, step):
