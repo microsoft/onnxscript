@@ -5766,18 +5766,15 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         # below logic equal to:
         # perm = [0,1,2,3,4]
         # perm.append(perm.pop(dimension+1))
+
         rank_result = op.Squeeze(op.Size(op.Shape(concat_result)))
-        # FIXME: op.SequenceEmpty(dtype=INT64.dtype) doesn't work
-        seq_perm = op.SequenceEmpty()
         dim_plus_1 = dimension + 1
-        for i in range(0, rank_result):
-            if i != dim_plus_1:
-                idx_int = op.Constant(value_int=i)
-                idx_float = op.Cast(idx_int, to=FLOAT.dtype)
-                seq_perm = op.SequenceInsert(seq_perm, idx_float)
-        seq_perm = op.SequenceInsert(seq_perm, op.Cast(dim_plus_1, to=FLOAT.dtype))
-        concat_perm = op.ConcatFromSequence(seq_perm, axis=0, new_axis=1)
-        perm = op.Cast(concat_perm, to=INT64.dtype)
+        dim_plus_2 = dimension + 2
+        perm_prefix = op.Range(0, dim_plus_1, 1)
+        perm_suffix = op.Range(dim_plus_2, rank_result, 1)
+        per_dim = op.Range(dim_plus_1, dim_plus_2, 1)
+        perm = op.Concat(perm_prefix, perm_suffix, per_dim, axis=0)
+
         result = op.Transpose(concat_result, perm=perm)
     return result
 
