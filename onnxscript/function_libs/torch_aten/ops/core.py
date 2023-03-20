@@ -5740,7 +5740,7 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::unfold", trace_only=True)  # FIXME: seems ast.For was not supported
+@torch_op("aten::unfold", trace_only=True)  # FIXME: Seems ast.For was not supported
 def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     """unfold(Tensor(a) self, int dimension, int size, int step) -> Tensor(a)"""
 
@@ -5762,8 +5762,8 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
             seq_result = op.SequenceInsert(seq_result, slice_result)
         concat_result = op.ConcatFromSequence(seq_result, axis=dimension, new_axis=1)
 
-        # generate permute of the new shape
-        # below logic equal to:
+        # Generate permute of the new shape
+        # Below logic equal to:
         # perm = [0,1,2,3,4]
         # perm.append(perm.pop(dimension+1))
 
