@@ -328,6 +328,9 @@ class TorchScriptGraph:
         else:
             torch_value = self._torch_graph.addInput(input_name)
             torch_value.setType(torch_value.type().with_dtype(dtype))  # type: ignore[arg-type]
+            # TODO(titaiwang): This approach loses the information that "same SymInts
+            # indicates same shape", for example, [symint0, symint0, symint1]
+            # would all be [None, None, None]
             torch_value.setType(
                 torch_value.type().with_sizes(
                     [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
@@ -398,7 +401,6 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
         n_outputs: int,
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
-
         unwrapped_inputs = _unwrap_tensors_to_torch_values(onnx_inputs)
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
