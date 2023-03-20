@@ -285,15 +285,6 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
-def _full_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Remove the self argument
-    if version_utils.torch_older_than("2.0"):
-        args.pop(0)
-    return args, kwargs
-
-
 def _nll_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -400,7 +391,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
     "fmod": core_ops.aten_fmod,
-    "full": (core_ops.aten_full, _full_input_wrangler),
+    "full": core_ops.aten_full,
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
@@ -564,65 +555,65 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "any",
         reason="fixme: ORT shape inference error",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistency_FullGraph"
+        "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
     xfail(
         "index_select",
         reason="fixme: ORT shape inference error on rank-0 input",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
         "max",
         variant_name="binary",
         reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "max",
         variant_name="reduction_with_dim",
         reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "min_dim",
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "repeat",
         reason="fixme: shape inference error. Enable after onnx/onnx#4982",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "round",
         variant_name="decimals_0",
         reason="The op does not support decimals yet",
-        test_class_name="TestOutputConsistency_Eager",
+        test_class_name="TestOutputConsistencyEager",
     ),
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
     xfail(
@@ -631,7 +622,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
-        test_class_name="TestOutputConsistency_FullGraph",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
 )
 
@@ -837,8 +828,6 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "new_full", ("full",))
-
 duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 
 
@@ -965,9 +954,10 @@ class TestFunctionValidity(unittest.TestCase):
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
 
-def _graph_executor(test_class, outputs: Sequence[Any]):
+def _graph_executor(
+    outputs: Sequence[Any],
+) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
-    del test_class  # Unused
 
     def _capture_graph_and_evaluate_torch_script_evaluator(function: Callable, args, kwargs):
         """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
@@ -1055,9 +1045,11 @@ def _graph_executor(test_class, outputs: Sequence[Any]):
     return _capture_graph_and_evaluate_torch_script_evaluator
 
 
-def _eager_executor(test_class, outputs):
+def _eager_executor(
+    outputs,
+) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
-    del test_class  # Unused
+
     del outputs  # Unused
 
     def executor(function, args, kwargs):
@@ -1066,167 +1058,187 @@ def _eager_executor(test_class, outputs):
     return executor
 
 
-def _get_test_class_name(cls, num, params_dict) -> str:
-    del cls  # unused
-    del num  # unused
-    return params_dict["name"]
+def run_test_output_match(
+    test_suite: unittest.TestCase,
+    device: str,
+    dtype: torch.dtype,
+    op: opinfo_core.OpInfo,
+    function_executor: Callable,
+):
+    """Base test method for testing each opset, used by instantiate_device_type_tests.
+
+    Args:
+        test_suite: The test class instance.
+        device: The PyTorch device. instantiate_device_type_tests provides this.
+        dtype: The PyTorch dtype. instantiate_device_type_tests provides this.
+        op: The OpInfo instance. instantiate_device_type_tests provides this.
+        function_executor: The function executor. This is a function that takes
+            a function and its arguments and returns the output of the function.
+    """
+    samples = op.sample_inputs(
+        device,
+        dtype,
+        requires_grad=False,
+    )
+
+    onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
+    input_wrangler = None
+    if isinstance(onnx_function_and_wrangler, tuple):
+        # Obtain the input_wrangler that manipulates the OpInfo inputs
+        # to match the aten operator signature
+        # An example is nn.functional.upsample_nearest2d, which has a different signature
+        # than the aten operator upsample_nearest2d
+        onnx_function, input_wrangler = onnx_function_and_wrangler
+    else:
+        assert callable(onnx_function_and_wrangler)
+        onnx_function = onnx_function_and_wrangler
+
+    for i, cpu_sample in enumerate(samples):
+        inputs = (cpu_sample.input, *cpu_sample.args)
+        # Provide the repr to subtest because tensors are not serializable in parallel test runs
+        with test_suite.subTest(
+            sample_num=i,
+            inputs=repr(inputs),
+            kwargs=repr(cpu_sample.kwargs),
+        ):
+            skip_reason = _should_skip_test_sample(op.name, cpu_sample)
+            if skip_reason is not None:
+                # Cannot use self.skip because pytest would skip the entire test
+                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
+                continue
+            input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
+            kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
+            if input_wrangler:
+                input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
+            torch_output = op(*inputs, **cpu_sample.kwargs)
+
+            reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
+            if op.name.startswith("split"):
+                # Hack for handling split
+                # Split returns a Sequence that should be treats as a single
+                # value. So we wrap it into a tuple.
+                # TODO(justinchuby): Find a more general solution
+                reference_torch_outputs = [reference_torch_outputs]
+
+            function_output = function_executor(reference_torch_outputs)(
+                onnx_function, input_onnx, kwargs_onnx
+            )
+            # Finally we re-flatten everything
+            # TODO: add pytree structure comparison.
+            flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
+            flattened_function_outputs, _ = pytree.tree_flatten(function_output)
+
+            assert flattened_torch_outputs
+            assert len(flattened_torch_outputs) == len(flattened_function_outputs)
+
+            for j, (torch_output, function_output) in enumerate(
+                zip(flattened_torch_outputs, flattened_function_outputs)
+            ):
+                if dtype == torch.float32:
+                    # Relax atol and rtol for float32 based on empirical results
+                    # The current most relaxed values are for aten::matmul
+                    rtol = 3.7e-5
+                    atol = 1.8e-4
+                else:
+                    rtol = None
+                    atol = None
+
+                if not isinstance(function_output, np.ndarray):
+                    # An onnxscript tensor
+                    function_output = function_output.value
+
+                actual = torch.tensor(function_output)
+                expected = (
+                    torch_output
+                    if isinstance(torch_output, torch.Tensor)
+                    else torch.tensor(torch_output)
+                )
+
+                if op.name in NONDETERMINISTIC_OPS:
+                    # Check shape and dtype only for ops that are known to be
+                    # nondeterministic
+                    test_suite.assertEqual(actual.shape, expected.shape)
+                    test_suite.assertEqual(actual.dtype, expected.dtype)
+                    continue
+
+                # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
+                try:
+                    torch.testing.assert_close(
+                        actual,
+                        expected,
+                        rtol=rtol,
+                        atol=atol,
+                        check_device=False,
+                    )
+                except AssertionError as e:
+                    if len(flattened_torch_outputs) > 1:
+                        raise AssertionError(f"Output {j} mismatch") from e
+                    raise
 
 
-@parameterized.parameterized_class(
-    [
-        {
-            "function_executor": _eager_executor,
-            "name": "TestOutputConsistency_Eager",
-        },
-        {
-            "function_executor": _graph_executor,
-            "skip_test": unittest.SkipTest("only torch>=2.0 is supported")
-            if version_utils.torch_older_than("2.0")
-            else None,
-            "name": "TestOutputConsistency_FullGraph",
-        },
-    ],
-    class_name_func=_get_test_class_name,
-)
-class TestOutputConsistency(unittest.TestCase):
-    """Test output consistency between exported ONNX models and PyTorch eager mode.
+class TestOutputConsistencyEager(unittest.TestCase):
+    """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
 
     This is a parameterized test suite.
     """
 
-    # The function executor to use. This is a function that takes a function and its arguments
-    # and returns the output of the function.
-    function_executor: Callable
-
-    # Unittest skip if not None
-    skip_test: Optional[unittest.SkipTest] = None
-
     def setUp(self) -> None:
         torch.manual_seed(42)
         np.random.seed(42)
+        ort.set_seed(42)
 
+    @add_decorate_info(
+        OPS_DB,
+        "TestOutputConsistencyEager",
+        "test_output_match_opinfo_",
+        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
+    )
     @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],
         allowed_dtypes=TESTED_DTYPES,
     )
-    def test_output_match(self, device: str, dtype: torch.dtype, op):
-        """Base test method for testing each opset, used by instantiate_device_type_tests."""
-        if self.skip_test is not None:
-            raise self.skip_test
-
-        samples = op.sample_inputs(
-            device,
-            dtype,
-            requires_grad=False,
-        )
-
-        onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
-        input_wrangler = None
-        if isinstance(onnx_function_and_wrangler, tuple):
-            # Obtain the input_wrangler that manipulates the OpInfo inputs
-            # to match the aten operator signature
-            # An example is nn.functional.upsample_nearest2d, which has a different signature
-            # than the aten operator upsample_nearest2d
-            onnx_function, input_wrangler = onnx_function_and_wrangler
-        else:
-            assert callable(onnx_function_and_wrangler)
-            onnx_function = onnx_function_and_wrangler
-
-        for i, cpu_sample in enumerate(samples):
-            inputs = (cpu_sample.input, *cpu_sample.args)
-            # Provide the repr to subtest because tensors are not serializable in parallel test runs
-            with self.subTest(
-                sample_num=i,
-                inputs=repr(inputs),
-                kwargs=repr(cpu_sample.kwargs),
-            ):
-                skip_reason = _should_skip_test_sample(op.name, cpu_sample)
-                if skip_reason is not None:
-                    # Cannot use self.skip because pytest would skip the entire test
-                    warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
-                    continue
-                input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
-                kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
-                if input_wrangler:
-                    input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
-                torch_output = op(*inputs, **cpu_sample.kwargs)
-
-                flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
-                if op.name.startswith("split"):
-                    # Hack for handling split
-                    # Split returns a Sequence that should be treats as a single
-                    # value. So we wrap it into a tuple.
-                    # TODO(justinchuby): Find a more general solution
-                    flattened_torch_outputs = (flattened_torch_outputs,)
-
-                function_output = self.function_executor(flattened_torch_outputs)(
-                    onnx_function, input_onnx, kwargs_onnx
-                )
-                # Finally we re-flatten everything
-                # TODO: add pytree structure comparison.
-                flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
-                flattened_function_outputs, _ = pytree.tree_flatten(function_output)
-
-                assert flattened_torch_outputs
-                assert len(flattened_torch_outputs) == len(flattened_function_outputs)
-
-                for j, (torch_output, function_output) in enumerate(
-                    zip(flattened_torch_outputs, flattened_function_outputs)
-                ):
-                    if dtype == torch.float32:
-                        # Relax atol and rtol for float32 based on empirical results
-                        # The current most relaxed values are for aten::native_layer_norm
-                        rtol = 3.7e-5
-                        atol = 1.8e-4
-                    else:
-                        rtol = None
-                        atol = None
-
-                    if not isinstance(function_output, np.ndarray):
-                        # An onnxscript tensor
-                        function_output = function_output.value
-
-                    actual = torch.tensor(function_output)
-                    expected = (
-                        torch_output
-                        if isinstance(torch_output, torch.Tensor)
-                        else torch.tensor(torch_output)
-                    )
-
-                    if op.name in NONDETERMINISTIC_OPS:
-                        # Check shape and dtype only for ops that are known to be
-                        # nondeterministic
-                        self.assertEqual(actual.shape, expected.shape)
-                        self.assertEqual(actual.dtype, expected.dtype)
-                        continue
-
-                    # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
-                    try:
-                        torch.testing.assert_close(
-                            actual,
-                            expected,
-                            rtol=rtol,
-                            atol=atol,
-                            check_device=False,
-                        )
-                    except AssertionError as e:
-                        if len(flattened_torch_outputs) > 1:
-                            raise AssertionError(f"Output {j} mismatch") from e
-                        raise
+    def test_output_match_opinfo_(
+        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+    ):
+        """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
+        run_test_output_match(self, device, dtype, op, _eager_executor)
 
 
-# The name needs to match the parameterized_class name.
-for _test_class_name in ("TestOutputConsistency_Eager", "TestOutputConsistency_FullGraph"):
-    add_decorate_info(
+class TestOutputConsistencyFullGraph(unittest.TestCase):
+    """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
+
+    This is a parameterized test suite.
+    """
+
+    def setUp(self) -> None:
+        torch.manual_seed(42)
+        np.random.seed(42)
+        ort.set_seed(42)
+
+    @add_decorate_info(
         OPS_DB,
-        _test_class_name,
-        "test_output_match",
+        "TestOutputConsistencyFullGraph",
+        "test_output_match_opinfo_",
         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
     )
-    common_device_type.instantiate_device_type_tests(
-        globals()[_test_class_name], globals(), only_for="cpu"
+    @common_device_type.ops(  # type: ignore[misc]
+        [info for info in OPS_DB if info.name in TESTED_OPS],
+        allowed_dtypes=TESTED_DTYPES,
     )
+    def test_output_match_opinfo_(
+        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+    ):
+        """Base test method for testing each op by running the full ONNX graph."""
+        run_test_output_match(self, device, dtype, op, _graph_executor)
 
+
+common_device_type.instantiate_device_type_tests(
+    TestOutputConsistencyEager, globals(), only_for="cpu"
+)
+
+common_device_type.instantiate_device_type_tests(
+    TestOutputConsistencyFullGraph, globals(), only_for="cpu"
+)
 
 if __name__ == "__main__":
     unittest.main()
