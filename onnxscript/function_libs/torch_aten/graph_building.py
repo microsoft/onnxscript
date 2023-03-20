@@ -333,8 +333,13 @@ class TorchScriptGraph:
 
     @beartype
     def add_initializer(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
+        if input_name in self._initializers:
+            raise ValueError(f"Initializer {input_name} exists already")
         self._initializers[input_name] = input_value
-        return self.add_input(input_name, input_value)
+        torch_value = self._torch_graph.addInput(input_name)
+        torch_value.setType(torch.TensorType.create_from_tensor(input_value))
+        tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        return tensor_value
 
     @beartype
     def register_outputs(
