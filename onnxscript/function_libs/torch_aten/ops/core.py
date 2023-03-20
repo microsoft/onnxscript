@@ -4295,7 +4295,7 @@ def aten_new_full(
 
 
 @torch_op("aten::new_ones")
-def aten_new_ones(self: TReal, size: INT64) -> TReal:
+def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     one = op.Constant(value_float=1.0)
