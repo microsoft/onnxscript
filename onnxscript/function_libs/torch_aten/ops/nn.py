@@ -712,6 +712,7 @@ def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
 
     return result
 
+
 def aten_mse_loss_backward(
     grad_output: TensorType, self: TensorType, target: TensorType, reduction: int
 ) -> TensorType:
