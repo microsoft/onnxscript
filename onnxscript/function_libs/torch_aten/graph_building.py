@@ -472,7 +472,7 @@ class TorchScriptGraph:
         return result
 
     @beartype
-    def to_model_proto(self, opset_version: int, run_onnx_shape_inference: bool = True) -> onnx.ModelProto:
+    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
         (
             proto,
             _,
@@ -498,11 +498,11 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        if run_onnx_shape_inference:
+
+        try:
             onnx_model = onnx.shape_inference.infer_shapes(
                 onnx_model, check_type=True, strict_mode=False, data_prop=True
             )
-        try:
             onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             warnings.warn(f"ONNX model is invalid: {e}")
