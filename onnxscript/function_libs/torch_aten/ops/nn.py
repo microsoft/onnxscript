@@ -710,7 +710,7 @@ def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
     elif reduction == 2:  # sum
         result = op.ReduceSum(result, keepdims=0)
 
-    return result
+    return op.Squeeze(result)
 
 
 def aten_mse_loss_backward(
