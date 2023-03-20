@@ -332,12 +332,12 @@ class TorchScriptGraph:
         return tensor_value  # type: ignore[return-value]
 
     @beartype
-    def add_initializer(self, input_name: str, input_value: torch.Tensor) -> TorchScriptTensor:
-        if input_name in self._initializers:
-            raise ValueError(f"Initializer {input_name} exists already")
-        self._initializers[input_name] = input_value
-        torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(torch.TensorType.create_from_tensor(input_value))
+    def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
+        if name in self._initializers:
+            raise ValueError(f"Initializer '{name}' exists already")
+        self._initializers[name] = value
+        torch_value = self._torch_graph.addInput(name)
+        torch_value.setType(torch.TensorType.create_from_tensor(value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value
 
