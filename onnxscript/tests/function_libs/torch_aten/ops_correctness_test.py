@@ -1019,6 +1019,8 @@ def _graph_executor(
         onnxscript_graph.register_outputs(symbolic_outputs)
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
+        # Make sure the model is valid
+        onnx.checker.check_model(onnx_model, full_check=True)
 
         # Disable all ORT optimizations
         session_options = onnxruntime.SessionOptions()
