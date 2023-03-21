@@ -505,13 +505,28 @@ def aten_argwhere(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::as_strided", trace_only=True)
 def aten_as_strided(
     self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
 ) -> TensorType:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
 
+
+
+def test_aten_as_strided():
+    import numpy as np
+    a = np.arange(9).reshape(3,3).astype(np.float32)
+    print(a)
+    b = np.array([2,2], dtype=np.int64)
+    c = np.array([2,2], dtype=np.int64)
+    d = 0
+    r = aten_as_strided(a, b, c, d)
+    print(r)
+
+test_aten_as_strided()
+exit()
 
 def aten_as_strided_copy(
     self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
