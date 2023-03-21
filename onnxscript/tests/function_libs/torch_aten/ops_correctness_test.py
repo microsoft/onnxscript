@@ -496,6 +496,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "arange": core_ops.aten_arange,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
+    "as_strided": core_ops.aten_as_strided,
     "clamp": core_ops.aten_clamp,
     "cumsum": core_ops.aten_cumsum,
     "contiguous": core_ops.aten_contiguous,

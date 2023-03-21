@@ -513,14 +513,37 @@ def aten_as_strided(
 
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
 
+    sz = size[-1]
+    st = stride[-1]
+    a = op.Range(op.Constant(value_int=0),op.Constant(value_int=sz),op.Constant(value_int=1))
+    latest = op.Mul(a, op.Constant(value_int=st))
+    latest = op.Cast(latest, to=FLOAT.dtype)
+    rank = len(stride)
+    for i in range(rank-2,-1,-1):
+        sz = size[i]
+        st = stride[i]
+        if i == rank-1:
+            a = op.Range(op.Constant(value_int=0),op.Constant(value_int=sz),op.Constant(value_int=1))
+            latest = op.Mul(a, op.Constant(value_int=st))
+        else:
+            A = op.SequenceEmpty(dtype=INT64.dtype)
+            A = op.SequenceInsert(A, latest)
+            for j in range(0,sz-1):
+                b = op.Add(latest, op.Cast(op.Constant(value_int=st), to=FLOAT.dtype))
+                A = op.SequenceInsert(A, b)
+            latest = op.ConcatFromSequence(A, axis=0)
 
+    latest = op.Cast(latest, to=INT64.dtype)
+    result = op.Gather(self_flatten, latest)
+    result = op.Reshape(result, size)
+    return result
 
 def test_aten_as_strided():
     import numpy as np
     a = np.arange(9).reshape(3,3).astype(np.float32)
-    print(a)
+    #print(a)
     b = np.array([2,2], dtype=np.int64)
-    c = np.array([2,2], dtype=np.int64)
+    c = np.array([1,2], dtype=np.int64)
     d = 0
     r = aten_as_strided(a, b, c, d)
     print(r)
