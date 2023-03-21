@@ -411,7 +411,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
     "fmod": core_ops.aten_fmod,
-    "full": (core_ops.aten_full, _full_input_wrangler),
+    "full": core_ops.aten_full,
     "full_like": core_ops.aten_full_like,
     "ge": core_ops.aten_ge,
     "gt": core_ops.aten_gt,
@@ -849,8 +849,6 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "new_full", ("full",))
-
 duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 
 
@@ -1247,9 +1245,6 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
     @common_device_type.ops(  # type: ignore[misc]
         [info for info in OPS_DB if info.name in TESTED_OPS],
         allowed_dtypes=TESTED_DTYPES,
-    )
-    @unittest.skipIf(
-        version_utils.torch_older_than("2.0"), reason="only torch>=2.0 is supported"
     )
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
