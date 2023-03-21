@@ -411,8 +411,11 @@ class TorchScriptGraph:
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if isinstance(input, Sequence) and all(
-                isinstance(elem, torch.Value) for elem in input
+            # NOTE(titaiwang): input could be empty list
+            if (
+                isinstance(input, Sequence)
+                and input
+                and all(isinstance(elem, torch.Value) for elem in input)
             ):
                 # If all elements in the Sequence are torch.Values we know it
                 # should be a Sequence input in ONNX.
