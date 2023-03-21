@@ -42,7 +42,8 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
     def test_traced_graph_on_single_node_is_same_as_compiled_graph(self):
         aten_relu = ops.nn.aten_relu
 
-        x = self.onnxscript_graph.add_input("x", torch.ones((1, 2, 3), dtype=torch.float32))
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        x = self.onnxscript_graph.add_input("x", x_tensor.shape, x_tensor.dtype)
         with evaluator.default_as(self.tracer):
             output = aten_relu(x)
 
@@ -61,7 +62,8 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
     def test_traced_graph_on_single_node_multi_output_is_same_as_compiled_graph(self):
         aten_topk = ops.core.aten_topk
 
-        x = self.onnxscript_graph.add_input("x", torch.ones((1, 2, 3), dtype=torch.float32))
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        x = self.onnxscript_graph.add_input("x", x_tensor.shape, x_tensor.dtype)
         with evaluator.default_as(self.tracer):
             output = aten_topk(x, 2)
 
