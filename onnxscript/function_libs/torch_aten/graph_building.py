@@ -413,8 +413,8 @@ class TorchScriptGraph:
         for input in unwrapped_inputs:
             # NOTE(titaiwang): input could be empty list
             if (
-                input
-                and isinstance(input, Sequence)
+                isinstance(input, Sequence)
+                and input
                 and all(isinstance(elem, torch.Value) for elem in input)
             ):
                 # If all elements in the Sequence are torch.Values we know it
