@@ -58,6 +58,7 @@ def aten_acosh(self: TFloat) -> TFloat:
 @torch_op("aten::add")
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
     return op.Add(self, other)
@@ -3969,7 +3970,7 @@ def aten_msort(self: TensorType) -> TensorType:
 @torch_op("aten::mul")
 def aten_mul(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
-
+    other = op.CastLike(other, self)
     return op.Mul(self, other)
 
 
