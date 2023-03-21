@@ -340,8 +340,14 @@ class TorchScriptGraph:
         return tensor_value  # type: ignore[return-value]
 
     @beartype
-    def add_initializer(self, input_name: str, input_value: torch.Tensor) -> None:
-        self._initializers[input_name] = input_value
+    def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
+        if name in self._initializers:
+            raise ValueError(f"Initializer '{name}' exists already")
+        self._initializers[name] = value
+        torch_value = self._torch_graph.addInput(name)
+        torch_value.setType(torch.TensorType.create_from_tensor(value))
+        tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        return tensor_value
 
     @beartype
     def register_outputs(
@@ -405,7 +411,19 @@ class TorchScriptGraph:
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if not isinstance(input, torch.Value):
+            if isinstance(input, Sequence) and all(
+                isinstance(elem, torch.Value) for elem in input
+            ):
+                # If all elements in the Sequence are torch.Values we know it
+                # should be a Sequence input in ONNX.
+                input_sequence = _create_op_call_in_torch_graph(
+                    self._torch_graph,
+                    "onnx::SequenceConstruct",
+                    inputs=input,
+                    attributes={},
+                )[0]
+                graph_inputs.append(input_sequence)
+            elif not isinstance(input, torch.Value):
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
@@ -486,10 +504,11 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        onnx_model = onnx.shape_inference.infer_shapes(
-            onnx_model, check_type=True, strict_mode=False, data_prop=True
-        )
+
         try:
+            onnx_model = onnx.shape_inference.infer_shapes(
+                onnx_model, check_type=True, strict_mode=False, data_prop=True
+            )
             onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             warnings.warn(f"ONNX model is invalid: {e}")

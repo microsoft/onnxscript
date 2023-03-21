@@ -13,10 +13,11 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT16, INT32, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     IntType,
+    RealType,
     TFloat,
     TFloatOrBFloat16,
     TInt,
@@ -206,16 +207,26 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
+@torch_op("aten::allclose")
 def aten_allclose(
-    self: TensorType,
-    other: TensorType,
+    self: TReal,
+    other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False,
-) -> bool:
+    equal_nan: bool = False,  # pylint: disable=unused-argument
+) -> BOOL:
     """allclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> bool"""
 
-    raise NotImplementedError()
+    # FIXME: check equal_nan when self and other are all NaN
+    # |input - other| <= atol + rtol x |other|
+    left_part = op.Abs(op.Sub(self, other))
+    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
+    is_close = op.LessOrEqual(left_part, right_part)
+    is_close_int = op.Cast(is_close, to=INT8.dtype)
+
+    # If min is 0, some elements are not close -> allclose is False
+    # If min is 1, all elements are close -> allclose is True
+    return op.Cast(op.ReduceMin(is_close_int, keepdims=0), to=BOOL.dtype)
 
 
 def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
@@ -1362,7 +1373,7 @@ def aten_convolution(
     return result
 
 
-@torch_op("aten::convolution", overload=True)
+@torch_op("aten::convolution", private=True)
 def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
@@ -1767,7 +1778,7 @@ def aten_cumsum(
     return _aten_cumsum_onnx(cast, dim)
 
 
-@torch_op("aten::cumsum", overload=True)
+@torch_op("aten::cumsum", private=True)
 def _aten_cumsum_onnx(
     self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64]
 ) -> TRealUnlessInt16OrInt8:
@@ -2033,7 +2044,7 @@ def aten_empty_like(self: TTensor, dtype: int = -1) -> TTensor:
     return _aten_empty_like_onnx(self, zero)
 
 
-@torch_op("aten::empty_like", overload=True)
+@torch_op("aten::empty_like", private=True)
 def _aten_empty_like_onnx(self: TTensor, zero) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(zero, shape)
@@ -2690,15 +2701,74 @@ def aten_index_copy(
     raise NotImplementedError()
 
 
+@torch_op("aten::index_put")
 def aten_index_put(
-    self: TensorType,
-    indices: Optional[Sequence[TensorType]],
-    values: TensorType,
+    self: TReal,
+    indices: Sequence[INT64],
+    values: TReal,
     accumulate: bool = False,
-) -> TensorType:
+) -> TReal:
     """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
 
-    raise NotImplementedError()
+    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
+    # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
+    self_dim_1 = op.Gather(op.Shape(self), 1)
+    index_dim_0 = op.Gather(op.Shape(index), 0)
+    neg_1 = op.Constant(value_ints=[-1])
+    shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
+    new_ind = op.Expand(index, shape)
+    new_ind_t = op.Transpose(new_ind)
+
+    if op.Cast(accumulate, to=BOOL.dtype):
+        # put values into zeros array first, then add to input
+        zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+        result = op.ScatterElements(zeros, new_ind_t, values)
+        result = op.Add(result, self)
+    else:
+        result = op.ScatterElements(self, new_ind_t, values)
+    return result
+
+
+@torch_op("aten::index_put_bool", overload=True)
+def aten_index_put_bool(
+    self: TReal,
+    indices: Sequence[BOOL],
+    values: TReal,
+    accumulate: bool = False,
+) -> TReal:
+    """index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor"""
+
+    index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
+    # FIXME: ORT ArgMax fails on INT64 input even though ONNX allows it
+    index_int = op.Cast(index, to=INT32.dtype)
+    # if all False, return self
+    if op.ReduceSum(index_int) == 0:
+        result = self
+    else:
+        # change array([F,F,T,F,F]) to array([2])
+        index = op.ArgMax(index_int)  # assume index only have 1 True
+        # change array([2]) to array([2,2,2,2,2])
+        self_dim_1 = op.Gather(op.Shape(self), 1)
+        index_dim_0 = op.Gather(op.Shape(index), 0)
+        neg_1 = op.Constant(value_ints=[-1])
+        shape = op.Concat(
+            op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0
+        )
+        new_ind = op.Expand(index, shape)
+        new_ind_t = op.Transpose(new_ind)
+
+        # values must have same rank with input(self)
+        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
+            values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
+
+        if op.Cast(accumulate, to=BOOL.dtype):
+            zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+            result = op.ScatterElements(zeros, new_ind_t, values)
+            result = op.Add(result, self)
+        else:
+            result = op.ScatterElements(self, new_ind_t, values)
+
+    return result
 
 
 def aten_index_reduce(
@@ -2722,7 +2792,7 @@ def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     return _aten_index_select_onnx(self, index, dim=dim)
 
 
-@torch_op("aten::index_select", overload=True)
+@torch_op("aten::index_select", private=True)
 def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
@@ -2840,10 +2910,16 @@ def aten_is_neg(self: TensorType) -> bool:
     raise NotImplementedError()
 
 
-def aten_is_nonzero(self: TensorType) -> bool:
+@torch_op("aten::is_nonzero")
+def aten_is_nonzero(self: Union[RealType, BOOL]) -> BOOL:
     """is_nonzero(Tensor self) -> bool"""
 
-    raise NotImplementedError()
+    # if size != 1, return False
+    # else [0],[True],[0.0] return True, others return False
+    result = op.Not(op.Size(self) != 1)
+    if result:
+        result = op.Cast(self, to=BOOL.dtype)
+    return result
 
 
 def aten_is_pinned(self: TensorType, device: Optional[str] = None) -> bool:
@@ -2852,10 +2928,23 @@ def aten_is_pinned(self: TensorType, device: Optional[str] = None) -> bool:
     raise NotImplementedError()
 
 
-def aten_is_same_size(self: TensorType, other: TensorType) -> bool:
+@torch_op("aten::is_same_size")
+def aten_is_same_size(self: TTensor, other: TTensor) -> BOOL:
     """is_same_size(Tensor self, Tensor other) -> bool"""
 
-    raise NotImplementedError()
+    # Cannot compare different shape of two tensors using op.Equal()
+    # So we need to compare the rank first, if rank is same, then compare shape
+    self_rank = op.Size(op.Shape(self))
+    other_rank = op.Size(op.Shape(other))
+    result = op.Equal(self_rank, other_rank)
+    if result:  # Same rank, then compare shape
+        self_shape = op.Shape(self)
+        other_shape = op.Shape(other)
+        result_bool = op.Equal(self_shape, other_shape)
+        result_int = op.Cast(result_bool, to=INT8.dtype)
+        result = op.Cast(op.ReduceMin(result_int, keepdims=0), to=BOOL.dtype)
+
+    return result
 
 
 def aten_is_set_to(self: TensorType, tensor: TensorType) -> bool:
@@ -2876,20 +2965,26 @@ def aten_is_vulkan_available() -> bool:
     raise NotImplementedError()
 
 
+@torch_op("aten::isclose")
 def aten_isclose(
-    self: TensorType,
-    other: TensorType,
+    self: TReal,
+    other: TReal,
     rtol: float = 1e-05,
     atol: float = 1e-08,
-    equal_nan: bool = False,
-) -> TensorType:
+    equal_nan: bool = False,  # pylint: disable=unused-argument
+) -> BOOL:
     """isclose(Tensor self, Tensor other, float rtol=1e-05, float atol=1e-08, bool equal_nan=False) -> Tensor"""
 
-    raise NotImplementedError()
+    # FIXME: check equal_nan when self and other are all NaN
+    # |input - other| <= atol + rtol x |other|
+    left_part = op.Abs(op.Sub(self, other))
+    right_part = op.Add(atol, op.Mul(rtol, op.Abs(other)))
+    result = op.LessOrEqual(left_part, right_part)
+    return result
 
 
 @torch_op("aten::isfinite")
-def aten_isfinite(self: TensorType) -> TensorType:
+def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
     not_inf = op.Not(op.IsInf(self))
@@ -2904,22 +2999,25 @@ def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
     return op.IsInf(self)
 
 
-def aten_isnan(self: TensorType) -> TensorType:
+@torch_op("aten::isnan")
+def aten_isnan(self: TFloatOrBFloat16) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.IsNaN(self)
 
 
-def aten_isneginf(self: TensorType) -> TensorType:
+@torch_op("aten::isneginf")
+def aten_isneginf(self: TReal) -> BOOL:
     """isneginf(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.And(op.Less(self, 0), op.IsInf(self))
 
 
-def aten_isposinf(self: TensorType) -> TensorType:
+@torch_op("aten::isposinf")
+def aten_isposinf(self: TReal) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.And(op.Greater(self, 0), op.IsInf(self))
 
 
 def aten_isreal(self: TensorType) -> TensorType:
@@ -3003,7 +3101,7 @@ def aten_layer_norm(
     return _aten_layer_norm_onnx(input, weight, bias, axis=start_axis, eps=eps)
 
 
-@torch_op("aten::layer_norm", overload=True)
+@torch_op("aten::layer_norm", private=True)
 def _aten_layer_norm_onnx(
     input: TReal,
     weight: TReal,
@@ -3402,20 +3500,19 @@ def aten_max(
     return result
 
 
-@torch_op("aten::max", overload=True)
+@torch_op("aten::max", private=True)
 def _aten_max_with_no_dim(self: TReal) -> TReal:
     result = op.ReduceMax(self, keepdims=0)
     return result
 
 
-@torch_op("aten::max", overload=True)
+@torch_op("aten::max", private=True)
 def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
     result = op.Max(self, other)
     return result
 
 
-@torch_op("aten::max", overload=True)
-# def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool) -> tuple[TReal, TInt]:
+@torch_op("aten::max", private=True)
 def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
     result = op.ReduceMax(self, dims, keepdims=keepdim)
@@ -4291,7 +4388,7 @@ def aten_ones_like(self: TTensor, dtype: int = -1) -> TTensor:
     return _aten_ones_like_onnx(self, one)
 
 
-@torch_op("aten::ones_like", overload=True)
+@torch_op("aten::ones_like", private=True)
 def _aten_ones_like_onnx(self: TTensor, one) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(one, shape)
@@ -5321,7 +5418,7 @@ def aten_sum_dim_IntList(
     return result
 
 
-@torch_op("aten::sum", overload=True)
+@torch_op("aten::sum", private=True)
 def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
@@ -5337,7 +5434,7 @@ def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     return result
 
 
-@torch_op("aten::sum", overload=True)
+@torch_op("aten::sum", private=True)
 def _aten_sum_dim_none(self: TReal, keepdim: bool = False) -> TReal:
     self_is_scalar = op.Size(op.Shape(self)) == 0
     if self_is_scalar:
@@ -5876,7 +5973,7 @@ def aten_zeros_like(self: TTensor, dtype: int = -1) -> TTensor:
     return _aten_zeros_like_onnx(self, zero)
 
 
-@torch_op("aten::zeros_like", overload=True)
+@torch_op("aten::zeros_like", private=True)
 def _aten_zeros_like_onnx(self: TTensor, zero) -> TTensor:
     shape = op.Shape(self)
     return op.Expand(zero, shape)

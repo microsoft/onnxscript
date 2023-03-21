@@ -98,7 +98,7 @@ init_command = [
     'run',
     'pip_init',
     '--dry-run={{DRYRUN}}',
-    'mypy==1.0.0',
+    'mypy==1.1.1',
     'types-PyYAML==6.0.12.4',
 ]
 
