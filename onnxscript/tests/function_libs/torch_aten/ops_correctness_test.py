@@ -285,15 +285,6 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
-def _full_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Remove the self argument
-    if version_utils.torch_older_than("2.0"):
-        args.pop(0)
-    return args, kwargs
-
-
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
