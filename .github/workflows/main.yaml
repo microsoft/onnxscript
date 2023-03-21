@@ -97,3 +97,5 @@ jobs:
         run: pip install .
       - name: Build documentation
         run: python -m sphinx docs dist/html
+      - name: Update readme
+        run: python docs/update_readme.py
