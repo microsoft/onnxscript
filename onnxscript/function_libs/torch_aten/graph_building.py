@@ -313,27 +313,41 @@ class TorchScriptGraph:
 
     @beartype
     def add_input(
-        self, input_name: str, input_value: Optional[torch.Tensor] = None
+        self,
+        input_name: Optional[str],
+        shape: Optional[Union[torch.Size, Sequence[Union[int, str, None]]]] = None,
+        dtype: Optional[torch.dtype] = None,
     ) -> TorchScriptTensor:
-        # TODO: Take in a TorchScriptTensor?
-        # TODO: Support dynamic shapes
-        if input_value is None:
+        if input_name is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
             torch_value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             torch_value.setType(torch.OptionalType.ofTensor())
-            tensor_value = _wrap_torch_value_to_tensor(torch_value)
-            return tensor_value  # type: ignore[return-value]
-        torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(torch.TensorType.create_from_tensor(input_value))
+        else:
+            torch_value = self._torch_graph.addInput(input_name)
+            torch_value.setType(torch_value.type().with_dtype(dtype))  # type: ignore[arg-type]
+            # TODO(titaiwang): This approach loses the information that "same SymInts
+            # indicates same shape", for example, [symint0, symint0, symint1]
+            # would all be [None, None, None]
+            torch_value.setType(
+                torch_value.type().with_sizes(
+                    [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
+                )
+            )
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
     @beartype
-    def add_initializer(self, input_name: str, input_value: torch.Tensor) -> None:
-        self._initializers[input_name] = input_value
+    def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
+        if name in self._initializers:
+            raise ValueError(f"Initializer '{name}' exists already")
+        self._initializers[name] = value
+        torch_value = self._torch_graph.addInput(name)
+        torch_value.setType(torch.TensorType.create_from_tensor(value))
+        tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        return tensor_value
 
     @beartype
     def register_outputs(
@@ -434,7 +448,6 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
-
         result = self._add_torchscript_op_call(
             f"onnx::{onnx_op_schema.name}",
             onnx_inputs,
@@ -455,7 +468,6 @@ class TorchScriptGraph:
         self._function_store[identifier] = onnx_function
 
         # Compute outputs from the function schema
-
         result = self._add_torchscript_op_call(
             f"{onnx_function.function_ir.domain}::{onnx_function.name}",
             onnx_inputs,
@@ -492,10 +504,11 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        onnx_model = onnx.shape_inference.infer_shapes(
-            onnx_model, check_type=True, strict_mode=False, data_prop=True
-        )
+
         try:
+            onnx_model = onnx.shape_inference.infer_shapes(
+                onnx_model, check_type=True, strict_mode=False, data_prop=True
+            )
             onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             warnings.warn(f"ONNX model is invalid: {e}")
@@ -504,7 +517,6 @@ class TorchScriptGraph:
                 onnxscript.proto2text(onnx_model),
                 self.torch_graph,
             )
-
         return onnx_model
 
     def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
