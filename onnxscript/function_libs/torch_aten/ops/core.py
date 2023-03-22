@@ -5719,6 +5719,7 @@ def aten_triangular_solve(
     raise NotImplementedError()
 
 
+@torch_op("aten::tril")
 def aten_tril(self: TTensor, diagonal: int = 0) -> TTensor:
     """tril(Tensor self, int diagonal=0) -> Tensor"""
 
