@@ -13,6 +13,7 @@ with open('README.md', encoding="utf-8") as f:
                 example_code = example_f.readlines()
                 updated_readme += example_code
         if line == "```\n" and in_stub:
+            updated_readme.append(line)
             in_stub = False
 
 with open('README.md', 'w', encoding="utf-8") as f:
