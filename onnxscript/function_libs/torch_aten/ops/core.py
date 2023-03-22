@@ -507,8 +507,8 @@ def aten_argwhere(self: TensorType) -> TensorType:
 
 @torch_op("aten::as_strided", trace_only=True)
 def aten_as_strided(
-    self: TensorType, size: INT64, stride: INT64, storage_offset:int = 0
-) -> TensorType:
+    self: TTensor, size: INT64, stride: INT64, storage_offset:int = 0
+) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
