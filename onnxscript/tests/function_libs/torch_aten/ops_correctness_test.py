@@ -594,6 +594,26 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "new_ones",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "new_ones_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "new_zeros",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "new_zeros_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
