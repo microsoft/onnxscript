@@ -5746,10 +5746,11 @@ def aten_triplet_margin_loss(
     raise NotImplementedError()
 
 
+@torch_op("aten::triu")
 def aten_triu(self: TensorType, diagonal: int = 0) -> TensorType:
     """triu(Tensor self, int diagonal=0) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Trilu(self, diagonal, upper=1)
 
 
 def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
