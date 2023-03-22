@@ -2430,7 +2430,7 @@ def aten_fused_moving_avg_obs_fake_quant(
 @torch_op("aten::gather")
 def aten_gather(
     self: TReal, index: TInt, dim: int, sparse_grad: bool = False
-) -> TensorType:
+) -> TReal:
     """gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor"""
 
     if op.Size(op.Shape(index)) == 0:  # When (index) is empty, return (self)
