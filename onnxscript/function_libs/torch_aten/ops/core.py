@@ -5771,11 +5771,12 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
         target_end = op.Squeeze(((dim_size - size) / step + 1) * step)
         seq_result = op.SequenceEmpty()
 
-        for i in range(0, target_end, step):
-            starts = op.Constant(value_ints=[i])
-            ends = starts + size
-            slice_result = op.Slice(self, starts, ends, dims)
-            seq_result = op.SequenceInsert(seq_result, slice_result)
+        for i in range(target_end):
+            if op.Mod(i, step) == 0:
+                starts = op.Constant(value_ints=[i])
+                ends = starts + size
+                slice_result = op.Slice(self, starts, ends, dims)
+                seq_result = op.SequenceInsert(seq_result, slice_result)
         concat_result = op.ConcatFromSequence(seq_result, axis=dimension, new_axis=1)
 
         # Generate permute of the new shape
