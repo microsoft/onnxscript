@@ -507,49 +507,50 @@ def aten_argwhere(self: TensorType) -> TensorType:
 
 @torch_op("aten::as_strided", trace_only=True)
 def aten_as_strided(
-    self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
+    self: TensorType, size: INT64, stride: INT64, storage_offset:int = 0
 ) -> TensorType:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    sz = size[-1]
-    st = stride[-1]
-    a = op.Range(op.Constant(value_int=0),op.Constant(value_int=sz),op.Constant(value_int=1))
-    latest = op.Mul(a, op.Constant(value_int=st))
-    latest = op.Cast(latest, to=FLOAT.dtype)
-    rank = len(stride)
+    """
+    This is a DP problem:
+    Assume  sizes=(2,2,2,3), strides=(1,2,3,4)
+    1. Create range_base(3) = [0,1,2]
+    2. Create range_stride = range_base * stride(4) = [0,4,8] -> A
+    3. A + stride(3) = [3,7,11] -> B
+    4. Concat A,B to [0,4,8, 3,7,11] -> A
+    5. A + stride(2) = [2,6,10, 5,9,13] -> B
+    6. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13] -> A
+    7. A + stride(1) = [1,5,9, 4,8,12, 3,7,11, 6,10,14] -> B
+    8. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13, 1,5,9, 4,8,12, 3,7,11, 6,10,14]
+    9. Reshape to size(2,2,2,3)
+    """
+
+    sz = op.Gather(size, -1)
+    st = op.Gather(stride, -1)
+    # range_base looks like [0,1,2]
+    range_base = op.Range(op.Constant(value_int=0), sz, op.Constant(value_int=1))
+    range_stride = op.Mul(range_base, st)  # Looks like [0,1,2] * 3 = [0,3,6]
+    range_float = op.Cast(range_stride, to=FLOAT.dtype)
+    rank = op.Size(stride)
     for i in range(rank-2,-1,-1):
-        sz = size[i]
-        st = stride[i]
-        if i == rank-1:
-            a = op.Range(op.Constant(value_int=0),op.Constant(value_int=sz),op.Constant(value_int=1))
-            latest = op.Mul(a, op.Constant(value_int=st))
-        else:
-            A = op.SequenceEmpty(dtype=INT64.dtype)
-            A = op.SequenceInsert(A, latest)
-            for j in range(0,sz-1):
-                b = op.Add(latest, op.Cast(op.Constant(value_int=st), to=FLOAT.dtype))
-                A = op.SequenceInsert(A, b)
-            latest = op.ConcatFromSequence(A, axis=0)
+        sz = op.Gather(size, i)
+        st = op.Gather(stride, i)
+        seq_array = op.SequenceEmpty()  # FIXME: dtype=INT64.dtype doesn't work
+        seq_array = op.SequenceInsert(seq_array, range_float)
+        # Assert (sz in [1,2])
+        if op.Equal(sz, 2):
+            # Make array: [range_float, range_float_stride] -> size==2
+            range_float_stride = op.Add(range_float, op.Cast(st, to=FLOAT.dtype))
+            seq_array = op.SequenceInsert(seq_array, range_float_stride)
+        range_float = op.ConcatFromSequence(seq_array, axis=0)
 
-    latest = op.Cast(latest, to=INT64.dtype)
-    result = op.Gather(self_flatten, latest)
-    result = op.Reshape(result, size)
-    return result
+    range_int = op.Cast(range_float, to=INT64.dtype)
+    range_offset = op.Add(range_int, storage_offset)
+    result = op.Gather(self_flatten, range_offset)
+    return op.Reshape(result, size)
 
-def test_aten_as_strided():
-    import numpy as np
-    a = np.arange(9).reshape(3,3).astype(np.float32)
-    #print(a)
-    b = np.array([2,2], dtype=np.int64)
-    c = np.array([1,2], dtype=np.int64)
-    d = 0
-    r = aten_as_strided(a, b, c, d)
-    print(r)
-
-test_aten_as_strided()
-exit()
 
 def aten_as_strided_copy(
     self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
