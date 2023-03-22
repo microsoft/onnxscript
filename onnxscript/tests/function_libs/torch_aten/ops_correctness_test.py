@@ -523,6 +523,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     ),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
