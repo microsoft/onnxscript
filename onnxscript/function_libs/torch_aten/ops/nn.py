@@ -25,7 +25,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TReal,
 )
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import TensorType
+from onnxscript.onnx_types import TensorType, BOOL
 
 _MATH_PI = math.pi
 
@@ -1081,16 +1081,58 @@ def aten_scaled_dot_product_attention(
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     is_causal = op.Cast(is_causal, to=BOOL.dtype)
     if is_causal:
-        # TODO(justinchuby): How to I get L and S?
-        attn_mask = torch.ones(L, S, dtype=torch.bool)
+        dim_l = op.Shape(query)[-2]
+        dim_s = op.Shape(key)[-2]
+        # attn_mask = torch.ones(L, S) := {
+        one = op.CastLike(op.Constant(value_int=1), attn_mask)
+        size = op.Concat(dim_l, dim_s, axis=0)
+        attn_mask = op.Expand(one, size)
+        # }
+        attn_mask = op.Trilu(attn_mask, upper=0)
+
+    # TODO(justinchuby): Fix perm
+    sqrt_value_embedding_dim = op.Sqrt(op.CaskLike(op.Shape(query)[-1], query))
+    attn_weight = op.Softmax(
+        (op.MatMul(query, op.Transpose(key, perm=[0, 1, 3, 2])) / sqrt_value_embedding_dim)
+        + attn_mask,
+        axis=-1,
+    )
+    attn_weight = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
+
+@torch_op("aten::scaled_dot_product_attention", overload=True)
+def aten_scaled_dot_product_attention_bool(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    # TODO(justinchuby): Check the type of attn_mask
+    attn_mask: BOOL,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+):
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
+
+    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    is_causal = op.Cast(is_causal, to=BOOL.dtype)
+    if is_causal:
+        dim_l = op.Shape(query)[-2]
+        dim_s = op.Shape(key)[-2]
+        # attn_mask = torch.ones(L, S, dtype=torch.bool) := {
+        one = op.Cast(op.Constant(value_int=1), to=BOOL.dtype)
+        size = op.Concat(dim_l, dim_s, axis=0)
+        attn_mask = op.Expand(one, size)
+        # }
         attn_mask = op.Trilu(attn_mask, upper=0)
 
     # mask_fill(attn_mask, not attn_mask, -float('inf'))
     mask_fill_value_cast = op.CastLike(op.Constant(value_float=-float("inf")), attn_mask)
     attn_mask = op.Where(op.Not(attn_mask), mask_fill_value_cast, attn_mask)
 
+    # TODO(justinchuby): Fix perm
+    sqrt_value_embedding_dim = op.Sqrt(op.CaskLike(op.Shape(query)[-1], query))
     attn_weight = op.Softmax(
-        (op.MatMul(query, op.Transpose(key, perm=[0, 1, 3, 2])) / math.sqrt(query.size(-1)))
+        (op.MatMul(query, op.Transpose(key, perm=[0, 1, 3, 2])) / sqrt_value_embedding_dim)
         + attn_mask,
         axis=-1,
     )
