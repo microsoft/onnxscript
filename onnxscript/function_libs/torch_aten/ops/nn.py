@@ -1066,6 +1066,25 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::scaled_dot_product_attention")
+def aten_scaled_dot_product_attention(
+    query: TTensor,
+    key: TTensor,
+    value: TTensor,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+):
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
+
+    is_causal = op.Cast(is_causal, to=BOOL.dtype)
+    if is_causal:
+        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+
+    attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+    attn_weight = torch.softmax((Q @ K.transpose(-2, -1) / math.sqrt(Q.size(-1))) + attn_mask, dim=-1)
+    attn_weight = torch.dropout(attn_weight, dropout_p)
+    return attn_weight @ V
+
 def aten_sigmoid_backward(grad_output: TensorType, output: TensorType) -> TensorType:
     """sigmoid_backward(Tensor grad_output, Tensor output) -> Tensor"""
 

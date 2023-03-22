@@ -481,6 +481,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     "topk": core_ops.aten_topk,
+    "tril": core_ops.aten_tril,
+    "triu": core_ops.aten_triu,
     "trunc": core_ops.aten_trunc,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
