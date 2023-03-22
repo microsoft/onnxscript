@@ -2389,7 +2389,7 @@ def aten_from_file(
 
 
 @torch_op("aten::full")
-def aten_full(size: INT64, fill_value: float, dtype: int = FLOAT.dtype):
+def aten_full(size: INT64, fill_value: FLOAT, dtype: int = FLOAT.dtype):
     """full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     size = op.Cast(size, to=INT64.dtype)
