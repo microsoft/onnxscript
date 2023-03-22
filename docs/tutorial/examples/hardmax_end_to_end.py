@@ -2,13 +2,13 @@ import onnx
 from onnxscript import script
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT
+from onnxscript import opset15 as op
+from onnxscript import FLOAT
 
 # We use the script decorator to indicate that
 # this is meant to be translated to ONNX.
 @script()
-def onnx_hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
+def onnx_hardmax(X, axis: int):
     """Hardmax is similar to ArgMax, with the result being encoded OneHot style."""
 
     # The type annotation on X indicates that it is a float tensor of
@@ -29,8 +29,23 @@ def onnx_hardmax(X: FLOAT[...], axis: int = 0) -> FLOAT[...]:
     cast_values = op.CastLike(values, X)
     return op.OneHot(argmax, depth, cast_values, axis=axis)
 
+# We use the script decorator to indicate that
+# this is meant to be translated to ONNX.
+@script()
+def SampleModel(X : FLOAT[64, 128] , Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOAT[64, 10]:
+    matmul = op.MatMul(X, Wt) + Bias
+    return onnx_hardmax(matmul, axis=1)
+
 # onnx_model is an in-memory ModelProto
-onnx_model = onnx_hardmax.to_model_proto()
+onnx_model = SampleModel.to_model_proto()
 
 # Save the ONNX model at a given path
 onnx.save(onnx_model, "hardmax.onnx")
+
+# Check the model
+try:
+    onnx.checker.check_model(onnx_model)
+except onnx.checker.ValidationError as e:
+    print(f"The model is invalid: {e}")
+else:
+    print("The model is valid!")
