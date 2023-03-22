@@ -1068,22 +1068,35 @@ def aten_rrelu_with_noise_backward(
 
 @torch_op("aten::scaled_dot_product_attention")
 def aten_scaled_dot_product_attention(
-    query: TTensor,
-    key: TTensor,
-    value: TTensor,
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    # TODO(justinchuby): Check the type of attn_mask
+    attn_mask: TFloat,
     dropout_p: float = 0.0,
     is_causal: bool = False,
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
 
+    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     is_causal = op.Cast(is_causal, to=BOOL.dtype)
     if is_causal:
-        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+        # TODO(justinchuby): How to I get L and S?
+        attn_mask = torch.ones(L, S, dtype=torch.bool)
+        attn_mask = op.Trilu(attn_mask, upper=0)
 
-    attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
-    attn_weight = torch.softmax((Q @ K.transpose(-2, -1) / math.sqrt(Q.size(-1))) + attn_mask, dim=-1)
-    attn_weight = torch.dropout(attn_weight, dropout_p)
-    return attn_weight @ V
+    # mask_fill(attn_mask, not attn_mask, -float('inf'))
+    mask_fill_value_cast = op.CastLike(op.Constant(value_float=-float("inf")), attn_mask)
+    attn_mask = op.Where(op.Not(attn_mask), mask_fill_value_cast, attn_mask)
+
+    attn_weight = op.Softmax(
+        (op.MatMul(query, op.Transpose(key, perm=[0, 1, 3, 2])) / math.sqrt(query.size(-1)))
+        + attn_mask,
+        axis=-1,
+    )
+    attn_weight = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
 
 def aten_sigmoid_backward(grad_output: TensorType, output: TensorType) -> TensorType:
     """sigmoid_backward(Tensor grad_output, Tensor output) -> Tensor"""
