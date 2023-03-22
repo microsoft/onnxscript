@@ -509,26 +509,22 @@ def aten_argwhere(self: TensorType) -> TensorType:
 
 @torch_op("aten::as_strided", trace_only=True)
 def aten_as_strided(
-    self: TTensor, size: INT64, stride: INT64, storage_offset:int = 0
+    self: TTensor, size: INT64, stride: INT64, storage_offset: int = 0
 ) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
+    # This is a DP problem:
+    # Assume  sizes=(2,2,2,3), strides=(1,2,3,4)
+    # 1. Create range_base(3) = [0,1,2]
+    # 2. Create range_stride = range_base * stride(4) = [0,4,8] -> A
+    # 3. A + stride(3) = [3,7,11] -> B
+    # 4. Concat A,B to [0,4,8, 3,7,11] -> A
+    # 5. A + stride(2) = [2,6,10, 5,9,13] -> B
+    # 6. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13] -> A
+    # 7. A + stride(1) = [1,5,9, 4,8,12, 3,7,11, 6,10,14] -> B
+    # 8. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13, 1,5,9, 4,8,12, 3,7,11, 6,10,14]
+    # 9. Reshape to size(2,2,2,3)
 
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
-
-    """
-    This is a DP problem:
-    Assume  sizes=(2,2,2,3), strides=(1,2,3,4)
-    1. Create range_base(3) = [0,1,2]
-    2. Create range_stride = range_base * stride(4) = [0,4,8] -> A
-    3. A + stride(3) = [3,7,11] -> B
-    4. Concat A,B to [0,4,8, 3,7,11] -> A
-    5. A + stride(2) = [2,6,10, 5,9,13] -> B
-    6. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13] -> A
-    7. A + stride(1) = [1,5,9, 4,8,12, 3,7,11, 6,10,14] -> B
-    8. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13, 1,5,9, 4,8,12, 3,7,11, 6,10,14]
-    9. Reshape to size(2,2,2,3)
-    """
-
     sz = op.Gather(size, -1)
     st = op.Gather(stride, -1)
     # range_base looks like [0,1,2]
@@ -536,7 +532,7 @@ def aten_as_strided(
     range_stride = op.Mul(range_base, st)  # Looks like [0,1,2] * 3 = [0,3,6]
     range_float = op.Cast(range_stride, to=FLOAT.dtype)
     rank = op.Size(stride)
-    for i in range(rank-2,-1,-1):
+    for i in range(rank - 2, -1, -1):
         sz = op.Gather(size, i)
         st = op.Gather(stride, i)
         seq_array = op.SequenceEmpty()  # FIXME: dtype=INT64.dtype doesn't work
