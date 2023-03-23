@@ -1184,7 +1184,7 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
 
     attn_weight = op.Softmax(
-        op.Add(op.Mul(op.MatMul(query, key_transposed), scale)), attn_mask),
+        op.Add(op.Mul(op.MatMul(query, key_transposed), scale), attn_mask),
         axis=-1,
     )
     attn_weight = op.Dropout(attn_weight, dropout_p)
@@ -1245,7 +1245,7 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
 
     attn_weight = op.Softmax(
-        op.Add(op.Mul(op.MatMul(query, key_transposed), scale)), attn_mask),
+        op.Add(op.Mul(op.MatMul(query, key_transposed), scale), attn_mask),
         axis=-1,
     )
     attn_weight = op.Dropout(attn_weight, dropout_p)
