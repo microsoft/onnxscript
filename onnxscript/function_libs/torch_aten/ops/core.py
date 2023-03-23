@@ -2427,12 +2427,26 @@ def aten_fused_moving_avg_obs_fake_quant(
     raise NotImplementedError()
 
 
+@torch_op("aten::gather")
 def aten_gather(
-    self: TensorType, dim: int, index: TensorType, sparse_grad: bool = False
-) -> TensorType:
+    self: TReal,
+    index: TInt,
+    dim: int,
+    sparse_grad: bool = False,  # pylint: disable=unused-argument
+) -> TReal:
     """gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor"""
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(index)) == 0:  # When (index) is empty, return (self)
+        result = self
+    else:
+        if op.Size(op.Shape(self)) == 0:  # Unsqueeze for GatherElements op
+            self = op.Reshape(self, op.Constant(value_ints=[-1]))
+        if op.Size(index) == 0:  # Return empty array
+            result = op.CastLike(index, self)
+        else:
+            index_int32 = op.Cast(index, to=INT32.dtype)
+            result = op.GatherElements(self, index_int32, axis=dim)
+    return result
 
 
 def aten_gather_backward(
@@ -2468,16 +2482,18 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_greater(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::greater")
+def aten_greater(self: TReal, other: TReal) -> BOOL:
     """greater.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Greater(self, other)
 
 
-def aten_greater_equal(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::greater_equal")
+def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     """greater_equal.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.GreaterOrEqual(self, other)
 
 
 def aten_grid_sampler(
