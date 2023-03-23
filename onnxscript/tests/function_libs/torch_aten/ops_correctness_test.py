@@ -839,12 +839,14 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.scaled_dot_product_attention",
-        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None and attn_mask.dtype != torch.bool,
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype != torch.bool,
         reason="this overload takes a boolean mask",
     ),
     skip(
         "nn.functional.scaled_dot_product_attention_float_mask",
-        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None and attn_mask.dtype == torch.bool,
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype == torch.bool,
         reason="this overload takes a non-boolean mask",
     ),
     skip(
@@ -899,7 +901,11 @@ duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
 duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
 
-duplicate_opinfo(OPS_DB, "nn.functional.scaled_dot_product_attention", ("nn.functional.scaled_dot_product_attention_float_mask",))
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.scaled_dot_product_attention",
+    ("nn.functional.scaled_dot_product_attention_float_mask",),
+)
 
 duplicate_opinfo(
     OPS_DB,
@@ -1124,8 +1130,14 @@ def _graph_executor(
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
         # Make sure the model is valid
-        onnx.checker.check_model(onnx_model, full_check=True)
-
+        try:
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except onnx.checker.ValidationError as e:
+            raise AssertionError(
+                f"ONNX model is invalid: {e}. "
+                f"Model:\n"
+                f"{onnxscript.proto2text(onnx_model)}"
+            ) from e
         # Disable all ORT optimizations
         session_options = onnxruntime.SessionOptions()
         session_options.graph_optimization_level = (

@@ -17,8 +17,8 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
-from onnxscript import FLOAT, INT64
 import onnxscript
+from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
@@ -26,7 +26,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TReal,
 )
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import TensorType, BOOL
+from onnxscript.onnx_types import BOOL, TensorType
 
 _MATH_PI = math.pi
 
@@ -1074,7 +1074,6 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
-
 @onnxscript.script()
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     dim_l = op.Shape(query)[-2:-1]
@@ -1109,7 +1108,9 @@ def aten_scaled_dot_product_attention(
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
     # Use trace_only to handle optional inputs
-    assert (not is_causal) or (is_causal and attn_mask is None), "is_causal and attn_mask cannot be set at the same time"
+    assert (not is_causal) or (
+        is_causal and attn_mask is None
+    ), "is_causal and attn_mask cannot be set at the same time"
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
@@ -1203,7 +1204,9 @@ def aten_scaled_dot_product_attention_float_mask(
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
     # Use trace_only to handle optional inputs
-    assert (not is_causal) or (is_causal and attn_mask is None), "is_causal and attn_mask cannot be set at the same time"
+    assert (not is_causal) or (
+        is_causal and attn_mask is None
+    ), "is_causal and attn_mask cannot be set at the same time"
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
