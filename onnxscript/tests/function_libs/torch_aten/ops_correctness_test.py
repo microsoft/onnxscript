@@ -485,6 +485,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "ones": core_ops.aten_ones,
     "permute": (core_ops.aten_permute, _permute_input_wrangler),
     "pow": core_ops.aten_pow,
+    # "rand": core_ops.aten_rand,  # no test case in OPS_DB
     "randn": (core_ops.aten_randn, _randn_input_wrangler),
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
