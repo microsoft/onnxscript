@@ -680,6 +680,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
     ),
     xfail(
+        "scatter_add",
+        reason="fixme: ORT failed due to different rank for if-else branch",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
