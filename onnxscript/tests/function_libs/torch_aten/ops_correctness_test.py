@@ -442,6 +442,10 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,
+    "new_ones_dtype": core_ops.aten_new_ones_dtype,
+    "new_ones": core_ops.aten_new_ones,
+    "new_zeros_dtype": core_ops.aten_new_zeros_dtype,
+    "new_zeros": core_ops.aten_new_zeros,
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
@@ -602,6 +606,26 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "new_ones",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "new_ones_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "new_zeros",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "new_zeros_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -718,6 +742,26 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
     skip(
+        "new_ones",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="",
+    ),
+    skip(
+        "new_ones_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="",
+    ),
+    skip(
+        "new_zeros",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="",
+    ),
+    skip(
+        "new_zeros_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="",
+    ),
+    skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
@@ -818,6 +862,10 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+
+duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
+
+duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
 duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
 
