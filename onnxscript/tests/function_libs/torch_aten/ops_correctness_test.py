@@ -409,6 +409,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "expand_as": core_ops.aten_expand_as,
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
+    "flip": core_ops.aten_flip,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
     "full_like": core_ops.aten_full_like,
@@ -586,6 +587,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
+    ),
+    xfail(
+        "flip",
+        reason="fixme: graph_building.py cannot process empty sequence(line 253)",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "index_select",
