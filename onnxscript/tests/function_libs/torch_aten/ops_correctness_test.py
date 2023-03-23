@@ -636,6 +636,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "nn.functional.mse_loss",
+        reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
