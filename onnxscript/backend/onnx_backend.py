@@ -10,8 +10,8 @@ from typing import Iterator
 
 import numpy as np
 import onnx
-from onnx.backend.test import __file__ as backend_folder
 import onnx.numpy_helper
+from onnx.backend.test import __file__ as backend_folder
 
 from onnxscript.backend import onnx_export
 
