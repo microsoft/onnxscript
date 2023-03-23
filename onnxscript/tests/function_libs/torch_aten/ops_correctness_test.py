@@ -837,6 +837,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload need weight as kwargs",
     ),
     skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None and attn_mask.dtype != torch.bool,
+        reason="this overload takes a boolean mask",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_float_mask",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None and attn_mask.dtype == torch.bool,
+        reason="this overload takes a non-boolean mask",
+    ),
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
@@ -1126,6 +1136,7 @@ def _graph_executor(
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
         ) as e:
             raise AssertionError(
                 f"ONNX Runtime failed to evaluate:\n"
