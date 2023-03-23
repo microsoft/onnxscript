@@ -529,7 +529,7 @@ def aten_as_strided(
     st = op.Gather(stride, -1)
     # range_base looks like [0,1,2]
     range_base = op.Range(op.Constant(value_int=0), sz, op.Constant(value_int=1))
-    range_stride = op.Mul(range_base, st)  # Looks like [0,1,2] * 3 = [0,3,6]
+    range_stride = op.Mul(range_base, st)  # Looks like [0,1,2] * 4 = [0,4,8]
     range_float = op.Cast(range_stride, to=FLOAT.dtype)
     rank = op.Size(stride)
     for i in range(rank - 2, -1, -1):
