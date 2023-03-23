@@ -1076,23 +1076,25 @@ def aten_rrelu_with_noise_backward(
 
 @onnxscript.script()
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
-    dim_l = op.Shape(query)[-2:-1]
-    dim_s = op.Shape(key)[-2:-1]
+    # attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+    # attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool
+    target_length = op.Shape(query)[-2:-1]
+    source_length = op.Shape(key)[-2:-1]
     # attn_mask = torch.ones(L, S) := {
-    one = op.CastLike(1.0, query)
-    size = op.Concat(dim_l, dim_s, axis=0)
-    attn_mask = op.Expand(one, size)
+    size = op.Concat(target_length, source_length, axis=0)
+    attn_mask = op.Expand(1.0, size)
     # }
     attn_mask = op.Trilu(attn_mask, upper=0)
-    attn_mask = op.Where(attn_mask == 0.0, -float("inf"), attn_mask)
+    # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
+    attn_mask = op.Where(op.Equal(attn_mask, 0.0), op.Constant(value_float=-float("inf")), 0.0)
     return attn_mask
 
 
 @onnxscript.script()
 def _attention_scale(query: TFloat) -> TFloat:
-    one = op.CastLike(1.0, query)
+    # scale_factor = 1 / math.sqrt(Q.size(-1))
     embedding_size = op.CastLike(op.Shape(query)[-1], query)
-    scale = op.Div(one, op.Sqrt(embedding_size))
+    scale = op.Div(1.0, op.Sqrt(embedding_size))
     return scale
 
 
@@ -1113,6 +1115,13 @@ def aten_scaled_dot_product_attention(
     ), "is_causal and attn_mask cannot be set at the same time"
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    # scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
+    # attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
+    # attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+    # attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+    # attn_weight = torch.dropout(attn_weight, dropout_p)
+    # return attn_weight @ V
+
     if scale is None:
         scale = _attention_scale(query)
 
@@ -1154,11 +1163,14 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
     key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
 
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    scaled_query = op.Mul(query, scale)
     attn_weight = op.Softmax(
-        (op.MatMul(query, key_transposed) * scale),
+        op.MatMul(scaled_query, key_transposed),
         axis=-1,
     )
-    attn_weight = op.Dropout(attn_weight, dropout_p)
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
 
@@ -1184,11 +1196,14 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
     key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
 
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    scaled_query = op.Mul(query, scale)
     attn_weight = op.Softmax(
-        op.Add(op.Mul(op.MatMul(query, key_transposed), scale), attn_mask),
+        op.Add(op.MatMul(scaled_query, key_transposed), attn_mask),
         axis=-1,
     )
-    attn_weight = op.Dropout(attn_weight, dropout_p)
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
 
@@ -1247,11 +1262,14 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
     key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
 
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    scaled_query = op.Mul(query, scale)
     attn_weight = op.Softmax(
-        op.Add(op.Mul(op.MatMul(query, key_transposed), scale), attn_mask),
+        op.Add(op.MatMul(scaled_query, key_transposed), attn_mask),
         axis=-1,
     )
-    attn_weight = op.Dropout(attn_weight, dropout_p)
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
     return op.MatMul(attn_weight, value)
 
 

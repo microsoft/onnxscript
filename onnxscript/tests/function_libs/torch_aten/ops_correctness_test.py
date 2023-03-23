@@ -844,10 +844,20 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this overload takes a boolean mask",
     ),
     skip(
+        "nn.functional.scaled_dot_product_attention",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
+    ),
+    skip(
         "nn.functional.scaled_dot_product_attention_float_mask",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype == torch.bool,
         reason="this overload takes a non-boolean mask",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_float_mask",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
     ),
     skip(
         "nn.functional.upsample_nearest2d",
@@ -1217,7 +1227,14 @@ def run_test_output_match(
         # Provide the repr to subtest because tensors are not serializable in parallel test runs
         with test_suite.subTest(
             sample_num=i,
-            inputs=repr(inputs),
+            inputs=repr(
+                [
+                    f"Tensor<{inp.shape}, dtype={inp.dtype}>"
+                    if isinstance(inp, torch.Tensor)
+                    else inp
+                    for inp in inputs
+                ]
+            ),
             kwargs=repr(cpu_sample.kwargs),
         ):
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
