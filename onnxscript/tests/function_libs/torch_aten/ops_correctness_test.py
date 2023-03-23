@@ -337,6 +337,13 @@ def _permute_input_wrangler(
     return args, kwargs
 
 
+def _scatter_add_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop(1)
+    return args, kwargs
+
+
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -488,6 +495,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
+    "scatter_add": (core_ops.aten_scatter_add, _scatter_add_input_wrangler),
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -1191,6 +1199,11 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            if i == 0:
+                print(i)
+            else:
+                continue
+
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

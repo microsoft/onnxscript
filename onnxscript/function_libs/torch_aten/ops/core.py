@@ -5099,13 +5099,17 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
-    self: TensorType, dim: int, index: TensorType, src: TensorType
-) -> TensorType:
+    self: TReal, index: TInt, src: TReal, dim: int,
+) -> TReal:
     """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
 
-    raise NotImplementedError()
-
+    if op.Size(op.Shape(self)) == 0:  # Assert rank(index) and rank(src) are all 0
+        result = self + src
+    else:
+        result = op.ScatterElements(self, index, src, axis=dim, reduction="add")
+    return result
 
 def aten_searchsorted(
     sorted_sequence: TensorType,
