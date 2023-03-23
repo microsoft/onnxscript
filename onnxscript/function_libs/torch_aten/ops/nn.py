@@ -700,10 +700,17 @@ def aten_mkldnn_reorder_conv3d_weight(
     raise NotImplementedError()
 
 
-def aten_mse_loss(self: TensorType, target: TensorType, reduction: int = 1) -> TensorType:
+@torch_op("aten::mse_loss")
+def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
     """mse_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor"""
+    # FIXME: When reduction=0, the shape(result) will be different than other case
+    result = op.Mul(self - target, self - target)
+    if reduction == 1:  # mean
+        result = op.ReduceMean(result, keepdims=0)
+    elif reduction == 2:  # sum
+        result = op.ReduceSum(result, keepdims=0)
 
-    raise NotImplementedError()
+    return result
 
 
 def aten_mse_loss_backward(
