@@ -528,6 +528,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
+    "nn.functional.grid_sample": core_ops.aten_grid_sampler,
+    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,

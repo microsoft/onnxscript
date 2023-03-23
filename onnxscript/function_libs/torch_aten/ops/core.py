@@ -2496,6 +2496,7 @@ def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     return op.GreaterOrEqual(self, other)
 
 
+@torch_op("aten::grid_sample", trace_only=True)
 def aten_grid_sampler(
     input: TensorType,
     grid: TensorType,
@@ -2505,7 +2506,17 @@ def aten_grid_sampler(
 ) -> TensorType:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    padding_modes = ["zeros", "border", "reflection"]
+    padding_mode_str =padding_modes[padding_mode]
+
+    interp_modes = ["biliner", "nearest", "bicubic"]
+    interp_mode_str = interp_modes[interpolation_mode]
+
+    result = op.GridSample(input, grid,
+                  align_corners=align_corners,
+                  mode = interp_mode_str,
+                  padding_mode=padding_mode_str)
+    return result
 
 
 def aten_grid_sampler_2d(
