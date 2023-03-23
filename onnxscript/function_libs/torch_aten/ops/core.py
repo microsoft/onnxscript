@@ -4310,16 +4310,40 @@ def aten_new_full(
     return op.Expand(fill_value, size)
 
 
-def aten_new_ones(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::new_ones")
+def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    one = op.Constant(value_float=1.0)
+    return op.Expand(one, size)
 
 
-def aten_new_zeros(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::new_ones", overload=True)
+def aten_new_ones_dtype(
+    self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
+) -> TReal:
+
+    one = op.Constant(value_float=1.0)
+    one = op.Cast(one, to=dtype)
+    return op.Expand(one, size)
+
+
+@torch_op("aten::new_zeros")
+def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.Constant(value_float=0.0)
+    return op.Expand(zero, size)
+
+
+@torch_op("aten::new_zeros", overload=True)
+def aten_new_zeros_dtype(
+    self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
+) -> TReal:
+
+    zero = op.Constant(value_float=0.0)
+    zero = op.Cast(zero, to=dtype)
+    return op.Expand(zero, size)
 
 
 def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
