@@ -5101,7 +5101,10 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
 
 @torch_op("aten::scatter_add")
 def aten_scatter_add(
-    self: TReal, index: TInt, src: TReal, dim: int,
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    dim: int,
 ) -> TReal:
     """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
 
