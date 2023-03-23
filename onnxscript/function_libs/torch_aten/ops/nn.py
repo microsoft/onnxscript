@@ -1143,7 +1143,7 @@ def aten_scaled_dot_product_attention_float_mask(
     scale = op.Optional() if scale is None else scale
     attn_mask = op.Optional() if attn_mask is None else attn_mask
     return _aten_scaled_dot_product_attention_float_onnx(
-        query, key, value, attn_mask, dropout_p, is_causal, perm
+        query, key, value, attn_mask, scale, dropout_p, is_causal, perm
     )
 
 
@@ -1153,6 +1153,7 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     key: TFloat,
     value: TFloat,
     attn_mask: TFloat,
+    scale: Optional[FLOAT],
     dropout_p: float,
     is_causal: bool,
     perm: Sequence[int],
