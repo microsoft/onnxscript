@@ -547,6 +547,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
+    "nn.functional.scaled_dot_product_attention_float_mask": nn_ops.aten_scaled_dot_product_attention_float_mask,
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
@@ -837,7 +838,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload need weight as kwargs",
     ),
     skip(
-        "nn.functional.scaled_dot_product_attention_bool_mask",
+        "nn.functional.scaled_dot_product_attention",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None and attn_mask.dtype != torch.bool,
         reason="this overload takes a boolean mask",
     ),
@@ -897,6 +898,8 @@ duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
 duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
+
+duplicate_opinfo(OPS_DB, "nn.functional.scaled_dot_product_attention", ("nn.functional.scaled_dot_product_attention_float_mask",))
 
 duplicate_opinfo(
     OPS_DB,

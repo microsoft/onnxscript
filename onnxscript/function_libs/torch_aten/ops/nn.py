@@ -1149,7 +1149,7 @@ def aten_scaled_dot_product_attention_float_mask(
     perm[-1], perm[-2] = perm[-2], perm[-1]
     scale = 1.0 if scale is None else scale
     attn_mask = 0.0 if attn_mask is None else attn_mask
-    return _aten_scaled_dot_product_attention_float_onnx(
+    return _aten_scaled_dot_product_attention_float_mask_onnx(
         query, key, value, attn_mask, scale, dropout_p, is_causal, perm
     )
 
