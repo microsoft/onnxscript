@@ -5269,17 +5269,61 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
+@torch_op("aten::slice_scatter", trace_only=True)
 def aten_slice_scatter(
     self: TensorType,
     src: TensorType,
-    dim: int = 0,
-    start: Optional[INT64] = None,
-    end: Optional[INT64] = None,
-    step: INT64 = 1,
+    dim: int,
+    start: int,
+    end: int,
+    step: int = 1,
 ) -> TensorType:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    raise NotImplementedError()
+    # index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
+    # # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
+    # self_dim_1 = op.Gather(op.Shape(self), 1)
+    # index_dim_0 = op.Gather(op.Shape(index), 0)
+    # neg_1 = op.Constant(value_ints=[-1])
+    # shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
+    # new_ind = op.Expand(index, shape)
+    # new_ind_t = op.Transpose(new_ind)
+
+
+    ind = []
+    for i in range(start, end, step):
+        ind.append(i)
+    ind = op.Constant(value_ints=ind)
+    #shape = op.Constant(value_ints=[8,2])
+    shape = op.Shape(src)
+    a = op.Expand(ind, shape)
+    b = op.Transpose(a)
+
+    # self_dim_1 = op.Gather(op.Shape(self), 1)
+    # index_dim_0 = op.Gather(op.Shape(index), 0)
+    # neg_1 = op.Constant(value_ints=[-1])
+    # shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
+    # new_ind = op.Expand(index, shape)
+    # new_ind_t = op.Transpose(new_ind)
+
+
+    result = op.ScatterElements(self, b, src, axis=dim)
+    return result
+
+def test_slice_scatter():
+    import numpy as np
+    a = np.zeros((3,4,5))
+    b = np.ones((3,4,5))
+    b[0] = 1
+    b[1] = 2
+    b[2] = 3
+    r = aten_slice_scatter(a, b[0:1], dim=0, start=1, end=2, step=1)
+    print(r)
+
+test_slice_scatter()
+exit(0)
+
+
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:

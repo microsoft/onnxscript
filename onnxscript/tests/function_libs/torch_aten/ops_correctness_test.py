@@ -464,6 +464,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
+    "nn.functional.hardtanh": nn_ops.aten_hardtanh,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
@@ -492,6 +493,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
     "sinh": core_ops.aten_sinh,
+    "slice_scatter": core_ops.aten_slice_scatter,
     "softmax": special_ops.aten_special_softmax,
     "split_with_sizes": core_ops.aten_split_with_sizes,
     "split": core_ops.aten_split,
@@ -1191,6 +1193,12 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
+
+            if i == 1:
+                print(i)
+            else:
+                continue
+
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

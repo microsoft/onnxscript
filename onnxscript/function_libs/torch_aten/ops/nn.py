@@ -467,10 +467,12 @@ def aten_hardswish_backward(grad_output: TensorType, self: TensorType) -> Tensor
     raise NotImplementedError()
 
 
+@torch_op("aten::hardtanh")
 def aten_hardtanh(self: TensorType, min_val: float = -1.0, max_val: float = 1.0) -> TensorType:
     """hardtanh(Tensor self, Scalar min_val=-1, Scalar max_val=1) -> Tensor"""
 
-    raise NotImplementedError()
+    result = op.Clip(self, min_val, max_val)
+    return result
 
 
 def aten_hardtanh_backward(
