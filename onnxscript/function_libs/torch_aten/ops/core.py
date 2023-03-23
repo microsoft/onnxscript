@@ -4838,10 +4838,10 @@ def aten_randint_like(
 
 
 @torch_op("aten::randn")
-def aten_randn(size: INT64) -> TReal:
+def aten_randn(size: int, dtype: int = 1, requires_grad: bool = False) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.RandomNormal(shape=size)
+    return op.RandomNormal(dtype=dtype, shape=op.Constant(value_ints=size))
 
 
 def aten_randn_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
