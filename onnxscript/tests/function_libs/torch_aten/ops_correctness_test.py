@@ -288,8 +288,7 @@ def _empty_input_wrangler(
 def _gather_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    # Change the dims argument back to a list because ONNX Transpose does not
-    # support dynamic perms
+    # Make the dim argument an attribute
     kwargs["dim"] = args.pop(1)
     return args, kwargs
 
