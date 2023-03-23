@@ -285,6 +285,25 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
+def _gather_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the dim argument an attribute
+    kwargs["dim"] = args.pop(1)
+    return args, kwargs
+
+
+def _mse_loss_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "reduction" in kwargs:
+        reduction_vals = ["none", "mean", "sum"]  # [0,1,2], default=1
+        value = kwargs["reduction"]
+        idx = reduction_vals.index(value)
+        kwargs["reduction"] = idx
+    return args, kwargs
+
+
 def _nll_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -393,7 +412,10 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
     "full_like": core_ops.aten_full_like,
+    "gather": (core_ops.aten_gather, _gather_input_wrangler),
     "ge": core_ops.aten_ge,
+    # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
+    # "greater": core_ops.aten_greater,  # no test case in OPS_DB
     "gt": core_ops.aten_gt,
     # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
@@ -449,6 +471,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
+    "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
     "nonzero": core_ops.aten_nonzero,
     "normal": core_ops.aten_normal,
     "ones": core_ops.aten_ones,
@@ -621,6 +644,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "nn.functional.mse_loss",
+        reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
