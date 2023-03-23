@@ -416,6 +416,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "expand_as": core_ops.aten_expand_as,
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
+    "floor": core_ops.aten_floor,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
     "full_like": core_ops.aten_full_like,

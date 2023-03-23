@@ -2331,10 +2331,11 @@ def aten_flipud(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_floor(self: TensorType) -> TensorType:
+@torch_op("aten::floor")
+def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """floor(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Floor(self)
 
 
 def aten_floor_divide(self: TensorType, other: TensorType) -> TensorType:
