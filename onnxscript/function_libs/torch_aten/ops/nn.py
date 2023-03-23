@@ -1108,7 +1108,7 @@ def aten_scaled_dot_product_attention(
     scale: Optional[float] = None,
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
-    # Use trace_only to obtain the permutation for Transpose
+    # Use trace_only to handle optional inputs
     assert (not is_causal) or (is_causal and attn_mask is None), "is_causal and attn_mask cannot be set at the same time"
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
@@ -1202,7 +1202,7 @@ def aten_scaled_dot_product_attention_float_mask(
     scale: Optional[float] = None,
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
-    # Use trace_only to obtain the permutation for Transpose
+    # Use trace_only to handle optional inputs
     assert (not is_causal) or (is_causal and attn_mask is None), "is_causal and attn_mask cannot be set at the same time"
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
