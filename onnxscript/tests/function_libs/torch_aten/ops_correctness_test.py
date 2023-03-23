@@ -552,6 +552,7 @@ NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
         "new_empty_strided",
         "new_empty",
         "normal",
+        "randn",
     )
 )
 

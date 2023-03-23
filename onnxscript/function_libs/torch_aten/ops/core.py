@@ -4821,10 +4821,11 @@ def aten_randint_like(
     raise NotImplementedError()
 
 
-def aten_randn(size: INT64) -> TensorType:
+@torch_op("aten::randn")
+def aten_randn(size: INT64) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomNormal(shape=size)
 
 
 def aten_randn_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
