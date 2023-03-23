@@ -1113,7 +1113,7 @@ def aten_scaled_dot_product_attention(
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     dim_l = op.Shape(query)[-2:-1]
     dim_s = op.Shape(key)[-2:-1]
-    # attn_mask = torch.ones(L, S, dtype=torch.bool) := {
+    # attn_mask = torch.ones(L, S) := {
     one = op.CastLike(1.0, query)
     size = op.Concat(dim_l, dim_s, axis=0)
     attn_mask = op.Expand(one, size)
