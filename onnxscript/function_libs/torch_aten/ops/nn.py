@@ -1077,6 +1077,7 @@ def aten_scaled_dot_product_attention(
     scale: Optional[float] = None,
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
+    # Use trace_only to obtain the permutation for Transpose
     perm = list(range(len(key.shape)))
     perm[-1], perm[-2] = perm[-2], perm[-1]
     scale = op.Optional() if scale is None else scale
@@ -1136,6 +1137,7 @@ def aten_scaled_dot_product_attention_float_mask(
     scale: Optional[float] = None,
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
+    # Use trace_only to obtain the permutation for Transpose
     perm = list(range(len(key.shape)))
     perm[-1], perm[-2] = perm[-2], perm[-1]
     scale = op.Optional() if scale is None else scale
