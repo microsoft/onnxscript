@@ -318,8 +318,8 @@ def _nll_loss_input_wrangler(
 def _randn_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    # Make the size argument an attribute
-    kwargs["size"] = args.pop(0).item()
+    # Make the size argument as attribute list[int]
+    kwargs["size"] = args.pop(0).tolist()
     return args, kwargs
 
 
@@ -1201,6 +1201,10 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            if i==0:
+                print(i)
+            else:
+                continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
