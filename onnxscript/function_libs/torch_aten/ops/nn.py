@@ -18,6 +18,7 @@ import math
 from typing import Optional, Sequence
 
 from onnxscript import FLOAT, INT64
+import onnxscript
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
@@ -1085,48 +1086,96 @@ def aten_scaled_dot_product_attention(
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
     # Use trace_only to obtain the permutation for Transpose
-    perm = list(range(len(key.shape)))
-    perm[-1], perm[-2] = perm[-2], perm[-1]
-    scale = 1.0 if scale is None else scale
-    attn_mask = False if attn_mask is None else attn_mask
-    return _aten_scaled_dot_product_attention_onnx(
-        query, key, value, attn_mask, scale, dropout_p, is_causal, perm
+    assert (not is_causal) or (is_causal and attn_mask is None), "is_causal and attn_mask cannot be set at the same time"
+
+    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    if scale is None:
+        scale = op.Div(1.0, op.Sqrt(op.CastLike(op.Shape(query)[-1], query)))
+
+    if is_causal:
+        attn_mask = _causal_attention_mask(query, key)
+        # The causal mask is always float
+        return _aten_scaled_dot_product_attention_float_mask_onnx(
+            query, key, value, attn_mask, scale, dropout_p
+        )
+
+    if attn_mask is None:
+        return _aten_scaled_dot_product_attention_no_mask_onnx(
+            query, key, value, scale, dropout_p
+        )
+
+    return _aten_scaled_dot_product_attention_bool_mask_onnx(
+        query, key, value, attn_mask, scale, dropout_p
     )
 
 
+@onnxscript.script()
+def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
+    dim_l = op.Shape(query)[-2:-1]
+    dim_s = op.Shape(key)[-2:-1]
+    # attn_mask = torch.ones(L, S, dtype=torch.bool) := {
+    one = op.CastLike(1.0, query)
+    size = op.Concat(dim_l, dim_s, axis=0)
+    attn_mask = op.Expand(one, size)
+    # }
+    attn_mask = op.Trilu(attn_mask, upper=0)
+    attn_mask = op.Where(attn_mask == 0.0, -float("inf"), attn_mask)
+    return attn_mask
+
+
 @torch_op("aten::scaled_dot_product_attention", private=True)
-def _aten_scaled_dot_product_attention_onnx(
+def _aten_scaled_dot_product_attention_no_mask_onnx(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    scale: FLOAT,
+    dropout_p: float,
+):
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_last_dim, key_second_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
+
+    attn_weight = op.Softmax(
+        (op.MatMul(query, key_transposed) * scale),
+        axis=-1,
+    )
+    attn_weight = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
+
+@torch_op("aten::scaled_dot_product_attention", private=True)
+def _aten_scaled_dot_product_attention_bool_mask_onnx(
     query: TFloat,
     key: TFloat,
     value: TFloat,
     attn_mask: BOOL,
-    scale: Optional[FLOAT],
+    scale: FLOAT,
     dropout_p: float,
-    is_causal: bool,
-    perm: Sequence[int],
 ):
-    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-    is_causal = op.Cast(is_causal, to=BOOL.dtype)
-    if is_causal:
-        dim_l = op.Shape(query)[-2:-1]
-        dim_s = op.Shape(key)[-2:-1]
-        # attn_mask = torch.ones(L, S, dtype=torch.bool) := {
-        one = op.Cast(op.Constant(value_int=1), to=BOOL.dtype)
-        size = op.Concat(dim_l, dim_s, axis=0)
-        attn_mask = op.Expand(one, size)
-        # }
-        attn_mask = op.Trilu(attn_mask, upper=0)
-
-    # Cast the boolean mask to match the query
-    # mask_fill(attn_mask, not attn_mask, -float('inf'))
-    mask_fill_value_cast = op.CastLike(op.Constant(value_float=-float("inf")), query)
-    attn_mask = op.Where(op.Not(attn_mask), mask_fill_value_cast, 0.0)
-
-    if op.Not(op.OptionalHasElement(scale)):
-        scale = 1 / op.Sqrt(op.CastLike(op.Shape(query)[-1], query))
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_last_dim, key_second_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
 
     attn_weight = op.Softmax(
-        (op.MatMul(query, op.Transpose(key, perm=perm)) * scale) + attn_mask,
+        op.Add(op.Mul(op.MatMul(query, key_transposed), scale)), attn_mask),
         axis=-1,
     )
     attn_weight = op.Dropout(attn_weight, dropout_p)
@@ -1145,12 +1194,22 @@ def aten_scaled_dot_product_attention_float_mask(
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
     # Use trace_only to obtain the permutation for Transpose
-    perm = list(range(len(key.shape)))
-    perm[-1], perm[-2] = perm[-2], perm[-1]
-    scale = 1.0 if scale is None else scale
-    attn_mask = 0.0 if attn_mask is None else attn_mask
+    assert (not is_causal) or (is_causal and attn_mask is None), "is_causal and attn_mask cannot be set at the same time"
+
+    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    if scale is None:
+        scale = op.Div(1.0, op.Sqrt(op.CastLike(op.Shape(query)[-1], query)))
+
+    if is_causal:
+        attn_mask = _causal_attention_mask(query, key)
+
+    if attn_mask is None:
+        return _aten_scaled_dot_product_attention_no_mask_onnx(
+            query, key, value, scale, dropout_p
+        )
+
     return _aten_scaled_dot_product_attention_float_mask_onnx(
-        query, key, value, attn_mask, scale, dropout_p, is_causal, perm
+        query, key, value, attn_mask, scale, dropout_p
     )
 
 
@@ -1160,28 +1219,24 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     key: TFloat,
     value: TFloat,
     attn_mask: TFloat,
-    scale: Optional[FLOAT],
+    scale: TFloat,
     dropout_p: float,
-    is_causal: bool,
-    perm: Sequence[int],
 ):
-    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-    is_causal = op.Cast(is_causal, to=BOOL.dtype)
-    if is_causal:
-        dim_l = op.Shape(query)[-2:-1]
-        dim_s = op.Shape(key)[-2:-1]
-        # attn_mask = torch.ones(L, S) := {
-        one = op.CastLike(op.Constant(value_int=1), attn_mask)
-        size = op.Concat(dim_l, dim_s, axis=0)
-        attn_mask = op.Expand(one, size)
-        # }
-        attn_mask = op.Trilu(attn_mask, upper=0)
-
-    if op.Not(op.OptionalHasElement(scale)):
-        scale = 1 / op.Sqrt(op.CastLike(op.Shape(query)[-1], query))
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_last_dim, key_second_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
 
     attn_weight = op.Softmax(
-        (op.MatMul(query, op.Transpose(key, perm=perm)) * scale) + attn_mask,
+        op.Add(op.Mul(op.MatMul(query, key_transposed), scale)), attn_mask),
         axis=-1,
     )
     attn_weight = op.Dropout(attn_weight, dropout_p)
