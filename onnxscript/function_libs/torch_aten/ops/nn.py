@@ -1074,6 +1074,29 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
+
+@onnxscript.script()
+def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
+    dim_l = op.Shape(query)[-2:-1]
+    dim_s = op.Shape(key)[-2:-1]
+    # attn_mask = torch.ones(L, S) := {
+    one = op.CastLike(1.0, query)
+    size = op.Concat(dim_l, dim_s, axis=0)
+    attn_mask = op.Expand(one, size)
+    # }
+    attn_mask = op.Trilu(attn_mask, upper=0)
+    attn_mask = op.Where(attn_mask == 0.0, -float("inf"), attn_mask)
+    return attn_mask
+
+
+@onnxscript.script()
+def _attention_scale(query: TFloat) -> TFloat:
+    one = op.CastLike(1.0, query)
+    embedding_size = op.CastLike(op.Shape(query)[-1], query)
+    scale = op.Div(one, op.Sqrt(embedding_size))
+    return scale
+
+
 @torch_op("aten::scaled_dot_product_attention", trace_only=True)
 def aten_scaled_dot_product_attention(
     query: TFloat,
@@ -1090,9 +1113,7 @@ def aten_scaled_dot_product_attention(
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
-        one = op.CastLike(1.0, query)
-        embedding_size = op.CastLike(op.Shape(query)[-1], query)
-        scale = op.Div(one, op.Sqrt(embedding_size))
+        scale = _attention_scale(query)
 
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
@@ -1109,20 +1130,6 @@ def aten_scaled_dot_product_attention(
     return _aten_scaled_dot_product_attention_bool_mask_onnx(
         query, key, value, attn_mask, scale, dropout_p
     )
-
-
-@onnxscript.script()
-def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
-    dim_l = op.Shape(query)[-2:-1]
-    dim_s = op.Shape(key)[-2:-1]
-    # attn_mask = torch.ones(L, S) := {
-    one = op.CastLike(1.0, query)
-    size = op.Concat(dim_l, dim_s, axis=0)
-    attn_mask = op.Expand(one, size)
-    # }
-    attn_mask = op.Trilu(attn_mask, upper=0)
-    attn_mask = op.Where(attn_mask == 0.0, -float("inf"), attn_mask)
-    return attn_mask
 
 
 @torch_op("aten::scaled_dot_product_attention", private=True)
@@ -1200,7 +1207,7 @@ def aten_scaled_dot_product_attention_float_mask(
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
-        scale = op.Div(1.0, op.Sqrt(op.CastLike(op.Shape(query)[-1], query)))
+        scale = _attention_scale(query)
 
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
