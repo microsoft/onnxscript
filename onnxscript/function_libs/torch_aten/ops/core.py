@@ -4840,7 +4840,9 @@ def aten_randint_like(
 
 @torch_op("aten::randn")
 def aten_randn(
-    size: Sequence[int], dtype: int = 1, requires_grad: bool = False  # pylint: disable=unused-argument
+    size: Sequence[int],
+    dtype: int = 1,
+    requires_grad: bool = False,  # pylint: disable=unused-argument
 ) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
