@@ -1090,7 +1090,9 @@ def aten_scaled_dot_product_attention(
 
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
-        scale = op.Div(1.0, op.Sqrt(op.CastLike(op.Shape(query)[-1], query)))
+        one = op.CastLike(1.0, query)
+        embedding_size = op.CastLike(op.Shape(query)[-1], query)
+        scale = op.Div(one, op.Sqrt(embedding_size))
 
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
