@@ -1074,14 +1074,15 @@ def aten_scaled_dot_product_attention(
     attn_mask: Optional[BOOL] = None,
     dropout_p: float = 0.0,
     is_causal: bool = False,
+    scale: Optional[float] = None,
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
-    if attn_mask is None:
-        raise NotImplementedError("attn_mask is None")
     perm = list(range(len(key.shape)))
     perm[-1], perm[-2] = perm[-2], perm[-1]
+    scale = op.Optional() if scale is None else scale
+    attn_mask = op.Optional() if attn_mask is None else attn_mask
     return _aten_scaled_dot_product_attention_onnx(
-        query, key, value, attn_mask, dropout_p, is_causal, perm
+        query, key, value, attn_mask, scale, dropout_p, is_causal, perm
     )
 
 
@@ -1091,6 +1092,7 @@ def _aten_scaled_dot_product_attention_onnx(
     key: TFloat,
     value: TFloat,
     attn_mask: BOOL,
+    scale: Optional[FLOAT],
     dropout_p: float,
     is_causal: bool,
     perm: Sequence[int],
@@ -1112,10 +1114,11 @@ def _aten_scaled_dot_product_attention_onnx(
     mask_fill_value_cast = op.CastLike(op.Constant(value_float=-float("inf")), attn_mask)
     attn_mask = op.Where(op.Not(attn_mask), mask_fill_value_cast, attn_mask)
 
-    sqrt_value_embedding_dim = op.Sqrt(op.CaskLike(op.Shape(query)[-1], query))
+    if op.Not(op.OptionalHasElement(scale)):
+        scale = 1 / op.Sqrt(op.CaskLike(op.Shape(query)[-1], query))
+
     attn_weight = op.Softmax(
-        (op.MatMul(query, op.Transpose(key, perm=perm)) / sqrt_value_embedding_dim)
-        + attn_mask,
+        (op.MatMul(query, op.Transpose(key, perm=perm)) * scale) + attn_mask,
         axis=-1,
     )
     attn_weight = op.Dropout(attn_weight, dropout_p)
@@ -1123,26 +1126,27 @@ def _aten_scaled_dot_product_attention_onnx(
 
 
 @torch_op("aten::scaled_dot_product_attention", trace_only=True, overload=True)
-def aten_scaled_dot_product_attention_float(
+def aten_scaled_dot_product_attention_float_mask(
     query: TFloat,
     key: TFloat,
     value: TFloat,
     attn_mask: Optional[TFloat] = None,
     dropout_p: float = 0.0,
     is_causal: bool = False,
+    scale: Optional[float] = None,
 ):
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
-    if attn_mask is None:
-        raise NotImplementedError("attn_mask is None")
     perm = list(range(len(key.shape)))
     perm[-1], perm[-2] = perm[-2], perm[-1]
+    scale = op.Optional() if scale is None else scale
+    attn_mask = op.Optional() if attn_mask is None else attn_mask
     return _aten_scaled_dot_product_attention_float_onnx(
         query, key, value, attn_mask, dropout_p, is_causal, perm
     )
 
 
 @torch_op("aten::scaled_dot_product_attention", private=True)
-def _aten_scaled_dot_product_attention_float_onnx(
+def _aten_scaled_dot_product_attention_float_mask_onnx(
     query: TFloat,
     key: TFloat,
     value: TFloat,
@@ -1163,10 +1167,11 @@ def _aten_scaled_dot_product_attention_float_onnx(
         # }
         attn_mask = op.Trilu(attn_mask, upper=0)
 
-    sqrt_value_embedding_dim = op.Sqrt(op.CaskLike(op.Shape(query)[-1], query))
+    if op.Not(op.OptionalHasElement(scale)):
+        scale = 1 / op.Sqrt(op.CaskLike(op.Shape(query)[-1], query))
+
     attn_weight = op.Softmax(
-        (op.MatMul(query, op.Transpose(key, perm=perm)) / sqrt_value_embedding_dim)
-        + attn_mask,
+        (op.MatMul(query, op.Transpose(key, perm=perm)) * scale) + attn_mask,
         axis=-1,
     )
     attn_weight = op.Dropout(attn_weight, dropout_p)
