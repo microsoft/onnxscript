@@ -1118,7 +1118,9 @@ def aten_scaled_dot_product_attention(
     # scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
     # attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
     # attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
-    # attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+    # NOTE: key is also scaled by scale_factor, seen in
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L678
+    # attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor * scale_factor) + attn_mask, dim=-1)
     # attn_weight = torch.dropout(attn_weight, dropout_p)
     # return attn_weight @ V
 
@@ -1165,9 +1167,10 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
 
     # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
     # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
-    scaled_query = op.Mul(query, scale)
+    query_scaled = op.Mul(query, scale)
+    key_transposed_scaled = op.Mul(key_transposed, scale)
     attn_weight = op.Softmax(
-        op.MatMul(scaled_query, key_transposed),
+        op.MatMul(query_scaled, key_transposed_scaled),
         axis=-1,
     )
     attn_weight, _ = op.Dropout(attn_weight, dropout_p)
@@ -1198,9 +1201,10 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
 
     # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
     # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
-    scaled_query = op.Mul(query, scale)
+    query_scaled = op.Mul(query, scale)
+    key_transposed_scaled = op.Mul(key_transposed, scale)
     attn_weight = op.Softmax(
-        op.Add(op.MatMul(scaled_query, key_transposed), attn_mask),
+        op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
     )
     attn_weight, _ = op.Dropout(attn_weight, dropout_p)
@@ -1264,9 +1268,10 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
 
     # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
     # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
-    scaled_query = op.Mul(query, scale)
+    query_scaled = op.Mul(query, scale)
+    key_transposed_scaled = op.Mul(key_transposed, scale)
     attn_weight = op.Softmax(
-        op.Add(op.MatMul(scaled_query, key_transposed), attn_mask),
+        op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
     )
     attn_weight, _ = op.Dropout(attn_weight, dropout_p)
