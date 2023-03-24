@@ -29,6 +29,14 @@ COMMON_TEST_DEPENDENCIES = (
 ONNX = "onnx==1.13.1"
 ONNX_RUNTIME = "onnxruntime==1.14.1"
 PYTORCH = "torch==2.0.0"
+ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
+    "flatbuffers",
+    "coloredlogs",
+    "sympy",
+    "numpy",
+    "packaging",
+    "protobuf",
+)
 
 
 @nox.session(tags=["build"])
@@ -107,6 +115,7 @@ def test_ort_nightly(session):
     """Test with ONNX Runtime nightly and ONNX weekly builds."""
     session.install(*COMMON_TEST_DEPENDENCIES, PYTORCH)
     session.install("-r", "requirements-onnx-weekly.txt")
+    session.install(*ONNX_RUNTIME_NIGHTLY_DEPENDENCIES)
     session.install("-r", "requirements-ort-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
