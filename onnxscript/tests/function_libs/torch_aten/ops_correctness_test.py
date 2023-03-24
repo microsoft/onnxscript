@@ -317,6 +317,14 @@ def _nll_loss_input_wrangler(
     return args, kwargs
 
 
+def _randn_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the size argument as attribute list[int]
+    kwargs["size"] = args.pop(0).tolist()
+    return args, kwargs
+
+
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -479,6 +487,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "ones": core_ops.aten_ones,
     "permute": (core_ops.aten_permute, _permute_input_wrangler),
     "pow": core_ops.aten_pow,
+    # "rand": core_ops.aten_rand,  # no test case in OPS_DB
+    "randn": (core_ops.aten_randn, _randn_input_wrangler),
     "reciprocal": core_ops.aten_reciprocal,
     "remainder": core_ops.aten_remainder,
     "repeat": core_ops.aten_repeat,
@@ -569,6 +579,7 @@ NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
         "new_empty_strided",
         "new_empty",
         "normal",
+        "randn",
     )
 )
 
