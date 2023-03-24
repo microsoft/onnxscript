@@ -5320,8 +5320,8 @@ def test_slice_scatter():
     r = aten_slice_scatter(a, b[0:1], dim=0, start=1, end=2, step=1)
     print(r)
 
-test_slice_scatter()
-exit(0)
+#test_slice_scatter()
+#exit(0)
 
 
 
@@ -5571,6 +5571,12 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     start = op.Reshape(dim, [1])
     end = op.Reshape(dim + 1, [1])
     return op.Slice(shape, start, end)
+
+import numpy as np
+a = np.random.rand(2,3)
+r=aten_sym_size(a, dim=1)
+print(r)
+exit(0)
 
 
 def aten_symeig(
