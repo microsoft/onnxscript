@@ -2519,6 +2519,7 @@ def aten_grid_sampler(
     return result
 
 
+@torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
     input: TensorType,
     grid: TensorType,
@@ -2528,7 +2529,7 @@ def aten_grid_sampler_2d(
 ) -> TensorType:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_grid_sampler_2d_backward(
