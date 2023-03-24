@@ -58,6 +58,8 @@ def aten_acosh(self: TFloat) -> TFloat:
 @torch_op("aten::add")
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+    # FIXME(titaiwang): get rid of this when we have type_promotion
+    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
     return op.Add(self, other)
@@ -2387,7 +2389,7 @@ def aten_from_file(
 
 
 @torch_op("aten::full")
-def aten_full(size: INT64, fill_value: float, dtype: int = FLOAT.dtype):
+def aten_full(size: INT64, fill_value: FLOAT, dtype: int = FLOAT.dtype):
     """full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     size = op.Cast(size, to=INT64.dtype)
@@ -2425,12 +2427,26 @@ def aten_fused_moving_avg_obs_fake_quant(
     raise NotImplementedError()
 
 
+@torch_op("aten::gather")
 def aten_gather(
-    self: TensorType, dim: int, index: TensorType, sparse_grad: bool = False
-) -> TensorType:
+    self: TReal,
+    index: TInt,
+    dim: int,
+    sparse_grad: bool = False,  # pylint: disable=unused-argument
+) -> TReal:
     """gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor"""
 
-    raise NotImplementedError()
+    if op.Size(op.Shape(index)) == 0:  # When (index) is empty, return (self)
+        result = self
+    else:
+        if op.Size(op.Shape(self)) == 0:  # Unsqueeze for GatherElements op
+            self = op.Reshape(self, op.Constant(value_ints=[-1]))
+        if op.Size(index) == 0:  # Return empty array
+            result = op.CastLike(index, self)
+        else:
+            index_int32 = op.Cast(index, to=INT32.dtype)
+            result = op.GatherElements(self, index_int32, axis=dim)
+    return result
 
 
 def aten_gather_backward(
@@ -2466,16 +2482,18 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_greater(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::greater")
+def aten_greater(self: TReal, other: TReal) -> BOOL:
     """greater.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Greater(self, other)
 
 
-def aten_greater_equal(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::greater_equal")
+def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     """greater_equal.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.GreaterOrEqual(self, other)
 
 
 def aten_grid_sampler(
@@ -3969,7 +3987,8 @@ def aten_msort(self: TensorType) -> TensorType:
 @torch_op("aten::mul")
 def aten_mul(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
-
+    # FIXME(titaiwang): get rid of this when we have type_promotion
+    other = op.CastLike(other, self)
     return op.Mul(self, other)
 
 
@@ -4294,16 +4313,40 @@ def aten_new_full(
     return op.Expand(fill_value, size)
 
 
-def aten_new_ones(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::new_ones")
+def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    one = op.Constant(value_float=1.0)
+    return op.Expand(one, size)
 
 
-def aten_new_zeros(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::new_ones", overload=True)
+def aten_new_ones_dtype(
+    self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
+) -> TReal:
+
+    one = op.Constant(value_float=1.0)
+    one = op.Cast(one, to=dtype)
+    return op.Expand(one, size)
+
+
+@torch_op("aten::new_zeros")
+def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.Constant(value_float=0.0)
+    return op.Expand(zero, size)
+
+
+@torch_op("aten::new_zeros", overload=True)
+def aten_new_zeros_dtype(
+    self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
+) -> TReal:
+
+    zero = op.Constant(value_float=0.0)
+    zero = op.Cast(zero, to=dtype)
+    return op.Expand(zero, size)
 
 
 def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
@@ -4768,10 +4811,11 @@ def aten_rad2deg(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_rand(size: INT64) -> TensorType:
+@torch_op("aten::rand")
+def aten_rand(size: Sequence[int], dtype: int = 1) -> TReal:
     """rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomUniform(shape=size, dtype=dtype)
 
 
 def aten_rand_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -4794,10 +4838,15 @@ def aten_randint_like(
     raise NotImplementedError()
 
 
-def aten_randn(size: INT64) -> TensorType:
+@torch_op("aten::randn")
+def aten_randn(
+    size: Sequence[int],
+    dtype: int = 1,
+    requires_grad: bool = False,  # pylint: disable=unused-argument
+) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomNormal(dtype=dtype, shape=size)
 
 
 def aten_randn_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
