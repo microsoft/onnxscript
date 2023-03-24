@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import os
 import pprint
 import unittest
 import warnings
@@ -74,6 +75,7 @@ FLOAT_TYPES = (
 )
 
 TEST_OPSET_VERSION = 18
+IS_WINDOWS = os.name == "nt"
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -654,6 +656,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.mse_loss",
         reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        reason="fixme: ORT crashes on Windows",
+        enabled_if=IS_WINDOWS,
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
