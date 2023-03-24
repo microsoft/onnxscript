@@ -1189,7 +1189,7 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     key_second_last_dim = key_shape[-2:-1]
     key_first_dims = key_shape[:-2]
     key_squeezed_shape = op.Concat(
-        op.Constant(value_ints=[-1]), key_last_dim, key_second_last_dim, axis=0
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
     )
     key_squeezed = op.Reshape(key, key_squeezed_shape)
     key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
@@ -1223,7 +1223,7 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     key_second_last_dim = key_shape[-2:-1]
     key_first_dims = key_shape[:-2]
     key_squeezed_shape = op.Concat(
-        op.Constant(value_ints=[-1]), key_last_dim, key_second_last_dim, axis=0
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
     )
     key_squeezed = op.Reshape(key, key_squeezed_shape)
     key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
@@ -1257,7 +1257,7 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     key_second_last_dim = key_shape[-2:-1]
     key_first_dims = key_shape[:-2]
     key_squeezed_shape = op.Concat(
-        op.Constant(value_ints=[-1]), key_last_dim, key_second_last_dim, axis=0
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
     )
     key_squeezed = op.Reshape(key, key_squeezed_shape)
     key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
