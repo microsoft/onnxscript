@@ -669,6 +669,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     skip(
+        "nn.functional.scaled_dot_product_attention",
+        reason="fixme: ORT crashes on Windows",
+        enabled_if=IS_WINDOWS,
+    ),
+    skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         reason="fixme: ORT crashes on Windows",
         enabled_if=IS_WINDOWS,
