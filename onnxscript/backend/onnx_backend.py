@@ -8,12 +8,10 @@ import os
 import textwrap
 from typing import Iterator
 
-import numpy
+import numpy as np
 import onnx
-from numpy import object as dtype_object  # type: ignore
-from numpy.testing import assert_almost_equal
+import onnx.numpy_helper
 from onnx.backend.test import __file__ as backend_folder
-from onnx.numpy_helper import to_array, to_list
 
 from onnxscript.backend import onnx_export
 
@@ -34,11 +32,11 @@ def assert_almost_equal_string(expected, value):
             return False
 
     if all(map(is_float, expected.ravel())):
-        expected_float = expected.astype(numpy.float32)
-        value_float = value.astype(numpy.float32)
-        assert_almost_equal(expected_float, value_float)
+        expected_float = expected.astype(np.float32)
+        value_float = value.astype(np.float32)
+        np.testing.assert_almost_equal(expected_float, value_float)
     else:
-        assert_almost_equal(expected, value)
+        np.testing.assert_almost_equal(expected, value)
 
 
 class OnnxBackendTest:
@@ -70,12 +68,12 @@ class OnnxBackendTest:
         with open(full, "rb") as f:
             serialized = f.read()
         try:
-            loaded = to_array(onnx.load_tensor_from_string(serialized))
+            loaded = onnx.numpy_helper.to_array(onnx.load_tensor_from_string(serialized))
         except Exception as e:  # pylint: disable=W0703
             seq = onnx.SequenceProto()
             try:
                 seq.ParseFromString(serialized)
-                loaded = to_list(seq)  # type: ignore[assignment]
+                loaded = onnx.numpy_helper.to_list(seq)  # type: ignore[assignment]
             except Exception:  # pylint: disable=W0703
                 try:
                     loaded = onnx.load_model_from_string(serialized)  # type: ignore[assignment]
@@ -92,10 +90,10 @@ class OnnxBackendTest:
         for name in names:
             full = os.path.join(folder, name)
             new_tensor = OnnxBackendTest._read_proto_from_file(full)
-            if isinstance(new_tensor, (numpy.ndarray, onnx.ModelProto, list)):
+            if isinstance(new_tensor, (np.ndarray, onnx.ModelProto, list)):
                 t = new_tensor
             elif isinstance(new_tensor, onnx.TensorProto):
-                t = to_array(new_tensor)
+                t = onnx.numpy_helper.to_array(new_tensor)
             else:
                 raise RuntimeError(  # pragma: no cover
                     f"Unexpected type {type(new_tensor)!r} for {full!r}."
@@ -154,27 +152,27 @@ class OnnxBackendTest:
             o: output
             decimal: precision
         """
-        if isinstance(e, numpy.ndarray):
-            if isinstance(o, numpy.ndarray):
+        if isinstance(e, np.ndarray):
+            if isinstance(o, np.ndarray):
                 if decimal is None:
-                    if e.dtype == numpy.float32:
+                    if e.dtype == np.float32:
                         deci = 6
-                    elif e.dtype == numpy.float64:
+                    elif e.dtype == np.float64:
                         deci = 12
                     else:
                         deci = 7
                 else:
                     deci = decimal
-                if e.dtype == dtype_object:
+                if e.dtype == np.object_:
                     try:
-                        assert_almost_equal_string(e, o)
+                        np.testing.assert_almost_equal_string(e, o)
                     except AssertionError as ex:
                         raise AssertionError(  # pragma: no cover
                             f"Output {i} of test {index} in folder {self.folder} failed."
                         ) from ex
                 else:
                     try:
-                        assert_almost_equal(e, o, decimal=deci)
+                        np.testing.assert_almost_equal(e, o, decimal=deci)
                     except AssertionError as ex:
                         raise AssertionError(
                             f"Output {i} of test {index} in folder {self.folder} failed."
