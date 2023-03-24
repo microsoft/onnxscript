@@ -469,6 +469,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
+    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
+    "nn.functional.cross_entropy": (
+        nn_ops.aten_cross_entropy_loss,
+        _cross_entropy_input_wrangler,
+    ),
     "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
@@ -547,11 +552,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
-    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
-    "nn.functional.cross_entropy": (
-        nn_ops.aten_cross_entropy_loss,
-        _cross_entropy_input_wrangler,
-    ),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.upsample_nearest2d": (

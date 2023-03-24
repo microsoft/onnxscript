@@ -250,7 +250,6 @@ def aten_cross_entropy_loss(
 ) -> TFloatOrBFloat16:
     """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
 
-
     if reduction == 0:  # "none"
         result, _ = op.SoftmaxCrossEntropyLoss(
             self, target, weight, reduction="none", ignore_index=ignore_index
