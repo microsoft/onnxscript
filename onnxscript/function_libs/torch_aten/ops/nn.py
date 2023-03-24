@@ -1122,6 +1122,53 @@ def aten_scaled_dot_product_attention(
     query: TFloat,
     key: TFloat,
     value: TFloat,
+    attn_mask: Optional[TFloat] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: Optional[float] = None,
+):
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    Equivalent to the PyTorch code::
+        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
+        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
+        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p)
+        return attn_weight @ V
+
+    where Q, K, V are the query, key, and value tensors, respectively.
+    L is the target sequence length, S is the source sequence length, and E is the embedding size.
+    """
+    # Use trace_only to handle optional inputs
+    assert (not is_causal) or (
+        is_causal and attn_mask is None
+    ), "is_causal and attn_mask cannot be set at the same time"
+
+    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    if scale is None:
+        scale = _attention_scale(query)
+
+    if is_causal:
+        attn_mask = _causal_attention_mask(query, key)
+
+    if attn_mask is None:
+        return _aten_scaled_dot_product_attention_no_mask_onnx(
+            query, key, value, scale, dropout_p
+        )
+
+    return _aten_scaled_dot_product_attention_float_mask_onnx(
+        query, key, value, attn_mask, scale, dropout_p
+    )
+
+
+@torch_op("aten::scaled_dot_product_attention", trace_only=True, overload=True)
+def aten_scaled_dot_product_attention_bool_mask(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
     attn_mask: Optional[BOOL] = None,
     dropout_p: float = 0.0,
     is_causal: bool = False,
@@ -1163,39 +1210,6 @@ def aten_scaled_dot_product_attention(
         )
 
     return _aten_scaled_dot_product_attention_bool_mask_onnx(
-        query, key, value, attn_mask, scale, dropout_p
-    )
-
-
-@torch_op("aten::scaled_dot_product_attention", trace_only=True, overload=True)
-def aten_scaled_dot_product_attention_float_mask(
-    query: TFloat,
-    key: TFloat,
-    value: TFloat,
-    attn_mask: Optional[TFloat] = None,
-    dropout_p: float = 0.0,
-    is_causal: bool = False,
-    scale: Optional[float] = None,
-):
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
-    # Use trace_only to handle optional inputs
-    assert (not is_causal) or (
-        is_causal and attn_mask is None
-    ), "is_causal and attn_mask cannot be set at the same time"
-
-    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-    if scale is None:
-        scale = _attention_scale(query)
-
-    if is_causal:
-        attn_mask = _causal_attention_mask(query, key)
-
-    if attn_mask is None:
-        return _aten_scaled_dot_product_attention_no_mask_onnx(
-            query, key, value, scale, dropout_p
-        )
-
-    return _aten_scaled_dot_product_attention_float_mask_onnx(
         query, key, value, attn_mask, scale, dropout_p
     )
 

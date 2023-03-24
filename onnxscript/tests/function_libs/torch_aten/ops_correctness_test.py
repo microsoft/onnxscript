@@ -547,7 +547,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
-    "nn.functional.scaled_dot_product_attention_float_mask": nn_ops.aten_scaled_dot_product_attention_float_mask,
+    "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
@@ -840,8 +840,8 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "nn.functional.scaled_dot_product_attention",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
-        and attn_mask.dtype != torch.bool,
-        reason="this overload takes a boolean mask",
+        and attn_mask.dtype == torch.bool,
+        reason="this overload takes a non-boolean mask",
     ),
     skip(
         "nn.functional.scaled_dot_product_attention",
@@ -849,13 +849,13 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="dropout is random so the results do not match",
     ),
     skip(
-        "nn.functional.scaled_dot_product_attention_float_mask",
+        "nn.functional.scaled_dot_product_attention_bool_mask",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
-        and attn_mask.dtype == torch.bool,
-        reason="this overload takes a non-boolean mask",
+        and attn_mask.dtype != torch.bool,
+        reason="this overload takes a boolean mask",
     ),
     skip(
-        "nn.functional.scaled_dot_product_attention_float_mask",
+        "nn.functional.scaled_dot_product_attention_bool_mask",
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
@@ -914,7 +914,7 @@ duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weig
 duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
-    ("nn.functional.scaled_dot_product_attention_float_mask",),
+    ("nn.functional.scaled_dot_product_attention_bool_mask",),
 )
 
 duplicate_opinfo(
