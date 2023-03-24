@@ -56,6 +56,7 @@ def test(session):
 @nox.session(tags=["test-function-experiment"])
 def test_onnx_func_expe(session):
     """Test with onnx function experiment builds."""
+    # TODO(justinchuby): Remove when test-ort-nightly contains this change.
     session.install(
         *COMMON_TEST_DEPENDENCIES,
         PYTORCH,
@@ -96,6 +97,17 @@ def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
     session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
     session.install("-r", "requirements-onnx-weekly.txt")
+    session.install(".", "--no-deps")
+    session.run("pip", "list")
+    session.run("pytest", "onnxscript", *session.posargs)
+
+
+@nox.session(tags=["test-ort-nightly"])
+def test_ort_nightly(session):
+    """Test with ONNX Runtime nightly and ONNX weekly builds."""
+    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
+    session.install("-r", "requirements-onnx-weekly.txt")
+    session.install("-r", "requirements-ort-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
