@@ -112,7 +112,7 @@ def test_onnx_weekly(session):
 
 @nox.session(tags=["test-ort-nightly"])
 def test_ort_nightly(session):
-    """Test with ONNX Runtime nightly and ONNX weekly builds."""
+    """Test with ONNX Runtime nightly builds."""
     session.install(
         *COMMON_TEST_DEPENDENCIES, PYTORCH, ONNX, *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES
     )
