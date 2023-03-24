@@ -1194,7 +1194,7 @@ def run_test_output_match(
             kwargs=repr(cpu_sample.kwargs),
         ):
 
-            if i == 1:
+            if i == 3:
                 print(i)
             else:
                 continue

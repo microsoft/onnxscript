@@ -5290,15 +5290,6 @@ def aten_slice_scatter(
     # new_ind_t = op.Transpose(new_ind)
 
 
-    ind = []
-    for i in range(start, end, step):
-        ind.append(i)
-    ind = op.Constant(value_ints=ind)
-    #shape = op.Constant(value_ints=[8,2])
-    shape = op.Shape(src)
-    a = op.Expand(ind, shape)
-    b = op.Transpose(a)
-
     # self_dim_1 = op.Gather(op.Shape(self), 1)
     # index_dim_0 = op.Gather(op.Shape(index), 0)
     # neg_1 = op.Constant(value_ints=[-1])
@@ -5306,22 +5297,48 @@ def aten_slice_scatter(
     # new_ind = op.Expand(index, shape)
     # new_ind_t = op.Transpose(new_ind)
 
-
-    result = op.ScatterElements(self, b, src, axis=dim)
+    ind = []
+    for i in range(start, end, step):
+        ind.append(i)
+    ind = op.Constant(value_ints=ind)
+    shape = op.Shape(src)
+    ind1 = op.Reshape(ind, op.Constant(value_ints=[-1,1]))  # for dim=1
+    a = op.Expand(ind1, shape)
+    result = op.ScatterElements(self, a, src, axis=dim)
     return result
+
+'''
+dim=0, ind=[0,1], shape=2x3x4
+b = 复制 3x4=12
+c = b.Reshape(2,4,3)
+d = c.Transpose(perm=[2,0,1])
+
+dim=1, ind=[0,1,2], shape=2x3x4
+b = 复制 2x4=8
+c = b.Reshape(3,4,2)
+d = c.Transpose(perm=[0,2,1])
+
+dim=2, ind=[0,1,2,3], shape=2x3x4
+b = 复制 2x3=6
+c = b.Reshape(2,3,4)
+d = c.Transpose(perm=[0,1,2]) -> 相当于不变
+
+'''
 
 def test_slice_scatter():
     import numpy as np
-    a = np.zeros((3,4,5))
-    b = np.ones((3,4,5))
-    b[0] = 1
-    b[1] = 2
-    b[2] = 3
-    r = aten_slice_scatter(a, b[0:1], dim=0, start=1, end=2, step=1)
+    a = np.zeros((2,3,4)).astype(np.float32)
+    b = np.arange(24).reshape(2,3,4).astype(np.float32)
+    #r = aten_slice_scatter(a, b[0:2], dim=0, start=0, end=2)
+    #r = aten_slice_scatter(a, b[0:1], dim=0, start=0, end=1, step=1)
+    #r = aten_slice_scatter(a, b[:,0:1], dim=1, start=1, end=2, step=1)
+    # r = aten_slice_scatter(a, b[:,0:3], dim=1, start=0, end=3, step=1)
+    #r = aten_slice_scatter(a, b[:,:,0:4], dim=2, start=0, end=4)
+    r = aten_slice_scatter(a, b[:,:,0:4], dim=2, start=0, end=4, step=1)
     print(r)
 
-#test_slice_scatter()
-#exit(0)
+test_slice_scatter()
+exit(0)
 
 
 
@@ -5571,12 +5588,6 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     start = op.Reshape(dim, [1])
     end = op.Reshape(dim + 1, [1])
     return op.Slice(shape, start, end)
-
-import numpy as np
-a = np.random.rand(2,3)
-r=aten_sym_size(a, dim=1)
-print(r)
-exit(0)
 
 
 def aten_symeig(
