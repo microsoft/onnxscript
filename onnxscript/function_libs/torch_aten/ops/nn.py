@@ -1076,8 +1076,20 @@ def aten_rrelu_with_noise_backward(
 
 @onnxscript.script()
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
-    # attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
-    # attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool
+    """Create a causal mask for the given query and key tensors.
+
+    Equivalent to::
+        mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+        attn_mask = torch.zeros(L, S, dtype=torch.float)
+        attn_mask = attn_mask.masked_fill(not mask, -float('inf'))
+
+    Args:
+        query: Tensor of shape [..., L, E]
+        key: Tensor of shape [..., S, E]
+
+    Returns:
+        Tensor of shape [L, S]
+    """
     target_length = op.Shape(query)[-2:-1]
     source_length = op.Shape(key)[-2:-1]
     # attn_mask = torch.ones(L, S) := {
@@ -1092,7 +1104,14 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
 
 @onnxscript.script()
 def _attention_scale(query: TFloat) -> TFloat:
-    # scale_factor = 1 / math.sqrt(Q.size(-1))
+    """Calculate the scale factor for the attention result.
+
+    Args:
+        query: Tensor of shape [..., L, E]
+
+    Returns:
+        Scalar scale factor := 1 / math.sqrt(query.size(-1))
+    """
     embedding_size = op.CastLike(op.Shape(query)[-1], query)
     scale = op.Div(1.0, op.Sqrt(embedding_size))
     return scale
@@ -1108,19 +1127,25 @@ def aten_scaled_dot_product_attention(
     is_causal: bool = False,
     scale: Optional[float] = None,
 ):
-    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor"""
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    Equivalent to the PyTorch code::
+        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
+        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
+        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p)
+        return attn_weight @ V
+
+    where Q, K, V are the query, key, and value tensors, respectively.
+    L is the target sequence length, S is the source sequence length, and E is the embedding size.
+    """
     # Use trace_only to handle optional inputs
     assert (not is_causal) or (
         is_causal and attn_mask is None
     ), "is_causal and attn_mask cannot be set at the same time"
-
-    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
-    # scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
-    # attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
-    # attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
-    # attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
-    # attn_weight = torch.dropout(attn_weight, dropout_p)
-    # return attn_weight @ V
 
     if scale is None:
         scale = _attention_scale(query)
@@ -1188,6 +1213,8 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     key_last_dim = key_shape[-1:]
     key_second_last_dim = key_shape[-2:-1]
     key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
     key_squeezed_shape = op.Concat(
         op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
     )
@@ -1222,6 +1249,8 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     key_last_dim = key_shape[-1:]
     key_second_last_dim = key_shape[-2:-1]
     key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
     key_squeezed_shape = op.Concat(
         op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
     )
@@ -1256,6 +1285,8 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     key_last_dim = key_shape[-1:]
     key_second_last_dim = key_shape[-2:-1]
     key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
     key_squeezed_shape = op.Concat(
         op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
     )
