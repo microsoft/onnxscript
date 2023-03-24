@@ -105,7 +105,7 @@ def test_onnx_weekly(session):
 @nox.session(tags=["test-ort-nightly"])
 def test_ort_nightly(session):
     """Test with ONNX Runtime nightly and ONNX weekly builds."""
-    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
+    session.install(*COMMON_TEST_DEPENDENCIES, PYTORCH)
     session.install("-r", "requirements-onnx-weekly.txt")
     session.install("-r", "requirements-ort-nightly.txt")
     session.install(".", "--no-deps")
