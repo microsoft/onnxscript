@@ -4812,10 +4812,10 @@ def aten_rad2deg(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::rand")
-def aten_rand(size: Sequence[int]) -> TReal:
+def aten_rand(size: Sequence[int], dtype: int = 1) -> TReal:
     """rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.RandomUniform(shape=size)
+    return op.RandomUniform(shape=size, dtype=dtype)
 
 
 def aten_rand_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
