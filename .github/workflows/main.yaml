@@ -46,6 +46,9 @@ jobs:
           - name: py310-onnx-weekly
             python-version: "3.10"
             nox-tag: test-onnx-weekly
+          - name: py310-ort-nightly
+            python-version: "3.10"
+            nox-tag: test-ort-nightly
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
