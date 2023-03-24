@@ -5109,11 +5109,8 @@ def aten_scatter_add(
 ) -> TReal:
     """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
 
-    if op.Size(op.Shape(self)) == 0:  # Assert rank(index) and rank(src) are all 0
-        result = self + src  # This will be rank(0)
-    else:
-        result = op.ScatterElements(self, index, src, axis=dim, reduction="add")
-    return result
+    # if rank(self) == 0 will lead ORT failed, skipped
+    return op.ScatterElements(self, index, src, axis=dim, reduction="add")
 
 
 def aten_searchsorted(

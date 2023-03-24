@@ -681,11 +681,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
     ),
     xfail(
-        "scatter_add",
-        reason="fixme: ORT failed due to different rank for if-else branch",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -867,6 +862,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
+    ),
+    skip(
+        "scatter_add",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     ),
     skip(
         "squeeze",
