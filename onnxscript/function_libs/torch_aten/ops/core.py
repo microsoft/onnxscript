@@ -5280,65 +5280,55 @@ def aten_slice_scatter(
 ) -> TensorType:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    # index = op.SequenceAt(indices, 0)  # assume indices only have 1 element
-    # # change array([1,3]) to array([[1,1,1,1,1],[3,3,3,3,3]])
-    # self_dim_1 = op.Gather(op.Shape(self), 1)
-    # index_dim_0 = op.Gather(op.Shape(index), 0)
-    # neg_1 = op.Constant(value_ints=[-1])
-    # shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
-    # new_ind = op.Expand(index, shape)
-    # new_ind_t = op.Transpose(new_ind)
+    '''
+    dim=0, ind=[0,1], shape=2x3x4
+    b = expand to 3x4x1 -> 3x4x2
+    c = b.Transpose(perm=[2,0,1])
 
+    dim=1, ind=[0,1,2], shape=2x3x4
+    b = 复制 2x4=8
+    c = b.Reshape(3,4,2)
+    d = c.Transpose(perm=[0,2,1])
 
-    # self_dim_1 = op.Gather(op.Shape(self), 1)
-    # index_dim_0 = op.Gather(op.Shape(index), 0)
-    # neg_1 = op.Constant(value_ints=[-1])
-    # shape = op.Concat(op.Reshape(self_dim_1, neg_1), op.Reshape(index_dim_0, neg_1), axis=0)
-    # new_ind = op.Expand(index, shape)
-    # new_ind_t = op.Transpose(new_ind)
+    dim=2, ind=[0,1,2,3], shape=2x3x4
+    b = 复制 2x3=6
+    c = b.Reshape(2,3,4)
+    d = c.Transpose(perm=[0,1,2]) -> 相当于不变
+    '''
 
-    ind = []
-    for i in range(start, end, step):
-        ind.append(i)
-    ind = op.Constant(value_ints=ind)
-    shape = op.Shape(src)
-    ind1 = op.Reshape(ind, op.Constant(value_ints=[-1,1]))  # for dim=1
-    a = op.Expand(ind1, shape)
-    result = op.ScatterElements(self, a, src, axis=dim)
+    # Get shapes expcept specifide dim
+    shape_before_dim = op.Shape(src, start=0, end=dim)
+    shape_after_dim = op.Shape(src, start=dim+1)
+    shape_expand = op.Concat(shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0)
+    # Generate index but not finalized
+    index_base = op.Range(start, end, step)
+    index_expand = op.Expand(index_base, shape_expand)
+    # Generate permute to transpose: [0,dim) + [last_dim, last_dim+1) + [dim, last)
+    # e.g. [0,1) + [2,3) + [1,2) = [0] + [2] + [1] = [0,2,1]
+    shape_src = op.Shape(src)
+    last = op.Size(shape_src) - 1
+    before = op.Range(0, dim, 1)
+    mid = op.Range(last, last+1, 1)
+    after = op.Range(dim, last, 1)
+    perm = op.Concat(before, mid, after, axis=0)
+    # Generate indices
+    indices = op.Transpose(index_expand, perm=perm)
+    result = op.ScatterElements(self, indices, src, axis=dim)
     return result
 
-'''
-dim=0, ind=[0,1], shape=2x3x4
-b = 复制 3x4=12
-c = b.Reshape(2,4,3)
-d = c.Transpose(perm=[2,0,1])
 
-dim=1, ind=[0,1,2], shape=2x3x4
-b = 复制 2x4=8
-c = b.Reshape(3,4,2)
-d = c.Transpose(perm=[0,2,1])
-
-dim=2, ind=[0,1,2,3], shape=2x3x4
-b = 复制 2x3=6
-c = b.Reshape(2,3,4)
-d = c.Transpose(perm=[0,1,2]) -> 相当于不变
-
-'''
 
 def test_slice_scatter():
     import numpy as np
     a = np.zeros((2,3,4)).astype(np.float32)
     b = np.arange(24).reshape(2,3,4).astype(np.float32)
     #r = aten_slice_scatter(a, b[0:2], dim=0, start=0, end=2)
-    #r = aten_slice_scatter(a, b[0:1], dim=0, start=0, end=1, step=1)
-    #r = aten_slice_scatter(a, b[:,0:1], dim=1, start=1, end=2, step=1)
-    # r = aten_slice_scatter(a, b[:,0:3], dim=1, start=0, end=3, step=1)
-    #r = aten_slice_scatter(a, b[:,:,0:4], dim=2, start=0, end=4)
-    r = aten_slice_scatter(a, b[:,:,0:4], dim=2, start=0, end=4, step=1)
+    r = aten_slice_scatter(a, b[:,0:2], dim=1, start=1, end=3, step=1)
+    #r = aten_slice_scatter(a, b[:,:,1:4], dim=2, start=0, end=3)
     print(r)
 
-test_slice_scatter()
-exit(0)
+# test_slice_scatter()
+# exit(0)
 
 
 
