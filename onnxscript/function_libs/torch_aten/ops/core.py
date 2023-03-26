@@ -5271,13 +5271,13 @@ def aten_slice_copy(
 
 @torch_op("aten::slice_scatter")
 def aten_slice_scatter(
-    self: TensorType,
-    src: TensorType,
+    self: TTensor,
+    src: TTensor,
     dim: int,
     start: int,
     end: int,
     step: int = 1,
-) -> TensorType:
+) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
     # Get shapes expcept specifide dim
@@ -5300,21 +5300,6 @@ def aten_slice_scatter(
     indices = op.Transpose(index_expand, perm=perm)
 
     return op.ScatterElements(self, indices, src, axis=dim)
-
-
-def test_slice_scatter():
-    import numpy as np
-    a = np.zeros((2,3,4)).astype(np.float32)
-    b = np.arange(24).reshape(2,3,4).astype(np.float32)
-    #r = aten_slice_scatter(a, b[0:2], dim=0, start=0, end=2)
-    r = aten_slice_scatter(a, b[:,0:2], dim=1, start=1, end=3, step=1)
-    #r = aten_slice_scatter(a, b[:,:,1:4], dim=2, start=0, end=3)
-    print(r)
-
-# test_slice_scatter()
-# exit(0)
-
-
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
