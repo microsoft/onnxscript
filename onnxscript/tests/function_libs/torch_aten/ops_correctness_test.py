@@ -674,6 +674,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
     ),
     xfail(
+        "slice_scatter",
+        reason="fixme: converter.py raise NameError: name 'dim' is not defined",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -1193,12 +1198,6 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
-
-            # if i == 3:
-            #     print(i)
-            # else:
-            #     continue
-
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

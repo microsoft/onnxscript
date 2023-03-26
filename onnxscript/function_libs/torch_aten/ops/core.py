@@ -5269,7 +5269,7 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::slice_scatter", trace_only=True)
+@torch_op("aten::slice_scatter")
 def aten_slice_scatter(
     self: TensorType,
     src: TensorType,
@@ -5280,42 +5280,26 @@ def aten_slice_scatter(
 ) -> TensorType:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    '''
-    dim=0, ind=[0,1], shape=2x3x4
-    b = expand to 3x4x1 -> 3x4x2
-    c = b.Transpose(perm=[2,0,1])
-
-    dim=1, ind=[0,1,2], shape=2x3x4
-    b = 复制 2x4=8
-    c = b.Reshape(3,4,2)
-    d = c.Transpose(perm=[0,2,1])
-
-    dim=2, ind=[0,1,2,3], shape=2x3x4
-    b = 复制 2x3=6
-    c = b.Reshape(2,3,4)
-    d = c.Transpose(perm=[0,1,2]) -> 相当于不变
-    '''
-
     # Get shapes expcept specifide dim
+    # e.g. if dim=2, shape=(2,3,5,7), shape_expand will be (2,3,7,1)
     shape_before_dim = op.Shape(src, start=0, end=dim)
     shape_after_dim = op.Shape(src, start=dim+1)
     shape_expand = op.Concat(shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0)
-    # Generate index but not finalized
-    index_base = op.Range(start, end, step)
+    # Generate index but not finalized, need to do transpose later
+    # e.g. [[0,1,2],[0,1,2],[0,1,2]...,[0,1,2]], total count = 2x3x7
+    index_base = op.Range(start, end, step)  # e.g. [0,1,2]
     index_expand = op.Expand(index_base, shape_expand)
-    # Generate permute to transpose: [0,dim) + [last_dim, last_dim+1) + [dim, last)
-    # e.g. [0,1) + [2,3) + [1,2) = [0] + [2] + [1] = [0,2,1]
+    # Generate permute to transpose: put the last_dim to the dim postion
+    # e.g. if dim=2, last_dim=5, permute will be [0,1,5,3,4]
     shape_src = op.Shape(src)
     last = op.Size(shape_src) - 1
-    before = op.Range(0, dim, 1)
-    mid = op.Range(last, last+1, 1)
-    after = op.Range(dim, last, 1)
-    perm = op.Concat(before, mid, after, axis=0)
-    # Generate indices
+    perm_prefix = op.Range(0, dim, 1)
+    perm_middle = op.Range(last, last+1, 1)
+    perm_suffix = op.Range(dim, last, 1)
+    perm = op.Concat(perm_prefix, perm_middle, perm_suffix, axis=0)
     indices = op.Transpose(index_expand, perm=perm)
-    result = op.ScatterElements(self, indices, src, axis=dim)
-    return result
 
+    return op.ScatterElements(self, indices, src, axis=dim)
 
 
 def test_slice_scatter():
