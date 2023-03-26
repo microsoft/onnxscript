@@ -5292,11 +5292,27 @@ def aten_slice_scatter(
 ) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
+    zero = op.Constant(value_ints=[0])
+    neg_1 = op.Constant(value_ints=[-1])
+    pos_1 = op.Constant(value_ints=[1])
+
     # Get shapes expcept specifide dim
     # e.g. if dim=2, shape=(2,3,5,7), shape_expand will be (2,3,7,1)
-    shape_before_dim = op.Shape(src, start=0, end=dim)
-    shape_after_dim = op.Shape(src, start=dim+1)
-    shape_expand = op.Concat(shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0)
+    # shape_before_dim = op.Shape(src, start=0, end=dim)
+    # shape_after_dim = op.Shape(src, start=dim_1)
+    # shape_expand = op.Concat(
+    #     shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0
+    # )
+    shape_src = op.Shape(src)
+    last_dim = op.Reshape(op.Size(shape_src), neg_1)
+    dim_scalar = op.Constant(value_int=dim)
+    dim_tensor = op.Reshape(dim_scalar, neg_1)
+    shape_before_dim = op.Slice(shape_src, zero, dim_tensor)
+    dim_plus_1 = op.Add(dim_tensor, 1)
+    shape_after_dim = op.Slice(shape_src, dim_plus_1, last_dim)
+    shape_expand = op.Concat(
+        shape_before_dim, shape_after_dim, pos_1, axis=0
+    )
     # Generate index but not finalized, need to do transpose later
     # e.g. [[0,1,2],[0,1,2],[0,1,2]...,[0,1,2]], total count = 2x3x7
     index_base = op.Range(start, end, step)  # e.g. [0,1,2]
@@ -5305,11 +5321,11 @@ def aten_slice_scatter(
     # e.g. if dim=2, last_dim=5, permute will be [0,1,5,3,4]
     shape_src = op.Shape(src)
     last = op.Size(shape_src) - 1
-    perm_prefix = op.Range(0, dim, 1)
-    perm_middle = op.Range(last, last+1, 1)
-    perm_suffix = op.Range(dim, last, 1)
-    perm = op.Concat(perm_prefix, perm_middle, perm_suffix, axis=0)
-    indices = op.Transpose(index_expand, perm=perm)
+    perm_prefix = op.Range(0, dim_tensor, 1)
+    perm_middle = op.Range(last, last + 1, 1)
+    perm_suffix = op.Range(dim_tensor, last, 1)
+    perm_all = op.Concat(perm_prefix, perm_middle, perm_suffix, axis=0)
+    indices = op.Transpose(index_expand, perm=perm_all)
 
     return op.ScatterElements(self, indices, src, axis=dim)
 
