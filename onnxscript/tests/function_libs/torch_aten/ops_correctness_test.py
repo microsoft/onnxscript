@@ -345,6 +345,13 @@ def _permute_input_wrangler(
     return args, kwargs
 
 
+def _scatter_add_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop(1)
+    return args, kwargs
+
+
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -418,6 +425,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
     "flip": core_ops.aten_flip,
+    "floor": core_ops.aten_floor,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
     "full_like": core_ops.aten_full_like,
@@ -499,6 +507,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
+    "scatter_add": (core_ops.aten_scatter_add, _scatter_add_input_wrangler),
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -871,6 +880,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
+    ),
+    skip(
+        "scatter_add",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     ),
     skip(
         "squeeze",
