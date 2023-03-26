@@ -126,17 +126,40 @@ def aten_adaptive_max_pool3d_backward(
 
 @torch_op("aten::avg_pool2d", trace_only=True)
 def aten_avg_pool2d(
-    self: TensorType,
+    self: TFloat,
     kernel_size: Sequence[int],
     stride: Optional[Sequence[int]] = None,
     padding: Sequence[int] = (0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
     divisor_override: Optional[int] = None,
-) -> TensorType:
+) -> TFloat:
     """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
-    raise NotImplementedError()
+    #if count_include_pad:
+
+    adjusted_padding = [padding, padding, padding, padding]
+    result = op.AveragePool(
+        self,
+        ceil_mode=ceil_mode, count_include_pad=count_include_pad,
+        kernel_shape=[kernel_size, kernel_size],
+        pads=adjusted_padding,
+        strides=[stride, stride]
+    )
+    # if divisor_override is not None:
+    #     factor = op.Div(op.CastLike(4, result), op.CastLike(divisor_override, result))
+    #     result = op.Mul(result, factor)
+    return result
+
+def test_aten_avg_pool2d():
+    import numpy as np
+    a = np.arange(16).reshape(1,1,4,4).astype(np.float32)
+    r = aten_avg_pool2d(a, kernel_size=3, stride=1, padding=1, ceil_mode=False, count_include_pad=False,
+                        divisor_override=1)
+    print(r)
+
+# test_aten_avg_pool2d()
+# exit(0)
 
 
 def aten_avg_pool2d_backward(

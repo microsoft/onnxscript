@@ -397,6 +397,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
+    "nn.functional.avg_pool2d": nn_ops.aten_avg_pool2d,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
     "broadcast_to": core_ops.aten_broadcast_to,
@@ -1216,6 +1217,11 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            if i == 0:
+                print(i)
+            else:
+                continue
+
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
