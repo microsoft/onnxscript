@@ -285,6 +285,14 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
+def _flip_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the dims as tensor
+    kwargs["dims"] =  np.array(kwargs["dims"], dtype=np.int64)
+    return args, kwargs
+
+
 def _gather_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -424,7 +432,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "expand_as": core_ops.aten_expand_as,
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
-    "flip": core_ops.aten_flip,
+    "flip": (core_ops.aten_flip, _flip_input_wrangler),
     "floor": core_ops.aten_floor,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
@@ -751,11 +759,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
-    ),
-    skip(
-        "flip",
-        matcher=lambda sample: len(sample.kwargs.get("dims")) == 0,
-        reason="dims cannot be empty due to it is meaningless, torch also not support the empty dims",
     ),
     skip(
         "index_put",

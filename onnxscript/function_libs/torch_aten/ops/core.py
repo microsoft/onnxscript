@@ -2314,16 +2314,15 @@ def aten_fix(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::flip")
-def aten_flip(self: TTensor, dims: Sequence[int]) -> TTensor:
+def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     """flip(Tensor self, int[] dims) -> Tensor"""
 
-    dims_tensor = op.Constant(value_ints=dims)
-    shape_dim = op.Shape(dims_tensor)
+    shape_dim = op.Shape(dims)
     neg_1 = op.Constant(value_int=-1)
     starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     ends = starts * 65535  # something like [-65535, -65535, -65535]
-    result = op.Slice(self, starts, ends, dims_tensor, steps)
+    result = op.Slice(self, starts, ends, dims, steps)
     return result
 
 
