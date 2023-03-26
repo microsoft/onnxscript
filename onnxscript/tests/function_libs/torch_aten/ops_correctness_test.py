@@ -610,11 +610,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
     xfail(
-        "flip",
-        reason="fixme: graph_building.py cannot process empty sequence(line 253)",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
         "index_select",
         reason="fixme: ORT shape inference error on rank-0 input",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -756,6 +751,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
+    ),
+    skip(
+        "flip",
+        matcher=lambda sample: len(sample.kwargs.get("dims")) == 0,
+        reason="dims cannot be empty due to it is meaningless, torch also not support the empty dims",
     ),
     skip(
         "index_put",

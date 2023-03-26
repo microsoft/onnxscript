@@ -5544,8 +5544,8 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
-    start = op.Reshape(dim, op.Constant(value_ints=[1]))
-    end = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
+    start = op.Reshape(dim, [1])
+    end = op.Reshape(dim + 1, [1])
     return op.Slice(shape, start, end)
 
 
