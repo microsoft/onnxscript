@@ -877,7 +877,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+        reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     ),
     skip(
         "squeeze",
