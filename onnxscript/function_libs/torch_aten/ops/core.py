@@ -2331,10 +2331,11 @@ def aten_flipud(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_floor(self: TensorType) -> TensorType:
+@torch_op("aten::floor")
+def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """floor(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Floor(self)
 
 
 def aten_floor_divide(self: TensorType, other: TensorType) -> TensorType:
@@ -4811,10 +4812,11 @@ def aten_rad2deg(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_rand(size: INT64) -> TensorType:
+@torch_op("aten::rand")
+def aten_rand(size: Sequence[int], dtype: int = 1) -> TReal:
     """rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomUniform(shape=size, dtype=dtype)
 
 
 def aten_rand_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -4837,10 +4839,15 @@ def aten_randint_like(
     raise NotImplementedError()
 
 
-def aten_randn(size: INT64) -> TensorType:
+@torch_op("aten::randn")
+def aten_randn(
+    size: Sequence[int],
+    dtype: int = 1,
+    requires_grad: bool = False,  # pylint: disable=unused-argument
+) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomNormal(dtype=dtype, shape=size)
 
 
 def aten_randn_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -5099,12 +5106,17 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
-    self: TensorType, dim: int, index: TensorType, src: TensorType
-) -> TensorType:
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    dim: int,
+) -> TReal:
     """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
 
-    raise NotImplementedError()
+    # if rank(self) == 0 will lead ORT failed, skipped
+    return op.ScatterElements(self, index, src, axis=dim, reduction="add")
 
 
 def aten_searchsorted(
