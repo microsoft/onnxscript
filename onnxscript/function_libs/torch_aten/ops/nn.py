@@ -124,6 +124,7 @@ def aten_adaptive_max_pool3d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::avg_pool2d", trace_only=True)
 def aten_avg_pool2d(
     self: TensorType,
     kernel_size: Sequence[int],
