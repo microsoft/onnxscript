@@ -289,7 +289,7 @@ def _flip_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Make the dims as tensor
-    kwargs["dims"] =  np.array(kwargs["dims"], dtype=np.int64)
+    kwargs["dims"] = np.array(kwargs["dims"], dtype=np.int64)
     return args, kwargs
 
 
