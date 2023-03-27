@@ -42,6 +42,10 @@ def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
 
 
 SKIP_TESTS = (
+    skip(
+        r"^test_ai_onnx_ml_binarizer",
+        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
+    ),
     skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
     skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
     skip(
