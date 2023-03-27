@@ -128,8 +128,8 @@ def aten_adaptive_max_pool3d_backward(
 def aten_avg_pool2d(
     self: TFloat,
     kernel_size: Sequence[int],
-    stride: Sequence[int],
-    padding: Sequence[int],
+    stride: Sequence[int] = None,
+    padding: Sequence[int] = 0,
     ceil_mode: bool = False,
     count_include_pad: bool = True,
     divisor_override: Optional[int] = None,  # ORT don't support this argument
@@ -143,38 +143,41 @@ def aten_avg_pool2d(
 
     if isinstance(stride, int):
         strides = [stride, stride]
+    elif op.Size(stride) == 0:
+        strides = kernel_size
     else:
         strides = stride
 
     if isinstance(padding, int):
         pads = [padding, padding, padding, padding]
-    else:
-        if len(padding) == 1:
-            pads = [padding, padding, padding, padding]
-        elif len(padding) == 2:
-            pads = [padding, padding]
+    elif len(padding) == 1:
+            pads = op.Concat(padding, padding, padding, padding, axis=0)
+    elif len(padding) == 2:
+            pads = op.Concat(padding, padding, axis=0)
 
     result = op.AveragePool(
         self,
-        ceil_mode=ceil_mode, count_include_pad=count_include_pad,
+        ceil_mode=ceil_mode,
+        count_include_pad=count_include_pad,
         kernel_shape=kernel_shape,
         pads=pads,
-        strides=strides,
+        strides=strides
     )
-    # if divisor_override is not None:
-    #     factor = op.Div(op.CastLike(4, result), op.CastLike(divisor_override, result))
-    #     result = op.Mul(result, factor)
+
+    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
+    # mask = [
+    #    1, 2, 3, S,..3, 2, 1
+    #    2, 4, 6, 2S, 6, 4, 2
+    #    3, 6, 9, 3S, 9, 6, 3
+    #    S, 2S,3S,SS,3S,2S, S
+    #    3, 6, 9, 3S, 9, 6, 3
+    #    2, 4, 6, 2S, 6, 4, 2
+    #    1, 2, 3, S,..3, 2, 1
+    # ]
+    # S is stride size, in this case S=4,
+    # S may dup lot of times according to the image size
+
     return result
-
-def test_aten_avg_pool2d():
-    import numpy as np
-    a = np.arange(16).reshape(1,1,4,4).astype(np.float32)
-    r = aten_avg_pool2d(a, kernel_size=3, stride=1, padding=1, ceil_mode=False, count_include_pad=False,
-                        divisor_override=1)
-    print(r)
-
-# test_aten_avg_pool2d()
-# exit(0)
 
 
 def aten_avg_pool2d_backward(

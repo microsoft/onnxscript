@@ -397,7 +397,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
     "atanh": core_ops.aten_atanh,
-    "nn.functional.avg_pool2d": nn_ops.aten_avg_pool2d,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
     "broadcast_to": core_ops.aten_broadcast_to,
@@ -475,7 +474,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "new_zeros_dtype": core_ops.aten_new_zeros_dtype,
     "new_zeros": core_ops.aten_new_zeros,
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
-    #"nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
+    "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
     "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
@@ -554,6 +553,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
+    "nn.functional.avg_pool2d": nn_ops.aten_avg_pool2d,
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
@@ -668,6 +668,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "nn.functional.avg_pool2d",
+        reason="fixme: ORT does'nt support divisor_override argument",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "nn.functional.mse_loss",
         reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -741,11 +746,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
-    # skip(
-    #     "nn.functional.avg_pool2d",
-    #     matcher=lambda sample: sample.args[5] is None,
-    #     reason="ONNX don't support divisor_override paramater yet",
-    # ),
     skip(
         "cat",
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
@@ -828,6 +828,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.adaptive_avg_pool3d",
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
+    ),
+    skip(
+        "nn.functional.avg_pool2d",
+        matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
+        reason="ORT cannot support divisor_override argument",
     ),
     skip(
         "nn.functional.conv1d",
@@ -1222,11 +1227,6 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i == 2:
-                print(i)
-            else:
-                continue
-
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
