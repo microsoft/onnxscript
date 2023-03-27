@@ -285,6 +285,14 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
+def _flip_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the dims as tensor
+    kwargs["dims"] = np.array(kwargs["dims"], dtype=np.int64)
+    return args, kwargs
+
+
 def _gather_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -342,6 +350,13 @@ def _permute_input_wrangler(
     # support dynamic perms
     kwargs["dims"] = args.pop()
     kwargs["dims"] = kwargs["dims"].tolist()
+    return args, kwargs
+
+
+def _scatter_add_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["dim"] = args.pop(1)
     return args, kwargs
 
 
@@ -417,6 +432,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "expand_as": core_ops.aten_expand_as,
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
+    "flip": (core_ops.aten_flip, _flip_input_wrangler),
+    "floor": core_ops.aten_floor,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
     "full_like": core_ops.aten_full_like,
@@ -503,6 +520,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
+    "scatter_add": (core_ops.aten_scatter_add, _scatter_add_input_wrangler),
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -515,6 +533,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "squeeze": core_ops.aten_squeeze,
     "stack": core_ops.aten_stack,
     "sub": core_ops.aten_sub,
+    # "sym_size": core_ops.aten_sym_size,  # no test case in OPS_DB
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
@@ -864,6 +883,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
+    ),
+    skip(
+        "scatter_add",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     ),
     skip(
         "squeeze",
