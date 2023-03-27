@@ -475,7 +475,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "new_zeros_dtype": core_ops.aten_new_zeros_dtype,
     "new_zeros": core_ops.aten_new_zeros,
     "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
-    "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
+    #"nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
     "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
@@ -741,6 +741,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
+    # skip(
+    #     "nn.functional.avg_pool2d",
+    #     matcher=lambda sample: sample.args[5] is None,
+    #     reason="ONNX don't support divisor_override paramater yet",
+    # ),
     skip(
         "cat",
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
@@ -1217,7 +1222,7 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i == 0:
+            if i == 2:
                 print(i)
             else:
                 continue

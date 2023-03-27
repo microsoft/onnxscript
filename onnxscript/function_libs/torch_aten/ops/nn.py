@@ -128,23 +128,38 @@ def aten_adaptive_max_pool3d_backward(
 def aten_avg_pool2d(
     self: TFloat,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0, 0),
+    stride: Sequence[int],
+    padding: Sequence[int],
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,
+    divisor_override: Optional[int] = None,  # ORT don't support this argument
 ) -> TFloat:
     """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
-    #if count_include_pad:
+    if isinstance(kernel_size, int):
+        kernel_shape = [kernel_size, kernel_size]
+    else:
+        kernel_shape = kernel_size
 
-    adjusted_padding = [padding, padding, padding, padding]
+    if isinstance(stride, int):
+        strides = [stride, stride]
+    else:
+        strides = stride
+
+    if isinstance(padding, int):
+        pads = [padding, padding, padding, padding]
+    else:
+        if len(padding) == 1:
+            pads = [padding, padding, padding, padding]
+        elif len(padding) == 2:
+            pads = [padding, padding]
+
     result = op.AveragePool(
         self,
         ceil_mode=ceil_mode, count_include_pad=count_include_pad,
-        kernel_shape=[kernel_size, kernel_size],
-        pads=adjusted_padding,
-        strides=[stride, stride]
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
     )
     # if divisor_override is not None:
     #     factor = op.Div(op.CastLike(4, result), op.CastLike(divisor_override, result))
