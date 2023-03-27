@@ -151,9 +151,9 @@ def aten_avg_pool2d(
     if isinstance(padding, int):
         pads = [padding, padding, padding, padding]
     elif len(padding) == 1:
-            pads = op.Concat(padding, padding, padding, padding, axis=0)
+        pads = op.Concat(padding, padding, padding, padding, axis=0)
     elif len(padding) == 2:
-            pads = op.Concat(padding, padding, axis=0)
+        pads = op.Concat(padding, padding, axis=0)
 
     result = op.AveragePool(
         self,
