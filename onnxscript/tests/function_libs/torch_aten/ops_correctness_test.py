@@ -559,6 +559,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
+    "nn.functional.max_pool2d": core_ops.aten_max_pool2d,
     "max": core_ops.aten_max,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
@@ -573,6 +574,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     ),
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    # "nn.functional.max_pool2d_with_indices": nn_ops.aten_max_pool2d_with_indices,  # no test case in OPS_DB
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
@@ -1226,6 +1228,11 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            #if i in range(0,1150):
+            if i==1152:
+                print(i)
+            else:
+                continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
