@@ -3602,7 +3602,7 @@ def aten_max_pool2d(
         dilations = dilation
 
     if isinstance(kernel_size, int):
-        kernel_shape = [kernel_size]  * expand_size
+        kernel_shape = [kernel_size] * expand_size
     else:
         kernel_shape = kernel_size
 
@@ -3626,7 +3626,7 @@ def aten_max_pool2d(
         dilations=dilations,
         kernel_shape=kernel_shape,
         pads=pads,
-        strides=strides
+        strides=strides,
     )
 
     if self_len_org == 3:
@@ -3643,8 +3643,7 @@ def aten_max_pool2d(
         offset = op.Range(0, end, 1)
         offset = offset * data_size
         new_shape = op.Expand(
-            op.Constant(value_ints=[1]),
-            op.Constant(value_ints=[expand_size])
+            op.Constant(value_ints=[1]), op.Constant(value_ints=[expand_size])
         )
         new_shape = op.Concat(N, C, new_shape, axis=0)
         offset = op.Reshape(offset, new_shape)

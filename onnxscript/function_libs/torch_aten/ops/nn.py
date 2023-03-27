@@ -566,9 +566,8 @@ def aten_logit_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::max_pool2d_with_indices", trace_only=True)
 def aten_max_pool2d_with_indices(
-    self: TReal,
+    self: TensorType,
     kernel_size: Sequence[int],
     stride: Optional[Sequence[int]] = None,
     padding: Sequence[int] = (0, 0),
@@ -578,15 +577,7 @@ def aten_max_pool2d_with_indices(
 ) -> tuple[TensorType, TensorType]:
     """max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
-    result = op.MaxPool(
-        self,
-        ceil_mode=ceil_mode,
-        dilations=dilation,
-        kernel_shape=kernel_size,
-        pads=padding,
-        strides=stride
-    )
-    return result
+    raise NotImplementedError()
 
 
 def aten_max_pool2d_with_indices_backward(
