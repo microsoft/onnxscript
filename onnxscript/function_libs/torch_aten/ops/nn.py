@@ -132,7 +132,7 @@ def aten_avg_pool2d(
     padding: Sequence[int] = 0,
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,  # ORT don't support this argument
+    divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
 ) -> TFloat:
     """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
