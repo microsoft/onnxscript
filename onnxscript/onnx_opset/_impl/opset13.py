@@ -304,7 +304,7 @@ class Opset13(Opset12):
         * Casting from fixed point to:
           * floating point: +/- infinity if OOR. (+ infinity in the case of uint)
           * fixed point: when OOR, discard higher bits and reinterpret (with respect to two's complement representation for
-        signed types). For example, 200 (int16) -> -56 (int8).
+            signed types). For example, 200 (int16) -> -56 (int8).
           * bool: zero to False; nonzero to True.
         * Casting from bool to:
           * floating point: `{1.0, 0.0}`.
@@ -675,25 +675,25 @@ class Opset13(Opset12):
         In the DCR mode, elements along the depth dimension from the input tensor are rearranged in the
         following order: depth, column, and then row. The output y is computed from the input x as below:
 
-        b, c, h, w = x.shape
+        ::
 
-        tmp = np.reshape(x, [b, blocksize, blocksize, c // (blocksize**2), h, w])
+            b, c, h, w = x.shape
+            tmp = np.reshape(x, [b, blocksize, blocksize, c // (blocksize**2), h, w])
+            tmp = np.transpose(tmp, [0, 3, 4, 1, 5, 2])
+            y = np.reshape(tmp, [b, c // (blocksize**2), h * blocksize, w * blocksize])
 
-        tmp = np.transpose(tmp, [0, 3, 4, 1, 5, 2])
-
-        y = np.reshape(tmp, [b, c // (blocksize**2), h * blocksize, w * blocksize])
 
 
         In the CRD mode, elements along the depth dimension from the input tensor are rearranged in the
         following order: column, row, and the depth. The output y is computed from the input x as below:
 
-        b, c, h, w = x.shape
+        ::
 
-        tmp = np.reshape(x, [b, c // (blocksize ** 2), blocksize, blocksize, h, w])
+            b, c, h, w = x.shape
+            tmp = np.reshape(x, [b, c // (blocksize ** 2), blocksize, blocksize, h, w])
+            tmp = np.transpose(tmp, [0, 1, 4, 2, 5, 3])
+            y = np.reshape(tmp, [b, c // (blocksize ** 2), h * blocksize, w * blocksize])
 
-        tmp = np.transpose(tmp, [0, 1, 4, 2, 5, 3])
-
-        y = np.reshape(tmp, [b, c // (blocksize ** 2), h * blocksize, w * blocksize])
 
 
 
@@ -742,9 +742,9 @@ class Opset13(Opset12):
 
 
         The linear dequantization operator. It consumes a quantized tensor, a scale, and a zero point to compute the full precision tensor.
-        The dequantization formula is y = (x - x_zero_point) * x_scale. 'x_scale' and 'x_zero_point' must have same shape, and can be either a scalar
+        The dequantization formula is `y = (x - x_zero_point) * x_scale`. `x_scale` and `x_zero_point` must have same shape, and can be either a scalar
         for per-tensor / per layer quantization, or a 1-D tensor for per-axis quantization.
-        'x_zero_point' and 'x' must have same type. 'x' and 'y' must have same shape. In the case of dequantizing int32,
+        `x_zero_point` and `x` must have same type. `x` and `y` must have same shape. In the case of dequantizing int32,
         there's no zero point (zero point is supposed to be 0).
 
 
@@ -1208,59 +1208,52 @@ class Opset13(Opset12):
         entries of the axis dimension of `data` (by default outer-most one as axis=0) indexed by `indices`, and concatenates
         them in an output tensor of rank q + (r - 1).
 
-        axis = 0 :
-
-        Let
-        k = indices[i_{0}, ..., i_{q-1}]
-        Then
-        output[i_{0}, ..., i_{q-1}, j_{0}, ..., j_{r-2}] = input[k , j_{0}, ..., j_{r-2}]
+        If `axis = 0`, let `k = indices[i_{0}, ..., i_{q-1}]`
+        then `output[i_{0}, ..., i_{q-1}, j_{0}, ..., j_{r-2}] = input[k , j_{0}, ..., j_{r-2}]`:
 
         ::
 
-              data = [
-                  [1.0, 1.2],
-                  [2.3, 3.4],
-                  [4.5, 5.7],
-              ]
-              indices = [
-                  [0, 1],
-                  [1, 2],
-              ]
-              output = [
-                  [
-                      [1.0, 1.2],
-                      [2.3, 3.4],
-                  ],
-                  [
-                      [2.3, 3.4],
-                      [4.5, 5.7],
-                  ],
-              ]
+            data = [
+                [1.0, 1.2],
+                [2.3, 3.4],
+                [4.5, 5.7],
+            ]
+            indices = [
+                [0, 1],
+                [1, 2],
+            ]
+            output = [
+                [
+                    [1.0, 1.2],
+                    [2.3, 3.4],
+                ],
+                [
+                    [2.3, 3.4],
+                    [4.5, 5.7],
+                ],
+            ]
 
 
-        axis = 1 :
 
-        Let
-        k = indices[i_{0}, ..., i_{q-1}]
-        Then
-        output[j_{0}, i_{0}, ..., i_{q-1}, j_{1}, ..., j_{r-2}] = input[j_{0}, k, j_{1}, ..., j_{r-2}]
+        If `axis = 1`, let `k = indices[i_{0}, ..., i_{q-1}]`
+        then `output[j_{0}, i_{0}, ..., i_{q-1}, j_{1}, ..., j_{r-2}] = input[j_{0}, k, j_{1}, ..., j_{r-2}]`:
 
         ::
 
-              data = [
-                  [1.0, 1.2, 1.9],
-                  [2.3, 3.4, 3.9],
-                  [4.5, 5.7, 5.9],
-              ]
-              indices = [
-                  [0, 2],
-              ]
-              axis = 1,
-              output = [
-                      [[1.0, 1.9]],
-                      [[2.3, 3.9]],
-                      [[4.5, 5.9]],
-              ]
+            data = [
+                [1.0, 1.2, 1.9],
+                [2.3, 3.4, 3.9],
+                [4.5, 5.7, 5.9],
+            ]
+            indices = [
+                [0, 2],
+            ]
+            axis = 1,
+            output = [
+                    [[1.0, 1.9]],
+                    [[2.3, 3.9]],
+                    [[4.5, 5.9]],
+            ]
 
 
 
@@ -1356,9 +1349,9 @@ class Opset13(Opset12):
         by the following equations:
         ::
 
-              out[i][j][k] = input[index[i][j][k]][j][k] if axis = 0,
-              out[i][j][k] = input[i][index[i][j][k]][k] if axis = 1,
-              out[i][j][k] = input[i][j][index[i][j][k]] if axis = 2,
+            out[i][j][k] = input[index[i][j][k]][j][k] if axis = 0,
+            out[i][j][k] = input[i][index[i][j][k]][k] if axis = 1,
+            out[i][j][k] = input[i][j][index[i][j][k]] if axis = 2,
 
 
 
@@ -1367,38 +1360,38 @@ class Opset13(Opset12):
         Example 1:
         ::
 
-              data = [
-                  [1, 2],
-                  [3, 4],
-              ]
-              indices = [
-                  [0, 0],
-                  [1, 0],
-              ]
-              axis = 1
-              output = [
-                  [1, 1],
-                  [4, 3],
-              ]
+            data = [
+                [1, 2],
+                [3, 4],
+            ]
+            indices = [
+                [0, 0],
+                [1, 0],
+            ]
+            axis = 1
+            output = [
+                [1, 1],
+                [4, 3],
+            ]
 
 
         Example 2:
         ::
 
-              data = [
-                  [1, 2, 3],
-                  [4, 5, 6],
-                  [7, 8, 9],
-              ]
-              indices = [
-                  [1, 2, 0],
-                  [2, 0, 0],
-              ]
-              axis = 0
-              output = [
-                  [4, 8, 3],
-                  [7, 2, 3],
-              ]
+            data = [
+                [1, 2, 3],
+                [4, 5, 6],
+                [7, 8, 9],
+            ]
+            indices = [
+                [1, 2, 0],
+                [2, 0, 0],
+            ]
+            axis = 0
+            output = [
+                [4, 8, 3],
+                [7, 2, 3],
+            ]
 
 
 
@@ -1627,9 +1620,8 @@ class Opset13(Opset12):
         General Matrix multiplication:
         https://en.wikipedia.org/wiki/Basic_Linear_Algebra_Subprograms#Level_3
 
-        A' = transpose(A) if transA else A
-
-        B' = transpose(B) if transB else B
+        * A' = transpose(A) if transA else A
+        * B' = transpose(B) if transB else B
 
         Compute Y = alpha * A' * B' + beta * C, where input tensor A has shape (M, K) or (K, M),
         input tensor B has shape (K, N) or (N, K), input tensor C is broadcastable to shape (M, N),
@@ -1944,14 +1936,14 @@ class Opset13(Opset12):
 
         Local Response Normalization proposed in the [AlexNet paper](https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf).
         It normalizes over local input regions.
-        The local region is defined across the channels. For an element X[n, c, d1, ..., dk] in a tensor
-        of shape (N x C x D1 x D2, ..., Dk), its region is
-        {X[n, i, d1, ..., dk] | max(0, c - floor((size - 1) / 2)) <= i <= min(C - 1, c + ceil((size - 1) / 2))}.
+        The local region is defined across the channels. For an element `X[n, c, d1, ..., dk]` in a tensor
+        of shape `(N x C x D1 x D2, ..., Dk)`, its region is
+        `{X[n, i, d1, ..., dk] | max(0, c - floor((size - 1) / 2)) <= i <= min(C - 1, c + ceil((size - 1) / 2))}`.
 
-        square_sum[n, c, d1, ..., dk] = sum(X[n, i, d1, ..., dk] ^ 2),
-        where max(0, c - floor((size - 1) / 2)) <= i <= min(C - 1, c + ceil((size - 1) / 2)).
+        `square_sum[n, c, d1, ..., dk] = sum(X[n, i, d1, ..., dk] ^ 2)`,
+        where `max(0, c - floor((size - 1) / 2)) <= i <= min(C - 1, c + ceil((size - 1) / 2))`.
 
-        Y[n, c, d1, ..., dk] = X[n, c, d1, ..., dk] / (bias + alpha / size * square_sum[n, c, d1, ..., dk] ) ^ beta
+        `Y[n, c, d1, ..., dk] = X[n, c, d1, ..., dk] / (bias + alpha / size * square_sum[n, c, d1, ..., dk] ) ^ beta`
 
 
         Args:
@@ -2453,7 +2445,7 @@ class Opset13(Opset12):
 
 
               A MeanVarianceNormalization Function: Perform mean variance normalization
-              on the input tensor X using formula: <br/> ``` (X-EX)/sqrt(E(X-EX)^2) ```
+              on the input tensor X using formula: `(X-EX)/sqrt(E(X-EX)^2)`
 
 
         Args:
@@ -2582,16 +2574,16 @@ class Opset13(Opset12):
 
 
           Performs element-wise binary modulus (with Numpy-style broadcasting support).
-            The sign of the remainder is the same as that of the Divisor.
+          The sign of the remainder is the same as that of the Divisor.
 
-            Mod operator can also behave like C fmod() or numpy.fmod. In this case, the sign of the remainder however, will be the same as the Dividend
-            (in contrast to integer mod). To force a behavior like numpy.fmod() an 'fmod' Attribute is provided.
-            This attribute is set to 0 by default causing the behavior to be like integer mod.
-            Setting this attribute to 1 causes the remainder to be calculated similar to that of numpy.fmod().
+          Mod operator can also behave like C fmod() or numpy.fmod. In this case, the sign of the remainder however, will be the same as the Dividend
+          (in contrast to integer mod). To force a behavior like numpy.fmod() an 'fmod' Attribute is provided.
+          This attribute is set to 0 by default causing the behavior to be like integer mod.
+          Setting this attribute to 1 causes the remainder to be calculated similar to that of numpy.fmod().
 
-            If the input type is floating point, then `fmod` attribute must be set to 1.
+          If the input type is floating point, then `fmod` attribute must be set to 1.
 
-            In case of dividend being zero, the results will be platform dependent.
+          In case of dividend being zero, the results will be platform dependent.
 
           This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
@@ -2689,36 +2681,57 @@ class Opset13(Opset12):
         or it may contain a special value (indicated by an attribute ignore_index) for N x d1 x d2 x ... x dk samples.
         The loss value for input[n, :, d_1, d_2,...d_k] being classified as class c = target[n][d_1][d_2]...[d_k] is computed as:
 
+        ::
+
             loss[n][d_1][d_2]...[d_k] = -input[n][c][d_1][d_2]...[d_k].
+
+
 
         When an optional "weight" is provided, the sample loss is calculated as:
 
+        ::
+
             loss[n][d_1][d_2]...[d_k] = -input[n][c][d_1][d_2]...[d_k] * weight[c].
+
+
 
         loss is zero for the case when target-value equals ignore_index.
 
+        ::
+
             loss[n][d_1][d_2]...[d_k] = 0, when target[n][d_1][d_2]...[d_k] = ignore_index
+
+
 
         If "reduction" attribute is set to "none", the operator's output will be the above loss with shape (N, d1, d2, ..., dk).
         If "reduction" attribute is set to "mean" (the default attribute value), the output loss is (weight) averaged:
 
+        ::
+
             mean(loss), if "weight" is not provided,
+
+
 
         or if weight is provided,
 
+        ::
+
             sum(loss) / sum(weight[target[n][d_1][d_2]...[d_k]]]), for all samples.
 
-        If "reduction" attribute is set to "sum", the output is a scalar:
-            sum(loss).
+
+
+        If "reduction" attribute is set to "sum", the output is a scalar: `sum(loss)`.
 
         See also https://pytorch.org/docs/stable/nn.html#torch.nn.NLLLoss.
 
         Example 1:
 
+        ::
+
             // negative log likelihood loss, "none" reduction
             N, C, d1 = 2, 3, 2
             input = [[[1.0, 2.0], [2.0, 2.0], [3.0, 2.0]],
-                     [[0.0, 1.0], [2.0, 2.0], [1.0, 2]]]
+                      [[0.0, 1.0], [2.0, 2.0], [1.0, 2]]]
             target = [[2, 1], [0, 2]]
 
             loss = np.zeros((N, d1))
@@ -2731,7 +2744,11 @@ class Opset13(Opset12):
             // [[-3. -2.]
             //  [-0. -2.]]
 
+
+
         Example 2:
+
+        ::
 
             // weighted negative log likelihood loss, sum reduction
             N, C, d1 = 2, 3, 2
@@ -2749,7 +2766,11 @@ class Opset13(Opset12):
             // print(loss)
             // -1.1
 
+
+
         Example 3:
+
+        ::
 
             // weighted negative log likelihood loss, mean reduction
             N, C, d1 = 2, 3, 2
@@ -2768,6 +2789,8 @@ class Opset13(Opset12):
             loss = np.sum(loss) / weight_total
             // print(loss)
             // -1.57
+
+
 
 
         Args:
@@ -3118,9 +3141,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceL1(13)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-13 "Online Documentation")
 
 
-        Computes the L1 norm of the input tensor's element along the provided axes. The resulting
+        Computes the L1 norm of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3151,9 +3175,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceL2(13)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-13 "Online Documentation")
 
 
-        Computes the L2 norm of the input tensor's element along the provided axes. The resulting
+        Computes the L2 norm of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3184,9 +3209,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceLogSum(13)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-13 "Online Documentation")
 
 
-        Computes the log sum of the input tensor's element along the provided axes. The resulting
+        Computes the log sum of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3217,9 +3243,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceLogSumExp(13)](https://onnx.ai/onnx/operators/onnx__ReduceLogSumExp.html#reducelogsumexp-13 "Online Documentation")
 
 
-        Computes the log sum exponent of the input tensor's element along the provided axes. The resulting
+        Computes the log sum exponent of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3252,9 +3279,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceMax(13)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-13 "Online Documentation")
 
 
-        Computes the max of the input tensor's element along the provided axes. The resulting
+        Computes the max of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3286,9 +3314,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceMean(13)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-13 "Online Documentation")
 
 
-        Computes the mean of the input tensor's element along the provided axes. The resulting
+        Computes the mean of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3321,9 +3350,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceMin(13)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-13 "Online Documentation")
 
 
-        Computes the min of the input tensor's element along the provided axes. The resulting
+        Computes the min of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3355,9 +3385,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceProd(13)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-13 "Online Documentation")
 
 
-        Computes the product of the input tensor's element along the provided axes. The resulting
+        Computes the product of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3389,9 +3420,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceSum(13)](https://onnx.ai/onnx/operators/onnx__ReduceSum.html#reducesum-13 "Online Documentation")
 
 
-        Computes the sum of the input tensor's element along the provided axes. The resulting
+        Computes the sum of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -3433,9 +3465,10 @@ class Opset13(Opset12):
         r"""[🌐 ReduceSumSquare(13)](https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html#reducesumsquare-13 "Online Documentation")
 
 
-        Computes the sum square of the input tensor's element along the provided axes. The resulting
+        Computes the sum square of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -4276,27 +4309,38 @@ class Opset13(Opset12):
         in `INT_MAX` when slicing forward and 'INT_MIN' when slicing backward.
 
         Example 1:
-          data = [
-              [1, 2, 3, 4],
-              [5, 6, 7, 8],
-          ]
-          axes = [0, 1]
-          starts = [1, 0]
-          ends = [2, 3]
-          steps = [1, 2]
-          result = [
-              [5, 7],
-          ]
+
+        ::
+
+            data = [
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+            ]
+            axes = [0, 1]
+            starts = [1, 0]
+            ends = [2, 3]
+            steps = [1, 2]
+            result = [
+                [5, 7],
+            ]
+
+
+
         Example 2:
-          data = [
-              [1, 2, 3, 4],
-              [5, 6, 7, 8],
-          ]
-          starts = [0, 1]
-          ends = [-1, 1000]
-          result = [
-              [2, 3, 4],
-          ]
+
+        ::
+
+            data = [
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+            ]
+            starts = [0, 1]
+            ends = [-1, 1000]
+            result = [
+                [2, 3, 4],
+            ]
+
+
 
 
         Args:
@@ -4394,29 +4438,46 @@ class Opset13(Opset12):
         the loss tensor L may have (N, D1, D2, ..., Dk) as its shape and L[i,][j_1][j_2]...[j_k] denotes a scalar element in L.
         After L is available, this operator can optionally do a reduction operator.
 
-        shape(scores): (N, C) where C is the number of classes, or (N, C, D1, D2,..., Dk),
-                with K >= 1 in case of K-dimensional loss.
-        shape(labels): (N) where each value is 0 <= labels[i] <= C-1, or (N, D1, D2,..., Dk),
-                with K >= 1 in case of K-dimensional loss.
+        * shape(scores): (N, C) where C is the number of classes, or (N, C, D1, D2,..., Dk),
+          with K >= 1 in case of K-dimensional loss.
+        * shape(labels): (N) where each value is 0 <= labels[i] <= C-1, or (N, D1, D2,..., Dk),
+          with K >= 1 in case of K-dimensional loss.
 
         The loss for one sample, l_i, can caculated as follows:
+        ::
+
             l[i][d1][d2]...[dk] = -y[i][c][d1][d2]..[dk], where i is the index of classes.
+
+
         or
+        ::
+
             l[i][d1][d2]...[dk] = -y[i][c][d1][d2]..[dk] * weights[c], if 'weights' is provided.
 
+
+
         loss is zero for the case when label-value equals ignore_index.
+        ::
+
             l[i][d1][d2]...[dk]  = 0, when labels[n][d1][d2]...[dk] = ignore_index
 
+
+
         where:
+        ::
+
             p = Softmax(scores)
             y = Log(p)
             c = labels[i][d1][d2]...[dk]
 
+
+
         Finally, L is optionally reduced:
-        If reduction = 'none', the output is L with shape (N, D1, D2, ..., Dk).
-        If reduction = 'sum', the output is scalar: Sum(L).
-        If reduction = 'mean', the output is scalar: ReduceMean(L), or if weight is provided: ReduceSum(L) / ReduceSum(W),
-        where tensor W is of shape (N, D1, D2, ..., Dk) and W[n][d1][d2]...[dk] = weights[labels[i][d1][d2]...[dk]].
+
+        * If reduction = 'none', the output is L with shape (N, D1, D2, ..., Dk).
+        * If reduction = 'sum', the output is scalar: Sum(L).
+        * If reduction = 'mean', the output is scalar: ReduceMean(L), or if weight is provided: `ReduceSum(L) / ReduceSum(W)`,
+          where tensor W is of shape `(N, D1, D2, ..., Dk)` and `W[n][d1][d2]...[dk] = weights[labels[i][d1][d2]...[dk]]`.
 
 
         Args:
@@ -4978,15 +5039,13 @@ class Opset13(Opset12):
         Insert single-dimensional entries to the shape of an input tensor (`data`).
         Takes one required input `axes` - which contains a list of dimension indices and this operator will insert a dimension of value `1` into the corresponding index of the output tensor (`expanded`).
 
-        For example:
-          Given an input tensor (`data`) of shape [3, 4, 5], then
-          Unsqueeze(data, axes=[0, 4]) outputs a tensor (`expanded`) containing same data as `data` but with shape [1, 3, 4, 5, 1].
+        For example, given an input tensor (`data`) of shape [3, 4, 5], then
+        Unsqueeze(data, axes=[0, 4]) outputs a tensor (`expanded`) containing same data as `data` but with shape [1, 3, 4, 5, 1].
 
         The input `axes` should not contain any duplicate entries. It is an error if it contains duplicates.
         The rank of the output tensor (`output_rank`) is the rank of the input tensor (`data`) plus the number of values in `axes`.
         Each value in `axes` should be within the (inclusive) range [-output_rank , output_rank - 1].
         The order of values in `axes` does not matter and can come in any order.
-
 
 
         Args:
