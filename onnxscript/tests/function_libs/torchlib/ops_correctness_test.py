@@ -49,7 +49,7 @@ from onnxscript.function_libs.torchlib.ops import core as core_ops
 from onnxscript.function_libs.torchlib.ops import nn as nn_ops
 from onnxscript.function_libs.torchlib.ops import special as special_ops
 from onnxscript.tests.common import version_utils
-from onnxscript.tests.function_libs.torch_aten import extra_opinfo
+from onnxscript.tests.function_libs.torchlib import extra_opinfo
 
 T = TypeVar("T")
 
