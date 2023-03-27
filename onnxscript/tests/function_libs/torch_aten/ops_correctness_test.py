@@ -1193,7 +1193,7 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i == 14:
+            if i in[13,14]:
                 print(i)
             else:
                 continue
