@@ -43,7 +43,7 @@ def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
 
 SKIP_TESTS = (
     skip(
-        r"^test_ai_onnx_ml_binarizer",
+        r"^test_ai_onnx_ml_array_feature_extractor",
         "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
     ),
     skip(
