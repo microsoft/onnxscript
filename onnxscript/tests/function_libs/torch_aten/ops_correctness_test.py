@@ -679,6 +679,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "nn.functional.max_pool2d",
+        reason="fixme: no idea how to get length in scalar",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "nn.functional.mse_loss",
         reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -1228,11 +1233,6 @@ def run_test_output_match(
             inputs=repr(inputs),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            #if i in range(0,1150):
-            if i==1152:
-                print(i)
-            else:
-                continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

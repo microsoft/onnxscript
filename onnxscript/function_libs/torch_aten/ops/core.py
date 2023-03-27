@@ -3584,6 +3584,9 @@ def aten_max_pool2d(
 ) -> TensorType:
     """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
 
+    self_len_org = len(self.shape)
+    if self_len_org == 3:
+        self = op.Unsqueeze(self, axes=0)
     self_len = len(self.shape)
     expand_size = self_len - 2
 
@@ -3626,6 +3629,9 @@ def aten_max_pool2d(
         strides=strides
     )
 
+    if self_len_org == 3:
+        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+
     if not return_indices:
         result = pool_result
     else:
@@ -3636,11 +3642,15 @@ def aten_max_pool2d(
         end = N * C
         offset = op.Range(0, end, 1)
         offset = offset * data_size
-        pos_1 = op.Constant(value_ints=[1])
-        new_shape = op.Expand(pos_1, op.Constant(value_ints=[expand_size]))
+        new_shape = op.Expand(
+            op.Constant(value_ints=[1]),
+            op.Constant(value_ints=[expand_size])
+        )
         new_shape = op.Concat(N, C, new_shape, axis=0)
         offset = op.Reshape(offset, new_shape)
         indices = indices - offset
+        if self_len_org == 3:
+            indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
         result = (pool_result, indices)
 
     return result
