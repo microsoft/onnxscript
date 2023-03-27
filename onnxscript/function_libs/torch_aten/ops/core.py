@@ -2313,10 +2313,17 @@ def aten_fix(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_flip(self: TensorType, dims: Sequence[int]) -> TensorType:
+@torch_op("aten::flip")
+def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     """flip(Tensor self, int[] dims) -> Tensor"""
 
-    raise NotImplementedError()
+    shape_dim = op.Shape(dims)
+    neg_1 = op.Constant(value_int=-1)
+    starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
+    steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
+    ends = starts * 65535  # something like [-65535, -65535, -65535]
+    result = op.Slice(self, starts, ends, dims, steps)
+    return result
 
 
 def aten_fliplr(self: TensorType) -> TensorType:
