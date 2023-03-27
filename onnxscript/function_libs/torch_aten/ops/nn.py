@@ -240,7 +240,7 @@ def aten_conv_depthwise3d(
     raise NotImplementedError()
 
 
-@torch_op("aten::cross_entropy_loss", trace_only=True)
+@torch_op("aten::cross_entropy_loss")
 def aten_cross_entropy_loss(
     self: TFloatOrBFloat16,
     target: Sequence[int],
@@ -252,30 +252,16 @@ def aten_cross_entropy_loss(
     """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
 
     if reduction == 0:  # "none"
-        result = _aten_cross_entropy_loss_onnx(self, target, weight, "none", ignore_index)
-    elif reduction == 1:  # "mean"
-        result = _aten_cross_entropy_loss_onnx(self, target, weight, "mean", ignore_index)
-    else:  # "sum"
-        result = _aten_cross_entropy_loss_onnx(self, target, weight, "sum", ignore_index)
-
-    return result
-
-
-@torch_op("aten::cross_entropy_loss", private=True)
-def _aten_cross_entropy_loss_onnx(
-    self: TFloatOrBFloat16,
-    target: Sequence[int],
-    weight: Optional[TFloatOrBFloat16],
-    reduction_str: str,
-    ignore_index: int,
-):
-    if op.OptionalHasElement(weight):
         result, _ = op.SoftmaxCrossEntropyLoss(
-            self, target, weight, reduction=reduction_str, ignore_index=ignore_index
+            self, target, weight, reduction="none", ignore_index=ignore_index
         )
-    else:
+    elif reduction == 2:  # "sum"
         result, _ = op.SoftmaxCrossEntropyLoss(
-            self, target, reduction=reduction_str, ignore_index=ignore_index
+            self, target, weight, reduction="sum", ignore_index=ignore_index
+        )
+    else:  # "mean", default
+        result, _ = op.SoftmaxCrossEntropyLoss(
+            self, target, weight, reduction="mean", ignore_index=ignore_index
         )
 
     return result

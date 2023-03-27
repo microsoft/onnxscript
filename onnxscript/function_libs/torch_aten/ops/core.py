@@ -2313,10 +2313,17 @@ def aten_fix(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_flip(self: TensorType, dims: Sequence[int]) -> TensorType:
+@torch_op("aten::flip")
+def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     """flip(Tensor self, int[] dims) -> Tensor"""
 
-    raise NotImplementedError()
+    shape_dim = op.Shape(dims)
+    neg_1 = op.Constant(value_int=-1)
+    starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
+    steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
+    ends = starts * 65535  # something like [-65535, -65535, -65535]
+    result = op.Slice(self, starts, ends, dims, steps)
+    return result
 
 
 def aten_fliplr(self: TensorType) -> TensorType:
@@ -2331,10 +2338,11 @@ def aten_flipud(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_floor(self: TensorType) -> TensorType:
+@torch_op("aten::floor")
+def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """floor(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Floor(self)
 
 
 def aten_floor_divide(self: TensorType, other: TensorType) -> TensorType:
@@ -5105,12 +5113,17 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
-    self: TensorType, dim: int, index: TensorType, src: TensorType
-) -> TensorType:
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    dim: int,
+) -> TReal:
     """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
 
-    raise NotImplementedError()
+    # if rank(self) == 0 will lead ORT failed, skipped
+    return op.ScatterElements(self, index, src, axis=dim, reduction="add")
 
 
 def aten_searchsorted(
