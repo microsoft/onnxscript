@@ -315,7 +315,13 @@ class OnnxFunction(Op):
         # args with default value are attributes
         schemas = []
         for arg in inputs:
-            param_schema = ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True)
+            if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
+                required = False
+            else:
+                required = True
+            param_schema = ParamSchema(
+                name=arg.name, type=arg.typeinfo, is_input=True, required=required
+            )
             schemas.append(param_schema)
 
         for attr_name in attributes:
