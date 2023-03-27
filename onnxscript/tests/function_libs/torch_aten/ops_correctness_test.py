@@ -679,7 +679,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "nn.functional.avg_pool2d",
-        reason="fixme: ORT does'nt support divisor_override argument",
+        reason="fixme: graph_building.py assert not isinstance(value, TorchScriptTensor)",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
