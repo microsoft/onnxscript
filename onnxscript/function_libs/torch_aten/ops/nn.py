@@ -154,6 +154,8 @@ def aten_avg_pool2d(
         pads = op.Concat(padding, padding, padding, padding, axis=0)
     elif len(padding) == 2:
         pads = op.Concat(padding, padding, axis=0)
+    else:  # assert len(padding) == 4
+        pads = padding
 
     result = op.AveragePool(
         self,
@@ -161,7 +163,7 @@ def aten_avg_pool2d(
         count_include_pad=count_include_pad,
         kernel_shape=kernel_shape,
         pads=pads,
-        strides=strides
+        strides=strides,
     )
 
     # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
