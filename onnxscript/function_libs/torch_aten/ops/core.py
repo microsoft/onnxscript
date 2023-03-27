@@ -3610,7 +3610,7 @@ def aten_max_pool2d(
         pads = [padding] * expand_size * 2
     elif len(padding) == 1:
         pads = padding * 4
-    elif len(padding) == 2:
+    else:  # assert len(padding) == 2:
         pads = padding * 2
 
     if isinstance(stride, int):
