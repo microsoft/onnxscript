@@ -2529,9 +2529,16 @@ def aten_grid_sampler_2d(
 ) -> TensorType:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    return op.GridSample(input, grid, align_corners=align_corners,
-                         padding_mode=padding_mode,
-                         mode=interpolation_mode)
+    padding_modes = ["zeros", "border", "reflection"]
+    padding_mode_str =padding_modes[padding_mode]
+
+    interp_modes = ["bilinear", "nearest", "bicubic"]
+    interp_mode_str = interp_modes[interpolation_mode]
+
+    result = op.GridSample(input, grid, align_corners=align_corners,
+                         padding_mode=padding_mode_str,
+                         mode=interp_mode_str)
+    return result
 
 
 def aten_grid_sampler_2d_backward(
