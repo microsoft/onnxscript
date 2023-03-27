@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import os
 import pprint
 import unittest
 import warnings
@@ -74,6 +75,7 @@ FLOAT_TYPES = (
 )
 
 TEST_OPSET_VERSION = 18
+IS_WINDOWS = os.name == "nt"
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -538,6 +540,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     "topk": core_ops.aten_topk,
+    "tril": core_ops.aten_tril,
+    "triu": core_ops.aten_triu,
     "trunc": core_ops.aten_trunc,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
@@ -573,6 +577,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
+    "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
@@ -680,6 +686,16 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.mse_loss",
         reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention",
+        reason="fixme: ORT crashes on Windows",
+        enabled_if=IS_WINDOWS,
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        reason="fixme: ORT crashes on Windows",
+        enabled_if=IS_WINDOWS,
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
@@ -864,6 +880,28 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload need weight as kwargs",
     ),
     skip(
+        "nn.functional.scaled_dot_product_attention",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype == torch.bool,
+        reason="this overload takes a non-boolean mask",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype != torch.bool,
+        reason="this overload takes a boolean mask",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
+    ),
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
@@ -919,6 +957,12 @@ duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
 duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.scaled_dot_product_attention",
+    ("nn.functional.scaled_dot_product_attention_bool_mask",),
+)
 
 duplicate_opinfo(
     OPS_DB,
@@ -1143,8 +1187,14 @@ def _graph_executor(
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
         # Make sure the model is valid
-        onnx.checker.check_model(onnx_model, full_check=True)
-
+        try:
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except onnx.checker.ValidationError as e:
+            raise AssertionError(
+                f"ONNX model is invalid: {e}. "
+                f"Model:\n"
+                f"{onnxscript.proto2text(onnx_model)}"
+            ) from e
         # Disable all ORT optimizations
         session_options = onnxruntime.SessionOptions()
         session_options.graph_optimization_level = (
@@ -1158,6 +1208,7 @@ def _graph_executor(
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
         ) as e:
             raise AssertionError(
                 f"ONNX Runtime failed to evaluate:\n"
@@ -1223,7 +1274,14 @@ def run_test_output_match(
         # Provide the repr to subtest because tensors are not serializable in parallel test runs
         with test_suite.subTest(
             sample_num=i,
-            inputs=repr(inputs),
+            inputs=repr(
+                [
+                    f"Tensor<{inp.shape}, dtype={inp.dtype}>"
+                    if isinstance(inp, torch.Tensor)
+                    else inp
+                    for inp in inputs
+                ]
+            ),
             kwargs=repr(cpu_sample.kwargs),
         ):
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
