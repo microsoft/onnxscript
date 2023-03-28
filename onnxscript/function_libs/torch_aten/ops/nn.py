@@ -218,9 +218,9 @@ def aten_col2im(
     self: TReal,
     output_size: INT64,
     kernel_size: Sequence[int],
-    dilation: Sequence[int] = [1,1],
-    padding: Sequence[int] = [0,0,0,0],
-    stride: Sequence[int] = [1,1],
+    dilation: Sequence[int] = [1, 1],
+    padding: Sequence[int] = [0, 0, 0, 0],
+    stride: Sequence[int] = [1, 1],
 ) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
