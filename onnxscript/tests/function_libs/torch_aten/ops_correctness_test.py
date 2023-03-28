@@ -684,8 +684,9 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "nn.functional.mse_loss",
-        reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
+        reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnx_older_than("1.14"),
     ),
     skip(
         "nn.functional.scaled_dot_product_attention",
@@ -704,8 +705,9 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "repeat",
-        reason="fixme: shape inference error. Enable after onnx/onnx#4982",
+        reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "round",
