@@ -2313,10 +2313,17 @@ def aten_fix(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_flip(self: TensorType, dims: Sequence[int]) -> TensorType:
+@torch_op("aten::flip")
+def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     """flip(Tensor self, int[] dims) -> Tensor"""
 
-    raise NotImplementedError()
+    shape_dim = op.Shape(dims)
+    neg_1 = op.Constant(value_int=-1)
+    starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
+    steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
+    ends = starts * 65535  # something like [-65535, -65535, -65535]
+    result = op.Slice(self, starts, ends, dims, steps)
+    return result
 
 
 def aten_fliplr(self: TensorType) -> TensorType:
@@ -2331,10 +2338,11 @@ def aten_flipud(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_floor(self: TensorType) -> TensorType:
+@torch_op("aten::floor")
+def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """floor(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Floor(self)
 
 
 def aten_floor_divide(self: TensorType, other: TensorType) -> TensorType:
@@ -2496,7 +2504,6 @@ def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     return op.GreaterOrEqual(self, other)
 
 
-@torch_op("aten::grid_sample", trace_only=True)
 def aten_grid_sampler(
     input: TensorType,
     grid: TensorType,
@@ -2506,20 +2513,9 @@ def aten_grid_sampler(
 ) -> TensorType:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    padding_modes = ["zeros", "border", "reflection"]
-    padding_mode_str =padding_modes[padding_mode]
-
-    interp_modes = ["biliner", "nearest", "bicubic"]
-    interp_mode_str = interp_modes[interpolation_mode]
-
-    result = op.GridSample(input, grid,
-                  align_corners=align_corners,
-                  mode = interp_mode_str,
-                  padding_mode=padding_mode_str)
-    return result
+    raise NotImplementedError()
 
 
-@torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
     input: TensorType,
     grid: TensorType,
@@ -2529,16 +2525,7 @@ def aten_grid_sampler_2d(
 ) -> TensorType:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    padding_modes = ["zeros", "border", "reflection"]
-    padding_mode_str =padding_modes[padding_mode]
-
-    interp_modes = ["bilinear", "nearest", "bicubic"]
-    interp_mode_str = interp_modes[interpolation_mode]
-
-    result = op.GridSample(input, grid, align_corners=align_corners,
-                         padding_mode=padding_mode_str,
-                         mode=interp_mode_str)
-    return result
+    raise NotImplementedError()
 
 
 def aten_grid_sampler_2d_backward(
@@ -3585,17 +3572,87 @@ def aten_max_pool1d_with_indices(
     raise NotImplementedError()
 
 
+@torch_op("aten::max_pool2d", trace_only=True)
 def aten_max_pool2d(
     self: TensorType,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0, 0),
+    stride: Sequence[int] = None,
+    padding: Sequence[int] = 0,
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
+    return_indices: bool = False,
 ) -> TensorType:
     """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
 
-    raise NotImplementedError()
+    self_len_org = len(self.shape)
+    if self_len_org == 3:
+        self = op.Unsqueeze(self, axes=0)
+    self_len = len(self.shape)
+    expand_size = self_len - 2
+
+    N = op.Shape(self, start=0, end=1)
+    C = op.Shape(self, start=1, end=2)
+
+    data_shape = op.Shape(self, start=2)
+    data_size = op.ReduceProd(data_shape)
+
+    if isinstance(dilation, int):
+        dilations = [dilation] * expand_size
+    else:
+        dilations = dilation
+
+    if isinstance(kernel_size, int):
+        kernel_shape = [kernel_size] * expand_size
+    else:
+        kernel_shape = kernel_size
+
+    if isinstance(padding, int):
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:
+        pads = padding * 4
+    else:  # assert len(padding) == 2:
+        pads = padding * 2
+
+    if isinstance(stride, int):
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    pool_result, indices = op.MaxPool(
+        self,
+        ceil_mode=ceil_mode,
+        dilations=dilations,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    if self_len_org == 3:
+        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+
+    if not return_indices:
+        result = pool_result
+    else:
+        # Torch use relative position number for the second Channel data
+        # If align, need reduce size(Channel)
+        # e.g. [[8,3,10],[30,32,23]]-[0,18] -> [[8,3,10],[12,14,5]]
+        # 18 = H x W = 3 x 6
+        end = N * C
+        offset = op.Range(0, end, 1)
+        offset = offset * data_size
+        new_shape = op.Expand(
+            op.Constant(value_ints=[1]), op.Constant(value_ints=[expand_size])
+        )
+        new_shape = op.Concat(N, C, new_shape, axis=0)
+        offset = op.Reshape(offset, new_shape)
+        indices = indices - offset
+        if self_len_org == 3:
+            indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+        result = (pool_result, indices)
+
+    return result
 
 
 def aten_max_pool3d(
@@ -4832,10 +4889,11 @@ def aten_rad2deg(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_rand(size: INT64) -> TensorType:
+@torch_op("aten::rand")
+def aten_rand(size: Sequence[int], dtype: int = 1) -> TReal:
     """rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomUniform(shape=size, dtype=dtype)
 
 
 def aten_rand_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -4858,10 +4916,15 @@ def aten_randint_like(
     raise NotImplementedError()
 
 
-def aten_randn(size: INT64) -> TensorType:
+@torch_op("aten::randn")
+def aten_randn(
+    size: Sequence[int],
+    dtype: int = 1,
+    requires_grad: bool = False,  # pylint: disable=unused-argument
+) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomNormal(dtype=dtype, shape=size)
 
 
 def aten_randn_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
@@ -5120,12 +5183,17 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
-    self: TensorType, dim: int, index: TensorType, src: TensorType
-) -> TensorType:
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    dim: int,
+) -> TReal:
     """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
 
-    raise NotImplementedError()
+    # if rank(self) == 0 will lead ORT failed, skipped
+    return op.ScatterElements(self, index, src, axis=dim, reduction="add")
 
 
 def aten_searchsorted(
