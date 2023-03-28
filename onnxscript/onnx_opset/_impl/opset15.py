@@ -73,8 +73,8 @@ class Opset15(Opset14):
         and the running statistics in training mode (training_mode=True).
         There are multiple cases for the number of outputs, which we list below:
 
-        Output case #1: Y, running_mean, running_var (training_mode=True)
-        Output case #2: Y (training_mode=False)
+        * Output case #1: Y, running_mean, running_var (training_mode=True)
+        * Output case #2: Y (training_mode=False)
 
         When training_mode=False, extra outputs are invalid.
         The outputs are updated as follows when training_mode=True:
@@ -85,17 +85,17 @@ class Opset15(Opset14):
 
             Y = (X - current_mean) / sqrt(current_var + epsilon) * scale + B
 
-            where:
+
+        where:
+        ::
 
             current_mean = ReduceMean(X, axis=all_except_channel_index)
             current_var =  ReduceVar(X, axis=all_except_channel_index)
 
-            Notice that ReduceVar refers to the population variance, and it equals to
-            sum(sqrd(x_i - x_avg)) / N
-            where N is the population size (this formula does not use sample size N - 1).
 
-
-
+        Notice that `ReduceVar` refers to the population variance, and it equals to
+        `sum(sqrd(x_i - x_avg)) / N`
+        where `N` is the population size (this formula does not use sample size `N - 1`).
 
         The computation of ReduceMean and ReduceVar uses float to avoid overflow for float16 inputs.
 
@@ -663,23 +663,40 @@ class Opset15(Opset14):
         value of r, and specifying any start value < -r is equivalent to specifying a start
         value of 0.
 
-        For example:
-        Input tensor with shape: [2, 3, 4]
-        No attributes specified.
-        Output: [2, 3, 4]
+        Examples:
 
-        Input tensor with shape: [2, 3, 4]
-        start: -1
-        Output: [4]
+        ::
 
-        Input tensor with shape: [2, 3, 4]
-        end: -1
-        Output: [2, 3]
+            Input tensor with shape: [2, 3, 4]
+            No attributes specified.
+            Output: [2, 3, 4]
 
-        Input tensor with shape: [2, 3, 4]
-        start: 1
-        end: 2
-        Output: [3]
+
+
+        ::
+
+            Input tensor with shape: [2, 3, 4]
+            start: -1
+            Output: [4]
+
+
+
+        ::
+
+            Input tensor with shape: [2, 3, 4]
+            end: -1
+            Output: [2, 3]
+
+
+
+        ::
+
+            Input tensor with shape: [2, 3, 4]
+            start: 1
+            end: 2
+            Output: [3]
+
+
 
 
         Args:
