@@ -213,6 +213,7 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
+@torch_op("aten::col2im")
 def aten_col2im(
     self: TensorType,
     output_size: INT64,
@@ -223,7 +224,15 @@ def aten_col2im(
 ) -> TensorType:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
-    raise NotImplementedError()
+    result = op.Col2Im(
+        self,
+        output_size,
+        kernel_size,
+        dilations = dilation,
+        pads = padding,
+        strides=stride,
+    )
+    return result
 
 
 def aten_conv_depthwise3d(

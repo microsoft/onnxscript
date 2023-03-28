@@ -488,6 +488,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
+    # "nn.functional.col2im": nn_ops.aten_col2im,  # FIXME: no test case in OPS_DB
     # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
     "nn.functional.cross_entropy": (
         nn_ops.aten_cross_entropy_loss,
