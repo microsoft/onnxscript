@@ -215,13 +215,13 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
 
 @torch_op("aten::col2im")
 def aten_col2im(
-    self: TensorType,
+    self: TReal,
     output_size: INT64,
     kernel_size: Sequence[int],
-    dilation: Sequence[int],
-    padding: Sequence[int],
-    stride: Sequence[int],
-) -> TensorType:
+    dilation: Sequence[int] = [1,1],
+    padding: Sequence[int] = [0,0,0,0],
+    stride: Sequence[int] = [1,1],
+) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
     result = op.Col2Im(
