@@ -6,9 +6,6 @@ onnx-weekly
 ort-function-experiment-nightly
 typing_extensions
 
-# build
-wheel
-
 # Docs site
 furo
 sphinx-copybutton
