@@ -15,7 +15,7 @@ from collections import namedtuple
 from datetime import date
 
 TOP_DIR = os.path.realpath(os.path.dirname(__file__))
-PACKAGE_NAME = "onnx_script_weekly"
+PACKAGE_NAME = "onnx_script"
 
 with open(os.path.join(TOP_DIR, "VERSION_NUMBER")) as version_file:
     VERSION_NUMBER = version_file.read().strip()
