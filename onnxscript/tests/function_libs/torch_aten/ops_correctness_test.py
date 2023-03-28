@@ -443,6 +443,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "ge": core_ops.aten_ge,
     # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
     # "greater": core_ops.aten_greater,  # no test case in OPS_DB
+    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
     "gt": core_ops.aten_gt,
     # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
@@ -496,6 +497,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
+    "nn.functional.grid_sample": nn_ops.aten_grid_sample,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
@@ -566,8 +568,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
-    "nn.functional.grid_sample": core_ops.aten_grid_sampler,
-    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
@@ -779,6 +779,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
+        "grid_sampler_2d",
+        matcher=lambda sample: sample.args[1] == 2,
+        reason="'bicubic' mode in ORT implemented differently with Torch",
+    ),
+    skip(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
@@ -870,6 +875,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.dropout",
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
+    ),
+    skip(
+        "nn.functional.grid_sample",
+        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic",
+        reason="'bicubic' mode in ORT implemented differently with Torch",
+    ),
+    skip(
+        "nn.functional.grid_sample",
+        matcher=lambda sample: len(sample.args[0].shape) != 4,
+        reason="'ORT only support rank(tensor)=4 as input",
     ),
     skip(
         "nn.functional.nll_loss",
@@ -1286,10 +1301,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            # if i in[13,14]:
-            #     print(i)
-            # else:
-            #     continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

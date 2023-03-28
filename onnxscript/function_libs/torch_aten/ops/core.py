@@ -2516,6 +2516,7 @@ def aten_grid_sampler(
     raise NotImplementedError()
 
 
+@torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
     input: TensorType,
     grid: TensorType,
@@ -2525,7 +2526,20 @@ def aten_grid_sampler_2d(
 ) -> TensorType:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ["bilinear", "nearest", "bicubic"]
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ["zeros", "border", "reflection"]
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    result = op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
+    return result
 
 
 def aten_grid_sampler_2d_backward(
