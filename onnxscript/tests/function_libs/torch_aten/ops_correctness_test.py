@@ -544,6 +544,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "triu": core_ops.aten_triu,
     "trunc": core_ops.aten_trunc,
     "unsqueeze": core_ops.aten_unsqueeze,
+    "var_mean": core_ops.aten_var_mean,
+    "var_mean_dim": core_ops.aten_var_mean_dim,
+    "var_mean_correction": core_ops.aten_var_mean_correction,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
@@ -937,6 +940,22 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
+    skip(
+        "var_mean",
+        matcher=lambda sample: len(sample.kwargs) > 0,
+        reason="this Aten overload only support tensor(int) as args",
+    ),
+    skip(
+        "var_mean_dim",
+        matcher=lambda sample: len(sample.kwargs) == 0,
+        reason="this Aten overload only support tensor(bool) as args",
+    ),
+    skip(
+        "var_mean_correction",
+        matcher=lambda sample: sample.kwargs.get("correction") is None,
+        reason="this Aten overload only support tensor(bool) as args",
+    ),
+
 )
 
 duplicate_opinfo(OPS_DB, "all", ("all_dim",))
@@ -984,6 +1003,8 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+
+duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction",))
 
 
 # END OF SECTION TO MODIFY #####################################################
@@ -1284,6 +1305,10 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            # if i==5:
+            #     print(i)
+            #     continue
+
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
