@@ -1,9 +1,9 @@
 import onnx
-from onnxscript import script
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript import opset15 as op
 from onnxscript import FLOAT
+from onnxscript import opset15 as op
+from onnxscript import script
 
 # We use the script decorator to indicate that
 # this is meant to be translated to ONNX.
@@ -32,15 +32,15 @@ def onnx_hardmax(X, axis: int):
 # We use the script decorator to indicate that
 # this is meant to be translated to ONNX.
 @script()
-def SampleModel(X : FLOAT[64, 128] , Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOAT[64, 10]:
+def sample_model(X : FLOAT[64, 128], Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOAT[64, 10]:
     matmul = op.MatMul(X, Wt) + Bias
     return onnx_hardmax(matmul, axis=1)
 
 # onnx_model is an in-memory ModelProto
-onnx_model = SampleModel.to_model_proto()
+onnx_model = sample_model.to_model_proto()
 
 # Save the ONNX model at a given path
-onnx.save(onnx_model, "hardmax.onnx")
+onnx.save(onnx_model, "sample_mpdel.onnx")
 
 # Check the model
 try:
