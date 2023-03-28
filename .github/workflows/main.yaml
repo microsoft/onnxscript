@@ -109,6 +109,6 @@ jobs:
           python docs/update_readme.py
           git diff --exit-code -- 'README.md'
           if [ $? -ne 0 ]; then
-            echo "git diff return failures"
+            echo "Update readme by running `python docs/update_readme.py`"
             exit 1
           fi
