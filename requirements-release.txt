@@ -1,0 +1,31 @@
+click
+numpy
+matplotlib
+onnx-weekly
+--pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html
+ort-function-experiment-nightly
+typing_extensions
+
+# Docs site
+furo
+sphinx-copybutton
+sphinx-gallery
+sphinx>=6
+
+# ATen lib
+beartype
+
+# Testing
+expecttest
+parameterized
+pytest-cov
+pytest-randomly
+pytest-subtests
+pytest-xdist
+pytest!=7.1.0
+pyyaml
+torch>=1.13
+
+# Lint
+lintrunner
+lintrunner_adapters>=0.6.1

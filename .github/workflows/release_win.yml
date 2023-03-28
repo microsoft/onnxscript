@@ -1,0 +1,87 @@
+name: WindowsRelease
+
+on:
+  schedule:
+    # Run weekly on Monday 00:00
+    - cron:  '00 00 * * MON'
+  push:
+    branches: [main, rel-*]
+  pull_request:
+    branches: [main, rel-*]
+  workflow_dispatch:
+
+permissions:  # set top-level default permissions as security best practice
+  contents: read
+
+jobs:
+  build:
+    if: github.event_name != 'pull_request' || startsWith( github.base_ref, 'rel-') || contains( github.event.pull_request.labels.*.name, 'run release CIs')
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        architecture: ['x64', 'x86']
+    steps:
+    - name: Checkout ONNX-Script
+      uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+      with:
+         path: ./onnx-script
+    - name: Checkout ONNX-Script submodules
+      shell: bash
+      run: |
+         cd onnx-script
+         auth_header="$(git config --local --get http.https://github.com/.extraheader)"
+         git submodule sync --recursive
+         git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive --depth=1
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4.5.0
+      with:
+        python-version: ${{ matrix.python-version }}
+        architecture: ${{ matrix.architecture }}
+
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@1ff57057b5cfdc39105cd07a01d78e9b0ea0c14c # v1.3.1
+      with:
+        msbuild-architecture: ${{ matrix.architecture }}
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install -q --upgrade pip
+        cd onnx-script
+        python -m pip install -q -r requirements-release.txt
+
+    - name: Build ONNX-Script wheel
+      run: |
+        $arch = 'x64'
+        if ('${{ matrix.architecture }}' -eq 'x86') {
+          $arch = 'Win32'
+        }
+
+        cd onnx-script
+
+        echo "Install ONNX-Script"
+
+        if ('${{ github.event_name }}' -eq 'schedule') {
+          echo "Build weekly TestPyPI package"
+          python setup.py bdist_wheel --weekly_build
+        } else {
+          python setup.py bdist_wheel
+        }
+        Get-ChildItem -Path dist/*.whl | foreach {python -m pip install --upgrade $_.fullname}
+
+    - name: Test the installed wheel
+      run: |
+        cd onnx-script
+        pytest
+
+    - uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+      with:
+        name: wheels
+        path: ./onnx-script/dist
+
+    - name: Upload onnx-script-weekly wheel to TestPyPI/PyPI weekly
+      if: (github.event_name == 'schedule') # Only triggered by weekly event
+      run: |
+        twine upload --verbose onnx-script/dist/*.whl --repository-url https://upload.pypi.org/legacy/ -u ${{ secrets.ONNXSCRIPTWEEKLY_USERNAME }} -p ${{ secrets.ONNXSCRIPTWEEKLY_TOKEN }}
+        twine upload --verbose onnx-script/dist/*.whl --repository-url https://test.pypi.org/legacy/ -u ${{ secrets.TESTPYPI_USERNAME }} -p ${{ secrets.TESTPYPI_PASSWORD }}
