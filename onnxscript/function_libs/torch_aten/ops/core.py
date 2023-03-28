@@ -2518,12 +2518,12 @@ def aten_grid_sampler(
 
 @torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TFloat:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
     inter_mode_options = ["bilinear", "nearest", "bicubic"]

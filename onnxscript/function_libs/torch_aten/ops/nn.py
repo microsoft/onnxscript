@@ -24,6 +24,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TReal,
+    TTensor,
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import BOOL, TensorType
@@ -432,12 +433,12 @@ def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> Te
 
 @torch_op("aten::grid_sample")
 def aten_grid_sample(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     mode: str,
     padding_mode: str,
     align_corners: bool,
-) -> TensorType:
+) -> TFloat:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
     result = op.GridSample(
