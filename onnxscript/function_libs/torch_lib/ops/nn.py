@@ -19,8 +19,8 @@ from typing import Optional, Sequence
 
 import onnxscript
 from onnxscript import FLOAT, INT64
-from onnxscript.function_libs.torchlib.registration import torch_op
-from onnxscript.function_libs.torchlib.tensor_typing import (
+from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TReal,

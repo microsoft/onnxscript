@@ -44,12 +44,12 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript.function_libs.torchlib import graph_building
-from onnxscript.function_libs.torchlib.ops import core as core_ops
-from onnxscript.function_libs.torchlib.ops import nn as nn_ops
-from onnxscript.function_libs.torchlib.ops import special as special_ops
+from onnxscript.function_libs.torch_lib import graph_building
+from onnxscript.function_libs.torch_lib.ops import core as core_ops
+from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
+from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.tests.common import version_utils
-from onnxscript.tests.function_libs.torchlib import extra_opinfo
+from onnxscript.tests.function_libs.torch_lib import extra_opinfo
 
 T = TypeVar("T")
 

@@ -10,7 +10,7 @@ import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, evaluator
 from onnxscript import opset17 as op
-from onnxscript.function_libs.torchlib import graph_building, ops
+from onnxscript.function_libs.torch_lib import graph_building, ops
 from onnxscript.tests.common import version_utils
 
 
