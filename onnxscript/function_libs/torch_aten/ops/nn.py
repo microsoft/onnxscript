@@ -224,7 +224,7 @@ def aten_col2im(
 ) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
-    result = op.Col2Im(
+    return op.Col2Im(
         self,
         output_size,
         kernel_size,
@@ -232,7 +232,6 @@ def aten_col2im(
         pads = padding,
         strides=stride,
     )
-    return result
 
 
 def aten_conv_depthwise3d(
