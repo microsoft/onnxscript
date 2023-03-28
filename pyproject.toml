@@ -117,6 +117,7 @@ select = [
     "W", # pycodestyle
     "B", # flake8-bugbear
     "N", # pep8-naming
+    "NPY", # modern numpy
     "YTT", # flake8-2020
     "RUF", # Ruff-specific rules
     "UP", # pyupgrade
@@ -135,6 +136,7 @@ ignore = [
     "N803",
     "N806",
     "N999", # Invalid module name
+    "NPY002", # We may not always need a generator
 ]
 line-length = 120
 ignore-init-module-imports = true

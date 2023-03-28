@@ -5789,10 +5789,11 @@ def aten_triangular_solve(
     raise NotImplementedError()
 
 
-def aten_tril(self: TensorType, diagonal: int = 0) -> TensorType:
+@torch_op("aten::tril")
+def aten_tril(self: TTensor, diagonal: int = 0) -> TTensor:
     """tril(Tensor self, int diagonal=0) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Trilu(self, diagonal, upper=0)
 
 
 def aten_tril_indices(row: int, col: int, offset: int = 0) -> TensorType:
@@ -5816,10 +5817,11 @@ def aten_triplet_margin_loss(
     raise NotImplementedError()
 
 
+@torch_op("aten::triu")
 def aten_triu(self: TensorType, diagonal: int = 0) -> TensorType:
     """triu(Tensor self, int diagonal=0) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Trilu(self, diagonal, upper=1)
 
 
 def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
