@@ -9,12 +9,14 @@ with open("README.md", encoding="utf-8") as f:
             updated_readme.append(line)
         if line == "```python update-readme\n":
             in_stub = True
-            with open("docs/tutorial/examples/hardmax_end_to_end.py", encoding="utf-8") as example_f:
+            with open(
+                "docs/tutorial/examples/hardmax_end_to_end.py", encoding="utf-8"
+            ) as example_f:
                 example_code = example_f.readlines()
                 updated_readme += example_code
         if line == "```\n" and in_stub:
             updated_readme.append(line)
             in_stub = False
 
-with open("README.md", 'w', encoding="utf-8") as f:
+with open("README.md", "w", encoding="utf-8") as f:
     f.writelines(updated_readme)

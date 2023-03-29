@@ -5,6 +5,7 @@ from onnxscript import FLOAT
 from onnxscript import opset15 as op
 from onnxscript import script
 
+
 # We use the script decorator to indicate that
 # this is meant to be translated to ONNX.
 @script()
@@ -29,12 +30,14 @@ def onnx_hardmax(X, axis: int):
     cast_values = op.CastLike(values, X)
     return op.OneHot(argmax, depth, cast_values, axis=axis)
 
+
 # We use the script decorator to indicate that
 # this is meant to be translated to ONNX.
 @script()
-def sample_model(X : FLOAT[64, 128], Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOAT[64, 10]:
+def sample_model(X: FLOAT[64, 128], Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOAT[64, 10]:
     matmul = op.MatMul(X, Wt) + Bias
     return onnx_hardmax(matmul, axis=1)
+
 
 # onnx_model is an in-memory ModelProto
 onnx_model = sample_model.to_model_proto()
