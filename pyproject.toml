@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
 addopts = "-ra --tb=short --color=yes"
