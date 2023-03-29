@@ -1521,6 +1521,7 @@ def aten_upsample_bicubic2d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_bilinear2d", trace_only=True)
 def aten_upsample_bilinear2d(
     self: TensorType,
     output_size: INT64,
@@ -1530,7 +1531,7 @@ def aten_upsample_bilinear2d(
 ) -> TensorType:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_upsample_bilinear2d_backward(

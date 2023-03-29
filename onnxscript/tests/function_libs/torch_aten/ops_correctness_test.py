@@ -504,6 +504,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
+    "nn.functional.upsample_bilinear2d": nn_ops.aten_upsample_bilinear2d,
     "nonzero": core_ops.aten_nonzero,
     "normal": core_ops.aten_normal,
     "ones": core_ops.aten_ones,
@@ -972,6 +973,14 @@ duplicate_opinfo(
     (
         "min_other",
         "min_dim",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.upsample_bilinear",
+    (
+        "nn.functional.upsample_bilinear2d",
     ),
 )
 
