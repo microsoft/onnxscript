@@ -84,4 +84,3 @@ jobs:
       if: (github.event_name == 'schedule') # Only triggered by weekly event
       run: |
         twine upload --verbose onnx-script/dist/*.whl --repository-url https://upload.pypi.org/legacy/ -u ${{ secrets.ONNXSCRIPTWEEKLY_USERNAME }} -p ${{ secrets.ONNXSCRIPTWEEKLY_TOKEN }}
-        twine upload --verbose onnx-script/dist/*.whl --repository-url https://test.pypi.org/legacy/ -u ${{ secrets.TESTPYPI_USERNAME }} -p ${{ secrets.TESTPYPI_PASSWORD }}
