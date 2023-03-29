@@ -1296,7 +1296,7 @@ class Converter:
         # TODO: Does not yet handle nested functions within nested functions.
         self.current_fn.add_nested_function(function_ir)
 
-    def translate_function_def(self, fn: ast.FunctionDef):
+    def translate_function_def(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
         logger.debug("Converter:translate_function_def:%s", fn.name)
         args = fn.args
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
@@ -1355,7 +1355,7 @@ class Converter:
             self.translate_stmt(s, index_of_stmt=i)
         return self.current_fn
 
-    def top_level_stmt(self, stmt: ast.FunctionDef):
+    def top_level_stmt(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
         if isinstance(stmt, ast.FunctionDef):
             self.init_function_translation()
             if self.default_opset_ is None:
