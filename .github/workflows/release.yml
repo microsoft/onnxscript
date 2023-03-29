@@ -23,11 +23,6 @@ jobs:
       with:
          path: ./onnx-script
     - name: Checkout ONNX-Script submodules
-      run: |
-         cd onnx-script
-         auth_header="$(git config --local --get http.https://github.com/.extraheader)"
-         git submodule sync --recursive
-         git -c "http.extraheader=$auth_header" -c protocol.version=2 submodule update --init --force --recursive --depth=1
 
     - name: Set up Python 3.11
       uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4.5.0
