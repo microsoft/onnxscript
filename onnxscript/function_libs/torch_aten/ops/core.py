@@ -4187,7 +4187,7 @@ def aten_native_layer_norm(
     normalized_shape: INT64,
     weight: Optional[TReal],
     bias: Optional[TReal],
-    eps: float,
+    eps: float = 1e-05,
 ) -> Tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
@@ -5048,6 +5048,8 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 @torch_op("aten::rsub")
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+    # FIXME(titaiwang): get rid of this when we have type_promotion
+    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, self)
     return op.Sub(other, op.Mul(self, alpha))
 
