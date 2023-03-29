@@ -9,7 +9,7 @@ import os
 import pathlib
 import shutil
 
-from onnxscript._internal.opgen import onnx_opset_builder
+import onnx_opset_builder
 
 MIN_REQUIRED_ONNX_OPSET_VERSION = 14
 

@@ -13,7 +13,7 @@ from typing import Any, Iterable, Optional, TextIO
 import onnx.defs
 import onnx.helper
 
-from onnxscript._internal.opgen import pygen as cg
+from onnxscript._internal.pygen import pygen as cg
 
 __all__ = [
     "QualOpName",

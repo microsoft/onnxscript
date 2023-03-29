@@ -7,7 +7,7 @@ import io
 import textwrap
 import unittest
 
-from onnxscript._internal.opgen import pygen as cg
+from onnxscript._internal.pygen import pygen as cg
 
 
 class PygenTest(unittest.TestCase):
