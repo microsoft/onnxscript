@@ -24,6 +24,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TReal,
+    TTensor,
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import BOOL, TensorType
@@ -949,7 +950,7 @@ def aten_reflection_pad1d_backward(
 
 
 @torch_op("aten::reflection_pad2d")
-def aten_reflection_pad2d(self: TensorType, padding: INT64) -> TensorType:
+def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
     """reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
     # Convert torch padding format to onnx padding format
     # Python code is:
@@ -1033,7 +1034,7 @@ def aten_replication_pad1d_backward(
 
 
 @torch_op("aten::replication_pad2d")
-def aten_replication_pad2d(self: TensorType, padding: INT64) -> TensorType:
+def aten_replication_pad2d(self: TTensor, padding: INT64) -> TTensor:
     """replication_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
 
     neg_1 = op.Constant(value_ints=[-1])
@@ -1070,7 +1071,7 @@ def aten_replication_pad2d_backward(
 
 
 @torch_op("aten::replication_pad3d")
-def aten_replication_pad3d(self: TensorType, padding: INT64) -> TensorType:
+def aten_replication_pad3d(self: TTensor, padding: INT64) -> TTensor:
     """replication_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
 
     neg_1 = op.Constant(value_ints=[-1])

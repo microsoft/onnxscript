@@ -601,7 +601,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
-    "nn.functional.pad": nn_ops.aten_reflection_pad2d,
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
     "nn.functional.upsample_nearest2d": (
@@ -1336,10 +1335,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            # if len(cpu_sample.input.shape) == 5:
-            #     print(i)
-            # else:
-            #     continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
