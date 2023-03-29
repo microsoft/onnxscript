@@ -4211,7 +4211,7 @@ def aten_native_layer_norm(
     normalized_shape: INT64,
     weight: Optional[TReal],
     bias: Optional[TReal],
-    eps: float = 1e-05,
+    eps: float,
 ) -> Tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
@@ -4333,7 +4333,6 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 def aten_new_ones_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     one = op.Constant(value_float=1.0)
     one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
@@ -4351,7 +4350,6 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused
 def aten_new_zeros_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
     return op.Expand(zero, size)
