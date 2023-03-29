@@ -590,9 +590,6 @@ class Opset16(Opset15):
         output data (Tensor<T>) where the function `f(x) = alpha * x for x < 0`,
         `f(x) = x for x >= 0`, is applied to the data tensor elementwise.
 
-        **History**
-        - Version 16 adds bfloat16 to the types allowed.
-
 
         Args:
             X: (differentiable) Input tensor
@@ -810,32 +807,32 @@ class Opset16(Opset15):
         This table summarizes the operating modes of this operator with equivalent
         C-style code:
 
-            Operator inputs defined as (max_trip_count, condition_var).
+        Operator inputs defined as (max_trip_count, condition_var).
 
-            input ("", ""):
+        * input ("", ""):
                 for (int i=0; ; ++i) {
                   cond = ... // Note this value is ignored, but is required in the body
                 }
 
-            input ("", cond) // Note this is analogous to a while loop
+        * input ("", cond) // Note this is analogous to a while loop
                 bool cond = ...;
                 for (int i=0; cond; ++i) {
                   cond = ...;
                 }
 
-            input ("", 1) // Note this is analogous to a do-while loop
+        * input ("", 1) // Note this is analogous to a do-while loop
                 bool cond = true
                 for (int i=0; cond; ++i) {
                   cond = ...;
                 }
 
-            input (trip_count, "") // Note this is analogous to a for loop
+        * input (trip_count, "") // Note this is analogous to a for loop
                 int trip_count = ...
                 for (int i=0; i < trip_count; ++i) {
                   cond = ...; // ignored
                 }
 
-            input (trip_count, cond)
+        * input (trip_count, cond)
                 int trip_count = ...;
                 bool cond = ...;
                 for (int i=0; i < trip_count && cond; ++i) {
@@ -1035,9 +1032,6 @@ class Opset16(Opset15):
         PRelu takes input data (Tensor<T>) and slope tensor as input, and produces one
         output data (Tensor<T>) where the function `f(x) = slope * x for x < 0`,
         `f(x) = x for x >= 0`., is applied to the data tensor elementwise.
-
-        **History**
-        - Version 16 adds bfloat16 to the types allowed.
         This operator supports **unidirectional broadcasting** (tensor slope should be unidirectional broadcastable to input tensor X); for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
         Args:
@@ -1789,10 +1783,6 @@ class Opset16(Opset15):
         with three parameters.
 
         This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
-
-        **History**
-        - Version 16 adds bfloat16 to the types allowed (for the second and third parameter).
-
 
         Args:
             condition: (non-differentiable) When True (nonzero), yield X, otherwise
