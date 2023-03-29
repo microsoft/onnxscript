@@ -191,7 +191,7 @@ class OpsetsBuilder:
                         cg.ThunkExpr(
                             'f"ONNX Script requires ONNX opset >= '
                             f"{self.min_default_opset_version} "
-                            'but {onnx.defs.onnx_opset_version()} is detected."'
+                            'but {onnx_opset_version()} is detected."'
                         ),
                     )
                 ),
