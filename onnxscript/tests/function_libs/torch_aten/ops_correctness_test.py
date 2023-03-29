@@ -521,11 +521,20 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
-    "nn.functional.reflection_pad2d": (nn_ops.aten_reflection_pad2d, _reflection_pad2d_input_wrangler),
+    "nn.functional.reflection_pad2d": (
+        nn_ops.aten_reflection_pad2d,
+        _reflection_pad2d_input_wrangler
+    ),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
-    "nn.functional.replication_pad2d": (nn_ops.aten_replication_pad2d, _replication_pad2d_input_wrangler),
-    "nn.functional.replication_pad3d": (nn_ops.aten_replication_pad3d, _replication_pad3d_input_wrangler),
+    "nn.functional.replication_pad2d": (
+        nn_ops.aten_replication_pad2d,
+        _replication_pad2d_input_wrangler
+    ),
+    "nn.functional.replication_pad3d": (
+        nn_ops.aten_replication_pad3d,
+        _replication_pad3d_input_wrangler
+    ),
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
     "nonzero": core_ops.aten_nonzero,
@@ -917,7 +926,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.replication_pad3d",
-        matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate" and len(sample.input.shape) == 5),
+        matcher=lambda sample: not (
+            len(sample.args) > 1
+            and sample.args[1] == "replicate"
+            and len(sample.input.shape) == 5
+        ),
         reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
     ),
     skip(

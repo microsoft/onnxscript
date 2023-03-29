@@ -1061,7 +1061,6 @@ def aten_replication_pad2d(self: TTensor, padding: INT64) -> TTensor:
     return op.Pad(self, onnx_padding, mode="edge")
 
 
-
 def aten_replication_pad2d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
