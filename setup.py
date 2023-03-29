@@ -30,7 +30,6 @@ setuptools.setup(
     description="ONNX Script",
     long_description=pathlib.Path("README.md").read_text(),
     long_description_content_type="text/markdown",
-    packages=packages,
     license="MIT License",
     url="https://github.com/microsoft/onnx-script",
 )
