@@ -5,20 +5,15 @@
 
 from __future__ import annotations
 
-from os import makedirs
-from pathlib import Path
-from textwrap import dedent
+import os
+import pathlib
+import textwrap
 from typing import Any, Iterable, Optional, TextIO
 
-from onnx.defs import (
-    AttributeProto,
-    OpSchema,
-    get_all_schemas_with_history,
-    onnx_opset_version,
-)
-from onnx.helper import get_attribute_value
+import onnx.defs
+import onnx.helper
 
-import opgen.pygen as cg
+from onnxscript._internal.opgen import pygen as cg
 
 __all__ = [
     "QualOpName",
@@ -139,8 +134,8 @@ class OpsetsBuilder:
 
     def _make_opset_modules(self):
         domains = {}
-        schemas: list[OpSchema] = sorted(
-            get_all_schemas_with_history(),
+        schemas: list[onnx.defs.OpSchema] = sorted(
+            onnx.defs.get_all_schemas_with_history(),
             key=lambda op: (op.domain, op.since_version, op.name),
         )
 
@@ -171,8 +166,8 @@ class OpsetsBuilder:
                     error = UnsupportedOpError(qualname, str(error))
                 self._log_unsupported(error)
 
-        if onnx_opset_version() not in domains[""]:
-            self._make_opset_module("", onnx_opset_version())
+        if onnx.defs.onnx_opset_version() not in domains[""]:
+            self._make_opset_module("", onnx.defs.onnx_opset_version())
 
         for module in self.all_modules:
             module.accept(cg.DocCommentBuilder())
@@ -196,7 +191,7 @@ class OpsetsBuilder:
                         cg.ThunkExpr(
                             'f"ONNX Script requires ONNX opset >= '
                             f"{self.min_default_opset_version} "
-                            'but {onnx_opset_version()} is detected."'
+                            'but {onnx.defs.onnx_opset_version()} is detected."'
                         ),
                     )
                 ),
@@ -252,7 +247,9 @@ class OpsetsBuilder:
                 )
             module.accept(cg.ImportAdjuster())
 
-    def _make_function(self, qualname: QualOpName, schema: OpSchema) -> cg.FunctionDef:
+    def _make_function(
+        self, qualname: QualOpName, schema: onnx.defs.OpSchema
+    ) -> cg.FunctionDef:
         op_inputs: list[cg.Expr] = []
         op_attrs: list[cg.Expr] = []
         args = list(self._make_function_args(schema))
@@ -317,34 +314,34 @@ class OpsetsBuilder:
 
         return func
 
-    def _make_function_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
+    def _make_function_args(self, schema: onnx.defs.OpSchema) -> Iterable[cg.Arg]:
         yield cg.Arg("self")
         yield from self._make_function_input_args(schema)
         yield from self._make_function_attr_args(schema)
 
-    def _make_input_arg_name(self, input_name: str, schema: OpSchema):
+    def _make_input_arg_name(self, input_name: str, schema: onnx.defs.OpSchema):
         """ONNX allows for an op to have an input and an attribute with the same name.
         Attribute names have contextual meaning however, so detect this case and disambiguate
-        the input name. See Split(1) for the only offending OpSchema as of opset 18.
+        the input name. See Split(1) for the only offending onnx.defs.OpSchema as of opset 18.
         """
         for attr in schema.attributes.values():
             if attr.name == input_name:
                 return f"{input_name}_"
         return input_name
 
-    def _make_function_input_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
+    def _make_function_input_args(self, schema: onnx.defs.OpSchema) -> Iterable[cg.Arg]:
         args: list[cg.Arg] = []
         for input in schema.inputs:
-            optional = input.option == OpSchema.FormalParameterOption.Optional
-            variadic = input.option == OpSchema.FormalParameterOption.Variadic
+            optional = input.option == onnx.defs.OpSchema.FormalParameterOption.Optional
+            variadic = input.option == onnx.defs.OpSchema.FormalParameterOption.Variadic
             heterogeneous = not input.isHomogeneous
             differentiable = (
                 input.differentiationCategory
-                == OpSchema.DifferentiationCategory.Differentiable
+                == onnx.defs.OpSchema.DifferentiationCategory.Differentiable
             )
             non_differentiable = (
                 input.differentiationCategory
-                == OpSchema.DifferentiationCategory.NonDifferentiable
+                == onnx.defs.OpSchema.DifferentiationCategory.NonDifferentiable
             )
 
             doctags = []
@@ -383,7 +380,7 @@ class OpsetsBuilder:
 
         return args
 
-    def _make_function_attr_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
+    def _make_function_attr_args(self, schema: onnx.defs.OpSchema) -> Iterable[cg.Arg]:
         attr_args = []
         for attr in schema.attributes.values():
             attr_type = parse_attr_type(attr.type)
@@ -392,7 +389,7 @@ class OpsetsBuilder:
             if attr.required:
                 pass
             elif attr.default_value.name:
-                default_value = get_attribute_value(attr.default_value)
+                default_value = onnx.helper.get_attribute_value(attr.default_value)
 
                 def fmt(value: Any) -> str:
                     if isinstance(value, (bytes, bytearray)):
@@ -427,13 +424,13 @@ class OpsetsBuilder:
             *[parse_input_output_type(type) for type in sorted(onnx_types)],
         )
 
-    def write(self, base_path: Path) -> list[Path]:
+    def write(self, base_path: pathlib.Path) -> list[pathlib.Path]:
         return sorted([self._write_module(base_path, module) for module in self.all_modules])
 
-    def _write_module(self, base_path: Path, module: cg.Module) -> Path:
+    def _write_module(self, base_path: pathlib.Path, module: cg.Module) -> pathlib.Path:
         qual_name = module.name.split(".")
         base_path = base_path.joinpath(*qual_name[:-1])
-        makedirs(base_path, exist_ok=True)
+        os.makedirs(base_path, exist_ok=True)
         path = base_path.joinpath(qual_name[-1] + ".py")
         with open(path, "w", encoding="utf-8") as writer:
             self._write_header(writer)
@@ -523,33 +520,33 @@ def parse_input_output_type(onnx_type: str) -> cg.TypeRef:
 
 
 def parse_attr_type(type) -> cg.TypeRef:
-    if type == AttributeProto.FLOAT:
+    if type == onnx.defs.AttributeProto.FLOAT:
         return cg.FloatTypeRef()
-    if type == AttributeProto.INT:
+    if type == onnx.defs.AttributeProto.INT:
         return cg.IntTypeRef()
-    if type == AttributeProto.STRING:
+    if type == onnx.defs.AttributeProto.STRING:
         return cg.StrTypeRef()
-    if type == AttributeProto.TENSOR:
+    if type == onnx.defs.AttributeProto.TENSOR:
         return cg.TypeRef(MODULE_ONNX, "TensorProto")
-    if type == AttributeProto.SPARSE_TENSOR:
+    if type == onnx.defs.AttributeProto.SPARSE_TENSOR:
         return cg.TypeRef(MODULE_ONNX, "SparseTensorProto")
-    if type == AttributeProto.GRAPH:
+    if type == onnx.defs.AttributeProto.GRAPH:
         return cg.TypeRef(MODULE_ONNX, "GraphProto")
-    if type == AttributeProto.TYPE_PROTO:
+    if type == onnx.defs.AttributeProto.TYPE_PROTO:
         return cg.TypeRef(MODULE_ONNX, "TypeProto")
-    if type == AttributeProto.FLOATS:
+    if type == onnx.defs.AttributeProto.FLOATS:
         return cg.TypingRefs.Sequence(cg.FloatTypeRef())
-    if type == AttributeProto.INTS:
+    if type == onnx.defs.AttributeProto.INTS:
         return cg.TypingRefs.Sequence(cg.IntTypeRef())
-    if type == AttributeProto.STRINGS:
+    if type == onnx.defs.AttributeProto.STRINGS:
         return cg.TypingRefs.Sequence(cg.StrTypeRef())
-    if type == AttributeProto.TENSORS:
+    if type == onnx.defs.AttributeProto.TENSORS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "TensorProto"))
-    if type == AttributeProto.SPARSE_TENSORS:
+    if type == onnx.defs.AttributeProto.SPARSE_TENSORS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "SparseTensorProto"))
-    if type == AttributeProto.GRAPHS:
+    if type == onnx.defs.AttributeProto.GRAPHS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "GraphProto"))
-    if type == AttributeProto.TYPE_PROTOS:
+    if type == onnx.defs.AttributeProto.TYPE_PROTOS:
         return cg.TypingRefs.Sequence(cg.TypeRef(MODULE_ONNX, "TypeProto"))
     raise NotImplementedError(f"attribute type not implemented: {type}")
 
@@ -557,7 +554,7 @@ def parse_attr_type(type) -> cg.TypeRef:
 def _process_documentation(doc: str):
     # Lifted from ONNX's docsgen:
     # https://github.com/onnx/onnx/blob/3fd41d249bb8006935aa0031a332dd945e61b7e5/docs/docsgen/source/onnx_sphinx.py#L414
-    doc = dedent(doc or "")
+    doc = textwrap.dedent(doc or "")
     main_docs_url = "https://github.com/onnx/onnx/blob/master/"
     rep = {
         "[the doc](IR.md)": "`ONNX <{0}docs/IR.md>`_",

@@ -3,20 +3,20 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+import io
+import textwrap
 import unittest
-from io import StringIO
-from textwrap import dedent
 
-import opgen.pygen as cg
+from onnxscript._internal.opgen import pygen as cg
 
 
 class PygenTest(unittest.TestCase):
     def assert_code(self, node: cg.Node, expected: str):
         node.accept(cg.ImportAdjuster())
-        writer = StringIO()
+        writer = io.StringIO()
         node.accept(cg.PythonWriter(writer))
         actual = writer.getvalue().strip()
-        expected = dedent(expected).strip()
+        expected = textwrap.dedent(expected).strip()
         self.assertEqual(actual, expected)
 
     def test_function_takes_one_or_many_body_stmts(self):

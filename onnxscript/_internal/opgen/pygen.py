@@ -5,9 +5,9 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from enum import Enum
-from textwrap import TextWrapper, dedent
+import abc
+import enum
+import textwrap
 from typing import (
     Any,
     Callable,
@@ -93,7 +93,7 @@ class NodePredicate:
 NodePredicate.always = NodePredicate()
 
 
-class Node(ABC):
+class Node(abc.ABC):
     # pylint: disable=W0212
 
     def __init__(self):
@@ -309,7 +309,7 @@ class Node(ABC):
         self._prev_sibling = None
         self._next_sibling = None
 
-    @abstractmethod
+    @abc.abstractmethod
     def accept(self, visitor: Visitor):
         pass
 
@@ -326,7 +326,7 @@ class Node(ABC):
         visitor.finish(self)
 
 
-class Expr(Node, ABC):
+class Expr(Node, abc.ABC):
     def accept(self, visitor: Visitor):
         self._dispatch_visit(visitor.visit_expr)
 
@@ -358,7 +358,7 @@ class Constant(Expr):
         self._dispatch_visit(visitor.visit_constant)
 
 
-class ExprList(Expr, Generic[TExpr], ABC):
+class ExprList(Expr, Generic[TExpr], abc.ABC):
     class Roles:
         Elements = Role("ExprList.Elements")
 
@@ -610,8 +610,8 @@ class EllipsisTypeRef(BuiltinTypeRef):
         super().__init__("...")
 
 
-class TypingRefs(ABC):
-    @abstractmethod
+class TypingRefs(abc.ABC):
+    @abc.abstractmethod
     def __init__(self):
         pass
 
@@ -694,11 +694,11 @@ class Arg(Node):
         self._dispatch_visit(visitor.visit_arg)
 
 
-class Stmt(Node, ABC):
+class Stmt(Node, abc.ABC):
     pass
 
 
-class BlockStmt(Stmt, ABC):
+class BlockStmt(Stmt, abc.ABC):
     pass
 
 
@@ -929,7 +929,7 @@ class Alias(Node):
         self._dispatch_visit(visitor.visit_alias)
 
 
-class ImportBase(Stmt, ABC):
+class ImportBase(Stmt, abc.ABC):
     class Roles:
         Names = Role("ImportBase.Names")
 
@@ -977,7 +977,7 @@ class Module(Node):
         self._dispatch_visit(visitor.visit_module)
 
 
-class VisitKind(Enum):
+class VisitKind(enum.Enum):
     NONE = 0
     ENTER = 1
     LEAVE = 2
@@ -1101,7 +1101,7 @@ class Visitor:
         return self.visit_node(module)
 
 
-class FixupVisitor(Visitor, ABC):
+class FixupVisitor(Visitor, abc.ABC):
     pass
 
 
@@ -1212,7 +1212,7 @@ class NodeWriterOptions:
         self.insert_final_newline = insert_final_newline
 
 
-class NodeWriter(Visitor, ABC):
+class NodeWriter(Visitor, abc.ABC):
     def __init__(self, stream: TextIO, options: Optional[NodeWriterOptions] = None):
         super().__init__()
         self._stream = stream
@@ -1387,7 +1387,7 @@ class PythonWriter(NodeWriter):
 
     def visit_thunk_stmt(self, thunk: ThunkStmt) -> bool:
         if self.visit_kind == VisitKind.ENTER and thunk.thunk:
-            lines = dedent(thunk.thunk).splitlines()
+            lines = textwrap.dedent(thunk.thunk).splitlines()
             self.write(*lines, separator="\n", allow_empty_text=True)
             if thunk.next_sibling:
                 self.write("\n")
@@ -1429,7 +1429,7 @@ class PythonWriter(NodeWriter):
         self.indent()
         if functiondef.doc:
             self.write('r"""')
-            for line in dedent(functiondef.doc).splitlines():
+            for line in textwrap.dedent(functiondef.doc).splitlines():
                 self.write(line)
                 self.write("\n")
             self.write('"""\n\n')
@@ -1459,7 +1459,7 @@ class DocCommentBuilder(Visitor):
 
     def visit_functiondef(self, functiondef: FunctionDef):
         def wrap(text: str, initial_indent="", subsequent_indent=""):
-            return TextWrapper(
+            return textwrap.TextWrapper(
                 width=self.width,
                 initial_indent=initial_indent,
                 subsequent_indent=subsequent_indent,
