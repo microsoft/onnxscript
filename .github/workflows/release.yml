@@ -23,7 +23,6 @@ jobs:
       with:
          path: ./onnx-script
     - name: Checkout ONNX-Script submodules
-      shell: bash
       run: |
          cd onnx-script
          auth_header="$(git config --local --get http.https://github.com/.extraheader)"
