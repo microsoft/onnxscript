@@ -523,17 +523,17 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
     "nn.functional.reflection_pad2d": (
         nn_ops.aten_reflection_pad2d,
-        _reflection_pad2d_input_wrangler
+        _reflection_pad2d_input_wrangler,
     ),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.replication_pad2d": (
         nn_ops.aten_replication_pad2d,
-        _replication_pad2d_input_wrangler
+        _replication_pad2d_input_wrangler,
     ),
     "nn.functional.replication_pad3d": (
         nn_ops.aten_replication_pad3d,
-        _replication_pad3d_input_wrangler
+        _replication_pad3d_input_wrangler,
     ),
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
