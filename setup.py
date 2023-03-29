@@ -14,7 +14,7 @@ import sys
 from datetime import date
 
 TOP_DIR = os.path.realpath(os.path.dirname(__file__))
-PACKAGE_NAME = "onnx_script"
+package_name = "onnx-script"
 
 with open(os.path.join(TOP_DIR, "VERSION_NUMBER")) as version_file:
     VERSION_NUMBER = version_file.read().strip()
