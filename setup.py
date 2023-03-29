@@ -11,7 +11,6 @@ import pathlib
 import setuptools
 import sys
 
-from collections import namedtuple
 from datetime import date
 
 TOP_DIR = os.path.realpath(os.path.dirname(__file__))
