@@ -36,11 +36,6 @@ jobs:
         python-version: ${{ matrix.python-version }}
         architecture: ${{ matrix.architecture }}
 
-    - name: Add msbuild to PATH
-      uses: microsoft/setup-msbuild@1ff57057b5cfdc39105cd07a01d78e9b0ea0c14c # v1.3.1
-      with:
-        msbuild-architecture: ${{ matrix.architecture }}
-
     - name: Install Python dependencies
       run: |
         python -m pip install -q --upgrade pip
