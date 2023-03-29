@@ -24,10 +24,6 @@ with open(os.path.join(TOP_DIR, "VERSION_NUMBER")) as version_file:
         PACKAGE_NAME = "onnx_script_weekly"
         sys.argv.remove("--weekly_build")
 
-packages = setuptools.find_packages() + setuptools.find_namespace_packages(
-    include="onnxscript"
-)
-
 setuptools.setup(
     name=PACKAGE_NAME,
     version=VERSION_NUMBER,
