@@ -5126,6 +5126,19 @@ def aten_scatter_add(
     return op.ScatterElements(self, index, src, axis=dim, reduction="add")
 
 
+@torch_op("aten::scatter_reduce")
+def aten_scatter_reduce(
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    reduce: str,
+    dim: int,
+    include_self: bool = True,
+):
+    result = op.ScatterElements(self, index, src, axis=dim, reduction=reduce)
+    return result
+
+
 def aten_searchsorted(
     sorted_sequence: TensorType,
     self: TensorType,

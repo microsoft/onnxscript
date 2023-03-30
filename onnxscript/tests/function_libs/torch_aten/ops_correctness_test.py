@@ -362,6 +362,21 @@ def _scatter_add_input_wrangler(
     return args, kwargs
 
 
+def _scatter_reduce_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    dict = {  # convert torch string name to onnx string name
+        "mean": "mean",
+        "sum": "add",
+        "prod": "mul",
+        "amin": "min",
+        "amax": "max",  # default none = amax
+    }
+    kwargs["reduce"] = dict[args.pop(4)]  # put the string into kwargs
+    kwargs["dim"] = args.pop(1)  # int type cannot before Tensor for input
+    return args, kwargs
+
+
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -523,6 +538,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
     "scatter_add": (core_ops.aten_scatter_add, _scatter_add_input_wrangler),
+    "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -718,6 +734,18 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
     xfail(
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
+    ),
+    xfail(
+        "scatter_reduce",
+        variant_name="mean",
+        reason="ORT doesn't support reduce='mean' option",
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    xfail(
+        "scatter_reduce",
+        variant_name="mean",
+        reason="ORT doesn't support reduce='mean' option",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "t",
@@ -928,6 +956,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+    ),
+    skip(
+        "scatter_reduce",
+        matcher=lambda sample: sample.kwargs.get("include_self") == False
+          or len(sample.input.shape) == 0,
+        reason="ORT does't support include_self=False option, and skip rank 0 case",
     ),
     skip(
         "squeeze",
@@ -1286,6 +1320,10 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            # if i==1:
+            #     print(i)
+            # else:
+            #     continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
