@@ -4186,6 +4186,9 @@ def aten_native_group_norm(
 ) -> tuple[TReal, TReal, TReal]:
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
+    # input_len = len(input.shape)
+    # if input_len == 3:
+    #     input = op.Unsqueeze(input, axes=0)
     result = op.GroupNormalization(input, weight, bias, epsilon=eps, num_groups=group)
     return result
 
