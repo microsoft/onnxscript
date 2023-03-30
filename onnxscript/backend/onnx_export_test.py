@@ -19,6 +19,8 @@ import onnxscript
 from onnxscript.backend import onnx_backend, onnx_export
 from onnxscript.tests.models import type_double
 
+from onnxscript.tests.common import version_utils
+
 
 @dataclasses.dataclass
 class SkipInfo:
@@ -70,8 +72,7 @@ SKIP_TESTS = (
     ),
     skip(
         r"^test_optional_get_element_tensor",
-        "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
-        condition=ort.__version__[:4] == "1.14",
+        "ONNX backend test produces an invalid graph",
     ),
     skip(
         r"test_loop",
