@@ -365,14 +365,7 @@ def _scatter_add_input_wrangler(
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    dict = {  # convert torch string name to onnx string name
-        "mean": "mean",
-        "sum": "add",
-        "prod": "mul",
-        "amin": "min",
-        "amax": "max",  # default none = amax
-    }
-    kwargs["reduce"] = dict[args.pop(4)]  # put the string into kwargs
+    kwargs["reduce"] = args.pop(4)  # put the string into kwargs
     kwargs["dim"] = args.pop(1)  # int type cannot before Tensor for input
     return args, kwargs
 
@@ -959,7 +952,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "scatter_reduce",
-        matcher=lambda sample: sample.kwargs.get("include_self") == False
+        matcher=lambda sample: sample.kwargs.get("include_self") is False
         or len(sample.input.shape) == 0,  # skip rank 0 case
         reason="ORT does't support include_self=False option, and skip rank 0 case",
     ),
