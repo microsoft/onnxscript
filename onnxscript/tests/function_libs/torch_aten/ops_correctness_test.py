@@ -982,9 +982,7 @@ duplicate_opinfo(
 duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
-    (
-        "nn.functional.upsample_bilinear2d",
-    ),
+    ("nn.functional.upsample_bilinear2d",),
 )
 
 duplicate_opinfo(
@@ -1298,10 +1296,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            # if i==2:
-            #     print(i)
-            # else:
-            #     continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

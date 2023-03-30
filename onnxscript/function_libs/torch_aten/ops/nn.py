@@ -1545,9 +1545,9 @@ def aten_upsample_bilinear2d(
             coordinate_transformation_mode="align_corners",
         )
     else:
-        assert(scales_h is not None)
-        assert(scales_h == scales_w)
-        scale_one = op.Constant(value_floats=[1.0,1.0])
+        # assert(scales_h is not None)
+        # assert(scales_h == scales_w)
+        scale_one = op.Constant(value_floats=[1.0, 1.0])
         scale_other = op.Constant(value_floats=[scales_h, scales_w])
         scales = op.Concat(scale_one, scale_other, axis=0)
         result = op.Resize(
