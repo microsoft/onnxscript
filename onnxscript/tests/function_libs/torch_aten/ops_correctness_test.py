@@ -355,6 +355,27 @@ def _permute_input_wrangler(
     return args, kwargs
 
 
+def _reflection_pad2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args.pop(2)  # remove 'reflect' arg
+    return args, kwargs
+
+
+def _replication_pad2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args.pop(2)  # remove 'replicate' arg
+    return args, kwargs
+
+
+def _replication_pad3d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args.pop(2)  # remove 'replicate' arg
+    return args, kwargs
+
+
 def _scatter_add_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -500,8 +521,20 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
+    "nn.functional.reflection_pad2d": (
+        nn_ops.aten_reflection_pad2d,
+        _reflection_pad2d_input_wrangler,
+    ),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
+    "nn.functional.replication_pad2d": (
+        nn_ops.aten_replication_pad2d,
+        _replication_pad2d_input_wrangler,
+    ),
+    "nn.functional.replication_pad3d": (
+        nn_ops.aten_replication_pad3d,
+        _replication_pad3d_input_wrangler,
+    ),
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
     "nonzero": core_ops.aten_nonzero,
@@ -886,6 +919,25 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload need weight as kwargs",
     ),
     skip(
+        "nn.functional.reflection_pad2d",
+        matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "reflect"),
+        reason="this Aten overload need args[1] == 'reflect' for pad mode",
+    ),
+    skip(
+        "nn.functional.replication_pad2d",
+        matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
+        reason="this Aten overload need args[1] == 'replicate' for pad mode",
+    ),
+    skip(
+        "nn.functional.replication_pad3d",
+        matcher=lambda sample: not (
+            len(sample.args) > 1
+            and sample.args[1] == "replicate"
+            and len(sample.input.shape) == 5
+        ),
+        reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
+    ),
+    skip(
         "nn.functional.scaled_dot_product_attention",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype == torch.bool,
@@ -963,6 +1015,16 @@ duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
 duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.pad",
+    (
+        "nn.functional.reflection_pad2d",
+        "nn.functional.replication_pad2d",
+        "nn.functional.replication_pad3d",
+    ),
+)
 
 duplicate_opinfo(
     OPS_DB,
