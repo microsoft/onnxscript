@@ -4347,7 +4347,6 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 def aten_new_ones_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     one = op.Constant(value_float=1.0)
     one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
@@ -4365,7 +4364,6 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused
 def aten_new_zeros_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
     return op.Expand(zero, size)
@@ -5116,6 +5114,8 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 @torch_op("aten::rsub")
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+    # FIXME(titaiwang): get rid of this when we have type_promotion
+    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, self)
     return op.Sub(other, op.Mul(self, alpha))
 
