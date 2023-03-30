@@ -1525,7 +1525,7 @@ def aten_upsample_bicubic2d_backward(
 def aten_upsample_bilinear2d(
     self: TensorType,
     size: Optional[INT64] = None,
-    # align_corners: bool,
+    align_corners: bool = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
