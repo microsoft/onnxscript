@@ -880,6 +880,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.grid_sample",
+        # FIXME: check why ort's GridSample() return different result than Torch
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic",
         reason="'bicubic' mode in ORT implemented differently with Torch",
     ),
