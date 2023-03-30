@@ -19,8 +19,6 @@ import onnxscript
 from onnxscript.backend import onnx_backend, onnx_export
 from onnxscript.tests.models import type_double
 
-from onnxscript.tests.common import version_utils
-
 
 @dataclasses.dataclass
 class SkipInfo:
