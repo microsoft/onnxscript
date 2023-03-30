@@ -93,6 +93,10 @@ def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
 
 ### Function signature
 
+Follow the exact ATen signature. Do not account for cases incompatible with the signature.
+
+Example: https://github.com/microsoft/onnx-script/pull/581
+
 ### `trace_only` ops
 
 ## Common patterns
