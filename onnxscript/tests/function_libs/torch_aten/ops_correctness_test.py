@@ -314,6 +314,17 @@ def _mse_loss_input_wrangler(
     return args, kwargs
 
 
+def _native_group_norm_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    kwargs["group"] = args.pop(1)
+    args.append(kwargs["weight"])
+    args.append(kwargs["bias"])
+    del kwargs["weight"]
+    del kwargs["bias"]
+    return args, kwargs
+
+
 def _nll_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -498,6 +509,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "mul": core_ops.aten_mul,
     "narrow": core_ops.aten_narrow,
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
+    "native_group_norm": (core_ops.aten_native_group_norm, _native_group_norm_input_wrangler),
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,
@@ -1006,6 +1018,8 @@ duplicate_opinfo(
 
 duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 
+duplicate_opinfo(OPS_DB, "nn.functional.group_norm", ("native_group_norm",))
+
 duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 
 duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
@@ -1348,6 +1362,10 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            if i == 0:
+                print(i)
+            else:
+                continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

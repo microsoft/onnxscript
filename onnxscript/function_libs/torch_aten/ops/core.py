@@ -4173,19 +4173,21 @@ def aten_native_dropout_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::native_group_norm", trace_only=True)
 def aten_native_group_norm(
-    input: TensorType,
+    input: TReal,
     weight: Optional[TensorType],
     bias: Optional[TensorType],
-    N: INT64,
-    C: INT64,
-    HxW: INT64,
-    group: int,
-    eps: float,
-) -> tuple[TensorType, TensorType, TensorType]:
+    N: INT64 = None,
+    C: INT64 = None,
+    HxW: INT64 = None,
+    group: int = None,
+    eps: float = None,
+) -> tuple[TReal, TReal, TReal]:
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    result = op.GroupNormalization(input, weight, bias, epsilon=eps, num_groups=group)
+    return result
 
 
 def aten_native_group_norm_backward(
