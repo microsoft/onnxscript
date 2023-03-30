@@ -70,7 +70,7 @@ SKIP_TESTS = (
     ),
     skip(
         r"^test_optional_get_element_tensor",
-        "ONNX backend test produces an invalid graph",
+        "ONNX backend test produces an invalid graph: https://github.com/onnx/onnx/issues/5067",
     ),
     skip(
         r"test_loop",
