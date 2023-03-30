@@ -960,7 +960,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "scatter_reduce",
         matcher=lambda sample: sample.kwargs.get("include_self") == False
-          or len(sample.input.shape) == 0,
+        or len(sample.input.shape) == 0,  # skip rank 0 case
         reason="ORT does't support include_self=False option, and skip rank 0 case",
     ),
     skip(
@@ -1320,10 +1320,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            # if i==1:
-            #     print(i)
-            # else:
-            #     continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
