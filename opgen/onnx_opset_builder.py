@@ -224,7 +224,14 @@ class OpsetsBuilder:
                 init_module.append_body(
                     cg.Assign(cg.Name(opset_export_name), cg.Call(opset_class.make_typeref()))
                 )
-        init_module.append_body(cg.Assign(cg.Name("all_opsets"), all_opsets))
+        all_opsets_type = cg.TypeRef.make_composite_if_multiple(
+            cg.TypingRefs.Mapping,
+            cg.TypeRef.make_composite_if_multiple(
+                cg.TypingRefs.Tuple, cg.StrTypeRef(), cg.IntTypeRef()
+            ),
+            cg.TypeRef(MODULE_ONNX_SCRIPT_VALUES, "Opset"),
+        )
+        init_module.append_body(cg.Assign(cg.Name("all_opsets"), all_opsets, all_opsets_type))
 
         default_opset = cg.Assign(
             cg.Name("default_opset"),
