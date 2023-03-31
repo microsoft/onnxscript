@@ -1628,7 +1628,7 @@ def aten_upsample_bilinear2d_scales(
         op.Constant(value_floats=[1.0, 1.0]),
         op.Reshape(op.Constant(value_float=scales_h), neg_1),
         op.Reshape(op.Constant(value_float=scales_w), neg_1),
-        axis=0
+        axis=0,
     )
     return op.Resize(
         self,
