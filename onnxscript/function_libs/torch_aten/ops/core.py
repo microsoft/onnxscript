@@ -5136,17 +5136,17 @@ def aten_scatter_reduce(
     include_self: bool = True,  # pylint: disable=unused-argument
 ):
     """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
+
     # FIXME(xiaowuhu): Support include_self == False
-    dict = {  # convert torch string name to onnx string name
+    reduce_mode = {  # convert torch string name to onnx string name
         "mean": "none",  # mean doesn't support in ORT
         "sum": "add",
         "prod": "mul",
         "amin": "min",
         "amax": "max",  # default none = amax
     }
-    onnx_reduce = dict[reduce]
-    result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
-    return result
+    onnx_reduce = reduce_mode[reduce]
+    return  op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
 
 
 def aten_searchsorted(
