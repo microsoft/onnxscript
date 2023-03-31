@@ -537,6 +537,14 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ),
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
+    "nn.functional.upsample_bilinear2d_scales": (
+        nn_ops.aten_upsample_bilinear2d_scales,
+        _upsample_input_wrangler,
+    ),
+    "nn.functional.upsample_bilinear2d": (
+        nn_ops.aten_upsample_bilinear2d,
+        _upsample_input_wrangler,
+    ),
     "nonzero": core_ops.aten_nonzero,
     "normal": core_ops.aten_normal,
     "ones": core_ops.aten_ones,
@@ -612,10 +620,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
-    "nn.functional.upsample_bilinear2d": (
-        nn_ops.aten_upsample_bilinear2d,
-        _upsample_input_wrangler,
-    ),
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
@@ -959,6 +963,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
+    # skip(
+    #     "nn.functional.upsample_bilinear2d",  # aten_upsample_bilinear2d
+    #     matcher=lambda sample: ,
+    #     reason="this overload need output_size as input",
+    # ),
+    # skip(
+    #     "nn.functional.upsample_bilinear2d_scales",  # aten_upsample_bilinear2d_scales
+    #     matcher=lambda sample: ,
+    #     reason="this overload need scales_h and scales_w as kwargs",
+    # ),
     skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
@@ -1044,7 +1058,10 @@ duplicate_opinfo(
 duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
-    ("nn.functional.upsample_bilinear2d",),
+    (
+        "nn.functional.upsample_bilinear2d",
+        "nn.functional.upsample_bilinear2d_scales",
+    ),
 )
 
 duplicate_opinfo(
