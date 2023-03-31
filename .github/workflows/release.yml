@@ -79,4 +79,5 @@ jobs:
     - name: Upload onnx-script-weekly wheel to TestPyPI/PyPI weekly
       if: (github.event_name == 'schedule') # Only triggered by weekly event
       run: |
-        twine upload --verbose onnx-script/dist/*.whl --repository-url https://upload.pypi.org/legacy/ -u ${{ secrets.ONNXSCRIPTWEEKLY_USERNAME }} -p ${{ secrets.ONNXSCRIPTWEEKLY_TOKEN }}
+        echo "skip twine upload"
+        # twine upload --verbose onnx-script/dist/*.whl --repository-url https://upload.pypi.org/legacy/ -u ${{ secrets.ONNXSCRIPTWEEKLY_USERNAME }} -p ${{ secrets.ONNXSCRIPTWEEKLY_TOKEN }}
