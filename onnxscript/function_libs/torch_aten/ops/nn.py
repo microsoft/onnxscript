@@ -1593,7 +1593,7 @@ def aten_upsample_bicubic2d_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::upsample_bilinear2d", trace_only=True)
+@torch_op("aten::upsample_bilinear2d")
 def aten_upsample_bilinear2d(
     self: TReal,
     output_size: INT64,
@@ -1601,7 +1601,10 @@ def aten_upsample_bilinear2d(
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     self_shape = op.Shape(self)
-    batch_channel = self_shape[:2]  # type: ignore[index]
+    # FIXME: batch_channel = self_shape[:2] cannot work for FullGraph mode
+    starts = op.Constant(value_ints=[0])
+    ends = op.Constant(value_ints=[2])
+    batch_channel = op.Slice(self_shape, starts, ends)
     output_size = op.Concat(batch_channel, output_size, axis=0)
     return op.Resize(
         self,
@@ -1623,11 +1626,17 @@ def aten_upsample_bilinear2d_scales(
 
     # assert(scales_h is not None)
     # assert(scales_h == scales_w)
-    scales = op.Constant(value_floats=[1.0, 1.0, scales_h, scales_w])
+    neg_1 = op.Constant(value_ints=[-1])
+    scales = op.Concat(
+        op.Constant(value_floats=[1.0, 1.0]),
+        op.Reshape(op.Constant(value_float=scales_h), neg_1),
+        op.Reshape(op.Constant(value_float=scales_w), neg_1),
+        axis=0
+    )
     return op.Resize(
         self,
         None,
-        scales,
+        scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
         None,
         mode="linear",
         coordinate_transformation_mode="align_corners",
