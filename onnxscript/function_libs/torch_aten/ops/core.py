@@ -5146,7 +5146,7 @@ def aten_scatter_reduce(
         "amax": "max",  # default none = amax
     }
     onnx_reduce = reduce_mode[reduce]
-    return  op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+    return op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
 
 
 def aten_searchsorted(
