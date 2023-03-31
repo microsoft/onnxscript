@@ -999,7 +999,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "scatter_reduce",
         matcher=lambda sample: sample.kwargs.get("include_self") is False
         or len(sample.input.shape) == 0,  # skip rank 0 case due to failed, even after converted to rank 1 tensor
-        reason="ORT does't support include_self=False option, and skip rank 0 case because failed in FullGraph mode",
+        reason="ORT does't support include_self=False option, and skip rank 0 case because failed in ORT",
     ),
     skip(
         "squeeze",
