@@ -765,13 +765,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "scatter_reduce",
         variant_name="mean",
         reason="ORT doesn't support reduce='mean' option",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail(
-        "scatter_reduce",
-        variant_name="mean",
-        reason="ORT doesn't support reduce='mean' option",
-        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "t",
