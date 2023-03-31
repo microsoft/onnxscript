@@ -1596,7 +1596,7 @@ def aten_upsample_bicubic2d_backward(
 @torch_op("aten::upsample_bilinear2d", trace_only=True)
 def aten_upsample_bilinear2d(
     self: TensorType,
-    size: INT64,
+    output_size: INT64,
     align_corners: bool,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
@@ -1606,8 +1606,8 @@ def aten_upsample_bilinear2d(
     self_shape = op.Shape(self)
     batch_channel = self_shape[:2]  # type: ignore[index]
 
-    if size is not None:
-        output_size = op.Concat(batch_channel, size, axis=0)
+    if output_size is not None:
+        output_size = op.Concat(batch_channel, output_size, axis=0)
         result = op.Resize(
             self,
             None,
