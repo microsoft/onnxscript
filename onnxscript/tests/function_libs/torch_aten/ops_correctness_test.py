@@ -464,7 +464,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "ge": core_ops.aten_ge,
     # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
     # "greater": core_ops.aten_greater,  # no test case in OPS_DB
-    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
     "gt": core_ops.aten_gt,
     # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
@@ -518,7 +517,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
-    "nn.functional.grid_sample": nn_ops.aten_grid_sample,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
@@ -601,6 +599,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
+    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
@@ -611,6 +610,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
+    "nn.functional.grid_sample": nn_ops.aten_grid_sample,
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,

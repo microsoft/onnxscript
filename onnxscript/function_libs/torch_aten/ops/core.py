@@ -32,7 +32,7 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
-_INT8_MIN = 127
+_INT64_MIN = -9223372036854775808
 
 @torch_op("aten::abs")
 def aten_abs(self: TReal) -> TReal:
@@ -2321,7 +2321,7 @@ def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     neg_1 = op.Constant(value_int=-1)
     starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
-    ends = starts * _INT8_MIN  # something like [-127, -127, -127]
+    ends = starts * _INT64_MIN  # something like [-xxx, -xxx, -xxx]
     result = op.Slice(self, starts, ends, dims, steps)
     return result
 
