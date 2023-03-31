@@ -5135,6 +5135,7 @@ def aten_scatter_reduce(
     dim: int,
     include_self: bool = True,  # pylint: disable=unused-argument
 ):
+    """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
     # FIXME(xiaowuhu): Support include_self == False
     dict = {  # convert torch string name to onnx string name
         "mean": "none",  # mean doesn't support in ORT
