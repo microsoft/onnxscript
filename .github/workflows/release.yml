@@ -20,7 +20,6 @@ jobs:
     strategy:
       matrix:
         python-version: ['3.11']
-        architecture: ['x64']
     steps:
     - name: Checkout ONNX-Script
       uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
@@ -38,12 +37,12 @@ jobs:
       uses: actions/setup-python@d27e3f3d7c64b4bbf8e4abfb9b63b83e846e0435 # v4.5.0
       with:
         python-version: ${{ matrix.python-version }}
-        architecture: ${{ matrix.architecture }}
+        architecture: 'x64'
 
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@1ff57057b5cfdc39105cd07a01d78e9b0ea0c14c # v1.3.1
       with:
-        msbuild-architecture: ${{ matrix.architecture }}
+        msbuild-architecture: 'x64'
 
     - name: Install Python dependencies
       run: |
@@ -54,9 +53,6 @@ jobs:
     - name: Build ONNX-Script wheel
       run: |
         $arch = 'x64'
-        if ('${{ matrix.architecture }}' -eq 'x86') {
-          $arch = 'Win32'
-        }
 
         cd onnx-script
 
