@@ -122,7 +122,7 @@ jobs:
 
       - name: Install ONNX Script wheel
         run: |
-          pip install -r requirements.txt
+          pip install -r source/requirements.txt
           python -m pip install source/dist/*.whl
 
       - name: Test the installed wheel
