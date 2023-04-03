@@ -317,9 +317,9 @@ def _mse_loss_input_wrangler(
 def _native_group_norm_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["group"] = args.pop(1)
-    args.append(kwargs["weight"])
-    args.append(kwargs["bias"])
+    kwargs["group"] = args.pop(1)  # move group(int) to kwargs as attribute
+    args.append(kwargs["weight"])  # move weight(tensor) to args as input
+    args.append(kwargs["bias"])  # move bias(tensor) to args as input
     del kwargs["weight"]
     del kwargs["bias"]
     return args, kwargs
