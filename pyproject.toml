@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [build-system]
-requires = ["setuptools", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -27,10 +27,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = ["numpy", "onnx", "typing_extensions"]
-
-[tool.setuptools_scm]
-version_scheme = "version:get_version"
-write_to = "onnxscript/_version.py"
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]

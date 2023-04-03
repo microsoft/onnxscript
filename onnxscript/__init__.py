@@ -55,8 +55,6 @@ from .onnx_types import (
 from .utils import external_tensor, proto2text
 from .values import OnnxFunction
 
-__version__ = "0.1.0"
-
 __all__ = [
     "script",
     "export_onnx_lib",
