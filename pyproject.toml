@@ -4,6 +4,42 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "onnx-script"
+dynamic = ["version"]
+description = "Authoring ONNX functions in Python"
+authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
+urls = { "Repository" = "https://github.com/onnx/onnx-script" }
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = 'Apache License v2.0' }
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: Apache Software License",
+]
+dependencies = ["numpy", "onnx", "typing_extensions"]
+
+[tool.setuptools.dynamic]
+version = {attr = "onnxscript.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["onnxscript*"]
+# Tests are by default excluded: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
+
+[tool.setuptools.package-data]
+onnxscript = ["py.typed"]
+onnx = ["py.typed"]
+
+
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
 addopts = "-ra --tb=short --color=yes"

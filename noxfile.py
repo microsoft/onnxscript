@@ -35,7 +35,7 @@ PYTORCH = "torch==2.0.0"
 def build(session):
     """Build package."""
     session.install("build", "wheel")
-    session.run("python", "setup.py", "bdist_wheel")
+    session.run("python", "-m", "build")
 
 
 @nox.session(tags=["test"])
