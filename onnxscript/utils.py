@@ -10,7 +10,6 @@ from typing import Any, Iterable, Optional, Sequence
 import numpy as np
 import onnx
 import onnx.helper
-import onnx.mapping
 from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 
 from onnxscript import tensor
@@ -81,7 +80,7 @@ def external_tensor(
 def value_to_type_proto(val):
     """Return the ONNX type of a python-value."""
     if isinstance(val, (np.ndarray, tensor.Tensor)):
-        elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[val.dtype]
+        elem_type = onnx.helper.np_dtype_to_tensor_dtype(val.dtype)
         shape = val.shape
         return onnx.helper.make_tensor_type_proto(elem_type, shape)
     if isinstance(val, int):
@@ -99,7 +98,7 @@ def value_to_type_proto(val):
         )
     if isinstance(val, numbers.Number):
         nparray = np.array(val)
-        elem_type = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[nparray.dtype]
+        elem_type = onnx.helper.np_dtype_to_tensor_dtype(nparray.dtype)
         return onnx.helper.make_tensor_type_proto(elem_type, [])
     raise ValueError(f"Value of type {type(val)} is invalid as an ONNX input/output.")
 

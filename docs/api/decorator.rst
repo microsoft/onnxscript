@@ -1,4 +1,4 @@
-decorator
+Decorator
 =========
 
 .. autofunction:: onnxscript.main.script

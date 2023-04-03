@@ -122,11 +122,11 @@ class Opset11(Opset10):
          subset of the input tensor according to the kernel size and downsampling the
          data into the output tensor Y for further processing. The output spatial shape will be following:
          ```
-         output_spatial_shape[i] = floor((input_spatial_shape[i] + pad_shape[i] - kernel_spatial_shape[i]) / strides_spatial_shape[i] + 1)
+         output_spatial_shape[i] = floor((input_spatial_shape[i] + pad_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1)) / strides_spatial_shape[i] + 1)
          ```
          or
          ```
-         output_spatial_shape[i] = ceil((input_spatial_shape[i] + pad_shape[i] - kernel_spatial_shape[i]) / strides_spatial_shape[i] + 1)
+         output_spatial_shape[i] = ceil((input_spatial_shape[i] + pad_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1)) / strides_spatial_shape[i] + 1)
          ```
          if ceil_mode is enabled
 
@@ -136,12 +136,12 @@ class Opset11(Opset10):
 
          `auto_pad` is a DEPRECATED attribute. If you are using them currently, the output spatial shape will be following:
          ```
-         VALID: output_spatial_shape[i] = ceil((input_spatial_shape[i] - kernel_spatial_shape[i] + 1) / strides_spatial_shape[i])
+         VALID: output_spatial_shape[i] = ceil((input_spatial_shape[i] - ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) + 1) / strides_spatial_shape[i])
          SAME_UPPER or SAME_LOWER: output_spatial_shape[i] = ceil(input_spatial_shape[i] / strides_spatial_shape[i])
          ```
          And pad shape will be following if `SAME_UPPER` or `SAME_LOWER`:
          ```
-         pad_shape[i] = (output_spatial_shape[i] - 1) * strides_spatial_shape[i] + kernel_spatial_shape[i] - input_spatial_shape[i]
+         pad_shape[i] = (output_spatial_shape[i] - 1) * strides_spatial_shape[i] + ((kernel_spatial_shape[i] - 1) * dilations[i] + 1) - input_spatial_shape[i]
          ```
          The output of each pooling window is divided by the number of elements (exclude pad when attribute count_include_pad is zero).
 
@@ -209,16 +209,16 @@ class Opset11(Opset10):
 
 
         Bitwise shift operator performs element-wise operation. For each input element, if the
-         attribute "direction" is "RIGHT", this operator moves its binary representation toward
-         the right side so that the input value is effectively decreased. If the attribute "direction"
-         is "LEFT", bits of binary representation moves toward the left side, which results the
-         increase of its actual value. The input X is the tensor to be shifted and another input
-         Y specifies the amounts of shifting. For example, if "direction" is "Right", X is [1, 4],
-         and S is [1, 1], the corresponding output Z would be [0, 2]. If "direction" is "LEFT" with
-         X=[1, 2] and S=[1, 2], the corresponding output Y would be [2, 8].
+        attribute "direction" is "RIGHT", this operator moves its binary representation toward
+        the right side so that the input value is effectively decreased. If the attribute "direction"
+        is "LEFT", bits of binary representation moves toward the left side, which results the
+        increase of its actual value. The input X is the tensor to be shifted and another input
+        Y specifies the amounts of shifting. For example, if "direction" is "Right", X is [1, 4],
+        and S is [1, 1], the corresponding output Z would be [0, 2]. If "direction" is "LEFT" with
+        X=[1, 2] and S=[1, 2], the corresponding output Y would be [2, 8].
 
-         Because this operator supports Numpy-style broadcasting, X's and Y's shapes are
-         not necessarily identical.
+        Because this operator supports Numpy-style broadcasting, X's and Y's shapes are
+        not necessarily identical.
         This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check `Broadcasting in ONNX <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`_.
 
         Args:
@@ -935,29 +935,34 @@ class Opset11(Opset10):
         Scale is calculated as:
         ::
 
-             y_scale = (max(x) - min(x))/(qmax - qmin)
-             * where qmax and qmin are max and min values for quantization range .i.e [0, 255] in case of uint8
-             * data range is adjusted to include 0.
+            y_scale = (max(x) - min(x))/(qmax - qmin)
 
+
+
+        * where qmax and qmin are max and min values for quantization range .i.e [0, 255] in case of uint8
+        * data range is adjusted to include 0.
 
         Zero point is calculated as:
         ::
 
             intermediate_zero_point = qmin - min(x)/y_scale
             y_zero_point = cast(round(saturate(itermediate_zero_point)))
-            * where qmax and qmin are max and min values for quantization range .i.e [0, 255] in case of uint8
-            * for saturation, it saturates to [0, 255] if it's uint8, or [-127, 127] if it's int8. Right now only uint8 is supported.
-            * rounding to nearest ties to even.
 
+
+
+        * where qmax and qmin are max and min values for quantization range .i.e [0, 255] in case of uint8
+        * for saturation, it saturates to [0, 255] if it's uint8, or [-127, 127] if it's int8. Right now only uint8 is supported.
+        * rounding to nearest ties to even.
 
         Data quantization formula is:
         ::
 
             y = saturate (round (x / y_scale) + y_zero_point)
-            * for saturation, it saturates to [0, 255] if it's uint8, or [-127, 127] if it's int8. Right now only uint8 is supported.
-            * rounding to nearest ties to even.
 
 
+
+        * for saturation, it saturates to [0, 255] if it's uint8, or [-127, 127] if it's int8. Right now only uint8 is supported.
+        * rounding to nearest ties to even.
 
 
         Args:
@@ -1179,7 +1184,7 @@ class Opset11(Opset10):
         Let
         k = indices[i_{0}, ..., i_{q-1}]
         Then
-        output[i_{0}, ..., i_{q-1}, j_{0}, ..., j_{r-2}] = input[j_{0}, k, j_{1}, ..., j_{r-2}]
+        output[j_{0}, i_{0}, ..., i_{q-1}, j_{1}, ..., j_{r-2}] = input[j_{0}, k, j_{1}, ..., j_{r-2}]
 
         ::
 
@@ -1193,11 +1198,9 @@ class Opset11(Opset10):
               ]
               axis = 1,
               output = [
-                  [
-                      [1.0, 1.9],
-                      [2.3, 3.9],
-                      [4.5, 5.9],
-                  ],
+                  [[1.0, 1.9]],
+                  [[2.3, 3.9]],
+                  [[4.5, 5.9]],
               ]
 
 
@@ -2505,27 +2508,40 @@ class Opset11(Opset10):
         Generate a tensor containing a sequence of numbers that begin at `start` and extends by increments of `delta`
         up to `limit` (exclusive).
 
-        The number of elements in the output of range is computed as below-
+        The number of elements in the output of range is computed as below:
 
-        `number_of_elements = max( ceil( (limit - start) / delta ) , 0 )`
+        ::
 
-        The pseudocode determining the contents of the output is shown below-
+            number_of_elements = max( ceil( (limit - start) / delta ) , 0 )
 
-        `for(int i=0; i<number_of_elements; ++i)`
 
-        `{`
 
-        `    output[i] =  start + (i * delta);  `
+        The pseudocode determining the contents of the output is shown below:
 
-        `}`
+        ::
 
-        `Example 1`
-        Inputs: start = 3, limit = 9, delta = 3
-        Output: [3, 6]
+            for(int i=0; i<number_of_elements; ++i) {
+              output[i] =  start + (i * delta);
+            }
 
-        `Example 2`
-        Inputs: start = 10, limit = 4, delta = -2
-        Output: [10, 8, 6]
+
+
+        Example 1
+
+        ::
+
+            Inputs: start = 3, limit = 9, delta = 3
+            Output: [3, 6]
+
+
+
+        Example 2
+
+        ::
+
+            Inputs: start = 10, limit = 4, delta = -2
+            Output: [10, 8, 6]
+
 
 
 
@@ -4304,16 +4320,19 @@ class Opset11(Opset10):
     ]:
         r"""[🌐 SplitToSequence(11)](https://onnx.ai/onnx/operators/onnx__SplitToSequence.html#splittosequence-11 "Online Documentation")
 
-        Split a tensor into a sequence of tensors, along the specified
-        'axis'. Lengths of the parts can be specified using argument 'split'.
+
+        Split a tensor into a sequence of tensors, along the specified 'axis'.
+        Lengths of the parts can be specified using the optional argument 'split'.
+        If the argument `split' is not specified, a default scalar value of 1
+        is used as the value of `split'.
         'split' must contain only positive numbers.
         'split' is either a scalar (tensor of empty shape), or a 1-D tensor.
-        If 'split' is a scalar, then 'input' will be split into equally sized chunks(if possible).
-        Last chunk will be smaller if the 'input' size along the given axis 'axis' is not divisible
-        by 'split'.
-        Otherwise, the tensor is split into 'size(split)' chunks, with lengths of the parts on 'axis'
-        specified in 'split'. In this scenario, the sum of entries in 'split' must be equal to the
-        dimension size of input tensor on 'axis'.
+        If 'split' is a scalar, then 'input' will be split into chunks all of size 'split'
+        if possible. The last chunk alone may be smaller than 'split' if the 'input' size
+        along the given axis 'axis' is not divisible by 'split'.
+        If 'split' is a 1-dimensional tensor, the input tensor is split into 'size(split)' chunks,
+        with lengths of the parts on 'axis' specified in 'split'. In this scenario, the sum of entries
+        in 'split' must be equal to the dimension size of input tensor on 'axis'.
 
 
         Args:
@@ -4450,18 +4469,19 @@ class Opset11(Opset10):
 
         Retrieve the top-K largest or smallest elements along a specified axis. Given an input tensor of
         shape [a_1, a_2, ..., a_n, r] and integer argument k, return two outputs:
-          -Value tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n]
-            which contains the values of the top k elements along the specified axis
-          -Index tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n] which
-           contains the indices of the top k elements (original indices from the input
-           tensor).
 
-        If "largest" is 1 (the default value) then the k largest elements are returned.
-        If "sorted" is 1 (the default value) then the resulting k elements will be sorted.
-        If "sorted" is 0, order of returned 'Values' and 'Indices' are undefined.
+        * Value tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n]
+          which contains the values of the top k elements along the specified axis
+        * Index tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n] which
+          contains the indices of the top k elements (original indices from the input
+          tensor).
+
+        * If "largest" is 1 (the default value) then the k largest elements are returned.
+        * If "sorted" is 1 (the default value) then the resulting k elements will be sorted.
+        * If "sorted" is 0, order of returned 'Values' and 'Indices' are undefined.
 
         Given two equivalent values, this operator uses the indices along the axis as
-         a tiebreaker. That is, the element with the lower index will appear first.
+        a tiebreaker. That is, the element with the lower index will appear first.
 
 
         Args:
@@ -4563,67 +4583,111 @@ class Opset11(Opset10):
         https://docs.scipy.org/doc/numpy/reference/generated/numpy.unique.html
 
         Example 1:
-          input_X = [2, 1, 1, 3, 4, 3]
-          attribute_sorted = 0
-          attribute_axis = None
-          output_Y = [2, 1, 3, 4]
-          output_indices = [0, 1, 3, 4]
-          output_inverse_indices = [0, 1, 1, 2, 3, 2]
-          output_counts = [1, 2, 2, 1]
+        ::
+
+            input_X = [2, 1, 1, 3, 4, 3]
+            attribute_sorted = 0
+            attribute_axis = None
+            output_Y = [2, 1, 3, 4]
+            output_indices = [0, 1, 3, 4]
+            output_inverse_indices = [0, 1, 1, 2, 3, 2]
+            output_counts = [1, 2, 2, 1]
+
+
 
         Example 2:
-          input_X = [[1, 3], [2, 3]]
-          attribute_sorted = 1
-          attribute_axis = None
-          output_Y = [1, 2, 3]
-          output_indices = [0, 2, 1]
-          output_inverse_indices = [0, 2, 1, 2]
-          output_counts = [1, 1, 2]
+        ::
+
+            input_X = [[1, 3], [2, 3]]
+            attribute_sorted = 1
+            attribute_axis = None
+            output_Y = [1, 2, 3]
+            output_indices = [0, 2, 1]
+            output_inverse_indices = [0, 2, 1, 2]
+            output_counts = [1, 1, 2]
+
+
 
         Example 3:
-          input_X = [[1, 0, 0], [1, 0, 0], [2, 3, 4]]
-          attribute_sorted = 1
-          attribute_axis = 0
-          output_Y = [[1, 0, 0], [2, 3, 4]]
-          output_indices = [0, 2]
-          output_inverse_indices = [0, 0, 1]
-          output_counts = [2, 1]
+        ::
+
+            input_X = [[1, 0, 0], [1, 0, 0], [2, 3, 4]]
+            attribute_sorted = 1
+            attribute_axis = 0
+            output_Y = [[1, 0, 0], [2, 3, 4]]
+            output_indices = [0, 2]
+            output_inverse_indices = [0, 0, 1]
+            output_counts = [2, 1]
+
+
 
         Example 4:
-          input_x = [[[1., 1.], [0., 1.], [2., 1.], [0., 1.]],
-                     [[1., 1.], [0., 1.], [2., 1.], [0., 1.]]]
-          attribute_sorted = 1
-          attribute_axis = 1
+        ::
 
-          intermediate data are presented below for better understanding:
+            input_x = [[[1., 1.], [0., 1.], [2., 1.], [0., 1.]],
+                        [[1., 1.], [0., 1.], [2., 1.], [0., 1.]]]
+            attribute_sorted = 1
+            attribute_axis = 1
 
-          there are 4 subtensors sliced along axis 1 of input_x (shape = (2, 4, 2)):
-          A: [[1, 1], [1, 1]],
-             [[0, 1], [0, 1]],
-             [[2, 1], [2, 1]],
-             [[0, 1], [0, 1]].
 
-          there are 3 unique subtensors:
-          [[1, 1], [1, 1]],
-          [[0, 1], [0, 1]],
-          [[2, 1], [2, 1]].
 
-          sorted unique subtensors:
-          B: [[0, 1], [0, 1]],
-             [[1, 1], [1, 1]],
-             [[2, 1], [2, 1]].
+        intermediate data are presented below for better understanding:
+        there are 4 subtensors sliced along axis 1 of input_x (shape = (2, 4, 2)):
+        ::
 
-          output_Y is constructed from B:
-          [[[0. 1.], [1. 1.], [2. 1.]],
-           [[0. 1.], [1. 1.], [2. 1.]]]
+            A: [[1, 1], [1, 1]],
+               [[0, 1], [0, 1]],
+               [[2, 1], [2, 1]],
+               [[0, 1], [0, 1]].
 
-          output_indices is to map from B to A:
-          [1, 0, 2]
 
-          output_inverse_indices is to map from A to B:
-          [1, 0, 2, 0]
 
-          output_counts = [2 1 1]
+        there are 3 unique subtensors:
+        ::
+
+            [[1, 1], [1, 1]],
+            [[0, 1], [0, 1]],
+            [[2, 1], [2, 1]].
+
+
+
+        sorted unique subtensors:
+        ::
+
+            B: [[0, 1], [0, 1]],
+               [[1, 1], [1, 1]],
+               [[2, 1], [2, 1]].
+
+
+
+        output_Y is constructed from B:
+        ::
+
+            [[[0. 1.], [1. 1.], [2. 1.]],
+             [[0. 1.], [1. 1.], [2. 1.]]]
+
+
+
+        output_indices is to map from B to A:
+        ::
+
+            [1, 0, 2]
+
+
+
+        output_inverse_indices is to map from A to B:
+        ::
+
+            [1, 0, 2, 0]
+
+
+
+        output_counts:
+        ::
+
+            [2, 1, 1]
+
+
 
 
         Args:

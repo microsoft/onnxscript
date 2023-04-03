@@ -7,12 +7,11 @@ from __future__ import annotations
 import io
 import logging
 import warnings
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Protocol, Sequence
 
 import onnx
 from onnx import ValueInfoProto, helper
 from onnx.defs import onnx_opset_version
-from typing_extensions import Protocol
 
 import onnxscript
 from onnxscript import type_annotation as ta
@@ -255,7 +254,7 @@ class IRFunction:
             raise TypeError(f"Issue with type f{type(fun)}.") from e
         self.called_functions[fun.name] = proto
 
-    def add_nested_function(self, fun: "IRFunction") -> None:
+    def add_nested_function(self, fun: IRFunction) -> None:
         self.nested_functions[fun.name] = fun
 
     def to_model_proto(
@@ -406,7 +405,7 @@ class IRFunction:
         # If this *attribute_proto* is not available,
         # all attributes with a default value are moved to the first
         # list, default values are removed.
-        # TODO: remove this when onnx==1.13.0 is released.
+        # TODO: remove this when onnx with attribute_proto is released.
         if hasattr(onnx.FunctionProto, "attribute_proto"):
             atts = self.attrs
         else:

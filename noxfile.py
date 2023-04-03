@@ -10,12 +10,9 @@ nox.options.error_on_missing_interpreters = False
 
 
 COMMON_TEST_DEPENDENCIES = (
-    "autopep8",
     "click",
     "jinja2",
-    'numpy==1.23.5; python_version>="3.8"',
-    'numpy; python_version<"3.8"',
-    "protobuf<4",
+    "numpy==1.23.5",
     "typing_extensions",
     "beartype",
     "types-PyYAML",
@@ -23,14 +20,23 @@ COMMON_TEST_DEPENDENCIES = (
     "packaging",
     "parameterized",
     "pytest-cov",
+    "pytest-randomly",
     "pytest-subtests",
     "pytest-xdist",
     "pytest!=7.1.0",
     "pyyaml",
 )
-ONNX = "onnx==1.13"
-ONNX_RUNTIME = "onnxruntime==1.13.1"
-PYTORCH = "torch==1.13"
+ONNX = "onnx==1.13.1"
+ONNX_RUNTIME = "onnxruntime==1.14.1"
+PYTORCH = "torch==2.0.0"
+ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
+    "flatbuffers",
+    "coloredlogs",
+    "sympy",
+    "numpy",
+    "packaging",
+    "protobuf",
+)
 
 
 @nox.session(tags=["build"])
@@ -58,6 +64,7 @@ def test(session):
 @nox.session(tags=["test-function-experiment"])
 def test_onnx_func_expe(session):
     """Test with onnx function experiment builds."""
+    # TODO(justinchuby): Remove when test-ort-nightly contains this change.
     session.install(
         *COMMON_TEST_DEPENDENCIES,
         PYTORCH,
@@ -69,12 +76,8 @@ def test_onnx_func_expe(session):
         "--pre",
         "ort-function-experiment-nightly",
     )
-    session.install(
-        "-f",
-        "https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html",
-        "--pre",
-        "onnx-function-experiment",
-    )
+
+    session.install("-r", "requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
@@ -100,8 +103,20 @@ def test_torch_nightly(session):
 @nox.session(tags=["test-onnx-weekly"])
 def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
-    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH, "wheel")
-    session.install("--index-url", "https://test.pypi.org/simple/", "onnx-weekly")
+    session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
+    session.install("-r", "requirements-onnx-weekly.txt")
+    session.install(".", "--no-deps")
+    session.run("pip", "list")
+    session.run("pytest", "onnxscript", *session.posargs)
+
+
+@nox.session(tags=["test-ort-nightly"])
+def test_ort_nightly(session):
+    """Test with ONNX Runtime nightly builds."""
+    session.install(
+        *COMMON_TEST_DEPENDENCIES, PYTORCH, ONNX, *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES
+    )
+    session.install("-r", "requirements-ort-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)

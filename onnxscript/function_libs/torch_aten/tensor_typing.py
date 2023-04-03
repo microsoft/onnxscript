@@ -21,10 +21,12 @@ from onnxscript import (
     INT16,
     INT32,
     INT64,
+    STRING,
     UINT8,
 )
 
 # NOTE: We do not care about unsigned types beyond UINT8 because PyTorch does not us them.
+# More detail can be found: https://pytorch.org/docs/stable/tensors.html
 
 _TensorType = Union[
     BFLOAT16,
@@ -54,6 +56,7 @@ RealType = Union[
 ]
 
 TTensor = TypeVar("TTensor", bound=_TensorType)
+TTensorOrString = TypeVar("TTensorOrString", bound=Union[_TensorType, STRING])
 TFloat = TypeVar("TFloat", bound=_FloatType)
 TFloatOrBFloat16 = TypeVar("TFloatOrBFloat16", bound=Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16])
 TInt = TypeVar("TInt", bound=IntType)
@@ -64,3 +67,4 @@ TRealUnlessInt16OrInt8 = TypeVar(
 TRealUnlessFloat16OrInt8 = TypeVar(
     "TRealUnlessFloat16OrInt8", bound=Union[DOUBLE, FLOAT, INT16, INT32, INT64]
 )
+TrealOrUInt8 = TypeVar("TrealOrUInt8", bound=Union[RealType, UINT8])

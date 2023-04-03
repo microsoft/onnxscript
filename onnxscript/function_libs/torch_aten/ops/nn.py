@@ -17,22 +17,24 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
+import onnxscript
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TReal,
+    TTensor,
 )
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import TensorType
+from onnxscript.onnx_types import BOOL, TensorType
 
 _MATH_PI = math.pi
 
 
 @torch_op("aten::aten_adaptive_avg_pool1d")
 def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
-    # adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor
+    """adaptive_avg_pool1d(Tensor self, int[1] output_size) -> Tensor"""
 
     # assert output_size == [1]
     # TODO(justinchuby): Specify input constraints
@@ -50,7 +52,7 @@ def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
 
 @torch_op("aten::aten_adaptive_avg_pool2d")
 def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
-    # adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor
+    """adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor"""
 
     # assert output_size == [1, 1]
     # TODO(justinchuby): Specify input constraints
@@ -68,7 +70,7 @@ def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
 
 @torch_op("aten::aten_adaptive_avg_pool3d")
 def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
-    # adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor
+    """adaptive_avg_pool3d(Tensor self, SymInt[3] output_size) -> Tensor"""
 
     # assert output_size == [1, 1, 1]
     # TODO(justinchuby): Specify input constraints
@@ -87,7 +89,7 @@ def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
 def aten_adaptive_max_pool1d(
     self: TensorType, output_size: Sequence[int]
 ) -> tuple[TensorType, TensorType]:
-    # adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)
+    """adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)"""
 
     raise NotImplementedError()
 
@@ -95,7 +97,7 @@ def aten_adaptive_max_pool1d(
 def aten_adaptive_max_pool2d(
     self: TensorType, output_size: Sequence[int]
 ) -> tuple[TensorType, TensorType]:
-    # adaptive_max_pool2d(Tensor self, int[2] output_size) -> (Tensor, Tensor)
+    """adaptive_max_pool2d(Tensor self, int[2] output_size) -> (Tensor, Tensor)"""
 
     raise NotImplementedError()
 
@@ -103,7 +105,7 @@ def aten_adaptive_max_pool2d(
 def aten_adaptive_max_pool2d_backward(
     grad_output: TensorType, self: TensorType, indices: TensorType
 ) -> TensorType:
-    # adaptive_max_pool2d_backward(Tensor grad_output, Tensor self, Tensor indices) -> Tensor
+    """adaptive_max_pool2d_backward(Tensor grad_output, Tensor self, Tensor indices) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -111,7 +113,7 @@ def aten_adaptive_max_pool2d_backward(
 def aten_adaptive_max_pool3d(
     self: TensorType, output_size: Sequence[int]
 ) -> tuple[TensorType, TensorType]:
-    # adaptive_max_pool3d(Tensor self, int[3] output_size) -> (Tensor, Tensor)
+    """adaptive_max_pool3d(Tensor self, int[3] output_size) -> (Tensor, Tensor)"""
 
     raise NotImplementedError()
 
@@ -119,7 +121,7 @@ def aten_adaptive_max_pool3d(
 def aten_adaptive_max_pool3d_backward(
     grad_output: TensorType, self: TensorType, indices: TensorType
 ) -> TensorType:
-    # adaptive_max_pool3d_backward(Tensor grad_output, Tensor self, Tensor indices) -> Tensor
+    """adaptive_max_pool3d_backward(Tensor grad_output, Tensor self, Tensor indices) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -133,7 +135,7 @@ def aten_avg_pool2d(
     count_include_pad: bool = True,
     divisor_override: Optional[int] = None,
 ) -> TensorType:
-    # avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor
+    """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -148,7 +150,7 @@ def aten_avg_pool2d_backward(
     count_include_pad: bool,
     divisor_override: Optional[int],
 ) -> TensorType:
-    # avg_pool2d_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] stride, int[2] padding, bool ceil_mode, bool count_include_pad, int? divisor_override) -> Tensor
+    """avg_pool2d_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] stride, int[2] padding, bool ceil_mode, bool count_include_pad, int? divisor_override) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -162,7 +164,7 @@ def aten_avg_pool3d(
     count_include_pad: bool = True,
     divisor_override: Optional[int] = None,
 ) -> TensorType:
-    # avg_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor
+    """avg_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -177,7 +179,7 @@ def aten_avg_pool3d_backward(
     count_include_pad: bool,
     divisor_override: Optional[int],
 ) -> TensorType:
-    # avg_pool3d_backward(Tensor grad_output, Tensor self, int[3] kernel_size, int[3] stride, int[3] padding, bool ceil_mode, bool count_include_pad, int? divisor_override) -> Tensor
+    """avg_pool3d_backward(Tensor grad_output, Tensor self, int[3] kernel_size, int[3] stride, int[3] padding, bool ceil_mode, bool count_include_pad, int? divisor_override) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -188,7 +190,7 @@ def aten_binary_cross_entropy(
     weight: Optional[TensorType] = None,
     reduction: int = 1,
 ) -> TensorType:
-    # binary_cross_entropy(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean) -> Tensor
+    """binary_cross_entropy(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -200,14 +202,14 @@ def aten_binary_cross_entropy_backward(
     weight: Optional[TensorType] = None,
     reduction: int = 1,
 ) -> TensorType:
-    # binary_cross_entropy_backward(Tensor grad_output, Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean) -> Tensor
+    """binary_cross_entropy_backward(Tensor grad_output, Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean) -> Tensor"""
 
     raise NotImplementedError()
 
 
 @torch_op("aten::celu")
 def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
-    # celu(Tensor self, Scalar alpha=1.0) -> Tensor
+    """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
@@ -220,7 +222,7 @@ def aten_col2im(
     padding: Sequence[int],
     stride: Sequence[int],
 ) -> TensorType:
-    # col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor
+    """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -234,22 +236,36 @@ def aten_conv_depthwise3d(
     padding: INT64,
     dilation: Sequence[int],
 ) -> TensorType:
-    # conv_depthwise3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias, int[3] stride, SymInt[3] padding, int[3] dilation) -> Tensor
+    """conv_depthwise3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias, int[3] stride, SymInt[3] padding, int[3] dilation) -> Tensor"""
 
     raise NotImplementedError()
 
 
+@torch_op("aten::cross_entropy_loss")
 def aten_cross_entropy_loss(
-    self: TensorType,
-    target: TensorType,
-    weight: Optional[TensorType] = None,
-    reduction: int = 1,
-    ignore_index: INT64 = -100,
-    label_smoothing: float = 0.0,
-) -> TensorType:
-    # cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor
+    self: TFloatOrBFloat16,
+    target: Sequence[int],
+    weight: Optional[TFloatOrBFloat16] = None,
+    reduction: int = 1,  # default is 'mean'
+    ignore_index: int = -100,
+    label_smoothing: float = 0.0,  # this was ignored due to ONNX not support
+) -> TFloatOrBFloat16:
+    """cross_entropy_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100, float label_smoothing=0.0) -> Tensor"""
 
-    raise NotImplementedError()
+    if reduction == 0:  # "none"
+        result, _ = op.SoftmaxCrossEntropyLoss(
+            self, target, weight, reduction="none", ignore_index=ignore_index
+        )
+    elif reduction == 2:  # "sum"
+        result, _ = op.SoftmaxCrossEntropyLoss(
+            self, target, weight, reduction="sum", ignore_index=ignore_index
+        )
+    else:  # "mean", default
+        result, _ = op.SoftmaxCrossEntropyLoss(
+            self, target, weight, reduction="mean", ignore_index=ignore_index
+        )
+
+    return result
 
 
 @torch_op("aten::elu")
@@ -259,7 +275,7 @@ def aten_elu(
     scale: float = 1.0,
     input_scale: float = 1.0,
 ) -> TFloat:
-    # elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor
+    """elu(Tensor self, Scalar alpha=1, Scalar scale=1, Scalar input_scale=1) -> Tensor"""
 
     # del scale
     # del input_scale
@@ -274,13 +290,13 @@ def aten_elu_backward(
     is_result: bool,
     self_or_result: TensorType,
 ) -> TensorType:
-    # elu_backward(Tensor grad_output, Scalar alpha, Scalar scale, Scalar input_scale, bool is_result, Tensor self_or_result) -> Tensor
+    """elu_backward(Tensor grad_output, Scalar alpha, Scalar scale, Scalar input_scale, bool is_result, Tensor self_or_result) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_flatten_dense_tensors(tensors: Sequence[TensorType]) -> TensorType:
-    # flatten_dense_tensors(Tensor[] tensors) -> Tensor
+    """flatten_dense_tensors(Tensor[] tensors) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -291,7 +307,7 @@ def aten_fractional_max_pool2d(
     output_size: Sequence[int],
     random_samples: TensorType,
 ) -> tuple[TensorType, TensorType]:
-    # fractional_max_pool2d(Tensor self, int[2] kernel_size, int[2] output_size, Tensor random_samples) -> (Tensor, Tensor)
+    """fractional_max_pool2d(Tensor self, int[2] kernel_size, int[2] output_size, Tensor random_samples) -> (Tensor, Tensor)"""
 
     raise NotImplementedError()
 
@@ -303,7 +319,7 @@ def aten_fractional_max_pool2d_backward(
     output_size: Sequence[int],
     indices: TensorType,
 ) -> TensorType:
-    # fractional_max_pool2d_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] output_size, Tensor indices) -> Tensor
+    """fractional_max_pool2d_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] output_size, Tensor indices) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -314,7 +330,7 @@ def aten_fractional_max_pool3d(
     output_size: Sequence[int],
     random_samples: TensorType,
 ) -> tuple[TensorType, TensorType]:
-    # fractional_max_pool3d(Tensor self, int[3] kernel_size, int[3] output_size, Tensor random_samples) -> (Tensor, Tensor)
+    """fractional_max_pool3d(Tensor self, int[3] kernel_size, int[3] output_size, Tensor random_samples) -> (Tensor, Tensor)"""
 
     raise NotImplementedError()
 
@@ -326,14 +342,14 @@ def aten_fractional_max_pool3d_backward(
     output_size: Sequence[int],
     indices: TensorType,
 ) -> TensorType:
-    # fractional_max_pool3d_backward(Tensor grad_output, Tensor self, int[3] kernel_size, int[3] output_size, Tensor indices) -> Tensor
+    """fractional_max_pool3d_backward(Tensor grad_output, Tensor self, int[3] kernel_size, int[3] output_size, Tensor indices) -> Tensor"""
 
     raise NotImplementedError()
 
 
 @torch_op("aten::gelu", trace_only=True)
 def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
-    # gelu(Tensor self, *, str approximate='none') -> Tensor
+    """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
     self = op.Cast(self, to=FLOAT.dtype)
 
@@ -344,9 +360,9 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     return result
 
 
-@torch_op("aten::gelu", overload=True)
+@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_none(self: TReal) -> TReal:
-    # gelu(Tensor self, *, str approximate='none') -> Tensor
+    """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
     self = op.Cast(self, to=FLOAT.dtype)
     # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
@@ -358,9 +374,9 @@ def _aten_gelu_approximate_none(self: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::gelu", overload=True)
+@torch_op("aten::gelu", private=True)
 def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
-    # gelu(Tensor self, *, str approximate='none') -> Tensor
+    """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
     self = op.Cast(self, to=FLOAT.dtype)
     # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
@@ -379,19 +395,19 @@ def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
 def aten_gelu_backward(
     grad_output: TensorType, self: TensorType, approximate: str = "none"
 ) -> TensorType:
-    # gelu_backward(Tensor grad_output, Tensor self, *, str approximate='none') -> Tensor
+    """gelu_backward(Tensor grad_output, Tensor self, *, str approximate='none') -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_glu(self: TensorType, dim: int = -1) -> TensorType:
-    # glu(Tensor self, int dim=-1) -> Tensor
+    """glu(Tensor self, int dim=-1) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_glu_backward(grad_output: TensorType, self: TensorType, dim: int) -> TensorType:
-    # glu_backward(Tensor grad_output, Tensor self, int dim) -> Tensor
+    """glu_backward(Tensor grad_output, Tensor self, int dim) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -404,43 +420,43 @@ def aten_glu_backward_jvp(
     dx: TensorType,
     dim: int,
 ) -> TensorType:
-    # glu_backward_jvp(Tensor grad_x, Tensor grad_glu, Tensor x, Tensor dgrad_glu, Tensor dx, int dim) -> Tensor
+    """glu_backward_jvp(Tensor grad_x, Tensor grad_glu, Tensor x, Tensor dgrad_glu, Tensor dx, int dim) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> TensorType:
-    # glu_jvp(Tensor glu, Tensor x, Tensor dx, int dim) -> Tensor
+    """glu_jvp(Tensor glu, Tensor x, Tensor dx, int dim) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_hardsigmoid(self: TensorType) -> TensorType:
-    # hardsigmoid(Tensor self) -> Tensor
+    """hardsigmoid(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_hardsigmoid_backward(grad_output: TensorType, self: TensorType) -> TensorType:
-    # hardsigmoid_backward(Tensor grad_output, Tensor self) -> Tensor
+    """hardsigmoid_backward(Tensor grad_output, Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_hardswish(self: TensorType) -> TensorType:
-    # hardswish(Tensor self) -> Tensor
+    """hardswish(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_hardswish_backward(grad_output: TensorType, self: TensorType) -> TensorType:
-    # hardswish_backward(Tensor grad_output, Tensor self) -> Tensor
+    """hardswish_backward(Tensor grad_output, Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_hardtanh(self: TensorType, min_val: float = -1.0, max_val: float = 1.0) -> TensorType:
-    # hardtanh(Tensor self, Scalar min_val=-1, Scalar max_val=1) -> Tensor
+    """hardtanh(Tensor self, Scalar min_val=-1, Scalar max_val=1) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -448,7 +464,7 @@ def aten_hardtanh(self: TensorType, min_val: float = -1.0, max_val: float = 1.0)
 def aten_hardtanh_backward(
     grad_output: TensorType, self: TensorType, min_val: float, max_val: float
 ) -> TensorType:
-    # hardtanh_backward(Tensor grad_output, Tensor self, Scalar min_val, Scalar max_val) -> Tensor
+    """hardtanh_backward(Tensor grad_output, Tensor self, Scalar min_val, Scalar max_val) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -456,7 +472,7 @@ def aten_hardtanh_backward(
 def aten_huber_loss(
     self: TensorType, target: TensorType, reduction: int = 1, delta: float = 1.0
 ) -> TensorType:
-    # huber_loss(Tensor self, Tensor target, int reduction=Mean, float delta=1.0) -> Tensor
+    """huber_loss(Tensor self, Tensor target, int reduction=Mean, float delta=1.0) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -464,7 +480,7 @@ def aten_huber_loss(
 def aten_huber_loss_backward(
     grad_output: TensorType, self: TensorType, target: TensorType, reduction: int, delta: float
 ) -> TensorType:
-    # huber_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction, float delta) -> Tensor
+    """huber_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction, float delta) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -476,7 +492,7 @@ def aten_im2col(
     padding: Sequence[int],
     stride: Sequence[int],
 ) -> TensorType:
-    # im2col(Tensor self, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor
+    """im2col(Tensor self, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -484,20 +500,20 @@ def aten_im2col(
 def aten_infinitely_differentiable_gelu_backward(
     grad: TensorType, self: TensorType
 ) -> TensorType:
-    # infinitely_differentiable_gelu_backward(Tensor grad, Tensor self) -> Tensor
+    """infinitely_differentiable_gelu_backward(Tensor grad, Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_l1_loss(self: TensorType, target: TensorType, reduction: int = 1) -> TensorType:
-    # l1_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor
+    """l1_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor"""
 
     raise NotImplementedError()
 
 
 @torch_op("aten::leaky_relu")
 def aten_leaky_relu(self: TFloatOrBFloat16, negative_slope: float = 0.01) -> TFloatOrBFloat16:
-    # leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor
+    """leaky_relu(Tensor self, Scalar negative_slope=0.01) -> Tensor"""
 
     return op.LeakyRelu(self, alpha=negative_slope)
 
@@ -505,14 +521,14 @@ def aten_leaky_relu(self: TFloatOrBFloat16, negative_slope: float = 0.01) -> TFl
 def aten_leaky_relu_backward(
     grad_output: TensorType, self: TensorType, negative_slope: float, self_is_result: bool
 ) -> TensorType:
-    # leaky_relu_backward(Tensor grad_output, Tensor self, Scalar negative_slope, bool self_is_result) -> Tensor
+    """leaky_relu_backward(Tensor grad_output, Tensor self, Scalar negative_slope, bool self_is_result) -> Tensor"""
 
     raise NotImplementedError()
 
 
 @torch_op("aten::linear", trace_only=True)
 def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TFloat:
-    # linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
+    """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
     # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
     # Optimizers may consider this path and replace it with Gemm
@@ -525,7 +541,7 @@ def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) ->
 
 @torch_op("aten::log_sigmoid")
 def aten_log_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
-    # log_sigmoid(Tensor self) -> Tensor
+    """log_sigmoid(Tensor self) -> Tensor"""
 
     return op.Log(op.Sigmoid(self))
 
@@ -533,13 +549,13 @@ def aten_log_sigmoid(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 def aten_log_sigmoid_backward(
     grad_output: TensorType, self: TensorType, buffer: TensorType
 ) -> TensorType:
-    # log_sigmoid_backward(Tensor grad_output, Tensor self, Tensor buffer) -> Tensor
+    """log_sigmoid_backward(Tensor grad_output, Tensor self, Tensor buffer) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_log_sigmoid_forward(self: TensorType) -> tuple[TensorType, TensorType]:
-    # log_sigmoid_forward(Tensor self) -> (Tensor output, Tensor buffer)
+    """log_sigmoid_forward(Tensor self) -> (Tensor output, Tensor buffer)"""
 
     raise NotImplementedError()
 
@@ -547,7 +563,7 @@ def aten_log_sigmoid_forward(self: TensorType) -> tuple[TensorType, TensorType]:
 def aten_logit_backward(
     grad_output: TensorType, self: TensorType, eps: Optional[float] = None
 ) -> TensorType:
-    # logit_backward(Tensor grad_output, Tensor self, float? eps=None) -> Tensor
+    """logit_backward(Tensor grad_output, Tensor self, float? eps=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -560,7 +576,7 @@ def aten_max_pool2d_with_indices(
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
 ) -> tuple[TensorType, TensorType]:
-    # max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)
+    """max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     raise NotImplementedError()
 
@@ -575,7 +591,7 @@ def aten_max_pool2d_with_indices_backward(
     ceil_mode: bool,
     indices: TensorType,
 ) -> TensorType:
-    # max_pool2d_with_indices_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] stride, int[2] padding, int[2] dilation, bool ceil_mode, Tensor indices) -> Tensor
+    """max_pool2d_with_indices_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] stride, int[2] padding, int[2] dilation, bool ceil_mode, Tensor indices) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -588,7 +604,7 @@ def aten_max_pool3d_with_indices(
     dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
 ) -> tuple[TensorType, TensorType]:
-    # max_pool3d_with_indices(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)
+    """max_pool3d_with_indices(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     raise NotImplementedError()
 
@@ -603,7 +619,7 @@ def aten_max_pool3d_with_indices_backward(
     ceil_mode: bool,
     indices: TensorType,
 ) -> TensorType:
-    # max_pool3d_with_indices_backward(Tensor grad_output, Tensor self, int[3] kernel_size, int[3] stride, int[3] padding, int[3] dilation, bool ceil_mode, Tensor indices) -> Tensor
+    """max_pool3d_with_indices_backward(Tensor grad_output, Tensor self, int[3] kernel_size, int[3] stride, int[3] padding, int[3] dilation, bool ceil_mode, Tensor indices) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -611,7 +627,7 @@ def aten_max_pool3d_with_indices_backward(
 def aten_max_unpool2d(
     self: TensorType, indices: TensorType, output_size: Sequence[int]
 ) -> TensorType:
-    # max_unpool2d(Tensor self, Tensor indices, int[2] output_size) -> Tensor
+    """max_unpool2d(Tensor self, Tensor indices, int[2] output_size) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -623,19 +639,19 @@ def aten_max_unpool3d(
     stride: Sequence[int],
     padding: Sequence[int],
 ) -> TensorType:
-    # max_unpool3d(Tensor self, Tensor indices, int[3] output_size, int[3] stride, int[3] padding) -> Tensor
+    """max_unpool3d(Tensor self, Tensor indices, int[3] output_size, int[3] stride, int[3] padding) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_mish(self: TensorType) -> TensorType:
-    # mish(Tensor self) -> Tensor
+    """mish(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_mish_backward(grad_output: TensorType, self: TensorType) -> TensorType:
-    # mish_backward(Tensor grad_output, Tensor self) -> Tensor
+    """mish_backward(Tensor grad_output, Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -643,7 +659,7 @@ def aten_mish_backward(grad_output: TensorType, self: TensorType) -> TensorType:
 def aten_mkldnn_linear(
     self: TensorType, weight: TensorType, bias: Optional[TensorType] = None
 ) -> TensorType:
-    # mkldnn_linear(Tensor self, Tensor weight, Tensor? bias=None) -> Tensor
+    """mkldnn_linear(Tensor self, Tensor weight, Tensor? bias=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -655,7 +671,7 @@ def aten_mkldnn_reorder_conv2d_weight(
     dilation: Sequence[int] = (1, 1),
     groups: int = 1,
 ) -> TensorType:
-    # mkldnn_reorder_conv2d_weight(Tensor self, int[2] padding=0, int[2] stride=1, int[2] dilation=1, int groups=1) -> Tensor
+    """mkldnn_reorder_conv2d_weight(Tensor self, int[2] padding=0, int[2] stride=1, int[2] dilation=1, int groups=1) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -667,21 +683,28 @@ def aten_mkldnn_reorder_conv3d_weight(
     dilation: Sequence[int] = (1, 1, 1),
     groups: int = 1,
 ) -> TensorType:
-    # mkldnn_reorder_conv3d_weight(Tensor self, int[3] padding=0, int[3] stride=1, int[3] dilation=1, int groups=1) -> Tensor
+    """mkldnn_reorder_conv3d_weight(Tensor self, int[3] padding=0, int[3] stride=1, int[3] dilation=1, int groups=1) -> Tensor"""
 
     raise NotImplementedError()
 
 
-def aten_mse_loss(self: TensorType, target: TensorType, reduction: int = 1) -> TensorType:
-    # mse_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor
+@torch_op("aten::mse_loss")
+def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
+    """mse_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor"""
+    # FIXME: When reduction=0, the shape(result) will be different than other case
+    result = op.Mul(self - target, self - target)
+    if reduction == 1:  # mean
+        result = op.ReduceMean(result, keepdims=0)
+    elif reduction == 2:  # sum
+        result = op.ReduceSum(result, keepdims=0)
 
-    raise NotImplementedError()
+    return result
 
 
 def aten_mse_loss_backward(
     grad_output: TensorType, self: TensorType, target: TensorType, reduction: int
 ) -> TensorType:
-    # mse_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction) -> Tensor
+    """mse_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -694,7 +717,7 @@ def aten_multi_margin_loss(
     weight: Optional[TensorType] = None,
     reduction: int = 1,
 ) -> TensorType:
-    # multi_margin_loss(Tensor self, Tensor target, Scalar p=1, Scalar margin=1, Tensor? weight=None, int reduction=Mean) -> Tensor
+    """multi_margin_loss(Tensor self, Tensor target, Scalar p=1, Scalar margin=1, Tensor? weight=None, int reduction=Mean) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -708,7 +731,7 @@ def aten_multi_margin_loss_backward(
     weight: Optional[TensorType] = None,
     reduction: int = 1,
 ) -> TensorType:
-    # multi_margin_loss_backward(Tensor grad_output, Tensor self, Tensor target, Scalar p, Scalar margin, Tensor? weight=None, int reduction=Mean) -> Tensor
+    """multi_margin_loss_backward(Tensor grad_output, Tensor self, Tensor target, Scalar p, Scalar margin, Tensor? weight=None, int reduction=Mean) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -716,7 +739,7 @@ def aten_multi_margin_loss_backward(
 def aten_multilabel_margin_loss(
     self: TensorType, target: TensorType, reduction: int = 1
 ) -> TensorType:
-    # multilabel_margin_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor
+    """multilabel_margin_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -728,7 +751,7 @@ def aten_multilabel_margin_loss_backward(
     reduction: int,
     is_target: TensorType,
 ) -> TensorType:
-    # multilabel_margin_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction, Tensor is_target) -> Tensor
+    """multilabel_margin_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction, Tensor is_target) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -736,21 +759,82 @@ def aten_multilabel_margin_loss_backward(
 def aten_multilabel_margin_loss_forward(
     self: TensorType, target: TensorType, reduction: int
 ) -> tuple[TensorType, TensorType]:
-    # multilabel_margin_loss_forward(Tensor self, Tensor target, int reduction) -> (Tensor output, Tensor is_target)
+    """multilabel_margin_loss_forward(Tensor self, Tensor target, int reduction) -> (Tensor output, Tensor is_target)"""
 
     raise NotImplementedError()
 
 
+@torch_op("aten::nll_loss")
 def aten_nll_loss(
-    self: TensorType,
-    target: TensorType,
-    weight: Optional[TensorType] = None,
+    self: TFloat,
+    target: INT64,
     reduction: int = 1,
-    ignore_index: INT64 = -100,
-) -> TensorType:
-    # nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
+    ignore_index: int = -100,
+) -> TFloat:
+    """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    raise NotImplementedError()
+    rank_self = op.Size(op.Shape(self))
+    if rank_self == 1:  # self rank should be at least 2
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+
+    rank_target = op.Size(op.Shape(target))
+    if rank_target == 0:  # target rank should be at least 1
+        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+
+    if reduction == 0:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, ignore_index=ignore_index, reduction="none"
+        )
+    elif reduction == 1:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, ignore_index=ignore_index, reduction="mean"
+        )
+    else:  # assert reduction == 2
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, ignore_index=ignore_index, reduction="sum"
+        )
+
+    if rank_self == 1:
+        result = op.Squeeze(result)
+
+    return result
+
+
+@torch_op("aten::nll_loss", overload=True)
+def aten_nll_loss_weight(
+    self: TFloat,
+    target: INT64,
+    weight: TFloat,
+    reduction: int = 1,
+    ignore_index: int = -100,
+) -> TFloat:
+    """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
+
+    rank_self = op.Size(op.Shape(self))
+    if rank_self == 1:  # self rank should be at least 2
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+
+    rank_target = op.Size(op.Shape(target))
+    if rank_target == 0:  # target rank should be at least 1
+        target = op.Unsqueeze(target, op.Constant(value_ints=[0]))
+
+    if reduction == 0:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, weight, ignore_index=ignore_index, reduction="none"
+        )
+    elif reduction == 1:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, weight, ignore_index=ignore_index, reduction="mean"
+        )
+    else:
+        result = op.NegativeLogLikelihoodLoss(
+            self, target, weight, ignore_index=ignore_index, reduction="sum"
+        )
+
+    if rank_self == 1:
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_nll_loss2d(
@@ -760,7 +844,7 @@ def aten_nll_loss2d(
     reduction: int = 1,
     ignore_index: INT64 = -100,
 ) -> TensorType:
-    # nll_loss2d(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
+    """nll_loss2d(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -774,7 +858,7 @@ def aten_nll_loss2d_backward(
     ignore_index: INT64,
     total_weight: TensorType,
 ) -> TensorType:
-    # nll_loss2d_backward(Tensor grad_output, Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index, Tensor total_weight) -> Tensor
+    """nll_loss2d_backward(Tensor grad_output, Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index, Tensor total_weight) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -786,7 +870,7 @@ def aten_nll_loss2d_forward(
     reduction: int,
     ignore_index: INT64,
 ) -> tuple[TensorType, TensorType]:
-    # nll_loss2d_forward(Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index) -> (Tensor output, Tensor total_weight)
+    """nll_loss2d_forward(Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index) -> (Tensor output, Tensor total_weight)"""
 
     raise NotImplementedError()
 
@@ -800,7 +884,7 @@ def aten_nll_loss_backward(
     ignore_index: INT64,
     total_weight: TensorType,
 ) -> TensorType:
-    # nll_loss_backward(Tensor grad_output, Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index, Tensor total_weight) -> Tensor
+    """nll_loss_backward(Tensor grad_output, Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index, Tensor total_weight) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -812,7 +896,7 @@ def aten_nll_loss_forward(
     reduction: int,
     ignore_index: INT64,
 ) -> tuple[TensorType, TensorType]:
-    # nll_loss_forward(Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index) -> (Tensor output, Tensor total_weight)
+    """nll_loss_forward(Tensor self, Tensor target, Tensor? weight, int reduction, SymInt ignore_index) -> (Tensor output, Tensor total_weight)"""
 
     raise NotImplementedError()
 
@@ -824,13 +908,13 @@ def aten_nll_loss_nd(
     reduction: int = 1,
     ignore_index: INT64 = -100,
 ) -> TensorType:
-    # nll_loss_nd(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor
+    """nll_loss_nd(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_one_hot(self: TensorType, num_classes: int = -1) -> TensorType:
-    # one_hot(Tensor self, int num_classes=-1) -> Tensor
+    """one_hot(Tensor self, int num_classes=-1) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -838,7 +922,7 @@ def aten_one_hot(self: TensorType, num_classes: int = -1) -> TensorType:
 def aten_pad(
     self: TensorType, pad: INT64, mode: str = "constant", value: Optional[float] = None
 ) -> TensorType:
-    # pad(Tensor self, SymInt[] pad, str mode="constant", float? value=None) -> Tensor
+    """pad(Tensor self, SymInt[] pad, str mode="constant", float? value=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -846,13 +930,13 @@ def aten_pad(
 def aten_pad_sequence(
     sequences: Sequence[TensorType], batch_first: bool = False, padding_value: float = 0.0
 ) -> TensorType:
-    # pad_sequence(Tensor[] sequences, bool batch_first=False, float padding_value=0.0) -> Tensor
+    """pad_sequence(Tensor[] sequences, bool batch_first=False, float padding_value=0.0) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_reflection_pad1d(self: TensorType, padding: INT64) -> TensorType:
-    # reflection_pad1d(Tensor self, SymInt[2] padding) -> Tensor
+    """reflection_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -860,27 +944,54 @@ def aten_reflection_pad1d(self: TensorType, padding: INT64) -> TensorType:
 def aten_reflection_pad1d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
-    # reflection_pad1d_backward(Tensor grad_output, Tensor self, SymInt[2] padding) -> Tensor
+    """reflection_pad1d_backward(Tensor grad_output, Tensor self, SymInt[2] padding) -> Tensor"""
 
     raise NotImplementedError()
 
 
-def aten_reflection_pad2d(self: TensorType, padding: INT64) -> TensorType:
-    # reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor
+@torch_op("aten::reflection_pad2d")
+def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
+    """reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
+    # Convert torch padding format to onnx padding format
+    # Python code is:
+    # dim = len(self.shape)
+    # paddings = list(padding[:]) + [0] * (dim * 2 - len(padding))
+    # paddings = paddings[-2::-2] + paddings[-1::-2]
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="reflect")
 
 
 def aten_reflection_pad2d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
-    # reflection_pad2d_backward(Tensor grad_output, Tensor self, SymInt[4] padding) -> Tensor
+    """reflection_pad2d_backward(Tensor grad_output, Tensor self, SymInt[4] padding) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_reflection_pad3d(self: TensorType, padding: INT64) -> TensorType:
-    # reflection_pad3d(Tensor self, SymInt[6] padding) -> Tensor
+    """reflection_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -888,28 +999,28 @@ def aten_reflection_pad3d(self: TensorType, padding: INT64) -> TensorType:
 def aten_reflection_pad3d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
-    # reflection_pad3d_backward(Tensor grad_output, Tensor self, SymInt[6] padding) -> Tensor
+    """reflection_pad3d_backward(Tensor grad_output, Tensor self, SymInt[6] padding) -> Tensor"""
 
     raise NotImplementedError()
 
 
 @torch_op("aten::relu")
 def aten_relu(self: TReal) -> TReal:
-    # relu(Tensor self) -> Tensor
+    """relu(Tensor self) -> Tensor"""
 
     return op.Relu(self)
 
 
 @torch_op("aten::relu6")
 def aten_relu6(self: TReal) -> TReal:
-    # relu6(Tensor self) -> Tensor
+    """relu6(Tensor self) -> Tensor"""
 
     six = op.CastLike(op.Constant(value_int=6), self)
     return op.Min(op.Relu(self), six)
 
 
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
-    # replication_pad1d(Tensor self, SymInt[2] padding) -> Tensor
+    """replication_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -917,35 +1028,79 @@ def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
 def aten_replication_pad1d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
-    # replication_pad1d_backward(Tensor grad_output, Tensor self, SymInt[2] padding) -> Tensor
+    """replication_pad1d_backward(Tensor grad_output, Tensor self, SymInt[2] padding) -> Tensor"""
 
     raise NotImplementedError()
 
 
-def aten_replication_pad2d(self: TensorType, padding: INT64) -> TensorType:
-    # replication_pad2d(Tensor self, SymInt[4] padding) -> Tensor
+@torch_op("aten::replication_pad2d")
+def aten_replication_pad2d(self: TTensor, padding: INT64) -> TTensor:
+    """replication_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="edge")
 
 
 def aten_replication_pad2d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
-    # replication_pad2d_backward(Tensor grad_output, Tensor self, SymInt[4] padding) -> Tensor
+    """replication_pad2d_backward(Tensor grad_output, Tensor self, SymInt[4] padding) -> Tensor"""
 
     raise NotImplementedError()
 
 
-def aten_replication_pad3d(self: TensorType, padding: INT64) -> TensorType:
-    # replication_pad3d(Tensor self, SymInt[6] padding) -> Tensor
+@torch_op("aten::replication_pad3d")
+def aten_replication_pad3d(self: TTensor, padding: INT64) -> TTensor:
+    """replication_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="edge")
 
 
 def aten_replication_pad3d_backward(
     grad_output: TensorType, self: TensorType, padding: INT64
 ) -> TensorType:
-    # replication_pad3d_backward(Tensor grad_output, Tensor self, SymInt[6] padding) -> Tensor
+    """replication_pad3d_backward(Tensor grad_output, Tensor self, SymInt[6] padding) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -958,7 +1113,7 @@ def aten_rrelu_with_noise(
     training: bool = False,
     generator: Optional[str] = None,
 ) -> TensorType:
-    # rrelu_with_noise(Tensor self, Tensor noise, Scalar lower=0.125, Scalar upper=0.3333333333333333, bool training=False, Generator? generator=None) -> Tensor
+    """rrelu_with_noise(Tensor self, Tensor noise, Scalar lower=0.125, Scalar upper=0.3333333333333333, bool training=False, Generator? generator=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -972,25 +1127,272 @@ def aten_rrelu_with_noise_backward(
     training: bool,
     self_is_result: bool,
 ) -> TensorType:
-    # rrelu_with_noise_backward(Tensor grad_output, Tensor self, Tensor noise, Scalar lower, Scalar upper, bool training, bool self_is_result) -> Tensor
+    """rrelu_with_noise_backward(Tensor grad_output, Tensor self, Tensor noise, Scalar lower, Scalar upper, bool training, bool self_is_result) -> Tensor"""
 
     raise NotImplementedError()
 
 
+@onnxscript.script()
+def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
+    """Create a causal mask for the given query and key tensors.
+
+    Equivalent to::
+        mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+        attn_mask = torch.zeros(L, S, dtype=torch.float)
+        attn_mask = attn_mask.masked_fill(not mask, -float('inf'))
+
+    Args:
+        query: Tensor of shape [..., L, E]
+        key: Tensor of shape [..., S, E]
+
+    Returns:
+        Tensor of shape [L, S]
+    """
+    target_length = op.Shape(query)[-2:-1]
+    source_length = op.Shape(key)[-2:-1]
+    # attn_mask = torch.ones(L, S) := {
+    size = op.Concat(target_length, source_length, axis=0)
+    attn_mask = op.Expand(1.0, size)
+    # }
+    attn_mask = op.Trilu(attn_mask, upper=0)
+    # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
+    attn_mask = op.Where(op.Equal(attn_mask, 0.0), op.Constant(value_float=-float("inf")), 0.0)
+    return attn_mask
+
+
+@onnxscript.script()
+def _attention_scale(query: TFloat) -> TFloat:
+    """Calculate the scale factor for the attention result.
+
+    Args:
+        query: Tensor of shape [..., L, E]
+
+    Returns:
+        Scalar scale factor := 1 / math.sqrt(query.size(-1))
+    """
+    embedding_size = op.CastLike(op.Shape(query)[-1], query)
+    scale = op.Div(1.0, op.Sqrt(embedding_size))
+    return scale
+
+
+@torch_op("aten::scaled_dot_product_attention", trace_only=True)
+def aten_scaled_dot_product_attention(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: Optional[TFloat] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: Optional[float] = None,
+):
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    Equivalent to the PyTorch code::
+        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
+        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
+        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p)
+        return attn_weight @ V
+
+    where Q, K, V are the query, key, and value tensors, respectively.
+    L is the target sequence length, S is the source sequence length, and E is the embedding size.
+    """
+    # Use trace_only to handle optional inputs
+    assert (not is_causal) or (
+        is_causal and attn_mask is None
+    ), "is_causal and attn_mask cannot be set at the same time"
+
+    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    if scale is None:
+        scale = _attention_scale(query)
+
+    if is_causal:
+        attn_mask = _causal_attention_mask(query, key)
+
+    if attn_mask is None:
+        return _aten_scaled_dot_product_attention_no_mask_onnx(
+            query, key, value, scale, dropout_p
+        )
+
+    return _aten_scaled_dot_product_attention_float_mask_onnx(
+        query, key, value, attn_mask, scale, dropout_p
+    )
+
+
+@torch_op("aten::scaled_dot_product_attention", trace_only=True, overload=True)
+def aten_scaled_dot_product_attention_bool_mask(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: Optional[BOOL] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: Optional[float] = None,
+):
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    Equivalent to the PyTorch code::
+        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
+        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
+        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p)
+        return attn_weight @ V
+
+    where Q, K, V are the query, key, and value tensors, respectively.
+    L is the target sequence length, S is the source sequence length, and E is the embedding size.
+    """
+    # Use trace_only to handle optional inputs
+    assert (not is_causal) or (
+        is_causal and attn_mask is None
+    ), "is_causal and attn_mask cannot be set at the same time"
+
+    if scale is None:
+        scale = _attention_scale(query)
+
+    if is_causal:
+        attn_mask = _causal_attention_mask(query, key)
+        # The causal mask is always float
+        return _aten_scaled_dot_product_attention_float_mask_onnx(
+            query, key, value, attn_mask, scale, dropout_p
+        )
+
+    if attn_mask is None:
+        return _aten_scaled_dot_product_attention_no_mask_onnx(
+            query, key, value, scale, dropout_p
+        )
+
+    return _aten_scaled_dot_product_attention_bool_mask_onnx(
+        query, key, value, attn_mask, scale, dropout_p
+    )
+
+
+@torch_op("aten::scaled_dot_product_attention", private=True)
+def _aten_scaled_dot_product_attention_no_mask_onnx(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    scale: FLOAT,
+    dropout_p: float,
+):
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
+
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    query_scaled = op.Mul(query, op.Sqrt(scale))
+    key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    attn_weight = op.Softmax(
+        op.MatMul(query_scaled, key_transposed_scaled),
+        axis=-1,
+    )
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
+
+@torch_op("aten::scaled_dot_product_attention", private=True)
+def _aten_scaled_dot_product_attention_bool_mask_onnx(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: BOOL,
+    scale: FLOAT,
+    dropout_p: float,
+):
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
+
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    query_scaled = op.Mul(query, op.Sqrt(scale))
+    key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    attn_weight = op.Softmax(
+        op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
+        axis=-1,
+    )
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
+
+@torch_op("aten::scaled_dot_product_attention", private=True)
+def _aten_scaled_dot_product_attention_float_mask_onnx(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: TFloat,
+    scale: TFloat,
+    dropout_p: float,
+):
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
+
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    query_scaled = op.Mul(query, op.Sqrt(scale))
+    key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    attn_weight = op.Softmax(
+        op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
+        axis=-1,
+    )
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
+
 def aten_sigmoid_backward(grad_output: TensorType, output: TensorType) -> TensorType:
-    # sigmoid_backward(Tensor grad_output, Tensor output) -> Tensor
+    """sigmoid_backward(Tensor grad_output, Tensor output) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_silu(self: TensorType) -> TensorType:
-    # silu(Tensor self) -> Tensor
+    """silu(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_silu_backward(grad_output: TensorType, self: TensorType) -> TensorType:
-    # silu_backward(Tensor grad_output, Tensor self) -> Tensor
+    """silu_backward(Tensor grad_output, Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1003,7 +1405,7 @@ def aten_slow_conv3d(
     stride: Sequence[int] = (1, 1, 1),
     padding: INT64 = (0, 0, 0),
 ) -> TensorType:
-    # slow_conv3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0) -> Tensor
+    """slow_conv3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1016,7 +1418,7 @@ def aten_slow_conv3d_forward(
     stride: Sequence[int],
     padding: INT64,
 ) -> TensorType:
-    # slow_conv3d_forward(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias, int[3] stride, SymInt[3] padding) -> Tensor
+    """slow_conv3d_forward(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias, int[3] stride, SymInt[3] padding) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1030,7 +1432,7 @@ def aten_slow_conv_dilated2d(
     padding: INT64 = (0, 0),
     dilation: Sequence[int] = (1, 1),
 ) -> TensorType:
-    # slow_conv_dilated2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, SymInt[2] padding=0, int[2] dilation=1) -> Tensor
+    """slow_conv_dilated2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, SymInt[2] padding=0, int[2] dilation=1) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1044,7 +1446,7 @@ def aten_slow_conv_dilated3d(
     padding: INT64 = (0, 0, 0),
     dilation: Sequence[int] = (1, 1, 1),
 ) -> TensorType:
-    # slow_conv_dilated3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0, int[3] dilation=1) -> Tensor
+    """slow_conv_dilated3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0, int[3] dilation=1) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1059,7 +1461,7 @@ def aten_slow_conv_transpose2d(
     output_padding: INT64 = (0, 0),
     dilation: Sequence[int] = (1, 1),
 ) -> TensorType:
-    # slow_conv_transpose2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, SymInt[2] padding=0, SymInt[2] output_padding=0, int[2] dilation=1) -> Tensor
+    """slow_conv_transpose2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, SymInt[2] padding=0, SymInt[2] output_padding=0, int[2] dilation=1) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1074,7 +1476,7 @@ def aten_slow_conv_transpose3d(
     output_padding: INT64 = (0, 0, 0),
     dilation: Sequence[int] = (1, 1, 1),
 ) -> TensorType:
-    # slow_conv_transpose3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0, SymInt[3] output_padding=0, int[3] dilation=1) -> Tensor
+    """slow_conv_transpose3d(Tensor self, Tensor weight, int[3] kernel_size, Tensor? bias=None, int[3] stride=1, SymInt[3] padding=0, SymInt[3] output_padding=0, int[3] dilation=1) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1082,7 +1484,7 @@ def aten_slow_conv_transpose3d(
 def aten_smooth_l1_loss(
     self: TensorType, target: TensorType, reduction: int = 1, beta: float = 1.0
 ) -> TensorType:
-    # smooth_l1_loss(Tensor self, Tensor target, int reduction=Mean, float beta=1.0) -> Tensor
+    """smooth_l1_loss(Tensor self, Tensor target, int reduction=Mean, float beta=1.0) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1090,7 +1492,7 @@ def aten_smooth_l1_loss(
 def aten_smooth_l1_loss_backward(
     grad_output: TensorType, self: TensorType, target: TensorType, reduction: int, beta: float
 ) -> TensorType:
-    # smooth_l1_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction, float beta) -> Tensor
+    """smooth_l1_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction, float beta) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1098,7 +1500,7 @@ def aten_smooth_l1_loss_backward(
 def aten_soft_margin_loss(
     self: TensorType, target: TensorType, reduction: int = 1
 ) -> TensorType:
-    # soft_margin_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor
+    """soft_margin_loss(Tensor self, Tensor target, int reduction=Mean) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1106,13 +1508,13 @@ def aten_soft_margin_loss(
 def aten_soft_margin_loss_backward(
     grad_output: TensorType, self: TensorType, target: TensorType, reduction: int
 ) -> TensorType:
-    # soft_margin_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction) -> Tensor
+    """soft_margin_loss_backward(Tensor grad_output, Tensor self, Tensor target, int reduction) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_softplus(self: TensorType, beta: float = 1.0, threshold: float = 20.0) -> TensorType:
-    # softplus(Tensor self, Scalar beta=1, Scalar threshold=20) -> Tensor
+    """softplus(Tensor self, Scalar beta=1, Scalar threshold=20) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1120,13 +1522,13 @@ def aten_softplus(self: TensorType, beta: float = 1.0, threshold: float = 20.0) 
 def aten_softplus_backward(
     grad_output: TensorType, self: TensorType, beta: float, threshold: float
 ) -> TensorType:
-    # softplus_backward(Tensor grad_output, Tensor self, Scalar beta, Scalar threshold) -> Tensor
+    """softplus_backward(Tensor grad_output, Tensor self, Scalar beta, Scalar threshold) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_softshrink(self: TensorType, lambd: float = 0.5) -> TensorType:
-    # softshrink(Tensor self, Scalar lambd=0.5) -> Tensor
+    """softshrink(Tensor self, Scalar lambd=0.5) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1134,13 +1536,13 @@ def aten_softshrink(self: TensorType, lambd: float = 0.5) -> TensorType:
 def aten_softshrink_backward(
     grad_output: TensorType, self: TensorType, lambd: float
 ) -> TensorType:
-    # softshrink_backward(Tensor grad_output, Tensor self, Scalar lambd) -> Tensor
+    """softshrink_backward(Tensor grad_output, Tensor self, Scalar lambd) -> Tensor"""
 
     raise NotImplementedError()
 
 
 def aten_tanh_backward(grad_output: TensorType, output: TensorType) -> TensorType:
-    # tanh_backward(Tensor grad_output, Tensor output) -> Tensor
+    """tanh_backward(Tensor grad_output, Tensor output) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1153,7 +1555,7 @@ def aten_thnn_conv2d(
     stride: Sequence[int] = (1, 1),
     padding: Sequence[int] = (0, 0),
 ) -> TensorType:
-    # thnn_conv2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, int[2] padding=0) -> Tensor
+    """thnn_conv2d(Tensor self, Tensor weight, int[2] kernel_size, Tensor? bias=None, int[2] stride=1, int[2] padding=0) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1161,7 +1563,7 @@ def aten_thnn_conv2d(
 def aten_unflatten_dense_tensors(
     flat: TensorType, tensors: Sequence[TensorType]
 ) -> TensorType:
-    # unflatten_dense_tensors(Tensor flat, Tensor[] tensors) -> Tensor[]
+    """unflatten_dense_tensors(Tensor flat, Tensor[] tensors) -> Tensor[]"""
 
     raise NotImplementedError()
 
@@ -1173,7 +1575,7 @@ def aten_upsample_bicubic2d(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1186,7 +1588,7 @@ def aten_upsample_bicubic2d_backward(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_bicubic2d_backward(Tensor grad_output, SymInt[2] output_size, SymInt[4] input_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_bicubic2d_backward(Tensor grad_output, SymInt[2] output_size, SymInt[4] input_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1198,7 +1600,7 @@ def aten_upsample_bilinear2d(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1211,7 +1613,7 @@ def aten_upsample_bilinear2d_backward(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_bilinear2d_backward(Tensor grad_output, SymInt[2] output_size, SymInt[4] input_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_bilinear2d_backward(Tensor grad_output, SymInt[2] output_size, SymInt[4] input_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1219,7 +1621,7 @@ def aten_upsample_bilinear2d_backward(
 def aten_upsample_linear1d(
     self: TensorType, output_size: INT64, align_corners: bool, scales: Optional[float] = None
 ) -> TensorType:
-    # upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor
+    """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1231,7 +1633,7 @@ def aten_upsample_linear1d_backward(
     align_corners: bool,
     scales: Optional[float] = None,
 ) -> TensorType:
-    # upsample_linear1d_backward(Tensor grad_output, SymInt[1] output_size, SymInt[3] input_size, bool align_corners, float? scales=None) -> Tensor
+    """upsample_linear1d_backward(Tensor grad_output, SymInt[1] output_size, SymInt[3] input_size, bool align_corners, float? scales=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1239,7 +1641,7 @@ def aten_upsample_linear1d_backward(
 def aten_upsample_nearest1d(
     self: TensorType, output_size: INT64, scales: Optional[float] = None
 ) -> TensorType:
-    # upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor
+    """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1250,25 +1652,36 @@ def aten_upsample_nearest1d_backward(
     input_size: INT64,
     scales: Optional[float] = None,
 ) -> TensorType:
-    # upsample_nearest1d_backward(Tensor grad_output, SymInt[1] output_size, SymInt[3] input_size, float? scales=None) -> Tensor
+    """upsample_nearest1d_backward(Tensor grad_output, SymInt[1] output_size, SymInt[3] input_size, float? scales=None) -> Tensor"""
 
     raise NotImplementedError()
 
 
-@torch_op("aten::upsample_nearest2d")
+@torch_op("aten::upsample_nearest2d", trace_only=True)
 def aten_upsample_nearest2d(
     self: TReal,
     size: INT64,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TReal:
-    # upsample_nearest2d(Tensor self, SymInt[2] output_size, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_nearest2d(Tensor self, SymInt[2] output_size, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
+    # NOTE: trace_only because optional attributes are not supported by ONNX
+    # TODO(justinchuby): Conditionally use scales
+    del scales_h
+    del scales_w
+
+    return _aten_upsample_nearest2d_onnx(self, size)
+
+
+@torch_op("aten::upsample_nearest2d", private=True)
+def _aten_upsample_nearest2d_onnx(
+    self: TReal,
+    size: INT64,
+) -> TReal:
     self_shape = op.Shape(self)
     batch_channel = self_shape[:2]  # type: ignore[index]
     output_size = op.Concat(batch_channel, size, axis=0)
-
-    # TODO(justinchuby): Conditionally use scales
 
     return op.Resize(
         self,
@@ -1276,7 +1689,10 @@ def aten_upsample_nearest2d(
         None,
         output_size,
         mode="nearest",
+        # NOTE(justinchuby): Both asymmetric and pytorch_half_pixel pass the test
+        # I used asymmetric because it aligns with the torch.onnx exporter
         coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
     )
 
 
@@ -1287,7 +1703,7 @@ def aten_upsample_nearest2d_backward(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_nearest2d_backward(Tensor grad_output, SymInt[2] output_size, SymInt[4] input_size, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_nearest2d_backward(Tensor grad_output, SymInt[2] output_size, SymInt[4] input_size, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1299,7 +1715,7 @@ def aten_upsample_nearest3d(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_nearest3d(Tensor self, SymInt[3] output_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_nearest3d(Tensor self, SymInt[3] output_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1312,7 +1728,7 @@ def aten_upsample_nearest3d_backward(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_nearest3d_backward(Tensor grad_output, SymInt[3] output_size, SymInt[5] input_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_nearest3d_backward(Tensor grad_output, SymInt[3] output_size, SymInt[5] input_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1325,7 +1741,7 @@ def aten_upsample_trilinear3d(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_trilinear3d(Tensor self, SymInt[3] output_size, bool align_corners, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_trilinear3d(Tensor self, SymInt[3] output_size, bool align_corners, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -1339,6 +1755,6 @@ def aten_upsample_trilinear3d_backward(
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
 ) -> TensorType:
-    # upsample_trilinear3d_backward(Tensor grad_output, SymInt[3] output_size, SymInt[5] input_size, bool align_corners, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor
+    """upsample_trilinear3d_backward(Tensor grad_output, SymInt[3] output_size, SymInt[5] input_size, bool align_corners, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     raise NotImplementedError()
