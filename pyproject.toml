@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -28,8 +28,9 @@ classifiers = [
 ]
 dependencies = ["numpy", "onnx", "typing_extensions"]
 
-[tool.setuptools.dynamic]
-version = {attr = "onnxscript.__version__"}
+[tool.setuptools_scm]
+version_scheme = "version:get_version"
+write_to = "onnxscript/_version.py"
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
@@ -38,7 +39,6 @@ include = ["onnxscript*"]
 [tool.setuptools.package-data]
 onnxscript = ["py.typed"]
 onnx = ["py.typed"]
-
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
