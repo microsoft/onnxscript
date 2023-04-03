@@ -824,7 +824,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "matmul",
         matcher=lambda sample: torch.numel(sample.input) == 0,
-        reason="fixme: ORT matmul produces nan on inputs with zero elements nondeterministically",
+        reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     skip(
         "min",  # aten_mean
