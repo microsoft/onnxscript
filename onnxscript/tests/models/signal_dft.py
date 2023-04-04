@@ -13,6 +13,7 @@ PI = np.pi
 TWO_PI = np.pi * 2
 FOUR_PI = np.pi * 4
 
+
 @script()
 def hann_window(window_length):
     """Returns
@@ -53,6 +54,7 @@ def blackman_window(window_length):
     cos2 = op.Cos((ni * TWO_PI) / N_minus_1)
     cos4 = op.Cos((ni * FOUR_PI) / N_minus_1)
     return (0.42 - (cos2 * 0.5)) + (cos4 * 0.08)
+
 
 @script()
 def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
