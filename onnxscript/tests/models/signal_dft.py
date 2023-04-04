@@ -136,7 +136,7 @@ def dft_last_axis(
     where the last axis indicates whether it is the real or the imaginary part.
 
     Args:
-        x: float tensor, the last dimension is the complex one, if has 1dim1_size
+        x: float tensor, the last dimension is the complex one, it has 1
             or 2 elements, 1 if the tensor is real and does not have any
             imaginary part, 2 if the tensor is complex
         fft_length: length of the FFT
