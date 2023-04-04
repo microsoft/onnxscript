@@ -5129,10 +5129,10 @@ def aten_scatter_add(
 @torch_op("aten::scatter_reduce", trace_only=True)
 def aten_scatter_reduce(
     self: TReal,
+    dim: int,  # we have to use int here becuase ScatterElements() will use this attribute
     index: TInt,
     src: TReal,
     reduce: str,
-    dim: int,
     include_self: bool = True,  # pylint: disable=unused-argument
 ):
     """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
@@ -5146,7 +5146,16 @@ def aten_scatter_reduce(
         "amax": "max",  # default none = amax
     }
     onnx_reduce = reduce_mode[reduce]
-    return op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:  # assert (index_rank == 0 and rank_src == 0)
+        neg_1 = op.Constant(value_ints=[-1])
+        self = op.Reshape(self, neg_1)
+        index = op.Reshape(index, neg_1)
+        src = op.Reshape(src, neg_1)
+    result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+    if self_rank == 0:
+        result = op.Squeeze(result)
+    return result
 
 
 def aten_searchsorted(

@@ -386,8 +386,7 @@ def _scatter_add_input_wrangler(
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["reduce"] = args.pop(4)  # put the string into kwargs
-    kwargs["dim"] = args.pop(1)  # int type cannot before Tensor for input
+    kwargs["reduce"] = args.pop(4)  # put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
     return args, kwargs
 
 
@@ -997,10 +996,9 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "scatter_reduce",
-        matcher=lambda sample: sample.kwargs.get("include_self") is False
-        or len(sample.input.shape)
-        == 0,  # rank 0 case failed even after converted to rank 1 tensor
-        reason="ORT does't support include_self=False option, and skip rank 0 case because failed in ORT",
+        matcher=lambda sample: sample.kwargs.get("include_self") is False,  # ORT only support include_self=True mode
+        # or len(sample.input.shape) == 0,
+        reason="ORT does't support include_self=False option, and skip rank 0 case because failed in FullGraph mode",
     ),
     skip(
         "squeeze",
