@@ -1,8 +1,7 @@
 click
 numpy
 matplotlib
---pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnx-function-experiment.html
-onnx-function-experiment
+onnx-weekly
 --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html
 ort-function-experiment-nightly
 typing_extensions
@@ -20,6 +19,7 @@ beartype
 expecttest
 parameterized
 pytest-cov
+pytest-randomly
 pytest-subtests
 pytest-xdist
 pytest!=7.1.0

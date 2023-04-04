@@ -42,6 +42,14 @@ def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
 
 
 SKIP_TESTS = (
+    skip(
+        r"^test_ai_onnx_ml_array_feature_extractor",
+        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
+    ),
+    skip(
+        r"^test_ai_onnx_ml_binarizer",
+        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
+    ),
     skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
     skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
     skip(
@@ -62,8 +70,7 @@ SKIP_TESTS = (
     ),
     skip(
         r"^test_optional_get_element_tensor",
-        "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
-        condition=ort.__version__ == "1.14.0",
+        "ONNX backend test produces an invalid graph: https://github.com/onnx/onnx/issues/5067",
     ),
     skip(
         r"test_loop",
@@ -123,7 +130,6 @@ def exec_main(f, *inputs):
 
 
 class TestOnnxBackEnd(unittest.TestCase):
-
     test_folder = pathlib.Path(__file__).parent.parent / "tests" / "onnx_backend_test_code"
 
     def test_export2python(self):

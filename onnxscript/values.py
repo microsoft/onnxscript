@@ -258,7 +258,14 @@ class OnnxFunction(Op):
         kwargs: additional properties used to construct a ModelProto
     """
 
-    def __init__(self, opset, pyfun, irfun: irbuilder.IRFunction, source, kwargs):
+    def __init__(
+        self,
+        opset: Opset,
+        pyfun: types.FunctionType,
+        irfun: irbuilder.IRFunction,
+        source: str,
+        kwargs: dict[str, Any],
+    ):
         opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun
@@ -315,7 +322,13 @@ class OnnxFunction(Op):
         # args with default value are attributes
         schemas = []
         for arg in inputs:
-            param_schema = ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True)
+            if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
+                required = False
+            else:
+                required = True
+            param_schema = ParamSchema(
+                name=arg.name, type=arg.typeinfo, is_input=True, required=required
+            )
             schemas.append(param_schema)
 
         for attr_name in attributes:

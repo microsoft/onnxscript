@@ -1,6 +1,7 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
 
+import logging
 import typing
 import warnings
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
@@ -120,7 +121,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @shape.setter
     def shape(self, shape: Tuple[int | None, ...]):
         self._shape = shape
-        # TODO(justinchuby): Add shape to self._value?
+        self._torch_value.setType(self._torch_value.type().with_sizes(list(shape)))
 
     @property
     def dtype(self):
@@ -128,6 +129,10 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         ).dtype()
+
+    @dtype.setter
+    def dtype(self, dtype: torch.dtype):
+        self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
 
     @property
     def onnx_dtype(self):
@@ -296,36 +301,53 @@ class TorchScriptGraph:
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
+        self._initializers: Dict[str, torch.Tensor] = {}
 
     @property
     def torch_graph(self):
         return self._torch_graph
 
+    @property
+    def initializers(self) -> Mapping[str, torch.Tensor]:
+        return self._initializers
+
     @beartype
     def add_input(
-        self, input_name: str, input_value: Optional[torch.Tensor] = None
+        self,
+        input_name: Optional[str],
+        shape: Optional[Union[torch.Size, Sequence[Union[int, str, None]]]] = None,
+        dtype: Optional[torch.dtype] = None,
     ) -> TorchScriptTensor:
-        # TODO: Take in a TorchScriptTensor?
-        # TODO: Support dynamic shapes
-        if input_value is None:
+        if input_name is None:
             # This input argument is None, which is mapped
             # to a NULL value in TorchScript type system.
             torch_value = _create_op_call_in_torch_graph(
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
+            torch_value.setType(torch.OptionalType.ofTensor())
+        else:
+            torch_value = self._torch_graph.addInput(input_name)
+            torch_value.setType(torch_value.type().with_dtype(dtype))  # type: ignore[arg-type]
+            # TODO(titaiwang): This approach loses the information that "same SymInts
+            # indicates same shape", for example, [symint0, symint0, symint1]
+            # would all be [None, None, None]
             torch_value.setType(
-                torch._C.OptionalType.ofTensor()  # pylint: disable=c-extension-no-member,protected-access
+                torch_value.type().with_sizes(
+                    [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
+                )
             )
-            tensor_value = _wrap_torch_value_to_tensor(torch_value)
-            return tensor_value  # type: ignore[return-value]
-        torch_value = self._torch_graph.addInput(input_name)
-        torch_value.setType(
-            torch._C.TensorType.create_from_tensor(  # pylint: disable=c-extension-no-member,protected-access
-                input_value
-            )
-        )
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
+
+    @beartype
+    def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
+        if name in self._initializers:
+            raise ValueError(f"Initializer '{name}' exists already")
+        self._initializers[name] = value
+        torch_value = self._torch_graph.addInput(name)
+        torch_value.setType(torch.TensorType.create_from_tensor(value))
+        tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        return tensor_value
 
     @beartype
     def register_outputs(
@@ -389,7 +411,22 @@ class TorchScriptGraph:
         graph_inputs = []
         assert isinstance(unwrapped_inputs, Sequence)
         for input in unwrapped_inputs:
-            if not isinstance(input, torch.Value):
+            # NOTE(titaiwang): input could be empty list
+            if (
+                isinstance(input, Sequence)
+                and input
+                and all(isinstance(elem, torch.Value) for elem in input)
+            ):
+                # If all elements in the Sequence are torch.Values we know it
+                # should be a Sequence input in ONNX.
+                input_sequence = _create_op_call_in_torch_graph(
+                    self._torch_graph,
+                    "onnx::SequenceConstruct",
+                    inputs=input,
+                    attributes={},
+                )[0]
+                graph_inputs.append(input_sequence)
+            elif not isinstance(input, torch.Value):
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
@@ -414,7 +451,6 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
-
         result = self._add_torchscript_op_call(
             f"onnx::{onnx_op_schema.name}",
             onnx_inputs,
@@ -435,7 +471,6 @@ class TorchScriptGraph:
         self._function_store[identifier] = onnx_function
 
         # Compute outputs from the function schema
-
         result = self._add_torchscript_op_call(
             f"{onnx_function.function_ir.domain}::{onnx_function.name}",
             onnx_inputs,
@@ -446,16 +481,14 @@ class TorchScriptGraph:
         return result
 
     @beartype
-    def to_model_proto(
-        self, initializers: Mapping[str, torch.Tensor], opset_version: Optional[int]
-    ) -> onnx.ModelProto:
+    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
         (
             proto,
             _,
             _,
             _,
         ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
-            initializers=initializers,
+            initializers=self.initializers,
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
@@ -474,14 +507,19 @@ class TorchScriptGraph:
         for onnx_function in self._function_store.values():
             function_proto_list.append(onnx_function.to_function_proto())
         onnx_model.functions.extend(function_proto_list)
-        onnx_model = onnx.shape_inference.infer_shapes(
-            onnx_model, check_type=True, strict_mode=False
-        )
-        try:
-            onnx.checker.check_model(onnx_model, full_check=True)
-        except onnx.checker.ValidationError as e:
-            warnings.warn(f"ONNX model is invalid: {e}")
 
+        try:
+            onnx_model = onnx.shape_inference.infer_shapes(
+                onnx_model, check_type=True, strict_mode=False, data_prop=True
+            )
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
+            warnings.warn(f"ONNX model is invalid: {e}")
+            logging.debug(
+                "ONNX model:\n%s\n\nTorchScript graph:\n%s",
+                onnxscript.proto2text(onnx_model),
+                self.torch_graph,
+            )
         return onnx_model
 
     def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
