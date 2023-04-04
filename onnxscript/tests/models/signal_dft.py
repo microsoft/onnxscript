@@ -68,11 +68,11 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     n_dims_1 = n_dims - one
 
     # First into a 5D dimension tensor.
-    pre_dim1 = op.Slice(shape, zero, axis1, zero)
+    pre_axis1 = op.Slice(shape, zero, axis1, zero)
     if axis1 == zero:
-        pre_dim1_size = op.Identity(one)
+        pre_axis1_size = op.Identity(one)
     else:
-        pre_dim1_size = op.ReduceProd(pre_dim1)
+        pre_axis1_size = op.ReduceProd(pre_axis1)
 
     between = op.Slice(shape, op.Add(axis1, one), axis2, zero)
     if axis1 == axis2_1:
@@ -80,21 +80,21 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     else:
         between_size = op.ReduceProd(between)
 
-    post_dim2 = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
+    post_axis2 = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
     if axis2 == n_dims_1:
-        post_dim2_size = op.Identity(one)
+        post_axis2_size = op.Identity(one)
     else:
-        post_dim2_size = op.ReduceProd(post_dim2)
+        post_axis2_size = op.ReduceProd(post_axis2)
 
     dim1_size = op.Slice(shape, axis1, op.Add(axis1, one), zero)
     dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
 
     new_shape = op.Concat(
-        pre_dim1_size,
+        pre_axis1_size,
         dim1_size,
         between_size,
         dim2,
-        post_dim2_size,
+        post_axis2_size,
         axis=0,
     )
     reshaped = op.Reshape(x, new_shape)
@@ -103,58 +103,7 @@ def switch_axes(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     transposed = op.Transpose(reshaped, perm=[0, 3, 2, 1, 4])
 
     # Reshape into its final shape.
-    final_shape = op.Concat(pre_dim1, dim2, between, dim1_size, post_dim2, axis=0)
-    return op.Reshape(transposed, final_shape)
-
-@script()
-def move_axis(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
-    """Moves axis1 to a new position axis2. All other axes retain their relative order.
-    Thus, `output[pre, middle, axis2val, axis1val, post] = input[pre, axis1val, middle, axis2val, post]`
-    The function assumes `axis1 < axis2`.
-    Both axis1 and axis2 are assumed to be positive. Specifically, the convention
-    of using negative axes to count backwards from the end is not supported.
-    """
-    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
-    one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
-    shape = op.Shape(x)
-    n_dims = op.Shape(shape)
-    n_dims_1 = n_dims - one
-
-    # Flatten axes [0, ..., axis1-1] into a single axis
-    pre_dim1 = op.Slice(shape, zero, axis1, zero)
-    if axis1 == zero:
-        pre_dim1_size = op.Identity(one)
-    else:
-        pre_dim1_size = op.ReduceProd(pre_dim1)
-
-    # Flatten axes [axis1+1, ..., axis2] into a single axis
-    between = op.Slice(shape, op.Add(axis1, one), op.Add(axis2, one), zero)
-    between_size = op.ReduceProd(between)
-
-    # Flatten axes [axis2+1, ...] into a single axis
-    post_dim2 = op.Slice(shape, op.Add(axis2, one), n_dims, zero)
-    if axis2 == n_dims_1:
-        post_dim2_size = op.Identity(one)
-    else:
-        post_dim2_size = op.ReduceProd(post_dim2)
-
-    dim1_size = op.Slice(shape, axis1, op.Add(axis1, one), zero)
-    dim2 = op.Slice(shape, axis2, op.Add(axis2, one), zero)
-
-    new_shape = op.Concat(
-        pre_dim1_size,
-        dim1_size,
-        between_size,
-        post_dim2_size,
-        axis=0,
-    )
-    reshaped = op.Reshape(x, new_shape)
-
-    # Transpose
-    transposed = op.Transpose(reshaped, perm=[0, 2, 1, 3])
-
-    # Reshape into its final shape.
-    final_shape = op.Concat(pre_dim1, between, dim1_size, post_dim2, axis=0)
+    final_shape = op.Concat(pre_axis1, dim2, between, dim1_size, post_axis2, axis=0)
     return op.Reshape(transposed, final_shape)
 
 
