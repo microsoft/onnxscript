@@ -3,7 +3,7 @@ name: CI
 on:
   schedule:
     # Run weekly on Monday 00:00
-    - cron: '00 00 * * MON'
+    - cron: '00 00 * * MON,WED'
   push:
     branches:
       - main
@@ -97,8 +97,7 @@ jobs:
         run: python -m sphinx docs dist/html
 
   release:
-    # TODO: Uncomment this
-    # needs: [test]
+    needs: [test]
     if: github.event_name != 'pull_request' || startsWith( github.base_ref, 'rel-') || contains( github.event.pull_request.labels.*.name, 'run release CIs')
     runs-on: ubuntu-latest
     strategy:
@@ -114,16 +113,23 @@ jobs:
       - name: Install Python build dependencies
         run: |
           python -m pip install --upgrade pip build wheel
-      - name: Build ONNX Script wheel
+      - name: Build ONNX Script wheel dev version
         run: |
           python -m build
-      - name: Install ONNX Script wheel
+        if: (!startsWith(github.ref, 'refs/tags/v'))
+      - name: Build ONNX Script wheel release version
         run: |
-          python -m pip install dist/*.whl
+          python -m build
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ONNX_SCRIPT_RELEASE: 1
       - uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: dist
+      - name: Install ONNX Script wheel
+        run: |
+          python -m pip install dist/*.whl
 
   publish:
     needs: [release]
@@ -136,7 +142,6 @@ jobs:
         with:
           name: dist
           path: dist
-      # TODO(justinchuby): Conditionally set the ONNX_SCRIPT_RELEASE environment variable
       # TODO: Check the tag name matches the VERSION file
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
