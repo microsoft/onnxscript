@@ -118,7 +118,6 @@ def move_axis(x: FLOAT[...], axis1: INT64[1], axis2: INT64[1]) -> FLOAT[...]:
     one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
     shape = op.Shape(x)
     n_dims = op.Shape(shape)
-    axis2_1 = axis2 - one
     n_dims_1 = n_dims - one
 
     # Flatten axes [0, ..., axis1-1] into a single axis
@@ -203,8 +202,6 @@ def dft_last_axis(
     one = op.Constant(value=make_tensor("one", TensorProto.INT64, [1], [1]))
     two = op.Constant(value=make_tensor("two", TensorProto.INT64, [1], [2]))
     last = op.Constant(value=make_tensor("last", TensorProto.INT64, [1], [-1]))
-
-
 
     range = op.Range(zero, fft_length, one)  # fft_length or dim
     range_float = op.Cast(range, to=1)
