@@ -1597,11 +1597,14 @@ def aten_upsample_bicubic2d_backward(
 def aten_upsample_bilinear2d(
     self: TReal,
     output_size: INT64,
+    align_corners: bool = True,  # pylint: disable=unused-argument
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     self_shape = op.Shape(self)
-    batch_channel = self_shape[:2]
+    starts = op.Constant(value_ints=[0])
+    ends = op.Constant(value_ints=[2])
+    batch_channel = op.Slice(self_shape, starts, ends)
     output_size = op.Concat(batch_channel, output_size, axis=0)
     return op.Resize(
         self,
@@ -1618,6 +1621,7 @@ def aten_upsample_bilinear2d_scales(
     self: TReal,
     scales_h: float,
     scales_w: float,
+    align_corners: bool = True,  # pylint: disable=unused-argument
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 

@@ -385,7 +385,7 @@ def _upsample_bilinear2d_scales_input_wrangler(
     if "scale_factor" in kwargs:
         kwargs["scales_h"] = kwargs["scale_factor"]
         kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]
+        del kwargs["scale_factor"]  # adapt the function signature
     return args, kwargs
 
 
@@ -394,7 +394,7 @@ def _upsample_bilinear2d_input_wrangler(
 ) -> tuple[list[Any], dict[str, Any]]:
     if "size" in kwargs:
         args.append(np.array(kwargs["size"], dtype=np.int64))
-        del kwargs["size"]
+        del kwargs["size"]  # promote tensor type kwargs to args
     return args, kwargs
 
 
