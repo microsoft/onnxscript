@@ -63,6 +63,12 @@ except importlib.metadata.PackageNotFoundError:
     # package is not installed
     pass
 
+def const (pyvalue: Any) -> Any:
+    """Used as an annotation in onnxscript code to indicate that the enclosed
+    expression must be evaluated and used as a constant at script/conversion time.
+    """
+    return pyvalue
+
 __all__ = [
     "script",
     "export_onnx_lib",
