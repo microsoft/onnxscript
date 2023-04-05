@@ -123,7 +123,7 @@ def _rename_variable(name: ValueInfoProto | str) -> Optional[str]:
 
 
 def _translate_type(onnx_type):
-    """Converts a onnx type into a type defined by *onnx-script*."""
+    """Converts a onnx type into a type defined by *onnxscript*."""
     return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type)
 
 

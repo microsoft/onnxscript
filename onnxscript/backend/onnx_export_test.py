@@ -50,8 +50,8 @@ SKIP_TESTS = (
         r"^test_ai_onnx_ml_binarizer",
         "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
     ),
-    skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
-    skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
+    skip(r"_scan_", "Operator Scan is not supported by onnxscript"),
+    skip(r"^test_scan", "Operator Scan is not supported by onnxscript"),
     skip(
         r"^test_split",
         "split has an undefined number of outputs. Current implementation of eager mode is not aware of them",
