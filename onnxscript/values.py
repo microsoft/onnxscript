@@ -94,7 +94,6 @@ class Opset:
 
     def add_function_def(self, fun):
         if fun.name in self.function_defs:
-
             logger = logging.getLogger("onnx-script")
             logger.warning("%s: Already defined.", fun.name)
         self.function_defs[fun.name] = fun
@@ -273,11 +272,71 @@ class OnnxFunction(Op):
         self.source = source
         self.kwargs = kwargs
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
+        self._opschema: Optional[onnx.defs.OpSchema] = None
 
     @property
     def name(self):
         """Returns the function name."""
         return self.opname
+
+    @property
+    def opschema(self) -> onnx.defs.OpSchema:
+        """Construct an OpSchema from function_ir."""
+        if self._opschema is not None:
+            return self._opschema
+
+        function_ir = self.function_ir
+        formal_inputs = [
+            onnx.defs.OpSchema.FormalParameter(
+                arg.name,
+                "TODO: T",
+                param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
+                if isinstance(arg.typeinfo, onnx.TypeProto.Optional)
+                else onnx.defs.OpSchema.FormalParameterOption.Single,
+                # TODO(justinchu): Check this is_homogeneous thing
+                is_homogeneous=True,
+            )
+            for arg in function_ir.inputs
+        ]
+        formal_outputs = [
+            onnx.defs.OpSchema.FormalParameter(
+                arg.name,
+                "TODO: T",
+                param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
+                if isinstance(arg.typeinfo, onnx.TypeProto.Optional)
+                else onnx.defs.OpSchema.FormalParameterOption.Single,
+                # TODO(justinchu): Check this is_homogeneous thing
+                is_homogeneous=True,
+            )
+            for arg in function_ir.outputs
+        ]
+
+        # TODO: create type_constraints
+        type_constraints = []
+
+        return onnx.defs.OpSchema(
+            self.name,
+            self.opset.domain,
+            since_version=self.opset.version,
+            doc=function_ir.docstring,
+            inputs=formal_inputs,
+            outputs=formal_outputs,
+            type_constraints=type_constraints,
+            attributes=[
+                onnx.defs.OpSchema.Attribute(
+                    name=attr_name,
+                    type=None,
+                )
+                for attr_name in function_ir.attrs
+            ]
+            + [
+                onnx.defs.OpSchema.Attribute(
+                    attr_proto.name,
+                    default_value=attr_proto,
+                )
+                for attr_proto in function_ir.attr_protos
+            ],
+        )
 
     def __getitem__(self, instance):
         """Returns a lambda to evaluate function using given evaluator instance.
@@ -302,53 +361,6 @@ class OnnxFunction(Op):
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
         return evaluator.default().eval_function(self, args, kwargs)
-
-    def param_schemas(self) -> tuple[ParamSchema, ...]:
-        """Returns the parameter schemas of this function."""
-        if self._param_schemas is not None:
-            return self._param_schemas
-
-        function_ir = self.function_ir
-        # The first len(func_ir.inputs) arguments are onnx inputs
-        inputs = function_ir.inputs
-        # The rest is onnx attributes
-        attributes = function_ir.attrs
-        # Construct a dictionary of attributes with their names specified in the function
-        # definition
-        attr_name_to_protos = collections.OrderedDict(
-            (attr.name, attr) for attr in function_ir.attr_protos
-        )
-
-        # args with default value are attributes
-        schemas = []
-        for arg in inputs:
-            if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
-                required = False
-            else:
-                required = True
-            param_schema = ParamSchema(
-                name=arg.name, type=arg.typeinfo, is_input=True, required=required
-            )
-            schemas.append(param_schema)
-
-        for attr_name in attributes:
-            # Attributes without default values
-            # FIXME(justinchuby): Where can we find the type?
-            param_schema = ParamSchema(name=attr_name, type=None, is_input=False)
-            schemas.append(param_schema)
-
-        for name, attr_value in attr_name_to_protos.items():
-            param_schema = ParamSchema(
-                name=name,
-                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
-                default=_get_attribute_value(attr_value.attr_proto),
-                is_input=False,
-                # All function attributes are required
-            )
-            schemas.append(param_schema)
-
-        self._param_schemas = tuple(schemas)
-        return self._param_schemas  # type: ignore[return-value]
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
