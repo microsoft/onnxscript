@@ -684,11 +684,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "nn.functional.avg_pool2d",
-        reason="fixme: graph_building.py assert not isinstance(value, TorchScriptTensor)",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
         "nn.functional.mse_loss",
         reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
         test_class_name="TestOutputConsistencyFullGraph",
