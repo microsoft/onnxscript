@@ -314,7 +314,7 @@ class OnnxFunction(Op):
         # TODO: create type_constraints
         type_constraints = []
 
-        return onnx.defs.OpSchema(
+        self._opschema = onnx.defs.OpSchema(
             self.name,
             self.opset.domain,
             since_version=self.opset.version,
@@ -337,6 +337,8 @@ class OnnxFunction(Op):
                 for attr_proto in function_ir.attr_protos
             ],
         )
+
+        return self._opschema
 
     def __getitem__(self, instance):
         """Returns a lambda to evaluate function using given evaluator instance.
