@@ -10,7 +10,6 @@ nox.options.error_on_missing_interpreters = False
 
 
 COMMON_TEST_DEPENDENCIES = (
-    "click",
     "jinja2",
     "numpy==1.23.5",
     "typing_extensions",
