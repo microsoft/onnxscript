@@ -550,10 +550,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ),
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
-    "nn.functional.upsample_bilinear2d": (
-        nn_ops.aten_upsample_bilinear2d,
-        _upsample_bilinear2d_input_wrangler,
-    ),
     "nonzero": core_ops.aten_nonzero,
     "normal": core_ops.aten_normal,
     "ones": core_ops.aten_ones,
@@ -629,6 +625,10 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.linear": nn_ops.aten_linear,
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
+    "nn.functional.upsample_bilinear2d": (
+        nn_ops.aten_upsample_bilinear2d,
+        _upsample_bilinear2d_input_wrangler,
+    ),
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
