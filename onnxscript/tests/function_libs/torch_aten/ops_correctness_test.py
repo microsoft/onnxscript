@@ -1275,11 +1275,13 @@ def _graph_executor(
             session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
             return session.run(None, ort_inputs)
         except (
-            onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
+            # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.Fail,
+            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,
+            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
+            # pylint: enable=c-extension-no-member
         ) as e:
             raise AssertionError(
                 f"ONNX Runtime failed to evaluate:\n"
