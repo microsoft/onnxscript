@@ -51,8 +51,8 @@ SKIP_TESTS = (
         "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
     ),
     skip(r"^test_center_crop_pad_crop_negative_axes_hwc", "fixme: ORT segfaults"),
-    skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
-    skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
+    skip(r"_scan_", "Operator Scan is not supported by onnxscript"),
+    skip(r"^test_scan", "Operator Scan is not supported by onnxscript"),
     skip(
         r"^test_split",
         "split has an undefined number of outputs. Current implementation of eager mode is not aware of them",
