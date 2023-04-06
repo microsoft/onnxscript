@@ -1178,10 +1178,19 @@ def _ort_session_run(serialized_model, ort_inputs, return_dict) -> None:
         return_dict["error"] = e
 
 
-def _safe_ort_session_run(
-    serialized_model: bytes,
-    ort_inputs: Mapping[str, Any],
-):
+def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime in a separate process.
+
+    Args:
+        serialized_model: Serialized ONNX model proto.
+        ort_inputs: Inputs to the model.
+
+    Returns:
+        The inference result.
+
+    Raises:
+        OrtAbortedError if the process did not execute successfully.
+    """
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
     process = multiprocessing.Process(
