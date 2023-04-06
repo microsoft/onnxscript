@@ -1,5 +1,9 @@
 """Test op correctness by comparing with PyTorch results.
 
+## Usage
+
+1. Set the env var CATCH_ORT_SEGFAULT to catch segfaults from ONNX Runtime.
+
 ## How to add a new operator test
 
 This test use PyTorch's OpInfo mechanism to generate test cases for each operator.
@@ -739,12 +743,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnx_older_than("1.14"),
     ),
-    xfail(
+    skip(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows",
         enabled_if=IS_WINDOWS,
     ),
-    xfail(
+    skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         reason="fixme: ORT crashes on Windows",
         enabled_if=IS_WINDOWS,
@@ -1349,7 +1353,17 @@ def _graph_executor(
             ) from e
 
         try:
-            return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
+            if os.environ.get("CATCH_ORT_SEGFAULT"):
+                # Use an individual process to run ONNX Runtime to catch segfaults
+                return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
+
+            # Disable all ORT optimizations
+            session_options = onnxruntime.SessionOptions()
+            session_options.graph_optimization_level = (
+                onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+            )
+            session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
+            return session.run(None, ort_inputs)
         except (
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
