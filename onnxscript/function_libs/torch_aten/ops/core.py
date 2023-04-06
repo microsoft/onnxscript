@@ -5129,7 +5129,7 @@ def aten_scatter_add(
 @torch_op("aten::scatter_reduce", trace_only=True)
 def aten_scatter_reduce(
     self: TReal,
-    dim: int,  # we have to use int here becuase ScatterElements() will use this attribute
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
     src: TReal,
     reduce: str,
@@ -5137,15 +5137,25 @@ def aten_scatter_reduce(
 ):
     """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
 
-    # FIXME(xiaowuhu): Support include_self == False
     reduce_mode = {  # convert torch string name to onnx string name
-        "mean": "none",  # mean doesn't support in ORT
+        "mean": "none",  # 'mean' doesn't support in ONNX 1.14 definition
         "sum": "add",
         "prod": "mul",
         "amin": "min",
-        "amax": "max",  # default none = amax
+        "amax": "max",
     }
     onnx_reduce = reduce_mode[reduce]
+    return _aten_scatter_reduce_onnx(self, index, src, dim, onnx_reduce)
+
+
+@torch_op("aten::scatter_reduce", overload=True)
+def _aten_scatter_reduce_onnx(
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    dim: int,
+    onnx_reduce: str,
+):
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:  # assert (index_rank == 0 and rank_src == 0)
         neg_1 = op.Constant(value_ints=[-1])

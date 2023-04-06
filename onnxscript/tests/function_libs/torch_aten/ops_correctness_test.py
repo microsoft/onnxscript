@@ -386,7 +386,8 @@ def _scatter_add_input_wrangler(
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["reduce"] = args.pop(4)  # put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    # Put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    kwargs["reduce"] = args.pop(4)
     return args, kwargs
 
 
@@ -763,7 +764,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "scatter_reduce",
         variant_name="mean",
-        reason="ORT doesn't support reduce='mean' option",
+        reason="ONNX doesn't support reduce='mean' option",
     ),
     xfail(
         "t",
@@ -1001,9 +1002,9 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "scatter_reduce",
-        matcher=lambda sample: sample.kwargs.get("include_self") is False,  # ORT only support include_self=True mode
-        # or len(sample.input.shape) == 0,
-        reason="ORT does't support include_self=False option, and skip rank 0 case because failed in FullGraph mode",
+        # ONNX has not include_self parameter and default is include_self=True mode
+        matcher=lambda sample: sample.kwargs.get("include_self") is False,
+        reason="ONNX does't support include_self=False option",
     ),
     skip(
         "squeeze",
