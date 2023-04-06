@@ -3585,7 +3585,7 @@ def aten_max_pool2d(
 
     self_len = len(self.shape)
     expand_size = 4
-    if self_len in [3,4]:
+    if self_len in [3, 4]:
         expand_size = 2
 
     if isinstance(dilation, int):
@@ -3614,7 +3614,9 @@ def aten_max_pool2d(
     else:
         strides = stride
 
-    return _aten_max_pool2d_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode)
+    return _aten_max_pool2d_onnx(
+        self, kernel_shape, strides, pads, dilations, ceil_mode
+    )
 
 
 @torch_op("aten::max_pool2d", overload=True)
@@ -3631,7 +3633,7 @@ def _aten_max_pool2d_onnx(
     if self_rank == 3:
         self = op.Unsqueeze(self, axes=0)
 
-    pool_result, indices = op.MaxPool(
+    pool_result, _ = op.MaxPool(
         self,
         ceil_mode=ceil_mode,
         dilations=dilations,
@@ -3659,7 +3661,7 @@ def aten_max_pool2d_with_indices(
 
     self_len = len(self.shape)
     expand_size = 4
-    if self_len in [3,4]:
+    if self_len in [3, 4]:
         expand_size = 2
 
     if isinstance(dilation, int):
@@ -3686,7 +3688,9 @@ def aten_max_pool2d_with_indices(
     else:
         strides = stride
 
-    return _aten_max_pool2d_with_indices_onnx(self, expand_size, kernel_shape, strides, pads, dilations, ceil_mode)
+    return _aten_max_pool2d_with_indices_onnx(
+        self, expand_size, kernel_shape, strides, pads, dilations, ceil_mode
+    )
 
 
 @torch_op("aten::max_pool2d", overload=True)
