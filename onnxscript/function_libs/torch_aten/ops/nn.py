@@ -1597,20 +1597,22 @@ def aten_upsample_bicubic2d_backward(
 def aten_upsample_bilinear2d(
     self: TReal,
     output_size: Optional[INT64] = None,
-    scales_h: float = None,
-    scales_w: float = None,
+    scales_h: Optional[float] = None,
+    scales_w: Optional[float] = None,
     align_corners: bool = True,  # pylint: disable=unused-argument
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     if output_size is not None:
         result = _aten_upsample_bilinear2d_output_size(self, output_size)
-    else:  # assert(scales_h is not None_, and assert(scales_h == scales_w)
+    else:
+        assert scales_h is not None
+        assert scales_h == scales_w
         result = _aten_upsample_bilinear2d_scales(self, scales_h, scales_w)
     return result
 
 
-@torch_op("aten::upsample_bilinear2d", overload=True)
+@torch_op("aten::upsample_bilinear2d", private=True)
 def _aten_upsample_bilinear2d_output_size(
     self: TReal,
     output_size: INT64,
@@ -1632,7 +1634,7 @@ def _aten_upsample_bilinear2d_output_size(
     )
 
 
-@torch_op("aten::upsample_bilinear2d", overload=True)
+@torch_op("aten::upsample_bilinear2d", private=True)
 def _aten_upsample_bilinear2d_scales(
     self: TReal,
     scales_h: float,
