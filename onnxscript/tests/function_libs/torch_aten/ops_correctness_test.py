@@ -379,18 +379,6 @@ def _sum_input_wrangler(
     return args, kwargs
 
 
-def _upsample_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]
-    if "size" in kwargs:
-        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
-    return args, kwargs
-
-
 def _upsample_bilinear2d_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
