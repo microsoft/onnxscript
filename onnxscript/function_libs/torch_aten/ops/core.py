@@ -3662,9 +3662,6 @@ def aten_max_pool2d_with_indices(
     if self_len in [3,4]:
         expand_size = 2
 
-    data_shape = op.Shape(self, start=2)
-    data_size = op.ReduceProd(data_shape)
-
     if isinstance(dilation, int):
         dilations = [dilation] * expand_size
     else:
