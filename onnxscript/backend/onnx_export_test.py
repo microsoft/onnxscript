@@ -50,9 +50,7 @@ SKIP_TESTS = (
         r"^test_ai_onnx_ml_binarizer",
         "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
     ),
-    skip(
-        r"^test_center_crop_pad_crop_negative_axes_hwc", "fixme: ORT segfaults"
-    ),
+    skip(r"^test_center_crop_pad_crop_negative_axes_hwc", "fixme: ORT segfaults"),
     skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
     skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
     skip(
@@ -170,7 +168,9 @@ class TestOnnxBackEnd(unittest.TestCase):
             onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
         ) as e:
             self.skipTest(f"Unable to load the model: {e}")
-        except onnxruntime_pybind11_state.RuntimeException as e:  # pylint: disable=c-extension-no-member
+        except (
+            onnxruntime_pybind11_state.RuntimeException
+        ) as e:  # pylint: disable=c-extension-no-member
             self.skipTest(f"Unable to run the model: {e}")
         except AssertionError as e:
             self.skipTest(f"ORT result mismatches with the expected: {e}")
