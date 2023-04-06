@@ -21,12 +21,9 @@ command = [
 ]
 init_command = [
     'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
+    'tools/lintrunner/pip_init.py',
     '--dry-run={{DRYRUN}}',
-    'ruff==0.0.261',
+    '--requirement=requirements/lintrunner/requirements.txt',
 ]
 
 [[linter]]
@@ -50,12 +47,9 @@ command = [
 ]
 init_command = [
     'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
+    'tools/lintrunner/pip_init.py',
     '--dry-run={{DRYRUN}}',
-    'ruff==0.0.261',
+    '--requirement=requirements/lintrunner/requirements.txt',
 ]
 is_formatter = true
 
@@ -93,13 +87,9 @@ command = [
 ]
 init_command = [
     'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
+    'tools/lintrunner/pip_init.py',
     '--dry-run={{DRYRUN}}',
-    'mypy==1.2.0',
-    'types-PyYAML==6.0.12.4',
+    '--requirement=requirements/lintrunner/requirements.txt',
 ]
 
 [[linter]]
@@ -121,13 +111,9 @@ command = [
 ]
 init_command = [
     'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
+    'tools/lintrunner/pip_init.py',
     '--dry-run={{DRYRUN}}',
-    'black==23.3.0',
-    'isort==5.12.0',
+    '--requirement=requirements/lintrunner/requirements.txt',
 ]
 is_formatter = true
 
@@ -157,12 +143,9 @@ command = [
 ]
 init_command = [
     'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
+    'tools/lintrunner/pip_init.py',
     '--dry-run={{DRYRUN}}',
-    'pylint==2.17.2',
+    '--requirement=requirements/lintrunner/requirements.txt',
 ]
 
 [[linter]]
@@ -182,10 +165,7 @@ command = [
 ]
 init_command = [
     'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
+    'tools/lintrunner/pip_init.py',
     '--dry-run={{DRYRUN}}',
-    'editorconfig-checker==2.6.2',
+    '--requirement=requirements/lintrunner/requirements.txt',
 ]
