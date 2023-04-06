@@ -21,7 +21,7 @@ from onnxscript.sourceinfo import SourceInfo
 
 # A simple IR (Function, Stmt, Attr, Var):
 
-logger = logging.getLogger("onnx-script")
+logger = logging.getLogger("onnxscript")
 
 
 def _format(seq: Sequence[Any], prefix: str, sep: str, suffix: str, formatter=str):
@@ -398,7 +398,7 @@ class IRFunction:
         ]
 
         # attribute_proto is introduced in version onnx==1.13.0.
-        # If this attribute is available, onnx-script uses it to
+        # If this attribute is available, onnxscript uses it to
         # default values for attributes. The function has then two
         # lists, one list for attributes without default values,
         # another one for attributes with default values.
