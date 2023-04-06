@@ -303,6 +303,15 @@ def _gather_input_wrangler(
     return args, kwargs
 
 
+def _max_pool2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove return_indices argument because this op doesn't accept it
+    if "return_indices" in kwargs:
+        del kwargs["return_indices"]
+    return args, kwargs
+
+
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -601,7 +610,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "empty_like": core_ops.aten_empty_like,
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
-    "nn.functional.max_pool2d": core_ops.aten_max_pool2d,
     "max": core_ops.aten_max,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
@@ -611,7 +619,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
-    # "nn.functional.max_pool2d_with_indices": nn_ops.aten_max_pool2d_with_indices,  # no test case in OPS_DB
+    "nn.functional.max_pool2d": (core_ops.aten_max_pool2d, _max_pool2d_input_wrangler),
+    "nn.functional.max_pool2d_with_indices": (core_ops.aten_max_pool2d_with_indices, _max_pool2d_input_wrangler),
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
     "nn.functional.upsample_nearest2d": (
@@ -715,11 +724,6 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "nn.functional.max_pool2d",
-        reason="fixme: no idea how to get length in scalar",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
@@ -915,6 +919,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.dropout",
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
+    ),
+    skip(
+        "nn.functional.max_pool2d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    skip(
+        "nn.functional.max_pool2d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
     ),
     skip(
         "nn.functional.nll_loss",

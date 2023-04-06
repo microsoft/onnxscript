@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, FLOAT16, INT8, INT16, INT32, INT64, UINT8
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     IntType,
@@ -3574,24 +3574,93 @@ def aten_max_pool1d_with_indices(
 
 @torch_op("aten::max_pool2d", trace_only=True)
 def aten_max_pool2d(
-    self: TensorType,
+    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
     kernel_size: Sequence[int],
     stride: Sequence[int] = None,
-    padding: Sequence[int] = 0,
+    padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-    return_indices: bool = False,
-) -> TensorType:
+) -> Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8]:
     """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
 
-    self_len_org = len(self.shape)
-    if self_len_org == 3:
-        self = op.Unsqueeze(self, axes=0)
     self_len = len(self.shape)
-    expand_size = self_len - 2
+    expand_size = 4
+    if self_len in [3,4]:
+        expand_size = 2
 
-    N = op.Shape(self, start=0, end=1)
-    C = op.Shape(self, start=1, end=2)
+    if isinstance(dilation, int):
+        dilations = [dilation] * expand_size
+    else:
+        dilations = dilation
+
+    if isinstance(kernel_size, int):
+        kernel_shape = [kernel_size] * expand_size
+    else:
+        kernel_shape = kernel_size
+
+    if isinstance(padding, int):
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:
+        pads = padding * 4
+    elif len(padding) == 2:
+        pads = padding * 2
+    else:  # assert len(padding) == 4:
+        pads = padding
+
+    if isinstance(stride, int):
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    return _aten_max_pool2d_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode)
+
+
+@torch_op("aten::max_pool2d", overload=True)
+def _aten_max_pool2d_onnx(
+    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
+    kernel_shape: Sequence[int],
+    strides: Sequence[int],
+    pads: Sequence[int],
+    dilations: Sequence[int],
+    ceil_mode: bool,
+) -> Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8]:
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 3:
+        self = op.Unsqueeze(self, axes=0)
+
+    pool_result, indices = op.MaxPool(
+        self,
+        ceil_mode=ceil_mode,
+        dilations=dilations,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    if self_rank == 3:
+        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+
+    return pool_result
+
+
+@torch_op("aten::max_pool2d", trace_only=True)
+def aten_max_pool2d_with_indices(
+    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
+    kernel_size: Sequence[int],
+    stride: Sequence[int] = None,
+    padding: Sequence[int] = (0, 0),
+    dilation: Sequence[int] = (1, 1),
+    ceil_mode: bool = False,
+) -> Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8]:
+    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
+
+    self_len = len(self.shape)
+    expand_size = 4
+    if self_len in [3,4]:
+        expand_size = 2
 
     data_shape = op.Shape(self, start=2)
     data_size = op.ReduceProd(data_shape)
@@ -3620,6 +3689,25 @@ def aten_max_pool2d(
     else:
         strides = stride
 
+    return _aten_max_pool2d_with_indices_onnx(self, expand_size, kernel_shape, strides, pads, dilations, ceil_mode)
+
+
+@torch_op("aten::max_pool2d", overload=True)
+def _aten_max_pool2d_with_indices_onnx(
+    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
+    expand_size: INT64,
+    kernel_shape: Sequence[int],
+    strides: Sequence[int],
+    pads: Sequence[int],
+    dilations: Sequence[int],
+    ceil_mode: bool,
+) -> tuple[Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8], INT64]:
+    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 3:
+        self = op.Unsqueeze(self, axes=0)
+
     pool_result, indices = op.MaxPool(
         self,
         ceil_mode=ceil_mode,
@@ -3629,30 +3717,29 @@ def aten_max_pool2d(
         strides=strides,
     )
 
-    if self_len_org == 3:
+    if self_rank == 3:
         pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
 
-    if not return_indices:
-        result = pool_result
-    else:
-        # Torch use relative position number for the second Channel data
-        # If align, need reduce size(Channel)
-        # e.g. [[8,3,10],[30,32,23]]-[0,18] -> [[8,3,10],[12,14,5]]
-        # 18 = H x W = 3 x 6
-        end = N * C
-        offset = op.Range(0, end, 1)
-        offset = offset * data_size
-        new_shape = op.Expand(
-            op.Constant(value_ints=[1]), op.Constant(value_ints=[expand_size])
-        )
-        new_shape = op.Concat(N, C, new_shape, axis=0)
-        offset = op.Reshape(offset, new_shape)
-        indices = indices - offset
-        if self_len_org == 3:
-            indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
-        result = (pool_result, indices)
-
-    return result
+    # Torch use relative position number for the second Channel data
+    # If align, need reduce size(Channel)
+    # e.g. [[8,3,10],[30,32,23]]-[0,18] -> [[8,3,10],[12,14,5]]
+    # 18 = H x W = 3 x 6
+    N = op.Shape(self, start=0, end=1)
+    C = op.Shape(self, start=1, end=2)
+    end = N * C
+    offset = op.Range(0, end, 1)
+    data_shape = op.Shape(self, start=2)
+    data_size = op.ReduceProd(data_shape)
+    offset = offset * data_size
+    new_shape = op.Expand(
+        op.Constant(value_ints=[1]), op.Reshape(expand_size, op.Constant(value_ints=[-1]))
+    )
+    new_shape = op.Concat(N, C, new_shape, axis=0)
+    offset = op.Reshape(offset, new_shape)
+    indices = indices - offset
+    if self_rank == 3:
+        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+    return pool_result, indices
 
 
 def aten_max_pool3d(

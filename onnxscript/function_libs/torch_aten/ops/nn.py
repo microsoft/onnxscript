@@ -575,7 +575,6 @@ def aten_max_pool2d_with_indices(
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-    return_indices: bool = True,
 ) -> tuple[TensorType, TensorType]:
     """max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
