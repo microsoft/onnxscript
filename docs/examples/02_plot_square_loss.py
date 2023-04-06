@@ -2,8 +2,8 @@
 Generating a ModelProto
 =======================
 
-This example demonstrates the use of *onnx-script* to define an ONNX model.
-*onnx-script* behaves like a compiler. It converts a script into an ONNX model.
+This example demonstrates the use of *onnxscript* to define an ONNX model.
+*onnxscript* behaves like a compiler. It converts a script into an ONNX model.
 
 """
 

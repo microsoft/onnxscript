@@ -282,10 +282,10 @@ class Opset18(Opset17):
         but it only supports *batched* multi-dimensional image tensors.
         Another implementation in Python with N-dimension support can be found at https://github.com/f-dangel/unfoldNd/.
 
-        NOTE: Although specifying image_shape looks redundant because it could be calculated from
-              convolution formulas, it is required as input for more advanced scenarios as explained
-              at PyTorch's implementation (https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/Col2Im.cpp#L10)
-
+        NOTE:
+          Although specifying image_shape looks redundant because it could be calculated from
+          convolution formulas, it is required as input for more advanced scenarios as explained
+          at PyTorch's implementation (https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/native/Col2Im.cpp#L10)
 
 
         Args:
@@ -439,11 +439,7 @@ class Opset18(Opset17):
          ```
          output_spatial_shape[i] = ceil((input_spatial_shape[i] + pad_shape[i] - {kernelSpatialShape}) / strides_spatial_shape[i] + 1)
          ```
-         if ceil_mode is enabled
-
-         ```
-         * pad_shape[i] is sum of pads along axis i
-         ```
+         if ceil_mode is enabled `pad_shape[i]` is the sum of pads along axis `i`.
 
          `auto_pad` is a DEPRECATED attribute. If you are using them currently, the output spatial shape will be following:
          ```
@@ -837,67 +833,73 @@ class Opset18(Opset17):
 
 
         Example 1 (`constant` mode):
-          Insert 0 pads to the beginning of the second dimension.
 
-          data =
-          [
-              [1.0, 1.2],
-              [2.3, 3.4],
-              [4.5, 5.7],
-          ]
+        Insert 0 pads to the beginning of the second dimension.
 
-          pads = [0, 2, 0, 0]
+        ::
 
-          mode = 'constant'
+            data = [
+                [1.0, 1.2],
+                [2.3, 3.4],
+                [4.5, 5.7],
+            ]
 
-          constant_value = 0.0
+            pads = [0, 2, 0, 0]
 
-          output =
-          [
-              [0.0, 0.0, 1.0, 1.2],
-              [0.0, 0.0, 2.3, 3.4],
-              [0.0, 0.0, 4.5, 5.7],
-          ]
+            mode = 'constant'
+
+            constant_value = 0.0
+
+            output = [
+                [0.0, 0.0, 1.0, 1.2],
+                [0.0, 0.0, 2.3, 3.4],
+                [0.0, 0.0, 4.5, 5.7],
+            ]
+
 
 
         Example 2 (`reflect` mode):
-          data =
-          [
-              [1.0, 1.2],
-              [2.3, 3.4],
-              [4.5, 5.7],
-          ]
 
-          pads = [0, 2, 0, 0]
+        ::
 
-          mode = 'reflect'
+            data = [
+                [1.0, 1.2],
+                [2.3, 3.4],
+                [4.5, 5.7],
+            ]
 
-          output =
-          [
-              [1.0, 1.2, 1.0, 1.2],
-              [2.3, 3.4, 2.3, 3.4],
-              [4.5, 5.7, 4.5, 5.7],
-          ]
+            pads = [0, 2, 0, 0]
+
+            mode = 'reflect'
+
+            output = [
+                [1.0, 1.2, 1.0, 1.2],
+                [2.3, 3.4, 2.3, 3.4],
+                [4.5, 5.7, 4.5, 5.7],
+            ]
+
 
 
         Example 3 (`edge` mode):
-          data =
-          [
-              [1.0, 1.2],
-              [2.3, 3.4],
-              [4.5, 5.7],
-          ]
 
-          pads = [0, 2, 0, 0]
+        ::
 
-          mode = 'edge'
+            data = [
+                [1.0, 1.2],
+                [2.3, 3.4],
+                [4.5, 5.7],
+            ]
 
-          output =
-          [
-              [1.0, 1.0, 1.0, 1.2],
-              [2.3, 2.3, 2.3, 3.4],
-              [4.5, 4.5, 4.5, 5.7],
-          ]
+            pads = [0, 2, 0, 0]
+
+            mode = 'edge'
+
+            output = [
+                [1.0, 1.0, 1.0, 1.2],
+                [2.3, 2.3, 2.3, 3.4],
+                [4.5, 4.5, 4.5, 5.7],
+            ]
+
 
 
 
@@ -961,9 +963,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceL1(18)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-18 "Online Documentation")
 
 
-        Computes the L1 norm of the input tensor's element along the provided axes. The resulting
+        Computes the L1 norm of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1006,9 +1009,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceL2(18)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-18 "Online Documentation")
 
 
-        Computes the L2 norm of the input tensor's element along the provided axes. The resulting
+        Computes the L2 norm of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1051,9 +1055,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceLogSum(18)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-18 "Online Documentation")
 
 
-        Computes the log sum of the input tensor's element along the provided axes. The resulting
+        Computes the log sum of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1096,9 +1101,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceLogSumExp(18)](https://onnx.ai/onnx/operators/onnx__ReduceLogSumExp.html#reducelogsumexp-18 "Online Documentation")
 
 
-        Computes the log sum exponent of the input tensor's element along the provided axes. The resulting
+        Computes the log sum exponent of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1143,9 +1149,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceMax(18)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-18 "Online Documentation")
 
 
-        Computes the max of the input tensor's element along the provided axes. The resulting
+        Computes the max of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1189,9 +1196,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceMean(18)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-18 "Online Documentation")
 
 
-        Computes the mean of the input tensor's element along the provided axes. The resulting
+        Computes the mean of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1236,9 +1244,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceMin(18)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-18 "Online Documentation")
 
 
-        Computes the min of the input tensor's element along the provided axes. The resulting
+        Computes the min of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1282,9 +1291,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceProd(18)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-18 "Online Documentation")
 
 
-        Computes the product of the input tensor's element along the provided axes. The resulting
+        Computes the product of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1327,9 +1337,10 @@ class Opset18(Opset17):
         r"""[🌐 ReduceSumSquare(18)](https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html#reducesumsquare-18 "Online Documentation")
 
 
-        Computes the sum square of the input tensor's element along the provided axes. The resulting
+        Computes the sum square of the input tensor's elements along the provided axes. The resulting
         tensor has the same rank as the input if keepdims equals 1. If keepdims equals 0, then
-        the resulting tensor has the reduced dimension pruned.
+        the resulting tensor has the reduced dimension pruned. Input tensors of rank zero are
+        valid.
 
         The above behavior is similar to numpy, with the exception that numpy defaults keepdims to
         False instead of True.
@@ -1671,19 +1682,18 @@ class Opset18(Opset17):
         corresponding to the [i][j] entry is performed as below:
         ::
 
-              output[indices[i][j]][j] = updates[i][j] if axis = 0,
-              output[i][indices[i][j]] = updates[i][j] if axis = 1,
+            output[indices[i][j]][j] = updates[i][j] if axis = 0,
+            output[i][indices[i][j]] = updates[i][j] if axis = 1,
 
 
         When `reduction` is set to some reduction function `f`, the update corresponding to the [i][j] entry is performed as below:
         ::
 
-              output[indices[i][j]][j] += f(output[indices[i][j]][j], updates[i][j]) if axis = 0,
-              output[i][indices[i][j]] += f(output[i][indices[i][j]], updates[i][j]) if axis = 1,
+            output[indices[i][j]][j] += f(output[indices[i][j]][j], updates[i][j]) if axis = 0,
+            output[i][indices[i][j]] += f(output[i][indices[i][j]], updates[i][j]) if axis = 1,
 
 
-        where the `f` is +/*/max/min as specified.
-
+        where the `f` is `+`, `*`, `max` or `min` as specified.
 
         This operator is the inverse of GatherElements. It is similar to Torch's Scatter operation.
 
@@ -1692,34 +1702,34 @@ class Opset18(Opset17):
         Example 1:
         ::
 
-              data = [
-                  [0.0, 0.0, 0.0],
-                  [0.0, 0.0, 0.0],
-                  [0.0, 0.0, 0.0],
-              ]
-              indices = [
-                  [1, 0, 2],
-                  [0, 2, 1],
-              ]
-              updates = [
-                  [1.0, 1.1, 1.2],
-                  [2.0, 2.1, 2.2],
-              ]
-              output = [
-                  [2.0, 1.1, 0.0]
-                  [1.0, 0.0, 2.2]
-                  [0.0, 2.1, 1.2]
-              ]
+            data = [
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0],
+            ]
+            indices = [
+                [1, 0, 2],
+                [0, 2, 1],
+            ]
+            updates = [
+                [1.0, 1.1, 1.2],
+                [2.0, 2.1, 2.2],
+            ]
+            output = [
+                [2.0, 1.1, 0.0]
+                [1.0, 0.0, 2.2]
+                [0.0, 2.1, 1.2]
+            ]
 
 
         Example 2:
         ::
 
-              data = [[1.0, 2.0, 3.0, 4.0, 5.0]]
-              indices = [[1, 3]]
-              updates = [[1.1, 2.1]]
-              axis = 1
-              output = [[1.0, 1.1, 3.0, 2.1, 5.0]]
+            data = [[1.0, 2.0, 3.0, 4.0, 5.0]]
+            indices = [[1, 3]]
+            updates = [[1.1, 2.1]]
+            axis = 1
+            output = [[1.0, 1.1, 3.0, 2.1, 5.0]]
 
 
 
@@ -1841,7 +1851,7 @@ class Opset18(Opset17):
         is the same as the shape of `data`.
 
         `indices` is an integer tensor. Let k denote indices.shape[-1], the last dimension in the shape of `indices`.
-         `indices` is treated as a (q-1)-dimensional tensor of k-tuples, where each k-tuple is a partial-index into `data`.
+        `indices` is treated as a (q-1)-dimensional tensor of k-tuples, where each k-tuple is a partial-index into `data`.
         Hence, k can be a value at most the rank of `data`. When k equals rank(data), each update entry specifies an
         update to a single element of the tensor. When k is less than rank(data) each update entry specifies an
         update to a slice of the tensor. Index values are allowed to be negative, as per the usual
@@ -1857,10 +1867,14 @@ class Opset18(Opset17):
 
         The `output` is calculated via the following equation:
 
+        ::
+
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
                 output[indices[idx]] = updates[idx]
+
+
 
         The order of iteration in the above loop is not specified.
         In particular, indices should not have duplicate entries: that is, if idx1 != idx2, then indices[idx1] != indices[idx2].
@@ -1872,12 +1886,16 @@ class Opset18(Opset17):
         then indices[idx1] != indices[idx2]. This ensures that the output value does not depend on the iteration order.
         When `reduction` is set to some reduction function `f`, `output` is calculated as follows:
 
+        ::
+
             output = np.copy(data)
             update_indices = indices.shape[:-1]
             for idx in np.ndindex(update_indices):
                 output[indices[idx]] = f(output[indices[idx]], updates[idx])
 
-        where the `f` is +/*/max/min as specified.
+
+
+        where the `f` is `+`, `*`, `max` or `min` as specified.
 
         This operator is the inverse of GatherND.
 
@@ -1886,27 +1904,27 @@ class Opset18(Opset17):
         Example 1:
         ::
 
-              data    = [1, 2, 3, 4, 5, 6, 7, 8]
-              indices = [[4], [3], [1], [7]]
-              updates = [9, 10, 11, 12]
-              output  = [1, 11, 3, 10, 9, 6, 7, 12]
+            data    = [1, 2, 3, 4, 5, 6, 7, 8]
+            indices = [[4], [3], [1], [7]]
+            updates = [9, 10, 11, 12]
+            output  = [1, 11, 3, 10, 9, 6, 7, 12]
 
 
 
         Example 2:
         ::
 
-              data    = [[[1, 2, 3, 4], [5, 6, 7, 8], [8, 7, 6, 5], [4, 3, 2, 1]],
-                         [[1, 2, 3, 4], [5, 6, 7, 8], [8, 7, 6, 5], [4, 3, 2, 1]],
-                         [[8, 7, 6, 5], [4, 3, 2, 1], [1, 2, 3, 4], [5, 6, 7, 8]],
-                         [[8, 7, 6, 5], [4, 3, 2, 1], [1, 2, 3, 4], [5, 6, 7, 8]]]
-              indices = [[0], [2]]
-              updates = [[[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]],
-                         [[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], [4, 4, 4, 4]]]
-              output  = [[[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]],
-                         [[1, 2, 3, 4], [5, 6, 7, 8], [8, 7, 6, 5], [4, 3, 2, 1]],
-                         [[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], [4, 4, 4, 4]],
-                         [[8, 7, 6, 5], [4, 3, 2, 1], [1, 2, 3, 4], [5, 6, 7, 8]]]
+            data    = [[[1, 2, 3, 4], [5, 6, 7, 8], [8, 7, 6, 5], [4, 3, 2, 1]],
+                        [[1, 2, 3, 4], [5, 6, 7, 8], [8, 7, 6, 5], [4, 3, 2, 1]],
+                        [[8, 7, 6, 5], [4, 3, 2, 1], [1, 2, 3, 4], [5, 6, 7, 8]],
+                        [[8, 7, 6, 5], [4, 3, 2, 1], [1, 2, 3, 4], [5, 6, 7, 8]]]
+            indices = [[0], [2]]
+            updates = [[[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]],
+                        [[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], [4, 4, 4, 4]]]
+            output  = [[[5, 5, 5, 5], [6, 6, 6, 6], [7, 7, 7, 7], [8, 8, 8, 8]],
+                        [[1, 2, 3, 4], [5, 6, 7, 8], [8, 7, 6, 5], [4, 3, 2, 1]],
+                        [[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], [4, 4, 4, 4]],
+                        [[8, 7, 6, 5], [4, 3, 2, 1], [1, 2, 3, 4], [5, 6, 7, 8]]]
 
 
 

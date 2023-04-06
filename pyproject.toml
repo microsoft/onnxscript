@@ -1,11 +1,9 @@
-# SPDX-License-Identifier: Apache-2.0
-
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "onnx-script"
+name = "onnxscript"
 dynamic = ["version"]
 description = "Authoring ONNX functions in Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
@@ -28,9 +26,6 @@ classifiers = [
 ]
 dependencies = ["numpy", "onnx", "typing_extensions"]
 
-[tool.setuptools.dynamic]
-version = {attr = "onnxscript.__version__"}
-
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
 # Tests are by default excluded: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
@@ -38,7 +33,6 @@ include = ["onnxscript*"]
 [tool.setuptools.package-data]
 onnxscript = ["py.typed"]
 onnx = ["py.typed"]
-
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]

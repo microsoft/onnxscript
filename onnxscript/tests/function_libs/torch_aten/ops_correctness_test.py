@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import os
 import pprint
 import unittest
 import warnings
@@ -74,6 +75,7 @@ FLOAT_TYPES = (
 )
 
 TEST_OPSET_VERSION = 18
+IS_WINDOWS = os.name == "nt"
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -353,6 +355,27 @@ def _permute_input_wrangler(
     return args, kwargs
 
 
+def _reflection_pad2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args.pop(2)  # remove 'reflect' arg
+    return args, kwargs
+
+
+def _replication_pad2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args.pop(2)  # remove 'replicate' arg
+    return args, kwargs
+
+
+def _replication_pad3d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args.pop(2)  # remove 'replicate' arg
+    return args, kwargs
+
+
 def _scatter_add_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -498,8 +521,20 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
+    "nn.functional.reflection_pad2d": (
+        nn_ops.aten_reflection_pad2d,
+        _reflection_pad2d_input_wrangler,
+    ),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
+    "nn.functional.replication_pad2d": (
+        nn_ops.aten_replication_pad2d,
+        _replication_pad2d_input_wrangler,
+    ),
+    "nn.functional.replication_pad3d": (
+        nn_ops.aten_replication_pad3d,
+        _replication_pad3d_input_wrangler,
+    ),
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
     "nonzero": core_ops.aten_nonzero,
@@ -538,6 +573,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
     "topk": core_ops.aten_topk,
+    "tril": core_ops.aten_tril,
+    "triu": core_ops.aten_triu,
     "trunc": core_ops.aten_trunc,
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
@@ -575,6 +612,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
     # "nn.functional.max_pool2d_with_indices": nn_ops.aten_max_pool2d_with_indices,  # no test case in OPS_DB
+    "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
+    "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
@@ -685,8 +724,19 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "nn.functional.mse_loss",
-        reason="fixme: Onnx [ShapeInferenceError] Inferred shape and existing shape differ in rank: (0) vs (1)",
+        reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnx_older_than("1.14"),
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention",
+        reason="fixme: ORT crashes on Windows",
+        enabled_if=IS_WINDOWS,
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        reason="fixme: ORT crashes on Windows",
+        enabled_if=IS_WINDOWS,
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
@@ -695,8 +745,9 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     xfail(
         "repeat",
-        reason="fixme: shape inference error. Enable after onnx/onnx#4982",
+        reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "round",
@@ -776,6 +827,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
+    ),
+    skip(
+        "matmul",
+        matcher=lambda sample: torch.numel(sample.input) == 0,
+        reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     skip(
         "min",  # aten_mean
@@ -871,6 +927,47 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload need weight as kwargs",
     ),
     skip(
+        "nn.functional.reflection_pad2d",
+        matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "reflect"),
+        reason="this Aten overload need args[1] == 'reflect' for pad mode",
+    ),
+    skip(
+        "nn.functional.replication_pad2d",
+        matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
+        reason="this Aten overload need args[1] == 'replicate' for pad mode",
+    ),
+    skip(
+        "nn.functional.replication_pad3d",
+        matcher=lambda sample: not (
+            len(sample.args) > 1
+            and sample.args[1] == "replicate"
+            and len(sample.input.shape) == 5
+        ),
+        reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype == torch.bool,
+        reason="this overload takes a non-boolean mask",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype != torch.bool,
+        reason="this overload takes a boolean mask",
+    ),
+    skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
+    ),
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
@@ -926,6 +1023,22 @@ duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
 duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.pad",
+    (
+        "nn.functional.reflection_pad2d",
+        "nn.functional.replication_pad2d",
+        "nn.functional.replication_pad3d",
+    ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.scaled_dot_product_attention",
+    ("nn.functional.scaled_dot_product_attention_bool_mask",),
+)
 
 duplicate_opinfo(
     OPS_DB,
@@ -1150,8 +1263,14 @@ def _graph_executor(
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
         # Make sure the model is valid
-        onnx.checker.check_model(onnx_model, full_check=True)
-
+        try:
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except onnx.checker.ValidationError as e:
+            raise AssertionError(
+                f"ONNX model is invalid: {e}. "
+                f"Model:\n"
+                f"{onnxscript.proto2text(onnx_model)}"
+            ) from e
         # Disable all ORT optimizations
         session_options = onnxruntime.SessionOptions()
         session_options.graph_optimization_level = (
@@ -1165,6 +1284,7 @@ def _graph_executor(
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
         ) as e:
             raise AssertionError(
                 f"ONNX Runtime failed to evaluate:\n"
@@ -1230,7 +1350,14 @@ def run_test_output_match(
         # Provide the repr to subtest because tensors are not serializable in parallel test runs
         with test_suite.subTest(
             sample_num=i,
-            inputs=repr(inputs),
+            inputs=repr(
+                [
+                    f"Tensor<{inp.shape}, dtype={inp.dtype}>"
+                    if isinstance(inp, torch.Tensor)
+                    else inp
+                    for inp in inputs
+                ]
+            ),
             kwargs=repr(cpu_sample.kwargs),
         ):
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)

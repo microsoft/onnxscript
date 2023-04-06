@@ -17,15 +17,17 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
+import onnxscript
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TReal,
+    TTensor,
 )
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import TensorType
+from onnxscript.onnx_types import BOOL, TensorType
 
 _MATH_PI = math.pi
 
@@ -948,10 +950,37 @@ def aten_reflection_pad1d_backward(
     raise NotImplementedError()
 
 
-def aten_reflection_pad2d(self: TensorType, padding: INT64) -> TensorType:
+@torch_op("aten::reflection_pad2d")
+def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
     """reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
+    # Convert torch padding format to onnx padding format
+    # Python code is:
+    # dim = len(self.shape)
+    # paddings = list(padding[:]) + [0] * (dim * 2 - len(padding))
+    # paddings = paddings[-2::-2] + paddings[-1::-2]
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="reflect")
 
 
 def aten_reflection_pad2d_backward(
@@ -1005,10 +1034,32 @@ def aten_replication_pad1d_backward(
     raise NotImplementedError()
 
 
-def aten_replication_pad2d(self: TensorType, padding: INT64) -> TensorType:
+@torch_op("aten::replication_pad2d")
+def aten_replication_pad2d(self: TTensor, padding: INT64) -> TTensor:
     """replication_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="edge")
 
 
 def aten_replication_pad2d_backward(
@@ -1019,10 +1070,32 @@ def aten_replication_pad2d_backward(
     raise NotImplementedError()
 
 
-def aten_replication_pad3d(self: TensorType, padding: INT64) -> TensorType:
+@torch_op("aten::replication_pad3d")
+def aten_replication_pad3d(self: TTensor, padding: INT64) -> TTensor:
     """replication_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="edge")
 
 
 def aten_replication_pad3d_backward(
@@ -1058,6 +1131,253 @@ def aten_rrelu_with_noise_backward(
     """rrelu_with_noise_backward(Tensor grad_output, Tensor self, Tensor noise, Scalar lower, Scalar upper, bool training, bool self_is_result) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@onnxscript.script()
+def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
+    """Create a causal mask for the given query and key tensors.
+
+    Equivalent to::
+        mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+        attn_mask = torch.zeros(L, S, dtype=torch.float)
+        attn_mask = attn_mask.masked_fill(not mask, -float('inf'))
+
+    Args:
+        query: Tensor of shape [..., L, E]
+        key: Tensor of shape [..., S, E]
+
+    Returns:
+        Tensor of shape [L, S]
+    """
+    target_length = op.Shape(query)[-2:-1]
+    source_length = op.Shape(key)[-2:-1]
+    # attn_mask = torch.ones(L, S) := {
+    size = op.Concat(target_length, source_length, axis=0)
+    attn_mask = op.Expand(1.0, size)
+    # }
+    attn_mask = op.Trilu(attn_mask, upper=0)
+    # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
+    attn_mask = op.Where(op.Equal(attn_mask, 0.0), op.Constant(value_float=-float("inf")), 0.0)
+    return attn_mask
+
+
+@onnxscript.script()
+def _attention_scale(query: TFloat) -> TFloat:
+    """Calculate the scale factor for the attention result.
+
+    Args:
+        query: Tensor of shape [..., L, E]
+
+    Returns:
+        Scalar scale factor := 1 / math.sqrt(query.size(-1))
+    """
+    embedding_size = op.CastLike(op.Shape(query)[-1], query)
+    scale = op.Div(1.0, op.Sqrt(embedding_size))
+    return scale
+
+
+@torch_op("aten::scaled_dot_product_attention", trace_only=True)
+def aten_scaled_dot_product_attention(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: Optional[TFloat] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: Optional[float] = None,
+):
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    Equivalent to the PyTorch code::
+        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
+        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
+        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p)
+        return attn_weight @ V
+
+    where Q, K, V are the query, key, and value tensors, respectively.
+    L is the target sequence length, S is the source sequence length, and E is the embedding size.
+    """
+    # Use trace_only to handle optional inputs
+    assert (not is_causal) or (
+        is_causal and attn_mask is None
+    ), "is_causal and attn_mask cannot be set at the same time"
+
+    # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    if scale is None:
+        scale = _attention_scale(query)
+
+    if is_causal:
+        attn_mask = _causal_attention_mask(query, key)
+
+    if attn_mask is None:
+        return _aten_scaled_dot_product_attention_no_mask_onnx(
+            query, key, value, scale, dropout_p
+        )
+
+    return _aten_scaled_dot_product_attention_float_mask_onnx(
+        query, key, value, attn_mask, scale, dropout_p
+    )
+
+
+@torch_op("aten::scaled_dot_product_attention", trace_only=True, overload=True)
+def aten_scaled_dot_product_attention_bool_mask(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: Optional[BOOL] = None,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    scale: Optional[float] = None,
+):
+    """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
+
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    Equivalent to the PyTorch code::
+        scale_factor = 1 / math.sqrt(Q.size(-1)) if scale is None else scale
+        attn_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0) if is_causal else attn_mask
+        attn_mask = attn_mask.masked_fill(not attn_mask, -float('inf')) if attn_mask.dtype==torch.bool else attn_mask
+        attn_weight = torch.softmax((Q @ K.transpose(-2, -1) * scale_factor) + attn_mask, dim=-1)
+        attn_weight = torch.dropout(attn_weight, dropout_p)
+        return attn_weight @ V
+
+    where Q, K, V are the query, key, and value tensors, respectively.
+    L is the target sequence length, S is the source sequence length, and E is the embedding size.
+    """
+    # Use trace_only to handle optional inputs
+    assert (not is_causal) or (
+        is_causal and attn_mask is None
+    ), "is_causal and attn_mask cannot be set at the same time"
+
+    if scale is None:
+        scale = _attention_scale(query)
+
+    if is_causal:
+        attn_mask = _causal_attention_mask(query, key)
+        # The causal mask is always float
+        return _aten_scaled_dot_product_attention_float_mask_onnx(
+            query, key, value, attn_mask, scale, dropout_p
+        )
+
+    if attn_mask is None:
+        return _aten_scaled_dot_product_attention_no_mask_onnx(
+            query, key, value, scale, dropout_p
+        )
+
+    return _aten_scaled_dot_product_attention_bool_mask_onnx(
+        query, key, value, attn_mask, scale, dropout_p
+    )
+
+
+@torch_op("aten::scaled_dot_product_attention", private=True)
+def _aten_scaled_dot_product_attention_no_mask_onnx(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    scale: FLOAT,
+    dropout_p: float,
+):
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
+
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    query_scaled = op.Mul(query, op.Sqrt(scale))
+    key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    attn_weight = op.Softmax(
+        op.MatMul(query_scaled, key_transposed_scaled),
+        axis=-1,
+    )
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
+
+@torch_op("aten::scaled_dot_product_attention", private=True)
+def _aten_scaled_dot_product_attention_bool_mask_onnx(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: BOOL,
+    scale: FLOAT,
+    dropout_p: float,
+):
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
+
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    query_scaled = op.Mul(query, op.Sqrt(scale))
+    key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    attn_weight = op.Softmax(
+        op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
+        axis=-1,
+    )
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
+
+
+@torch_op("aten::scaled_dot_product_attention", private=True)
+def _aten_scaled_dot_product_attention_float_mask_onnx(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    attn_mask: TFloat,
+    scale: TFloat,
+    dropout_p: float,
+):
+    # Swap the last two axes of key
+    key_shape = op.Shape(key)
+    key_last_dim = key_shape[-1:]
+    key_second_last_dim = key_shape[-2:-1]
+    key_first_dims = key_shape[:-2]
+    # Contract the dimensions that are not the last two so we can transpose
+    # with a static permutation.
+    key_squeezed_shape = op.Concat(
+        op.Constant(value_ints=[-1]), key_second_last_dim, key_last_dim, axis=0
+    )
+    key_squeezed = op.Reshape(key, key_squeezed_shape)
+    key_squeezed_transposed = op.Transpose(key_squeezed, perm=[0, 2, 1])
+    key_transposed_shape = op.Concat(key_first_dims, key_last_dim, key_second_last_dim, axis=0)
+    key_transposed = op.Reshape(key_squeezed_transposed, key_transposed_shape)
+
+    # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
+    # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
+    query_scaled = op.Mul(query, op.Sqrt(scale))
+    key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    attn_weight = op.Softmax(
+        op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
+        axis=-1,
+    )
+    attn_weight, _ = op.Dropout(attn_weight, dropout_p)
+    return op.MatMul(attn_weight, value)
 
 
 def aten_sigmoid_backward(grad_output: TensorType, output: TensorType) -> TensorType:

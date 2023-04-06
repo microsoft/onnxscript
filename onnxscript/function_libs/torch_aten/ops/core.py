@@ -4403,7 +4403,6 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 def aten_new_ones_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     one = op.Constant(value_float=1.0)
     one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
@@ -4421,7 +4420,6 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused
 def aten_new_zeros_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
     return op.Expand(zero, size)
@@ -5172,6 +5170,8 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 @torch_op("aten::rsub")
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+    # FIXME(titaiwang): get rid of this when we have type_promotion
+    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, self)
     return op.Sub(other, op.Mul(self, alpha))
 
@@ -5482,7 +5482,7 @@ def aten_sspaddmm(
 @torch_op("aten::stack")
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnx-script/issues/481
+    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnxscript/issues/481
     # If so, right now we do not support it.
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
@@ -5608,7 +5608,7 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 @torch_op("aten::sym_size")
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
-    # NOTE: onnx-script doesn't support attribute process,
+    # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
@@ -5824,10 +5824,11 @@ def aten_triangular_solve(
     raise NotImplementedError()
 
 
-def aten_tril(self: TensorType, diagonal: int = 0) -> TensorType:
+@torch_op("aten::tril")
+def aten_tril(self: TTensor, diagonal: int = 0) -> TTensor:
     """tril(Tensor self, int diagonal=0) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Trilu(self, diagonal, upper=0)
 
 
 def aten_tril_indices(row: int, col: int, offset: int = 0) -> TensorType:
@@ -5851,10 +5852,11 @@ def aten_triplet_margin_loss(
     raise NotImplementedError()
 
 
+@torch_op("aten::triu")
 def aten_triu(self: TensorType, diagonal: int = 0) -> TensorType:
     """triu(Tensor self, int diagonal=0) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Trilu(self, diagonal, upper=1)
 
 
 def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:

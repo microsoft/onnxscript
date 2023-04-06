@@ -95,7 +95,7 @@ class Opset:
     def add_function_def(self, fun):
         if fun.name in self.function_defs:
 
-            logger = logging.getLogger("onnx-script")
+            logger = logging.getLogger("onnxscript")
             logger.warning("%s: Already defined.", fun.name)
         self.function_defs[fun.name] = fun
 
@@ -258,7 +258,14 @@ class OnnxFunction(Op):
         kwargs: additional properties used to construct a ModelProto
     """
 
-    def __init__(self, opset, pyfun, irfun: irbuilder.IRFunction, source, kwargs):
+    def __init__(
+        self,
+        opset: Opset,
+        pyfun: types.FunctionType,
+        irfun: irbuilder.IRFunction,
+        source: str,
+        kwargs: dict[str, Any],
+    ):
         opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun

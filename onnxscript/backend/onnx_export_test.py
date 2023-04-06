@@ -42,8 +42,17 @@ def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
 
 
 SKIP_TESTS = (
-    skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
-    skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
+    skip(
+        r"^test_ai_onnx_ml_array_feature_extractor",
+        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
+    ),
+    skip(
+        r"^test_ai_onnx_ml_binarizer",
+        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
+    ),
+    skip(r"^test_center_crop_pad_crop_negative_axes_hwc", "fixme: ORT segfaults"),
+    skip(r"_scan_", "Operator Scan is not supported by onnxscript"),
+    skip(r"^test_scan", "Operator Scan is not supported by onnxscript"),
     skip(
         r"^test_split",
         "split has an undefined number of outputs. Current implementation of eager mode is not aware of them",
@@ -62,8 +71,7 @@ SKIP_TESTS = (
     ),
     skip(
         r"^test_optional_get_element_tensor",
-        "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
-        condition=ort.__version__[:4] == "1.14",
+        "ONNX backend test produces an invalid graph: https://github.com/onnx/onnx/issues/5067",
     ),
     skip(
         r"test_loop",
