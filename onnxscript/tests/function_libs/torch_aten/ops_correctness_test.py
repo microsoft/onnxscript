@@ -1062,9 +1062,7 @@ duplicate_opinfo(
 duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
-    (
-        "nn.functional.upsample_bilinear2d",
-    ),
+    ("nn.functional.upsample_bilinear2d",),
 )
 
 duplicate_opinfo(
