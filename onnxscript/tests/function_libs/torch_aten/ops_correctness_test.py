@@ -977,16 +977,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
-    # skip(
-    #     "nn.functional.upsample_bilinear2d",  # aten_upsample_bilinear2d
-    #     matcher=lambda sample: "size" not in sample.kwargs,
-    #     reason="this overload need output_size as input",
-    # ),
-    # skip(
-    #     "nn.functional.upsample_bilinear2d_scales",  # aten_upsample_bilinear2d_scales
-    #     matcher=lambda sample: "scale_factor" not in sample.kwargs,
-    #     reason="this overload need scales_h and scales_w as kwargs",
-    # ),
     skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
