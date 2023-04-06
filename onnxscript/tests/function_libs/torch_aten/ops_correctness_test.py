@@ -695,43 +695,50 @@ EXPECTED_SKIPS_OR_FAILS = (
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15")
+        and version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "new_ones",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15")
+        and version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "new_ones_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15")
+        and version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "new_zeros",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15")
+        and version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "new_zeros_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15")
+        and version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15")
+        and version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15")
+        and version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "nn.functional.mse_loss",
@@ -1173,7 +1180,7 @@ def _ort_session_run(serialized_model, ort_inputs, return_dict) -> None:
         results = session.run(None, ort_inputs)
         return_dict["results"] = results
         return_dict["error"] = None
-    except Exception as e:  # Report all exceptions
+    except Exception as e:  # pylint: disable=broad-except
         return_dict["results"] = None
         return_dict["error"] = e
 
