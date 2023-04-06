@@ -379,22 +379,16 @@ def _sum_input_wrangler(
     return args, kwargs
 
 
-def _upsample_bilinear2d_scales_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]  # adapt the function signature
-    return args, kwargs
-
-
 def _upsample_bilinear2d_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     if "size" in kwargs:
         args.append(np.array(kwargs["size"], dtype=np.int64))
         del kwargs["size"]  # promote tensor type kwargs to args
+    if "scale_factor" in kwargs:
+        kwargs["scales_h"] = kwargs["scale_factor"]
+        kwargs["scales_w"] = kwargs["scale_factor"]
+        del kwargs["scale_factor"]  # adapt the function signature
     return args, kwargs
 
 
@@ -556,10 +550,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ),
     "nn.functional.selu": core_ops.aten_selu,
     "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
-    "nn.functional.upsample_bilinear2d_scales": (
-        nn_ops.aten_upsample_bilinear2d_scales,
-        _upsample_bilinear2d_scales_input_wrangler,
-    ),
     "nn.functional.upsample_bilinear2d": (
         nn_ops.aten_upsample_bilinear2d,
         _upsample_bilinear2d_input_wrangler,
@@ -987,16 +977,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
-    skip(
-        "nn.functional.upsample_bilinear2d",  # aten_upsample_bilinear2d
-        matcher=lambda sample: "size" not in sample.kwargs,
-        reason="this overload need output_size as input",
-    ),
-    skip(
-        "nn.functional.upsample_bilinear2d_scales",  # aten_upsample_bilinear2d_scales
-        matcher=lambda sample: "scale_factor" not in sample.kwargs,
-        reason="this overload need scales_h and scales_w as kwargs",
-    ),
+    # skip(
+    #     "nn.functional.upsample_bilinear2d",  # aten_upsample_bilinear2d
+    #     matcher=lambda sample: "size" not in sample.kwargs,
+    #     reason="this overload need output_size as input",
+    # ),
+    # skip(
+    #     "nn.functional.upsample_bilinear2d_scales",  # aten_upsample_bilinear2d_scales
+    #     matcher=lambda sample: "scale_factor" not in sample.kwargs,
+    #     reason="this overload need scales_h and scales_w as kwargs",
+    # ),
     skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
@@ -1084,7 +1074,6 @@ duplicate_opinfo(
     "nn.functional.upsample_bilinear",
     (
         "nn.functional.upsample_bilinear2d",
-        "nn.functional.upsample_bilinear2d_scales",
     ),
 )
 
