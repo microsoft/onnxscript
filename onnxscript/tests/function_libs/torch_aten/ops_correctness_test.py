@@ -695,50 +695,43 @@ EXPECTED_SKIPS_OR_FAILS = (
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15")
-        and version_utils.onnx_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15")
-        and version_utils.onnx_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15")
-        and version_utils.onnx_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15")
-        and version_utils.onnx_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15")
-        and version_utils.onnx_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15")
-        and version_utils.onnx_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15")
-        and version_utils.onnx_older_than("1.14"),
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.mse_loss",
