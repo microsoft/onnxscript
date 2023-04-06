@@ -532,12 +532,16 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
-    # "nn.functional.reflection_pad2d": (
-    #     nn_ops.aten_reflection_pad2d,
-    #     _reflection_pad2d_input_wrangler,
-    # ),
+    "nn.functional.reflection_pad2d": (
+        nn_ops.aten_reflection_pad2d,
+        _reflection_pad2d_input_wrangler,
+    ),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
+    "nn.functional.replication_pad2d": (
+        nn_ops.aten_replication_pad2d,
+        _replication_pad2d_input_wrangler,
+    ),
     "nn.functional.replication_pad3d": (
         nn_ops.aten_replication_pad3d,
         _replication_pad3d_input_wrangler,
@@ -785,16 +789,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    # skip(
-    #     "amax",
-    #     matcher=lambda sample: len(sample.input.shape) == 0,
-    #     reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
-    # ),
-    # skip(
-    #     "amin",
-    #     matcher=lambda sample: len(sample.input.shape) == 0,
-    #     reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
-    # ),
+    skip(
+        "amax",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
+    ),
+    skip(
+        "amin",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
+    ),
     skip(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
@@ -1146,10 +1150,13 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
-def _ort_session_run(
-    serialized_model, ort_inputs, return_dict
-) -> None:
+class OrtAbortedError(RuntimeError):
+    """ONNX Runtime Aborted."""
+
+
+def _ort_session_run(serialized_model, ort_inputs, return_dict) -> None:
     """Run a model with ONNX Runtime and store the results in return_dict."""
+
     # Handle SIGSEGV so Python does not abort
     def sig_handler(signum, frame):
         warnings.warn(f"Segmentation error ({signum}) detected in ORT:\n{frame}")
@@ -1170,17 +1177,23 @@ def _ort_session_run(
         return_dict["results"] = None
         return_dict["error"] = e
 
+
 def _safe_ort_session_run(
-    serialized_model: bytes, ort_inputs: Mapping[str, Any],
+    serialized_model: bytes,
+    ort_inputs: Mapping[str, Any],
 ):
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
-    process = multiprocessing.Process(target=_ort_session_run, args=(serialized_model, ort_inputs, return_dict))
+    process = multiprocessing.Process(
+        target=_ort_session_run, args=(serialized_model, ort_inputs, return_dict)
+    )
     process.start()
     process.join()
     if not return_dict:
-        return None, RuntimeError("ONNX Runtime process failed")
-    return return_dict["results"], return_dict["error"]
+        raise OrtAbortedError()
+    if return_dict["error"] is not None:
+        raise return_dict["error"]
+    return return_dict["results"]
 
 
 def _format_model_and_input_information(onnx_model, inputs):
@@ -1326,10 +1339,7 @@ def _graph_executor(
             ) from e
 
         try:
-            results, error = _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
-            if error is not None:
-                raise error
-            return results
+            return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
         except (
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
@@ -1341,7 +1351,7 @@ def _graph_executor(
                 "ONNX Runtime failed to evaluate:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
-        except RuntimeError as e:
+        except OrtAbortedError as e:
             raise AssertionError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
