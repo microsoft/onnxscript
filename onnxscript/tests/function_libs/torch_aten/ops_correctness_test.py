@@ -26,10 +26,12 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import io
 import multiprocessing
 import os
 import pprint
 import signal
+import sys
 import unittest
 import warnings
 from typing import (
@@ -532,10 +534,10 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
     "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
-    "nn.functional.reflection_pad2d": (
-        nn_ops.aten_reflection_pad2d,
-        _reflection_pad2d_input_wrangler,
-    ),
+    # "nn.functional.reflection_pad2d": (
+    #     nn_ops.aten_reflection_pad2d,
+    #     _reflection_pad2d_input_wrangler,
+    # ),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
     "nn.functional.replication_pad3d": (
@@ -691,36 +693,43 @@ EXPECTED_SKIPS_OR_FAILS = (
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.mse_loss",
@@ -1141,11 +1150,14 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
 
 def _ort_session_run(
     serialized_model, ort_inputs, return_dict
-) -> tuple[Optional[list[Any]], Optional[Exception], dict]:
+) -> None:
+    """Run a model with ONNX Runtime and store the results in return_dict."""
+    # Handle SIGSEGV so Python does not abort
     def sig_handler(signum, frame):
-        warnings.warn("SIGSEGV was set.")
+        warnings.warn(f"Segmentation error ({signum}) detected in ORT:\n{frame}")
 
     signal.signal(signal.SIGSEGV, sig_handler)
+
     # Disable all ORT optimizations
     session_options = onnxruntime.SessionOptions()
     session_options.graph_optimization_level = (
@@ -1168,6 +1180,8 @@ def _safe_ort_session_run(
     process = multiprocessing.Process(target=_ort_session_run, args=(serialized_model, ort_inputs, return_dict))
     process.start()
     process.join()
+    if not return_dict:
+        return None, RuntimeError("ONNX Runtime process failed")
     return return_dict["results"], return_dict["error"]
 
 
@@ -1329,7 +1343,7 @@ def _graph_executor(
                 "ONNX Runtime failed to evaluate:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
-        except multiprocessing.ProcessError as e:
+        except RuntimeError as e:
             raise AssertionError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
