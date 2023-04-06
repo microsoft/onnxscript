@@ -26,7 +26,7 @@ if use_subscript:
 else:
     _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]  # noqa: N816
 
-logger = logging.getLogger("onnx-script")
+logger = logging.getLogger("onnxscript")
 
 
 # Python-to-IR converter:
@@ -146,7 +146,7 @@ class Converter:
         ir_builder: convert AST node into ONNX structures, if None,
             class :class:`onnxscript.irbuilder.IRBuilder` is used
 
-    The class uses logger `onnx-script`. Logging can be enabled with the following code:
+    The class uses logger `onnxscript`. Logging can be enabled with the following code:
 
     ::
 
@@ -158,7 +158,7 @@ class Converter:
     ::
 
         import logging
-        logger = logging.getLogger('onnx-script')
+        logger = logging.getLogger('onnxscript')
         logger.setLevel(logging.DEBUG)
         console = logging.StreamHandler()
         logger.addHandler(console)

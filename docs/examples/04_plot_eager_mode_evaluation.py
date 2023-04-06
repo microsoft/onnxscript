@@ -2,13 +2,13 @@
 Eager mode evaluation
 =====================
 
-An *onnx-script* function can be executed directly as a Python function (for example,
-with a Python debugger). This is useful for debugging an *onnx-script* function definition.
+An *onnxscript* function can be executed directly as a Python function (for example,
+with a Python debugger). This is useful for debugging an *onnxscript* function definition.
 This execution makes use of a backend implementation of the ONNX ops used in the function
 definition. Currently, the backend implementation uses onnxruntime to execute each op
 invocation. This mode of execution is referred to as *eager mode evaluation*.
 
-The example below illustrates this. We first define an *onnx-script* function:
+The example below illustrates this. We first define an *onnxscript* function:
 """
 import numpy as np
 
