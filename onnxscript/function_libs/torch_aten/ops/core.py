@@ -5412,7 +5412,7 @@ def aten_sspaddmm(
 @torch_op("aten::stack")
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnx-script/issues/481
+    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnxscript/issues/481
     # If so, right now we do not support it.
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
@@ -5538,7 +5538,7 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 @torch_op("aten::sym_size")
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
-    # NOTE: onnx-script doesn't support attribute process,
+    # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
