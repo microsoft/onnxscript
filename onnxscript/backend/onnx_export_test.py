@@ -50,6 +50,7 @@ SKIP_TESTS = (
         r"^test_ai_onnx_ml_binarizer",
         "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
     ),
+    skip(r"^test_center_crop_pad_crop_negative_axes_hwc", "fixme: ORT segfaults"),
     skip(r"_scan_", "Operator Scan is not supported by onnxscript"),
     skip(r"^test_scan", "Operator Scan is not supported by onnxscript"),
     skip(
