@@ -26,11 +26,22 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import multiprocessing
 import os
 import pprint
+import signal
 import unittest
 import warnings
-from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterable,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 import numpy as np
 import onnx
@@ -527,10 +538,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     ),
     "nn.functional.relu": nn_ops.aten_relu,
     "nn.functional.relu6": nn_ops.aten_relu6,
-    "nn.functional.replication_pad2d": (
-        nn_ops.aten_replication_pad2d,
-        _replication_pad2d_input_wrangler,
-    ),
     "nn.functional.replication_pad3d": (
         nn_ops.aten_replication_pad3d,
         _replication_pad3d_input_wrangler,
@@ -721,12 +728,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnx_older_than("1.14"),
     ),
-    skip(
+    xfail(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows",
         enabled_if=IS_WINDOWS,
     ),
-    skip(
+    xfail(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         reason="fixme: ORT crashes on Windows",
         enabled_if=IS_WINDOWS,
@@ -771,16 +778,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    skip(
-        "amax",
-        matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
-    ),
-    skip(
-        "amin",
-        matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
-    ),
+    # skip(
+    #     "amax",
+    #     matcher=lambda sample: len(sample.input.shape) == 0,
+    #     reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
+    # ),
+    # skip(
+    #     "amin",
+    #     matcher=lambda sample: len(sample.input.shape) == 0,
+    #     reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
+    # ),
     skip(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
@@ -1132,6 +1139,47 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
+def _ort_session_run(
+    serialized_model, ort_inputs, return_dict
+) -> tuple[Optional[list[Any]], Optional[Exception], dict]:
+    def sig_handler(signum, frame):
+        warnings.warn("SIGSEGV was set.")
+
+    signal.signal(signal.SIGSEGV, sig_handler)
+    # Disable all ORT optimizations
+    session_options = onnxruntime.SessionOptions()
+    session_options.graph_optimization_level = (
+        onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    )
+    try:
+        session = ort.InferenceSession(serialized_model, session_options)
+        results = session.run(None, ort_inputs)
+        return_dict["results"] = results
+        return_dict["error"] = None
+    except Exception as e:  # Report all exceptions
+        return_dict["results"] = None
+        return_dict["error"] = e
+
+def _safe_ort_session_run(
+    serialized_model: bytes, ort_inputs: Mapping[str, Any],
+):
+    manager = multiprocessing.Manager()
+    return_dict = manager.dict()
+    process = multiprocessing.Process(target=_ort_session_run, args=(serialized_model, ort_inputs, return_dict))
+    process.start()
+    process.join()
+    return return_dict["results"], return_dict["error"]
+
+
+def _format_model_and_input_information(onnx_model, inputs):
+    return (
+        f"Inputs:\n"
+        f"{pprint.pformat(inputs)}\n"
+        f"Model:\n"
+        f"{onnxscript.proto2text(onnx_model)}"
+    )
+
+
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
         functions = set()
@@ -1264,14 +1312,12 @@ def _graph_executor(
                 f"Model:\n"
                 f"{onnxscript.proto2text(onnx_model)}"
             ) from e
-        # Disable all ORT optimizations
-        session_options = onnxruntime.SessionOptions()
-        session_options.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-        )
+
         try:
-            session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
-            return session.run(None, ort_inputs)
+            results, error = _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
+            if error is not None:
+                raise error
+            return results
         except (
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
@@ -1280,11 +1326,13 @@ def _graph_executor(
             onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
         ) as e:
             raise AssertionError(
-                f"ONNX Runtime failed to evaluate:\n"
-                f"Inputs:\n"
-                f"{pprint.pformat(ort_inputs)}\n"
-                f"Model:\n"
-                f"{onnxscript.proto2text(onnx_model)}"
+                "ONNX Runtime failed to evaluate:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
+            ) from e
+        except multiprocessing.ProcessError as e:
+            raise AssertionError(
+                "ONNX Runtime aborted:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
 
     return _capture_graph_and_evaluate_torch_script_evaluator
