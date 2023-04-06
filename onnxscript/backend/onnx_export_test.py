@@ -168,9 +168,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
         ) as e:
             self.skipTest(f"Unable to load the model: {e}")
-        except (
-            onnxruntime_pybind11_state.RuntimeException
-        ) as e:  # pylint: disable=c-extension-no-member
+        except onnxruntime_pybind11_state.RuntimeException as e:  # pylint: disable=c-extension-no-member
             self.skipTest(f"Unable to run the model: {e}")
         except AssertionError as e:
             self.skipTest(f"ORT result mismatches with the expected: {e}")
