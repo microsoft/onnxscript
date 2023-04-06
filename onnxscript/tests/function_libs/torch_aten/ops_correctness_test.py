@@ -1198,6 +1198,7 @@ def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]
     )
     process.start()
     process.join()
+    process.close()
     if not return_dict:
         raise OrtAbortedError()
     if return_dict["error"] is not None:
