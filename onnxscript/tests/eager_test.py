@@ -125,7 +125,6 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         )
     )
     def test_dft_rfft_last_axis(self, onesided: bool, x_: np.ndarray, s: int):
-
         x = x_[..., np.newaxis]
         le = np.array([s], dtype=np.int64)
         expected = _fft(x_, le)
@@ -143,7 +142,6 @@ class TestOnnxSignal(onnx_script_test_case.OnnxScriptTestCase):
         self.run_eager_test(case, rtol=1e-4, atol=1e-4)
 
     def test_dft_cfft_last_axis(self):
-
         xs = [
             np.arange(5).astype(np.float32),
             np.arange(5).astype(np.float32).reshape((1, -1)),
