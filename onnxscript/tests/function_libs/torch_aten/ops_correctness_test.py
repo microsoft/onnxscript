@@ -1177,9 +1177,7 @@ def _ort_session_run_return_dict(
     """Run a model with ONNX Runtime and store the results in return_dict."""
 
     try:
-        session = _ort_session_run(serialized_model, ort_inputs)
-        results = session.run(None, ort_inputs)
-        return_dict["results"] = results
+        return_dict["results"] = _ort_session_run(serialized_model, ort_inputs)
         return_dict["error"] = None
     except Exception as e:  # pylint: disable=broad-except
         return_dict["results"] = None
