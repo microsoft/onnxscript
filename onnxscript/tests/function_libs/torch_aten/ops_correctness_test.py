@@ -542,7 +542,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
     "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
     "nn.functional.celu": nn_ops.aten_celu,
-    "nn.functional.fold": nn_ops.aten_col2im,  # FIXME: no test case in OPS_DB
+    # nn.functional.col2im is not a valid function in torch, so we have to use nn.functional.fold as broker
+    "nn.functional.fold": nn_ops.aten_col2im,
     # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
     "nn.functional.cross_entropy": (
         nn_ops.aten_cross_entropy_loss,
@@ -1490,11 +1491,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i <= 5:
-                print(i)
-            else:
-                continue
-
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
