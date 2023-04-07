@@ -3631,7 +3631,6 @@ def _aten_max_pool2d_onnx(
     dilations: Sequence[int],
     ceil_mode: bool,
 ) -> TFloatOrUInt8:
-
     self_rank = op.Size(op.Shape(self))
     if self_rank == 3:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
@@ -3712,8 +3711,6 @@ def _aten_max_pool2d_with_indices_onnx(
     dilations: Sequence[int],
     ceil_mode: bool,
 ) -> tuple[TFloatOrUInt8, INT64]:
-    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
-
     self_rank = op.Size(op.Shape(self))
     if self_rank == 3:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
