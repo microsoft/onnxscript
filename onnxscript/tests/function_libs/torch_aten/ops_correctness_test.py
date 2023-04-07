@@ -391,6 +391,13 @@ def _sum_input_wrangler(
     return args, kwargs
 
 
+def _unflatten_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args[1] = np.array(args[1], dtype=np.int64)
+    return args, kwargs
+
+
 def _where_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -576,6 +583,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tril": core_ops.aten_tril,
     "triu": core_ops.aten_triu,
     "trunc": core_ops.aten_trunc,
+    "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
@@ -755,6 +763,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "unflatten",
+        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
 )
@@ -995,6 +1008,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "squeeze_dim",
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
+    ),
+    skip(
+        "unflatten",
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+        reason="0 dim in ONNX is undefined behavior.",
     ),
 )
 

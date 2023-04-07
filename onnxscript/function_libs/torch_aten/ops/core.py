@@ -5825,6 +5825,30 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::unflatten")
+def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
+    """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
+
+    self_size = op.Shape(self)
+
+    if dim < 0:
+        # PyTorch accepts negative dim as reversed counting
+        self_rank = op.Size(self_size)
+        dim = self_rank + dim
+
+    head_start_idx = op.Constant(value_ints=[0])
+    head_end_idx = op.Reshape(dim, op.Constant(value_ints=[1]))
+    head_part_rank = op.Slice(self_size, head_start_idx, head_end_idx)
+
+    tail_start_idx = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
+    tail_end_idx = op.Constant(value_ints=[_INT64_MAX])
+    tail_part_rank = op.Slice(self_size, tail_start_idx, tail_end_idx)
+
+    final_shape = op.Concat(head_part_rank, sizes, tail_part_rank, axis=0)
+
+    return op.Reshape(self, final_shape)
+
+
 def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> TensorType:
     """unfold(Tensor(a) self, int dimension, int size, int step) -> Tensor(a)"""
 
