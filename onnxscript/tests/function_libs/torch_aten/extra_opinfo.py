@@ -4,6 +4,7 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 """
 
 import functools
+from itertools import product
 from typing import Any, List
 
 import torch
@@ -215,7 +216,36 @@ def sample_inputs_max_pool2d_with_indices(
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
+def sample_inputs_nn_col2im(op_info, device, dtype, requires_grad, **kwargs):
+    shapes = ((1, 12, 12),)
+    output_sizes = ((4,5),)
+    kernel_sizes = ((2, 2),)
+    dilations = (1,)
+    paddings = (0,)
+    strides = (1,)
+
+    cases = product(shapes, output_sizes, kernel_sizes, dilations, paddings, strides)
+    make_arg = functools.partial(torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
+    for shape, output_size, kernel_size, dilation, padding, stride in cases:
+        tensor = make_arg(shape)
+        yield opinfo_core.SampleInput(tensor, output_size, kernel_size, dilation, padding, stride)
+
+    # With default args
+    yield opinfo_core.SampleInput(make_arg((1, 1, 5, 5)), (3, 3))
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
+    opinfo_core.OpInfo('nn.functional.fold',
+           aten_name='fold',
+           dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+           sample_inputs_func=sample_inputs_nn_col2im,
+           # Runs very slowly on slow gradcheck - alternatively reduce input sizes
+           gradcheck_fast_mode=True,
+           supports_forward_ad=True,
+           supports_fwgrad_bwgrad=True,
+           supports_out=False,
+           skips=()
+    ),
     opinfo_core.OpInfo(
         "convolution",
         aliases=("convolution",),
