@@ -100,9 +100,6 @@ def aten_addmm(
 ) -> TFloat:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    # TODO(titaiwang): op.Gemm seems needed to take care of corner case according to old symbolic_fn.
-    # Currently, it shows op-level validation failing on bloom.
-
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
@@ -5618,8 +5615,6 @@ def aten_sspaddmm(
 @torch_op("aten::stack")
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnxscript/issues/481
-    # If so, right now we do not support it.
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 

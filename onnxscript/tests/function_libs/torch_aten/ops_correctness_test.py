@@ -1079,7 +1079,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "unflatten",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
-        reason="0 dim in ONNX is undefined behavior.",
+        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
 )
 
