@@ -4,6 +4,11 @@
 # https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 
 version: 2
+registries:
+  ort-nightly-index: # Define access for a private registry
+    type: python-index
+    url: https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT-Nightly/pypi/simple/
+    replaces-base: true
 updates:
   - package-ecosystem: "pip" # See documentation for possible values
     directory: "/requirements/ci/" # Location of package manifests
@@ -18,6 +23,14 @@ updates:
       interval: "weekly"
     # disable version updates for pip dependencies
     open-pull-requests-limit: 5
+
+  - package-ecosystem: "pip"
+    # Update ort-nightly
+    directory: "/requirements/ci/"
+    registries:
+      - ort-nightly-index
+    schedule:
+      interval: "weekly"
 
   - package-ecosystem: "github-actions"
     # Workflow files stored in the
