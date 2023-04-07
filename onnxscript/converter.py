@@ -408,7 +408,7 @@ class Converter:
         expr = ast.Expression(expr)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
-            return eval(cpl, self.globals, locals)
+            return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
         except NameError as e:
             raise NameError(
                 self.message(
