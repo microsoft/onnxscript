@@ -794,11 +794,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    # skip(
-    #     "amax",
-    #     matcher=lambda sample: len(sample.input.shape) == 0,
-    #     reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
-    # ),
+    skip(
+        "amax",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
+    ),
     skip(
         "amin",
         matcher=lambda sample: len(sample.input.shape) == 0,
