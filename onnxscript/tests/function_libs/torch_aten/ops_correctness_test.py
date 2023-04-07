@@ -319,6 +319,15 @@ def _gather_input_wrangler(
     return args, kwargs
 
 
+def _max_pool2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove return_indices argument because this op doesn't accept it
+    if "return_indices" in kwargs:
+        del kwargs["return_indices"]
+    return args, kwargs
+
+
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -396,6 +405,14 @@ def _scatter_add_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop(1)
+    return args, kwargs
+
+
+def _scatter_reduce_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    kwargs["reduce"] = args.pop(4)
     return args, kwargs
 
 
@@ -626,6 +643,11 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "nn.functional.max_pool2d": (core_ops.aten_max_pool2d, _max_pool2d_input_wrangler),
+    "nn.functional.max_pool2d_with_indices": (
+        core_ops.aten_max_pool2d_with_indices,
+        _max_pool2d_input_wrangler,
+    ),
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
     "nn.functional.upsample_nearest2d": (
@@ -633,6 +655,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
+    "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
@@ -774,6 +797,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
     xfail(
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
+    ),
+    xfail(
+        "scatter_reduce",
+        variant_name="mean",
+        reason="ONNX doesn't support reduce='mean' option",
     ),
     xfail(
         "t",
@@ -933,6 +961,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="dropout is random so the result not match",
     ),
     skip(
+        "nn.functional.max_pool2d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    skip(
+        "nn.functional.max_pool2d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    skip(
         "nn.functional.nll_loss",
         matcher=lambda sample: "weight" in sample.kwargs,
         reason="this Aten overload doesn't accept weight as kwargs",
@@ -1008,6 +1046,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+    ),
+    skip(
+        "scatter_reduce",
+        # ONNX has not include_self parameter and default is include_self=True mode
+        matcher=lambda sample: sample.kwargs.get("include_self") is False,
+        reason="ONNX does't support include_self=False option",
     ),
     skip(
         "squeeze",

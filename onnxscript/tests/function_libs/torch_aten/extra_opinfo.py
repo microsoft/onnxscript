@@ -8,7 +8,11 @@ from typing import Any, List
 
 import torch
 from torch import testing as torch_testing
-from torch.testing._internal import common_dtype, common_utils
+from torch.testing._internal import (
+    common_dtype,
+    common_methods_invocations,
+    common_utils,
+)
 from torch.testing._internal.opinfo import core as opinfo_core
 
 
@@ -197,6 +201,20 @@ def sample_inputs_layer_norm(
         )
 
 
+def sample_inputs_max_pool2d_with_indices(
+    op_info, device, dtype, requires_grad, **kwargs  # pylint: disable=unused-argument
+):
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=False
+    )
+    params_generator = (
+        common_methods_invocations._TestParamsMaxPool2d()  # pylint: disable=protected-access
+    )
+    for (shape, memory_format), kwargs in params_generator.gen_input_params():
+        arg = make_arg(shape).to(memory_format=memory_format).requires_grad_(requires_grad)
+        yield opinfo_core.SampleInput(arg, kwargs=kwargs)
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "convolution",
@@ -233,5 +251,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
         skips=(),
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "nn.functional.max_pool2d_with_indices",
+        aten_name="max_pool2d",
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        skips=(),
+        sample_inputs_func=sample_inputs_max_pool2d_with_indices,
     ),
 ]
