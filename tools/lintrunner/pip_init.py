@@ -116,11 +116,6 @@ def main():
         "--dry-run", help="do not install anything, just print what would be done."
     )
     parser.add_argument(
-        "--no-black-binary",
-        help="do not use pre-compiled binaries from pip for black.",
-        action="store_true",
-    )
-    parser.add_argument(
         "--user",
         help="use the --user option for pip install",
         action="store_true",
@@ -171,13 +166,11 @@ def main():
         package_name, _, version = package.partition("=")
         package_name = package_name.strip()
         # Allow specifying packages in a requirements file
-        if version == "" and "-r" not in package_name:
+        if version == "":
             raise RuntimeError(
                 f"Package '{package_name}' did not have a version specified. "
                 "Please specify a version to produce a consistent linting experience."
             )
-        if args.no_black_binary and "black" in package_name:
-            pip_args.append(f"--no-binary={package_name}")
 
     dry_run = args.dry_run == "1"
     if dry_run:

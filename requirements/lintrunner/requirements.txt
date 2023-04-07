@@ -1,4 +1,5 @@
 # This file is auto updated by dependabot
+lintrunner-adapters==0.6.5
 # RUFF, RUFF-FIX
 ruff==0.0.261
 # MYPY
