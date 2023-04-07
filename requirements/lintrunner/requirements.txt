@@ -3,7 +3,7 @@
 ruff==0.0.261
 # MYPY
 mypy==1.2.0
-types-PyYAML==6.0.12.4
+types-PyYAML==6.0.12.9
 # BLACK-ISORT
 black==23.3.0
 isort==5.12.0
