@@ -259,7 +259,7 @@ def aten_col2im(
     else:
         strides = stride
 
-    # Only one ONNX op here so didn't write an private function
+    # Only one ONNX op here so didn't write a private function
     return op.Col2Im(
         self,
         output_size,
