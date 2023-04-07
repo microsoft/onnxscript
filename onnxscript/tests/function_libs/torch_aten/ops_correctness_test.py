@@ -1,5 +1,9 @@
 """Test op correctness by comparing with PyTorch results.
 
+## Usage
+
+1. Set the env var CATCH_ORT_SEGFAULT to catch segfaults from ONNX Runtime.
+
 ## How to add a new operator test
 
 This test use PyTorch's OpInfo mechanism to generate test cases for each operator.
@@ -26,11 +30,21 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import multiprocessing
 import os
 import pprint
 import unittest
 import warnings
-from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterable,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 import numpy as np
 import onnx
@@ -209,7 +223,9 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
                 if new_name in all_info_names:
                     # NOTE: Avoid duplicating an opinfo that already exists in the database.
                     # New opinfos are expected to be added in torch-nightly.
-                    warnings.warn(f"OpInfo {new_name} already exists in the database.")
+                    warnings.warn(
+                        f"OpInfo {new_name} already exists in the database.", stacklevel=1
+                    )
                     continue
                 new_opinfo = copy.deepcopy(opinfo)
                 new_opinfo.name = new_name
@@ -303,6 +319,15 @@ def _gather_input_wrangler(
     return args, kwargs
 
 
+def _max_pool2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove return_indices argument because this op doesn't accept it
+    if "return_indices" in kwargs:
+        del kwargs["return_indices"]
+    return args, kwargs
+
+
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -380,6 +405,14 @@ def _scatter_add_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     kwargs["dim"] = args.pop(1)
+    return args, kwargs
+
+
+def _scatter_reduce_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    kwargs["reduce"] = args.pop(4)
     return args, kwargs
 
 
@@ -618,6 +651,11 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "nn.functional.max_pool2d": (core_ops.aten_max_pool2d, _max_pool2d_input_wrangler),
+    "nn.functional.max_pool2d_with_indices": (
+        core_ops.aten_max_pool2d_with_indices,
+        _max_pool2d_input_wrangler,
+    ),
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
     "nn.functional.upsample_nearest2d": (
@@ -625,6 +663,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
+    "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
@@ -692,36 +731,43 @@ EXPECTED_SKIPS_OR_FAILS = (
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.mse_loss",
@@ -759,6 +805,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
     xfail(
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
+    ),
+    xfail(
+        "scatter_reduce",
+        variant_name="mean",
+        reason="ONNX doesn't support reduce='mean' option",
     ),
     xfail(
         "t",
@@ -923,6 +974,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="dropout is random so the result not match",
     ),
     skip(
+        "nn.functional.max_pool2d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    skip(
+        "nn.functional.max_pool2d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    skip(
         "nn.functional.nll_loss",
         matcher=lambda sample: "weight" in sample.kwargs,
         reason="this Aten overload doesn't accept weight as kwargs",
@@ -998,6 +1059,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+    ),
+    skip(
+        "scatter_reduce",
+        # ONNX has not include_self parameter and default is include_self=True mode
+        matcher=lambda sample: sample.kwargs.get("include_self") is False,
+        reason="ONNX does't support include_self=False option",
     ),
     skip(
         "squeeze",
@@ -1150,6 +1217,72 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
+class OrtAbortedError(RuntimeError):
+    """ONNX Runtime Aborted."""
+
+
+def _ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime."""
+
+    # Disable all ORT optimizations
+    session_options = onnxruntime.SessionOptions()
+    session_options.graph_optimization_level = (
+        onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    )
+    session = ort.InferenceSession(serialized_model, session_options)
+    return session.run(None, ort_inputs)
+
+
+def _ort_session_run_return_dict(
+    serialized_model: bytes, ort_inputs: Mapping[str, Any], return_dict
+) -> None:
+    """Run a model with ONNX Runtime and store the results in return_dict."""
+
+    try:
+        return_dict["results"] = _ort_session_run(serialized_model, ort_inputs)
+        return_dict["error"] = None
+    except Exception as e:  # pylint: disable=broad-except
+        return_dict["results"] = None
+        return_dict["error"] = e
+
+
+def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime in a separate process.
+
+    Args:
+        serialized_model: Serialized ONNX model proto.
+        ort_inputs: Inputs to the model.
+
+    Returns:
+        The inference result.
+
+    Raises:
+        OrtAbortedError if the process did not execute successfully.
+    """
+    manager = multiprocessing.Manager()
+    return_dict = manager.dict()
+    process = multiprocessing.Process(
+        target=_ort_session_run_return_dict, args=(serialized_model, ort_inputs, return_dict)
+    )
+    process.start()
+    process.join()
+    process.close()
+    if not return_dict:
+        raise OrtAbortedError()
+    if return_dict["error"] is not None:
+        raise return_dict["error"]
+    return return_dict["results"]
+
+
+def _format_model_and_input_information(onnx_model, inputs):
+    return (
+        f"Inputs:\n"
+        f"{pprint.pformat(inputs)}\n"
+        f"Model:\n"
+        f"{onnxscript.proto2text(onnx_model)}"
+    )
+
+
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
         functions = set()
@@ -1282,27 +1415,30 @@ def _graph_executor(
                 f"Model:\n"
                 f"{onnxscript.proto2text(onnx_model)}"
             ) from e
-        # Disable all ORT optimizations
-        session_options = onnxruntime.SessionOptions()
-        session_options.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-        )
+
         try:
-            session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
-            return session.run(None, ort_inputs)
+            if os.environ.get("CATCH_ORT_SEGFAULT") == "1":
+                # Use an individual process to run ONNX Runtime to catch segfaults
+                return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
+
+            return _ort_session_run(onnx_model.SerializeToString(), ort_inputs)
         except (
-            onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
+            # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.Fail,
+            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,
+            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
+            # pylint: enable=c-extension-no-member
         ) as e:
             raise AssertionError(
-                f"ONNX Runtime failed to evaluate:\n"
-                f"Inputs:\n"
-                f"{pprint.pformat(ort_inputs)}\n"
-                f"Model:\n"
-                f"{onnxscript.proto2text(onnx_model)}"
+                "ONNX Runtime failed to evaluate:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
+            ) from e
+        except OrtAbortedError as e:
+            raise AssertionError(
+                "ONNX Runtime aborted:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
 
     return _capture_graph_and_evaluate_torch_script_evaluator
@@ -1374,7 +1510,7 @@ def run_test_output_match(
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
-                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
+                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}", stacklevel=1)
                 continue
             input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
             kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
