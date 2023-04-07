@@ -6,7 +6,6 @@ disable = [
   "cell-var-from-loop",             # Bugbear B023
   "cyclic-import",
   "duplicate-code",
-  "eval-used",                      # Dlint DUO104
   "fixme",
   "format",
   "import-error",
@@ -26,4 +25,5 @@ disable = [
   "too-many-public-methods",
   "too-many-return-statements",
   "too-many-statements",            # TODO: we should work on these: too-many-xxx series
+  "use-dict-literal",               # Sometime it is preferable when we construct kwargs
 ]

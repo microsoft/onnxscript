@@ -100,7 +100,7 @@ class TestConverter(testutils.TestBase):
                     ) or "Field 'shape' of type is required but missing" in str(e):
                         # input or output shapes are missing because the function
                         # was defined with FLOAT[...].
-                        warnings.warn(str(e))
+                        warnings.warn(str(e), stacklevel=1)
                     else:
                         onnx.save(model, os.path.join(TEST_OUTPUT_DIR, f"{f.name}.error.onnx"))
                         raise AssertionError("Verification of model failed.") from e

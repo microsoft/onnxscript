@@ -46,7 +46,7 @@ def _same_optional(field, obj1, obj2, equals=_default_equality_op):
 def _same_repeated(values1, values2, equals=_default_equality_op):
     if len(values1) != len(values2):
         return False
-    for (val1, val2) in zip(values1, values2):
+    for val1, val2 in zip(values1, values2):
         if not equals(val1, val2):
             return False
     return True
@@ -174,7 +174,7 @@ class _Matcher:
             The special value (-1, i) is used to indicate the i-th input of a function/graph.
             """
             result = {}
-            for (i, x) in enumerate(f.input):
+            for i, x in enumerate(f.input):
                 result[_ioname(x)] = (-1, i)
             for ni, n in enumerate(f.node):
                 for xi, x in enumerate(n.output):
