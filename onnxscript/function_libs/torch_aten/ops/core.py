@@ -100,14 +100,10 @@ def aten_addmm(
 ) -> TFloat:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    # TODO(titaiwang): op.Gemm seems needed to take care of corner case according to old symbolic_fn.
-    # Currently, it shows op-level validation failing on bloom.
-
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
     return op.Add(scaled_self, scaled_mat1_mat2)
-    # return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
 def aten_addmv(
@@ -5618,8 +5614,6 @@ def aten_sspaddmm(
 @torch_op("aten::stack")
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnxscript/issues/481
-    # If so, right now we do not support it.
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
@@ -5746,6 +5740,14 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
     # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
+
+    # TODO(titaiwang): ORT==1.15 fixes SegFault
+    # https://github.com/microsoft/onnx-script/pull/484#discussion_r1136105039
+    # Change the op to:
+    # shape = op.Shape(self)
+    # idx= op.Reshape(dim, [1])
+    # return op.Gather(shape, idx)
+
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
@@ -6021,6 +6023,30 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     """type_as(Tensor self, Tensor other) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::unflatten")
+def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
+    """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
+
+    self_size = op.Shape(self)
+
+    if dim < 0:
+        # PyTorch accepts negative dim as reversed counting
+        self_rank = op.Size(self_size)
+        dim = self_rank + dim
+
+    head_start_idx = op.Constant(value_ints=[0])
+    head_end_idx = op.Reshape(dim, op.Constant(value_ints=[1]))
+    head_part_rank = op.Slice(self_size, head_start_idx, head_end_idx)
+
+    tail_start_idx = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
+    tail_end_idx = op.Constant(value_ints=[_INT64_MAX])
+    tail_part_rank = op.Slice(self_size, tail_start_idx, tail_end_idx)
+
+    final_shape = op.Concat(head_part_rank, sizes, tail_part_rank, axis=0)
+
+    return op.Reshape(self, final_shape)
 
 
 def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> TensorType:
