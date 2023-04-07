@@ -12,6 +12,9 @@ registries:
 updates:
   - package-ecosystem: "pip" # See documentation for possible values
     directory: "/requirements/ci/" # Location of package manifests
+    registries:
+      - pypi
+      - ort-nightly-index
     schedule:
       interval: "daily"
     # disable version updates for pip dependencies
@@ -23,14 +26,6 @@ updates:
       interval: "weekly"
     # disable version updates for pip dependencies
     open-pull-requests-limit: 5
-
-  - package-ecosystem: "pip"
-    # Update ort-nightly
-    directory: "/requirements/ci/"
-    registries:
-      - ort-nightly-index
-    schedule:
-      interval: "weekly"
 
   - package-ecosystem: "github-actions"
     # Workflow files stored in the
