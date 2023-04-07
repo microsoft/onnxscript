@@ -12,7 +12,7 @@ be specified in this fashion.
 
 """
 
-#%%
+# %%
 # First, we define the implementation of a square-loss function in onnxscript.
 
 from onnxscript import FLOAT
@@ -26,7 +26,7 @@ def square_loss(X: FLOAT["N"], Y: FLOAT["N"]) -> FLOAT[1]:  # noqa: F821
     return op.ReduceSum(diff * diff, keepdims=1)
 
 
-#%%
+# %%
 # Let's see what the generated model looks like.
 model = square_loss.to_model_proto()
 print(proto2text(model))
