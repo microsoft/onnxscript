@@ -5,7 +5,10 @@
 
 version: 2
 registries:
-  ort-nightly-index: # Define access for a private registry
+  pypi:
+    type: python-index
+    url: https://pypi.org/simple
+  ort-nightly-index:
     type: python-index
     url: https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/ORT-Nightly/pypi/simple/
     replaces-base: true
@@ -13,8 +16,8 @@ updates:
   - package-ecosystem: "pip" # See documentation for possible values
     directory: "/requirements/ci/" # Location of package manifests
     registries:
-      - pypi
       - ort-nightly-index
+      - pypi
     schedule:
       interval: "daily"
     # disable version updates for pip dependencies
