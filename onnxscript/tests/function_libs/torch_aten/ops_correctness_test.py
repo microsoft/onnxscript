@@ -1355,7 +1355,7 @@ def _graph_executor(
             ) from e
 
         try:
-            if os.environ.get("CATCH_ORT_SEGFAULT"):
+            if os.environ.get("CATCH_ORT_SEGFAULT") == "1":
                 # Use an individual process to run ONNX Runtime to catch segfaults
                 return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
 
