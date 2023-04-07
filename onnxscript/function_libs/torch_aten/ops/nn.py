@@ -17,7 +17,6 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
-import onnxscript
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
