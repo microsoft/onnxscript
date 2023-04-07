@@ -1159,16 +1159,25 @@ class OrtAbortedError(RuntimeError):
     """ONNX Runtime Aborted."""
 
 
-def _ort_session_run(serialized_model, ort_inputs, return_dict) -> None:
-    """Run a model with ONNX Runtime and store the results in return_dict."""
+def _ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime."""
 
     # Disable all ORT optimizations
     session_options = onnxruntime.SessionOptions()
     session_options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
+    session = ort.InferenceSession(serialized_model, session_options)
+    return session.run(None, ort_inputs)
+
+
+def _ort_session_run_return_dict(
+    serialized_model: bytes, ort_inputs: Mapping[str, Any], return_dict
+) -> None:
+    """Run a model with ONNX Runtime and store the results in return_dict."""
+
     try:
-        session = ort.InferenceSession(serialized_model, session_options)
+        session = _ort_session_run(serialized_model, ort_inputs)
         results = session.run(None, ort_inputs)
         return_dict["results"] = results
         return_dict["error"] = None
@@ -1193,7 +1202,7 @@ def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
     process = multiprocessing.Process(
-        target=_ort_session_run, args=(serialized_model, ort_inputs, return_dict)
+        target=_ort_session_run_return_dict, args=(serialized_model, ort_inputs, return_dict)
     )
     process.start()
     process.join()
@@ -1352,13 +1361,7 @@ def _graph_executor(
                 # Use an individual process to run ONNX Runtime to catch segfaults
                 return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
 
-            # Disable all ORT optimizations
-            session_options = onnxruntime.SessionOptions()
-            session_options.graph_optimization_level = (
-                onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-            )
-            session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
-            return session.run(None, ort_inputs)
+            return _ort_session_run(onnx_model.SerializeToString(), ort_inputs)
         except (
             # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,
