@@ -21,7 +21,10 @@ command = [
 ]
 init_command = [
     'python',
-    'tools/lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     '--requirement=requirements/lintrunner/requirements.txt',
 ]
@@ -47,7 +50,10 @@ command = [
 ]
 init_command = [
     'python',
-    'tools/lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     '--requirement=requirements/lintrunner/requirements.txt',
 ]
@@ -87,7 +93,10 @@ command = [
 ]
 init_command = [
     'python',
-    'tools/lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     '--requirement=requirements/lintrunner/requirements.txt',
 ]
@@ -111,7 +120,10 @@ command = [
 ]
 init_command = [
     'python',
-    'tools/lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     '--requirement=requirements/lintrunner/requirements.txt',
 ]
@@ -143,7 +155,10 @@ command = [
 ]
 init_command = [
     'python',
-    'tools/lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     '--requirement=requirements/lintrunner/requirements.txt',
 ]
@@ -165,7 +180,10 @@ command = [
 ]
 init_command = [
     'python',
-    'tools/lintrunner/pip_init.py',
+    '-m',
+    'lintrunner_adapters',
+    'run',
+    'pip_init',
     '--dry-run={{DRYRUN}}',
     '--requirement=requirements/lintrunner/requirements.txt',
 ]
