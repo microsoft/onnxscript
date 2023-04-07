@@ -1,5 +1,9 @@
 """Initializer script that installs stuff to pip."""
 
+# PyTorch license: https://github.com/pytorch/pytorch/blob/481ecffb5e28a28bdadfea6f0e2b312f9ecb87ab/LICENSE
+
+# From PyTorch:
+
 # Copyright (c) 2016-     Facebook, Inc            (Adam Paszke)
 # Copyright (c) 2014-     Facebook, Inc            (Soumith Chintala)
 # Copyright (c) 2011-2014 Idiap Research Institute (Ronan Collobert)
