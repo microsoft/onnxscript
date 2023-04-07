@@ -33,7 +33,6 @@ import dataclasses
 import multiprocessing
 import os
 import pprint
-import signal
 import unittest
 import warnings
 from typing import (
@@ -795,11 +794,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    skip(
-        "amax",
-        matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
-    ),
+    # skip(
+    #     "amax",
+    #     matcher=lambda sample: len(sample.input.shape) == 0,
+    #     reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
+    # ),
     skip(
         "amin",
         matcher=lambda sample: len(sample.input.shape) == 0,
@@ -1162,12 +1161,6 @@ class OrtAbortedError(RuntimeError):
 
 def _ort_session_run(serialized_model, ort_inputs, return_dict) -> None:
     """Run a model with ONNX Runtime and store the results in return_dict."""
-
-    # Handle SIGSEGV so Python does not abort
-    def sig_handler(signum, frame):
-        warnings.warn(f"Segmentation error ({signum}) detected in ORT:\n{frame}")
-
-    signal.signal(signal.SIGSEGV, sig_handler)
 
     # Disable all ORT optimizations
     session_options = onnxruntime.SessionOptions()
