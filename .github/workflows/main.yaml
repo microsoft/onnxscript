@@ -138,7 +138,7 @@ jobs:
     # Publish only when it is a scheduled run (weekly dev builds) or a tag push with version number
     if: (github.event_name == 'schedule') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: dist
           path: dist
