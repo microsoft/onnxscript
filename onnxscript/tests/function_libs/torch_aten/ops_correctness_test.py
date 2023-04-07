@@ -399,6 +399,14 @@ def _scatter_add_input_wrangler(
     return args, kwargs
 
 
+def _scatter_reduce_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    kwargs["reduce"] = args.pop(4)
+    return args, kwargs
+
+
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -633,6 +641,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
+    "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
@@ -774,6 +783,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
     xfail(
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
+    ),
+    xfail(
+        "scatter_reduce",
+        variant_name="mean",
+        reason="ONNX doesn't support reduce='mean' option",
     ),
     xfail(
         "t",
@@ -1008,6 +1022,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+    ),
+    skip(
+        "scatter_reduce",
+        # ONNX has not include_self parameter and default is include_self=True mode
+        matcher=lambda sample: sample.kwargs.get("include_self") is False,
+        reason="ONNX does't support include_self=False option",
     ),
     skip(
         "squeeze",
