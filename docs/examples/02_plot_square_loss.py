@@ -7,7 +7,7 @@ This example demonstrates the use of *onnxscript* to define an ONNX model.
 
 """
 
-#%%
+# %%
 # First, we define the implementation of a square-loss function in onnxscript.
 
 import numpy as np
@@ -25,22 +25,22 @@ def square_loss(X: FLOAT["N", 1], Y: FLOAT["N", 1]) -> FLOAT[1, 1]:  # noqa: F82
     return op.ReduceSum(diff * diff, keepdims=1)
 
 
-#%%
+# %%
 # We can convert it to a model (an ONNX *ModelProto*) as follows:
 
 model = square_loss.to_model_proto()
 
-#%%
+# %%
 # Let's see what the generated model looks like.
 print(proto2text(model))
 
-#%%
+# %%
 # We can run shape-inference and type-check the model using the standard ONNX API.
 
 model = onnx.shape_inference.infer_shapes(model)
 onnx.checker.check_model(model)
 
-#%%
+# %%
 # And finally, we can use *onnxruntime* to compute the outputs
 # based on this model, using the standard onnxruntime API.
 

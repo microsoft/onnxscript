@@ -149,7 +149,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             ) or "Field 'shape' of type is required but missing" in str(e):
                 # input or output shapes are missing because the function
                 # was defined with FLOAT[...].
-                warnings.warn(str(e))
+                warnings.warn(str(e), stacklevel=1)
             else:
                 raise AssertionError("Verification of model failed.") from e
 

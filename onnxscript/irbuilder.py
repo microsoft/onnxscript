@@ -378,6 +378,7 @@ class IRFunction:
                     f"There is a version conflict in domain: {s.callee.opset.domain!r}, "
                     f"with {self.name!r}.",
                     category=UserWarning,
+                    stacklevel=1,
                 )
         return func_opset_imports
 

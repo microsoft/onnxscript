@@ -514,7 +514,7 @@ class TorchScriptGraph:
             )
             onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
-            warnings.warn(f"ONNX model is invalid: {e}")
+            warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
             logging.debug(
                 "ONNX model:\n%s\n\nTorchScript graph:\n%s",
                 onnxscript.proto2text(onnx_model),

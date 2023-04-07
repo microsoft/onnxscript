@@ -209,7 +209,9 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
                 if new_name in all_info_names:
                     # NOTE: Avoid duplicating an opinfo that already exists in the database.
                     # New opinfos are expected to be added in torch-nightly.
-                    warnings.warn(f"OpInfo {new_name} already exists in the database.")
+                    warnings.warn(
+                        f"OpInfo {new_name} already exists in the database.", stacklevel=1
+                    )
                     continue
                 new_opinfo = copy.deepcopy(opinfo)
                 new_opinfo.name = new_name
@@ -1273,11 +1275,13 @@ def _graph_executor(
             session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
             return session.run(None, ort_inputs)
         except (
-            onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
+            # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.Fail,
+            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,
+            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
+            # pylint: enable=c-extension-no-member
         ) as e:
             raise AssertionError(
                 f"ONNX Runtime failed to evaluate:\n"
@@ -1356,7 +1360,7 @@ def run_test_output_match(
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
-                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
+                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}", stacklevel=1)
                 continue
             input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
             kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
