@@ -3634,7 +3634,7 @@ def _aten_max_pool2d_onnx(
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 3:  # C,H,W -> N,C,H,W and N=1
-        self = op.Unsqueeze(self, axes=op.Constant(value_ints=[0]))
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     pool_result, _ = op.MaxPool(
         self,
@@ -3716,7 +3716,7 @@ def _aten_max_pool2d_with_indices_onnx(
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 3:  # C,H,W -> N,C,H,W and N=1
-        self = op.Unsqueeze(self, axes=op.Constant(value_ints=[0]))
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     pool_result, indices = op.MaxPool(
         self,
