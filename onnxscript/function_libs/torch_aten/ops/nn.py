@@ -1132,7 +1132,7 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
-@onnxscript.script()
+@torch_op("aten::scaled_dot_product_attention", private=True)
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     """Create a causal mask for the given query and key tensors.
 
@@ -1160,7 +1160,7 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     return attn_mask
 
 
-@onnxscript.script()
+@torch_op("aten::scaled_dot_product_attention", private=True)
 def _attention_scale(query: TFloat) -> TFloat:
     """Calculate the scale factor for the attention result.
 
