@@ -4,7 +4,6 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 """
 
 import functools
-from itertools import product
 from typing import Any, List
 
 import torch
@@ -216,7 +215,9 @@ def sample_inputs_max_pool2d_with_indices(
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
-def sample_inputs_nn_col2im(op_info, device, dtype, requires_grad, **kwargs):
+def sample_inputs_nn_col2im(
+    op_info, device, dtype, requires_grad, **kwargs  # pylint: disable=unused-argument
+):
     cases = (
         # input_shape, output_size, kernal, dilation, padding, stride
         ((1, 12, 12), (4, 5), (2, 2), 1, 0, 1),
@@ -228,23 +229,25 @@ def sample_inputs_nn_col2im(op_info, device, dtype, requires_grad, **kwargs):
         ((1, 18, 16), (2, 2), (1, 1), 2, 3, 2),
     )
 
-    make_arg = functools.partial(torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
     for shape, output_size, kernel_size, dilation, padding, stride in cases:
         tensor = make_arg(shape)
-        yield opinfo_core.SampleInput(tensor, output_size, kernel_size, dilation, padding, stride)
+        yield opinfo_core.SampleInput(
+            tensor, output_size, kernel_size, dilation, padding, stride
+        )
 
 
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo('nn.functional.fold',  # This name must be a valid function in torch
-           aten_name='fold',  # Using 'fold' function to execute col2im logic when rank(output_size)=2
-           dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
-           sample_inputs_func=sample_inputs_nn_col2im,
-           # Runs very slowly on slow gradcheck - alternatively reduce input sizes
-           gradcheck_fast_mode=True,
-           supports_forward_ad=True,
-           supports_fwgrad_bwgrad=True,
-           supports_out=False,
-           skips=()
+        aten_name='fold',  # Using 'fold' function to execute col2im logic when rank(output_size)=2
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_nn_col2im,
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        supports_out=False,
+        skips=(),
     ),
     opinfo_core.OpInfo(
         "convolution",
