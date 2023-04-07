@@ -20,6 +20,7 @@ from onnxscript.function_libs.torch_aten.tensor_typing import (
     RealType,
     TFloat,
     TFloatOrBFloat16,
+    TFloatOrUInt8,
     TInt,
     TReal,
     TrealOrUInt8,
@@ -3574,40 +3575,44 @@ def aten_max_pool1d_with_indices(
 
 @torch_op("aten::max_pool2d", trace_only=True)
 def aten_max_pool2d(
-    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Sequence[int] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-) -> Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8]:
+) -> TFloatOrUInt8:
     """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
 
-    self_len = len(self.shape)
-    expand_size = 4
-    if self_len in [3, 4]:
-        expand_size = 2
+    # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
+    # But ONNX needs pair number [x,y] to specify on each side explicitly
+    # For pool3d, this number should be 3
+    expand_size = 2
 
-    if isinstance(dilation, int):
+    # The dilations should be [x, y]
+    if isinstance(dilation, int):  # x -> [x, x]
         dilations = [dilation] * expand_size
-    else:
+    else:  # already [x, y]
         dilations = dilation
 
-    if isinstance(kernel_size, int):
+    # The kernel_shape should be [x, y]
+    if isinstance(kernel_size, int):  # x -> [x, x]
         kernel_shape = [kernel_size] * expand_size
-    else:
+    else:  # assert(len(kernel_size)==2), already [x, y]
         kernel_shape = kernel_size
 
-    if isinstance(padding, int):
+    # The pads should be [w, x, y, z]
+    if isinstance(padding, int):  # w -> [w, w, w, w]
         pads = [padding] * expand_size * 2
-    elif len(padding) == 1:
+    elif len(padding) == 1:  # [w] -> [w, w, w, w]
         pads = padding * 4
-    elif len(padding) == 2:
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
         pads = padding * 2
-    else:  # assert len(padding) == 4:
+    else:  # assert len(padding) == 4, already [w, x, y, z]
         pads = padding
 
-    if isinstance(stride, int):
+    # The strides should be [x, y]
+    if isinstance(stride, int):  # x -> [x, x]
         strides = [stride] * expand_size
     elif stride is None:
         strides = kernel_shape
@@ -3619,19 +3624,19 @@ def aten_max_pool2d(
     )
 
 
-@torch_op("aten::max_pool2d", overload=True)
+@torch_op("aten::max_pool2d", private=True)
 def _aten_max_pool2d_onnx(
-    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
+    self: TFloatOrUInt8,
     kernel_shape: Sequence[int],
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
     ceil_mode: bool,
-) -> Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8]:
+) -> TFloatOrUInt8:
 
     self_rank = op.Size(op.Shape(self))
-    if self_rank == 3:
-        self = op.Unsqueeze(self, axes=0)
+    if self_rank == 3:  # C,H,W -> N,C,H,W and N=1
+        self = op.Unsqueeze(self, axes=op.Constant(value_ints=[0]))
 
     pool_result, _ = op.MaxPool(
         self,
@@ -3650,38 +3655,44 @@ def _aten_max_pool2d_onnx(
 
 @torch_op("aten::max_pool2d", trace_only=True)
 def aten_max_pool2d_with_indices(
-    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Sequence[int] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-) -> Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8]:
+) -> tuple[TFloatOrUInt8, INT64]:
     """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
-    self_len = len(self.shape)
-    expand_size = 4
-    if self_len in [3, 4]:
-        expand_size = 2
+    # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
+    # But ONNX needs pair number [x,y] to specify on each side explicitly
+    # For pool3d, this number should be 3
+    expand_size = 2
 
-    if isinstance(dilation, int):
+    # The dilations should be [x, y]
+    if isinstance(dilation, int):  # x -> [x, x]
         dilations = [dilation] * expand_size
-    else:
+    else:  # already [x, y]
         dilations = dilation
 
-    if isinstance(kernel_size, int):
+    # The kernel_shape should be [x, y]
+    if isinstance(kernel_size, int):  # x -> [x, x]
         kernel_shape = [kernel_size] * expand_size
-    else:
+    else:  # assert(len(kernel_size)==2), already [x, y]
         kernel_shape = kernel_size
 
-    if isinstance(padding, int):
+    # The pads should be [w, x, y, z]
+    if isinstance(padding, int):  # w -> [w, w, w, w]
         pads = [padding] * expand_size * 2
-    elif len(padding) == 1:
+    elif len(padding) == 1:  # [w] -> [w, w, w, w]
         pads = padding * 4
-    else:  # assert len(padding) == 2:
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
         pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
 
-    if isinstance(stride, int):
+    # The strides should be [x, y]
+    if isinstance(stride, int):  # x -> [x, x]
         strides = [stride] * expand_size
     elif stride is None:
         strides = kernel_shape
@@ -3693,21 +3704,21 @@ def aten_max_pool2d_with_indices(
     )
 
 
-@torch_op("aten::max_pool2d", overload=True)
+@torch_op("aten::max_pool2d", private=True)
 def _aten_max_pool2d_with_indices_onnx(
-    self: Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8],
+    self: TFloatOrUInt8,
     expand_size: INT64,
     kernel_shape: Sequence[int],
     strides: Sequence[int],
     pads: Sequence[int],
     dilations: Sequence[int],
     ceil_mode: bool,
-) -> tuple[Union[DOUBLE, FLOAT, FLOAT16, INT8, UINT8], INT64]:
+) -> tuple[TFloatOrUInt8, INT64]:
     """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     self_rank = op.Size(op.Shape(self))
-    if self_rank == 3:
-        self = op.Unsqueeze(self, axes=0)
+    if self_rank == 3:  # C,H,W -> N,C,H,W and N=1
+        self = op.Unsqueeze(self, axes=op.Constant(value_ints=[0]))
 
     pool_result, indices = op.MaxPool(
         self,
@@ -3725,9 +3736,9 @@ def _aten_max_pool2d_with_indices_onnx(
     # If align, need reduce size(Channel)
     # e.g. [[8,3,10],[30,32,23]]-[0,18] -> [[8,3,10],[12,14,5]]
     # 18 = H x W = 3 x 6
-    N = op.Shape(self, start=0, end=1)
-    C = op.Shape(self, start=1, end=2)
-    end = N * C
+    batches = op.Shape(self, start=0, end=1)
+    channels = op.Shape(self, start=1, end=2)
+    end = batches * channels
     offset = op.Range(0, end, 1)
     data_shape = op.Shape(self, start=2)
     data_size = op.ReduceProd(data_shape)
@@ -3735,7 +3746,7 @@ def _aten_max_pool2d_with_indices_onnx(
     new_shape = op.Expand(
         op.Constant(value_ints=[1]), op.Reshape(expand_size, op.Constant(value_ints=[-1]))
     )
-    new_shape = op.Concat(N, C, new_shape, axis=0)
+    new_shape = op.Concat(batches, channels, new_shape, axis=0)
     offset = op.Reshape(offset, new_shape)
     indices = indices - offset
     if self_rank == 3:
