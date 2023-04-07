@@ -214,7 +214,7 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
-@torch_op("aten::col2im")
+@torch_op("aten::col2im", trace_only=True)
 def aten_col2im(
     self: TReal,
     output_size: INT64,
@@ -225,15 +225,46 @@ def aten_col2im(
 ) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
+    expand_size = 2
+
+    # The dilations should be [x, y]
+    if isinstance(dilation, int):  # x -> [x, x]
+        dilations = [dilation] * expand_size
+    else:  # already [x, y]
+        dilations = dilation
+
+    # The kernel_shape should be [x, y]
+    if isinstance(kernel_size, int):  # x -> [x, x]
+        kernel_shape = [kernel_size] * expand_size
+    else:  # assert(len(kernel_size)==2), already [x, y]
+        kernel_shape = kernel_size
+
+    # The pads should be [w, x, y, z]
+    if isinstance(padding, int):  # w -> [w, w, w, w]
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:  # [w] -> [w, w, w, w]
+        pads = padding * 4
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
+        pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
+
+    # The strides should be [x, y]
+    if isinstance(stride, int):  # x -> [x, x]
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
 
 
     return op.Col2Im(
         self,
         output_size,
         kernel_size,
-        dilations = dilation,
-        pads = padding,
-        strides=stride,
+        dilations = dilations,
+        pads = pads,
+        strides=strides,
     )
 
 def test_aten_col2im():
