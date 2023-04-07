@@ -3650,7 +3650,7 @@ def _aten_max_pool2d_onnx(
     return pool_result
 
 
-@torch_op("aten::max_pool2d", trace_only=True)
+@torch_op("aten::max_pool2d_with_indices", trace_only=True)
 def aten_max_pool2d_with_indices(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
@@ -3658,8 +3658,8 @@ def aten_max_pool2d_with_indices(
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-) -> tuple[TFloatOrUInt8, INT64]:
-    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
+) -> Tuple[TFloatOrUInt8, INT64]:
+    """max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
     # But ONNX needs pair number [x,y] to specify on each side explicitly
@@ -3701,7 +3701,7 @@ def aten_max_pool2d_with_indices(
     )
 
 
-@torch_op("aten::max_pool2d", private=True)
+@torch_op("aten::max_pool2d_with_indices", private=True)
 def _aten_max_pool2d_with_indices_onnx(
     self: TFloatOrUInt8,
     expand_size: INT64,
@@ -3710,7 +3710,7 @@ def _aten_max_pool2d_with_indices_onnx(
     pads: Sequence[int],
     dilations: Sequence[int],
     ceil_mode: bool,
-) -> tuple[TFloatOrUInt8, INT64]:
+) -> Tuple[TFloatOrUInt8, INT64]:
     self_rank = op.Size(op.Shape(self))
     if self_rank == 3:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
