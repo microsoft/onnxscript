@@ -1,5 +1,9 @@
 """Test op correctness by comparing with PyTorch results.
 
+## Usage
+
+1. Set the env var CATCH_ORT_SEGFAULT to catch segfaults from ONNX Runtime.
+
 ## How to add a new operator test
 
 This test use PyTorch's OpInfo mechanism to generate test cases for each operator.
@@ -26,11 +30,21 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import multiprocessing
 import os
 import pprint
 import unittest
 import warnings
-from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterable,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 import numpy as np
 import onnx
@@ -686,36 +700,43 @@ EXPECTED_SKIPS_OR_FAILS = (
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.mse_loss",
@@ -1134,6 +1155,72 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     return None
 
 
+class OrtAbortedError(RuntimeError):
+    """ONNX Runtime Aborted."""
+
+
+def _ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime."""
+
+    # Disable all ORT optimizations
+    session_options = onnxruntime.SessionOptions()
+    session_options.graph_optimization_level = (
+        onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    )
+    session = ort.InferenceSession(serialized_model, session_options)
+    return session.run(None, ort_inputs)
+
+
+def _ort_session_run_return_dict(
+    serialized_model: bytes, ort_inputs: Mapping[str, Any], return_dict
+) -> None:
+    """Run a model with ONNX Runtime and store the results in return_dict."""
+
+    try:
+        return_dict["results"] = _ort_session_run(serialized_model, ort_inputs)
+        return_dict["error"] = None
+    except Exception as e:  # pylint: disable=broad-except
+        return_dict["results"] = None
+        return_dict["error"] = e
+
+
+def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime in a separate process.
+
+    Args:
+        serialized_model: Serialized ONNX model proto.
+        ort_inputs: Inputs to the model.
+
+    Returns:
+        The inference result.
+
+    Raises:
+        OrtAbortedError if the process did not execute successfully.
+    """
+    manager = multiprocessing.Manager()
+    return_dict = manager.dict()
+    process = multiprocessing.Process(
+        target=_ort_session_run_return_dict, args=(serialized_model, ort_inputs, return_dict)
+    )
+    process.start()
+    process.join()
+    process.close()
+    if not return_dict:
+        raise OrtAbortedError()
+    if return_dict["error"] is not None:
+        raise return_dict["error"]
+    return return_dict["results"]
+
+
+def _format_model_and_input_information(onnx_model, inputs):
+    return (
+        f"Inputs:\n"
+        f"{pprint.pformat(inputs)}\n"
+        f"Model:\n"
+        f"{onnxscript.proto2text(onnx_model)}"
+    )
+
+
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
         functions = set()
@@ -1266,14 +1353,13 @@ def _graph_executor(
                 f"Model:\n"
                 f"{onnxscript.proto2text(onnx_model)}"
             ) from e
-        # Disable all ORT optimizations
-        session_options = onnxruntime.SessionOptions()
-        session_options.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-        )
+
         try:
-            session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
-            return session.run(None, ort_inputs)
+            if os.environ.get("CATCH_ORT_SEGFAULT") == "1":
+                # Use an individual process to run ONNX Runtime to catch segfaults
+                return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
+
+            return _ort_session_run(onnx_model.SerializeToString(), ort_inputs)
         except (
             # pylint: disable=c-extension-no-member
             onnxruntime.capi.onnxruntime_pybind11_state.Fail,
@@ -1284,11 +1370,13 @@ def _graph_executor(
             # pylint: enable=c-extension-no-member
         ) as e:
             raise AssertionError(
-                f"ONNX Runtime failed to evaluate:\n"
-                f"Inputs:\n"
-                f"{pprint.pformat(ort_inputs)}\n"
-                f"Model:\n"
-                f"{onnxscript.proto2text(onnx_model)}"
+                "ONNX Runtime failed to evaluate:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
+            ) from e
+        except OrtAbortedError as e:
+            raise AssertionError(
+                "ONNX Runtime aborted:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
 
     return _capture_graph_and_evaluate_torch_script_evaluator

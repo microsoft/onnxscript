@@ -79,7 +79,14 @@ def test_onnx_func_expe(session):
     session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
-    session.run("pytest", "onnxscript", *session.posargs)
+    # Ignore ops_correctness_test because this version of ORT does not contain the
+    # latest fixes and may fail some tests in the torch op tests.
+    session.run(
+        "pytest",
+        "onnxscript",
+        "--ignore=onnxscript/tests/function_libs/torch_aten/ops_correctness_test.py",
+        *session.posargs,
+    )
     session.run("pytest", "docs/test", *session.posargs)
 
 
