@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, FLOAT16, INT8, INT16, INT32, INT64, UINT8
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     IntType,
@@ -3619,9 +3619,7 @@ def aten_max_pool2d(
     else:
         strides = stride
 
-    return _aten_max_pool2d_onnx(
-        self, kernel_shape, strides, pads, dilations, ceil_mode
-    )
+    return _aten_max_pool2d_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode)
 
 
 @torch_op("aten::max_pool2d", private=True)
