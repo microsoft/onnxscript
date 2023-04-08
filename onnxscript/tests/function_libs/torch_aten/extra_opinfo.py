@@ -215,7 +215,7 @@ def sample_inputs_max_pool2d_with_indices(
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
-def sample_inputs_nn_col2im(
+def sample_inputs_col2im(
     op_info, device, dtype, requires_grad, **kwargs  # pylint: disable=unused-argument
 ):
     # input_shape, output_size, kernal, dilation, padding, stride
@@ -274,10 +274,10 @@ def sample_inputs_nn_col2im(
 
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
-        "nn.functional.fold",  # This name must be a valid function in torch so cannot use nn.functional.col2im
-        aten_name="fold",  # Using 'fold' function to execute col2im logic when rank(output_size)=2
+        "col2im",
+        aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
-        sample_inputs_func=sample_inputs_nn_col2im,
+        sample_inputs_func=sample_inputs_col2im,
         supports_forward_ad=True,
         supports_fwgrad_bwgrad=True,
         supports_out=False,
