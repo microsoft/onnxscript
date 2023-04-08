@@ -220,52 +220,31 @@ def aten_col2im(
     kernel_size: INT64,
     dilation: Sequence[int] = (1, 1),
     padding: Sequence[int] = (0, 0),
-    stride: Sequence[int] = (),
+    stride: Sequence[int] = (1, 1),
 ) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
-    # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
-    # But ONNX needs pair number [x,y] to specify on each side explicitly
-    expand_size = 2
+    # assert(len(output_size)==2) for ONNX
+    # assert(len(kernel_size)==2) for ONNX
+    # assert(len(dilation)==2) for ONNX
+    # assert(len(stride)==2) for ONNX
 
-    # The dilations should be [x, y]
-    if isinstance(dilation, int):  # x -> [x, x]
-        dilations = [dilation] * expand_size
-    else:  # already [x, y]
-        dilations = dilation
-
-    # The kernel_shape should be [x, y]
-    if isinstance(kernel_size, int):  # x -> [x, x]
-        kernel_shape = [kernel_size] * expand_size
-    else:  # assert(len(kernel_size)==2), already [x, y]
-        kernel_shape = kernel_size
-
-    # The pads should be [w, x, y, z]
-    if isinstance(padding, int):  # w -> [w, w, w, w]
-        pads = [padding] * expand_size * 2
-    elif len(padding) == 1:  # [w] -> [w, w, w, w]
+    # The pads should be [w, x, y, z] for ONNX
+    if len(padding) == 1:  # [w] -> [w, w, w, w]
         pads = padding * 4
     elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
         pads = padding * 2
     else:  # assert len(padding) == 4, already [w, x, y, z]
         pads = padding
 
-    # The strides should be [x, y]
-    if isinstance(stride, int):  # x -> [x, x]
-        strides = [stride] * expand_size
-    elif stride is None:
-        strides = kernel_shape
-    else:
-        strides = stride
-
     # Only one ONNX op here so didn't write a private function
     return op.Col2Im(
         self,
         output_size,
-        kernel_shape,
-        dilations=dilations,
+        kernel_size,
+        dilations=dilation,
         pads=pads,
-        strides=strides,
+        strides=stride,
     )
 
 

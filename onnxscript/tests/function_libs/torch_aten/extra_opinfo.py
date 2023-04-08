@@ -218,24 +218,24 @@ def sample_inputs_max_pool2d_with_indices(
 def sample_inputs_nn_col2im(
     op_info, device, dtype, requires_grad, **kwargs  # pylint: disable=unused-argument
 ):
+    # input_shape, output_size, kernal, dilation, padding, stride
     cases = (
-        # input_shape, output_size, kernal, dilation, padding, stride
-        ((1, 12, 12), (4, 5), (2, 2), 1, 0, 1),
-        ((1, 8, 30), (4, 5), (2, 2), 1, 1, 1),
-        ((1, 8, 9), (4, 4), (2, 2), 1, 0, 1),
-        ((1, 8, 25), (4, 4), (2, 2), 1, 1, 1),
-        ((1, 8, 9), (4, 4), (2, 2), 1, 1, 2),
-        ((1, 9, 4), (4, 4), (3, 3), 1, 1, 2),
-        ((1, 18, 16), (2, 2), (1, 1), 2, 3, 2),
+        ((1, 12, 12), (4, 5), (2, 2), {'dilation': (1, 1), 'padding': (0, 0), 'stride': (1, 1)}),
+        ((1, 8, 30), (4, 5), (2, 2), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (1, 1)}),
+        ((1, 8, 9), (4, 4), (2, 2), {'dilation': (1, 1), 'padding': (0, 0), 'stride': (1, 1)}),
+        ((1, 8, 25), (4, 4), (2, 2), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (1, 1)}),
+        ((1, 8, 9), (4, 4), (2, 2), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (2, 2)}),
+        ((1, 9, 4), (4, 4), (3, 3), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (2, 2)}),
+        ((1, 18, 16), (2, 2), (1, 1), {'dilation': (2, 2), 'padding': (3, 3), 'stride': (2, 2)}),
     )
 
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
     )
-    for shape, output_size, kernel_size, dilation, padding, stride in cases:
+    for shape, output_size, kernel_size, kwargs in cases:
         tensor = make_arg(shape)
         yield opinfo_core.SampleInput(
-            tensor, output_size, kernel_size, dilation, padding, stride
+            tensor, args=(output_size, kernel_size), kwargs=kwargs
         )
 
 
