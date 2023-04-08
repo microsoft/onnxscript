@@ -275,13 +275,11 @@ def sample_inputs_col2im(
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "col2im",
+        op=torch.ops.aten.col2im,
         aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_col2im,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
         supports_out=False,
-        skips=(),
     ),
     opinfo_core.OpInfo(
         "convolution",
