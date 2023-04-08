@@ -646,8 +646,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
-    # nn.functional.col2im is not a valid function in torch, so we have to use nn.functional.fold as broker
-    "nn.functional.fold": nn_ops.aten_col2im,
+    "col2im": nn_ops.aten_col2im,
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
