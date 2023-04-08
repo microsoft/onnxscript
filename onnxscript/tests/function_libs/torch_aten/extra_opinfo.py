@@ -220,13 +220,48 @@ def sample_inputs_nn_col2im(
 ):
     # input_shape, output_size, kernal, dilation, padding, stride
     cases = (
-        ((1, 12, 12), (4, 5), (2, 2), {'dilation': (1, 1), 'padding': (0, 0), 'stride': (1, 1)}),
-        ((1, 8, 30), (4, 5), (2, 2), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (1, 1)}),
-        ((1, 8, 9), (4, 4), (2, 2), {'dilation': (1, 1), 'padding': (0, 0), 'stride': (1, 1)}),
-        ((1, 8, 25), (4, 4), (2, 2), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (1, 1)}),
-        ((1, 8, 9), (4, 4), (2, 2), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (2, 2)}),
-        ((1, 9, 4), (4, 4), (3, 3), {'dilation': (1, 1), 'padding': (1, 1), 'stride': (2, 2)}),
-        ((1, 18, 16), (2, 2), (1, 1), {'dilation': (2, 2), 'padding': (3, 3), 'stride': (2, 2)}),
+        (
+            (1, 12, 12),
+            (4, 5),
+            (2, 2),
+            {'dilation': (1, 1), 'padding': (0, 0), 'stride': (1, 1)},
+        ),
+        (
+            (1, 8, 30),
+            (4, 5),
+            (2, 2),
+            {'dilation': (1, 1), 'padding': (1, 1), 'stride': (1, 1)},
+        ),
+        (
+            (1, 8, 9),
+            (4, 4),
+            (2, 2),
+            {'dilation': (1, 1), 'padding': (0, 0), 'stride': (1, 1)},
+        ),
+        (
+            (1, 8, 25),
+            (4, 4),
+            (2, 2),
+            {'dilation': (1, 1), 'padding': (1, 1), 'stride': (1, 1)},
+        ),
+        (
+            (1, 8, 9),
+            (4, 4),
+            (2, 2),
+            {'dilation': (1, 1), 'padding': (1, 1), 'stride': (2, 2)},
+        ),
+        (
+            (1, 9, 4),
+            (4, 4),
+            (3, 3),
+            {'dilation': (1, 1), 'padding': (1, 1), 'stride': (2, 2)},
+        ),
+        (
+            (1, 18, 16),
+            (2, 2),
+            (1, 1),
+            {'dilation': (2, 2), 'padding': (3, 3), 'stride': (2, 2)},
+        ),
     )
 
     make_arg = functools.partial(
@@ -234,9 +269,7 @@ def sample_inputs_nn_col2im(
     )
     for shape, output_size, kernel_size, kwargs in cases:
         tensor = make_arg(shape)
-        yield opinfo_core.SampleInput(
-            tensor, args=(output_size, kernel_size), kwargs=kwargs
-        )
+        yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
 
 
 OP_DB: List[opinfo_core.OpInfo] = [
