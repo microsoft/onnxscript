@@ -213,17 +213,39 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
+@torch_op("aten::col2im", trace_only=True)
 def aten_col2im(
-    self: TensorType,
+    self: TReal,
     output_size: INT64,
-    kernel_size: Sequence[int],
-    dilation: Sequence[int],
-    padding: Sequence[int],
-    stride: Sequence[int],
-) -> TensorType:
+    kernel_size: INT64,
+    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0),
+    stride: Sequence[int] = (1, 1),
+) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
-    raise NotImplementedError()
+    # assert(len(output_size)==2) for ONNX
+    # assert(len(kernel_size)==2) for ONNX
+    # assert(len(dilation)==2) for ONNX
+    # assert(len(stride)==2) for ONNX
+
+    # The pads should be [w, x, y, z] for ONNX
+    if len(padding) == 1:  # [w] -> [w, w, w, w]
+        pads = padding * 4
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
+        pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
+
+    # Only one ONNX op here so didn't write a private function
+    return op.Col2Im(
+        self,
+        output_size,
+        kernel_size,
+        dilations=dilation,
+        pads=pads,
+        strides=stride,
+    )
 
 
 def aten_conv_depthwise3d(

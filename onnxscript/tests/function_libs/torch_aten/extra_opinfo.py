@@ -215,7 +215,72 @@ def sample_inputs_max_pool2d_with_indices(
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
+def sample_inputs_col2im(
+    op_info, device, dtype, requires_grad, **kwargs  # pylint: disable=unused-argument
+):
+    # input_shape, output_size, kernal, dilation, padding, stride
+    cases = (
+        (
+            (1, 12, 12),
+            (4, 5),
+            (2, 2),
+            {"dilation": (1, 1), "padding": (0, 0), "stride": (1, 1)},
+        ),
+        (
+            (1, 8, 30),
+            (4, 5),
+            (2, 2),
+            {"dilation": (1, 1), "padding": (1, 1), "stride": (1, 1)},
+        ),
+        (
+            (1, 8, 9),
+            (4, 4),
+            (2, 2),
+            {"dilation": (1, 1), "padding": (0, 0), "stride": (1, 1)},
+        ),
+        (
+            (1, 8, 25),
+            (4, 4),
+            (2, 2),
+            {"dilation": (1, 1), "padding": (1, 1), "stride": (1, 1)},
+        ),
+        (
+            (1, 8, 9),
+            (4, 4),
+            (2, 2),
+            {"dilation": (1, 1), "padding": (1, 1), "stride": (2, 2)},
+        ),
+        (
+            (1, 9, 4),
+            (4, 4),
+            (3, 3),
+            {"dilation": (1, 1), "padding": (1, 1), "stride": (2, 2)},
+        ),
+        (
+            (1, 18, 16),
+            (2, 2),
+            (1, 1),
+            {"dilation": (2, 2), "padding": (3, 3), "stride": (2, 2)},
+        ),
+    )
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    for shape, output_size, kernel_size, kwargs in cases:
+        tensor = make_arg(shape)
+        yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
+    opinfo_core.OpInfo(
+        "col2im",
+        op=torch.ops.aten.col2im,
+        aten_name="col2im",
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_col2im,
+        supports_out=False,
+    ),
     opinfo_core.OpInfo(
         "convolution",
         aliases=("convolution",),
