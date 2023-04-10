@@ -1304,11 +1304,13 @@ def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]
 
 
 def _format_model_and_input_information(onnx_model, inputs):
+    import google.protobuf.text_format
+
     return (
         f"Inputs:\n"
         f"{pprint.pformat(inputs)}\n"
         f"Model:\n"
-        f"{onnxscript.proto2text(onnx_model)}"
+        f"{google.protobuf.text_format.MessageToString(onnx_model)}"
     )
 
 
