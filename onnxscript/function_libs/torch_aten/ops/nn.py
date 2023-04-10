@@ -1614,16 +1614,70 @@ def aten_upsample_bicubic2d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_bilinear2d", trace_only=True)
 def aten_upsample_bilinear2d(
-    self: TensorType,
-    output_size: INT64,
-    align_corners: bool,
+    self: TReal,
+    output_size: Optional[INT64] = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
-) -> TensorType:
+    align_corners: bool = True,  # pylint: disable=unused-argument
+) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if output_size is not None:
+        result = _aten_upsample_bilinear2d_output_size(self, output_size)
+    else:
+        assert scales_h is not None
+        assert scales_h == scales_w
+        result = _aten_upsample_bilinear2d_scales(self, scales_h, scales_w)
+    return result
+
+
+@torch_op("aten::upsample_bilinear2d", private=True)
+def _aten_upsample_bilinear2d_output_size(
+    self: TReal,
+    output_size: INT64,
+) -> TReal:
+    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    self_shape = op.Shape(self)
+    starts = op.Constant(value_ints=[0])
+    ends = op.Constant(value_ints=[2])
+    batch_channel = op.Slice(self_shape, starts, ends)
+    output_size = op.Concat(batch_channel, output_size, axis=0)
+    return op.Resize(
+        self,
+        None,
+        None,
+        output_size,
+        mode="linear",
+        coordinate_transformation_mode="align_corners",
+    )
+
+
+@torch_op("aten::upsample_bilinear2d", private=True)
+def _aten_upsample_bilinear2d_scales(
+    self: TReal,
+    scales_h: float,
+    scales_w: float,
+) -> TReal:
+    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    neg_1 = op.Constant(value_ints=[-1])
+    scales = op.Concat(
+        op.Constant(value_floats=[1.0, 1.0]),
+        op.Reshape(op.Constant(value_float=scales_h), neg_1),
+        op.Reshape(op.Constant(value_float=scales_w), neg_1),
+        axis=0,
+    )
+    return op.Resize(
+        self,
+        None,
+        scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
+        None,
+        mode="linear",
+        coordinate_transformation_mode="align_corners",
+    )
 
 
 def aten_upsample_bilinear2d_backward(

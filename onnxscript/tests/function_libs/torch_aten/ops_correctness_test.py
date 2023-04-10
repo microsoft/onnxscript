@@ -358,18 +358,6 @@ def _randn_input_wrangler(
     return args, kwargs
 
 
-def _upsample_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]
-    if "size" in kwargs:
-        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
-    return args, kwargs
-
-
 def _permute_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -421,6 +409,31 @@ def _sum_input_wrangler(
 ) -> tuple[list[Any], dict[str, Any]]:
     if kwargs.get("dim") is not None:
         kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
+    return args, kwargs
+
+
+def _upsample_bilinear2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "size" in kwargs:
+        args.append(np.array(kwargs["size"], dtype=np.int64))
+        del kwargs["size"]  # promote tensor type kwargs to args
+    if "scale_factor" in kwargs:
+        kwargs["scales_h"] = kwargs["scale_factor"]
+        kwargs["scales_w"] = kwargs["scale_factor"]
+        del kwargs["scale_factor"]  # adapt the function signature
+    return args, kwargs
+
+
+def _upsample_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "scale_factor" in kwargs:
+        kwargs["scales_h"] = kwargs["scale_factor"]
+        kwargs["scales_w"] = kwargs["scale_factor"]
+        del kwargs["scale_factor"]
+    if "size" in kwargs:
+        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
     return args, kwargs
 
 
@@ -659,6 +672,10 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     ),
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
+    "nn.functional.upsample_bilinear2d": (
+        nn_ops.aten_upsample_bilinear2d,
+        _upsample_bilinear2d_input_wrangler,
+    ),
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
@@ -785,6 +802,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.scaled_dot_product_attention_bool_mask",
         reason="fixme: ORT crashes on Windows",
         enabled_if=IS_WINDOWS,
+    ),
+    xfail(
+        "nn.functional.upsample_bilinear2d",
+        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
@@ -1126,6 +1148,12 @@ duplicate_opinfo(
         "min_other",
         "min_dim",
     ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.upsample_bilinear",
+    ("nn.functional.upsample_bilinear2d",),
 )
 
 duplicate_opinfo(
