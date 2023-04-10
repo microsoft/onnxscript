@@ -363,6 +363,55 @@ class OnnxFunction(Op):
 
         return evaluator.default().eval_function(self, args, kwargs)
 
+    def param_schemas(self) -> tuple[ParamSchema, ...]:
+        """Returns the parameter schemas of this function."""
+        if self._param_schemas is not None:
+            return self._param_schemas
+
+        if version_utils
+
+        function_ir = self.function_ir
+        # The first len(func_ir.inputs) arguments are onnx inputs
+        inputs = function_ir.inputs
+        # The rest is onnx attributes
+        attributes = function_ir.attrs
+        # Construct a dictionary of attributes with their names specified in the function
+        # definition
+        attr_name_to_protos = collections.OrderedDict(
+            (attr.name, attr) for attr in function_ir.attr_protos
+        )
+
+        # args with default value are attributes
+        schemas = []
+        for arg in inputs:
+            if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
+                required = False
+            else:
+                required = True
+            param_schema = ParamSchema(
+                name=arg.name, type=arg.typeinfo, is_input=True, required=required
+            )
+            schemas.append(param_schema)
+
+        for attr_name in attributes:
+            # Attributes without default values
+            # FIXME(justinchuby): Where can we find the type?
+            param_schema = ParamSchema(name=attr_name, type=None, is_input=False)
+            schemas.append(param_schema)
+
+        for name, attr_value in attr_name_to_protos.items():
+            param_schema = ParamSchema(
+                name=name,
+                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
+                default=_get_attribute_value(attr_value.attr_proto),
+                is_input=False,
+                # All function attributes are required
+            )
+            schemas.append(param_schema)
+
+        self._param_schemas = tuple(schemas)
+        return self._param_schemas  # type: ignore[return-value]
+
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
         return self.function_ir.to_function_proto()

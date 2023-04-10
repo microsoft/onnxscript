@@ -2,8 +2,9 @@ import unittest
 
 import onnxruntime
 import pytest
+from onnxscript._internal import version_utils
 
-from onnxscript.tests.common import onnx_script_test_case, version_utils
+from onnxscript.tests.common import onnx_script_test_case
 from onnxscript.tests.models import onnxfns2
 
 
