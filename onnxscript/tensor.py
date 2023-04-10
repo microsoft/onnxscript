@@ -155,6 +155,9 @@ class Tensor:
     def __sub__(self, other):
         return self._opset.Sub(self, other)
 
+    def __rsub__(self, other):
+        return self._opset.Sub(other, self)
+
     def __truediv__(self, other):
         return self._opset.Div(self, other)
 

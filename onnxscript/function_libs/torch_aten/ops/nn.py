@@ -17,13 +17,13 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence
 
-import onnxscript
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TReal,
+    TTensor,
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import BOOL, TensorType
@@ -257,17 +257,39 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
+@torch_op("aten::col2im", trace_only=True)
 def aten_col2im(
-    self: TensorType,
+    self: TReal,
     output_size: INT64,
-    kernel_size: Sequence[int],
-    dilation: Sequence[int],
-    padding: Sequence[int],
-    stride: Sequence[int],
-) -> TensorType:
+    kernel_size: INT64,
+    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0),
+    stride: Sequence[int] = (1, 1),
+) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
-    raise NotImplementedError()
+    # assert(len(output_size)==2) for ONNX
+    # assert(len(kernel_size)==2) for ONNX
+    # assert(len(dilation)==2) for ONNX
+    # assert(len(stride)==2) for ONNX
+
+    # The pads should be [w, x, y, z] for ONNX
+    if len(padding) == 1:  # [w] -> [w, w, w, w]
+        pads = padding * 4
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
+        pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
+
+    # Only one ONNX op here so didn't write a private function
+    return op.Col2Im(
+        self,
+        output_size,
+        kernel_size,
+        dilations=dilation,
+        pads=pads,
+        strides=stride,
+    )
 
 
 def aten_conv_depthwise3d(
@@ -992,10 +1014,37 @@ def aten_reflection_pad1d_backward(
     raise NotImplementedError()
 
 
-def aten_reflection_pad2d(self: TensorType, padding: INT64) -> TensorType:
+@torch_op("aten::reflection_pad2d")
+def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
     """reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
+    # Convert torch padding format to onnx padding format
+    # Python code is:
+    # dim = len(self.shape)
+    # paddings = list(padding[:]) + [0] * (dim * 2 - len(padding))
+    # paddings = paddings[-2::-2] + paddings[-1::-2]
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="reflect")
 
 
 def aten_reflection_pad2d_backward(
@@ -1049,10 +1098,32 @@ def aten_replication_pad1d_backward(
     raise NotImplementedError()
 
 
-def aten_replication_pad2d(self: TensorType, padding: INT64) -> TensorType:
+@torch_op("aten::replication_pad2d")
+def aten_replication_pad2d(self: TTensor, padding: INT64) -> TTensor:
     """replication_pad2d(Tensor self, SymInt[4] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="edge")
 
 
 def aten_replication_pad2d_backward(
@@ -1063,10 +1134,32 @@ def aten_replication_pad2d_backward(
     raise NotImplementedError()
 
 
-def aten_replication_pad3d(self: TensorType, padding: INT64) -> TensorType:
+@torch_op("aten::replication_pad3d")
+def aten_replication_pad3d(self: TTensor, padding: INT64) -> TTensor:
     """replication_pad3d(Tensor self, SymInt[6] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    neg_1 = op.Constant(value_ints=[-1])
+    zero = op.Constant(value_ints=[0])
+    # [0] * (rank * 2 - len(padding))
+    rank = op.Size(op.Shape(self))
+    zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
+    zeros = op.Expand(zero, zero_count)
+    # list(padding[:]) + [0] * (dim * 2 - len(padding))
+    torch_paddings = op.Concat(padding, zeros, axis=0)
+    # paddings[-2::-2]
+    size_d = op.Size(torch_paddings)
+    steps = op.Constant(value_ints=[-2])
+    starts = steps
+    ends = op.Sub(starts, size_d)
+    odd_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-1::-2]
+    starts = neg_1
+    ends = op.Sub(starts, size_d)
+    even_elements = op.Slice(torch_paddings, starts, ends, zero, steps)
+    # paddings[-2::-2] + paddings[-1::-2]
+    onnx_padding = op.Concat(odd_elements, even_elements, axis=0)
+
+    return op.Pad(self, onnx_padding, mode="edge")
 
 
 def aten_replication_pad3d_backward(
@@ -1104,7 +1197,7 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
-@onnxscript.script()
+@torch_op("aten::scaled_dot_product_attention", private=True)
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     """Create a causal mask for the given query and key tensors.
 
@@ -1132,7 +1225,7 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     return attn_mask
 
 
-@onnxscript.script()
+@torch_op("aten::scaled_dot_product_attention", private=True)
 def _attention_scale(query: TFloat) -> TFloat:
     """Calculate the scale factor for the attention result.
 

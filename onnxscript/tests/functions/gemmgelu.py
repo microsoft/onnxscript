@@ -14,7 +14,6 @@ def gemmgelu(
     W: FLOAT["K", "N"],  # noqa: F821
     Bias: FLOAT["N"],  # noqa: F821
 ) -> FLOAT["M", "N"]:  # noqa: F821
-
     a = op.Constant(value_float=0.5)
     b = op.Constant(value_float=0.797885)
     c = op.Constant(value_float=0.035677)

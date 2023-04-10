@@ -1,13 +1,13 @@
-click
 numpy
-matplotlib
 onnx-weekly
+setuptools>=61.0.0
 --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html
 ort-function-experiment-nightly
 typing_extensions
 
 # Docs site
 furo
+matplotlib
 sphinx-copybutton
 sphinx-gallery
 sphinx>=6

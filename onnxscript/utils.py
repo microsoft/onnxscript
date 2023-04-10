@@ -155,7 +155,7 @@ def make_model_from_function_proto(
     model = onnx.helper.make_model(
         graph,
         functions=[function_proto],
-        producer_name="onnx-script",
+        producer_name="onnxscript",
         opset_imports=model_proto_opset,
     )
     return model
