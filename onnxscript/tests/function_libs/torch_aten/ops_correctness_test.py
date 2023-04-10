@@ -985,7 +985,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "nn.functional.avg_pool2d",
         matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
-        reason="ORT cannot support divisor_override argument",
+        reason="ONNX cannot support divisor_override argument",
     ),
     skip(
         "nn.functional.conv1d",
