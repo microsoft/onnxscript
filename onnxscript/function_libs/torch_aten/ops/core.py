@@ -3542,6 +3542,153 @@ def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
     return result, indices
 
 
+def aten_max_pool1d(
+    self: TensorType,
+    kernel_size: Sequence[int],
+    stride: Optional[Sequence[int]] = None,
+    padding: Sequence[int] = (0,),
+    dilation: Sequence[int] = (1,),
+    ceil_mode: bool = False,
+) -> TensorType:
+    """max_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def aten_max_pool1d_with_indices(
+    self: TensorType,
+    kernel_size: Sequence[int],
+    stride: Optional[Sequence[int]] = None,
+    padding: Sequence[int] = (0,),
+    dilation: Sequence[int] = (1,),
+    ceil_mode: bool = False,
+) -> tuple[TensorType, TensorType]:
+    """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
+
+    raise NotImplementedError()
+
+
+@torch_op("aten::max_pool2d", trace_only=True)
+def aten_max_pool2d(
+    self: TFloatOrUInt8,
+    kernel_size: Sequence[int],
+    stride: Sequence[int] = (),
+    padding: Sequence[int] = (0, 0),
+    dilation: Sequence[int] = (1, 1),
+    ceil_mode: bool = False,
+) -> TFloatOrUInt8:
+    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
+
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a pair of number [x,y] on each side explicitly.
+    expand_size = 2
+
+    # The dilations should be [x, y]
+    if isinstance(dilation, int):  # x -> [x, x]
+        dilations = [dilation] * expand_size
+    else:  # already [x, y]
+        dilations = dilation
+
+    # The kernel_shape should be [x, y]
+    if isinstance(kernel_size, int):  # x -> [x, x]
+        kernel_shape = [kernel_size] * expand_size
+    else:  # assert(len(kernel_size)==2), already [x, y]
+        kernel_shape = kernel_size
+
+    # The pads should be [w, x, y, z]
+    if isinstance(padding, int):  # w -> [w, w, w, w]
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:  # [w] -> [w, w, w, w]
+        pads = padding * 4
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
+        pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
+
+    # The strides should be [x, y]
+    if isinstance(stride, int):  # x -> [x, x]
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 3)
+
+
+@torch_op("aten::max_pool", private=True)
+def _aten_max_pool_onnx(
+    self: TFloatOrUInt8,
+    kernel_shape: Sequence[int],
+    strides: Sequence[int],
+    pads: Sequence[int],
+    dilations: Sequence[int],
+    ceil_mode: bool,
+    unbatched_rank: int,
+) -> TFloatOrUInt8:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == unbatched_rank:  # C,H,W -> N,C,H,W and N=1
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+
+    pool_result, _ = op.MaxPool(
+        self,
+        ceil_mode=ceil_mode,
+        dilations=dilations,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    if self_rank == unbatched_rank:
+        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+
+    return pool_result
+
+
+@torch_op("aten::max_pool3d", trace_only=True)
+def aten_max_pool3d(
+    self: TFloatOrUInt8,
+    kernel_size: Sequence[int],
+    stride: Sequence[int] = (),
+    padding: Sequence[int] = (0, 0),
+    dilation: Sequence[int] = (1, 1),
+    ceil_mode: bool = False,
+) -> TFloatOrUInt8:
+    """max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor"""
+
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a tuple of three ints for all sides explicitly.
+    expand_size = 3
+
+    if isinstance(dilation, int):
+        dilations = [dilation] * expand_size
+    else:
+        dilations = dilation
+
+    if isinstance(kernel_size, int):
+        kernel_shape = [kernel_size] * expand_size
+    else:
+        kernel_shape = kernel_size
+
+    if isinstance(padding, int):
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:
+        pads = padding * expand_size * 2
+    elif len(padding) == 2:
+        pads = padding * expand_size
+    else:
+        pads = padding
+
+    if isinstance(stride, int):
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 4)
+
+
 @torch_op("aten::maximum")
 def aten_maximum(self: TReal, other: TReal) -> TReal:
     """maximum(Tensor self, Tensor other) -> Tensor"""
