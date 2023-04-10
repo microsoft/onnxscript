@@ -175,7 +175,7 @@ class Op:
     ) -> None:
         self.opset = opset
         self.opname = opname
-        self.opschema = opschema
+        self._opschema = opschema
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
     def __call__(self, *args, **kwargs):
@@ -187,9 +187,13 @@ class Op:
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
 
+    @property
+    def opschema(self) -> Optional[onnx.defs.OpSchema]:
+        return self._opschema
+
     def get_schema(self) -> Optional[onnx.defs.OpSchema]:
         """Returns the ONNX OpSchema for this op."""
-        if self.opschema:
+        if self.opschema is not None:
             return self.opschema
         return self.opset[self.opname]
 
@@ -338,6 +342,8 @@ class OnnxFunction(Op):
                 for attr_proto in function_ir.attr_protos
             ],
         )
+
+        print(self._opschema)
 
         return self._opschema
 
