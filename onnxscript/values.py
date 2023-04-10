@@ -14,6 +14,7 @@ import onnx
 import onnx.defs
 
 from onnxscript import irbuilder, sourceinfo
+from onnxscript._internal import version_utils
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -34,6 +35,7 @@ _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
 
 # A special value to indicate that the default value is not specified
 _EmptyDefault = object()
+_ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
 
 
 class Opset:
@@ -368,8 +370,14 @@ class OnnxFunction(Op):
         if self._param_schemas is not None:
             return self._param_schemas
 
-        if version_utils
+        if _ONNX_OP_SCHEMA_WRITABLE:
+            schemas = super().param_schemas()
+            assert schemas is not None
+            return schemas
 
+        # TODO(justinchuby): Remove the whole param_schemas function when the lowest
+        # suported ONNX version is 1.14, because it will be computed from the
+        # auto-generated OpSchema instead.
         function_ir = self.function_ir
         # The first len(func_ir.inputs) arguments are onnx inputs
         inputs = function_ir.inputs
