@@ -129,34 +129,42 @@ def aten_adaptive_max_pool3d_backward(
 def aten_avg_pool2d(
     self: TFloat,
     kernel_size: Sequence[int],
-    stride: Sequence[int] = None,
-    padding: Sequence[int] = 0,
+    stride: Sequence[int] = (),
+    padding: Sequence[int] = (0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
     divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
 ) -> TFloat:
     """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
-    if isinstance(kernel_size, int):
-        kernel_shape = [kernel_size, kernel_size]
-    else:
+    # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
+    # But ONNX needs pair number [x,y] to specify on each side explicitly
+    # For pool3d, this number should be 3
+    expand_size = 2
+
+    # The kernel_shape should be [x, y]
+    if isinstance(kernel_size, int):  # x -> [x, x]
+        kernel_shape = [kernel_size] * expand_size
+    else:  # assert(len(kernel_size)==2), already [x, y]
         kernel_shape = kernel_size
 
-    if isinstance(stride, int):
-        strides = [stride, stride]
-    elif op.Size(stride) == 0:
-        strides = kernel_size
+    # The pads should be [w, x, y, z]
+    if isinstance(padding, int):  # w -> [w, w, w, w]
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:  # [w] -> [w, w, w, w]
+        pads = padding * 4
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
+        pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
+
+    # The strides should be [x, y]
+    if isinstance(stride, int):  # x -> [x, x]
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
     else:
         strides = stride
-
-    if isinstance(padding, int):
-        pads = [padding, padding, padding, padding]
-    elif len(padding) == 1:
-        pads = op.Concat(padding, padding, padding, padding, axis=0)
-    elif len(padding) == 2:
-        pads = op.Concat(padding, padding, axis=0)
-    else:  # assert len(padding) == 4
-        pads = padding
 
     result = op.AveragePool(
         self,
