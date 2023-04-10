@@ -3651,7 +3651,7 @@ def aten_max_pool3d(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
     stride: Sequence[int] = (),
-    padding: Sequence[int] = 0,
+    padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
 ) -> TFloatOrUInt8:
