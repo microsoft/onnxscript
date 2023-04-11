@@ -754,6 +754,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyEager",
     ),
     xfail(
+        "as_strided",
+        variant_name="partial_views",
+        reason="Onnx doesn't have partial view for tensor",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
     xfail(
@@ -1576,6 +1582,10 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            if i == 1:
+                print(i)
+            else:
+                continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test

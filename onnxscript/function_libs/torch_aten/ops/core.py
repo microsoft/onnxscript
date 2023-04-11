@@ -509,35 +509,45 @@ def aten_as_strided(
     self: TTensor, size: INT64, stride: INT64, storage_offset: int = 0
 ) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
+
+    rank = len(stride) - 1  # len(stride)=4, we use i=0,1,2 in loop
+    result = _aten_as_strided(self, size, stride, storage_offset, rank)
+    return result
+
+
+@torch_op("aten::as_strided", private=True)
+def _aten_as_strided(
+    self: TTensor, size: INT64, stride: INT64, storage_offset: int, rank: int
+):
     # This is a DP problem:
     # Assume  sizes=(2,2,2,3), strides=(1,2,3,4)
     # 1. Create range_base(3) = [0,1,2]
-    # 2. Create range_stride = range_base * stride(4) = [0,4,8] -> A
-    # 3. A + stride(3) = [3,7,11] -> B
+    # 2. Create range_stride = range_base * stride[3](=4) = [0,4,8] -> A
+    # 3. A + stride[2](=3) = [3,7,11] -> B
     # 4. Concat A,B to [0,4,8, 3,7,11] -> A
-    # 5. A + stride(2) = [2,6,10, 5,9,13] -> B
+    # 5. A + stride[1](=2) = [2,6,10, 5,9,13] -> B
     # 6. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13] -> A
-    # 7. A + stride(1) = [1,5,9, 4,8,12, 3,7,11, 6,10,14] -> B
+    # 7. A + stride[0](=1) = [1,5,9, 4,8,12, 3,7,11, 6,10,14] -> B
     # 8. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13, 1,5,9, 4,8,12, 3,7,11, 6,10,14]
     # 9. Reshape to size(2,2,2,3)
 
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
-    sz = op.Gather(size, -1)
-    st = op.Gather(stride, -1)
+    last_dim_size = op.Gather(size, -1)
+    last_dim_stride = op.Gather(stride, -1)
     # range_base looks like [0,1,2]
-    range_base = op.Range(op.Constant(value_int=0), sz, op.Constant(value_int=1))
-    range_stride = op.Mul(range_base, st)  # Looks like [0,1,2] * 4 = [0,4,8]
+    range_base = op.Range(op.Constant(value_int=0), last_dim_size, op.Constant(value_int=1))
+    range_stride = op.Mul(range_base, last_dim_stride)  # Looks like [0,1,2] * 4 = [0,4,8]
     range_float = op.Cast(range_stride, to=FLOAT.dtype)
-    rank = op.Size(stride)
-    for i in range(rank - 2, -1, -1):
-        sz = op.Gather(size, i)
-        st = op.Gather(stride, i)
-        seq_array = op.SequenceEmpty()  # FIXME: dtype=INT64.dtype doesn't work
+    for i in range(rank):
+        j = rank - 1 - i  # Get inverse index
+        dim_j_size = op.Gather(size, j)
+        dim_j_stride = op.Gather(stride, j)
+        seq_array = op.SequenceEmpty()  # FIXME: dtype=INT64.dtype doesn't work, have to use default(FLOAT.dtype)
         seq_array = op.SequenceInsert(seq_array, range_float)
-        # Assert (sz in [1,2])
-        if op.Equal(sz, 2):
+        # FIXME: this need another loop for dim_j_size
+        if op.Equal(dim_j_size, 2):
             # Make array: [range_float, range_float_stride] -> size==2
-            range_float_stride = op.Add(range_float, op.Cast(st, to=FLOAT.dtype))
+            range_float_stride = op.Add(range_float, op.Cast(dim_j_stride, to=FLOAT.dtype))
             seq_array = op.SequenceInsert(seq_array, range_float_stride)
         range_float = op.ConcatFromSequence(seq_array, axis=0)
 
