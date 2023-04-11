@@ -15,14 +15,14 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
-import onnxscript
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_aten.registration import torch_op
 from onnxscript.function_libs.torch_aten.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
+    TFloatOrUInt8,
     TReal,
     TTensor,
 )
@@ -126,18 +126,70 @@ def aten_adaptive_max_pool3d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::avg_pool2d", trace_only=True)
 def aten_avg_pool2d(
-    self: TensorType,
+    self: TFloat,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,
-) -> TensorType:
+    divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
+) -> TFloat:
     """avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
+    # But ONNX needs pair number [x,y] to specify on each side explicitly
+    # For pool3d, this number should be 3
+    expand_size = 2
+
+    # The kernel_shape should be [x, y]
+    if isinstance(kernel_size, int):  # x -> [x, x]
+        kernel_shape = [kernel_size] * expand_size
+    else:  # assert(len(kernel_size)==2), already [x, y]
+        kernel_shape = kernel_size
+
+    # The pads should be [w, x, y, z]
+    if isinstance(padding, int):  # w -> [w, w, w, w]
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:  # [w] -> [w, w, w, w]
+        pads = padding * 4
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
+        pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
+
+    # The strides should be [x, y]
+    if isinstance(stride, int):  # x -> [x, x]
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    result = op.AveragePool(
+        self,
+        ceil_mode=ceil_mode,
+        count_include_pad=count_include_pad,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
+    # mask = [
+    #    1, 2, 3, S,..3, 2, 1
+    #    2, 4, 6, 2S, 6, 4, 2
+    #    3, 6, 9, 3S, 9, 6, 3
+    #    S, 2S,3S,SS,3S,2S, S
+    #    3, 6, 9, 3S, 9, 6, 3
+    #    2, 4, 6, 2S, 6, 4, 2
+    #    1, 2, 3, S,..3, 2, 1
+    # ]
+    # S is stride size, in this case S=4,
+    # S may dup lot of times according to the image size
+
+    return result
 
 
 def aten_avg_pool2d_backward(
@@ -214,17 +266,39 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
 
 
+@torch_op("aten::col2im", trace_only=True)
 def aten_col2im(
-    self: TensorType,
+    self: TReal,
     output_size: INT64,
-    kernel_size: Sequence[int],
-    dilation: Sequence[int],
-    padding: Sequence[int],
-    stride: Sequence[int],
-) -> TensorType:
+    kernel_size: INT64,
+    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0),
+    stride: Sequence[int] = (1, 1),
+) -> TReal:
     """col2im(Tensor self, SymInt[2] output_size, int[2] kernel_size, int[2] dilation, int[2] padding, int[2] stride) -> Tensor"""
 
-    raise NotImplementedError()
+    # assert(len(output_size)==2) for ONNX
+    # assert(len(kernel_size)==2) for ONNX
+    # assert(len(dilation)==2) for ONNX
+    # assert(len(stride)==2) for ONNX
+
+    # The pads should be [w, x, y, z] for ONNX
+    if len(padding) == 1:  # [w] -> [w, w, w, w]
+        pads = padding * 4
+    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
+        pads = padding * 2
+    else:  # assert len(padding) == 4, already [w, x, y, z]
+        pads = padding
+
+    # Only one ONNX op here so didn't write a private function
+    return op.Col2Im(
+        self,
+        output_size,
+        kernel_size,
+        dilations=dilation,
+        pads=pads,
+        strides=stride,
+    )
 
 
 def aten_conv_depthwise3d(
@@ -568,17 +642,172 @@ def aten_logit_backward(
     raise NotImplementedError()
 
 
-def aten_max_pool2d_with_indices(
+def aten_max_pool1d(
     self: TensorType,
     kernel_size: Sequence[int],
     stride: Optional[Sequence[int]] = None,
+    padding: Sequence[int] = (0,),
+    dilation: Sequence[int] = (1,),
+    ceil_mode: bool = False,
+) -> TensorType:
+    """max_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def aten_max_pool1d_with_indices(
+    self: TensorType,
+    kernel_size: Sequence[int],
+    stride: Optional[Sequence[int]] = None,
+    padding: Sequence[int] = (0,),
+    dilation: Sequence[int] = (1,),
+    ceil_mode: bool = False,
+) -> tuple[TensorType, TensorType]:
+    """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
+
+    raise NotImplementedError()
+
+
+def _adjust_attributes_of_max_pool(
+    expand_size: int,
+    kernel_size: Sequence[int],
+    stride: Sequence[int],
+    padding: Sequence[int],
+    dilation: Sequence[int],
+) -> Tuple[Sequence[int], Sequence[int], Sequence[int], Sequence[int]]:
+    if isinstance(dilation, int):
+        dilations = [dilation] * expand_size
+    else:
+        dilations = dilation
+
+    if isinstance(kernel_size, int):
+        kernel_shape = [kernel_size] * expand_size
+    else:
+        kernel_shape = kernel_size
+
+    if isinstance(padding, int):
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:
+        pads = padding * expand_size * 2
+    elif len(padding) == 2:
+        pads = padding * expand_size
+    else:
+        pads = padding
+
+    if isinstance(stride, int):
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    return (kernel_shape, strides, pads, dilations)
+
+
+@torch_op("aten::max_pool2d", trace_only=True)
+def aten_max_pool2d(
+    self: TFloatOrUInt8,
+    kernel_size: Sequence[int],
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0, 0),
     dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-) -> tuple[TensorType, TensorType]:
+) -> TFloatOrUInt8:
+    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
+
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a pair of number [x,y] on each side explicitly.
+    expand_size = 2
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 3)
+
+
+@torch_op("internal::max_pool", private=True)
+def _aten_max_pool_onnx(
+    self: TFloatOrUInt8,
+    kernel_shape: Sequence[int],
+    strides: Sequence[int],
+    pads: Sequence[int],
+    dilations: Sequence[int],
+    ceil_mode: bool,
+    unbatched_rank: int,
+) -> TFloatOrUInt8:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == unbatched_rank:  # C,H,W -> N,C,H,W and N=1
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+
+    pool_result, _ = op.MaxPool(
+        self,
+        ceil_mode=ceil_mode,
+        dilations=dilations,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    if self_rank == unbatched_rank:
+        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+
+    return pool_result
+
+
+@torch_op("aten::max_pool3d", trace_only=True)
+def aten_max_pool3d(
+    self: TFloatOrUInt8,
+    kernel_size: Sequence[int],
+    stride: Sequence[int] = (),
+    padding: Sequence[int] = (0, 0),
+    dilation: Sequence[int] = (1, 1),
+    ceil_mode: bool = False,
+) -> TFloatOrUInt8:
+    """max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor"""
+
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a tuple of three ints for all sides explicitly.
+    expand_size = 3
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 4)
+
+
+@torch_op("aten::max_pool2d_with_indices", trace_only=True)
+def aten_max_pool2d_with_indices(
+    self: TFloatOrUInt8,
+    kernel_size: Sequence[int],
+    stride: Sequence[int] = (),
+    padding: Sequence[int] = (0, 0),
+    dilation: Sequence[int] = (1, 1),
+    ceil_mode: bool = False,
+) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a pair of number [x,y] on each side explicitly.
+    expand_size = 2
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_with_indices_onnx(
+        self,
+        kernel_shape,
+        strides,
+        pads,
+        dilations,
+        ceil_mode,
+        3,
+        ([1] * expand_size),
+        ([0] * expand_size),
+        ([2 + i for i in range(expand_size)]),
+    )
 
 
 def aten_max_pool2d_with_indices_backward(
@@ -596,17 +825,113 @@ def aten_max_pool2d_with_indices_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::max_pool3d_with_indices", trace_only=True)
 def aten_max_pool3d_with_indices(
-    self: TensorType,
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0, 0, 0),
-    dilation: Sequence[int] = (1, 1, 1),
+    stride: Sequence[int] = (),
+    padding: Sequence[int] = (0, 0),
+    dilation: Sequence[int] = (1, 1),
     ceil_mode: bool = False,
-) -> tuple[TensorType, TensorType]:
+) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool3d_with_indices(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a tuple of three ints for all sides explicitly.
+    expand_size = 3
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_with_indices_onnx(
+        self,
+        kernel_shape,
+        strides,
+        pads,
+        dilations,
+        ceil_mode,
+        4,
+        ([1] * expand_size),
+        ([0] * expand_size),
+        ([2 + i for i in range(expand_size)]),
+    )
+
+
+@torch_op("internal::max_pool_with_indices", private=True)
+def _aten_max_pool_with_indices_onnx(
+    self: TFloatOrUInt8,
+    kernel_size: Sequence[int],
+    stride: Sequence[int],
+    padding: Sequence[int],
+    dilation: Sequence[int],
+    ceil_mode: bool,
+    unbatched_rank: int,
+    n_dims_one: Sequence[int],
+    n_dims_zero: Sequence[int],
+    n_dims_axes: Sequence[int],
+) -> Tuple[TFloatOrUInt8, INT64]:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == unbatched_rank:
+        self = op.Unsqueeze(self, axes=0)
+
+    pool_result, indices = op.MaxPool(
+        self,
+        ceil_mode=ceil_mode,
+        dilations=dilation,
+        kernel_shape=kernel_size,
+        pads=padding,
+        strides=stride,
+    )
+
+    # Simple but hacky way to get flattened indices values
+    # to be used to convert the indices values to non-flattened.
+    # In ONNX the indices are computed as a flatten 1-D tensor,
+    # so the values in indices are in [0, N x C x D1 x ... x Dn).
+    # To convert the indices to the same format used by PyTorch,
+    # we first execute a maxpool with a kernel and stride of 1 on the same input.
+    # This will result in a tensor of indices in which each index will have it's own value.
+    # Using this tensor as a reference, we extract the first index of each axis and subtract
+    # it from each index of this axis in the indices to convert.
+    # This step will result in a tensor where each dimension has values of indices within
+    # the dimension it is in.
+    # For Maxpool1d(kernel=1,stride=1,return_indices=True), with the input torch.ones(1,2,2).
+    # The computed indices are the following:
+    # output indices pytorch :
+    #     [[0,1],
+    #      [0,1]]
+    # output indices onnx:
+    #     [[0,1],
+    #      [2,3]]
+    # The purpose was to convert the indices from one format to the other to be able to match the results.
+    # So flattened_indices will have the value of each index and will be equal to :
+    #     [[0,1],
+    #     [2,3]]
+    # Then call Slice to get the first value of each line (so 0 and 2).
+    # And the subtraction executes :
+    #     [[0-0,1-0],
+    #     [2-2,3-2]]
+    # So indices results to the expected output which is :
+    #     [[0,1],
+    #     [0,1]]
+    # For more information :
+    # https://github.com/pytorch/pytorch/pull/16455#issuecomment-460776407
+    _, flatten_indices = op.MaxPool(
+        self, dilations=dilation, kernel_shape=n_dims_one, strides=n_dims_one
+    )
+
+    ends = op.Constant(value_ints=n_dims_one)
+    starts = op.Constant(value_ints=n_dims_zero)
+    axes = op.Constant(value_ints=n_dims_axes)
+
+    delta = op.Slice(flatten_indices, axes=axes, starts=starts, ends=ends)
+    indices = op.Sub(indices, delta)
+
+    if self_rank == unbatched_rank:
+        pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
+        indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
+
+    return (pool_result, indices)
 
 
 def aten_max_pool3d_with_indices_backward(
@@ -1132,7 +1457,7 @@ def aten_rrelu_with_noise_backward(
     raise NotImplementedError()
 
 
-@onnxscript.script()
+@torch_op("aten::scaled_dot_product_attention", private=True)
 def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     """Create a causal mask for the given query and key tensors.
 
@@ -1160,7 +1485,7 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     return attn_mask
 
 
-@onnxscript.script()
+@torch_op("aten::scaled_dot_product_attention", private=True)
 def _attention_scale(query: TFloat) -> TFloat:
     """Calculate the scale factor for the attention result.
 
@@ -1593,16 +1918,70 @@ def aten_upsample_bicubic2d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_bilinear2d", trace_only=True)
 def aten_upsample_bilinear2d(
-    self: TensorType,
-    output_size: INT64,
-    align_corners: bool,
+    self: TReal,
+    output_size: Optional[INT64] = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
-) -> TensorType:
+    align_corners: bool = True,  # pylint: disable=unused-argument
+) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if output_size is not None:
+        result = _aten_upsample_bilinear2d_output_size(self, output_size)
+    else:
+        assert scales_h is not None
+        assert scales_h == scales_w
+        result = _aten_upsample_bilinear2d_scales(self, scales_h, scales_w)
+    return result
+
+
+@torch_op("aten::upsample_bilinear2d", private=True)
+def _aten_upsample_bilinear2d_output_size(
+    self: TReal,
+    output_size: INT64,
+) -> TReal:
+    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    self_shape = op.Shape(self)
+    starts = op.Constant(value_ints=[0])
+    ends = op.Constant(value_ints=[2])
+    batch_channel = op.Slice(self_shape, starts, ends)
+    output_size = op.Concat(batch_channel, output_size, axis=0)
+    return op.Resize(
+        self,
+        None,
+        None,
+        output_size,
+        mode="linear",
+        coordinate_transformation_mode="align_corners",
+    )
+
+
+@torch_op("aten::upsample_bilinear2d", private=True)
+def _aten_upsample_bilinear2d_scales(
+    self: TReal,
+    scales_h: float,
+    scales_w: float,
+) -> TReal:
+    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    neg_1 = op.Constant(value_ints=[-1])
+    scales = op.Concat(
+        op.Constant(value_floats=[1.0, 1.0]),
+        op.Reshape(op.Constant(value_float=scales_h), neg_1),
+        op.Reshape(op.Constant(value_float=scales_w), neg_1),
+        axis=0,
+    )
+    return op.Resize(
+        self,
+        None,
+        scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
+        None,
+        mode="linear",
+        coordinate_transformation_mode="align_corners",
+    )
 
 
 def aten_upsample_bilinear2d_backward(

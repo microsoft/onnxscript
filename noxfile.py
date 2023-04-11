@@ -16,6 +16,7 @@ COMMON_TEST_DEPENDENCIES = (
     "beartype",
     "types-PyYAML",
     "expecttest",
+    "hypothesis",
     "packaging",
     "parameterized",
     "pytest-cov",
@@ -76,10 +77,17 @@ def test_onnx_func_expe(session):
         "ort-function-experiment-nightly",
     )
 
-    session.install("-r", "requirements-onnx-weekly.txt")
+    session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
-    session.run("pytest", "onnxscript", *session.posargs)
+    # Ignore ops_correctness_test because this version of ORT does not contain the
+    # latest fixes and may fail some tests in the torch op tests.
+    session.run(
+        "pytest",
+        "onnxscript",
+        "--ignore=onnxscript/tests/function_libs/torch_aten/ops_correctness_test.py",
+        *session.posargs,
+    )
     session.run("pytest", "docs/test", *session.posargs)
 
 
@@ -103,7 +111,7 @@ def test_torch_nightly(session):
 def test_onnx_weekly(session):
     """Test with ONNX weekly (preview) build."""
     session.install(*COMMON_TEST_DEPENDENCIES, ONNX_RUNTIME, PYTORCH)
-    session.install("-r", "requirements-onnx-weekly.txt")
+    session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
@@ -115,7 +123,7 @@ def test_ort_nightly(session):
     session.install(
         *COMMON_TEST_DEPENDENCIES, PYTORCH, ONNX, *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES
     )
-    session.install("-r", "requirements-ort-nightly.txt")
+    session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)

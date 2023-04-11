@@ -1,8 +1,7 @@
-numpy
-onnx-weekly
 setuptools>=61.0.0
---pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html
-ort-function-experiment-nightly
+numpy
+onnx-weekly==1.14.0.dev20230403
+onnxruntime
 typing_extensions
 
 # Docs site
@@ -17,6 +16,7 @@ beartype
 
 # Testing
 expecttest
+hypothesis
 parameterized
 pytest-cov
 pytest-randomly
@@ -28,4 +28,4 @@ torch>=1.13
 
 # Lint
 lintrunner
-lintrunner_adapters>=0.6.1
+lintrunner_adapters>=0.7.0
