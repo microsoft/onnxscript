@@ -16,6 +16,7 @@ COMMON_TEST_DEPENDENCIES = (
     "beartype",
     "types-PyYAML",
     "expecttest",
+    "hypothesis",
     "packaging",
     "parameterized",
     "pytest-cov",
