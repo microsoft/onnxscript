@@ -164,7 +164,7 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
 
 
 def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info
+    del op_info  # unused
     del kwargs
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
