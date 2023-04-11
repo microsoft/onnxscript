@@ -668,6 +668,42 @@ def aten_max_pool1d_with_indices(
     raise NotImplementedError()
 
 
+def _adjust_attributes_of_max_pool(
+    expand_size: int,
+    kernel_size: Sequence[int],
+    stride: Sequence[int],
+    padding: Sequence[int],
+    dilation: Sequence[int],
+) -> Tuple[Sequence[int], Sequence[int], Sequence[int], Sequence[int]]:
+    if isinstance(dilation, int):
+        dilations = [dilation] * expand_size
+    else:
+        dilations = dilation
+
+    if isinstance(kernel_size, int):
+        kernel_shape = [kernel_size] * expand_size
+    else:
+        kernel_shape = kernel_size
+
+    if isinstance(padding, int):
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:
+        pads = padding * expand_size * 2
+    elif len(padding) == 2:
+        pads = padding * expand_size
+    else:
+        pads = padding
+
+    if isinstance(stride, int):
+        strides = [stride] * expand_size
+    elif stride is None:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    return (kernel_shape, strides, pads, dilations)
+
+
 @torch_op("aten::max_pool2d", trace_only=True)
 def aten_max_pool2d(
     self: TFloatOrUInt8,
@@ -683,35 +719,9 @@ def aten_max_pool2d(
     # But ONNX needs to specify a pair of number [x,y] on each side explicitly.
     expand_size = 2
 
-    # The dilations should be [x, y]
-    if isinstance(dilation, int):  # x -> [x, x]
-        dilations = [dilation] * expand_size
-    else:  # already [x, y]
-        dilations = dilation
-
-    # The kernel_shape should be [x, y]
-    if isinstance(kernel_size, int):  # x -> [x, x]
-        kernel_shape = [kernel_size] * expand_size
-    else:  # assert(len(kernel_size)==2), already [x, y]
-        kernel_shape = kernel_size
-
-    # The pads should be [w, x, y, z]
-    if isinstance(padding, int):  # w -> [w, w, w, w]
-        pads = [padding] * expand_size * 2
-    elif len(padding) == 1:  # [w] -> [w, w, w, w]
-        pads = padding * 4
-    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
-        pads = padding * 2
-    else:  # assert len(padding) == 4, already [w, x, y, z]
-        pads = padding
-
-    # The strides should be [x, y]
-    if isinstance(stride, int):  # x -> [x, x]
-        strides = [stride] * expand_size
-    elif stride is None:
-        strides = kernel_shape
-    else:
-        strides = stride
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
 
     return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 3)
 
@@ -760,31 +770,9 @@ def aten_max_pool3d(
     # But ONNX needs to specify a tuple of three ints for all sides explicitly.
     expand_size = 3
 
-    if isinstance(dilation, int):
-        dilations = [dilation] * expand_size
-    else:
-        dilations = dilation
-
-    if isinstance(kernel_size, int):
-        kernel_shape = [kernel_size] * expand_size
-    else:
-        kernel_shape = kernel_size
-
-    if isinstance(padding, int):
-        pads = [padding] * expand_size * 2
-    elif len(padding) == 1:
-        pads = padding * expand_size * 2
-    elif len(padding) == 2:
-        pads = padding * expand_size
-    else:
-        pads = padding
-
-    if isinstance(stride, int):
-        strides = [stride] * expand_size
-    elif stride is None:
-        strides = kernel_shape
-    else:
-        strides = stride
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
 
     return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 4)
 
@@ -804,35 +792,9 @@ def aten_max_pool2d_with_indices(
     # But ONNX needs to specify a pair of number [x,y] on each side explicitly.
     expand_size = 2
 
-    # The dilations should be [x, y]
-    if isinstance(dilation, int):  # x -> [x, x]
-        dilations = [dilation] * expand_size
-    else:  # already [x, y]
-        dilations = dilation
-
-    # The kernel_shape should be [x, y]
-    if isinstance(kernel_size, int):  # x -> [x, x]
-        kernel_shape = [kernel_size] * expand_size
-    else:  # assert(len(kernel_size)==2), already [x, y]
-        kernel_shape = kernel_size
-
-    # The pads should be [w, x, y, z]
-    if isinstance(padding, int):  # w -> [w, w, w, w]
-        pads = [padding] * expand_size * 2
-    elif len(padding) == 1:  # [w] -> [w, w, w, w]
-        pads = padding * 4
-    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
-        pads = padding * 2
-    else:  # assert len(padding) == 4, already [w, x, y, z]
-        pads = padding
-
-    # The strides should be [x, y]
-    if isinstance(stride, int):  # x -> [x, x]
-        strides = [stride] * expand_size
-    elif stride is None:
-        strides = kernel_shape
-    else:
-        strides = stride
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
 
     return _aten_max_pool_with_indices_onnx(
         self,
@@ -878,31 +840,9 @@ def aten_max_pool3d_with_indices(
     # But ONNX needs to specify a tuple of three ints for all sides explicitly.
     expand_size = 3
 
-    if isinstance(dilation, int):
-        dilations = [dilation] * expand_size
-    else:
-        dilations = dilation
-
-    if isinstance(kernel_size, int):
-        kernel_shape = [kernel_size] * expand_size
-    else:
-        kernel_shape = kernel_size
-
-    if isinstance(padding, int):
-        pads = [padding] * expand_size * 2
-    elif len(padding) == 1:
-        pads = padding * expand_size * 2
-    elif len(padding) == 2:
-        pads = padding * expand_size
-    else:
-        pads = padding
-
-    if isinstance(stride, int):
-        strides = [stride] * expand_size
-    elif stride is None:
-        strides = kernel_shape
-    else:
-        strides = stride
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
 
     return _aten_max_pool_with_indices_onnx(
         self,
@@ -967,7 +907,7 @@ def _aten_max_pool_with_indices_onnx(
     # So flattened_indices will have the value of each index and will be equal to :
     #     [[0,1],
     #     [2,3]]
-    # Then call slick to get the first value of each line (so 0 and 2).
+    # Then call Slice to get the first value of each line (so 0 and 2).
     # And the subtraction executes :
     #     [[0-0,1-0],
     #     [2-2,3-2]]
@@ -980,11 +920,11 @@ def _aten_max_pool_with_indices_onnx(
         self, dilations=dilation, kernel_shape=n_dims_one, strides=n_dims_one
     )
 
-    ends_t = op.Constant(value_ints=n_dims_one)
-    starts_t = op.Constant(value_ints=n_dims_zero)
-    axes_t = op.Constant(value_ints=n_dims_axes)
+    ends = op.Constant(value_ints=n_dims_one)
+    starts = op.Constant(value_ints=n_dims_zero)
+    axes = op.Constant(value_ints=n_dims_axes)
 
-    delta = op.Slice(flatten_indices, axes=axes_t, starts=starts_t, ends=ends_t)
+    delta = op.Slice(flatten_indices, axes=axes, starts=starts, ends=ends)
     indices = op.Sub(indices, delta)
 
     if self_rank == unbatched_rank:

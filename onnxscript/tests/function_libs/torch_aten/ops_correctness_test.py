@@ -1045,11 +1045,10 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this aten overload assume return_indices=False",
     ),
     skip(
-        # onnxruntime issue: https://github.com/microsoft/onnxruntime/issues/15446
         "nn.functional.max_pool3d",
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
         and sample.kwargs.get("padding") == 1,
-        reason="this combinations is not supported.",
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     ),
     skip(
         "nn.functional.max_pool3d",
@@ -1057,11 +1056,10 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this aten overload assume return_indices=False",
     ),
     skip(
-        # onnxruntime issue: https://github.com/microsoft/onnxruntime/issues/15446
         "nn.functional.max_pool3d_with_indices",
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
         and sample.kwargs.get("padding") == 1,
-        reason="this combinations is not supported.",
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     ),
     skip(
         "nn.functional.max_pool3d_with_indices",
