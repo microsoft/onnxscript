@@ -10,6 +10,8 @@
 # pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
 # --------------------------------------------------------------------------
 
+from typing import Mapping, Tuple
+
 from onnx.defs import onnx_opset_version
 
 from onnxscript.onnx_opset._impl.opset1 import Opset1
@@ -37,6 +39,7 @@ from onnxscript.onnx_opset._impl.opset_ai_onnx_ml3 import Opset_ai_onnx_ml3
 from onnxscript.onnx_opset._impl.opset_ai_onnx_preview_training1 import (
     Opset_ai_onnx_preview_training1,
 )
+from onnxscript.values import Opset
 
 __all__ = [
     "default_opset",
@@ -96,7 +99,7 @@ opset_ai_onnx_ml1 = Opset_ai_onnx_ml1()
 opset_ai_onnx_ml2 = Opset_ai_onnx_ml2()
 opset_ai_onnx_ml3 = Opset_ai_onnx_ml3()
 opset_ai_onnx_preview_training1 = Opset_ai_onnx_preview_training1()
-all_opsets = {
+all_opsets: Mapping[Tuple[str, int], Opset] = {
     (
         "",
         1,

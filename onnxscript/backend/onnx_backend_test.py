@@ -25,7 +25,6 @@ def run_function(obj, *inputs):
 
 
 class TestOnnxBackEnd(unittest.TestCase):
-
     folder = os.path.join(os.path.abspath(os.path.dirname(__file__)), "onnx_backend_test_code")
 
     def test_enumerate_onnx_tests(self):

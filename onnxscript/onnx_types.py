@@ -171,13 +171,13 @@ class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
 
 
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
-    """Converts an onnx type into the string representation of the type in *onnx-script*.
+    """Converts an onnx type into the string representation of the type in *onnxscript*.
 
     Args:
         onnx_type: an instance of onnx TypeProto
 
     Returns:
-        The string representation of the type in onnx-script
+        The string representation of the type in onnxscript
 
     Raises:
         ...
@@ -198,7 +198,7 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
                 return name
             return f"{name}[{','.join(shape)}]"
         return f"{name}[...]"
-    raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnx-script type.")
+    raise NotImplementedError(f"Unable to translate type {onnx_type!r} into onnxscript type.")
 
 
 # Currently, only tensor types are supported. Need to expand support for other ONNX types.

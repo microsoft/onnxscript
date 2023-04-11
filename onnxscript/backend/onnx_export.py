@@ -123,7 +123,7 @@ def _rename_variable(name: ValueInfoProto | str) -> Optional[str]:
 
 
 def _translate_type(onnx_type):
-    """Converts a onnx type into a type defined by *onnx-script*."""
+    """Converts a onnx type into a type defined by *onnxscript*."""
     return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type)
 
 
@@ -150,25 +150,34 @@ def _to_str(s):
     return s
 
 
-def _attribute_value(attr):
-    if attr.HasField("f"):
+def _attribute_value(attr: onnx.AttributeProto):
+    if attr.type == onnx.AttributeProto.FLOAT:
         return attr.f
-    if attr.HasField("i"):
+    if attr.type == onnx.AttributeProto.INT:
         return attr.i
-    if attr.HasField("s"):
+    if attr.type == onnx.AttributeProto.STRING:
         return _to_str(attr.s)
-    if attr.HasField("t"):
+    if attr.type == onnx.AttributeProto.TENSOR:
         tensor_proto = attr.t
         if onnx.external_data_helper.uses_external_data(tensor_proto):
             return tensor_proto
         else:
             return onnx.numpy_helper.to_array(tensor_proto)
-    if attr.floats:
+    # TODO:
+    # - onnx.AttributeProto.GRAPH
+    # - onnx.AttributeProto.SPARSE_TENSOR
+    # - onnx.AttributeProto.TYPE_PROTO
+    if attr.type == onnx.AttributeProto.FLOATS:
         return list(attr.floats)
-    if attr.ints:
+    if attr.type == onnx.AttributeProto.INTS:
         return list(attr.ints)
-    if attr.strings:
+    if attr.type == onnx.AttributeProto.STRINGS:
         return list(map(_to_str, attr.strings))
+    # TODO:
+    # - onnx.AttributeProto.TENSORS
+    # - onnx.AttributeProto.GRAPHS
+    # - onnx.AttributeProto.SPARSE_TENSORS
+    # - onnx.AttributeProto.TYPE_PROTOS
     raise NotImplementedError(f"Unable to return a value for attribute {attr!r}.")
 
 
