@@ -944,7 +944,7 @@ def _aten_max_pool_with_indices_onnx(
         strides=stride,
     )
 
-    # easy but hacky way to get flattened indices values
+    # Simple but hacky way to get flattened indices values
     # to be used to convert the indices values to non-flattened.
     # In ONNX the indices are computed as a flatten 1-D tensor,
     # so the values in indices are in [0, N x C x D1 x ... x Dn).
