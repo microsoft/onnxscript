@@ -457,12 +457,19 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
+        # TODO(wechi): The ultimate solution here is
+        # to call shape inference function in ONNX to
+        # determine output schema.
+        if onnx_op_schema.name == "Split" and "num_outputs" in onnx_attributes:
+            n_outputs = onnx_attributes["num_outputs"]
+        else:
+            n_outputs = len(onnx_op_schema.outputs)
         # Compute outputs from the onnx_op op schema
         result = self._add_torchscript_op_call(
             f"onnx::{onnx_op_schema.name}",
             onnx_inputs,
             onnx_attributes,
-            n_outputs=len(onnx_op_schema.outputs),
+            n_outputs=n_outputs,
         )
 
         return result
