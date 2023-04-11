@@ -63,7 +63,7 @@ jobs:
           python -m pip install -r requirements-dev.txt
       - uses: actions/download-artifact@v3
         with:
-          name: dist
+          name: wheels
           path: dist
       - name: Install wheel
         run: |
@@ -81,7 +81,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: dist
+          name: wheels
           path: dist
       # TODO: Check the version number is a dev version
       - name: Publish dev version to PyPI
@@ -98,7 +98,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: dist
+          name: wheels
           path: dist
       # TODO: Check the tag name matches the VERSION file
       - name: Publish to PyPI
