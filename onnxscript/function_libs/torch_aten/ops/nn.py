@@ -918,7 +918,7 @@ def aten_max_pool3d_with_indices(
     )
 
 
-@torch_op("aten::max_pool_with_indices", private=True)
+@torch_op("internal::max_pool_with_indices", private=True)
 def _aten_max_pool_with_indices_onnx(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
