@@ -948,7 +948,7 @@ def _aten_max_pool_with_indices_onnx(
     # to be used to convert the indices values to non-flattened.
     # In ONNX the indices are computed as a flatten 1-D tensor,
     # so the values in indices are in [0, N x C x D1 x ... x Dn).
-    # To convert the indices to the same format used by Pytorch,
+    # To convert the indices to the same format used by PyTorch,
     # we first execute a maxpool with a kernel and stride of 1 on the same input.
     # This will result in a tensor of indices in which each index will have it's own value.
     # Using this tensor as a reference, we extract the first index of each axis and subtract
