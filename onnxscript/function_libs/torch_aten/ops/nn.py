@@ -944,6 +944,38 @@ def _aten_max_pool_with_indices_onnx(
         strides=stride,
     )
 
+    # easy but hacky way to get flattened indices values
+    # to be used to convert the indices values to non-flattened.
+    # In ONNX the indices are computed as a flatten 1-D tensor,
+    # so the values in indices are in [0, N x C x D1 x ... x Dn).
+    # To convert the indices to the same format used by Pytorch,
+    # we first execute a maxpool with a kernel and stride of 1 on the same input.
+    # This will result in a tensor of indices in which each index will have it's own value.
+    # Using this tensor as a reference, we extract the first index of each axis and subtract
+    # it from each index of this axis in the indices to convert.
+    # This step will result in a tensor were each dimension has values of indices within
+    # the dimension it is in.
+    # For Maxpool1d(kernel=1,stride=1,return_indices=True), with the input torch.ones(1,2,2).
+    # The computed indices are the following:
+    # output indices pytorch :
+    #     [[0,1],
+    #     [0,1]]
+    # output indices onnx:
+    #     [[0,1],
+    #     [2,3]]
+    # The purpose was to convert the indices from one format to the other to be able to match the results.
+    # So flattened_indices will have the value of each index and will be equal to :
+    #     [[0,1],
+    #     [2,3]]
+    # Then call slick to get the first value of each line (so 0 and 2).
+    # And the subtraction executes :
+    #     [[0-0,1-0],
+    #     [2-2,3-2]]
+    # So indices results to the expected output which is :
+    #     [[0,1],
+    #     [0,1]]
+    # For more information :
+    # https://github.com/pytorch/pytorch/pull/16455#issuecomment-460776407
     _, flatten_indices = op.MaxPool(
         self, dilations=dilation, kernel_shape=n_dims_one, strides=n_dims_one
     )
