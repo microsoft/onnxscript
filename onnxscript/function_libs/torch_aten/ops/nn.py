@@ -902,7 +902,7 @@ def _aten_max_pool_with_indices_onnx(
     #      [0,1]]
     # output indices onnx:
     #     [[0,1],
-    #     [2,3]]
+    #      [2,3]]
     # The purpose was to convert the indices from one format to the other to be able to match the results.
     # So flattened_indices will have the value of each index and will be equal to :
     #     [[0,1],
