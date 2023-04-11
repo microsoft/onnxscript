@@ -563,39 +563,37 @@ def test_aten_as_strided():
     import numpy as np
     self = np.arange(24).reshape(2,3,4).astype(np.float32)
     #print(a)
-    sizes = np.array([2,2,2,3], dtype=np.int64)
-    strides = np.array([1,2,3,4], dtype=np.int64)
+    sizes = np.array([2,2,2,3], dtype=np.int64)  # 2，3，4
+    strides = np.array([1,2,3,4], dtype=np.int64)  # 3，1，3
     d = 0
     # r = aten_as_strided(self, size, stride, d)
     # print(r)
 
     rank = len(strides)
     j = rank - 1  # 3
-
     last_dim_strides = sizes[j]  # 4
-    base = np.arange(last_dim_strides)  # [0,1,2,3]
-    base = base * int(strides[j])  # [0,1,2,3]x3 = [0,3,6,9]
+    add = np.arange(last_dim_strides) * int(strides[j])  # [0,1,2,3]
+    base = add
 
-    # expand sizes[2](=2)
+    # expand sizes[2]
     j = 2
-    base = op.Expand(base, op.Constant(sizes[j:])) # value_ints=[3,4]
+    base = op.Expand(base, op.Constant(sizes[j:]))
     add = np.arange(sizes[j]).astype(np.int64) * int(strides[j])
     add = op.Constant(value_ints=add)
     add = op.Reshape(add, op.Constant(value_ints=[sizes[j],1]))
     base = base + add
 
-
-    # expand sizes[1](=3)
+    # expand sizes[1]
     j = 1
-    base = op.Expand(base, op.Constant(sizes[j:])) # value_ints=[3,4]
+    base = op.Expand(base, op.Constant(sizes[j:]))
     add = np.arange(sizes[j]).astype(np.int64) * int(strides[j])
     add = op.Constant(value_ints=add)
     add = op.Reshape(add, op.Constant(value_ints=[sizes[j],1,1]))
     base = base + add
 
-    # expand sizes[0](=2)
+    # expand sizes[0]
     j = 0
-    base = op.Expand(base, op.Constant(sizes[j:]))    # value_ints=[2,3,4]))
+    base = op.Expand(base, op.Constant(sizes[j:]))
     add = np.arange(sizes[j]).astype(np.int64) * int(strides[j])
     add = op.Constant(value_ints=add)
     add = op.Reshape(add, op.Constant(value_ints=[sizes[j],1,1,1]))
