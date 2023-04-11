@@ -4,16 +4,25 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
+import collections
 import dataclasses
+import inspect
 import logging
 import types
 from enum import IntFlag
-from typing import Any, Optional, Sequence, _GenericAlias, TypeVar  # type: ignore[attr-defined]
+from typing import (
+    Any,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+    _GenericAlias,  # type: ignore[attr-defined]
+)
 
 import onnx
 import onnx.defs
 
-from onnxscript import irbuilder, sourceinfo
+from onnxscript import irbuilder, sourceinfo, type_annotation
 from onnxscript._internal import version_utils
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
@@ -267,6 +276,7 @@ class TypeConstraint:
         """Returns the type constraint as a tuple."""
         return (self.name, self.allowed_types, self.description)
 
+
 class OnnxFunction(Op):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
 
@@ -309,35 +319,45 @@ class OnnxFunction(Op):
 
         function_ir = self.function_ir
         # Find all distinct types in the inputs and outputs
-        distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union({arg.typeinfo for arg in function_ir.outputs})
+        distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
+            {arg.typeinfo for arg in function_ir.outputs}
+        )
         # Create a mapping from type to a unique name
         type_to_constraint = {}
-        for type_ in distinct_types:
+        for i, type_ in enumerate(distinct_types):
             if isinstance(type_, TypeVar):
-                type_to_constraint[type_] = TypeConstraint(
-                    name=type_.name,
-                    allowed_types=[],
-                )
+                name = type_.__name__
+            else:
+                name = f"T{i}"
+            type_to_constraint[type_] = TypeConstraint(
+                name=name,
+                allowed_types=type_annotation.get_supported_input_types(type_),
+            )
 
         formal_inputs = [
-
+            onnx.defs.OpSchema.FormalParameter(
+                arg.name,
+                type_to_constraint[arg.typeinfo].name,
+                param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
+                if inspect.isclass(arg.typeinfo) and issubclass(arg.typeinfo, Optional)
+                else onnx.defs.OpSchema.FormalParameterOption.Single,
+                # TODO(justinchu): Check this is_homogeneous thing
+                is_homogeneous=True,
+            )
             for arg in function_ir.inputs
         ]
         formal_outputs = [
             onnx.defs.OpSchema.FormalParameter(
                 arg.name,
-                "T",
+                type_to_constraint[arg.typeinfo].name,
                 param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
-                if isinstance(arg.typeinfo, onnx.TypeProto.Optional)
+                if inspect.isclass(arg.typeinfo) and issubclass(arg.typeinfo, Optional)
                 else onnx.defs.OpSchema.FormalParameterOption.Single,
                 # TODO(justinchu): Check this is_homogeneous thing
                 is_homogeneous=True,
             )
             for arg in function_ir.outputs
         ]
-
-        # TODO: create type_constraints
-        type_constraints = [("T", ["tensor(int64)"], "Foo")]
 
         self._opschema = onnx.defs.OpSchema(
             self.name,
@@ -346,7 +366,9 @@ class OnnxFunction(Op):
             doc=function_ir.docstring,
             inputs=formal_inputs,
             outputs=formal_outputs,
-            type_constraints=type_constraints,
+            type_constraints=[
+                constraint.as_tuple() for constraint in type_to_constraint.values()
+            ],
             attributes=[
                 onnx.defs.OpSchema.Attribute(
                     name=attr_name,
