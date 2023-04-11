@@ -346,7 +346,7 @@ def _gather_input_wrangler(
     return args, kwargs
 
 
-def _max_pool2d_input_wrangler(
+def _max_pool_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Remove return_indices argument because this op doesn't accept it
@@ -693,10 +693,15 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
-    "nn.functional.max_pool2d": (nn_ops.aten_max_pool2d, _max_pool2d_input_wrangler),
+    "nn.functional.max_pool2d": (nn_ops.aten_max_pool2d, _max_pool_input_wrangler),
     "nn.functional.max_pool2d_with_indices": (
         nn_ops.aten_max_pool2d_with_indices,
-        _max_pool2d_input_wrangler,
+        _max_pool_input_wrangler,
+    ),
+    "nn.functional.max_pool3d": (nn_ops.aten_max_pool3d, _max_pool_input_wrangler),
+    "nn.functional.max_pool3d_with_indices": (
+        nn_ops.aten_max_pool3d_with_indices,
+        _max_pool_input_wrangler,
     ),
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
@@ -1038,6 +1043,28 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.max_pool2d",
         matcher=lambda sample: sample.kwargs.get("return_indices") is True,
         reason="this aten overload assume return_indices=False",
+    ),
+    skip(
+        "nn.functional.max_pool3d",
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+        and sample.kwargs.get("padding") == 1,
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+    ),
+    skip(
+        "nn.functional.max_pool3d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    skip(
+        "nn.functional.max_pool3d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+        and sample.kwargs.get("padding") == 1,
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+    ),
+    skip(
+        "nn.functional.max_pool3d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
     ),
     skip(
         "nn.functional.nll_loss",
