@@ -959,7 +959,7 @@ def _aten_max_pool_with_indices_onnx(
     # The computed indices are the following:
     # output indices pytorch :
     #     [[0,1],
-    #     [0,1]]
+    #      [0,1]]
     # output indices onnx:
     #     [[0,1],
     #     [2,3]]
