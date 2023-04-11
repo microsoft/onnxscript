@@ -953,7 +953,7 @@ def _aten_max_pool_with_indices_onnx(
     # This will result in a tensor of indices in which each index will have it's own value.
     # Using this tensor as a reference, we extract the first index of each axis and subtract
     # it from each index of this axis in the indices to convert.
-    # This step will result in a tensor were each dimension has values of indices within
+    # This step will result in a tensor where each dimension has values of indices within
     # the dimension it is in.
     # For Maxpool1d(kernel=1,stride=1,return_indices=True), with the input torch.ones(1,2,2).
     # The computed indices are the following:
