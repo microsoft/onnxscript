@@ -541,14 +541,17 @@ def _aten_as_strided(
     for i in range(rank):
         j = rank - 1 - i  # Get inverse index
         dim_j_size = op.Gather(size, j)
-        dim_j_stride = op.Gather(stride, j)
         seq_array = op.SequenceEmpty()  # FIXME: dtype=INT64.dtype doesn't work, have to use default(FLOAT.dtype)
         seq_array = op.SequenceInsert(seq_array, range_float)
         # FIXME: this need another loop for dim_j_size
-        if op.Equal(dim_j_size, 2):
+        k = 0
+        cond = op.Constant(value_int=1)
+        while cond:
             # Make array: [range_float, range_float_stride] -> size==2
-            range_float_stride = op.Add(range_float, op.Cast(dim_j_stride, to=FLOAT.dtype))
+            range_float_stride = op.Add(range_float, op.Cast(k, to=FLOAT.dtype))
             seq_array = op.SequenceInsert(seq_array, range_float_stride)
+            k = k + 1
+            cond = (k < dim_j_size)
         range_float = op.ConcatFromSequence(seq_array, axis=0)
 
     range_int = op.Cast(range_float, to=INT64.dtype)
