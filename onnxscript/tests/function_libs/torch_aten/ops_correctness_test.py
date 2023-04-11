@@ -693,9 +693,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
-    "nn.functional.max_pool2d": (core_ops.aten_max_pool2d, _max_pool2d_input_wrangler),
+    "nn.functional.max_pool2d": (nn_ops.aten_max_pool2d, _max_pool2d_input_wrangler),
     "nn.functional.max_pool2d_with_indices": (
-        core_ops.aten_max_pool2d_with_indices,
+        nn_ops.aten_max_pool2d_with_indices,
         _max_pool2d_input_wrangler,
     ),
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
