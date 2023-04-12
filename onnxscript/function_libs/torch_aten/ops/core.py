@@ -514,7 +514,7 @@ def aten_as_strided(
     result = _aten_as_strided(self, size, stride, storage_offset, rank=rank)
     return result
 
-@torch_op("aten::as_strided", trace_only=True)
+@torch_op("aten::as_strided", private=True)
 def _aten_as_strided(
     self: TTensor, size: INT64, stride: INT64, storage_offset: int = 0, rank: int = 0
 ) -> TTensor:
@@ -523,14 +523,17 @@ def _aten_as_strided(
     for i in range(rank):
         j = rank - i - 1
         dim_size = op.Gather(size, j, axis=0)
-        dim_after = op.Slice(size, op.Constant(value_ints=[j]), op.Constant(value_ints=[rank]))
+        #dim_after = op.Slice(size, op.Constant(value_ints=[j]), op.Constant(value_ints=[rank]))
+        #dim_after = op.Slice(size, j, op.Constant(value_ints=[rank]))
+        dim_after = op.Slice(size, j, rank)
         dim_stride = op.Gather(stride, j, axis=0)
         base = op.Expand(base, op.Constant(dim_after))
         add = op.Range(0, dim_size, 1)
         add = add * dim_stride  # [0,1,2,3]
         dim_size = op.Reshape(dim_size, neg_1)
 
-        ones = op.Expand(op.Constant(value_int=1), op.Constant(value_ints=[i]))
+        #ones = op.Expand(op.Constant(value_int=1), op.Constant(value_ints=[i]))
+        ones = op.Expand(op.Constant(value_int=1), op.Reshape(i, neg_1))
         shape = op.Concat(dim_size, ones, axis=0)
         add = op.Reshape(add, shape)
         base = base + add
