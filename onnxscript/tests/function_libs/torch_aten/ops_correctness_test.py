@@ -755,14 +755,7 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "as_strided",
         variant_name="partial_views",
-        reason="Onnx doesn't have partial view for tensor",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail(
-        "as_strided",
-        variant_name="partial_views",
-        reason="Onnx doesn't have partial view for tensor",
-        test_class_name="TestOutputConsistencyFullGraph",
+        reason="ONNX doesn't have partial view for tensor",
     ),
     xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
