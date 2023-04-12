@@ -431,6 +431,7 @@ class OnnxFunction(Op):
         # args with default value are attributes
         schemas = []
         for arg in inputs:
+            # FIXME(justinchuby): Properly handle typeinfo
             if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
                 required = False
             else:
