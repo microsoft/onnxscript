@@ -280,7 +280,7 @@ class TestConverter(testutils.TestBase):
 
         self.validate_save(opt_input, shape_inference=False)
 
-    @unittest.skip("ValueError: A function with attributes " "cannot be exported as a model.")
+    @unittest.skip("A function with attributes cannot be exported as a model.")
     def test_onnxfns2(self):
         from onnxscript.tests.models import onnxfns2
 
