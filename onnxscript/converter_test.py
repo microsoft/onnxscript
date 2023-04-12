@@ -269,7 +269,7 @@ class TestConverter(testutils.TestBase):
 
         self.validate_save(renaming, shape_inference=False)
 
-    @unittest.skipIf(True, reason="TypeError: val must be numeric not <class 'NoneType'>")
+    @unittest.skip(reason="TypeError: val must be numeric not <class 'NoneType'>")
     def test_opt_output(self):
         from onnxscript.tests.models import opt_output
 
@@ -280,9 +280,7 @@ class TestConverter(testutils.TestBase):
 
         self.validate_save(opt_input, shape_inference=False)
 
-    @unittest.skipIf(
-        True, reason="ValueError: A function with attributes " "cannot be exported as a model."
-    )
+    @unittest.skip("ValueError: A function with attributes " "cannot be exported as a model.")
     def test_onnxfns2(self):
         from onnxscript.tests.models import onnxfns2
 

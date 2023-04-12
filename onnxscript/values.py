@@ -474,8 +474,12 @@ class OnnxFunction(Op):
 
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""
-        if self.function_ir.attrs:
-            raise ValueError("A function with attributes cannot be exported as a model.")
+        if self.function_ir.attrs and any(
+            not attr.has_default for attr in self.function_ir.attrs
+        ):
+            raise ValueError(
+                "A function with required attributes cannot be exported as a model."
+            )
         # Note: The function must also have monomorphic type annotation for inputs/outputs
         # to be converted into a valid model. Otherwise, we can still produce an ONNX
         # model, but it will not pass the ONNX model checker. We do not report an error
