@@ -207,10 +207,11 @@ class IRFunction:
 
     def __str__(self):
         attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
+        attr_protos = _format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
         inputs = _format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
+        return f"{self.name} {attrs}{attr_protos}{inputs} => {outputs}{stmts}"
 
     def append_docstring(self, docstring):
         self.docstring += docstring
