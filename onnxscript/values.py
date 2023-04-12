@@ -454,7 +454,8 @@ class OnnxFunction(Op):
                 type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
                 default=_get_attribute_value(attr_value.attr_proto),
                 is_input=False,
-                # All function attributes are required
+                # Attributes with default values are not required
+                required=False,
             )
             schemas.append(param_schema)
 
