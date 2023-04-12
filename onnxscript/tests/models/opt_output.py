@@ -13,6 +13,7 @@ from onnxscript.onnx_opset import opset15 as op
 # is required in OnnxScript.
 # Example: LayerNormalization
 
+
 # Here is a toy version of a LayerNormalization-like example:
 # Here, the second output is optional. But this impacts only the caller's
 # code, and not the function-definition. In the function definition, we always

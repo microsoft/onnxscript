@@ -9,15 +9,16 @@ import ast
 import inspect
 import sys
 import textwrap
-from typing import Any, Callable, Optional
+import types
+from typing import Any, Callable, Optional, Sequence, cast
 
 import onnx.helper
 
 import onnxscript
-from onnxscript import converter, values
+from onnxscript import converter, irbuilder, values
 
 
-def get_src_and_ast(f):
+def get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
     try:
         src = inspect.getsource(f)
     except OSError as e:
@@ -34,12 +35,18 @@ def get_src_and_ast(f):
     return src, f_ast
 
 
-def get_ast(f):
-    _, ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
-    return ast
+def get_ast(f: types.FunctionType) -> ast.FunctionDef:
+    _, f_ast = get_src_and_ast(f)
+    return f_ast
 
 
-def script_check(f: ast.FunctionDef, opset, global_names, source, default_opset=None):
+def script_check(
+    f: ast.FunctionDef,
+    opset: values.Opset,
+    global_names: dict[str, Any],
+    source: str,
+    default_opset: Optional[values.Opset] = None,
+) -> irbuilder.IRFunction:
     """Check that a function falls into the ONNXScript subset of Python."""
     # See if conversion succeeds.
     # TODO: cleanup Converter interface/API, separating checker from
@@ -57,7 +64,7 @@ def script(
     opset: Optional[values.Opset] = None,
     default_opset: Optional[values.Opset] = None,
     **kwargs: Any,
-) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction]:
+) -> Callable[[types.FunctionType], onnxscript.OnnxFunction]:
     """Main decorator. Declares a function as an onnx function.
 
     Args:
@@ -87,33 +94,35 @@ def script(
             one = op.Constant(value=make_tensor('one', TensorProto.FLOAT, [1], [1]))
             return op.Div(op.Log(x), op.CastLike(op.Log(cst), x))
     """
-    if opset is None:
-        opset = values.Opset("this", 1)
+    opset = opset or values.Opset("this", 1)
     if not isinstance(opset, values.Opset):
         raise TypeError(
             "Script parameter must be an opset. Did you use @script instead of @script()?"
         )
 
-    def transform(f):
-        if inspect.isfunction(f):
-            src, ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
-            # The script should be compiled using the globals/locals at the definition site.
-            # This allows the script to reference names defined outside the script,
-            # which is used for a few different purposes.
-            # The following is an approximate solution that works for normal use.
-            module = inspect.getmodule(f)
-            closure = inspect.getclosurevars(f)
-            env = module.__dict__.copy()
-            env.update(closure.nonlocals)
-            result = script_check(ast, opset, env, src, default_opset=default_opset)
-            # TODO: add transformations.
-            return onnxscript.OnnxFunction(opset, f, result, src, kwargs)
-        raise TypeError("The ONNXScript decorator should be applied to functions only.")
+    def transform(f: types.FunctionType) -> onnxscript.OnnxFunction:
+        if not inspect.isfunction(f):
+            raise TypeError("The ONNXScript decorator should be applied to functions only.")
+
+        src, f_ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
+        # The script should be compiled using the globals/locals at the definition site.
+        # This allows the script to reference names defined outside the script,
+        # which is used for a few different purposes.
+        # The following is an approximate solution that works for normal use.
+        module = inspect.getmodule(f)
+        closure = inspect.getclosurevars(f)
+        env = module.__dict__.copy()
+        env.update(closure.nonlocals)
+        result = script_check(
+            f_ast, cast(values.Opset, opset), env, src, default_opset=default_opset
+        )
+        # TODO: add transformations.
+        return onnxscript.OnnxFunction(cast(values.Opset, opset), f, result, src, kwargs)
 
     return transform
 
 
-def graph():
+def graph() -> Callable[[types.FunctionType], values.OnnxClosure]:
     """A parametric decorator used to annotate nested-functions that are used
     as graph-attributes.
 
@@ -160,18 +169,18 @@ def graph():
     onnx_function = wrapper_frame.f_locals["self"]
     nested_functions = onnx_function.function_ir.nested_functions
 
-    def transform(f):
+    def transform(f: types.FunctionType) -> values.OnnxClosure:
         return values.OnnxClosure(nested_functions[f.__name__], function_frame, f)
 
     return transform
 
 
-def is_converted_fun(f):
-    """Return True if f is a function converted by onnx-script decorator."""
+def is_converted_fun(f: Any) -> bool:
+    """Return True if f is a function converted by onnxscript decorator."""
     return isinstance(f, onnxscript.OnnxFunction)
 
 
-def export_onnx_lib(functions, filename: str) -> None:
+def export_onnx_lib(functions: Sequence[values.OnnxFunction], filename: str) -> None:
     # Since we don't yet have LibProto defined, we use a ModelProto as a temporary
     # container for the list of functions exported as a library, with an empty graph
     # and dummy opset_imports.

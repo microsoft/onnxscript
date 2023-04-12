@@ -99,14 +99,10 @@ def aten_addmm(
 ) -> TFloat:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    # TODO(titaiwang): op.Gemm seems needed to take care of corner case according to old symbolic_fn.
-    # Currently, it shows op-level validation failing on bloom.
-
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
     return op.Add(scaled_self, scaled_mat1_mat2)
-    # return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
 def aten_addmv(
@@ -3546,58 +3542,6 @@ def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
     return result, indices
 
 
-def aten_max_pool1d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0,),
-    dilation: Sequence[int] = (1,),
-    ceil_mode: bool = False,
-) -> TensorType:
-    """max_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_max_pool1d_with_indices(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0,),
-    dilation: Sequence[int] = (1,),
-    ceil_mode: bool = False,
-) -> tuple[TensorType, TensorType]:
-    """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
-
-    raise NotImplementedError()
-
-
-def aten_max_pool2d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
-    ceil_mode: bool = False,
-) -> TensorType:
-    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_max_pool3d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0, 0, 0),
-    dilation: Sequence[int] = (1, 1, 1),
-    ceil_mode: bool = False,
-) -> TensorType:
-    """max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::maximum")
 def aten_maximum(self: TReal, other: TReal) -> TReal:
     """maximum(Tensor self, Tensor other) -> Tensor"""
@@ -4333,7 +4277,6 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 def aten_new_ones_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     one = op.Constant(value_float=1.0)
     one = op.Cast(one, to=dtype)
     return op.Expand(one, size)
@@ -4351,7 +4294,6 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused
 def aten_new_zeros_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-
     zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
     return op.Expand(zero, size)
@@ -5102,6 +5044,8 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 @torch_op("aten::rsub")
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+    # FIXME(titaiwang): get rid of this when we have type_promotion
+    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, self)
     return op.Sub(other, op.Mul(self, alpha))
 
@@ -5124,6 +5068,48 @@ def aten_scatter_add(
 
     # if rank(self) == 0 will lead ORT failed, skipped
     return op.ScatterElements(self, index, src, axis=dim, reduction="add")
+
+
+@torch_op("aten::scatter_reduce", trace_only=True)
+def aten_scatter_reduce(
+    self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    src: TReal,
+    reduce: str,
+    include_self: bool = True,  # pylint: disable=unused-argument
+):
+    """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
+
+    reduce_mode = {  # convert torch string name to onnx string name
+        "mean": "none",  # 'mean' doesn't support in ONNX 1.14 definition
+        "sum": "add",
+        "prod": "mul",
+        "amin": "min",
+        "amax": "max",
+    }
+    onnx_reduce = reduce_mode[reduce]
+    return _aten_scatter_reduce_onnx(self, index, src, dim, onnx_reduce)
+
+
+@torch_op("aten::scatter_reduce", overload=True)
+def _aten_scatter_reduce_onnx(
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    dim: int,
+    onnx_reduce: str,
+):
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:  # assert (index_rank == 0 and rank_src == 0)
+        neg_1 = op.Constant(value_ints=[-1])
+        self = op.Reshape(self, neg_1)
+        index = op.Reshape(index, neg_1)
+        src = op.Reshape(src, neg_1)
+    result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+    if self_rank == 0:
+        result = op.Squeeze(result)
+    return result
 
 
 def aten_searchsorted(
@@ -5412,8 +5398,6 @@ def aten_sspaddmm(
 @torch_op("aten::stack")
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnx-script/issues/481
-    # If so, right now we do not support it.
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
@@ -5538,8 +5522,16 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 @torch_op("aten::sym_size")
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
-    # NOTE: onnx-script doesn't support attribute process,
+    # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
+
+    # TODO(titaiwang): ORT==1.15 fixes SegFault
+    # https://github.com/microsoft/onnx-script/pull/484#discussion_r1136105039
+    # Change the op to:
+    # shape = op.Shape(self)
+    # idx= op.Reshape(dim, [1])
+    # return op.Gather(shape, idx)
+
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
@@ -5815,6 +5807,30 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     """type_as(Tensor self, Tensor other) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::unflatten")
+def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
+    """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
+
+    self_size = op.Shape(self)
+
+    if dim < 0:
+        # PyTorch accepts negative dim as reversed counting
+        self_rank = op.Size(self_size)
+        dim = self_rank + dim
+
+    head_start_idx = op.Constant(value_ints=[0])
+    head_end_idx = op.Reshape(dim, op.Constant(value_ints=[1]))
+    head_part_rank = op.Slice(self_size, head_start_idx, head_end_idx)
+
+    tail_start_idx = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
+    tail_end_idx = op.Constant(value_ints=[_INT64_MAX])
+    tail_part_rank = op.Slice(self_size, tail_start_idx, tail_end_idx)
+
+    final_shape = op.Concat(head_part_rank, sizes, tail_part_rank, axis=0)
+
+    return op.Reshape(self, final_shape)
 
 
 def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> TensorType:
