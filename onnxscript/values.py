@@ -425,7 +425,7 @@ class OnnxFunction(Op):
         # Construct a dictionary of attributes with their names specified in the function
         # definition
         attr_name_to_protos = collections.OrderedDict(
-            (attr.name, attr) for attr in function_ir.attr_protos
+            (attr.name, attr) for attr in function_ir.attrs
         )
 
         # args with default value are attributes

@@ -192,6 +192,8 @@ class IRFunction:
         self.stmts: list[IRStmt] = []
         # attribute parameters
         self.attrs: list[IRAttributeValue] = []
+        # attribute parameters with default value
+        self.attr_protos: list[IRAttributeValue] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
@@ -222,8 +224,11 @@ class IRFunction:
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
-    def add_attr_parameter(self, attr: IRAttributeValue) -> None:
-        self.attrs.append(attr)
+    def add_attr_parameter(self, attr: IRAttributeValue, has_default: bool) -> None:
+        if has_default:
+            self.attr_protos.append(attr)
+        else:
+            self.attrs.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -400,7 +405,7 @@ class IRFunction:
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
             attributes=[attr.name for attr in self.attrs],
-            attribute_protos=[attr.attr_proto for attr in self.attrs],
+            attribute_protos=[attr.attr_proto for attr in self.attr_protos],
             doc_string=self.docstring,
         )
         return f
@@ -444,12 +449,12 @@ class IRBuilder:
 
     def add_attr_parameter(self, fn: IRFunction, varname: str, attribute_type: onnx.AttributeProto.AttributeType, default_value: Any) -> None:
         if default_value is not None:
-            fn.add_attr_parameter(IRAttributeValue(helper.make_attribute(varname, default_value)))
+            fn.add_attr_parameter(IRAttributeValue(helper.make_attribute(varname, default_value)), has_default=True)
         else:
             proto = onnx.AttributeProto()
             proto.name = varname
             proto.type = attribute_type
-            fn.add_attr_parameter(IRAttributeValue(proto))
+            fn.add_attr_parameter(IRAttributeValue(proto), has_default=False)
 
     def add_output(self, fn: IRFunction, varname: str, type, info) -> None:
         v = IRVar(varname, type, info)
