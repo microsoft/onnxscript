@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import collections
 import dataclasses
-import inspect
 import logging
 import types
 import typing
