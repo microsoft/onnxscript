@@ -406,9 +406,9 @@ class IRFunction:
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
             attributes=[attr.name for attr in self.attrs],
-            attribute_protos=[attr.attr_proto for attr in self.attr_protos],
             doc_string=self.docstring,
         )
+        f.attribute_proto.extend([attr.attr_proto for attr in self.attr_protos])
         return f
 
 
