@@ -510,54 +510,36 @@ def aten_as_strided(
 ) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
-    rank = len(stride) - 1  # len(stride)=4, we use i=0,1,2 in loop
-    # result = _aten_as_strided(self, size, stride, storage_offset, rank)
-    # return result
+    rank = len(stride)  # len(stride)=4, we use i=0,1,2 in loop
+    result = _aten_as_strided(self, size, stride, storage_offset, rank=rank)
+    return result
 
+@torch_op("aten::as_strided", trace_only=True)
+def _aten_as_strided(
+    self: TTensor, size: INT64, stride: INT64, storage_offset: int = 0, rank: int = 0
+) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    base = op.Constant(value_int=0)
+    for i in range(rank):
+        j = rank - i - 1
+        dim_size = op.Gather(size, j, axis=0)
+        dim_after = op.Slice(size, op.Constant(value_ints=[j]), op.Constant(value_ints=[rank]))
+        dim_stride = op.Gather(stride, j, axis=0)
+        base = op.Expand(base, op.Constant(dim_after))
+        add = op.Range(0, dim_size, 1)
+        add = add * dim_stride  # [0,1,2,3]
+        dim_size = op.Reshape(dim_size, neg_1)
 
-# @torch_op("aten::as_strided", private=True)
-# def _aten_as_strided(
-#     self: TTensor, size: INT64, stride: INT64, storage_offset: int, rank: int
-# ):
-    # This is a DP problem:
-    # Assume  sizes=(2,2,2,3), strides=(1,2,3,4)
-    # 1. Create range_base(3) = [0,1,2]
-    # 2. Create range_stride = range_base * stride[3](=4) = [0,4,8] -> A
-    # 3. A + stride[2](=3) = [3,7,11] -> B
-    # 4. Concat A,B to [0,4,8, 3,7,11] -> A
-    # 5. A + stride[1](=2) = [2,6,10, 5,9,13] -> B
-    # 6. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13] -> A
-    # 7. A + stride[0](=1) = [1,5,9, 4,8,12, 3,7,11, 6,10,14] -> B
-    # 8. Concat A,B to [0,4,8, 3,7,11, 2,6,10, 5,9,13, 1,5,9, 4,8,12, 3,7,11, 6,10,14]
-    # 9. Reshape to size(2,2,2,3)
+        ones = op.Expand(op.Constant(value_int=1), op.Constant(value_ints=[i]))
+        shape = op.Concat(dim_size, ones, axis=0)
+        add = op.Reshape(add, shape)
+        base = base + add
 
     self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
-    last_dim_size = op.Gather(size, -1)
-    last_dim_stride = op.Gather(stride, -1)
-    # range_base looks like [0,1,2]
-    range_base = op.Range(op.Constant(value_int=0), last_dim_size, op.Constant(value_int=1))
-    range_stride = op.Mul(range_base, last_dim_stride)  # Looks like [0,1,2] * 4 = [0,4,8]
-    range_float = op.Cast(range_stride, to=FLOAT.dtype)
-    for i in range(rank):
-        j = rank - 1 - i  # Get inverse index
-        dim_j_size = op.Gather(size, j)
-        seq_array = op.SequenceEmpty()  # FIXME: dtype=INT64.dtype doesn't work, have to use default(FLOAT.dtype)
-        seq_array = op.SequenceInsert(seq_array, range_float)
-        # FIXME: this need another loop for dim_j_size
-        k = 0
-        cond = op.Constant(value_int=1)
-        while cond:
-            # Make array: [range_float, range_float_stride] -> size==2
-            range_float_stride = op.Add(range_float, op.Cast(k, to=FLOAT.dtype))
-            seq_array = op.SequenceInsert(seq_array, range_float_stride)
-            k = k + 1
-            cond = (k >= dim_j_size)
-        range_float = op.ConcatFromSequence(seq_array, axis=0)
-
-    range_int = op.Cast(range_float, to=INT64.dtype)
-    range_offset = op.Add(range_int, storage_offset)
+    range_offset = op.Add(base, storage_offset)
     result = op.Gather(self_flatten, range_offset)
-    return op.Reshape(result, size)
+
+    return result
 
 def test_aten_as_strided():
     import numpy as np
@@ -566,44 +548,12 @@ def test_aten_as_strided():
     sizes = np.array([2,2,2,3], dtype=np.int64)  # 2，3，4
     strides = np.array([1,2,3,4], dtype=np.int64)  # 3，1，3
     d = 0
-    # r = aten_as_strided(self, size, stride, d)
-    # print(r)
-
-    rank = len(strides)
-    j = rank - 1  # 3
-    last_dim_strides = sizes[j]  # 4
-    add = np.arange(last_dim_strides) * int(strides[j])  # [0,1,2,3]
-    base = add
-
-    # expand sizes[2]
-    j = 2
-    base = op.Expand(base, op.Constant(sizes[j:]))
-    add = np.arange(sizes[j]).astype(np.int64) * int(strides[j])
-    add = op.Constant(value_ints=add)
-    add = op.Reshape(add, op.Constant(value_ints=[sizes[j],1]))
-    base = base + add
-
-    # expand sizes[1]
-    j = 1
-    base = op.Expand(base, op.Constant(sizes[j:]))
-    add = np.arange(sizes[j]).astype(np.int64) * int(strides[j])
-    add = op.Constant(value_ints=add)
-    add = op.Reshape(add, op.Constant(value_ints=[sizes[j],1,1]))
-    base = base + add
-
-    # expand sizes[0]
-    j = 0
-    base = op.Expand(base, op.Constant(sizes[j:]))
-    add = np.arange(sizes[j]).astype(np.int64) * int(strides[j])
-    add = op.Constant(value_ints=add)
-    add = op.Reshape(add, op.Constant(value_ints=[sizes[j],1,1,1]))
-    base = base + add
-
-    print(base)
+    r = aten_as_strided(self, sizes, strides, d)
+    print(r)
 
 
-test_aten_as_strided()
-exit()
+#test_aten_as_strided()
+#exit()
 
 def aten_as_strided_copy(
     self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
