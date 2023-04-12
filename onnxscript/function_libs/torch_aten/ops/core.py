@@ -532,7 +532,7 @@ def _aten_as_strided_onnx(
     # indices + add_value = [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[2,5,8,11],[3,5,9,12],[4,7,10,13]]]
     neg_1 = op.Constant(value_ints=[-1])
     rank_tensor = op.Reshape(rank, neg_1)  # should be 3
-    # The final indices for op.Gather(data, indices), will be continue changed during the loop
+    # The final indices for op.Gather(data, indices), will be continually changed during the loop
     indices = op.Constant(value_int=0)
     one_seq = op.SequenceEmpty()
     for i in range(rank):
