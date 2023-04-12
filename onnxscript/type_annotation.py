@@ -174,8 +174,15 @@ def get_supported_input_types(pytype) -> list[str]:
         A list of all supported input types for the given type annotation.
     """
     supported_types: list[str] = []
+    if typing.get_origin(pytype) is Union and isinstance(typing.get_args(pytype)[0], TypeVar):
+        # Recursively unpack TypeVars inside an Optional
+        for arg in typing.get_args(pytype):
+            supported_types.extend(get_supported_input_types(arg))
+        return supported_types
+
     if isinstance(pytype, TypeVar):
         pytype = _reduce_type_var_to_union(pytype)
+
     for tensor_type in onnx_types.ALL_TENSOR_TYPES:
         if issubclass(tensor_type, pytype):
             supported_types.append(tensor_type.to_string())

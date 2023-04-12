@@ -371,21 +371,12 @@ class OnnxFunction(Op):
             ],
             attributes=[
                 onnx.defs.OpSchema.Attribute(
-                    name=attr_name,
-                    type=None,
+                    attr.name,
+                    default_value=attr.attr_proto,
                 )
-                for attr_name in function_ir.attrs
-            ]
-            + [
-                onnx.defs.OpSchema.Attribute(
-                    attr_proto.name,
-                    default_value=attr_proto,
-                )
-                for attr_proto in function_ir.attr_protos
+                for attr in function_ir.attrs
             ],
         )
-
-        print(self._opschema)
 
         return self._opschema
 

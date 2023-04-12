@@ -191,9 +191,7 @@ class IRFunction:
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         # attribute parameters
-        self.attrs: list[str] = []
-        # attribute parameters with default value
-        self.attr_protos: list[IRAttributeValue] = []
+        self.attrs: list[IRAttributeValue] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
@@ -207,11 +205,10 @@ class IRFunction:
 
     def __str__(self):
         attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
-        attr_protos = _format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
         inputs = _format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return f"{self.name} {attrs}{attr_protos}{inputs} => {outputs}{stmts}"
+        return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
 
     def append_docstring(self, docstring):
         self.docstring += docstring
@@ -225,11 +222,8 @@ class IRFunction:
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
-    def add_attr_parameter(self, attr: str | IRAttributeValue) -> None:
-        if isinstance(attr, IRAttributeValue):
-            self.attr_protos.append(attr)
-        else:
-            self.attrs.append(attr)
+    def add_attr_parameter(self, attr: IRAttributeValue) -> None:
+        self.attrs.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -398,20 +392,6 @@ class IRFunction:
             onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
         ]
 
-        # attribute_proto is introduced in version onnx==1.13.0.
-        # If this attribute is available, onnxscript uses it to
-        # default values for attributes. The function has then two
-        # lists, one list for attributes without default values,
-        # another one for attributes with default values.
-        # If this *attribute_proto* is not available,
-        # all attributes with a default value are moved to the first
-        # list, default values are removed.
-        # TODO: remove this when onnx with attribute_proto is released.
-        if hasattr(onnx.FunctionProto, "attribute_proto"):
-            atts = self.attrs
-        else:
-            atts = self.attrs + [a.attr_proto.name for a in self.attr_protos]
-
         f = helper.make_function(
             self.domain,
             self.name,
@@ -419,11 +399,10 @@ class IRFunction:
             outputs=[y.name for y in self.outputs],
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
-            attributes=atts,
+            attributes=[attr.name for attr in self.attrs],
+            attribute_protos=[attr.attr_proto for attr in self.attrs],
             doc_string=self.docstring,
         )
-        if hasattr(onnx.FunctionProto, "attribute_proto"):
-            f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
         return f
 
 
@@ -463,12 +442,14 @@ class IRBuilder:
         v = IRVar(varname, type, info)
         fn.append_input(v)
 
-    def add_attr_parameter(self, fn: IRFunction, varname: str, default_value) -> None:
+    def add_attr_parameter(self, fn: IRFunction, varname: str, attribute_type: onnx.AttributeProto.AttributeType, default_value: Any) -> None:
         if default_value is not None:
-            a = IRAttributeValue(helper.make_attribute(varname, default_value))
-            fn.add_attr_parameter(a)
+            fn.add_attr_parameter(IRAttributeValue(helper.make_attribute(varname, default_value)))
         else:
-            fn.add_attr_parameter(varname)
+            proto = onnx.AttributeProto()
+            proto.name = varname
+            proto.type = attribute_type
+            fn.add_attr_parameter(IRAttributeValue(proto))
 
     def add_output(self, fn: IRFunction, varname: str, type, info) -> None:
         v = IRVar(varname, type, info)
