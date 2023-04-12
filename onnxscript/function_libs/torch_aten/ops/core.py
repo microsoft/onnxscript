@@ -5953,7 +5953,7 @@ def aten_var(self: TensorType, unbiased: bool = True) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::var_mean")
+@torch_op("aten::var_mean", trace_only=True)
 def aten_var_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
@@ -5969,45 +5969,59 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
     return var, mean
 
 
-@torch_op("aten::var_mean", overload=True)
-def aten_var_mean_dim(self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False) -> tuple[TReal, TReal]:
+@torch_op("aten::var_mean_dim", trace_only=True)
+def aten_var_mean_dim(self: TReal, dim: int = None, unbiased: bool = True, keepdim: bool = False) -> tuple[TReal, TReal]:
 
-    dim_tensor = op.Constant(value_int=dim)
-    if op.Size(op.Shape(dim_tensor)) == 0:
-        dim_tensor = op.Unsqueeze(dim_tensor, axes=0)
+    var = op.Identity(self)
+    mean = op.Identity(self)
 
-    mean = op.ReduceMean(self, dim_tensor, keepdims=keepdim)
-    # Compute var according to dim
-    sub_mean = op.Sub(self, op.ReduceMean(self, dim_tensor, keepdims=1))
-    sqr_mean = op.Mul(sub_mean, sub_mean)
-    var = op.ReduceMean(sqr_mean, dim_tensor, keepdims=keepdim)
+    # dim_tensor = op.Constant(value_int=dim)
+    # if op.Size(op.Shape(dim_tensor)) == 0:
+    #     dim_tensor = op.Unsqueeze(dim_tensor, axes=0)
 
-    if unbiased:
-        self_shape = op.Shape(self)
-        dim_size = op.Gather(self_shape, dim_tensor, axis=0)
-        num_elements = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
-        var = op.Div(op.Mul(var, num_elements), op.Sub(num_elements, 1.0))
+    # mean = op.ReduceMean(self, dim_tensor, keepdims=keepdim)
+    # # Compute var according to dim
+    # sub_mean = op.Sub(self, op.ReduceMean(self, dim_tensor, keepdims=1))
+    # sqr_mean = op.Mul(sub_mean, sub_mean)
+    # var = op.ReduceMean(sqr_mean, dim_tensor, keepdims=keepdim)
+
+    # if unbiased:
+    #     self_shape = op.Shape(self)
+    #     dim_size = op.Gather(self_shape, dim_tensor, axis=0)
+    #     num_elements = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
+    #     var = op.Div(op.Mul(var, num_elements), op.Sub(num_elements, 1.0))
 
     return var, mean
 
 
-@torch_op("aten::var_mean", overload=True, trace_only=True)
-def aten_var_mean_correction(self: TReal, dim: int, correction: int = 1, keepdim: bool = False) -> tuple[TReal, TReal]:
+@torch_op("aten::var_mean_correction", trace_only=True)
+def aten_var_mean_correction(self: TReal, dim: int = None, correction: int = 1, keepdim: bool = False) -> tuple[TReal, TReal]:
 
-    dim_tensor = op.Constant(value_int=dim)
-    if op.Size(op.Shape(dim_tensor)) == 0:
-        dim_tensor = op.Unsqueeze(dim_tensor, axes=0)
-    mean = op.ReduceMean(self, dim_tensor, keepdims=keepdim)
-    # Compute var according to dim
-    sub_mean = op.Sub(self, op.ReduceMean(self, dim_tensor, keepdims=1))
-    sqr_mean = op.Mul(sub_mean, sub_mean)
-    var = op.ReduceMean(sqr_mean, dim_tensor, keepdims=keepdim)
-
-    if correction > 0:
+    if dim is None:
+        mean = op.ReduceMean(self, keepdims=keepdim)
+        #t_mean = mean
         self_shape = op.Shape(self)
-        dim_size = op.Gather(self_shape, dim_tensor, axis=0)
-        num_elements = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
-        var = op.Div(op.Mul(var, num_elements), op.Sub(num_elements, correction))
+        numel = op.ReduceProd(self_shape, keepdims=0)
+        sub_v = op.Sub(self, mean)
+        sqr_sub = op.Mul(sub_v, sub_v)
+        var = op.ReduceMean(sqr_sub, keepdims=keepdim)
+    else:
+        dim_tensor = op.Constant(value_int=dim)
+        if op.Size(op.Shape(dim_tensor)) == 0:
+            dim_tensor = op.Unsqueeze(dim_tensor, axes=0)
+        mean = op.ReduceMean(self, dim_tensor, keepdims=keepdim)
+        t_mean = op.ReduceMean(self, dim_tensor, keepdims=1)
+        self_shape = op.Shape(self)
+        reduced_dims = op.Gather(self_shape, dim_tensor, axis=0)
+        numel = op.ReduceProd(reduced_dims, keepdims=0)
+        sub_v = op.Sub(self, t_mean)
+        sqr_sub = op.Mul(sub_v, sub_v)
+        var = op.ReduceMean(sqr_sub, dim_tensor, keepdims=keepdim)
+
+    if correction != 0:  # FIXME: when correction = 0,1,2, the var will be different
+        mul = op.Mul(var, op.Cast(numel, to=FLOAT.dtype))
+        sub = op.Sub(numel, 1)
+        var = op.Div(mul, op.Cast(sub, to=FLOAT.dtype))
 
     return var, mean
 
