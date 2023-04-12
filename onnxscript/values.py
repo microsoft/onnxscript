@@ -414,14 +414,9 @@ class OnnxFunction(Op):
         if self._param_schemas is not None:
             return self._param_schemas
 
-        if _ONNX_OP_SCHEMA_WRITABLE:
-            schemas = super().param_schemas()
-            assert schemas is not None
-            return schemas
-
-        # TODO(justinchuby): Remove the whole param_schemas function when the lowest
-        # suported ONNX version is 1.14, because it will be computed from the
-        # auto-generated OpSchema instead.
+        # NOTE: We generate the parameter schemas from the function_ir instead
+        # of relying on the auto generated OpSchema because we need to preserve the keyword
+        # argument order from the Python function definition, which is lost in OpSchema.
         function_ir = self.function_ir
         # The first len(func_ir.inputs) arguments are onnx inputs
         inputs = function_ir.inputs
