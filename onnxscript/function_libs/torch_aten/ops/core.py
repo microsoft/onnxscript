@@ -510,7 +510,7 @@ def aten_as_strided(
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
     rank = len(stride)
-    return  _aten_as_strided_onnx(self, size, stride, storage_offset, rank)
+    return _aten_as_strided_onnx(self, size, stride, storage_offset, rank)
 
 
 @torch_op("aten::as_strided", private=True)
@@ -528,7 +528,7 @@ def _aten_as_strided_onnx(
     # indices + add_value = [[0,3,6,9],[1,3,7,10],[2,5,8,11]]
     # i = 2
     # indices = [[0,3,6,9],[1,3,7,10],[2,5,8,11]], add_value=[0,2]
-    # expand(shape[2,3,4]) to [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[0,3,6,9],[1,3,7,10],[2,5,8,11]]]
+    # expand(shape=[2,3,4]) to [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[0,3,6,9],[1,3,7,10],[2,5,8,11]]]
     # indices + add_value = [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[2,5,8,11],[3,5,9,12],[4,7,10,13]]]
     neg_1 = op.Constant(value_ints=[-1])
     rank_tensor = op.Reshape(rank, neg_1)  # should be 3
