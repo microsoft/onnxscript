@@ -9,15 +9,10 @@ import dataclasses
 import inspect
 import logging
 import types
+import typing
 from enum import IntFlag
-from typing import (
-    Any,
-    Optional,
-    Sequence,
-    TypeVar,
-    Union,
-    _GenericAlias,  # type: ignore[attr-defined]
-)
+from typing import _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, Optional, Sequence, TypeVar, Union
 
 import onnx
 import onnx.defs
@@ -327,6 +322,7 @@ class OnnxFunction(Op):
         for i, type_ in enumerate(distinct_types):
             if isinstance(type_, TypeVar):
                 name = type_.__name__
+                # FIXME(justinchuby): Handle Optional[TypeVar]
             else:
                 name = f"T{i}"
             type_to_constraint[type_] = TypeConstraint(
@@ -339,7 +335,7 @@ class OnnxFunction(Op):
                 arg.name,
                 type_to_constraint[arg.typeinfo].name,
                 param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
-                if inspect.isclass(arg.typeinfo) and issubclass(arg.typeinfo, Optional)
+                if typing.get_origin(arg.typeinfo) is Union and typing.get_args(arg.typeinfo)
                 else onnx.defs.OpSchema.FormalParameterOption.Single,
                 # TODO(justinchu): Check this is_homogeneous thing
                 is_homogeneous=True,
@@ -351,7 +347,7 @@ class OnnxFunction(Op):
                 arg.name,
                 type_to_constraint[arg.typeinfo].name,
                 param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
-                if inspect.isclass(arg.typeinfo) and issubclass(arg.typeinfo, Optional)
+                if typing.get_origin(arg.typeinfo) is Union and typing.get_args(arg.typeinfo)
                 else onnx.defs.OpSchema.FormalParameterOption.Single,
                 # TODO(justinchu): Check this is_homogeneous thing
                 is_homogeneous=True,
@@ -372,9 +368,16 @@ class OnnxFunction(Op):
             attributes=[
                 onnx.defs.OpSchema.Attribute(
                     attr.name,
-                    default_value=attr.attr_proto,
+                    type=onnx.defs.OpSchema.AttrType(attr.type),
                 )
                 for attr in function_ir.attrs
+            ]
+            + [
+                onnx.defs.OpSchema.Attribute(
+                    attr.name,
+                    default_value=attr.attr_proto,
+                )
+                for attr in function_ir.attr_protos
             ],
         )
 
@@ -425,7 +428,7 @@ class OnnxFunction(Op):
         # Construct a dictionary of attributes with their names specified in the function
         # definition
         attr_name_to_protos = collections.OrderedDict(
-            (attr.name, attr) for attr in function_ir.attrs
+            (attr.name, attr) for attr in function_ir.attr_protos
         )
 
         # args with default value are attributes
@@ -440,10 +443,11 @@ class OnnxFunction(Op):
             )
             schemas.append(param_schema)
 
-        for attr_name in attributes:
+        for attr in attributes:
             # Attributes without default values
-            # FIXME(justinchuby): Where can we find the type?
-            param_schema = ParamSchema(name=attr_name, type=None, is_input=False)
+            param_schema = ParamSchema(
+                name=attr.name, type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr.type], is_input=False
+            )
             schemas.append(param_schema)
 
         for name, attr_value in attr_name_to_protos.items():

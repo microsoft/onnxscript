@@ -447,9 +447,18 @@ class IRBuilder:
         v = IRVar(varname, type, info)
         fn.append_input(v)
 
-    def add_attr_parameter(self, fn: IRFunction, varname: str, attribute_type: onnx.AttributeProto.AttributeType, default_value: Any) -> None:
+    def add_attr_parameter(
+        self,
+        fn: IRFunction,
+        varname: str,
+        attribute_type: onnx.AttributeProto.AttributeType,
+        default_value: Any,
+    ) -> None:
         if default_value is not None:
-            fn.add_attr_parameter(IRAttributeValue(helper.make_attribute(varname, default_value)), has_default=True)
+            fn.add_attr_parameter(
+                IRAttributeValue(helper.make_attribute(varname, default_value)),
+                has_default=True,
+            )
         else:
             proto = onnx.AttributeProto()
             proto.name = varname
