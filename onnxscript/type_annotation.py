@@ -7,11 +7,12 @@ from __future__ import annotations
 import collections
 import inspect
 import typing
+from typing import Any, TypeVar, Union
 
 import onnx
 from typing_extensions import get_args, get_origin
 
-from onnxscript.onnx_types import TensorType
+from onnxscript import onnx_types
 
 # TypeAnnotationValue represents the (value of) valid type-annotations recognized
 # by ONNX Script. TODO: Flesh out a formal definition. Currently, it supports
@@ -59,7 +60,7 @@ def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
 
 def pytype_to_attrtype(
     pytype: TypeAnnotationValue,
-) -> onnx.AttributeProto.AttributeType:
+) -> typing.Optional[onnx.AttributeProto.AttributeType]:
     pytype = _remove_annotation(pytype)
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
@@ -74,13 +75,13 @@ def pytype_to_attrtype(
         elt_type = get_args(pytype)[0]
         if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
             return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
-    return onnx.AttributeProto.UNDEFINED
+    return None
 
 
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
-    if isinstance(typeinfo, TensorType):
+    if isinstance(typeinfo, onnx_types.TensorType):
         return True
-    if inspect.isclass(typeinfo) and issubclass(typeinfo, TensorType):
+    if inspect.isclass(typeinfo) and issubclass(typeinfo, onnx_types.TensorType):
         return True
     return False
 
@@ -146,3 +147,52 @@ def get_return_types(typeinfo: type | typing.Sequence[type]) -> typing.Sequence[
     if get_origin(typeinfo) is tuple:
         return get_args(typeinfo)
     return (typeinfo,)
+
+
+def _reduce_type_var_to_union(hint: typing.TypeVar):
+    """Reduce a TypeVar to a Union type on which we can use issubclass to check membership."""
+    assert isinstance(hint, TypeVar)
+
+    # If the TypeVar has a bound, use that.
+    if hint.__bound__ is not None:
+        return hint.__bound__
+
+    # If the TypeVar has no bound, use the first constraint.
+    if hint.__constraints__:
+        return Union.__getitem__(hint.__constraints__)
+
+    return Any
+
+
+def get_supported_input_types(pytype) -> list[str]:
+    """Returns a list of all supported input types for a given type annotation.
+
+    Args:
+        pytype: A type annotation.
+
+    Returns:
+        A list of all supported input types for the given type annotation.
+    """
+    supported_types: list[str] = []
+    if typing.get_origin(pytype) is Union and isinstance(typing.get_args(pytype)[0], TypeVar):
+        # Recursively unpack TypeVars inside an Optional
+        for arg in typing.get_args(pytype):
+            supported_types.extend(get_supported_input_types(arg))
+        return supported_types
+
+    if isinstance(pytype, TypeVar):
+        pytype = _reduce_type_var_to_union(pytype)
+
+    for tensor_type in onnx_types.ALL_TENSOR_TYPES:
+        if pytype is None:
+            # The same as Any
+            supported_types.append(tensor_type.to_string())
+        elif pytype == onnx_types.TensorType:
+            supported_types.append(tensor_type.to_string())
+        elif isinstance(pytype, tensor_type):
+            supported_types.append(tensor_type.to_string())
+        elif issubclass(tensor_type, pytype):
+            supported_types.append(tensor_type.to_string())
+        # TODO(justinchuby): Handle sequence types
+
+    return supported_types

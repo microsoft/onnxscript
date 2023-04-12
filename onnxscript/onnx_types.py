@@ -105,69 +105,105 @@ class TensorType(abc.ABC):
             shape = [cls.shape]  # example: "FLOAT[10]"
         return onnx.helper.make_tensor_type_proto(cls.dtype, shape)
 
+    @classmethod
+    def to_string(cls) -> str:
+        raise NotImplementedError()
+
 
 class FLOAT(TensorType, dtype=onnx.TensorProto.FLOAT):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(float)"
 
 
 class UINT8(TensorType, dtype=onnx.TensorProto.UINT8):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(uint8)"
 
 
 class INT8(TensorType, dtype=onnx.TensorProto.INT8):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(int8)"
 
 
 class UINT16(TensorType, dtype=onnx.TensorProto.UINT16):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(uint16)"
 
 
 class INT16(TensorType, dtype=onnx.TensorProto.INT16):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(int16)"
 
 
 class INT32(TensorType, dtype=onnx.TensorProto.INT32):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(int32)"
 
 
 class INT64(TensorType, dtype=onnx.TensorProto.INT64):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(int64)"
 
 
 class STRING(TensorType, dtype=onnx.TensorProto.STRING):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(string)"
 
 
 class BOOL(TensorType, dtype=onnx.TensorProto.BOOL):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(bool)"
 
 
 class FLOAT16(TensorType, dtype=onnx.TensorProto.FLOAT16):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(float16)"
 
 
 class DOUBLE(TensorType, dtype=onnx.TensorProto.DOUBLE):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(double)"
 
 
 class UINT32(TensorType, dtype=onnx.TensorProto.UINT32):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(uint32)"
 
 
 class UINT64(TensorType, dtype=onnx.TensorProto.UINT64):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(uint64)"
 
 
 class COMPLEX64(TensorType, dtype=onnx.TensorProto.COMPLEX64):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(complex64)"
 
 
 class COMPLEX128(TensorType, dtype=onnx.TensorProto.COMPLEX128):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(complex128)"
 
 
 class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
-    pass
+    @classmethod
+    def to_string(cls):
+        return "tensor(bfloat16)"
 
 
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
@@ -203,3 +239,22 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
 
 # Currently, only tensor types are supported. Need to expand support for other ONNX types.
 ONNXType = TensorType
+
+ALL_TENSOR_TYPES = (
+    BFLOAT16,
+    BOOL,
+    COMPLEX128,
+    COMPLEX64,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT16,
+    INT32,
+    INT64,
+    INT8,
+    STRING,
+    UINT16,
+    UINT32,
+    UINT64,
+    UINT8,
+)
