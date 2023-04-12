@@ -398,6 +398,23 @@ class IRFunction:
             onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
         ]
 
+        # attribute_proto is introduced in version onnx==1.14.0.
+        # If this attribute is available, onnxscript uses it to
+        # default values for attributes. The function has then two
+        # lists, one list for attributes without default values,
+        # another one for attributes with default values.
+        # If this *attribute_proto* is not available,
+        # all attributes with a default value are moved to the first
+        # list, default values are removed.
+        # TODO: remove this when onnx with attribute_proto is released.
+        if hasattr(onnx.FunctionProto, "attribute_proto"):
+            attributes = [attr.name for attr in self.attrs]
+        else:
+            attributes = [
+                *[attr.name for attr in self.attrs],
+                *[a.attr_proto.name for a in self.attr_protos],
+            ]
+
         f = helper.make_function(
             self.domain,
             self.name,
@@ -405,10 +422,11 @@ class IRFunction:
             outputs=[y.name for y in self.outputs],
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
-            attributes=[attr.name for attr in self.attrs],
+            attributes=attributes,
             doc_string=self.docstring,
         )
-        f.attribute_proto.extend([attr.attr_proto for attr in self.attr_protos])
+        if hasattr(onnx.FunctionProto, "attribute_proto"):
+            f.attribute_proto.extend([attr.attr_proto for attr in self.attr_protos])
         return f
 
 
