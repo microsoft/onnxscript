@@ -5957,6 +5957,7 @@ def aten_var(self: TensorType, unbiased: bool = True) -> TensorType:
 def aten_var_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
+    # This overload assume dim=None, correction=1, keepdim=False
     mean = op.ReduceMean(self, keepdims=0)
     sub_mean = op.Sub(self, mean)
     sqr = op.Mul(sub_mean, sub_mean)
@@ -5969,32 +5970,31 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
     return var, mean
 
 
-@torch_op("aten::var_mean_dim", trace_only=True)
-def aten_var_mean_dim(self: TReal, dim: int = None, unbiased: bool = True, keepdim: bool = False) -> tuple[TReal, TReal]:
+@torch_op("aten::var_mean", overload=True, trace_only=True)
+def aten_var_mean_dim(self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False) -> tuple[TReal, TReal]:
 
-    var = op.Identity(self)
-    mean = op.Identity(self)
+    # This overload only accept 'dim' is not None, and, 'correction' is None
 
-    # dim_tensor = op.Constant(value_int=dim)
-    # if op.Size(op.Shape(dim_tensor)) == 0:
-    #     dim_tensor = op.Unsqueeze(dim_tensor, axes=0)
+    dim_tensor = op.Constant(value_int=dim)
+    if op.Size(op.Shape(dim_tensor)) == 0:
+        dim_tensor = op.Unsqueeze(dim_tensor, axes=0)
 
-    # mean = op.ReduceMean(self, dim_tensor, keepdims=keepdim)
-    # # Compute var according to dim
-    # sub_mean = op.Sub(self, op.ReduceMean(self, dim_tensor, keepdims=1))
-    # sqr_mean = op.Mul(sub_mean, sub_mean)
-    # var = op.ReduceMean(sqr_mean, dim_tensor, keepdims=keepdim)
+    mean = op.ReduceMean(self, dim_tensor, keepdims=keepdim)
+    # Compute var according to dim
+    sub_mean = op.Sub(self, op.ReduceMean(self, dim_tensor, keepdims=1))
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, dim_tensor, keepdims=keepdim)
 
-    # if unbiased:
-    #     self_shape = op.Shape(self)
-    #     dim_size = op.Gather(self_shape, dim_tensor, axis=0)
-    #     num_elements = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
-    #     var = op.Div(op.Mul(var, num_elements), op.Sub(num_elements, 1.0))
+    if unbiased:
+        self_shape = op.Shape(self)
+        dim_size = op.Gather(self_shape, dim_tensor, axis=0)
+        num_elements = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
+        var = op.Div(op.Mul(var, num_elements), op.Sub(num_elements, 1.0))
 
     return var, mean
 
 
-@torch_op("aten::var_mean_correction", trace_only=True)
+@torch_op("aten::var_mean", overload=True, trace_only=True)
 def aten_var_mean_correction(self: TReal, dim: int = None, correction: int = 1, keepdim: bool = False) -> tuple[TReal, TReal]:
 
     if dim is None:
