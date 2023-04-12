@@ -184,13 +184,15 @@ def get_supported_input_types(pytype) -> list[str]:
         pytype = _reduce_type_var_to_union(pytype)
 
     for tensor_type in onnx_types.ALL_TENSOR_TYPES:
-        if isinstance(pytype, tensor_type):
+        if pytype is None:
+            # The same as Any
             supported_types.append(tensor_type.to_string())
-        if issubclass(tensor_type, pytype):
-            supported_types.append(tensor_type.to_string())
-        # TODO(justinchuby): Handle sequence types
         elif pytype == onnx_types.TensorType:
             supported_types.append(tensor_type.to_string())
-        elif pytype is None:
+        elif isinstance(pytype, tensor_type):
             supported_types.append(tensor_type.to_string())
+        elif issubclass(tensor_type, pytype):
+            supported_types.append(tensor_type.to_string())
+        # TODO(justinchuby): Handle sequence types
+
     return supported_types
