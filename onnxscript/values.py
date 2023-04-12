@@ -185,7 +185,9 @@ class Op:
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval(self.get_schema(), args, kwargs)
+        schema = self.get_schema()
+        assert schema is not None
+        return evaluator.default().eval(schema, args, kwargs)
 
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
@@ -436,28 +438,31 @@ class OnnxFunction(Op):
                 required = False
             else:
                 required = True
-            param_schema = ParamSchema(
-                name=arg.name, type=arg.typeinfo, is_input=True, required=required
+            schemas.append(
+                ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True, required=required)
             )
-            schemas.append(param_schema)
 
         for attr in attributes:
             # Attributes without default values
-            param_schema = ParamSchema(
-                name=attr.name, type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr.type], is_input=False
+            schemas.append(
+                ParamSchema(
+                    name=attr.name,
+                    type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr.type],
+                    is_input=False,
+                )
             )
-            schemas.append(param_schema)
 
         for name, attr_value in attr_name_to_protos.items():
-            param_schema = ParamSchema(
-                name=name,
-                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
-                default=_get_attribute_value(attr_value.attr_proto),
-                is_input=False,
-                # Attributes with default values are not required
-                required=False,
+            schemas.append(
+                ParamSchema(
+                    name=name,
+                    type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
+                    default=_get_attribute_value(attr_value.attr_proto),
+                    is_input=False,
+                    # Attributes with default values are not required
+                    required=False,
+                )
             )
-            schemas.append(param_schema)
 
         self._param_schemas = tuple(schemas)
         return self._param_schemas  # type: ignore[return-value]
