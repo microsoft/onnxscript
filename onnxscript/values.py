@@ -306,10 +306,13 @@ class OnnxFunction(Op):
         return self.opname
 
     @property
-    def opschema(self) -> onnx.defs.OpSchema:
+    def opschema(self) -> Optional[onnx.defs.OpSchema]:
         """Construct an OpSchema from function_ir."""
         if self._opschema is not None:
             return self._opschema
+
+        if not _ONNX_OP_SCHEMA_WRITABLE:
+            return None
 
         function_ir = self.function_ir
         # Find all distinct types in the inputs and outputs
