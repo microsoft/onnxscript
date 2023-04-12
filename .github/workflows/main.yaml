@@ -97,3 +97,18 @@ jobs:
         run: pip install .
       - name: Build documentation
         run: python -m sphinx docs dist/html
+
+  update_readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+      - name: Update readme
+        run: |
+          python docs/update_readme.py
+          git diff --exit-code -- 'README.md'
+          if [ $? -ne 0 ]; then
+            echo "Update readme by running `python docs/update_readme.py`"
+            exit 1
+          fi
