@@ -6027,7 +6027,9 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
 
 
 @torch_op("aten::var_mean", overload=True, trace_only=True)
-def aten_var_mean_dim(self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False) -> tuple[TReal, TReal]:
+def aten_var_mean_dim(
+    self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False
+) -> tuple[TReal, TReal]:
     """var_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
 
     if unbiased:
@@ -6039,7 +6041,9 @@ def aten_var_mean_dim(self: TReal, dim: int, unbiased: bool = True, keepdim: boo
 
 
 @torch_op("aten::var_mean", overload=True, trace_only=True)
-def aten_var_mean_correction(self: TReal, dim: int = None, correction: int = 1, keepdim: bool = False) -> tuple[TReal, TReal]:
+def aten_var_mean_correction(
+    self: TReal, dim: int = None, correction: int = 1, keepdim: bool = False
+) -> tuple[TReal, TReal]:
     """var_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
 
     if correction is None:
@@ -6053,7 +6057,9 @@ def aten_var_mean_correction(self: TReal, dim: int = None, correction: int = 1, 
 
 
 @torch_op("aten::var_mean", private=True)
-def _aten_var_mean(self: TReal, correction: int = 1, keepdim: bool = False) -> tuple[TReal, TReal]:
+def _aten_var_mean(
+    self: TReal, correction: int = 1, keepdim: bool = False
+) -> tuple[TReal, TReal]:
     # Compute mean and var
     mean = op.ReduceMean(self, keepdims=keepdim)
     self_shape = op.Shape(self)
@@ -6072,7 +6078,9 @@ def _aten_var_mean(self: TReal, correction: int = 1, keepdim: bool = False) -> t
 
 
 @torch_op("aten::var_mean", private=True)
-def _aten_var_mean_dim(self: TReal, dim: int, correction: int = 1, keepdim: bool = False) -> tuple[TReal, TReal]:
+def _aten_var_mean_dim(
+    self: TReal, dim: int, correction: int = 1, keepdim: bool = False
+) -> tuple[TReal, TReal]:
     dim = op.Constant(value_int=dim)
     if op.Size(op.Shape(dim)) == 0:
         dim = op.Unsqueeze(dim, axes=0)
