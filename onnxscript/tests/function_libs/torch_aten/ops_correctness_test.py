@@ -1170,21 +1170,24 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "var_mean",
-        # Don't accept any kwargs
+        # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
-        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input",
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
     ),
     skip(
         "var_mean_dim",
-        # Accept only one input(tensor) or kwargs["dim"] is not None
-        matcher=lambda sample: not(sample.kwargs.get("dim", None) is not None and sample.kwargs.get("correction", None) is None),
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None)
+        ,
         reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
     ),
     skip(
         "var_mean_correction",
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
-        reason="this Aten overload only support tensor(bool) as args",
+        reason="this Aten overload only support when correction attribute exists",
     ),
     skip(
         "unflatten",
@@ -1255,7 +1258,14 @@ duplicate_opinfo(
 
 duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 
-duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction",))
+duplicate_opinfo(
+    OPS_DB,
+    "var_mean",
+    (
+        "var_mean_dim",
+        "var_mean_correction",
+    ),
+)
 
 
 # END OF SECTION TO MODIFY #####################################################
