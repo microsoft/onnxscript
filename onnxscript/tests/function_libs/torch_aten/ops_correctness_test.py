@@ -1179,8 +1179,8 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         # kwargs["dim"] must exist, kwargs["correction"] must not exist
         matcher=lambda sample: not (
             sample.kwargs.get("dim", None) is not None
-            and sample.kwargs.get("correction", None) is None)
-        ,
+            and sample.kwargs.get("correction", None) is None
+        ),
         reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
     ),
     skip(
