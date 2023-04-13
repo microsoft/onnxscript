@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
+import dataclasses
 import io
 import logging
 import warnings
@@ -134,7 +135,8 @@ class IRAttributeValue:
         return self.attr_proto.type
 
 
-class IRAttributeParameter(IRAttributeValue):
+@dataclasses.dataclass(frozen=True)
+class IRAttributeParameter:
     """An attribute parameter (representing a formal parameter).
 
     It may carry a formal parameter.
@@ -146,9 +148,22 @@ class IRAttributeParameter(IRAttributeValue):
         type: The type of the attribute.
     """
 
-    def __init__(self, attrproto: onnx.AttributeProto, has_default: bool) -> None:
-        super().__init__(attrproto)
-        self.has_default = has_default
+    name: str
+    type: onnx.AttributeProto.AttributeType
+    default_value: str | int | float | None = None
+
+    @property
+    def has_default(self):
+        return self.default_value is not None
+
+    @property
+    def attr_proto(self):
+        if self.default_value is None:
+            proto = onnx.AttributeProto()
+            proto.name = self.name
+            proto.type = self.type
+            return self
+        return helper.make_attribute(self.name, self.default_value)
 
 
 class IRStmt:
@@ -489,17 +504,7 @@ class IRBuilder:
         attribute_type: onnx.AttributeProto.AttributeType,
         default_value: int | float | str | None,
     ) -> None:
-        if default_value is not None:
-            fn.add_attr_parameter(
-                IRAttributeParameter(
-                    helper.make_attribute(varname, default_value), has_default=True
-                )
-            )
-        else:
-            proto = onnx.AttributeProto()
-            proto.name = varname
-            proto.type = attribute_type
-            fn.add_attr_parameter(IRAttributeParameter(proto, has_default=False))
+        fn.add_attr_parameter(IRAttributeParameter(varname, attribute_type, default_value))
 
     def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
         var = IRVar(varname, typeinfo, sourceinfo)
