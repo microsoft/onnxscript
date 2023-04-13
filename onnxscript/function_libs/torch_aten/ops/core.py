@@ -5877,10 +5877,10 @@ def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
 
     self_size = op.Shape(self)
 
-    if dim < 0:
-        # PyTorch accepts negative dim as reversed counting
-        self_rank = op.Size(self_size)
-        dim = self_rank + dim
+    # PyTorch accepts negative dim as reversed counting
+    self_rank = op.Size(self_size)
+    dim = self_rank + dim
+    dim = dim % self_rank
 
     head_start_idx = op.Constant(value_ints=[0])
     head_end_idx = op.Reshape(dim, op.Constant(value_ints=[1]))
