@@ -58,11 +58,11 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_aten import graph_building
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
-from onnxscript.tests.common import version_utils
 from onnxscript.tests.function_libs.torch_aten import extra_opinfo
 
 T = TypeVar("T")
@@ -686,6 +686,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "arange": core_ops.aten_arange,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
+    "as_strided": core_ops.aten_as_strided,
     "clamp": core_ops.aten_clamp,
     "col2im": nn_ops.aten_col2im,
     "cumsum": core_ops.aten_cumsum,
@@ -761,6 +762,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         "any",
         reason="fixme: ORT shape inference error",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "as_strided",
+        variant_name="partial_views",
+        reason="ONNX doesn't have partial view for tensor",
     ),
     xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
