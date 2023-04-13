@@ -137,7 +137,7 @@ class IRAttributeValue:
 class IRAttributeParameter:
     """An attribute parameter (representing a formal parameter).
 
-    It may carry a formal parameter.
+    It may or may not carry a default value.
 
     Attributes:
         name: The name of the attribute.
