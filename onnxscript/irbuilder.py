@@ -113,8 +113,6 @@ class IRAttributeValue:
 
     Attributes:
         attr_proto: The attribute proto.
-        name: The name of the attribute.
-        type: The type of the attribute.
     """
 
     def __init__(self, attrproto: onnx.AttributeProto) -> None:
@@ -142,27 +140,30 @@ class IRAttributeParameter:
     It may carry a formal parameter.
 
     Attributes:
-        attr_proto: The attribute proto
-        has_default: Whether the attribute has a default value.
         name: The name of the attribute.
         type: The type of the attribute.
+        has_default: Whether the attribute has a default value.
+        attr_proto: The attribute proto.
     """
 
     name: str
     type: onnx.AttributeProto.AttributeType
     default_value: str | int | float | None = None
 
+    def __str__(self):
+        return helper.printable_attribute(self.attr_proto)
+
     @property
     def has_default(self):
         return self.default_value is not None
 
     @property
-    def attr_proto(self):
+    def attr_proto(self) -> onnx.AttributeProto:
         if self.default_value is None:
             proto = onnx.AttributeProto()
             proto.name = self.name
             proto.type = self.type
-            return self
+            return proto
         return helper.make_attribute(self.name, self.default_value)
 
 
