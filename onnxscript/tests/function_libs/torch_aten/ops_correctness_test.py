@@ -658,9 +658,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "trunc": core_ops.aten_trunc,
     "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
     "unsqueeze": core_ops.aten_unsqueeze,
-    "var_mean": core_ops.aten_var_mean,
-    "var_mean_dim": core_ops.aten_var_mean_dim,
-    "var_mean_correction": core_ops.aten_var_mean_correction,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
@@ -722,6 +719,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
+    "var_mean": core_ops.aten_var_mean,
+    "var_mean_dim": core_ops.aten_var_mean_dim,
+    "var_mean_correction": core_ops.aten_var_mean_correction,
     "zeros_like": core_ops.aten_zeros_like,
 }
 

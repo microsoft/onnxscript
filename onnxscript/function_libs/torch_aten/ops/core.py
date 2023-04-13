@@ -6014,7 +6014,7 @@ def aten_var(self: TensorType, unbiased: bool = True) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::var_mean", trace_only=True)
+@torch_op("aten::var_mean", trace_only=True, overload=True)
 def aten_var_mean(self: TReal, unbiased: bool = True) -> tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
