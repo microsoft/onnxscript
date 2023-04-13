@@ -112,6 +112,8 @@ class IRAttributeValue:
     """An attribute value (representing an actual parameter).
 
     Attributes:
+        name: The name of the attribute.
+        type: The type of the attribute.
         attr_proto: The attribute proto.
     """
 
@@ -151,7 +153,10 @@ class IRAttributeParameter:
     default_value: str | int | float | None = None
 
     def __str__(self):
-        return helper.printable_attribute(self.attr_proto)
+        if self.has_default:
+            return helper.printable_attribute(self.attr_proto)
+        # TODO(justinchuby): Include a readable type name.
+        return self.name
 
     @property
     def has_default(self):
@@ -159,11 +164,11 @@ class IRAttributeParameter:
 
     @property
     def attr_proto(self) -> onnx.AttributeProto:
-        if self.default_value is None:
-            proto = onnx.AttributeProto()
-            proto.name = self.name
-            proto.type = self.type
-            return proto
+        if not self.has_default:
+            raise ValueError(
+                "Attribute has no default value. Only attributes with default "
+                "values can be converted to AttributeProto."
+            )
         return helper.make_attribute(self.name, self.default_value)
 
 
