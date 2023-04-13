@@ -4,7 +4,6 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-import collections
 import dataclasses
 import logging
 import types
@@ -311,13 +310,7 @@ class OnnxFunction(Op):
         # The first len(func_ir.inputs) arguments are onnx inputs
         inputs = function_ir.inputs
         # The rest is onnx attributes
-        # Construct a dictionary of attributes with their names specified in the function
-        # definition
-        attr_name_to_protos = collections.OrderedDict(
-            (attr.name, attr) for attr in function_ir.attrs
-        )
 
-        # args with default value are attributes
         schemas = []
         for arg in inputs:
             if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
@@ -328,26 +321,20 @@ class OnnxFunction(Op):
                 ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True, required=required)
             )
 
-        for name, attr_value in attr_name_to_protos.items():
-            if not attr_value.has_default:
-                schemas.append(
-                    ParamSchema(
-                        name=name,
-                        type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
-                        is_input=False,
-                        required=True,
-                    )
+        for attr_parameter in function_ir.attrs:
+            schemas.append(
+                ParamSchema(
+                    name=attr_parameter.name,
+                    type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
+                        onnx.defs.OpSchema.AttrType(attr_parameter.type)
+                    ),
+                    default=_EmptyDefault
+                    if attr_parameter.default_value is None
+                    else attr_parameter.default_value,
+                    is_input=False,
+                    required=not attr_parameter.has_default,
                 )
-            else:
-                schemas.append(
-                    ParamSchema(
-                        name=name,
-                        type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attr_value.type],
-                        default=_get_attribute_value(attr_value.attr_proto),
-                        is_input=False,
-                        required=True,
-                    )
-                )
+            )
 
         self._param_schemas = tuple(schemas)
         return self._param_schemas  # type: ignore[return-value]
