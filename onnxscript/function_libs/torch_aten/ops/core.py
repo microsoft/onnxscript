@@ -5364,7 +5364,6 @@ def _aten_slice_scatter_onnx(
     step: int,
     perm: Sequence[int],
 ) -> TTensor:
-
     neg_1 = op.Constant(value_ints=[-1])
     # Get shapes expcept specifide dim
     # e.g. if dim=2, shape=(2,3,5,7), shape_expand will be (2,3,7,1)
