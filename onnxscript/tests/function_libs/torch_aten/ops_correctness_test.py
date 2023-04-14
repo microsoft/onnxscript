@@ -1423,6 +1423,20 @@ class TestFunctionValidity(unittest.TestCase):
         function_proto = func.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
+    @parameterized.parameterized.expand(list(OPINFO_FUNCTION_MAPPING_SCRIPTED.items()))
+    @unittest.skipIf(
+        version_utils.onnx_older_than("1.14"),
+        "OpSchema is not writable before ONNX 1.14",
+    )
+    def test_script_function_has_op_schema(self, _, func_with_wrangler):
+        if isinstance(func_with_wrangler, tuple):
+            func = func_with_wrangler[0]
+        else:
+            func = func_with_wrangler
+        op_schema = func.opschema
+        assert op_schema is not None
+        self.assertEqual(op_schema.name, func.name)
+
 
 def _graph_executor(
     outputs: Sequence[Any],

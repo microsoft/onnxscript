@@ -173,6 +173,7 @@ def get_supported_input_types(pytype) -> list[str]:
     Returns:
         A list of all supported input types for the given type annotation.
     """
+    # TODO: Change this to
     supported_types: list[str] = []
     if typing.get_origin(pytype) is Union and isinstance(typing.get_args(pytype)[0], TypeVar):
         # Recursively unpack TypeVars inside an Optional
@@ -196,3 +197,6 @@ def get_supported_input_types(pytype) -> list[str]:
         # TODO(justinchuby): Handle sequence types
 
     return supported_types
+
+
+def get_type_var_name
