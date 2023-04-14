@@ -14,24 +14,19 @@ import unittest
 import warnings
 
 import numpy as np
-import numpy.testing
 import onnx
-import onnxruntime
-from onnx import TensorProto
-from onnx.helper import make_tensor, printable_graph
-from onnx.onnx_cpp2py_export import checker
+import onnxruntime as ort
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
     InvalidGraph,
 )
-from packaging.version import Version
 
+import onnxscript
 import onnxscript.testing
-from onnxscript import OnnxFunction, converter, graph, script, tensor
+from onnxscript import FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import onnx_script_test_case, testutils
 
 TEST_INPUT_DIR = pathlib.Path(__file__).parent / "tests" / "models"
@@ -41,8 +36,10 @@ TEST_OUTPUT_DIR = TEST_INPUT_DIR / "testoutputs"
 class TestConverter(testutils.TestBase):
     def validate(self, script):
         if isinstance(script, types.ModuleType):
-            fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
-        elif isinstance(script, OnnxFunction):
+            fnlist = [
+                f for f in script.__dict__.values() if isinstance(f, onnxscript.OnnxFunction)
+            ]
+        elif isinstance(script, onnxscript.OnnxFunction):
             fnlist = [script]
         else:
             fnlist = script
@@ -61,8 +58,10 @@ class TestConverter(testutils.TestBase):
         skip_check_ort=None,
     ):
         if isinstance(script, types.ModuleType):
-            fnlist = [f for f in script.__dict__.values() if isinstance(f, OnnxFunction)]
-        elif isinstance(script, OnnxFunction):
+            fnlist = [
+                f for f in script.__dict__.values() if isinstance(f, onnxscript.OnnxFunction)
+            ]
+        elif isinstance(script, onnxscript.OnnxFunction):
             fnlist = [script]
         else:
             fnlist = script
@@ -74,13 +73,13 @@ class TestConverter(testutils.TestBase):
                 model = f.to_model_proto(io_types=FLOAT)
                 if save_text:
                     with (TEST_OUTPUT_DIR / f"{f.name}.txt").open("w", encoding="utf-8") as fi:
-                        fi.write(printable_graph(model.graph))
+                        fi.write(onnx.helper.printable_graph(model.graph))
                         for fct in model.functions:
                             fi.write("\n-------------------------\n")
-                            fi.write(printable_graph(fct))
+                            fi.write(onnx.helper.printable_graph(fct))
                 if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
-                        onnxruntime.InferenceSession(model.SerializeToString())
+                        ort.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
                             f"onnxruntime cannot load function " f"{f.name}\n--\n{model}"
@@ -89,13 +88,13 @@ class TestConverter(testutils.TestBase):
                     model = onnx.shape_inference.infer_shapes(model)
                 if save_text:
                     with open(os.path.join(TEST_OUTPUT_DIR, f"{f.name}.shape.txt"), "w") as fi:
-                        fi.write(printable_graph(model.graph))
+                        fi.write(onnx.helper.printable_graph(model.graph))
                         for fct in model.functions:
                             f.write("\n-------------------------\n")
-                            f.write(printable_graph(fct))
+                            f.write(onnx.helper.printable_graph(fct))
                 try:
                     onnx.checker.check_model(model)
-                except checker.ValidationError as e:
+                except onnx.checker.ValidationError as e:
                     if "Field 'shape' of 'type' is required but missing" in str(
                         e
                     ) or "Field 'shape' of type is required but missing" in str(e):
@@ -135,7 +134,7 @@ class TestConverter(testutils.TestBase):
 
         onx = test_functions["eager_op"]
         self.assertIn('name: "fmod"', str(onx))
-        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = ort.InferenceSession(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [0.0, 0.5, -0.5])
         # numpy fmod and operator % disagree on this example
@@ -143,7 +142,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(res.tolist(), [0.0, 0.5, -0.5])
 
         onx = test_functions["eager_abs"]
-        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = ort.InferenceSession(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [1, 6, 3])
         res = eager_op.eager_abs(x)
@@ -174,9 +173,9 @@ class TestConverter(testutils.TestBase):
         x_value_info = model.graph.input[0]
         y_value_info = model.graph.input[1]
         output_value_info = model.graph.output[0]
-        self.assertEqual(x_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
-        self.assertEqual(y_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
-        self.assertEqual(output_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(x_value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(y_value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(output_value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
 
         # Or, use input_types and output_types, as below, for the more general case.
         model = cast_add.to_model_proto(
@@ -185,9 +184,9 @@ class TestConverter(testutils.TestBase):
         x_value_info = model.graph.input[0]
         y_value_info = model.graph.input[1]
         output_value_info = model.graph.output[0]
-        self.assertEqual(x_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
-        self.assertEqual(y_value_info.type.tensor_type.elem_type, TensorProto.INT64)
-        self.assertEqual(output_value_info.type.tensor_type.elem_type, TensorProto.FLOAT)
+        self.assertEqual(x_value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
+        self.assertEqual(y_value_info.type.tensor_type.elem_type, onnx.TensorProto.INT64)
+        self.assertEqual(output_value_info.type.tensor_type.elem_type, onnx.TensorProto.FLOAT)
 
     def test_onnxfns1(self):
         from onnxscript.tests.models import onnxfns1
@@ -216,10 +215,6 @@ class TestConverter(testutils.TestBase):
         model = onnx.shape_inference.infer_shapes(model)
         onnx.checker.check_model(model)
 
-    @unittest.skipIf(
-        Version(onnxruntime.__version__) < Version("1.12"),
-        reason="onnxruntime does not support that scenario.",
-    )
     def test_subfunction(self):
         from onnxscript.tests.models import subfunction
 
@@ -354,9 +349,9 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = onnxruntime.InferenceSession(f.SerializeToString())
+        session = ort.InferenceSession(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
-        numpy.testing.assert_almost_equal(eager_mode, result)
+        np.testing.assert_almost_equal(eager_mode, result)
 
         f = test_functions["make_sequence_tensor_accumulated"]
 
@@ -365,9 +360,9 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = onnxruntime.InferenceSession(f.SerializeToString())
+        session = ort.InferenceSession(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
-        numpy.testing.assert_almost_equal(eager_mode, result)
+        np.testing.assert_almost_equal(eager_mode, result)
 
     def test_loops_break(self):
         from onnxscript.tests.models import loops_break
@@ -379,7 +374,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond"]
-        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = ort.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
@@ -399,7 +394,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond_only"]
-        session = onnxruntime.InferenceSession(onx.SerializeToString())
+        session = ort.InferenceSession(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(y.tolist(), [0, 10, -20])
@@ -425,7 +420,7 @@ class TestConverter(testutils.TestBase):
         def check_function(x, name, expected, eager=True):
             with self.subTest(name=name):
                 onx = test_functions[name]
-                session = onnxruntime.InferenceSession(onx.SerializeToString())
+                session = ort.InferenceSession(onx.SerializeToString())
                 try:
                     y = session.run(None, {"A": x})[0]
                 except Exception as e:
@@ -479,7 +474,7 @@ class TestConverter(testutils.TestBase):
         def check_function(x, name, expected, eager=True):
             with self.subTest(name=name):
                 onx = test_functions[name]
-                session = onnxruntime.InferenceSession(onx.SerializeToString())
+                session = ort.InferenceSession(onx.SerializeToString())
                 try:
                     y = session.run(None, {"A": x})[0]
                 except Exception as e:
@@ -514,7 +509,9 @@ class TestConverter(testutils.TestBase):
 
     def test_getitem_failure(self):
         def f1(A: FLOAT[...]) -> FLOAT[...]:
-            zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+            zero = op.Constant(
+                value=onnx.helper.make_tensor("zero", onnx.TensorProto.INT64, [1], [0])
+            )
             index = zero, zero + 1
             r = A[index]
             return r
@@ -531,7 +528,7 @@ class TestConverter(testutils.TestBase):
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
         model = onnxfn.to_model_proto()
-        session = onnxruntime.InferenceSession(model.SerializeToString())
+        session = ort.InferenceSession(model.SerializeToString())
         input_names = [x.name for x in model.graph.input]
         input_dict = {x: value for (x, value) in zip(input_names, inputs)}
         output = session.run(None, input_dict)[0]
