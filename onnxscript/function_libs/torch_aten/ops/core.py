@@ -32,6 +32,7 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
+_INT64_MIN = -9223372036854775808
 
 
 @torch_op("aten::abs")
@@ -2379,7 +2380,7 @@ def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     neg_1 = op.Constant(value_int=-1)
     starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
-    ends = starts * 65535  # something like [-65535, -65535, -65535]
+    ends = op.Expand(_INT64_MIN, shape_dim)  # something like [-xxx, -xxx, -xxx]
     result = op.Slice(self, starts, ends, dims, steps)
     return result
 
@@ -2562,28 +2563,56 @@ def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     return op.GreaterOrEqual(self, other)
 
 
+@torch_op("aten::grid_sampler", trace_only=True)
 def aten_grid_sampler(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
+@torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
 def aten_grid_sampler_2d_backward(
@@ -5877,10 +5906,10 @@ def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
 
     self_size = op.Shape(self)
 
-    if dim < 0:
-        # PyTorch accepts negative dim as reversed counting
-        self_rank = op.Size(self_size)
-        dim = self_rank + dim
+    # PyTorch accepts negative dim as reversed counting
+    self_rank = op.Size(self_size)
+    dim = self_rank + dim
+    dim = dim % self_rank
 
     head_start_idx = op.Constant(value_ints=[0])
     head_end_idx = op.Reshape(dim, op.Constant(value_ints=[1]))
@@ -6014,10 +6043,96 @@ def aten_var(self: TensorType, unbiased: bool = True) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_var_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, TensorType]:
+@torch_op("aten::var_mean", trace_only=True)
+def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
+    # If not this case, should be explicitly set correction value according to unbiased value
+    return _aten_var_mean_onnx(self, correction=int(unbiased), keepdim=False)
+
+
+@torch_op("aten::var_mean", overload=True, trace_only=True)
+def aten_var_mean_dim(
+    self: TReal, dim: Optional[int], unbiased: bool = True, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    """var_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    # Although dim is Optional in signature, but we assume it must has value for this overload
+    # Assert(dim is not None)
+    if isinstance(dim, Tuple):
+        dim_tensor = op.Constant(value_ints=dim)
+    else:
+        dim_tensor = op.Constant(value_int=dim)
+    return _aten_var_mean_dim_onnx(self, dim_tensor, correction=int(unbiased), keepdim=keepdim)
+
+
+@torch_op("aten::var_mean", overload=True, trace_only=True)
+def aten_var_mean_correction(
+    self: TReal,
+    dim: Optional[int] = None,
+    correction: Optional[int] = None,
+    keepdim: bool = False,
+) -> Tuple[TReal, TReal]:
+    """var_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    if correction is None:
+        correction = 1
+
+    if dim is None:
+        var, mean = _aten_var_mean_onnx(self, correction, keepdim)
+    else:
+        if isinstance(dim, Tuple):
+            dim_tensor = op.Constant(value_ints=dim)
+        else:
+            dim_tensor = op.Constant(value_int=dim)
+        var, mean = _aten_var_mean_dim_onnx(self, dim_tensor, correction, keepdim)
+    return var, mean
+
+
+@torch_op("aten::var_mean", private=True)
+def _aten_var_mean_onnx(
+    self: TReal, correction: int = 1, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    # Compute mean and var
+    mean = op.ReduceMean(self, keepdims=keepdim)
+    sub_mean = op.Sub(self, mean)
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction != 0:
+        self_shape = op.Shape(self)
+        numel_int = op.ReduceProd(self_shape, keepdims=0)
+        numel_float = op.Cast(numel_int, to=FLOAT.dtype)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_int, correction)
+        var = op.Div(mul, op.Cast(sub, to=FLOAT.dtype))
+
+    return var, mean
+
+
+@torch_op("aten::var_mean", private=True)
+def _aten_var_mean_dim_onnx(
+    self: TReal, dim: INT64, correction: int, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    if op.Size(op.Shape(dim)) == 0:
+        dim = op.Unsqueeze(dim, axes=0)
+    # Computer mean and var
+    mean = op.ReduceMean(self, dim, keepdims=keepdim)
+    sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=1))
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction != 0:
+        self_shape = op.Shape(self)
+        dim_size = op.Gather(self_shape, dim, axis=0)
+        numel_int = op.ReduceProd(dim_size, keepdims=0)
+        numel_float = op.Cast(numel_int, to=FLOAT.dtype)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_int, correction)
+        var = op.Div(mul, op.Cast(sub, to=FLOAT.dtype))
+
+    return var, mean
 
 
 def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
