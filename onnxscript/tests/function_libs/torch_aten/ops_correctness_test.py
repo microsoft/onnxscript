@@ -873,11 +873,6 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
     ),
-    # xfail(
-    #     "slice_scatter",
-    #     reason="fixme: converter.py raise NameError: name 'dim' is not defined",
-    #     test_class_name="TestOutputConsistencyFullGraph",
-    # ),
     xfail(
         "scatter_reduce",
         variant_name="mean",
