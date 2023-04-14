@@ -34,6 +34,7 @@ from onnxscript.onnx_types import TensorType
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 
+
 @torch_op("aten::abs")
 def aten_abs(self: TReal) -> TReal:
     """abs(Tensor self) -> Tensor"""
