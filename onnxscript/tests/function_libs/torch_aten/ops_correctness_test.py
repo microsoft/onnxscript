@@ -886,6 +886,22 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
+    xfail(
+        "var_mean",
+        reason="fixme: shape_inference failed but can run in ORT'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "var_mean",
+        variant_name="unbiased",
+        reason="fixme: shape_inference failed but can run in ORT'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "var_mean_correction",
+        reason="fixme: shape_inference failed but can run in ORT",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
 )
 
 
@@ -1535,14 +1551,14 @@ def _graph_executor(
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
         # Make sure the model is valid
-        # try:
-        #     onnx.checker.check_model(onnx_model, full_check=True)
-        # except onnx.checker.ValidationError as e:
-        #     raise AssertionError(
-        #         f"ONNX model is invalid: {e}. "
-        #         f"Model:\n"
-        #         f"{onnxscript.proto2text(onnx_model)}"
-        #     ) from e
+        try:
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except onnx.checker.ValidationError as e:
+            raise AssertionError(
+                f"ONNX model is invalid: {e}. "
+                f"Model:\n"
+                f"{onnxscript.proto2text(onnx_model)}"
+            ) from e
 
         try:
             if os.environ.get("CATCH_ORT_SEGFAULT") == "1":

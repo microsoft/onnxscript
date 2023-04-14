@@ -6040,7 +6040,10 @@ def aten_var_mean_dim(
 
 @torch_op("aten::var_mean", overload=True, trace_only=True)
 def aten_var_mean_correction(
-    self: TReal, dim: Optional[int] = None, correction: Optional[int] = None, keepdim: bool = False
+    self: TReal,
+    dim: Optional[int] = None,
+    correction: Optional[int] = None,
+    keepdim: bool = False,
 ) -> Tuple[TReal, TReal]:
     """var_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
 
