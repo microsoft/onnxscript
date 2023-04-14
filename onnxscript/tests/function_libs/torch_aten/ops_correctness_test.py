@@ -957,14 +957,14 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "nn.functional.grid_sample",
-        # Torch implemented this using the cubic convolution algorithm with alhpa=−0.75, might be different than ORT
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
         or len(sample.args[0].shape) != 4,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
     skip(
         "grid_sampler_2d",
-        # Torch implemented this using the cubic convolution algorithm with alhpa=−0.75, might be different than ORT
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
