@@ -6067,13 +6067,13 @@ def _aten_var_mean_onnx(
 ) -> Tuple[TReal, TReal]:
     # Compute mean and var
     mean = op.ReduceMean(self, keepdims=keepdim)
-    self_shape = op.Shape(self)
-    numel_int = op.ReduceProd(self_shape, keepdims=0)
     sub_mean = op.Sub(self, mean)
     sqr_mean = op.Mul(sub_mean, sub_mean)
     var = op.ReduceMean(sqr_mean, keepdims=keepdim)
     # Adjust var according to correction value
     if correction != 0:
+        self_shape = op.Shape(self)
+        numel_int = op.ReduceProd(self_shape, keepdims=0)
         numel_float = op.Cast(numel_int, to=FLOAT.dtype)
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_int, correction)
