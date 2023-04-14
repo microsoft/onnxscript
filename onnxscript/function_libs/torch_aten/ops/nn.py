@@ -505,26 +505,6 @@ def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> Te
     raise NotImplementedError()
 
 
-@torch_op("aten::grid_sample")
-def aten_grid_sample(
-    input: TTensor,
-    grid: TTensor,
-    mode: str,
-    padding_mode: str,
-    align_corners: bool,
-) -> TFloat:
-    """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
-
-    result = op.GridSample(
-        input,
-        grid,
-        align_corners=align_corners,
-        mode=mode,
-        padding_mode=padding_mode,
-    )
-    return result
-
-
 def aten_hardsigmoid(self: TensorType) -> TensorType:
     """hardsigmoid(Tensor self) -> Tensor"""
 
