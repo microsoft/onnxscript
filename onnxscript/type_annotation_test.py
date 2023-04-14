@@ -5,16 +5,14 @@
 
 import unittest
 
-import onnx
-from packaging.version import Version
-
+import onnxscript.testing
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 from onnxscript.tests.common import testutils
 
 
-class TypeAnnotationTester(testutils.TestBase):
+class TypeAnnotationTest(testutils.TestBase):
     def test_type_annotation(self):
         """Test type annotations."""
 
@@ -28,7 +26,7 @@ class TypeAnnotationTester(testutils.TestBase):
                 C = Add (A, B)
             }
         """
-        self.assertSameGraph(static_shape, static_shape_txt)
+        onnxscript.testing.assert_isomorphic_graph(static_shape, static_shape_txt)
 
         @script()
         def symbolic_shape(A: FLOAT["N"], B: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
@@ -40,7 +38,7 @@ class TypeAnnotationTester(testutils.TestBase):
                 C = Add (A, B)
             }
         """
-        self.assertSameGraph(symbolic_shape, symbolic_shape_txt)
+        onnxscript.testing.assert_isomorphic_graph(symbolic_shape, symbolic_shape_txt)
 
         @script()
         def tensor_scalar(A: FLOAT["N"], B: FLOAT) -> FLOAT["N"]:  # noqa: F821
@@ -52,7 +50,7 @@ class TypeAnnotationTester(testutils.TestBase):
                 C = Add (A, B)
             }
         """
-        self.assertSameGraph(tensor_scalar, tensor_scalar_txt)
+        onnxscript.testing.assert_isomorphic_graph(tensor_scalar, tensor_scalar_txt)
 
         @script()
         def unknown_rank(A: FLOAT[...], B: FLOAT[...]) -> FLOAT[...]:
@@ -64,15 +62,11 @@ class TypeAnnotationTester(testutils.TestBase):
                 C = Add (A, B)
             }
         """
-        self.assertSameGraph(unknown_rank, unknown_rank_txt)
+        onnxscript.testing.assert_isomorphic_graph(unknown_rank, unknown_rank_txt)
 
         with self.assertRaises(ValueError):
             FLOAT[10][20]  # Invalid usage. pylint: disable=pointless-statement
 
-    @unittest.skipIf(
-        Version(onnx.__version__) < Version("1.13"),
-        reason="module 'onnx.parser' has no attribute 'parse_function'",
-    )
     def test_type_annotation_with_bool_type_for_attribute(self):
         @script()
         def bool_type_for_attribute(self: FLOAT[...], sorted: bool) -> FLOAT[...]:
@@ -89,7 +83,9 @@ class TypeAnnotationTester(testutils.TestBase):
             }
 
         """
-        self.assertSameFunction(bool_type_for_attribute, bool_type_for_attribute_txt)
+        onnxscript.testing.assert_isomorphic_function(
+            bool_type_for_attribute, bool_type_for_attribute_txt
+        )
 
 
 if __name__ == "__main__":
