@@ -2569,7 +2569,7 @@ def aten_grid_sampler(
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> RTensor:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
     inter_mode_options = ("bilinear", "nearest", "bicubic")
@@ -2595,7 +2595,7 @@ def aten_grid_sampler_2d(
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TFloat:
+) -> TTensor:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
     inter_mode_options = ("bilinear", "nearest", "bicubic")
