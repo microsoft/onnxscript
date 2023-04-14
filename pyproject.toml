@@ -1,7 +1,5 @@
-# SPDX-License-Identifier: Apache-2.0
-
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,7 +10,7 @@ authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
 urls = { "Repository" = "https://github.com/onnx/onnx-script" }
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = 'Apache License v2.0' }
+license = { file = "LICENSE" }
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -99,6 +97,7 @@ disable = [
   "invalid-name",      # TODO: Add naming guidance and enable this check.
   "line-too-long",
   "no-name-in-module",
+  "use-dict-literal",  # Sometime it is preferable when we construct kwargs
 ]
 
 [tool.pydocstyle]

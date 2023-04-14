@@ -13,6 +13,7 @@ from onnxscript.tests.common import testutils
 class IfOpTester(testutils.TestBase):
     def test_no_else(self):
         """Basic test for if-then without else."""
+
         # TODO: pass default opset as parameter to @script
         @script()
         def if1(cond, x, y):
