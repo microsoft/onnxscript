@@ -7,13 +7,13 @@ import unittest
 
 import onnx.helper
 
+import onnxscript.testing
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import BOOL, FLOAT
-from onnxscript.tests.common import testutils
 
 
-class TestConverter(testutils.TestBase):
+class TestConverter(unittest.TestCase):
     def test_plus_op(self):
         """Test that + is translated to Add op."""
 
@@ -25,7 +25,7 @@ class TestConverter(testutils.TestBase):
         def plus2(x, y):
             return op.Add(x, y)
 
-        self.assertSame(plus1, plus2)
+        onnxscript.testing.assert_isomorphic_function(plus1, plus2)
 
     def test_const_promotion(self):
         """Test promotion of constant literals to TensorProto."""
@@ -40,7 +40,7 @@ class TestConverter(testutils.TestBase):
         def implicit_plus1(A: FLOAT["N"]) -> FLOAT["N"]:  # noqa: F821
             return op.Add(A, 1.0)
 
-        self.assertSame(explicit_plus1, implicit_plus1)
+        onnxscript.testing.assert_isomorphic_function(explicit_plus1, implicit_plus1)
 
     def test_bool_ops_binary(self):
         @script(default_opset=op)
@@ -51,7 +51,7 @@ class TestConverter(testutils.TestBase):
         def onnx_two_or(a: BOOL, b: BOOL) -> BOOL:
             return op.Or(a, b)
 
-        self.assertSame(py_two_or, onnx_two_or)
+        onnxscript.testing.assert_isomorphic_function(py_two_or, onnx_two_or)
 
         @script(default_opset=op)
         def py_two_and(a: BOOL, b: BOOL) -> BOOL:
@@ -61,7 +61,7 @@ class TestConverter(testutils.TestBase):
         def onnx_two_and(a: BOOL, b: BOOL) -> BOOL:
             return op.And(a, b)
 
-        self.assertSame(py_two_and, onnx_two_and)
+        onnxscript.testing.assert_isomorphic_function(py_two_and, onnx_two_and)
 
     def test_bool_ops_three(self):
         @script(default_opset=op)
@@ -72,7 +72,7 @@ class TestConverter(testutils.TestBase):
         def onnx_three_or(a: BOOL, b: BOOL, c: BOOL) -> BOOL:
             return op.Or(op.Or(a, b), c)
 
-        self.assertSame(py_three_or, onnx_three_or)
+        onnxscript.testing.assert_isomorphic_function(py_three_or, onnx_three_or)
 
     def test_bool_ops_four(self):
         @script(default_opset=op)
@@ -83,7 +83,7 @@ class TestConverter(testutils.TestBase):
         def onnx_four_and(a: BOOL, b: BOOL, c: BOOL, d: BOOL) -> BOOL:
             return op.And(op.And(op.And(a, b), c), d)
 
-        self.assertSame(py_four_and, onnx_four_and)
+        onnxscript.testing.assert_isomorphic_function(py_four_and, onnx_four_and)
 
 
 if __name__ == "__main__":

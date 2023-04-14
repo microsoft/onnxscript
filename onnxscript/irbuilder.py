@@ -144,6 +144,7 @@ class IRAttributeParameter:
     Attributes:
         name: The name of the attribute.
         type: The type of the attribute.
+        default_value: The default value of the attribute.
         has_default: Whether the attribute has a default value.
         attr_proto: The attribute proto.
     """
@@ -151,6 +152,8 @@ class IRAttributeParameter:
     name: str
     type: onnx.AttributeProto.AttributeType
     default_value: str | int | float | None = None
+
+    # TODO(justinchuby): Validate the default_value is the same type as specified in AttributeType.
 
     def __str__(self):
         if self.has_default:
