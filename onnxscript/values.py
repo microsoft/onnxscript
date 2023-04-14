@@ -442,7 +442,7 @@ class OnnxFunction(Op):
                 ParamSchema(
                     name=attr_parameter.name,
                     type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
-                        onnx.defs.OpSchema.AttrType(attr_parameter.type)
+                        onnx.defs.OpSchema.AttrType(attr_parameter.type)  # type: ignore[call-arg]
                     ),
                     default=_EmptyDefault
                     if attr_parameter.default_value is None

@@ -346,6 +346,19 @@ def _gather_input_wrangler(
     return args, kwargs
 
 
+def _grid_sample_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Convert string attriute to int as input
+    inter_mode_options = {"bilinear": 0, "nearest": 1, "bicubic": 2}
+    padding_mode_options = {"zeros": 0, "border": 1, "reflection": 2}
+    args.append(inter_mode_options[kwargs["mode"]])
+    args.append(padding_mode_options[kwargs["padding_mode"]])
+    args.append(kwargs["align_corners"])
+    kwargs.clear()
+    return args, kwargs
+
+
 def _max_pool_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -682,6 +695,8 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
+    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
+    "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
@@ -719,6 +734,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
+    "var_mean": core_ops.aten_var_mean,
+    "var_mean_dim": core_ops.aten_var_mean_dim,
+    "var_mean_correction": core_ops.aten_var_mean_correction,
     "zeros_like": core_ops.aten_zeros_like,
 }
 
@@ -834,13 +852,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     skip(
         "nn.functional.scaled_dot_product_attention",
-        reason="fixme: ORT crashes on Windows",
-        enabled_if=IS_WINDOWS,
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
     skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
-        reason="fixme: ORT crashes on Windows",
-        enabled_if=IS_WINDOWS,
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
     xfail(
         "nn.functional.upsample_bilinear2d",
@@ -936,6 +952,19 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
+    ),
+    skip(
+        "nn.functional.grid_sample",
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
+        or len(sample.args[0].shape) != 4,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+    ),
+    skip(
+        "grid_sampler_2d",
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.args[1] == 2,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
     skip(
         "index_put",
@@ -1166,6 +1195,27 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
     skip(
+        "var_mean",
+        # kwargs is empty
+        matcher=lambda sample: len(sample.kwargs) > 0,
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
+    ),
+    skip(
+        "var_mean_dim",
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None
+        ),
+        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
+    ),
+    skip(
+        "var_mean_correction",
+        # Don't accept input[1]=bool and 'correction' must be in kwargs
+        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
+        reason="this Aten overload only support when correction attribute exists",
+    ),
+    skip(
         "unflatten",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
@@ -1233,6 +1283,15 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+
+duplicate_opinfo(
+    OPS_DB,
+    "var_mean",
+    (
+        "var_mean_dim",
+        "var_mean_correction",
+    ),
+)
 
 
 # END OF SECTION TO MODIFY #####################################################
