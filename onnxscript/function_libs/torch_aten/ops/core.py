@@ -32,6 +32,7 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
+_INT64_MIN = -9223372036854775808
 
 
 @torch_op("aten::abs")
@@ -2379,7 +2380,7 @@ def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     neg_1 = op.Constant(value_int=-1)
     starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
-    ends = starts * 65535  # something like [-65535, -65535, -65535]
+    ends = op.Expand(_INT64_MIN, shape_dim)  # something like [-xxx, -xxx, -xxx]
     result = op.Slice(self, starts, ends, dims, steps)
     return result
 
@@ -2562,28 +2563,56 @@ def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     return op.GreaterOrEqual(self, other)
 
 
+@torch_op("aten::grid_sampler", trace_only=True)
 def aten_grid_sampler(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
+@torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
 def aten_grid_sampler_2d_backward(
