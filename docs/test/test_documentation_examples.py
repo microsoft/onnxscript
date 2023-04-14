@@ -37,7 +37,6 @@ class TestDocumentationExample(unittest.TestCase):
             raise RuntimeError(f"No example was tested in folder {folder}.")
 
     def test_documentation_examples(self):
-
         this = os.path.abspath(os.path.dirname(__file__))
         onxc = os.path.normpath(os.path.join(this, "..", ".."))
         pypath = os.environ.get("PYTHONPATH", None)

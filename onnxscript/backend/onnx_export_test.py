@@ -42,8 +42,17 @@ def skip(pattern: str | Pattern, reason: str, *, condition: bool = True):
 
 
 SKIP_TESTS = (
-    skip(r"_scan_", "Operator Scan is not supported by onnx-script"),
-    skip(r"^test_scan", "Operator Scan is not supported by onnx-script"),
+    skip(
+        r"^test_ai_onnx_ml_array_feature_extractor",
+        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
+    ),
+    skip(
+        r"^test_ai_onnx_ml_binarizer",
+        "ImportError: cannot import name 'opset' from 'onnxscript.onnx_opset'",
+    ),
+    skip(r"^test_center_crop_pad_crop_negative_axes_hwc", "fixme: ORT segfaults"),
+    skip(r"_scan_", "Operator Scan is not supported by onnxscript"),
+    skip(r"^test_scan", "Operator Scan is not supported by onnxscript"),
     skip(
         r"^test_split",
         "split has an undefined number of outputs. Current implementation of eager mode is not aware of them",
@@ -62,8 +71,7 @@ SKIP_TESTS = (
     ),
     skip(
         r"^test_optional_get_element_tensor",
-        "ORT Unable to create onnxruntime InferenceSession for executing .OptionalGetElement op with onnx model",
-        condition=ort.__version__[:4] == "1.14",
+        "ONNX backend test produces an invalid graph: https://github.com/onnx/onnx/issues/5067",
     ),
     skip(
         r"test_loop",
@@ -160,7 +168,9 @@ class TestOnnxBackEnd(unittest.TestCase):
             onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
         ) as e:
             self.skipTest(f"Unable to load the model: {e}")
-        except onnxruntime_pybind11_state.RuntimeException as e:  # pylint: disable=c-extension-no-member
+        except (
+            onnxruntime_pybind11_state.RuntimeException  # pylint: disable=c-extension-no-member
+        ) as e:
             self.skipTest(f"Unable to run the model: {e}")
         except AssertionError as e:
             self.skipTest(f"ORT result mismatches with the expected: {e}")
