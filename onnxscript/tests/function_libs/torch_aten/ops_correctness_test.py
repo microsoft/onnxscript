@@ -852,13 +852,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     skip(
         "nn.functional.scaled_dot_product_attention",
-        reason="fixme: ORT crashes on Windows",
-        enabled_if=IS_WINDOWS,
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
     skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
-        reason="fixme: ORT crashes on Windows",
-        enabled_if=IS_WINDOWS,
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
     xfail(
         "nn.functional.upsample_bilinear2d",
