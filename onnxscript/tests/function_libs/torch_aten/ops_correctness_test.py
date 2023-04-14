@@ -897,11 +897,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="fixme: shape_inference failed but can run in ORT'",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    xfail(
-        "var_mean_correction",
-        reason="fixme: shape_inference failed but can run in ORT",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
+    # xfail(
+    #     "var_mean_correction",
+    #     reason="fixme: shape_inference failed but can run in ORT",
+    #     test_class_name="TestOutputConsistencyFullGraph",
+    # ),
 )
 
 
