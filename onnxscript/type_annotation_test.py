@@ -14,7 +14,7 @@ from onnxscript.onnx_types import FLOAT
 from onnxscript.tests.common import testutils
 
 
-class TypeAnnotationTester(testutils.TestBase):
+class TypeAnnotationTest(testutils.TestBase):
     def test_type_annotation(self):
         """Test type annotations."""
 
@@ -91,6 +91,10 @@ class TypeAnnotationTester(testutils.TestBase):
         """
         self.assertSameFunction(bool_type_for_attribute, bool_type_for_attribute_txt)
 
+
+class UtilityFunctionsTest(unittest.TestCase):
+    def test_pytype_to_input_strings(self):
+        pass
 
 if __name__ == "__main__":
     unittest.main()

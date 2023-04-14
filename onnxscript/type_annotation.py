@@ -16,13 +16,13 @@ from onnxscript import onnx_types
 
 # TypeAnnotationValue represents the (value of) valid type-annotations recognized
 # by ONNX Script. TODO: Flesh out a formal definition. Currently, it supports
-# * float, int, str (primitive attribute types)
-# * Sequence[float], Sequence[int], Sequence[str] (attribute types)
-# * Tensor types
-# * Sequence[Tensor] types
-# * Union of above 2
-# * TypeVars with above bounds
-# * Above types with annotation attached
+# - float, int, str (primitive attribute types)
+# - Sequence[float], Sequence[int], Sequence[str] (attribute types)
+# - Tensor types
+# - Sequence[Tensor] types
+# - Union of above 2
+# - TypeVars with above bounds
+# - Above types with annotation attached
 TypeAnnotationValue = typing.Any
 
 # Map from python type to corresponding ONNX AttributeProto type
@@ -164,8 +164,8 @@ def _reduce_type_var_to_union(hint: typing.TypeVar):
     return Any
 
 
-def get_supported_input_types(pytype) -> list[str]:
-    """Returns a list of all supported input types for a given type annotation.
+def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
+    """Returns a list of all supported input types in string representation for a given type annotation.
 
     Args:
         pytype: A type annotation.
@@ -173,7 +173,6 @@ def get_supported_input_types(pytype) -> list[str]:
     Returns:
         A list of all supported input types for the given type annotation.
     """
-    # TODO: Change this to
     supported_types: list[str] = []
     if typing.get_origin(pytype) is Union and isinstance(typing.get_args(pytype)[0], TypeVar):
         # Recursively unpack TypeVars inside an Optional
@@ -199,4 +198,5 @@ def get_supported_input_types(pytype) -> list[str]:
     return supported_types
 
 
-def get_type_var_name
+def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:
+    pass
