@@ -14,9 +14,9 @@ import unittest
 import warnings
 
 import numpy as np
+import numpy.testing
 import onnx
 import onnxruntime
-from numpy.testing import assert_almost_equal
 from onnx import TensorProto
 from onnx.helper import make_tensor, printable_graph
 from onnx.onnx_cpp2py_export import checker
@@ -27,6 +27,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 from packaging.version import Version
 
+import onnxscript.testing
 from onnxscript import OnnxFunction, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
@@ -117,7 +118,7 @@ class TestConverter(testutils.TestBase):
                 if name_expanded in functions:
                     with self.subTest("Expansion test", function=name):
                         f_expanded = functions[name_expanded]
-                        self.assertSame(f, f_expanded)
+                        onnxscript.testing.assert_isomorphic(f, f_expanded)
 
     def validate_run(self, script_tests):
         for key, val in script_tests.__dict__.items():
@@ -355,7 +356,7 @@ class TestConverter(testutils.TestBase):
 
         session = onnxruntime.InferenceSession(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
-        assert_almost_equal(eager_mode, result)
+        numpy.testing.assert_almost_equal(eager_mode, result)
 
         f = test_functions["make_sequence_tensor_accumulated"]
 
@@ -366,7 +367,7 @@ class TestConverter(testutils.TestBase):
 
         session = onnxruntime.InferenceSession(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
-        assert_almost_equal(eager_mode, result)
+        numpy.testing.assert_almost_equal(eager_mode, result)
 
     def test_loops_break(self):
         from onnxscript.tests.models import loops_break
@@ -611,7 +612,7 @@ class TestConverter(testutils.TestBase):
         def inc_alpha_expanded(A: FLOAT[...], alpha: int) -> FLOAT[...]:
             return A + op.CastLike(alpha, A)
 
-        self.assertSame(inc_alpha, inc_alpha_expanded)
+        onnxscript.testing.assert_isomorphic_function(inc_alpha, inc_alpha_expanded)
 
     def test_none_attribute(self):
         """Test converter handles a None value specified as an attribute value.
@@ -627,7 +628,7 @@ class TestConverter(testutils.TestBase):
         def implicit_none(X):
             return op11.Squeeze(X)
 
-        self.assertSame(explicit_none, implicit_none)
+        onnxscript.testing.assert_isomorphic_function(explicit_none, implicit_none)
 
     def test_input_and_attr_classification(self):
         """Test that inputs and attributes are classified correctly, when positional and keyword arguments are used."""
@@ -640,7 +641,7 @@ class TestConverter(testutils.TestBase):
         def keyword(X, shape):
             return op.Expand(shape=shape, input=X)
 
-        self.assertSame(positional, keyword)
+        onnxscript.testing.assert_isomorphic_function(positional, keyword)
 
 
 if __name__ == "__main__":
