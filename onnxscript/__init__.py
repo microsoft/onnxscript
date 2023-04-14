@@ -6,6 +6,7 @@ import importlib.metadata
 
 from .backend.onnx_export import export2python as proto2python
 from .main import export_onnx_lib, graph, script
+from .onnx_model import OnnxModel
 
 # isort: off
 from .onnx_opset import (
@@ -67,6 +68,7 @@ __all__ = [
     "script",
     "export_onnx_lib",
     "OnnxFunction",
+    "OnnxModel",
     "proto2python",
     "proto2text",
     "external_tensor",
