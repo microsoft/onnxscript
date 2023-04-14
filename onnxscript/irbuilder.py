@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
+import dataclasses
 import io
 import logging
 import warnings
@@ -108,9 +109,15 @@ def _opt_var_to_str(x):
 
 
 class IRAttributeValue:
-    """An attribute value (representing an actual parameter)."""
+    """An attribute value (representing an actual parameter).
 
-    def __init__(self, attrproto) -> None:
+    Attributes:
+        name: The name of the attribute.
+        type: The type of the attribute.
+        attr_proto: The attribute proto.
+    """
+
+    def __init__(self, attrproto: onnx.AttributeProto) -> None:
         self.attr_proto = attrproto
 
     def __str__(self):
@@ -120,12 +127,52 @@ class IRAttributeValue:
         return helper.printable_attribute(self.attr_proto)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.attr_proto.name
 
     @property
-    def type(self):
+    def type(self) -> onnx.AttributeProto.AttributeType:
         return self.attr_proto.type
+
+
+@dataclasses.dataclass(frozen=True)
+class IRAttributeParameter:
+    """An attribute parameter (representing a formal parameter).
+
+    It may or may not carry a default value.
+
+    Attributes:
+        name: The name of the attribute.
+        type: The type of the attribute.
+        default_value: The default value of the attribute.
+        has_default: Whether the attribute has a default value.
+        attr_proto: The attribute proto.
+    """
+
+    name: str
+    type: onnx.AttributeProto.AttributeType
+    default_value: str | int | float | None = None
+
+    # TODO(justinchuby): Validate the default_value is the same type as specified in AttributeType.
+
+    def __str__(self):
+        if self.has_default:
+            return helper.printable_attribute(self.attr_proto)
+        # TODO(justinchuby): Include a readable type name.
+        return self.name
+
+    @property
+    def has_default(self):
+        return self.default_value is not None
+
+    @property
+    def attr_proto(self) -> onnx.AttributeProto:
+        if not self.has_default:
+            raise ValueError(
+                "Attribute has no default value. Only attributes with default "
+                "values can be converted to AttributeProto."
+            )
+        return helper.make_attribute(self.name, self.default_value)
 
 
 class IRStmt:
@@ -191,9 +238,7 @@ class IRFunction:
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         # attribute parameters
-        self.attrs: list[str] = []
-        # attribute parameters with default value
-        self.attr_protos: list[IRAttributeValue] = []
+        self.attrs: list[IRAttributeParameter] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
@@ -207,11 +252,10 @@ class IRFunction:
 
     def __str__(self):
         attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
-        attr_protos = _format(self.attr_protos, "<", ", ", ">") if self.attr_protos else ""
         inputs = _format([x.typed_str() for x in self.inputs], "(", ", ", ")")
         outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
         stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
-        return f"{self.name} {attrs}{attr_protos}{inputs} => {outputs}{stmts}"
+        return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
 
     def append_docstring(self, docstring):
         self.docstring += docstring
@@ -225,11 +269,8 @@ class IRFunction:
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
-    def add_attr_parameter(self, attr: str | IRAttributeValue) -> None:
-        if isinstance(attr, IRAttributeValue):
-            self.attr_protos.append(attr)
-        else:
-            self.attrs.append(attr)
+    def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
+        self.attrs.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -398,19 +439,19 @@ class IRFunction:
             onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
         ]
 
-        # attribute_proto is introduced in version onnx==1.13.0.
+        # attribute_proto is introduced in version onnx==1.14.0.
         # If this attribute is available, onnxscript uses it to
         # default values for attributes. The function has then two
         # lists, one list for attributes without default values,
         # another one for attributes with default values.
         # If this *attribute_proto* is not available,
-        # all attributes with a default value are moved to the first
+        # all attributes are moved to the first
         # list, default values are removed.
         # TODO: remove this when onnx with attribute_proto is released.
         if hasattr(onnx.FunctionProto, "attribute_proto"):
-            atts = self.attrs
+            attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
         else:
-            atts = self.attrs + [a.attr_proto.name for a in self.attr_protos]
+            attribute_names = [attr.name for attr in self.attrs]
 
         f = helper.make_function(
             self.domain,
@@ -419,11 +460,13 @@ class IRFunction:
             outputs=[y.name for y in self.outputs],
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
-            attributes=atts,
+            attributes=attribute_names,
             doc_string=self.docstring,
         )
         if hasattr(onnx.FunctionProto, "attribute_proto"):
-            f.attribute_proto.extend([a.attr_proto for a in self.attr_protos])
+            f.attribute_proto.extend(
+                [attr.attr_proto for attr in self.attrs if attr.has_default]
+            )
         return f
 
 
@@ -437,10 +480,10 @@ class IRBuilder:
     def new_function(self, name: str, domain: str = "", register: bool = False):
         if register and (domain, name) in self.functions:
             raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
-        fct = IRFunction(name, domain)
+        function = IRFunction(name, domain)
         if register:
-            self.functions[domain, name] = fct
-        return fct
+            self.functions[domain, name] = function
+        return function
 
     def add_docstring(self, fn: IRFunction, docstring: str):
         fn.append_docstring(docstring)
@@ -454,34 +497,34 @@ class IRBuilder:
         attrs: Sequence[IRAttributeValue],
         sub_functions=None,
     ) -> None:
-        s = IRStmt(results, callee, args, attrs, sub_functions=sub_functions)
-        fn.append_stmt(s)
+        stmt = IRStmt(results, callee, args, attrs, sub_functions=sub_functions)
+        fn.append_stmt(stmt)
 
     def add_input(
         self, fn: IRFunction, varname: str, type: IRTypeLike, info: SourceInfo
     ) -> None:
-        v = IRVar(varname, type, info)
-        fn.append_input(v)
+        var = IRVar(varname, type, info)
+        fn.append_input(var)
 
-    def add_attr_parameter(self, fn: IRFunction, varname: str, default_value) -> None:
-        if default_value is not None:
-            a = IRAttributeValue(helper.make_attribute(varname, default_value))
-            fn.add_attr_parameter(a)
-        else:
-            fn.add_attr_parameter(varname)
+    def add_attr_parameter(
+        self,
+        fn: IRFunction,
+        varname: str,
+        attribute_type: onnx.AttributeProto.AttributeType,
+        default_value: int | float | str | None,
+    ) -> None:
+        fn.add_attr_parameter(IRAttributeParameter(varname, attribute_type, default_value))
 
-    def add_output(self, fn: IRFunction, varname: str, type, info) -> None:
-        v = IRVar(varname, type, info)
-        fn.append_output(v)
+    def add_output(self, fn: IRFunction, varname: str, typeinfo, sourceinfo) -> None:
+        var = IRVar(varname, typeinfo, sourceinfo)
+        fn.append_output(var)
 
     def make_attr(self, attrname: str, attrval: Any) -> IRAttributeValue:
         return IRAttributeValue(helper.make_attribute(attrname, attrval))
 
     def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
-        a = onnx.AttributeProto()
-        a.name = attrname
-        a.ref_attr_name = refname
-        type_ = ta.pytype_to_attrtype(pytype)
-        assert type_ is not None
-        a.type = type_
-        return IRAttributeValue(a)
+        proto = onnx.AttributeProto()
+        proto.name = attrname
+        proto.ref_attr_name = refname
+        proto.type = ta.pytype_to_attrtype(pytype)
+        return IRAttributeValue(proto)
