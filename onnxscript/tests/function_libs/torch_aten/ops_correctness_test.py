@@ -351,7 +351,7 @@ def _grid_sample_input_wrangler(
 ) -> tuple[list[Any], dict[str, Any]]:
     # Convert string attriute to int as input
     inter_mode_options = {"bilinear": 0, "nearest": 1, "bicubic": 2}
-    padding_mode_options = {"zeros": 0, "border":1, "reflection": 2}
+    padding_mode_options = {"zeros": 0, "border": 1, "reflection": 2}
     args.append(inter_mode_options[kwargs["mode"]])
     args.append(padding_mode_options[kwargs["padding_mode"]])
     args.append(kwargs["align_corners"])
@@ -958,7 +958,8 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     skip(
         "nn.functional.grid_sample",
         # Torch implemented this using the cubic convolution algorithm with alhpa=−0.75, might be different than ORT
-        matcher=lambda sample: sample.kwargs.get("mode") == 'bicubic' or len(sample.args[0].shape) != 4,
+        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
+        or len(sample.args[0].shape) != 4,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
     skip(

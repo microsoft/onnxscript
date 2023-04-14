@@ -2379,7 +2379,7 @@ def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     neg_1 = op.Constant(value_int=-1)
     starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
-    ends = starts * _INT64_MIN  # something like [-xxx, -xxx, -xxx]
+    ends = op.Expand(_INT64_MIN, shape_dim)  # something like [-xxx, -xxx, -xxx]
     result = op.Slice(self, starts, ends, dims, steps)
     return result
 
