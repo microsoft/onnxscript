@@ -5376,7 +5376,7 @@ def aten_slice_scatter(
 ) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    # Althouth 'start' and 'end' can be None in signature, but actually 'start' must be specified
+    # Although 'start' and 'end' can be None in signature, but actually 'start' must be specified
     # Assert(start is not None)
     # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
     # Assert(end-start == shape(src) > 0)
