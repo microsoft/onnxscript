@@ -1,4 +1,5 @@
 # Configuration for lintrunner https://github.com/suo/lintrunner
+merge_base_with = 'main'
 
 [[linter]]
 code = 'RUFF'
