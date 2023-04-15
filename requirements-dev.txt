@@ -27,5 +27,5 @@ pyyaml
 torch>=1.13
 
 # Lint
-lintrunner
+lintrunner>=0.10.7
 lintrunner_adapters>=0.7.0
