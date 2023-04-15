@@ -5369,7 +5369,7 @@ def aten_slice_copy(
 def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
-    dim: Optional[int] = 0,
+    dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
     step: INT64 = 1,
