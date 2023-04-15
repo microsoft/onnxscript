@@ -5340,13 +5340,19 @@ def aten_slice_copy(
 def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
-    dim: int,
-    start: int,
-    end: int,
+    dim: Optional[int] = 0,
+    start: Optional[int] = None,
+    end: Optional[int] = None,
     step: int = 1,
 ) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
+    # Althouth 'start' and 'end' can be None in signature, but actually 'start' must be specified
+    # Assert(start is not None)
+    # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
+    # Assert(end-start == shape(src) > 0)
+    # Try torch sample to get more information:
+    # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
     # e.g. if dim=2, shape=5, permute will be [0,1]+[4]+[2,3]=[0,1,4,2,3]
     last = len(src.shape)
     perm = list(range(0, last))
