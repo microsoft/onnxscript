@@ -5370,9 +5370,9 @@ def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
     dim: Optional[int] = 0,
-    start: Optional[int] = None,
-    end: Optional[int] = None,
-    step: int = 1,
+    start: Optional[INT64] = None,
+    end: Optional[INT64] = None,
+    step: INT64 = 1,
 ) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
@@ -5386,17 +5386,17 @@ def aten_slice_scatter(
     last = len(src.shape)
     perm = list(range(0, last))
     perm.insert(dim, perm.pop(-1))
-    return _aten_slice_scatter_onnx(self, src, dim, start, end, step, perm)
+    return _aten_slice_scatter_onnx(self, src, start, end, step, dim, perm)
 
 
 @torch_op("aten::slice_scatter", private=True)
 def _aten_slice_scatter_onnx(
     self: TTensor,
     src: TTensor,
+    start: INT64,
+    end: INT64,
+    step: INT64,
     dim: int,
-    start: int,
-    end: int,
-    step: int,
     perm: Sequence[int],
 ) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
