@@ -5,19 +5,10 @@
 
 import unittest
 
-from onnxscript import testing
-
 
 class TestBase(unittest.TestCase):
+    """The base class for testing ONNX Script functions for internal use."""
+
     def validate(self, fn):
         """Validate script function translation."""
         return fn.to_function_proto()
-
-    def assertSame(self, fn1, fn2):
-        testing.assert_isomorphic(fn1, fn2)
-
-    def assertSameGraph(self, graph1, graph2):
-        testing.assert_isomorphic_graph(graph1, graph2)
-
-    def assertSameFunction(self, fn1, fn2):
-        testing.assert_isomorphic_function(fn1, fn2)

@@ -67,7 +67,7 @@ jobs:
           path: dist
       - name: Install wheel
         run: |
-          python -m pip install dist/*.whl
+          python -m pip install dist/*.whl --no-deps
       - name: Run tests
         run: |
           python -m pytest -v -n auto
