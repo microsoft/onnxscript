@@ -6,8 +6,9 @@ typing_extensions
 
 # Docs site
 furo
+jinja2
 matplotlib
-myst-parser
+myst-parser[linkify]
 sphinx-copybutton
 sphinx-gallery
 sphinx>=6

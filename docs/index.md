@@ -1,6 +1,10 @@
-```{eval-rst}
-.. include:: abbreviations.rst
-```
+---
+myst:
+  substitutions:
+    onnxscript: '*ONNX Script*'
+---
+
+# ONNX Script
 
 ## Overview
 

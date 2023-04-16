@@ -20,7 +20,7 @@ release = version
 # -- General configuration ---------------------------------------------------
 
 extensions = [
-    "myst_parser"
+    "myst_parser",
     "sphinx.ext.intersphinx",
     "sphinx.ext.imgmath",
     "sphinx.ext.ifconfig",
@@ -33,6 +33,23 @@ extensions = [
     "sphinx.ext.doctest",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+]
+
+myst_enable_extensions = [
+    "amsmath",
+    "attrs_inline",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "linkify",
+    "replacements",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
 ]
 
 templates_path = ["_templates"]
@@ -63,8 +80,8 @@ graphviz_output_format = "svg"
 
 intersphinx_mapping = {
     "python": (f"https://docs.python.org/{sys.version_info.major}", None),
-    "matplotlib": ("https://matplotlib.org/", None),
-    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
     "onnxruntime": ("https://onnxruntime.ai/docs/api/python/", None),
 }
 
