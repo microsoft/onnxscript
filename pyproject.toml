@@ -109,7 +109,6 @@ select = [
     "D", # pydocstyle
     "E", # pycodestyle
     "F", # Pyflakes
-    "ISC", # flake8-implicit-str-concat
     "W", # pycodestyle
     "B", # flake8-bugbear
     "N", # pep8-naming
