@@ -1,0 +1,4 @@
+---
+substitutions:
+  onnxscript: '*ONNX Script*'
+---
