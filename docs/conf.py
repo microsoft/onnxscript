@@ -20,6 +20,7 @@ release = version
 # -- General configuration ---------------------------------------------------
 
 extensions = [
+    "myst_parser"
     "sphinx.ext.intersphinx",
     "sphinx.ext.imgmath",
     "sphinx.ext.ifconfig",
