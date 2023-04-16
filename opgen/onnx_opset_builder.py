@@ -123,9 +123,7 @@ class OpsetsBuilder:
                 cg.FunctionDef(
                     "__new__",
                     cg.Arg("cls"),
-                    body=cg.ThunkStmt(
-                        f"return Opset.__new__(cls, {domain!r}, {version!r})"
-                    ),
+                    body=cg.ThunkStmt(f"return Opset.__new__(cls, {domain!r}, {version!r})"),
                 ),
                 cg.FunctionDef(
                     "__init__", cg.Arg("self"), body=cg.ThunkStmt("super().__init__()")
