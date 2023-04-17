@@ -4180,7 +4180,7 @@ def aten_native_group_norm(
     bias: Optional[TReal],
     N: INT64 = None,
     C: INT64 = None,
-    HxW: INT64 = None,
+    HxW: INT64 = None,  # pylint: disable=unused-argument
     group: int = None,
     eps: float = None,
 ) -> tuple[TReal, TReal, TReal]:
@@ -4192,7 +4192,9 @@ def aten_native_group_norm(
     # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need
     shape = op.Constant(value_ints=[0, group, -1])
 
-    return _aten_native_group_norm_onnx(input, weight, bias, weight_inst, bias_inst, shape, eps)
+    return _aten_native_group_norm_onnx(
+        input, weight, bias, weight_inst, bias_inst, shape, eps
+    )
 
 
 @torch_op("aten::native_group_norm", private=True)
