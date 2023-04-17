@@ -356,9 +356,7 @@ class Exporter:
             if node.op_type == "Scan":
                 return self._python_make_node_scan(node, opsets, indent=indent)
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
-        if any(
-            hasattr(att, "g") and att.g and att.g.ByteSize() > 0 for att in node.attribute
-        ):
+        if any(hasattr(att, "g") and att.g and att.g.ByteSize() > 0 for att in node.attribute):
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         ops = {
             "Add": "+",
