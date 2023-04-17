@@ -602,7 +602,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "mul": core_ops.aten_mul,
     "narrow": core_ops.aten_narrow,
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
-    "native_group_norm": (core_ops.aten_native_group_norm, _native_group_norm_input_wrangler),
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
     "new_full": core_ops.aten_new_full,
@@ -713,6 +712,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
+    "native_group_norm": (core_ops.aten_native_group_norm, _native_group_norm_input_wrangler),
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
