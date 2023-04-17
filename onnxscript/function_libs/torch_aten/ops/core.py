@@ -32,6 +32,7 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
+_INT64_MIN = -9223372036854775808
 
 
 @torch_op("aten::abs")
@@ -2379,7 +2380,7 @@ def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     neg_1 = op.Constant(value_int=-1)
     starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
-    ends = starts * 65535  # something like [-65535, -65535, -65535]
+    ends = op.Expand(_INT64_MIN, shape_dim)  # something like [-xxx, -xxx, -xxx]
     result = op.Slice(self, starts, ends, dims, steps)
     return result
 
@@ -2562,28 +2563,56 @@ def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     return op.GreaterOrEqual(self, other)
 
 
+@torch_op("aten::grid_sampler", trace_only=True)
 def aten_grid_sampler(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
+@torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
 def aten_grid_sampler_2d_backward(
@@ -5336,17 +5365,58 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
+@torch_op("aten::slice_scatter", trace_only=True)
 def aten_slice_scatter(
-    self: TensorType,
-    src: TensorType,
+    self: TTensor,
+    src: TTensor,
     dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
     step: INT64 = 1,
-) -> TensorType:
+) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    raise NotImplementedError()
+    # Although 'start' and 'end' can be None in signature, but actually 'start' must be specified
+    # Assert(start is not None)
+    # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
+    # Assert(end-start == shape(src) > 0)
+    # Try torch sample to get more information:
+    # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
+    # e.g. if dim=2, shape=5, permute will be [0,1]+[4]+[2,3]=[0,1,4,2,3]
+    last = len(src.shape)
+    perm = list(range(0, last))
+    perm.insert(dim, perm.pop(-1))
+    return _aten_slice_scatter_onnx(self, src, start, end, step, dim, perm)
+
+
+@torch_op("aten::slice_scatter", private=True)
+def _aten_slice_scatter_onnx(
+    self: TTensor,
+    src: TTensor,
+    start: INT64,
+    end: INT64,
+    step: INT64,
+    dim: int,
+    perm: Sequence[int],
+) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    # Get shapes expcept specifide dim
+    # e.g. if dim=2, shape=(2,3,5,7), shape_expand will be (2,3,7,1)
+    src_shape = op.Shape(src)
+    last_dim = op.Reshape(op.Size(src_shape), neg_1)
+    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
+    shape_before_dim = op.Slice(src_shape, op.Constant(value_ints=[0]), dim_tensor)
+    shape_after_dim = op.Slice(src_shape, op.Add(dim_tensor, 1), last_dim)
+    shape_expand = op.Concat(
+        shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0
+    )
+    # Generate index but not finalized, need to do transpose later
+    # e.g. [[0,1,2],[0,1,2],[0,1,2]...,[0,1,2]], total count = 2x3x7
+    index_base = op.Range(start, end, step)  # e.g. [0,1,2]
+    index_expand = op.Expand(index_base, shape_expand)
+    indices = op.Transpose(index_expand, perm=perm)
+
+    return op.ScatterElements(self, indices, src, axis=dim)
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
