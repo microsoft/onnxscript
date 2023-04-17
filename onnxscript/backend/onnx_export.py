@@ -357,10 +357,7 @@ class Exporter:
                 return self._python_make_node_scan(node, opsets, indent=indent)
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         if any(
-            map(
-                lambda att: hasattr(att, "g") and att.g and att.g.ByteSize() > 0,
-                node.attribute,
-            )
+            hasattr(att, "g") and att.g and att.g.ByteSize() > 0 for att in node.attribute
         ):
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         ops = {
@@ -438,7 +435,7 @@ def export_template(
     if hasattr(model_onnx, "functions"):
         for f in model_onnx.functions:
             unique_function_domain_version.add((f.domain, 1))
-    unique_function_domain_version_sorted = list(sorted(unique_function_domain_version))
+    unique_function_domain_version_sorted = sorted(unique_function_domain_version)
 
     if rename:
         variable_names: dict[str, str] = {}
@@ -486,7 +483,7 @@ def export_template(
             ts = _translate_type(t.type)
             its = ts.split("[", maxsplit=1)[0]
             unique_types.add(its)
-    context["unique_types"] = list(sorted(unique_types))
+    context["unique_types"] = sorted(unique_types)
 
     # functions
     functions = []
