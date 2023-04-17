@@ -6143,7 +6143,7 @@ def _aten_var_mean_onnx(
     sqr_mean = op.Mul(sub_mean, sub_mean)
     var = op.ReduceMean(sqr_mean, keepdims=keepdim)
     # Adjust var according to correction value
-    if correction != 0.0:
+    if correction > 0.0:
         self_shape = op.Shape(self)
         numel_float = op.Cast(op.ReduceProd(self_shape, keepdims=0), to=FLOAT.dtype)
         mul = op.Mul(var, numel_float)
@@ -6158,14 +6158,14 @@ def _aten_var_mean_dim_onnx(
     self: TReal, dim: INT64, correction: float, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
     if op.Size(op.Shape(dim)) == 0:
-        dim = op.Unsqueeze(dim, axes=0)
+        dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
     # Computer mean and var
     mean = op.ReduceMean(self, dim, keepdims=keepdim)
     sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=1))
     sqr_mean = op.Mul(sub_mean, sub_mean)
     var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
     # Adjust var according to correction value
-    if correction != 0.0:
+    if correction > 0.0:
         self_shape = op.Shape(self)
         dim_size = op.Gather(self_shape, dim, axis=0)
         numel_float = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
