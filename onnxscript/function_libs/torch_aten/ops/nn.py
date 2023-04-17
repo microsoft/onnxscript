@@ -675,7 +675,7 @@ def _adjust_attributes_of_max_pool(
     stride: Sequence[int],
     padding: Sequence[int],
     dilation: Sequence[int],
-) -> Tuple[Sequence[int], Sequence[int], Sequence[int], Sequence[int]]:
+) -> Tuple[Sequence[int], Optional[Sequence[int]], Sequence[int], Sequence[int]]:
     if isinstance(dilation, int):
         dilations = [dilation] * expand_size
     else:
@@ -697,8 +697,10 @@ def _adjust_attributes_of_max_pool(
 
     if isinstance(stride, int):
         strides = [stride] * expand_size
-    elif stride is None or len(stride) == 0:
+    elif stride is None:
         strides = kernel_shape
+    elif len(stride) == 0:
+        strides = None
     else:
         strides = stride
 
