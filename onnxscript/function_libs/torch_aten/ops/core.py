@@ -4165,11 +4165,36 @@ def aten_native_batch_norm(
 ) -> tuple[TFloat, TFloat, TFloat]:
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    result = op.BatchNormalization(
+    norm, mean, var = op.BatchNormalization(
         input, weight, bias, running_mean, running_var, epsilon=eps, momentum=momentum, training_mode=training
     )
 
-    return result
+    # Torch using below logic to compute output_mean
+    mean = op.ReduceMean(input, op.Constant(value_ints=[0, 2]))
+    out_mean = op.Squeeze(mean)
+
+    #mean = op.ReduceMean(mean)
+    a = op.Sub(input, mean)
+    b = op.Mul(a, a)
+    c = op.ReduceSum(b, op.Constant(value_ints=[0, 2]))
+    var = op.Squeeze(c) / 5.0
+
+    return norm, out_mean, var
+
+
+def test_aten_native_batch_norm():
+    import numpy as np
+    input = np.ones((5,5,5)) * 1.0
+    weight = np.ones((5,)) * 1.0
+    bias = np.zeros((5,)) * 1.0
+    run_m = np.ones((5,)) / 2.0
+    run_b = np.zeros((5,)) * 1.0
+    import torch as t
+    r = t.ops.aten.native_batch_norm(input, weight, bias, run_m, run_b, True, 0.5, 0.1)
+    print(r)
+test_aten_native_batch_norm()
+exit(0)
+
 
 
 def aten_native_batch_norm_backward(
