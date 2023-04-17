@@ -484,14 +484,6 @@ def _unflatten_input_wrangler(
     return args, kwargs
 
 
-# def _var_mean_input_wrangler(
-#     args: list[Any], kwargs: dict[str, Any]
-# ) -> tuple[list[Any], dict[str, Any]]:
-#     if len(args) > 1:
-#         kwargs["unbiased"] = args.pop(1)
-#     return args, kwargs
-
-
 def _where_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -680,9 +672,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "trunc": core_ops.aten_trunc,
     "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
     "unsqueeze": core_ops.aten_unsqueeze,
-    "var_mean": core_ops.aten_var_mean,
-    "var_mean_dim": core_ops.aten_var_mean_dim,
-    "var_mean_correction": core_ops.aten_var_mean_correction,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
@@ -747,6 +736,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
+    "var_mean": core_ops.aten_var_mean,
+    "var_mean_dim": core_ops.aten_var_mean_dim,
+    "var_mean_correction": core_ops.aten_var_mean_correction,
     "zeros_like": core_ops.aten_zeros_like,
 }
 
@@ -1206,21 +1198,24 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     skip(
         "var_mean",
-        # Don't accept any kwargs
+        # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
-        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input",
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
     ),
     skip(
         "var_mean_dim",
-        # Accept only one input(tensor) or kwargs["dim"] is not None
-        matcher=lambda sample: not(sample.kwargs.get("dim", None) is not None and sample.kwargs.get("correction", None) is None),
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None
+        ),
         reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
     ),
     skip(
         "var_mean_correction",
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
-        reason="this Aten overload only support tensor(bool) as args",
+        reason="this Aten overload only support when correction attribute exists",
     ),
     skip(
         "unflatten",
@@ -1291,7 +1286,14 @@ duplicate_opinfo(
 
 duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 
-duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction",))
+duplicate_opinfo(
+    OPS_DB,
+    "var_mean",
+    (
+        "var_mean_dim",
+        "var_mean_correction",
+    ),
+)
 
 
 # END OF SECTION TO MODIFY #####################################################
@@ -1661,11 +1663,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            # if i==6:
-            print(i)
-            # else:
-            #     continue
-
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
