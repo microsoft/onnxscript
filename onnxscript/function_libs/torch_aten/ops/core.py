@@ -4152,19 +4152,24 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
     raise NotImplementedError()
 
 
+@torch_op("aten::native_batch_norm", trace_only=True)
 def aten_native_batch_norm(
-    input: TensorType,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
-    running_mean: Optional[TensorType],
-    running_var: Optional[TensorType],
+    input: TReal,
+    weight: Optional[TReal],
+    bias: Optional[TReal],
+    running_mean: Optional[TReal],
+    running_var: Optional[TReal],
     training: bool,
     momentum: float,
     eps: float,
-) -> tuple[TensorType, TensorType, TensorType]:
+) -> tuple[TReal, TReal, TReal]:
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    result = op.BatchNormalization(
+        input, weight, bias, running_mean, running_var, epsilon=eps, momentum=momentum, training_mode=training
+    )
+
+    return result
 
 
 def aten_native_batch_norm_backward(

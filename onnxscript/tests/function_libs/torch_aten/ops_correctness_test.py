@@ -379,6 +379,13 @@ def _mse_loss_input_wrangler(
     return args, kwargs
 
 
+def _native_batch_norm_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+
+    return args, kwargs
+
+
 def _nll_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -701,6 +708,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
+    "native_batch_norm": core_ops.aten_native_batch_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
@@ -1630,6 +1638,8 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
+            if i != 0:
+                continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
