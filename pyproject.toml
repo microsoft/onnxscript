@@ -106,20 +106,20 @@ convention = "google"
 [tool.ruff]
 target-version = "py38"
 select = [
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
     "D", # pydocstyle
     "E", # pycodestyle
     "F", # Pyflakes
-    "ISC", # flake8-implicit-str-concat
-    "W", # pycodestyle
-    "B", # flake8-bugbear
-    "C4", # flake8-comprehensions
     "G", # flake8-logging-format
+    "ISC", # flake8-implicit-str-concat
     "N", # pep8-naming
     "NPY", # modern numpy
-    "YTT", # flake8-2020
     "RUF", # Ruff-specific rules
-    "UP", # pyupgrade
     "TID252", # Disallow relative imports
+    "UP", # pyupgrade
+    "W", # pycodestyle
+    "YTT", # flake8-2020
 ]
 ignore = [
     "C408", # Sometime it is preferable when we construct kwargs
