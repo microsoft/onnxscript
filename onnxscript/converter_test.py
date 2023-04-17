@@ -82,7 +82,7 @@ class TestConverter(testutils.TestBase):
                         ort.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
-                            f"onnxruntime cannot load function " f"{f.name}\n--\n{model}"
+                            f"onnxruntime cannot load function {f.name}\n--\n{model}"
                         ) from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
@@ -423,7 +423,7 @@ class TestConverter(testutils.TestBase):
                     y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
+                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
                     ) from e
                 self.assertEqual(y.tolist(), expected)
                 f = getattr(getitem, name)
@@ -477,7 +477,7 @@ class TestConverter(testutils.TestBase):
                     y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
+                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
                     ) from e
                 self.assertEqual(y.tolist(), expected)
                 f = getattr(getitem39, name)
@@ -528,7 +528,7 @@ class TestConverter(testutils.TestBase):
         model = onnxfn.to_model_proto()
         session = ort.InferenceSession(model.SerializeToString())
         input_names = [x.name for x in model.graph.input]
-        input_dict = {x: value for (x, value) in zip(input_names, inputs)}
+        input_dict = dict(zip(input_names, inputs))
         output = session.run(None, input_dict)[0]
         np.testing.assert_equal(output, expected_output)
 

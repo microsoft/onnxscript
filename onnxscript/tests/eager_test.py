@@ -22,7 +22,7 @@ def _fft(x, fft_length, axis=-1):
     tr = np.transpose(merged, list(perm))
     if tr.shape[-1] != 2:
         raise AssertionError(
-            f"Unexpected shape {tr.shape}, x.shape={x.shape} " f"fft_length={fft_length}."
+            f"Unexpected shape {tr.shape}, x.shape={x.shape} fft_length={fft_length}."
         )
     return tr
 
@@ -48,7 +48,7 @@ def _ifft(x, fft_length, axis=-1):
     tr = np.transpose(merged, list(perm))
     if tr.shape[-1] != 2:
         raise AssertionError(
-            f"Unexpected shape {tr.shape}, x.shape={x.shape} " f"fft_length={fft_length}."
+            f"Unexpected shape {tr.shape}, x.shape={x.shape} fft_length={fft_length}."
         )
     return tr
 
