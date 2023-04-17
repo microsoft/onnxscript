@@ -76,7 +76,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._name: Optional[str] = None
 
     def __repr__(self):
-        return f"TorchScriptTensor({self._torch_value!r})"
+        return f"TorchScriptTensor('{self._torch_value!r}')"
 
     @property  # type: ignore[override]
     def value(self) -> Optional[np.ndarray]:
