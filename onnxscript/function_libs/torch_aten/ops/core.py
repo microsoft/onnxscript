@@ -6105,7 +6105,9 @@ def aten_var_mean_dim(
         dim_tensor = op.Constant(value_ints=dim)
     else:
         dim_tensor = op.Constant(value_int=dim)
-    return _aten_var_mean_dim_onnx(self, dim_tensor, correction=float(unbiased), keepdim=keepdim)
+    return _aten_var_mean_dim_onnx(
+        self, dim_tensor, correction=float(unbiased), keepdim=keepdim
+    )
 
 
 @torch_op("aten::var_mean", overload=True, trace_only=True)
