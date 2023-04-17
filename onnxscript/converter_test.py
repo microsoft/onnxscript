@@ -82,7 +82,7 @@ class TestConverter(testutils.TestBase):
                         ort.InferenceSession(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
-                            f"onnxruntime cannot load function " f"{f.name}\n--\n{model}"
+                            f"onnxruntime cannot load function {f.name}\n--\n{model}"
                         ) from e
                 if shape_inference:
                     model = onnx.shape_inference.infer_shapes(model)
@@ -423,7 +423,7 @@ class TestConverter(testutils.TestBase):
                     y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
+                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
                     ) from e
                 self.assertEqual(y.tolist(), expected)
                 f = getattr(getitem, name)
@@ -477,7 +477,7 @@ class TestConverter(testutils.TestBase):
                     y = session.run(None, {"A": x})[0]
                 except Exception as e:
                     raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} " f"due to {e!r}\n{onx}."
+                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
                     ) from e
                 self.assertEqual(y.tolist(), expected)
                 f = getattr(getitem39, name)
