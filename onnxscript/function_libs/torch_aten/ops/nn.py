@@ -697,7 +697,7 @@ def _adjust_attributes_of_max_pool(
 
     if isinstance(stride, int):
         strides = [stride] * expand_size
-    elif stride is None:
+    elif stride is None or len(stride) == 0:
         strides = kernel_shape
     else:
         strides = stride
