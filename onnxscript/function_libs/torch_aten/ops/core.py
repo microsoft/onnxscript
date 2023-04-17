@@ -4206,7 +4206,10 @@ def _aten_native_group_norm_onnx(
     b1: TReal,
     shape: INT64,
     eps: float = None,
-) -> TReal:  # We can only return one TReal instead of [x,y,z]
+# FIXME: We can only return one TReal instead of [x,y,z]
+# Because we don't how to computer the running_var and running_mean
+# No native_group_norm test case, and the group_norm function in torch only return one output
+) -> TReal:
     input_reshaped = op.Reshape(input, shape)
     norm_reshaped = op.InstanceNormalization(input_reshaped, w1, b1, epsilon=eps)
     norm = op.Reshape(norm_reshaped, op.Shape(input))
