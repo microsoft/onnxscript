@@ -4222,7 +4222,6 @@ def aten_native_group_norm(
     # FIXME: for the return, we can only return one TReal instead of [x,y,z]
     # Because we don't how to computer the running_var and running_mean
     # No native_group_norm test case, and the group_norm function in torch only return one output
-
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
     # Create weight_instance_norm and bias_instance_norm
