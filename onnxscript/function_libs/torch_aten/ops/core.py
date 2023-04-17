@@ -4176,8 +4176,8 @@ def aten_native_dropout_backward(
 @torch_op("aten::native_group_norm", trace_only=True)
 def aten_native_group_norm(
     input: TReal,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
+    weight: Optional[TReal],
+    bias: Optional[TReal],
     N: INT64 = None,
     C: INT64 = None,
     HxW: INT64 = None,
@@ -4186,11 +4186,32 @@ def aten_native_group_norm(
 ) -> tuple[TReal, TReal, TReal]:
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    # input_len = len(input.shape)
-    # if input_len == 3:
-    #     input = op.Unsqueeze(input, axes=0)
-    result = op.GroupNormalization(input, weight, bias, epsilon=eps, num_groups=group)
-    return result
+    # Create weight_instance_norm and bias_instance_norm
+    weight_inst = op.Constant(value_floats=[1.0] * group)
+    bias_inst = op.Constant(value_floats=[0.0] * group)
+    # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need
+    shape = op.Constant(value_ints=[0, group, -1])
+
+    return _aten_native_group_norm_onnx(input, weight, bias, weight_inst, bias_inst, shape, eps)
+
+
+@torch_op("aten::native_group_norm", private=True)
+def _aten_native_group_norm_onnx(
+    input: TReal,
+    weight: Optional[TReal],
+    bias: Optional[TReal],
+    w1: TReal,
+    b1: TReal,
+    shape: INT64,
+    eps: float = None,
+) -> TReal:  # We can only return one TReal instead of [x,y,z]
+    input_reshaped = op.Reshape(input, shape)
+    norm_reshaped = op.InstanceNormalization(input_reshaped, w1, b1, epsilon=eps)
+    norm = op.Reshape(norm_reshaped, op.Shape(input))
+    input_rank = op.Size(op.Shape(input))
+    axes = op.Range(1, input_rank - 1, 1)
+    # Using the real weight and bias to computer again
+    return op.Add(op.Mul(norm, op.Unsqueeze(weight, axes)), op.Unsqueeze(bias, axes))
 
 
 def aten_native_group_norm_backward(

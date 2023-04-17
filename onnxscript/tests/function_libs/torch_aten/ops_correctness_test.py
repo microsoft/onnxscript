@@ -851,6 +851,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
     skip(
+        "native_group_norm",
+        matcher=lambda sample: len(sample.input.shape) == 2,
+        reason="ONNX only support input shape >= 3",
+    ),
+    skip(
         "new_ones",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",
@@ -1362,10 +1367,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i == 0:
-                print(i)
-            else:
-                continue
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
