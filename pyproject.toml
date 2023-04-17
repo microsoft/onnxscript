@@ -122,7 +122,7 @@ select = [
     "YTT", # flake8-2020
 ]
 ignore = [
-    "C408", # Sometime it is preferable when we construct kwargs
+    "C408", # Sometimes it is preferable when we construct kwargs
     "D1", # D1 is for missing docstrings, which is not yet enforced.
     "D202", # D202 Too strict. "No blank lines allowed after function docstring"
     "D205", # D205 Too strict. "1 blank line required between summary line and description"
