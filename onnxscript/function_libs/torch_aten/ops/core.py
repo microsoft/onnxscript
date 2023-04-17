@@ -32,6 +32,7 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
+_INT64_MIN = -9223372036854775808
 
 
 @torch_op("aten::abs")
@@ -99,14 +100,10 @@ def aten_addmm(
 ) -> TFloat:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    # TODO(titaiwang): op.Gemm seems needed to take care of corner case according to old symbolic_fn.
-    # Currently, it shows op-level validation failing on bloom.
-
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
     return op.Add(scaled_self, scaled_mat1_mat2)
-    # return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
 def aten_addmv(
@@ -507,12 +504,74 @@ def aten_argwhere(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::as_strided", trace_only=True)
 def aten_as_strided(
-    self: TensorType, size: INT64, stride: INT64, storage_offset: Optional[INT64] = None
-) -> TensorType:
+    self: TTensor, size: INT64, stride: INT64, storage_offset: int = 0
+) -> TTensor:
     """as_strided(Tensor(a) self, SymInt[] size, SymInt[] stride, SymInt? storage_offset=None) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    rank = len(stride)
+    return _aten_as_strided_onnx(self, size, stride, storage_offset, rank)
+
+
+@torch_op("aten::as_strided", private=True)
+def _aten_as_strided_onnx(
+    self: TTensor, size: INT64, stride: INT64, storage_offset: int = 0, rank: int = 0
+) -> TTensor:
+    # e.g. when size=[2,3,4], stride=[2,1,3], indices=[0]
+    # i = 0
+    # indices=[0], add_value=[0,3,6,9]
+    # expand(shape=[4]) to [0,0,0,0]
+    # then + add_value = [0,3,6,9]
+    # i = 1
+    # indices=[0,3,6,9], add_value=[0,1,2]
+    # expand(shape=[3,4] to [[0,3,6,9],[0,3,6,9],[0,3,6,9]]
+    # indices + add_value = [[0,3,6,9],[1,3,7,10],[2,5,8,11]]
+    # i = 2
+    # indices = [[0,3,6,9],[1,3,7,10],[2,5,8,11]], add_value=[0,2]
+    # expand(shape=[2,3,4]) to [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[0,3,6,9],[1,3,7,10],[2,5,8,11]]]
+    # indices + add_value = [[[0,3,6,9],[1,3,7,10],[2,5,8,11]]],[[2,5,8,11],[3,5,9,12],[4,7,10,13]]]
+    neg_1 = op.Constant(value_ints=[-1])
+    rank_tensor = op.Reshape(rank, neg_1)  # should be 3
+    # The final indices for op.Gather(data, indices), will be continually changed during the loop
+    indices = op.Constant(value_int=0)
+    one_seq = op.SequenceEmpty()
+    for i in range(rank):
+        # Get the index from back to front, should be 2,1,0 when to i=0,1,2
+        j = rank - i - 1
+        j_tensor = op.Reshape(j, neg_1)
+        # Get size according to index_j, should be 4,3,2 when i=0,1,2
+        size_dim_j = op.Gather(size, j_tensor, axis=0)
+        # Get right size according to index_j, should be [4],[3,4],[2,3,4] when i=0,1,2
+        size_after_j = op.Slice(size, j_tensor, rank_tensor)
+        # Get stride according to index_j, should be 3,1,2 when i=0,1,2
+        stride_dim_j = op.Gather(stride, j_tensor, axis=0)
+        indices = op.Expand(indices, size_after_j)
+        # When size[j]=4, stride[j]=3, then add_value = [0,1,2,3] * 3 = [0,3,6,9]
+        # When size[j]=3, stride[j]=1, then add_value = [0,1,2] * 1 = [0,1,2]
+        # When size[j]=2, stride[j]=2, then add_value = [0,1] * 2 = [0,2]
+        add_value = op.Range(0, size_dim_j, 1) * stride_dim_j
+        # Compute the shape for add_value for correct broadcasting
+        if i == 0:
+            # shape = [dim_size]
+            shape = size_dim_j
+        else:
+            # shape = [dim_size, 1, 1, ...], the count of 1 euqal to i
+            ones = op.ConcatFromSequence(one_seq, axis=0)
+            shape = op.Concat(op.Cast(size_dim_j, to=FLOAT.dtype), ones, axis=0)
+            shape = op.Cast(shape, to=INT64.dtype)
+
+        add_value = op.Reshape(add_value, shape)
+        # Broadcasting add value to indices according to size and stride value
+        indices = indices + add_value
+        # Dims after dim_size to reshape(add_value), should be [1],[1,1],[1,1,1] when i=0,1,2
+        one_seq = op.SequenceInsert(one_seq, op.Constant(value_floats=[1.0]))
+
+    self_flatten = op.Reshape(self, op.Constant(value_ints=[-1]))
+    indices = op.Add(indices, storage_offset)
+    result = op.Gather(self_flatten, indices)
+
+    return result
 
 
 def aten_as_strided_copy(
@@ -2321,7 +2380,7 @@ def aten_flip(self: TTensor, dims: INT64) -> TTensor:
     neg_1 = op.Constant(value_int=-1)
     starts = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
     steps = op.Expand(neg_1, shape_dim)  # something like [-1, -1, -1]
-    ends = starts * 65535  # something like [-65535, -65535, -65535]
+    ends = op.Expand(_INT64_MIN, shape_dim)  # something like [-xxx, -xxx, -xxx]
     result = op.Slice(self, starts, ends, dims, steps)
     return result
 
@@ -2504,28 +2563,56 @@ def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
     return op.GreaterOrEqual(self, other)
 
 
+@torch_op("aten::grid_sampler", trace_only=True)
 def aten_grid_sampler(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
+@torch_op("aten::grid_sampler_2d", trace_only=True)
 def aten_grid_sampler_2d(
-    input: TensorType,
-    grid: TensorType,
+    input: TTensor,
+    grid: TTensor,
     interpolation_mode: int,
     padding_mode: int,
     align_corners: bool,
-) -> TensorType:
+) -> TTensor:
     """grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor"""
 
-    raise NotImplementedError()
+    inter_mode_options = ("bilinear", "nearest", "bicubic")
+    inter_mode_str = inter_mode_options[interpolation_mode]
+
+    padding_mode_options = ("zeros", "border", "reflection")
+    padding_mode_str = padding_mode_options[padding_mode]
+
+    # Only one onnx Op so don't put into private function
+    return op.GridSample(
+        input,
+        grid,
+        align_corners=align_corners,
+        mode=inter_mode_str,
+        padding_mode=padding_mode_str,
+    )
 
 
 def aten_grid_sampler_2d_backward(
@@ -3544,58 +3631,6 @@ def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
     result = op.ReduceMax(self, dims, keepdims=keepdim)
     indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
     return result, indices
-
-
-def aten_max_pool1d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0,),
-    dilation: Sequence[int] = (1,),
-    ceil_mode: bool = False,
-) -> TensorType:
-    """max_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_max_pool1d_with_indices(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0,),
-    dilation: Sequence[int] = (1,),
-    ceil_mode: bool = False,
-) -> tuple[TensorType, TensorType]:
-    """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
-
-    raise NotImplementedError()
-
-
-def aten_max_pool2d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
-    ceil_mode: bool = False,
-) -> TensorType:
-    """max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_max_pool3d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0, 0, 0),
-    dilation: Sequence[int] = (1, 1, 1),
-    ceil_mode: bool = False,
-) -> TensorType:
-    """max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor"""
-
-    raise NotImplementedError()
 
 
 @torch_op("aten::maximum")
@@ -5157,6 +5192,48 @@ def aten_scatter_add(
     return op.ScatterElements(self, index, src, axis=dim, reduction="add")
 
 
+@torch_op("aten::scatter_reduce", trace_only=True)
+def aten_scatter_reduce(
+    self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
+    index: TInt,
+    src: TReal,
+    reduce: str,
+    include_self: bool = True,  # pylint: disable=unused-argument
+):
+    """scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"""
+
+    reduce_mode = {  # convert torch string name to onnx string name
+        "mean": "none",  # 'mean' doesn't support in ONNX 1.14 definition
+        "sum": "add",
+        "prod": "mul",
+        "amin": "min",
+        "amax": "max",
+    }
+    onnx_reduce = reduce_mode[reduce]
+    return _aten_scatter_reduce_onnx(self, index, src, dim, onnx_reduce)
+
+
+@torch_op("aten::scatter_reduce", overload=True)
+def _aten_scatter_reduce_onnx(
+    self: TReal,
+    index: TInt,
+    src: TReal,
+    dim: int,
+    onnx_reduce: str,
+):
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:  # assert (index_rank == 0 and rank_src == 0)
+        neg_1 = op.Constant(value_ints=[-1])
+        self = op.Reshape(self, neg_1)
+        index = op.Reshape(index, neg_1)
+        src = op.Reshape(src, neg_1)
+    result = op.ScatterElements(self, index, src, axis=dim, reduction=onnx_reduce)
+    if self_rank == 0:
+        result = op.Squeeze(result)
+    return result
+
+
 def aten_searchsorted(
     sorted_sequence: TensorType,
     self: TensorType,
@@ -5319,17 +5396,58 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
+@torch_op("aten::slice_scatter", trace_only=True)
 def aten_slice_scatter(
-    self: TensorType,
-    src: TensorType,
+    self: TTensor,
+    src: TTensor,
     dim: int = 0,
     start: Optional[INT64] = None,
     end: Optional[INT64] = None,
     step: INT64 = 1,
-) -> TensorType:
+) -> TTensor:
     """slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor"""
 
-    raise NotImplementedError()
+    # Although 'start' and 'end' can be None in signature, but actually 'start' must be specified
+    # Assert(start is not None)
+    # And, 'end' also must be specified, and end-start must be equal to the size of 'src'
+    # Assert(end-start == shape(src) > 0)
+    # Try torch sample to get more information:
+    # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
+    # e.g. if dim=2, shape=5, permute will be [0,1]+[4]+[2,3]=[0,1,4,2,3]
+    last = len(src.shape)
+    perm = list(range(0, last))
+    perm.insert(dim, perm.pop(-1))
+    return _aten_slice_scatter_onnx(self, src, start, end, step, dim, perm)
+
+
+@torch_op("aten::slice_scatter", private=True)
+def _aten_slice_scatter_onnx(
+    self: TTensor,
+    src: TTensor,
+    start: INT64,
+    end: INT64,
+    step: INT64,
+    dim: int,
+    perm: Sequence[int],
+) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    # Get shapes expcept specifide dim
+    # e.g. if dim=2, shape=(2,3,5,7), shape_expand will be (2,3,7,1)
+    src_shape = op.Shape(src)
+    last_dim = op.Reshape(op.Size(src_shape), neg_1)
+    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
+    shape_before_dim = op.Slice(src_shape, op.Constant(value_ints=[0]), dim_tensor)
+    shape_after_dim = op.Slice(src_shape, op.Add(dim_tensor, 1), last_dim)
+    shape_expand = op.Concat(
+        shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0
+    )
+    # Generate index but not finalized, need to do transpose later
+    # e.g. [[0,1,2],[0,1,2],[0,1,2]...,[0,1,2]], total count = 2x3x7
+    index_base = op.Range(start, end, step)  # e.g. [0,1,2]
+    index_expand = op.Expand(index_base, shape_expand)
+    indices = op.Transpose(index_expand, perm=perm)
+
+    return op.ScatterElements(self, indices, src, axis=dim)
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -5443,8 +5561,6 @@ def aten_sspaddmm(
 @torch_op("aten::stack")
 def aten_stack(tensors: Sequence[TTensorOrString], dim: int = 0) -> TTensorOrString:
     """stack(Tensor[] tensors, int dim=0) -> Tensor"""
-    # TODO(titaiwang): Would ListConstruct (tensors is Tensor) be a case? https://github.com/microsoft/onnx-script/issues/481
-    # If so, right now we do not support it.
     return op.ConcatFromSequence(tensors, axis=dim, new_axis=1)
 
 
@@ -5569,8 +5685,16 @@ def aten_swapdims(self: TensorType, dim0: int, dim1: int) -> TensorType:
 @torch_op("aten::sym_size")
 def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     """sym_size(Tensor self, int dim) -> Tensor"""
-    # NOTE: onnx-script doesn't support attribute process,
+    # NOTE: onnxscript doesn't support attribute process,
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
+
+    # TODO(titaiwang): ORT==1.15 fixes SegFault
+    # https://github.com/microsoft/onnx-script/pull/484#discussion_r1136105039
+    # Change the op to:
+    # shape = op.Shape(self)
+    # idx= op.Reshape(dim, [1])
+    # return op.Gather(shape, idx)
+
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
@@ -5846,6 +5970,30 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     """type_as(Tensor self, Tensor other) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::unflatten")
+def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
+    """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
+
+    self_size = op.Shape(self)
+
+    # PyTorch accepts negative dim as reversed counting
+    self_rank = op.Size(self_size)
+    dim = self_rank + dim
+    dim = dim % self_rank
+
+    head_start_idx = op.Constant(value_ints=[0])
+    head_end_idx = op.Reshape(dim, op.Constant(value_ints=[1]))
+    head_part_rank = op.Slice(self_size, head_start_idx, head_end_idx)
+
+    tail_start_idx = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
+    tail_end_idx = op.Constant(value_ints=[_INT64_MAX])
+    tail_part_rank = op.Slice(self_size, tail_start_idx, tail_end_idx)
+
+    final_shape = op.Concat(head_part_rank, sizes, tail_part_rank, axis=0)
+
+    return op.Reshape(self, final_shape)
 
 
 def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> TensorType:

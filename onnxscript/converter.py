@@ -26,7 +26,7 @@ if use_subscript:
 else:
     _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]  # noqa: N816
 
-logger = logging.getLogger("onnx-script")
+logger = logging.getLogger("onnxscript")
 
 
 # Python-to-IR converter:
@@ -146,7 +146,7 @@ class Converter:
         ir_builder: convert AST node into ONNX structures, if None,
             class :class:`onnxscript.irbuilder.IRBuilder` is used
 
-    The class uses logger `onnx-script`. Logging can be enabled with the following code:
+    The class uses logger `onnxscript`. Logging can be enabled with the following code:
 
     ::
 
@@ -158,7 +158,7 @@ class Converter:
     ::
 
         import logging
-        logger = logging.getLogger('onnx-script')
+        logger = logging.getLogger('onnxscript')
         logger.setLevel(logging.DEBUG)
         console = logging.StreamHandler()
         logger.addHandler(console)
@@ -408,7 +408,7 @@ class Converter:
         expr = ast.Expression(expr)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
-            return eval(cpl, self.globals, locals)
+            return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
         except NameError as e:
             raise NameError(
                 self.message(
@@ -1326,6 +1326,7 @@ class Converter:
                 self.ir_builder.add_attr_parameter(
                     self.current_fn,
                     x.arg,
+                    ta.pytype_to_attrtype(typeinfo),
                     default_value,
                 )
                 self.bind(x.arg, values.AttrRef(x.arg, typeinfo, self.source_of(x)))

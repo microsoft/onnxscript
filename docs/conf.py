@@ -11,8 +11,8 @@ import onnxscript
 
 # -- Project information -----------------------------------------------------
 
-project = "onnx-script"
-copyright = "2023, onnx"
+project = "onnxscript"
+copyright = "2023, Microsoft"
 author = "onnx"
 version = onnxscript.__version__
 release = version

@@ -59,7 +59,7 @@ def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
 
 def pytype_to_attrtype(
     pytype: TypeAnnotationValue,
-) -> typing.Optional[onnx.AttributeProto.AttributeType]:
+) -> onnx.AttributeProto.AttributeType:
     pytype = _remove_annotation(pytype)
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
@@ -74,7 +74,7 @@ def pytype_to_attrtype(
         elt_type = get_args(pytype)[0]
         if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
             return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
-    return None
+    return onnx.AttributeProto.UNDEFINED
 
 
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:

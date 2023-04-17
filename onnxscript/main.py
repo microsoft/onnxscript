@@ -176,7 +176,7 @@ def graph() -> Callable[[types.FunctionType], values.OnnxClosure]:
 
 
 def is_converted_fun(f: Any) -> bool:
-    """Return True if f is a function converted by onnx-script decorator."""
+    """Return True if f is a function converted by onnxscript decorator."""
     return isinstance(f, onnxscript.OnnxFunction)
 
 
