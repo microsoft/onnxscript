@@ -528,7 +528,7 @@ class TestConverter(testutils.TestBase):
         model = onnxfn.to_model_proto()
         session = ort.InferenceSession(model.SerializeToString())
         input_names = [x.name for x in model.graph.input]
-        input_dict = {x: value for (x, value) in zip(input_names, inputs)}
+        input_dict = dict(zip(input_names, inputs))
         output = session.run(None, input_dict)[0]
         np.testing.assert_equal(output, expected_output)
 
