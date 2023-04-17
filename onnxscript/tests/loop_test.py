@@ -8,7 +8,7 @@ from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import testutils
 
 
-class LoopOpTester(testutils.TestBase):
+class LoopOpTest(testutils.TestBase):
     def test_loop(self):
         """Basic loop test."""
 

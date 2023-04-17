@@ -1,5 +1,9 @@
 """Test op correctness by comparing with PyTorch results.
 
+## Usage
+
+1. Set the env var CATCH_ORT_SEGFAULT to catch segfaults from ONNX Runtime.
+
 ## How to add a new operator test
 
 This test use PyTorch's OpInfo mechanism to generate test cases for each operator.
@@ -26,11 +30,21 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import multiprocessing
 import os
 import pprint
 import unittest
 import warnings
-from typing import Any, Callable, Collection, Iterable, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterable,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 import numpy as np
 import onnx
@@ -44,11 +58,11 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_aten import graph_building
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
-from onnxscript.tests.common import version_utils
 from onnxscript.tests.function_libs.torch_aten import extra_opinfo
 
 T = TypeVar("T")
@@ -209,7 +223,9 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
                 if new_name in all_info_names:
                     # NOTE: Avoid duplicating an opinfo that already exists in the database.
                     # New opinfos are expected to be added in torch-nightly.
-                    warnings.warn(f"OpInfo {new_name} already exists in the database.")
+                    warnings.warn(
+                        f"OpInfo {new_name} already exists in the database.", stacklevel=1
+                    )
                     continue
                 new_opinfo = copy.deepcopy(opinfo)
                 new_opinfo.name = new_name
@@ -235,6 +251,33 @@ def _amin_amax_input_wrangler(
     else:
         # Convert dim to a numpy array
         kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64).reshape((-1,))
+    return args, kwargs
+
+
+def _avg_pool2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "dim" not in kwargs:
+        if len(args) > 6:
+            kwargs["divisor_override"] = args.pop(6)
+        if len(args) > 5:
+            kwargs["count_include_pad"] = args.pop(5)
+        if len(args) > 4:
+            kwargs["ceil_mode"] = args.pop(4)
+        if len(args) > 3:
+            padding = args.pop(3)
+            if isinstance(padding, np.ndarray):
+                # Cannot using list(padding) here, because the element will be numpy.int64 instead of int
+                padding = padding.tolist()
+            kwargs["padding"] = padding
+        stride = args.pop(2)
+        if isinstance(stride, np.ndarray):
+            stride = stride.tolist()
+        kwargs["stride"] = stride
+        kernel_size = args.pop(1)
+        if isinstance(kernel_size, np.ndarray):
+            kernel_size = kernel_size.tolist()
+        kwargs["kernel_size"] = kernel_size
     return args, kwargs
 
 
@@ -303,6 +346,28 @@ def _gather_input_wrangler(
     return args, kwargs
 
 
+def _grid_sample_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Convert string attriute to int as input
+    inter_mode_options = {"bilinear": 0, "nearest": 1, "bicubic": 2}
+    padding_mode_options = {"zeros": 0, "border": 1, "reflection": 2}
+    args.append(inter_mode_options[kwargs["mode"]])
+    args.append(padding_mode_options[kwargs["padding_mode"]])
+    args.append(kwargs["align_corners"])
+    kwargs.clear()
+    return args, kwargs
+
+
+def _max_pool_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Remove return_indices argument because this op doesn't accept it
+    if "return_indices" in kwargs:
+        del kwargs["return_indices"]
+    return args, kwargs
+
+
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -344,18 +409,6 @@ def _randn_input_wrangler(
     return args, kwargs
 
 
-def _upsample_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]
-    if "size" in kwargs:
-        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
-    return args, kwargs
-
-
 def _permute_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -394,11 +447,51 @@ def _scatter_add_input_wrangler(
     return args, kwargs
 
 
+def _scatter_reduce_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    kwargs["reduce"] = args.pop(4)
+    return args, kwargs
+
+
 def _sum_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     if kwargs.get("dim") is not None:
         kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
+    return args, kwargs
+
+
+def _upsample_bilinear2d_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "size" in kwargs:
+        args.append(np.array(kwargs["size"], dtype=np.int64))
+        del kwargs["size"]  # promote tensor type kwargs to args
+    if "scale_factor" in kwargs:
+        kwargs["scales_h"] = kwargs["scale_factor"]
+        kwargs["scales_w"] = kwargs["scale_factor"]
+        del kwargs["scale_factor"]  # adapt the function signature
+    return args, kwargs
+
+
+def _upsample_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "scale_factor" in kwargs:
+        kwargs["scales_h"] = kwargs["scale_factor"]
+        kwargs["scales_w"] = kwargs["scale_factor"]
+        del kwargs["scale_factor"]
+    if "size" in kwargs:
+        kwargs["size"] = np.array(kwargs["size"], dtype=np.int64)
+    return args, kwargs
+
+
+def _unflatten_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    args[1] = np.array(args[1], dtype=np.int64)
     return args, kwargs
 
 
@@ -529,6 +622,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
     "nn.functional.elu": nn_ops.aten_elu,
     "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
+    "nn.functional.hardtanh": nn_ops.aten_hardtanh,
     "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
     "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
     "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
@@ -588,6 +682,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "tril": core_ops.aten_tril,
     "triu": core_ops.aten_triu,
     "trunc": core_ops.aten_trunc,
+    "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
     "where": (core_ops.aten_where, _where_input_wrangler),
@@ -606,29 +701,50 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "arange": core_ops.aten_arange,
     "argmax": core_ops.aten_argmax,
     "argmin": core_ops.aten_argmin,
+    "as_strided": core_ops.aten_as_strided,
     "clamp": core_ops.aten_clamp,
+    "col2im": nn_ops.aten_col2im,
     "cumsum": core_ops.aten_cumsum,
     "contiguous": core_ops.aten_contiguous,
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
+    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
+    "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
+    "nn.functional.avg_pool2d": (nn_ops.aten_avg_pool2d, _avg_pool2d_input_wrangler),
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    "nn.functional.max_pool2d": (nn_ops.aten_max_pool2d, _max_pool_input_wrangler),
+    "nn.functional.max_pool2d_with_indices": (
+        nn_ops.aten_max_pool2d_with_indices,
+        _max_pool_input_wrangler,
+    ),
+    "nn.functional.max_pool3d": (nn_ops.aten_max_pool3d, _max_pool_input_wrangler),
+    "nn.functional.max_pool3d_with_indices": (
+        nn_ops.aten_max_pool3d_with_indices,
+        _max_pool_input_wrangler,
+    ),
     "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
     "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
+    "nn.functional.upsample_bilinear2d": (
+        nn_ops.aten_upsample_bilinear2d,
+        _upsample_bilinear2d_input_wrangler,
+    ),
     "nn.functional.upsample_nearest2d": (
         nn_ops.aten_upsample_nearest2d,
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
+    "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
+    "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
@@ -666,6 +782,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "as_strided",
+        variant_name="partial_views",
+        reason="ONNX doesn't have partial view for tensor",
+    ),
+    xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
     xfail(
@@ -696,36 +817,43 @@ EXPECTED_SKIPS_OR_FAILS = (
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "nn.functional.mse_loss",
@@ -735,13 +863,16 @@ EXPECTED_SKIPS_OR_FAILS = (
     ),
     skip(
         "nn.functional.scaled_dot_product_attention",
-        reason="fixme: ORT crashes on Windows",
-        enabled_if=IS_WINDOWS,
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
     skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
-        reason="fixme: ORT crashes on Windows",
-        enabled_if=IS_WINDOWS,
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
+    ),
+    xfail(
+        "nn.functional.upsample_bilinear2d",
+        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
@@ -765,8 +896,18 @@ EXPECTED_SKIPS_OR_FAILS = (
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
     ),
     xfail(
+        "scatter_reduce",
+        variant_name="mean",
+        reason="ONNX doesn't support reduce='mean' option",
+    ),
+    xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "unflatten",
+        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
 )
@@ -824,6 +965,19 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
+        "nn.functional.grid_sample",
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
+        or len(sample.args[0].shape) != 4,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+    ),
+    skip(
+        "grid_sampler_2d",
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.args[1] == 2,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
+    ),
+    skip(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
@@ -832,6 +986,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
+    ),
+    skip(
+        "matmul",
+        matcher=lambda sample: torch.numel(sample.input) == 0,
+        reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     skip(
         "min",  # aten_mean
@@ -902,6 +1061,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="only global pooling is supported; only batched inputs are supported",
     ),
     skip(
+        "nn.functional.avg_pool2d",
+        matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
+        reason="ONNX doesn't support divisor_override argument",
+    ),
+    skip(
         "nn.functional.conv1d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv1d",
@@ -920,6 +1084,38 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "nn.functional.dropout",
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
+    ),
+    skip(
+        "nn.functional.max_pool2d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    skip(
+        "nn.functional.max_pool2d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    skip(
+        "nn.functional.max_pool3d",
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+        and sample.kwargs.get("padding") == 1,
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+    ),
+    skip(
+        "nn.functional.max_pool3d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    skip(
+        "nn.functional.max_pool3d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+        and sample.kwargs.get("padding") == 1,
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+    ),
+    skip(
+        "nn.functional.max_pool3d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
     ),
     skip(
         "nn.functional.nll_loss",
@@ -999,6 +1195,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     ),
     skip(
+        "scatter_reduce",
+        # ONNX has not include_self parameter and default is include_self=True mode
+        matcher=lambda sample: sample.kwargs.get("include_self") is False,
+        reason="ONNX does't support include_self=False option",
+    ),
+    skip(
         "squeeze",
         matcher=lambda sample: not (len(sample.args) == 0),
         reason="this Aten overload only support one tensor as input by design",
@@ -1007,6 +1209,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         "squeeze_dim",
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
+    ),
+    skip(
+        "unflatten",
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
 )
 
@@ -1054,6 +1261,12 @@ duplicate_opinfo(
         "min_other",
         "min_dim",
     ),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.upsample_bilinear",
+    ("nn.functional.upsample_bilinear2d",),
 )
 
 duplicate_opinfo(
@@ -1144,6 +1357,72 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
             if decorator_meta.matcher(sample):
                 return decorator_meta.reason
     return None
+
+
+class OrtAbortedError(RuntimeError):
+    """ONNX Runtime Aborted."""
+
+
+def _ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime."""
+
+    # Disable all ORT optimizations
+    session_options = onnxruntime.SessionOptions()
+    session_options.graph_optimization_level = (
+        onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+    )
+    session = ort.InferenceSession(serialized_model, session_options)
+    return session.run(None, ort_inputs)
+
+
+def _ort_session_run_return_dict(
+    serialized_model: bytes, ort_inputs: Mapping[str, Any], return_dict
+) -> None:
+    """Run a model with ONNX Runtime and store the results in return_dict."""
+
+    try:
+        return_dict["results"] = _ort_session_run(serialized_model, ort_inputs)
+        return_dict["error"] = None
+    except Exception as e:  # pylint: disable=broad-except
+        return_dict["results"] = None
+        return_dict["error"] = e
+
+
+def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
+    """Run a model with ONNX Runtime in a separate process.
+
+    Args:
+        serialized_model: Serialized ONNX model proto.
+        ort_inputs: Inputs to the model.
+
+    Returns:
+        The inference result.
+
+    Raises:
+        OrtAbortedError if the process did not execute successfully.
+    """
+    manager = multiprocessing.Manager()
+    return_dict = manager.dict()
+    process = multiprocessing.Process(
+        target=_ort_session_run_return_dict, args=(serialized_model, ort_inputs, return_dict)
+    )
+    process.start()
+    process.join()
+    process.close()
+    if not return_dict:
+        raise OrtAbortedError()
+    if return_dict["error"] is not None:
+        raise return_dict["error"]
+    return return_dict["results"]
+
+
+def _format_model_and_input_information(onnx_model, inputs):
+    return (
+        f"Inputs:\n"
+        f"{pprint.pformat(inputs)}\n"
+        f"Model:\n"
+        f"{onnxscript.proto2text(onnx_model)}"
+    )
 
 
 class TestFunctionValidity(unittest.TestCase):
@@ -1278,27 +1557,30 @@ def _graph_executor(
                 f"Model:\n"
                 f"{onnxscript.proto2text(onnx_model)}"
             ) from e
-        # Disable all ORT optimizations
-        session_options = onnxruntime.SessionOptions()
-        session_options.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-        )
+
         try:
-            session = ort.InferenceSession(onnx_model.SerializeToString(), session_options)
-            return session.run(None, ort_inputs)
+            if os.environ.get("CATCH_ORT_SEGFAULT") == "1":
+                # Use an individual process to run ONNX Runtime to catch segfaults
+                return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
+
+            return _ort_session_run(onnx_model.SerializeToString(), ort_inputs)
         except (
-            onnxruntime.capi.onnxruntime_pybind11_state.Fail,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,  # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,  # pylint: disable=c-extension-no-member
+            # pylint: disable=c-extension-no-member
+            onnxruntime.capi.onnxruntime_pybind11_state.Fail,
+            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,
+            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,
+            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
+            # pylint: enable=c-extension-no-member
         ) as e:
             raise AssertionError(
-                f"ONNX Runtime failed to evaluate:\n"
-                f"Inputs:\n"
-                f"{pprint.pformat(ort_inputs)}\n"
-                f"Model:\n"
-                f"{onnxscript.proto2text(onnx_model)}"
+                "ONNX Runtime failed to evaluate:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
+            ) from e
+        except OrtAbortedError as e:
+            raise AssertionError(
+                "ONNX Runtime aborted:\n"
+                + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
 
     return _capture_graph_and_evaluate_torch_script_evaluator
@@ -1370,7 +1652,7 @@ def run_test_output_match(
             skip_reason = _should_skip_test_sample(op.name, cpu_sample)
             if skip_reason is not None:
                 # Cannot use self.skip because pytest would skip the entire test
-                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}")
+                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}", stacklevel=1)
                 continue
             input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
             kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
