@@ -4210,15 +4210,15 @@ def aten_native_dropout_backward(
 
 @torch_op("aten::native_group_norm", trace_only=True)
 def aten_native_group_norm(
-    input: TReal,
-    weight: Optional[TReal],
-    bias: Optional[TReal],
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
     N: INT64 = None,  # pylint: disable=unused-argument
     C: INT64 = None,  # pylint: disable=unused-argument
     HxW: INT64 = None,  # pylint: disable=unused-argument
     group: int = None,
     eps: float = None,
-) -> TReal:
+) -> TFloat:
     # FIXME: for the return, we can only return one TReal instead of [x,y,z]
     # Because we don't how to computer the running_var and running_mean
     # No native_group_norm test case, and the group_norm function in torch only return one output
@@ -4237,16 +4237,16 @@ def aten_native_group_norm(
 
 @torch_op("aten::native_group_norm", private=True)
 def _aten_native_group_norm_onnx(
-    input: TReal,
-    weight: Optional[TReal],
-    bias: Optional[TReal],
-    w1: TReal,
-    b1: TReal,
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
+    weight_inst: TFloat,
+    bias_inst: TFloat,
     shape: INT64,
     eps: float = None,
 ) -> TReal:
     input_reshaped = op.Reshape(input, shape)
-    norm_reshaped = op.InstanceNormalization(input_reshaped, w1, b1, epsilon=eps)
+    norm_reshaped = op.InstanceNormalization(input_reshaped, weight_inst, bias_inst, epsilon=eps)
     norm = op.Reshape(norm_reshaped, op.Shape(input))
     input_rank = op.Size(op.Shape(input))
     axes = op.Range(1, input_rank - 1, 1)
