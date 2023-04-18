@@ -3,13 +3,19 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+from typing import TypeVar, Union
 import unittest
 
+import parameterized
+
 import onnxscript.testing
+import onnxscript
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT
 from onnxscript.tests.common import testutils
+
+from onnxscript import type_annotation
 
 
 class TypeAnnotationTest(testutils.TestBase):
@@ -87,9 +93,27 @@ class TypeAnnotationTest(testutils.TestBase):
             bool_type_for_attribute, bool_type_for_attribute_txt
         )
 
+_TestTypeVarConstraints = TypeVar("_TestTypeVarConstraints", onnxscript.INT64, onnxscript.FLOAT)
+_TestTypeVarOneBound = TypeVar("_TestTypeVarOneBound", bound=onnxscript.INT64)
+_TestTypeVarTwoBound = TypeVar("_TestTypeVarTwoBound", bound=Union[onnxscript.INT64, onnxscript.FLOAT])
+
 
 class UtilityFunctionsTest(unittest.TestCase):
-    def test_pytype_to_input_strings(self):
+    @parameterized.parameterized.expand(
+        [
+            ("tensor_type", onnxscript.onnx_types.TensorType, type_annotation.ALL_TYPE_STRINGS),
+            ("tensor_type", onnxscript.INT64, ["tensor(int64)"]),
+            ("tensor_type_variadic_shape", onnxscript.INT64[...], ["tensor(int64)"]),
+            ("tensor_type_shape", onnxscript.INT64[10], ["tensor(int64)"]),
+            ("type_var_constraints", _TestTypeVarConstraints, ["tensor(int64)"]),
+            ("type_bound_one", _TestTypeVarOneBound, ["tensor(int64)"]),
+            ("type_bound_two", _TestTypeVarTwoBound, ["tensor(int64)", "tensor(float)"]),
+        ]
+    )
+    def test_pytype_to_input_strings(self, _, pytype: Any, expected)
+        pass
+
+    def get_type_constraint_name(self, _: str, typevar, expected):
         pass
 
 if __name__ == "__main__":
