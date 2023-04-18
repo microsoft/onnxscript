@@ -178,7 +178,7 @@ class OpsetsBuilder:
         self.all_modules.sort(key=lambda m: (m.domain, m.version, m.name))
 
     def _make_init_module(self):
-        all_list = cg.ListExpr(cg.Constant("default_opset"), cg.Constant("all_opsets"))
+        all_list = cg.ListExpr(cg.Constant("all_opsets"))
         init_module = cg.Module(
             cg.ImportFrom(MODULE_ONNX_DEFS, cg.Alias("onnx_opset_version")),
             cg.Assign(cg.Name("__all__"), all_list),
@@ -230,17 +230,6 @@ class OpsetsBuilder:
             cg.TypeRef(MODULE_ONNX_SCRIPT_VALUES, "Opset"),
         )
         init_module.append_body(cg.Assign(cg.Name("all_opsets"), all_opsets, all_opsets_type))
-
-        default_opset = cg.Assign(
-            cg.Name("default_opset"),
-            cg.Subscript(
-                cg.Name("all_opsets"),
-                cg.TupleExpr(cg.Constant(""), cg.Call(cg.Name("onnx_opset_version"))),
-            ),
-            cg.TypeRef(None, f"Opset{self.min_default_opset_version}"),
-        )
-        default_opset.trailing_trivia = "  # type: ignore"
-        init_module.append_body(default_opset)
 
         self.all_modules.append(init_module)
 
@@ -342,13 +331,13 @@ class OpsetsBuilder:
         for input in schema.inputs:
             optional = input.option == OpSchema.FormalParameterOption.Optional
             variadic = input.option == OpSchema.FormalParameterOption.Variadic
-            heterogeneous = not input.isHomogeneous
+            heterogeneous = not input.is_homogeneous
             differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.Differentiable
             )
             non_differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.NonDifferentiable
             )
 
