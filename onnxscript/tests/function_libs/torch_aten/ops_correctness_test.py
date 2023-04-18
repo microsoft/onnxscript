@@ -805,6 +805,11 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "native_batch_norm",
         reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    xfail(
+        "native_batch_norm",
+        reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
