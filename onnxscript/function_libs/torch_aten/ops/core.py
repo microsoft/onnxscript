@@ -6084,10 +6084,95 @@ def aten_var(self: TensorType, unbiased: bool = True) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_var_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, TensorType]:
+@torch_op("aten::var_mean", trace_only=True)
+def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
+    # If not this case, should be explicitly set correction value according to unbiased value
+    return _aten_var_mean_onnx(self, correction=float(unbiased), keepdim=False)
+
+
+@torch_op("aten::var_mean", overload=True, trace_only=True)
+def aten_var_mean_dim(
+    self: TReal, dim: Optional[int], unbiased: bool = True, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    """var_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    # Although dim is Optional in signature, but we assume it must has value for this overload
+    # Assert(dim is not None)
+    if isinstance(dim, Tuple):
+        dim_tensor = op.Constant(value_ints=dim)
+    else:
+        dim_tensor = op.Constant(value_int=dim)
+    return _aten_var_mean_dim_onnx(
+        self, dim_tensor, correction=float(unbiased), keepdim=keepdim
+    )
+
+
+@torch_op("aten::var_mean", overload=True, trace_only=True)
+def aten_var_mean_correction(
+    self: TReal,
+    dim: Optional[int] = None,
+    correction: Optional[float] = None,
+    keepdim: bool = False,
+) -> Tuple[TReal, TReal]:
+    """var_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    if correction is None:
+        correction = 1.0
+
+    if dim is None:
+        var, mean = _aten_var_mean_onnx(self, correction, keepdim)
+    else:
+        if isinstance(dim, Tuple):
+            dim_tensor = op.Constant(value_ints=dim)
+        else:
+            dim_tensor = op.Constant(value_int=dim)
+        var, mean = _aten_var_mean_dim_onnx(self, dim_tensor, correction, keepdim)
+    return var, mean
+
+
+@torch_op("aten::var_mean", private=True)
+def _aten_var_mean_onnx(
+    self: TReal, correction: float = 1.0, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    # Compute mean and var
+    mean = op.ReduceMean(self, keepdims=keepdim)
+    sub_mean = op.Sub(self, mean)
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction > 0.0:
+        self_shape = op.Shape(self)
+        numel_float = op.Cast(op.ReduceProd(self_shape, keepdims=0), to=FLOAT.dtype)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_float, correction)
+        var = op.Div(mul, sub)
+
+    return var, mean
+
+
+@torch_op("aten::var_mean", private=True)
+def _aten_var_mean_dim_onnx(
+    self: TReal, dim: INT64, correction: float, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+    # Computer mean and var
+    mean = op.ReduceMean(self, dim, keepdims=keepdim)
+    sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=1))
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction > 0.0:
+        self_shape = op.Shape(self)
+        dim_size = op.Gather(self_shape, dim, axis=0)
+        numel_float = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_float, correction)
+        var = op.Div(mul, sub)
+
+    return var, mean
 
 
 def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
