@@ -4,7 +4,6 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 """
 
 import functools
-import itertools
 from typing import Any, List
 
 import torch
@@ -232,13 +231,12 @@ def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwa
     del op_info
     make_arg = functools.partial(torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
 
-    # Ordered as input shape, num groups, and kwargs for eps
+    # Ordered as input shape, C,N,HxW, and kwargs for group and eps
     cases = (
-        ((1, 6, 3), (6,), (6,), 1, 6, 3, {'group': 2, 'eps' : 0.5}),
-        # ((2, 6, 3), 2, {'group': 2, 'eps' : -0.5}),
-        # ((1, 3), 1, {'group': 2, 'eps' : 1e-5}),
-        # ((0, 2), 1, {'group': 2, 'eps' : 1e-5}),
-        # ((5, 5, 5), 1, {'group': 2, 'eps' : 0.5}),
+        ((1, 6, 3), (6,), (6,), 1, 6, 3, {"group": 2, "eps": 0.5}),
+        ((2, 6, 3), (6,), (6,), 2, 6, 3, {"group": 3, "eps": -0.5}),
+        ((5, 5, 5), (5,), (5,), 5, 5, 5, {"group": 1, "eps": 1e-5}),
+        ((5, 8, 10), (8,), (8,), 5, 8, 10, {"group": 4, "eps": 1e-5}),
     )
 
     for input_shape, weight, bias, N, C, HxW, kwargs in cases:
@@ -256,7 +254,7 @@ def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwa
                 C,
                 HxW,
             ),
-            kwargs=kwargs
+            kwargs=kwargs,
         )
 
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
