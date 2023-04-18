@@ -4218,21 +4218,21 @@ def aten_native_group_norm(
     HxW: INT64 = None,  # pylint: disable=unused-argument
     group: int = None,
     eps: float = None,
-) -> TFloat:
-    # FIXME: for the return, we can only return one TReal instead of [x,y,z]
-    # Because we don't how to computer the running_var and running_mean
-    # No native_group_norm test case, and the group_norm function in torch only return one output
+) -> Tuple[TFloat, TFloat, TFloat]:
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
+    # Assert(weight is not None, and, bias is not None)
     # Create weight_instance_norm and bias_instance_norm
     weight_inst = op.Constant(value_floats=[1.0] * group)
     bias_inst = op.Constant(value_floats=[0.0] * group)
     # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need
     shape = op.Constant(value_ints=[0, group, -1])
 
-    return _aten_native_group_norm_onnx(
+    norm = _aten_native_group_norm_onnx(
         input, weight, bias, weight_inst, bias_inst, shape, eps
     )
+    # weight_inst, bias_inst are fake output, because we must return 3 outpurs
+    return norm, weight_inst, bias_inst
 
 
 @torch_op("aten::native_group_norm", private=True)
@@ -4245,6 +4245,8 @@ def _aten_native_group_norm_onnx(
     shape: INT64,
     eps: float = None,
 ) -> TReal:
+    # Using InstanceNorm to simulate GroupNorm, because GroupNorm need weight[group] and bias[group]
+    # But the input is weight[channel] and bias[channel]
     input_reshaped = op.Reshape(input, shape)
     norm_reshaped = op.InstanceNormalization(input_reshaped, weight_inst, bias_inst, epsilon=eps)
     norm = op.Reshape(norm_reshaped, op.Shape(input))
@@ -4253,6 +4255,18 @@ def _aten_native_group_norm_onnx(
     # Using the real weight and bias to computer again
     return op.Add(op.Mul(norm, op.Unsqueeze(weight, axes)), op.Unsqueeze(bias, axes))
 
+
+# def test_aten_native_group_norm():
+#     import numpy as np
+#     input = (np.arange(24).reshape(2,4,3)*1.0 + 1.0).astype(np.float32)
+#     weight = (np.ones((4,)) * 1.0).astype(np.float32)
+#     bias = (np.zeros((4,)) * 1.0).astype(np.float32)
+#     # import torch as t
+#     # r = t.ops.aten.native_batch_norm(input, weight, bias, run_m, run_b, True, 0.5, 0.1)
+#     r = aten_native_group_norm(input, weight, bias, None, None, None, 2, 0.0)
+#     print(r)
+# test_aten_native_group_norm()
+# exit(0)
 
 def aten_native_group_norm_backward(
     grad_out: TensorType,

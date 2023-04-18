@@ -379,17 +379,6 @@ def _mse_loss_input_wrangler(
     return args, kwargs
 
 
-def _native_group_norm_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["group"] = args.pop(1)  # move group(int) to kwargs as attribute
-    args.append(kwargs["weight"])  # move weight(tensor) to args as input
-    args.append(kwargs["bias"])  # move bias(tensor) to args as input
-    del kwargs["weight"]
-    del kwargs["bias"]
-    return args, kwargs
-
-
 def _nll_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -712,7 +701,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
-    "native_group_norm": (core_ops.aten_native_group_norm, _native_group_norm_input_wrangler),
+    "native_group_norm": core_ops.aten_native_group_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
@@ -1229,8 +1218,6 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
-
-duplicate_opinfo(OPS_DB, "nn.functional.group_norm", ("native_group_norm",))
 
 duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 
