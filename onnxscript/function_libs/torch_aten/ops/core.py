@@ -4243,6 +4243,7 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=training,
     )
+    # runnung_mean and running_var are placeholders, just want to return 3 outputs
     return norm, running_mean, running_var
 
 
