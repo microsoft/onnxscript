@@ -199,4 +199,6 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
 
 
 def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:
-    pass
+    if isinstance(pytype, TypeVar):
+        return pytype.__name__
+    return None
