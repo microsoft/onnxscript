@@ -49,6 +49,10 @@ from .onnx_types import (
     STRING,
     COMPLEX64,
     COMPLEX128,
+    FLOAT8E4M3FN,
+    FLOAT8E4M3FNUZ,
+    FLOAT8E5M2,
+    FLOAT8E5M2FNUZ,
 )
 
 # isort: on
@@ -86,6 +90,10 @@ __all__ = [
     "STRING",
     "COMPLEX64",
     "COMPLEX128",
+    "FLOAT8E4M3FN",
+    "FLOAT8E4M3FNUZ",
+    "FLOAT8E5M2",
+    "FLOAT8E5M2FNUZ",
     "opset1",
     "opset2",
     "opset3",
