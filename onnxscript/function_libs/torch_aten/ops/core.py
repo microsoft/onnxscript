@@ -4168,29 +4168,30 @@ def aten_native_batch_norm(
     norm, mean, var = op.BatchNormalization(
         input, weight, bias, running_mean, running_var, epsilon=eps, momentum=momentum, training_mode=training
     )
-
+    out_mean = (mean - momentum * running_mean)/(1 - momentum)
     # Torch using below logic to compute output_mean
-    mean = op.ReduceMean(input, op.Constant(value_ints=[0, 2]))
-    out_mean = op.Squeeze(mean)
-
+    # mean = op.ReduceMean(input, op.Constant(value_ints=[0, 2]))
+    # out_mean = op.Squeeze(mean)
+    out_var = (var - momentum * running_var) / (1 - momentum)
     #mean = op.ReduceMean(mean)
-    a = op.Sub(input, mean)
-    b = op.Mul(a, a)
-    c = op.ReduceSum(b, op.Constant(value_ints=[0, 2]))
-    var = op.Squeeze(c) / 5.0
+    # a = op.Sub(input, mean)
+    # b = op.Mul(a, a)
+    # c = op.ReduceSum(b, op.Constant(value_ints=[0, 2]))
+    # var = op.Squeeze(c) / 5.0
 
-    return norm, out_mean, var
+    return norm, out_mean, out_var
 
 
 def test_aten_native_batch_norm():
     import numpy as np
-    input = np.ones((5,5,5)) * 1.0
-    weight = np.ones((5,)) * 1.0
-    bias = np.zeros((5,)) * 1.0
-    run_m = np.ones((5,)) / 2.0
-    run_b = np.zeros((5,)) * 1.0
-    import torch as t
-    r = t.ops.aten.native_batch_norm(input, weight, bias, run_m, run_b, True, 0.5, 0.1)
+    input = np.arange(24).reshape(2,3,4)*1.0 + 1.0
+    weight = np.ones((3,)) * 1.0
+    bias = np.zeros((3,)) * 1.0
+    run_m = np.ones((3,)) / 4.0
+    run_v = np.zeros((3,)) * 1.0
+    # import torch as t
+    # r = t.ops.aten.native_batch_norm(input, weight, bias, run_m, run_b, True, 0.5, 0.1)
+    r = aten_native_batch_norm(input, weight, bias, run_m, run_v, True, 0.5, 0.0)
     print(r)
 test_aten_native_batch_norm()
 exit(0)
