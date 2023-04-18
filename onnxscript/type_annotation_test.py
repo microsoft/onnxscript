@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from typing import TypeVar, Union
+from typing import Optional, Sequence, TypeVar, Union
 import unittest
 
 import parameterized
@@ -12,7 +12,7 @@ import onnxscript.testing
 import onnxscript
 from onnxscript import script
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript.onnx_types import FLOAT
+from onnxscript import FLOAT, INT64
 from onnxscript.tests.common import testutils
 
 from onnxscript import type_annotation
@@ -93,28 +93,155 @@ class TypeAnnotationTest(testutils.TestBase):
             bool_type_for_attribute, bool_type_for_attribute_txt
         )
 
-_TestTypeVarConstraints = TypeVar("_TestTypeVarConstraints", onnxscript.INT64, onnxscript.FLOAT)
-_TestTypeVarOneBound = TypeVar("_TestTypeVarOneBound", bound=onnxscript.INT64)
-_TestTypeVarTwoBound = TypeVar("_TestTypeVarTwoBound", bound=Union[onnxscript.INT64, onnxscript.FLOAT])
+
+_TestTypeVarConstraints = TypeVar("_TestTypeVarConstraints", INT64, FLOAT)
+_TestTypeVarOneBound = TypeVar("_TestTypeVarOneBound", bound=INT64)
+_TestTypeVarTwoBound = TypeVar("_TestTypeVarTwoBound", bound=Union[INT64, FLOAT])
 
 
 class UtilityFunctionsTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
-            ("tensor_type", onnxscript.onnx_types.TensorType, type_annotation.ALL_TYPE_STRINGS),
-            ("tensor_type", onnxscript.INT64, ["tensor(int64)"]),
-            ("tensor_type_variadic_shape", onnxscript.INT64[...], ["tensor(int64)"]),
-            ("tensor_type_shape", onnxscript.INT64[10], ["tensor(int64)"]),
-            ("type_var_constraints", _TestTypeVarConstraints, ["tensor(int64)"]),
+            (
+                "tensor_type_all",
+                onnxscript.onnx_types.TensorType,
+                type_annotation.ALL_TYPE_STRINGS,
+            ),
+            ("tensor_type", INT64, ["tensor(int64)"]),
+            ("tensor_type_union", Union[INT64, FLOAT], ["tensor(int64)", "tensor(float)"]),
+            ("tensor_type_variadic_shape", INT64[...], ["tensor(int64)"]),
+            ("tensor_type_shape", INT64[10], ["tensor(int64)"]),
+            (
+                "type_var_constraints",
+                _TestTypeVarConstraints,
+                ["tensor(int64)", "tensor(float)"],
+            ),
             ("type_bound_one", _TestTypeVarOneBound, ["tensor(int64)"]),
             ("type_bound_two", _TestTypeVarTwoBound, ["tensor(int64)", "tensor(float)"]),
+            (
+                "optional_tensor_type_all",
+                Optional[onnxscript.onnx_types.TensorType],
+                type_annotation.ALL_TYPE_STRINGS
+                + [
+                    f"optional({tensor_type})"
+                    for tensor_type in type_annotation.ALL_TYPE_STRINGS
+                ],
+            ),
+            (
+                "optional_tensor_type",
+                Optional[INT64],
+                ["tensor(int64)", "optional(tensor(int64))"],
+            ),
+            (
+                "optional_tensor_type_union",
+                Optional[Union[INT64, FLOAT]],
+                [
+                    "tensor(int64)",
+                    "tensor(float)",
+                    "optional(tensor(int64))",
+                    "optional(tensor(float))",
+                ],
+            ),
+            (
+                "optional_tensor_type_variadic_shape",
+                Optional[INT64[...]],
+                ["tensor(int64)", "optional(tensor(int64))"],
+            ),
+            (
+                "optional_tensor_type_shape",
+                Optional[INT64[10]],
+                ["tensor(int64)", "optional(tensor(int64))"],
+            ),
+            (
+                "optional_type_var_constraints",
+                Optional[_TestTypeVarConstraints],
+                [
+                    "tensor(int64)",
+                    "tensor(float)",
+                    "optional(tensor(int64))",
+                    "optional(tensor(float))",
+                ],
+            ),
+            (
+                "optional_type_bound_one",
+                Optional[_TestTypeVarOneBound],
+                ["tensor(int64)", "optional(tensor(int64))"],
+            ),
+            (
+                "optional_type_bound_two",
+                Optional[_TestTypeVarTwoBound],
+                [
+                    "tensor(int64)",
+                    "tensor(float)",
+                    "optional(tensor(int64))",
+                    "optional(tensor(float))",
+                ],
+            ),
+            (
+                "sequence_type_all",
+                Sequence[onnxscript.onnx_types.TensorType],
+                [
+                    f"sequence({tensor_type})"
+                    for tensor_type in type_annotation.ALL_TYPE_STRINGS
+                ],
+            ),
+            ("sequence_type", Sequence[INT64], ["sequence(tensor(int64))"]),
+            (
+                "union_sequence_type",
+                Union[Sequence[INT64], Sequence[FLOAT]],
+                ["sequence(tensor(int64))", "sequence(tensor(float))"],
+            ),
+            (
+                "sequence_type_variadic_shape",
+                Sequence[INT64[...]],
+                ["sequence(tensor(int64))"],
+            ),
+            ("sequence_type_shape", Sequence[INT64[10]], ["sequence(tensor(int64))"]),
+            (
+                "sequence_type_var_constraints",
+                Sequence[_TestTypeVarConstraints],
+                ["sequence(tensor(int64))", "sequence(tensor(float))"],
+            ),
+            (
+                "sequence_type_bound_one",
+                Sequence[_TestTypeVarOneBound],
+                ["sequence(tensor(int64))"],
+            ),
+            (
+                "sequence_type_bound_two",
+                Sequence[_TestTypeVarTwoBound],
+                ["sequence(tensor(int64))", "sequence(tensor(float))"],
+            ),
         ]
     )
-    def test_pytype_to_input_strings(self, _, pytype: Any, expected)
-        pass
+    def test_pytype_to_input_strings(self, _, pytype: Any, expected):
+        self.assertEqual(type_annotation.pytype_to_input_strings(pytype), expected)
 
-    def get_type_constraint_name(self, _: str, typevar, expected):
-        pass
+    @parameterized.parameterized.expand(
+        [
+            ("type_var", _TestTypeVarConstraints, "_TestTypeVarConstraints"),
+            ("type_var_bound", _TestTypeVarOneBound, "_TestTypeVarOneBound"),
+            (
+                "optional_type_var",
+                Optional[_TestTypeVarOneBound],
+                "Optional_TestTypeVarOneBound",
+            ),
+            (
+                "sequence_type_var",
+                Sequence[_TestTypeVarOneBound],
+                "Sequence_TestTypeVarOneBound",
+            ),
+            ("normal_type", INT64, "None"),
+            ("union_type", Union[INT64, FLOAT], None),
+            ("optional_type", Optional[INT64], None),
+            ("sequence_type", Sequence[INT64], None),
+            ("optional_sequence_type", Optional[Sequence[INT64]], None),
+            ("optional_union_type", Optional[Union[INT64, FLOAT]], None),
+        ]
+    )
+    def get_type_constraint_name(self, _: str, pytype, expected):
+        self.assertEqual(type_annotation.get_type_constraint_name(pytype), expected)
+
 
 if __name__ == "__main__":
     unittest.main()
