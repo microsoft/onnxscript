@@ -4185,7 +4185,7 @@ def aten_native_batch_norm(
 
     # Have to split to 2 private functions, because training_function return 3 outputs
     # While inference_function return 1 output
-    if training == True:
+    if training is True:
         norm, mean, var = _aten_native_batch_norm_training_onnx(
             input, weight, bias, running_mean, running_var, training, momentum, eps
         )
