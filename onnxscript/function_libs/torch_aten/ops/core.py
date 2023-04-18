@@ -4249,10 +4249,7 @@ def _aten_native_group_norm_onnx(
     # But the input is weight[channel] and bias[channel]
     input_reshaped = op.Reshape(input, shape)
     norm_reshaped = op.InstanceNormalization(
-        input_reshaped,
-        weight_inst,
-        bias_inst,
-        epsilon=eps
+        input_reshaped, weight_inst, bias_inst, epsilon=eps
     )
     norm = op.Reshape(norm_reshaped, op.Shape(input))
     input_rank = op.Size(op.Shape(input))

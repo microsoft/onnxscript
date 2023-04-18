@@ -229,7 +229,9 @@ def sample_inputs_max_pool3d_with_indices(op_info, device, dtype, requires_grad,
 
 def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
-    make_arg = functools.partial(torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
 
     # Ordered as input shape, C,N,HxW, and kwargs for group and eps
     cases = (
