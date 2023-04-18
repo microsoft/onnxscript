@@ -5141,11 +5141,13 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Sub(other, op.Mul(self, alpha))
 
 
-@torch_op("aten::scalar_tensor")
-def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+@torch_op("aten::scalar_tensor", trace_only=True)
+def aten_scalar_tensor(s: float, dtype: int = -1) -> TTensor:  # type: ignore[type-var]
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
-    return op.Cast(s, to=dtype)
+    # If dtype is not specified in torch, aten would put -1 as default.
+    if dtype != -1:
+        return op.Cast(s, to=dtype)
+    return op.Cast(s, to=FLOAT.dtype)
 
 
 @torch_op("aten::scatter_add")
