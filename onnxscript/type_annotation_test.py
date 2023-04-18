@@ -3,19 +3,16 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
-from typing import Optional, Sequence, TypeVar, Union
 import unittest
+from typing import Any, Optional, Sequence, TypeVar, Union
 
 import parameterized
 
-import onnxscript.testing
 import onnxscript
-from onnxscript import script
+import onnxscript.testing
+from onnxscript import FLOAT, INT64, script, type_annotation
 from onnxscript.onnx_opset import opset15 as op
-from onnxscript import FLOAT, INT64
 from onnxscript.tests.common import testutils
-
-from onnxscript import type_annotation
 
 
 class TypeAnnotationTest(testutils.TestBase):
@@ -99,7 +96,7 @@ _TestTypeVarOneBound = TypeVar("_TestTypeVarOneBound", bound=INT64)
 _TestTypeVarTwoBound = TypeVar("_TestTypeVarTwoBound", bound=Union[INT64, FLOAT])
 
 
-class UtilityFunctionsTest(unittest.TestCase):
+class TypeConversionFunctionsTest(unittest.TestCase):
     @parameterized.parameterized.expand(
         [
             (
@@ -121,10 +118,12 @@ class UtilityFunctionsTest(unittest.TestCase):
             (
                 "optional_tensor_type_all",
                 Optional[onnxscript.onnx_types.TensorType],
-                type_annotation.ALL_TYPE_STRINGS
-                + [
-                    f"optional({tensor_type})"
-                    for tensor_type in type_annotation.ALL_TYPE_STRINGS
+                [
+                    *type_annotation.ALL_TYPE_STRINGS,
+                    *[
+                        f"optional({tensor_type})"
+                        for tensor_type in type_annotation.ALL_TYPE_STRINGS
+                    ],
                 ],
             ),
             (
@@ -214,7 +213,7 @@ class UtilityFunctionsTest(unittest.TestCase):
             ),
         ]
     )
-    def test_pytype_to_input_strings(self, _, pytype: Any, expected):
+    def test_pytype_to_input_strings(self, _, pytype: Any, expected: list[str]):
         self.assertEqual(type_annotation.pytype_to_input_strings(pytype), expected)
 
     @parameterized.parameterized.expand(
@@ -231,7 +230,7 @@ class UtilityFunctionsTest(unittest.TestCase):
                 Sequence[_TestTypeVarOneBound],
                 "Sequence_TestTypeVarOneBound",
             ),
-            ("normal_type", INT64, "None"),
+            ("normal_type", INT64, None),
             ("union_type", Union[INT64, FLOAT], None),
             ("optional_type", Optional[INT64], None),
             ("sequence_type", Sequence[INT64], None),
@@ -239,7 +238,7 @@ class UtilityFunctionsTest(unittest.TestCase):
             ("optional_union_type", Optional[Union[INT64, FLOAT]], None),
         ]
     )
-    def get_type_constraint_name(self, _: str, pytype, expected):
+    def get_type_constraint_name(self, _: str, pytype: Any, expected: Optional[str]):
         self.assertEqual(type_annotation.get_type_constraint_name(pytype), expected)
 
 

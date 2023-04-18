@@ -44,6 +44,23 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
+ALL_TYPE_STRINGS = (
+    "tensor(bfloat16)",
+    "tensor(bool)",
+    "tensor(double)",
+    "tensor(float)",
+    "tensor(float16)",
+    "tensor(int16)",
+    "tensor(int32)",
+    "tensor(int64)",
+    "tensor(int8)",
+    "tensor(string)",
+    "tensor(uint16)",
+    "tensor(uint32)",
+    "tensor(uint64)",
+    "tensor(uint8)",
+)
+
 
 def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
     """Remove Annotated wrapper if present, otherwise return typeinfo as is."""
