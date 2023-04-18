@@ -4166,27 +4166,25 @@ def aten_native_batch_norm(
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
     if weight is None:  # Set to 1.0 as default
-        weight = op.Expand(
-            op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2)
-        )
+        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
 
     if bias is None:  # Set to 0.0 as default
-        bias = op.Expand(
-            op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2)
-        )
+        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
 
     axes = list(range(len(input.shape)))
     axes.pop(1)
     axes = op.Constant(value_ints=axes)
-    if running_mean is None:
+    if running_mean is None:  # Using input mean
         running_mean = op.Squeeze(op.ReduceMean(input, axes))
 
-    if running_var is None:
+    if running_var is None:  # Using input var
         mean = op.ReduceMean(input, axes)
         input_sub_mean = op.Sub(input, mean)
         sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
         running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
 
+    # Have to split to 2 private functions, because training_function return 3 outputs
+    # While inference_function return 1 output
     if training == True:
         norm, mean, var = _aten_native_batch_norm_training_onnx(
             input, weight, bias, running_mean, running_var, training, momentum, eps
@@ -4211,7 +4209,14 @@ def _aten_native_batch_norm_training_onnx(
 ) -> Tuple[TFloat, TFloat, TFloat]:
     # Assert(training is True)
     norm, mean, var = op.BatchNormalization(
-        input, weight, bias, running_mean, running_var, epsilon=eps, momentum=momentum, training_mode=training
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
     )
     return norm, mean, var
 
@@ -4229,7 +4234,14 @@ def _aten_native_batch_norm_inference_onnx(
 ) -> Tuple[TFloat, TFloat, TFloat]:
     # Assert(training is False)
     norm = op.BatchNormalization(
-        input, weight, bias, running_mean, running_var, epsilon=eps, momentum=momentum, training_mode=training
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
     )
     return norm, running_mean, running_var
 
