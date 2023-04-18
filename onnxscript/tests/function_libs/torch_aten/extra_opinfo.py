@@ -259,6 +259,7 @@ def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwa
             kwargs=kwargs,
         )
 
+
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     # input_shape, output_size, kernal, dilation, padding, stride
