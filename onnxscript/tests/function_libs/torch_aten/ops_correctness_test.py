@@ -701,6 +701,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
+    "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
     "native_batch_norm": core_ops.aten_native_batch_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,

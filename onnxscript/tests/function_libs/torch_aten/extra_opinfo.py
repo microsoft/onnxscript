@@ -4,6 +4,7 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 """
 
 import functools
+import itertools
 from typing import Any, List
 
 import torch
@@ -201,6 +202,55 @@ def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
+class _TestParamsMaxPoolEmptyStride:
+    def __init__(self):
+        self.kwargs = {
+            "kernel_size": [3],
+            "stride": [()],
+            "ceil_mode": [True, False],
+            "padding": [0, 1],
+            "dilation": [1],
+        }
+
+        self.shapes = [[1, 2, None]]  # batch only
+
+    def _gen_shape(self):
+        for shape in itertools.product(*self.shapes):
+            # shape[0] is None indicates missing batch dimension
+            if shape[0] is None:
+                shape = shape[1:]
+
+            yield shape, torch.contiguous_format
+            # only 2d (N, C, H, W) rank 4 tensors support channels_last memory format
+            if len(self.shapes) == 4 and len(shape) == 4:
+                yield shape, torch.channels_last
+
+    def _gen_kwargs(self):
+        keys = self.kwargs.keys()
+        for values in itertools.product(*self.kwargs.values()):
+            yield dict(zip(keys, values))
+
+    def gen_input_params(self):
+        yield from itertools.product(self._gen_shape(), self._gen_kwargs())
+
+
+def sample_inputs_max_pool_empty_strides(op_info, device, dtype, requires_grad, **kwargs):
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=False
+    )
+
+    params_generator_type_dict = {
+        "max_pool1d": _TestParamsMaxPoolEmptyStride,
+        "max_pool2d": _TestParamsMaxPoolEmptyStride,
+        "max_pool3d": _TestParamsMaxPoolEmptyStride,
+    }
+
+    params_generator = params_generator_type_dict[op_info.name]()
+    for (shape, memory_format), kwargs in params_generator.gen_input_params():
+        arg = make_arg(shape).to(memory_format=memory_format).requires_grad_(requires_grad)
+        yield opinfo_core.SampleInput(arg, kwargs=kwargs)
+
+
 def sample_inputs_max_pool2d_with_indices(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -315,6 +365,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
         skips=(),
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "max_pool2d",
+        variant_test_name="empty_strides",
+        op=torch.ops.aten.max_pool2d,
+        aten_name="max_pool2d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_max_pool_empty_strides,
     ),
     opinfo_core.OpInfo(
         "nn.functional.conv3d",
