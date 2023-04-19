@@ -193,9 +193,3 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         1,
     ): opset_ai_onnx_preview_training1,
 }
-default_opset: Opset14 = all_opsets[
-    (
-        "",
-        onnx_opset_version(),
-    )
-]  # type: ignore
