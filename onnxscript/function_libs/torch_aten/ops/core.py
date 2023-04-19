@@ -4216,15 +4216,12 @@ def aten_native_group_norm(
     N: Optional[INT64] = None,  # pylint: disable=unused-argument
     C: Optional[INT64] = None,  # pylint: disable=unused-argument
     HxW: Optional[INT64] = None,  # pylint: disable=unused-argument
-    group: Optional[int] = None,
-    eps: Optional[float] = 1e-05,
+    group: int = 1,
+    eps: float = 1e-05,
 ) -> Tuple[TFloat, TFloat, TFloat]:
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
     # Actually we don't need N,C,HxW value because the input tensor has that information
-    if group is None:
-        group = 1  # Equal to LayerNorm
-
     if weight is None:  # Set to 1.0 as default, the shape is Channel size
         weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
 
