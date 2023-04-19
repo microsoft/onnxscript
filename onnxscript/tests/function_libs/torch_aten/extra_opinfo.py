@@ -211,11 +211,13 @@ class _TestParamsMaxPoolEmptyStrideBase:
             "dilation": [1],
         }
 
+        # fmt: off
         self.shapes = [
             [1, 2, None],  # batch
             [2],  # channels
             [3, 6]  # signal
         ]
+        # fmt: on
 
     def _gen_shape(self):
         for shape in itertools.product(*self.shapes):
