@@ -4211,8 +4211,8 @@ def aten_native_dropout_backward(
 @torch_op("aten::native_group_norm", trace_only=True)
 def aten_native_group_norm(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
     N: Optional[INT64] = None,  # pylint: disable=unused-argument
     C: Optional[INT64] = None,  # pylint: disable=unused-argument
     HxW: Optional[INT64] = None,  # pylint: disable=unused-argument
