@@ -16,7 +16,7 @@ but early feedback is welcome.
 
 # Contributing to ONNX Script
 
-We're always looking for your help to improve the product (bug fixes, new features, documentation, etc). Currently ONNX Script is under early and heavy development, so we encourage proposing any major changes by [filing an issue](https://github.com/microsoft/onnx-script/issues) to discuss your idea with the team first.
+We're always looking for your help to improve the product (bug fixes, new features, documentation, etc). Currently ONNX Script is under early and heavy development, so we encourage proposing any major changes by [filing an issue](https://github.com/microsoft/onnxscript/issues) to discuss your idea with the team first.
 
 ## Report a security issue
 
