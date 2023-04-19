@@ -494,8 +494,7 @@ class ORTMixedEvaluator(ORTEvaluator):
         else:
             return super()._eval(schema, inputs, attributes, closure)
 
-    def register(self, opset: Optional[values.Opset] = None) -> Callable[[_T], _T]:
-        opset = opset or onnx_opset.default_opset
+    def register(self, opset: values.Opset) -> Callable[[_T], _T]:
         assert opset is not None
 
         def decorator(function: _T) -> _T:
@@ -509,7 +508,7 @@ class ORTMixedEvaluator(ORTEvaluator):
 ort_mixed_evaluator = ORTMixedEvaluator()
 
 
-@ort_mixed_evaluator.register()
+@ort_mixed_evaluator.register(opset=onnx_opset.opset18)
 def SequenceMap(inputs: Sequence[Any], attributes: Mapping[str, Any]):
     """Evaluates a SequenceMap op."""
     fun = attributes["body"]

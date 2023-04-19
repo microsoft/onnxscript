@@ -3067,6 +3067,7 @@ class Opset11(Opset10):
         Round takes one input Tensor and rounds the values, element-wise, meaning
         it finds the nearest integer for each value.
         In case of halfs, the rule is to round them to the nearest even integer.
+        If input x is integral, +0, -0, NaN,  or infinite, x itself is returned.
         The output tensor has the same shape and type as the input.
 
         Examples:
