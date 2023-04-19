@@ -1012,11 +1012,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
     skip(
-        "native_group_norm",
-        matcher=lambda sample: len(sample.input.shape) == 2,
-        reason="ONNX only support input shape >= 3",
-    ),
-    skip(
         "new_ones",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",

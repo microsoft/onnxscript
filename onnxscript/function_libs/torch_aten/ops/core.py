@@ -4213,49 +4213,65 @@ def aten_native_group_norm(
     input: TFloat,
     weight: Optional[TFloat],
     bias: Optional[TFloat],
-    N: INT64 = None,  # pylint: disable=unused-argument
-    C: INT64 = None,  # pylint: disable=unused-argument
-    HxW: INT64 = None,  # pylint: disable=unused-argument
-    group: int = None,
-    eps: float = None,
+    N: Optional[INT64] = None,  # pylint: disable=unused-argument
+    C: Optional[INT64] = None,  # pylint: disable=unused-argument
+    HxW: Optional[INT64] = None,  # pylint: disable=unused-argument
+    group: Optional[int] = None,
+    eps: Optional[float] = 1e-05,
 ) -> Tuple[TFloat, TFloat, TFloat]:
     """native_group_norm(Tensor input, Tensor? weight, Tensor? bias, SymInt N, SymInt C, SymInt HxW, int group, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    # Assert(weight is not None, and, bias is not None)
-    # Create weight_instance_norm and bias_instance_norm
-    weight_inst = op.Constant(value_floats=[1.0] * group)
-    bias_inst = op.Constant(value_floats=[0.0] * group)
-    # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need
-    shape = op.Constant(value_ints=[0, group, -1])
+    # Actually we don't need N,C,HxW value because the input tensor has that information
+    if group is None:
+        group = 1  # Equal to LayerNorm
 
-    norm = _aten_native_group_norm_onnx(
-        input, weight, bias, weight_inst, bias_inst, shape, eps
-    )
-    # weight_inst, bias_inst are fake output, because we must return 3 outpurs
-    return norm, weight_inst, bias_inst
+    if weight is None:  # Set to 1.0 as default, the shape is Channel size
+        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+
+    if bias is None:  # Set to 0.0 as default, the shape is Channel size
+        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+
+    norm, fake_mean, fake_var = _aten_native_group_norm_onnx(input, weight, bias, group, eps)
+    # FIXME: return fake value because we must return 3 outputs(norm, mean, var)
+    # We know how the 'mean' was computed in Torch, but don't know the 'var'
+    return norm, fake_mean, fake_var
 
 
 @torch_op("aten::native_group_norm", private=True)
 def _aten_native_group_norm_onnx(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
-    weight_inst: TFloat,
-    bias_inst: TFloat,
-    shape: INT64,
-    eps: float = None,
-) -> TReal:
-    # Using InstanceNorm to simulate GroupNorm, because GroupNorm need weight[group] and bias[group]
-    # But the input is weight[channel] and bias[channel]
-    input_reshaped = op.Reshape(input, shape)
+    weight: TFloat,
+    bias: TFloat,
+    group: int,
+    eps: float,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    # Using InstanceNorm to simulate op.GroupNorm, because op.GroupNorm need weight[group] and bias[group]
+    # But the input is weight[channel] and bias[channel], the size mismatched
+    # Create weight_instance_norm and bias_instance_norm
+    shape_group = op.Reshape(op.Constant(value_int=group), op.Constant(value_ints=[-1]))
+    # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need
+    shape_input = op.Concat(
+        op.Constant(value_ints=[0]),
+        shape_group,
+        op.Constant(value_ints=[-1]),
+        axis=0
+    )
+    input_reshaped = op.Reshape(input, shape_input)
+    weight_inst_norm = op.Expand(op.Constant(value_floats=[1.0]), shape_group)
+    bias_inst_norm = op.Expand(op.Constant(value_floats=[0.0]), shape_group)
     norm_reshaped = op.InstanceNormalization(
-        input_reshaped, weight_inst, bias_inst, epsilon=eps
+        input_reshaped, weight_inst_norm, bias_inst_norm, epsilon=eps
     )
     norm = op.Reshape(norm_reshaped, op.Shape(input))
     input_rank = op.Size(op.Shape(input))
     axes = op.Range(1, input_rank - 1, 1)
     # Using the real weight and bias to computer again
-    return op.Add(op.Mul(norm, op.Unsqueeze(weight, axes)), op.Unsqueeze(bias, axes))
+    # But need to unsqueeze to the target shape for broading cast easy
+    weight_full_shape = op.Unsqueeze(weight, axes)
+    bias_full_shape = op.Unsqueeze(bias, axes)
+    norm_mul_weight = op.Mul(norm, weight_full_shape)
+    norm_result = op.Add(norm_mul_weight, bias_full_shape)
+    return norm_result, weight_inst_norm, bias_inst_norm
 
 
 def aten_native_group_norm_backward(
