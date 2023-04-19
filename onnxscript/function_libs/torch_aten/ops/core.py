@@ -4152,19 +4152,99 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
     raise NotImplementedError()
 
 
+@torch_op("aten::native_batch_norm", trace_only=True)
 def aten_native_batch_norm(
-    input: TensorType,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
-    running_mean: Optional[TensorType],
-    running_var: Optional[TensorType],
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
+    running_mean: Optional[TFloat],
+    running_var: Optional[TFloat],
     training: bool,
     momentum: float,
     eps: float,
-) -> tuple[TensorType, TensorType, TensorType]:
+) -> Tuple[TFloat, TFloat, TFloat]:
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    if weight is None:  # Set to 1.0 as default
+        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+
+    if bias is None:  # Set to 0.0 as default
+        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+
+    axes = list(range(len(input.shape)))
+    axes.pop(1)
+    axes = op.Constant(value_ints=axes)
+    if running_mean is None:  # Using input mean
+        running_mean = op.Squeeze(op.ReduceMean(input, axes))
+
+    if running_var is None:  # Using input var
+        mean = op.ReduceMean(input, axes)
+        input_sub_mean = op.Sub(input, mean)
+        sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
+        running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
+
+    # Have to split to 2 private functions, because training_function return 3 outputs
+    # While inference_function return 1 output
+    if training is True:
+        norm, mean, var = _aten_native_batch_norm_training_onnx(
+            input, weight, bias, running_mean, running_var, training, momentum, eps
+        )
+    else:
+        norm, mean, var = _aten_native_batch_norm_inference_onnx(
+            input, weight, bias, running_mean, running_var, training, momentum, eps
+        )
+    return norm, mean, var
+
+
+@torch_op("aten::native_batch_norm", private=True)
+def _aten_native_batch_norm_training_onnx(
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
+    running_mean: Optional[TFloat],
+    running_var: Optional[TFloat],
+    training: bool,
+    momentum: float,
+    eps: float,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    # Assert(training is True)
+    norm, mean, var = op.BatchNormalization(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
+    )
+    return norm, mean, var
+
+
+@torch_op("aten::native_batch_norm", private=True)
+def _aten_native_batch_norm_inference_onnx(
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
+    running_mean: Optional[TFloat],
+    running_var: Optional[TFloat],
+    training: bool,
+    momentum: float,
+    eps: float,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    # Assert(training is False)
+    norm = op.BatchNormalization(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
+    )
+    # runnung_mean and running_var are placeholders, just want to return 3 outputs
+    return norm, running_mean, running_var
 
 
 def aten_native_batch_norm_backward(
