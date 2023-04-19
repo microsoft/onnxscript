@@ -698,7 +698,6 @@ def _adjust_attributes_of_max_pool(
     if isinstance(stride, int):
         strides = [stride] * expand_size
     elif not stride:
-        # Default value of stride is 1, aka. None in ONNX
         strides = kernel_shape
     else:
         strides = stride
