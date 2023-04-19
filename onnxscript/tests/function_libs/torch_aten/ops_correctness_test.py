@@ -702,6 +702,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
     "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
+    "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
     "native_batch_norm": core_ops.aten_native_batch_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
@@ -799,6 +800,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         variant_name="reduction_with_dim",
         reason="fixme: current implementation gets shape inference error",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "max_pool3d",
+        variant_name="empty_strides",
+        reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
     ),
     xfail(
         "min_dim",
