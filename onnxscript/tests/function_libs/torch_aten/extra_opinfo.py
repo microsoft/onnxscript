@@ -202,7 +202,7 @@ def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
-class _TestParamsMaxPoolEmptyStride:
+class _TestParamsMaxPoolEmptyStrideBase:
     def __init__(self):
         self.kwargs = {
             "kernel_size": [3],
@@ -234,15 +234,48 @@ class _TestParamsMaxPoolEmptyStride:
         yield from itertools.product(self._gen_shape(), self._gen_kwargs())
 
 
+class _TestParamsMaxPool1dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
+    def __init__(self):
+        super().__init__()
+        self.kwargs["kernel_size"] += [(3,)]
+        self.kwargs["stride"] += [(2,)]
+        self.kwargs["padding"] += [(1,)]
+        self.kwargs["dilation"] += [(1,)]
+
+
+class _TestParamsMaxPool2dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
+    def __init__(self):
+        super().__init__()
+        self.kwargs["kernel_size"] += [(3, 2)]
+        self.kwargs["stride"] += [(2, 1)]
+        self.kwargs["padding"] += [(1, 1)]
+        self.kwargs["dilation"] += [(1, 2)]
+
+        self.shapes.append([6])
+
+
+class _TestParamsMaxPool3dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
+    def __init__(self):
+        super().__init__()
+        self.kwargs["kernel_size"] += [(3, 2, 3)]
+        self.kwargs["stride"] += [(2, 1, 2)]
+        self.kwargs["dilation"] += [(1, 2, 1)]
+
+        self.shapes.append([6])
+        self.shapes.append([5])
+
+
 def sample_inputs_max_pool_empty_strides(op_info, device, dtype, requires_grad, **kwargs):
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=False
     )
 
+    # FIXME: (RuntimeError: non-empty 3D or 4D (batch mode) tensor expected for input)
+
     params_generator_type_dict = {
-        "max_pool1d": _TestParamsMaxPoolEmptyStride,
-        "max_pool2d": _TestParamsMaxPoolEmptyStride,
-        "max_pool3d": _TestParamsMaxPoolEmptyStride,
+        "max_pool1d": _TestParamsMaxPool1dEmptyStride,
+        "max_pool2d": _TestParamsMaxPool2dEmptyStride,
+        "max_pool3d": _TestParamsMaxPool3dEmptyStride,
     }
 
     params_generator = params_generator_type_dict[op_info.name]()
