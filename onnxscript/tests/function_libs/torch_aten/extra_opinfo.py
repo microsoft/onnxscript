@@ -126,21 +126,19 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
                 "groups": 1,
             },
         ),
-        # FIXME(jiz): Uncomment out these test data once
-        # torch 2.0 is released.
-        # (
-        #     (1, 3, 224, 224, 224),
-        #     (32, 3, 3, 3, 3),
-        #     (32,),
-        #     {
-        #         "stride": (2, 2, 2),
-        #         "padding": (1, 1, 1),
-        #         "dilation": (1, 1, 1),
-        #         "transposed": False,
-        #         "output_padding": (0, 0, 0),
-        #         "groups": 1,
-        #     },
-        # ),
+        (
+            (1, 3, 224, 224, 224),
+            (32, 3, 3, 3, 3),
+            (32,),
+            {
+                "stride": (2, 2, 2),
+                "padding": (1, 1, 1),
+                "dilation": (1, 1, 1),
+                "transposed": False,
+                "output_padding": (0, 0, 0),
+                "groups": 1,
+            },
+        ),
         (
             (2, 4, 6, 6),
             (4, 1, 3, 3),
@@ -203,6 +201,7 @@ def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
 
 
 class _TestParamsMaxPoolEmptyStrideBase:
+    # Adapted from https://github.com/pytorch/pytorch/blob/d6d55f8590eab05d2536756fb4efcfb2d07eb81a/torch/testing/_internal/common_methods_invocations.py#L3203
     def __init__(self):
         self.kwargs = {
             "kernel_size": [3],
@@ -212,7 +211,11 @@ class _TestParamsMaxPoolEmptyStrideBase:
             "dilation": [1],
         }
 
-        self.shapes = [[1, 2, None]]  # batch only
+        self.shapes = [
+            [1, 2, None],  # batch
+            [2],  # channels
+            [3, 6]  # signal
+        ]
 
     def _gen_shape(self):
         for shape in itertools.product(*self.shapes):
