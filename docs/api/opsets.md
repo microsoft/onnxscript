@@ -1,11 +1,10 @@
-Opsets and Types
-================
+# Opsets and Types
 
-.. _l-api-opsets:
+(l-api-opsets)=
 
-Opsets
-++++++
+## Opsets
 
+```{eval-rst}
 .. automodule:: onnxscript.onnx_opset
 
     .. autodata:: opset19
@@ -22,10 +21,11 @@ Opsets
 
     .. autodata:: opset15
         :annotation: All operators defined in opset 15 for the main domain.
+```
 
-Types
-+++++
+## Types
 
+```{eval-rst}
 .. automodule:: onnxscript.onnx_types
 
     .. autodata:: BFLOAT16
@@ -59,3 +59,4 @@ Types
     .. autodata:: UINT32
 
     .. autodata:: UINT64
+```

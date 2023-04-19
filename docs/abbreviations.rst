@@ -1,1 +1,0 @@
-.. |onnxscript| replace:: *ONNX Script*
