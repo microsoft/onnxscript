@@ -702,6 +702,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
     "native_group_norm": core_ops.aten_native_group_norm,
+    "native_batch_norm": core_ops.aten_native_batch_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
@@ -803,6 +804,16 @@ EXPECTED_SKIPS_OR_FAILS = (
         "min_dim",
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "native_batch_norm",
+        reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    xfail(
+        "native_batch_norm",
+        reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
