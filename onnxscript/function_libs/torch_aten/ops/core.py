@@ -4348,19 +4348,17 @@ def _aten_native_group_norm_onnx(
     # Compute mean and rstd, but using Torch algorithm
     # The returned shape for mean and vstd should be [N, group, -1]
     N = op.Shape(input, start=0, end=1)
-    C = op.Shape(input, start=1, end=2)
-    HxW = op.ReduceProd(op.Shape(input, start=2))
     shape_N_group_neg1 = op.Concat(N, group_tensor, neg_1, axis=0)
     input_N_group_neg1 = op.Reshape(input, shape_N_group_neg1)
-    axes = op.Constant(value_ints=[2])  # output size is [N, group]
+    # The output size is [N, group], so dims = [2]
+    axes = op.Constant(value_ints=[2])
     # Get mean which size is [N, group, 1], for broadcasting
     mean = op.ReduceMean(input_N_group_neg1, axes)
     input_sub_mean = op.Sub(input_N_group_neg1, mean)
     sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
-    sum = op.ReduceSum(sqr_input_sub_mean, axes, keepdims=0)
-    # In Pytorch, vstd = 1/(sqrt(sum/n + eps))
-    n = op.Cast(HxW * C / group, to=FLOAT.dtype)
-    rstd = op.Div(1.0, op.Sqrt(sum / n + eps))
+    # In Pytorch, vstd = 1/(sqrt(var + eps))
+    var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=0)
+    rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get the correct shape [N, group] for mean again
     mean = op.ReduceMean(input_N_group_neg1, axes, keepdims=0)
     return norm_result, mean, rstd
