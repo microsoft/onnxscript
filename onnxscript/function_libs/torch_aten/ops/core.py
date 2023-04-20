@@ -4328,12 +4328,7 @@ def _aten_native_group_norm_onnx(
     # Create weight_instance_norm and bias_instance_norm, copied from Torch ONNX converter
     group_tensor = op.Reshape(group, neg_1)
     # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need [0,group,-1]
-    shape_input = op.Concat(
-        op.Constant(value_ints=[0]),
-        group_tensor,
-        neg_1,
-        axis=0
-    )
+    shape_input = op.Concat(op.Constant(value_ints=[0]), group_tensor, neg_1, axis=0)
     input_reshaped = op.Reshape(input, shape_input)
     weight_inst_norm = op.Expand(op.Constant(value_floats=[1.0]), group_tensor)
     bias_inst_norm = op.Expand(op.Constant(value_floats=[0.0]), group_tensor)
@@ -4355,12 +4350,7 @@ def _aten_native_group_norm_onnx(
     N = op.Shape(input, start=0, end=1)
     C = op.Shape(input, start=1, end=2)
     HxW = op.ReduceProd(op.Shape(input, start=2))
-    shape_N_group_neg1 = op.Concat(
-        N,
-        group_tensor,
-        neg_1,
-        axis=0
-    )
+    shape_N_group_neg1 = op.Concat(N, group_tensor, neg_1, axis=0)
     input_N_group_neg1 = op.Reshape(input, shape_N_group_neg1)
     axes = op.Constant(value_ints=[2])  # output size is [N, group]
     # Get mean which size is [N, group, 1], for broadcasting
