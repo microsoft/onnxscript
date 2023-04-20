@@ -102,7 +102,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "tensor_type_all",
                 onnxscript.onnx_types.TensorType,
-                type_annotation.ALL_TYPE_STRINGS,
+                list(type_annotation.ALL_TYPE_STRINGS),
             ),
             ("tensor_type", INT64, ["tensor(int64)"]),
             ("tensor_type_union", Union[INT64, FLOAT], ["tensor(float)", "tensor(int64)"]),
