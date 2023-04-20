@@ -323,14 +323,10 @@ class OnnxFunction(Op):
         # Create a mapping from type to a unique name
         type_to_constraint = {}
         for i, type_ in enumerate(distinct_types):
-            if isinstance(type_, TypeVar):
-                name = type_.__name__
-                # FIXME(justinchuby): Handle Optional[TypeVar]
-            else:
-                name = f"T{i}"
+            name = f"T{i}"
             type_to_constraint[type_] = TypeConstraint(
-                name=name,
-                allowed_types=type_annotation.get_supported_input_types(type_),
+                name=type_annotation.get_type_constraint_name(type_) or name,
+                allowed_types=type_annotation.pytype_to_input_strings(type_),
             )
 
         formal_inputs = [

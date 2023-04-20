@@ -195,6 +195,8 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
         A list of all supported input types for the given type annotation.
         Ensures that the list is sorted in the same order as ALL_TYPE_STRINGS.
     """
+    if pytype is None:
+        return list(ALL_TYPE_STRINGS)
     if pytype is type(None):
         return list(ALL_TYPE_STRINGS)
     if pytype is onnx_types.TensorType:
@@ -231,12 +233,33 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
         return sorted(set(options))
     if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
         subtypes = typing.get_args(pytype)
-        return [f"sequence({s})" for s in pytype_to_input_strings(subtypes[0])]
+        return [f"seq({s})" for s in pytype_to_input_strings(subtypes[0])]
 
     raise ValueError(f"Unsupported type: {pytype}")
 
 
 def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:
+    """Returns the name of the type constraint for a given type annotation.
+
+    Args:
+        pytype: A type annotation.
+
+    Returns:
+        The name of the type constraint if it is a TypeVar.
+        - Prefixes the name with "Optional_" if the type annotation is Optional[TypeVar].
+        - Prefixes the name with "Sequence_" if the type annotation is a Sequence[].
+        - Returns None if the type annotation does not have a type constraint.
+    """
     if isinstance(pytype, TypeVar):
         return pytype.__name__
+    if typing.get_origin(pytype) is Union:
+        subtypes = typing.get_args(pytype)
+        if len(subtypes) == 2 and type(None) in subtypes:
+            for subtype in subtypes:
+                if isinstance(subtype, TypeVar):
+                    return f"Optional_{subtype.__name__}"
+    if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
+        subtypes = typing.get_args(pytype)
+        if len(subtypes) == 1 and isinstance(subtypes[0], TypeVar):
+            return f"Sequence_{get_type_constraint_name(subtypes[0])}"
     return None
