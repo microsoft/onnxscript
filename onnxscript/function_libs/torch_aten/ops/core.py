@@ -4155,13 +4155,13 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
 @torch_op("aten::native_batch_norm", trace_only=True)
 def aten_native_batch_norm(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
-    running_mean: Optional[TFloat],
-    running_var: Optional[TFloat],
-    training: bool,
-    momentum: float,
-    eps: float,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    running_mean: Optional[TFloat] = None,
+    running_var: Optional[TFloat] = None,
+    training: bool = False,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
 ) -> Tuple[TFloat, TFloat, TFloat]:
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
@@ -4204,9 +4204,9 @@ def _aten_native_batch_norm_training_onnx(
     running_mean: Optional[TFloat],
     running_var: Optional[TFloat],
     axes: INT64,
-    training: bool = True,
-    momentum: float = 0.9,
-    eps: float = 1e-05,
+    training: bool,
+    momentum: float,
+    eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat]:
     # Assert(training is True)
     norm, running_mean, running_var = op.BatchNormalization(
@@ -4237,9 +4237,9 @@ def _aten_native_batch_norm_inference_onnx(
     bias: Optional[TFloat],
     running_mean: Optional[TFloat],
     running_var: Optional[TFloat],
-    training: bool = False,
-    momentum: float = 0.9,
-    eps: float = 1e-05,
+    training: bool,
+    momentum: float,
+    eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat]:
     # Assert(training is False)
     norm = op.BatchNormalization(
