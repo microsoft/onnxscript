@@ -7,7 +7,7 @@ from __future__ import annotations
 import collections
 import inspect
 import typing
-from typing import Any, TypeVar, Union
+from typing import Optional, Sequence, TypeVar, Union
 
 import onnx
 from typing_extensions import get_args, get_origin
@@ -166,19 +166,23 @@ def get_return_types(typeinfo: type | typing.Sequence[type]) -> typing.Sequence[
     return (typeinfo,)
 
 
-def _reduce_type_var_to_union(hint: typing.TypeVar):
-    """Reduce a TypeVar to a Union type on which we can use issubclass to check membership."""
-    assert isinstance(hint, TypeVar)
-
-    # If the TypeVar has a bound, use that.
-    if hint.__bound__ is not None:
-        return hint.__bound__
-
-    # If the TypeVar has no bound, use the first constraint.
-    if hint.__constraints__:
-        return Union.__getitem__(hint.__constraints__)
-
-    return Any
+# A sorted list of all type strings used in an OpSchema
+ALL_TYPE_STRINGS = (
+    "tensor(bfloat16)",
+    "tensor(bool)",
+    "tensor(double)",
+    "tensor(float)",
+    "tensor(float16)",
+    "tensor(int16)",
+    "tensor(int32)",
+    "tensor(int64)",
+    "tensor(int8)",
+    "tensor(string)",
+    "tensor(uint16)",
+    "tensor(uint32)",
+    "tensor(uint64)",
+    "tensor(uint8)",
+)
 
 
 def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
@@ -189,30 +193,45 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
 
     Returns:
         A list of all supported input types for the given type annotation.
+        Ensures that the list is sorted in the same order as ALL_TYPE_STRINGS.
     """
-    supported_types: list[str] = []
-    if typing.get_origin(pytype) is Union and isinstance(typing.get_args(pytype)[0], TypeVar):
-        # Recursively unpack TypeVars inside an Optional
-        for arg in typing.get_args(pytype):
-            supported_types.extend(get_supported_input_types(arg))
-        return supported_types
-
+    if pytype is type(None):
+        return list(ALL_TYPE_STRINGS)
+    if pytype is onnx_types.TensorType:
+        return list(ALL_TYPE_STRINGS)
+    if isinstance(pytype, type) and issubclass(pytype, onnx_types.TensorType):
+        return [pytype.to_string()]
+    if isinstance(pytype, onnx_types.TensorType):
+        return [pytype.to_string()]
     if isinstance(pytype, TypeVar):
-        pytype = _reduce_type_var_to_union(pytype)
+        bound = pytype.__bound__
+        if bound is None:
+            return list(ALL_TYPE_STRINGS)
+        # TODO(justinchuby): Handle __constraints__
+        return pytype_to_input_strings(bound)
+    if typing.get_origin(pytype) is Union:
+        options = []
+        subtypes = typing.get_args(pytype)
+        # A None type in a Union is equivalent to an optional type
+        is_optional = any(subtype is type(None) for subtype in subtypes)
+        for subtype in subtypes:
+            if subtype is type(None):
+                # Skip None type
+                continue
+            if is_optional:
+                options += [
+                    *pytype_to_input_strings(subtype),
+                    *[f"optional({s})" for s in pytype_to_input_strings(subtype)],
+                ]
+            else:
+                options += pytype_to_input_strings(subtype)
+        # Remove duplicates
+        return sorted(set(options))
+    if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
+        subtypes = typing.get_args(pytype)
+        return [f"sequence({s})" for s in pytype_to_input_strings(subtypes[0])]
 
-    for tensor_type in onnx_types.ALL_TENSOR_TYPES:
-        if pytype is None:
-            # The same as Any
-            supported_types.append(tensor_type.to_string())
-        elif pytype == onnx_types.TensorType:
-            supported_types.append(tensor_type.to_string())
-        elif isinstance(pytype, tensor_type):
-            supported_types.append(tensor_type.to_string())
-        elif issubclass(tensor_type, pytype):
-            supported_types.append(tensor_type.to_string())
-        # TODO(justinchuby): Handle sequence types
-
-    return supported_types
+    raise ValueError(f"Unsupported type: {pytype}")
 
 
 def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:

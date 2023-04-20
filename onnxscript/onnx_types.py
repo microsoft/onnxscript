@@ -107,103 +107,71 @@ class TensorType(abc.ABC):
 
     @classmethod
     def to_string(cls) -> str:
-        raise NotImplementedError()
+        return f"tensor({cls.__name__.lower()})"
 
 
 class FLOAT(TensorType, dtype=onnx.TensorProto.FLOAT):
-    @classmethod
-    def to_string(cls):
-        return "tensor(float)"
+    pass
 
 
 class UINT8(TensorType, dtype=onnx.TensorProto.UINT8):
-    @classmethod
-    def to_string(cls):
-        return "tensor(uint8)"
+    pass
 
 
 class INT8(TensorType, dtype=onnx.TensorProto.INT8):
-    @classmethod
-    def to_string(cls):
-        return "tensor(int8)"
+    pass
 
 
 class UINT16(TensorType, dtype=onnx.TensorProto.UINT16):
-    @classmethod
-    def to_string(cls):
-        return "tensor(uint16)"
+    pass
 
 
 class INT16(TensorType, dtype=onnx.TensorProto.INT16):
-    @classmethod
-    def to_string(cls):
-        return "tensor(int16)"
+    pass
 
 
 class INT32(TensorType, dtype=onnx.TensorProto.INT32):
-    @classmethod
-    def to_string(cls):
-        return "tensor(int32)"
+    pass
 
 
 class INT64(TensorType, dtype=onnx.TensorProto.INT64):
-    @classmethod
-    def to_string(cls):
-        return "tensor(int64)"
+    pass
 
 
 class STRING(TensorType, dtype=onnx.TensorProto.STRING):
-    @classmethod
-    def to_string(cls):
-        return "tensor(string)"
+    pass
 
 
 class BOOL(TensorType, dtype=onnx.TensorProto.BOOL):
-    @classmethod
-    def to_string(cls):
-        return "tensor(bool)"
+    pass
 
 
 class FLOAT16(TensorType, dtype=onnx.TensorProto.FLOAT16):
-    @classmethod
-    def to_string(cls):
-        return "tensor(float16)"
+    pass
 
 
 class DOUBLE(TensorType, dtype=onnx.TensorProto.DOUBLE):
-    @classmethod
-    def to_string(cls):
-        return "tensor(double)"
+    pass
 
 
 class UINT32(TensorType, dtype=onnx.TensorProto.UINT32):
-    @classmethod
-    def to_string(cls):
-        return "tensor(uint32)"
+    pass
 
 
 class UINT64(TensorType, dtype=onnx.TensorProto.UINT64):
-    @classmethod
-    def to_string(cls):
-        return "tensor(uint64)"
+    pass
 
 
 class COMPLEX64(TensorType, dtype=onnx.TensorProto.COMPLEX64):
-    @classmethod
-    def to_string(cls):
-        return "tensor(complex64)"
+    pass
 
 
 class COMPLEX128(TensorType, dtype=onnx.TensorProto.COMPLEX128):
-    @classmethod
-    def to_string(cls):
-        return "tensor(complex128)"
+    pass
 
 
 class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
-    @classmethod
-    def to_string(cls):
-        return "tensor(bfloat16)"
+    pass
 
 
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:

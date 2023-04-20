@@ -4152,19 +4152,99 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
     raise NotImplementedError()
 
 
+@torch_op("aten::native_batch_norm", trace_only=True)
 def aten_native_batch_norm(
-    input: TensorType,
-    weight: Optional[TensorType],
-    bias: Optional[TensorType],
-    running_mean: Optional[TensorType],
-    running_var: Optional[TensorType],
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
+    running_mean: Optional[TFloat],
+    running_var: Optional[TFloat],
     training: bool,
     momentum: float,
     eps: float,
-) -> tuple[TensorType, TensorType, TensorType]:
+) -> Tuple[TFloat, TFloat, TFloat]:
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    if weight is None:  # Set to 1.0 as default
+        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+
+    if bias is None:  # Set to 0.0 as default
+        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+
+    axes = list(range(len(input.shape)))
+    axes.pop(1)
+    axes = op.Constant(value_ints=axes)
+    if running_mean is None:  # Using input mean
+        running_mean = op.Squeeze(op.ReduceMean(input, axes))
+
+    if running_var is None:  # Using input var
+        mean = op.ReduceMean(input, axes)
+        input_sub_mean = op.Sub(input, mean)
+        sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
+        running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
+
+    # Have to split to 2 private functions, because training_function return 3 outputs
+    # While inference_function return 1 output
+    if training is True:
+        norm, mean, var = _aten_native_batch_norm_training_onnx(
+            input, weight, bias, running_mean, running_var, training, momentum, eps
+        )
+    else:
+        norm, mean, var = _aten_native_batch_norm_inference_onnx(
+            input, weight, bias, running_mean, running_var, training, momentum, eps
+        )
+    return norm, mean, var
+
+
+@torch_op("aten::native_batch_norm", private=True)
+def _aten_native_batch_norm_training_onnx(
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
+    running_mean: Optional[TFloat],
+    running_var: Optional[TFloat],
+    training: bool,
+    momentum: float,
+    eps: float,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    # Assert(training is True)
+    norm, mean, var = op.BatchNormalization(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
+    )
+    return norm, mean, var
+
+
+@torch_op("aten::native_batch_norm", private=True)
+def _aten_native_batch_norm_inference_onnx(
+    input: TFloat,
+    weight: Optional[TFloat],
+    bias: Optional[TFloat],
+    running_mean: Optional[TFloat],
+    running_var: Optional[TFloat],
+    training: bool,
+    momentum: float,
+    eps: float,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    # Assert(training is False)
+    norm = op.BatchNormalization(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
+    )
+    # runnung_mean and running_var are placeholders, just want to return 3 outputs
+    return norm, running_mean, running_var
 
 
 def aten_native_batch_norm_backward(
@@ -6084,10 +6164,95 @@ def aten_var(self: TensorType, unbiased: bool = True) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_var_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, TensorType]:
+@torch_op("aten::var_mean", trace_only=True)
+def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     """var_mean(Tensor self, bool unbiased=True) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
+    # If not this case, should be explicitly set correction value according to unbiased value
+    return _aten_var_mean_onnx(self, correction=float(unbiased), keepdim=False)
+
+
+@torch_op("aten::var_mean", overload=True, trace_only=True)
+def aten_var_mean_dim(
+    self: TReal, dim: Optional[int], unbiased: bool = True, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    """var_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    # Although dim is Optional in signature, but we assume it must has value for this overload
+    # Assert(dim is not None)
+    if isinstance(dim, Tuple):
+        dim_tensor = op.Constant(value_ints=dim)
+    else:
+        dim_tensor = op.Constant(value_int=dim)
+    return _aten_var_mean_dim_onnx(
+        self, dim_tensor, correction=float(unbiased), keepdim=keepdim
+    )
+
+
+@torch_op("aten::var_mean", overload=True, trace_only=True)
+def aten_var_mean_correction(
+    self: TReal,
+    dim: Optional[int] = None,
+    correction: Optional[float] = None,
+    keepdim: bool = False,
+) -> Tuple[TReal, TReal]:
+    """var_mean.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> (Tensor, Tensor)"""
+
+    if correction is None:
+        correction = 1.0
+
+    if dim is None:
+        var, mean = _aten_var_mean_onnx(self, correction, keepdim)
+    else:
+        if isinstance(dim, Tuple):
+            dim_tensor = op.Constant(value_ints=dim)
+        else:
+            dim_tensor = op.Constant(value_int=dim)
+        var, mean = _aten_var_mean_dim_onnx(self, dim_tensor, correction, keepdim)
+    return var, mean
+
+
+@torch_op("aten::var_mean", private=True)
+def _aten_var_mean_onnx(
+    self: TReal, correction: float = 1.0, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    # Compute mean and var
+    mean = op.ReduceMean(self, keepdims=keepdim)
+    sub_mean = op.Sub(self, mean)
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction > 0.0:
+        self_shape = op.Shape(self)
+        numel_float = op.Cast(op.ReduceProd(self_shape, keepdims=0), to=FLOAT.dtype)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_float, correction)
+        var = op.Div(mul, sub)
+
+    return var, mean
+
+
+@torch_op("aten::var_mean", private=True)
+def _aten_var_mean_dim_onnx(
+    self: TReal, dim: INT64, correction: float, keepdim: bool = False
+) -> Tuple[TReal, TReal]:
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+    # Computer mean and var
+    mean = op.ReduceMean(self, dim, keepdims=keepdim)
+    sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=1))
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction > 0.0:
+        self_shape = op.Shape(self)
+        dim_size = op.Gather(self_shape, dim, axis=0)
+        numel_float = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_float, correction)
+        var = op.Div(mul, sub)
+
+    return var, mean
 
 
 def aten_vdot(self: TensorType, other: TensorType) -> TensorType:

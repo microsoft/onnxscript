@@ -282,7 +282,7 @@ class Opset13(Opset12):
 
         Casting from string tensor in plain (e.g., "3.14" and "1000") and scientific numeric representations
         (e.g., "1e-5" and "1E8") to float types is supported. For example, converting string "100.5" to an integer may
-        result 100. There are some string literals reserved for special floating-point values;
+        yield result 100. There are some string literals reserved for special floating-point values;
         "+INF" (and "INF"), "-INF", and "NaN" are positive infinity, negative infinity, and not-a-number, respectively.
         Any string which can exactly match "+INF" in a case-insensitive way would be mapped to positive infinite. Similarly,
         this case-insensitive rule is applied to "INF" and "NaN". When casting from numeric tensors
@@ -349,7 +349,7 @@ class Opset13(Opset12):
 
         Ceil takes one input data (Tensor<T>) and produces one output data
         (Tensor<T>) where the ceil is, y = ceil(x), is applied to
-        the tensor elementwise.
+        the tensor elementwise. If x is integral, +0, -0, NaN,  or infinite, x itself is returned.
 
 
         Args:
@@ -1150,7 +1150,7 @@ class Opset13(Opset12):
 
         Floor takes one input data (Tensor<T>) and produces one output data
         (Tensor<T>) where the floor is, y = floor(x), is applied to
-        the tensor elementwise.
+        the tensor elementwise. If x is integral, +0, -0, NaN,  or infinite, x itself is returned.
 
 
         Args:
@@ -3087,7 +3087,7 @@ class Opset13(Opset12):
         The scale factor and zero point must have same shape, and can be either a scalar for per-tensor / per layer quantization, or a 1-D tensor for per-axis quantization.
         The quantization formula is y = saturate ((x / y_scale) + y_zero_point).
         For saturation, it saturates to [0, 255] if it's uint8, or [-128, 127] if it's int8.
-        For (x / y_scale), it's rounding to nearest ties to even. Refer to https://en.wikipedia.org/wiki/Rounding for details. 'y_zero_point' and 'y' must have same type.
+        For (x / y_scale), it's rounding to the nearest even. Refer to https://en.wikipedia.org/wiki/Rounding for details. 'y_zero_point' and 'y' must have same type.
 
 
         Args:
