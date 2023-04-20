@@ -51,8 +51,8 @@ ONNX models and functions:
 
 ```bash
 pip install onnx onnxruntime pytest
-git clone https://github.com/microsoft/onnx-script
-cd onnx-script
+git clone https://github.com/microsoft/onnxscript
+cd onnxscript
 pip install -e .
 ```
 
@@ -216,7 +216,7 @@ new adapter following examples in https://github.com/justinchuby/lintrunner-adap
 
 ## Contributing
 
-We're always looking for your help to improve the product (bug fixes, new features, documentation, etc). Currently ONNX Script is under early and heavy development, so we encourage proposing any major changes by [filing an issue](https://github.com/microsoft/onnx-script/issues) to discuss your idea with the team first.
+We're always looking for your help to improve the product (bug fixes, new features, documentation, etc). Currently ONNX Script is under early and heavy development, so we encourage proposing any major changes by [filing an issue](https://github.com/microsoft/onnxscript/issues) to discuss your idea with the team first.
 
 ### Report a Security Issue
 
@@ -252,4 +252,4 @@ Any use of third-party trademarks or logos is subject to those third-party's pol
 [python-ast]: https://docs.python.org/3/library/ast.html
 [onnx-runtime]: https://onnxruntime.ai
 [onnx-ops]: https://github.com/onnx/onnx/blob/main/docs/Operators.md
-[onnxfns1A.py]: https://github.com/microsoft/onnx-script/blob/main/onnxscript/tests/models/onnxfns1A.py
+[onnxfns1A.py]: https://github.com/microsoft/onnxscript/blob/main/onnxscript/tests/models/onnxfns1A.py

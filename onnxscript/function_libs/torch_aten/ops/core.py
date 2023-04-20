@@ -4155,13 +4155,13 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
 @torch_op("aten::native_batch_norm", trace_only=True)
 def aten_native_batch_norm(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
-    running_mean: Optional[TFloat],
-    running_var: Optional[TFloat],
-    training: bool,
-    momentum: float,
-    eps: float,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    running_mean: Optional[TFloat] = None,
+    running_var: Optional[TFloat] = None,
+    training: bool = False,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
 ) -> Tuple[TFloat, TFloat, TFloat]:
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
@@ -4187,7 +4187,7 @@ def aten_native_batch_norm(
     # While inference_function return 1 output
     if training is True:
         norm, mean, var = _aten_native_batch_norm_training_onnx(
-            input, weight, bias, running_mean, running_var, training, momentum, eps
+            input, weight, bias, running_mean, running_var, axes, training, momentum, eps
         )
     else:
         norm, mean, var = _aten_native_batch_norm_inference_onnx(
@@ -4199,16 +4199,17 @@ def aten_native_batch_norm(
 @torch_op("aten::native_batch_norm", private=True)
 def _aten_native_batch_norm_training_onnx(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
-    running_mean: Optional[TFloat],
-    running_var: Optional[TFloat],
+    weight: TFloat,
+    bias: TFloat,
+    running_mean: TFloat,
+    running_var: TFloat,
+    axes: INT64,
     training: bool,
     momentum: float,
     eps: float,
 ) -> Tuple[TFloat, TFloat, TFloat]:
     # Assert(training is True)
-    norm, mean, var = op.BatchNormalization(
+    norm, running_mean, running_var = op.BatchNormalization(
         input,
         weight,
         bias,
@@ -4218,16 +4219,24 @@ def _aten_native_batch_norm_training_onnx(
         momentum=momentum,
         training_mode=training,
     )
-    return norm, mean, var
+    # Compute var and rstd
+    mean = op.ReduceMean(input, axes)
+    input_sub_mean = op.Sub(input, mean)
+    sqr = op.Mul(input_sub_mean, input_sub_mean)
+    var = op.ReduceMean(sqr, axes, keepdims=0)
+    rstd = op.Div(1.0, op.Sqrt(var + eps))
+    # Get mean again with size = [1, C]
+    mean = op.ReduceMean(input, axes, keepdims=0)
+    return norm, mean, rstd
 
 
 @torch_op("aten::native_batch_norm", private=True)
 def _aten_native_batch_norm_inference_onnx(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
-    running_mean: Optional[TFloat],
-    running_var: Optional[TFloat],
+    weight: TFloat,
+    bias: TFloat,
+    running_mean: TFloat,
+    running_var: TFloat,
     training: bool,
     momentum: float,
     eps: float,
@@ -4243,8 +4252,10 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=training,
     )
-    # runnung_mean and running_var are placeholders, just want to return 3 outputs
-    return norm, running_mean, running_var
+    # Cannot return 2 dup output, so have to do twice with different variable name
+    empty_mean = op.Cast(op.Shape(input, 0, 0), to=FLOAT.dtype)
+    empty_var = op.Cast(op.Shape(input, 0, 0), to=FLOAT.dtype)
+    return norm, empty_mean, empty_var
 
 
 def aten_native_batch_norm_backward(
@@ -5799,7 +5810,7 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
 
     # TODO(titaiwang): ORT==1.15 fixes SegFault
-    # https://github.com/microsoft/onnx-script/pull/484#discussion_r1136105039
+    # https://github.com/microsoft/onnxscript/pull/484#discussion_r1136105039
     # Change the op to:
     # shape = op.Shape(self)
     # idx= op.Reshape(dim, [1])
