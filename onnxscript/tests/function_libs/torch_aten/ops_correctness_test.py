@@ -823,16 +823,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
-        "native_group_norm",
-        reason="fixme: ONNX InstanceNorm only return 1 output, but Torch need 3",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "native_group_norm",
-        reason="fixme: ONNX InstanceNorm only return 1 output, but Torch need 3",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail(
         "new_ones",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
