@@ -806,16 +806,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "native_batch_norm",
-        reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail(
-        "native_batch_norm",
-        reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
         "new_full",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
