@@ -26,7 +26,8 @@ class Tensor:
             )
 
         self._nparray = nparray
-        self._opset: Any = opset or onnx_opset.default_opset
+        # FIXME(justinhuby): Create a better way to determine the opset version
+        self._opset: Any = opset or onnx_opset.opset18
 
     @property
     def value(self) -> np.ndarray:

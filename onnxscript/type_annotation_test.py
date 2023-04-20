@@ -105,75 +105,75 @@ class TypeConversionFunctionsTest(unittest.TestCase):
                 type_annotation.ALL_TYPE_STRINGS,
             ),
             ("tensor_type", INT64, ["tensor(int64)"]),
-            ("tensor_type_union", Union[INT64, FLOAT], ["tensor(int64)", "tensor(float)"]),
+            ("tensor_type_union", Union[INT64, FLOAT], ["tensor(float)", "tensor(int64)"]),
             ("tensor_type_variadic_shape", INT64[...], ["tensor(int64)"]),
             ("tensor_type_shape", INT64[10], ["tensor(int64)"]),
             (
                 "type_var_constraints",
                 _TestTypeVarConstraints,
-                ["tensor(int64)", "tensor(float)"],
+                ["tensor(float)", "tensor(int64)"],
             ),
             ("type_bound_one", _TestTypeVarOneBound, ["tensor(int64)"]),
-            ("type_bound_two", _TestTypeVarTwoBound, ["tensor(int64)", "tensor(float)"]),
+            ("type_bound_two", _TestTypeVarTwoBound, ["tensor(float)", "tensor(int64)"]),
             (
                 "optional_tensor_type_all",
                 Optional[onnxscript.onnx_types.TensorType],
                 [
-                    *type_annotation.ALL_TYPE_STRINGS,
                     *[
                         f"optional({tensor_type})"
                         for tensor_type in type_annotation.ALL_TYPE_STRINGS
                     ],
+                    *type_annotation.ALL_TYPE_STRINGS,
                 ],
             ),
             (
                 "optional_tensor_type",
                 Optional[INT64],
-                ["tensor(int64)", "optional(tensor(int64))"],
+                ["optional(tensor(int64))", "tensor(int64)"],
             ),
             (
                 "optional_tensor_type_union",
                 Optional[Union[INT64, FLOAT]],
                 [
-                    "tensor(int64)",
-                    "tensor(float)",
-                    "optional(tensor(int64))",
                     "optional(tensor(float))",
+                    "optional(tensor(int64))",
+                    "tensor(float)",
+                    "tensor(int64)",
                 ],
             ),
             (
                 "optional_tensor_type_variadic_shape",
                 Optional[INT64[...]],
-                ["tensor(int64)", "optional(tensor(int64))"],
+                ["optional(tensor(int64))", "tensor(int64)"],
             ),
             (
                 "optional_tensor_type_shape",
                 Optional[INT64[10]],
-                ["tensor(int64)", "optional(tensor(int64))"],
+                ["optional(tensor(int64))", "tensor(int64)"],
             ),
             (
                 "optional_type_var_constraints",
                 Optional[_TestTypeVarConstraints],
                 [
-                    "tensor(int64)",
-                    "tensor(float)",
-                    "optional(tensor(int64))",
                     "optional(tensor(float))",
+                    "optional(tensor(int64))",
+                    "tensor(float)",
+                    "tensor(int64)",
                 ],
             ),
             (
                 "optional_type_bound_one",
                 Optional[_TestTypeVarOneBound],
-                ["tensor(int64)", "optional(tensor(int64))"],
+                ["optional(tensor(int64))", "tensor(int64)"],
             ),
             (
                 "optional_type_bound_two",
                 Optional[_TestTypeVarTwoBound],
                 [
-                    "tensor(int64)",
-                    "tensor(float)",
-                    "optional(tensor(int64))",
                     "optional(tensor(float))",
+                    "optional(tensor(int64))",
+                    "tensor(float)",
+                    "tensor(int64)",
                 ],
             ),
             (
@@ -188,7 +188,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "union_sequence_type",
                 Union[Sequence[INT64], Sequence[FLOAT]],
-                ["sequence(tensor(int64))", "sequence(tensor(float))"],
+                ["sequence(tensor(float))", "sequence(tensor(int64))"],
             ),
             (
                 "sequence_type_variadic_shape",
@@ -199,7 +199,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "sequence_type_var_constraints",
                 Sequence[_TestTypeVarConstraints],
-                ["sequence(tensor(int64))", "sequence(tensor(float))"],
+                ["sequence(tensor(float))", "sequence(tensor(int64))"],
             ),
             (
                 "sequence_type_bound_one",
@@ -209,7 +209,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "sequence_type_bound_two",
                 Sequence[_TestTypeVarTwoBound],
-                ["sequence(tensor(int64))", "sequence(tensor(float))"],
+                ["sequence(tensor(float))", "sequence(tensor(int64))"],
             ),
         ]
     )
