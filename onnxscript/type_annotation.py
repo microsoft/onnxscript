@@ -204,10 +204,12 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
     if isinstance(pytype, onnx_types.TensorType):
         return [pytype.to_string()]
     if isinstance(pytype, TypeVar):
+        constraints = pytype.__constraints__
+        if constraints:
+            return pytype_to_input_strings(Union.__getitem__(constraints))
         bound = pytype.__bound__
         if bound is None:
             return list(ALL_TYPE_STRINGS)
-        # TODO(justinchuby): Handle __constraints__
         return pytype_to_input_strings(bound)
     if typing.get_origin(pytype) is Union:
         options = []
@@ -216,7 +218,7 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
         is_optional = any(subtype is type(None) for subtype in subtypes)
         for subtype in subtypes:
             if subtype is type(None):
-                # Skip None type
+                # Skip None type because we are handling it with is_optional
                 continue
             if is_optional:
                 options += [
