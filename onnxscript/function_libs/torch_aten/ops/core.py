@@ -5749,7 +5749,7 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     # so op.Shape(self, start=dim, end=dim + 1) is not supported.
 
     # TODO(titaiwang): ORT==1.15 fixes SegFault
-    # https://github.com/microsoft/onnx-script/pull/484#discussion_r1136105039
+    # https://github.com/microsoft/onnxscript/pull/484#discussion_r1136105039
     # Change the op to:
     # shape = op.Shape(self)
     # idx= op.Reshape(dim, [1])
