@@ -30,7 +30,6 @@ from .onnx_opset import (
     opset_ai_onnx_ml1,
     opset_ai_onnx_ml2,
     opset_ai_onnx_ml3,
-    default_opset,
 )
 
 from .onnx_types import (
@@ -108,5 +107,4 @@ __all__ = [
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
-    "default_opset",
 ]
