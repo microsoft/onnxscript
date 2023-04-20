@@ -1661,6 +1661,8 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
     query_scaled = op.Mul(query, op.Sqrt(scale))
     key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    # Turn the Boolean mask to float: attn_mask.masked_fill(not attn_mask, -float('inf'))
+    attn_mask = op.Where(attn_mask, 0.0, op.Constant(value_float=-float("inf")))
     attn_weight = op.Softmax(
         op.Add(op.MatMul(query_scaled, key_transposed_scaled), attn_mask),
         axis=-1,
