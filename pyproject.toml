@@ -7,7 +7,7 @@ name = "onnxscript"
 dynamic = ["version"]
 description = "Authoring ONNX functions in Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
-urls = { "Repository" = "https://github.com/onnx/onnx-script" }
+urls = { "Repository" = "https://github.com/onnx/onnxscript" }
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }

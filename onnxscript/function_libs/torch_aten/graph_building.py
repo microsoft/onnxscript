@@ -253,6 +253,10 @@ def _add_attribute_to_torchscript_node(
     if isinstance(value, torch.Tensor):
         return node.t_(key, value)
     if isinstance(value, Sequence):
+        if not value:
+            # Treat empty sequences as empty list tensors
+            # TODO(justinchuby): Revisit ways to determine the type of the empty list
+            return node.is_(key, list(value))  # type: ignore[attr-defined]
         if isinstance(value[0], float):
             return node.fs_(key, list(value))  # type: ignore[arg-type]
         if isinstance(value[0], int):

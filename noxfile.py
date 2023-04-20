@@ -99,9 +99,7 @@ def test_torch_nightly(session):
         ONNX,
         ONNX_RUNTIME,
     )
-    session.install(
-        "--pre", "torch", "--index-url", "https://download.pytorch.org/whl/nightly/cpu"
-    )
+    session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
