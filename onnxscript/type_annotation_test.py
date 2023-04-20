@@ -104,6 +104,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
                 onnxscript.onnx_types.TensorType,
                 list(type_annotation.ALL_TYPE_STRINGS),
             ),
+            ("none", None, list(type_annotation.ALL_TYPE_STRINGS)),
             ("tensor_type", INT64, ["tensor(int64)"]),
             ("tensor_type_union", Union[INT64, FLOAT], ["tensor(float)", "tensor(int64)"]),
             ("tensor_type_variadic_shape", INT64[...], ["tensor(int64)"]),
@@ -179,37 +180,34 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "sequence_type_all",
                 Sequence[onnxscript.onnx_types.TensorType],
-                [
-                    f"sequence({tensor_type})"
-                    for tensor_type in type_annotation.ALL_TYPE_STRINGS
-                ],
+                [f"seq({tensor_type})" for tensor_type in type_annotation.ALL_TYPE_STRINGS],
             ),
-            ("sequence_type", Sequence[INT64], ["sequence(tensor(int64))"]),
+            ("sequence_type", Sequence[INT64], ["seq(tensor(int64))"]),
             (
                 "union_sequence_type",
                 Union[Sequence[INT64], Sequence[FLOAT]],
-                ["sequence(tensor(float))", "sequence(tensor(int64))"],
+                ["seq(tensor(float))", "seq(tensor(int64))"],
             ),
             (
                 "sequence_type_variadic_shape",
                 Sequence[INT64[...]],
-                ["sequence(tensor(int64))"],
+                ["seq(tensor(int64))"],
             ),
-            ("sequence_type_shape", Sequence[INT64[10]], ["sequence(tensor(int64))"]),
+            ("sequence_type_shape", Sequence[INT64[10]], ["seq(tensor(int64))"]),
             (
                 "sequence_type_var_constraints",
                 Sequence[_TestTypeVarConstraints],
-                ["sequence(tensor(float))", "sequence(tensor(int64))"],
+                ["seq(tensor(float))", "seq(tensor(int64))"],
             ),
             (
                 "sequence_type_bound_one",
                 Sequence[_TestTypeVarOneBound],
-                ["sequence(tensor(int64))"],
+                ["seq(tensor(int64))"],
             ),
             (
                 "sequence_type_bound_two",
                 Sequence[_TestTypeVarTwoBound],
-                ["sequence(tensor(float))", "sequence(tensor(int64))"],
+                ["seq(tensor(float))", "seq(tensor(int64))"],
             ),
         ]
     )
@@ -223,12 +221,12 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "optional_type_var",
                 Optional[_TestTypeVarOneBound],
-                "Optional_TestTypeVarOneBound",
+                "Optional__TestTypeVarOneBound",
             ),
             (
                 "sequence_type_var",
                 Sequence[_TestTypeVarOneBound],
-                "Sequence_TestTypeVarOneBound",
+                "Sequence__TestTypeVarOneBound",
             ),
             ("normal_type", INT64, None),
             ("union_type", Union[INT64, FLOAT], None),
@@ -238,7 +236,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             ("optional_union_type", Optional[Union[INT64, FLOAT]], None),
         ]
     )
-    def get_type_constraint_name(self, _: str, pytype: Any, expected: Optional[str]):
+    def test_get_type_constraint_name(self, _: str, pytype: Any, expected: Optional[str]):
         self.assertEqual(type_annotation.get_type_constraint_name(pytype), expected)
 
 
