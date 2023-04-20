@@ -4199,10 +4199,10 @@ def aten_native_batch_norm(
 @torch_op("aten::native_batch_norm", private=True)
 def _aten_native_batch_norm_training_onnx(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
-    running_mean: Optional[TFloat],
-    running_var: Optional[TFloat],
+    weight: TFloat,
+    bias: TFloat,
+    running_mean: TFloat,
+    running_var: TFloat,
     axes: INT64,
     training: bool,
     momentum: float,
@@ -4233,10 +4233,10 @@ def _aten_native_batch_norm_training_onnx(
 @torch_op("aten::native_batch_norm", private=True)
 def _aten_native_batch_norm_inference_onnx(
     input: TFloat,
-    weight: Optional[TFloat],
-    bias: Optional[TFloat],
-    running_mean: Optional[TFloat],
-    running_var: Optional[TFloat],
+    weight: TFloat,
+    bias: TFloat,
+    running_mean: TFloat,
+    running_var: TFloat,
     training: bool,
     momentum: float,
     eps: float,
