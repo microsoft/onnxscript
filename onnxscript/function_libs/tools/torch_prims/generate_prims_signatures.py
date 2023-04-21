@@ -326,11 +326,6 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--yaml",
-        type=str,
-        help="Path to PyTorch aten/src/ATen/native/native_functions.yaml",
-    )
-    parser.add_argument(
         "--outdir",
         type=str,
         help="Output directory for generated modules",
