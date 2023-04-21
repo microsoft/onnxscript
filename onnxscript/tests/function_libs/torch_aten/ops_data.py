@@ -27,7 +27,7 @@ wrangler function. See `_cat_input_wrangler` for an example.
     to one overload.
 """
 import copy
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 
 import numpy as np
 import torch
@@ -313,7 +313,7 @@ def _where_input_wrangler(
 # Split the scripted and traced ops to make sure we don't forget to script an op
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+    Callable[..., Any] | Tuple[Callable[..., Any], Callable[..., Any]],
     # onnxscript.OnnxFunction
     # | Callable[..., Any]
     # | tuple[
@@ -496,7 +496,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
 
 OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+    Callable[..., Any] | Tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
     "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "arange_start_step": core_ops.aten_arange_start_step,
@@ -577,9 +577,9 @@ OPINFO_FUNCTION_MAPPING: dict[
     str,
     onnxscript.OnnxFunction
     | Callable[..., Any]
-    | tuple[
+    | Tuple[
         onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+        Callable[[list[Any], dict[str, Any]], Tuple[list[Any], dict[str, Any]]],
     ],
 ] = {**OPINFO_FUNCTION_MAPPING_SCRIPTED, **OPINFO_FUNCTION_MAPPING_TRACE_ONLY}
 
