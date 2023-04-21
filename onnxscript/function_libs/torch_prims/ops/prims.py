@@ -155,6 +155,14 @@ def prims_bitwise_xor(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def prims_broadcast_in_dim(
+    a: TensorType, shape: INT64, broadcast_dimensions: Sequence[int]
+) -> TensorType:
+    """broadcast_in_dim(Tensor(a) a, SymInt[] shape, int[] broadcast_dimensions) -> Tensor(a)"""
+
+    raise NotImplementedError()
+
+
 def prims_cat(tensors: Sequence[TensorType], dim: int) -> TensorType:
     """cat(Tensor[] tensors, int dim) -> Tensor"""
 
@@ -175,6 +183,18 @@ def prims_ceil(self: TensorType) -> TensorType:
 
 def prims_clone(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
     """clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def prims_collapse_view(a: TensorType, start: int, end: int) -> TensorType:
+    """collapse_view(Tensor(a) a, int start, int end) -> Tensor(a)"""
+
+    raise NotImplementedError()
+
+
+def prims_conj(a: TensorType) -> TensorType:
+    """conj(Tensor(a) a) -> Tensor(a)"""
 
     raise NotImplementedError()
 
@@ -389,6 +409,12 @@ def prims_igammac(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def prims_imag(self: TensorType) -> TensorType:
+    """imag(Tensor self) -> Tensor"""
+
+    raise NotImplementedError()
+
+
 def prims_iota(
     length: INT64, start: INT64, step: INT64, dtype: int, device: str, requires_grad: bool
 ) -> TensorType:
@@ -519,6 +545,12 @@ def prims_prod(
     raise NotImplementedError()
 
 
+def prims_real(self: TensorType) -> TensorType:
+    """real(Tensor self) -> Tensor"""
+
+    raise NotImplementedError()
+
+
 def prims_reciprocal(self: TensorType) -> TensorType:
     """reciprocal(Tensor self) -> Tensor"""
 
@@ -599,14 +631,42 @@ def prims_sinh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def prims_slice(
+    a: TensorType, start_indices: INT64, limit_indices: INT64, strides: Optional[INT64] = None
+) -> TensorType:
+    """slice(Tensor(a) a, SymInt[] start_indices, SymInt[] limit_indices, SymInt[]? strides=None) -> Tensor(a)"""
+
+    raise NotImplementedError()
+
+
+def prims_slice_in_dim(
+    a: TensorType, start_index: INT64, limit_index: INT64, stride: int = 1, axis: int = 0
+) -> TensorType:
+    """slice_in_dim(Tensor(a) a, SymInt start_index, SymInt limit_index, int stride=1, int axis=0) -> Tensor(a)"""
+
+    raise NotImplementedError()
+
+
 def prims_spherical_bessel_j0(self: TensorType) -> TensorType:
     """spherical_bessel_j0(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
 
 
+def prims_split_dim(a: TensorType, dim: int, outer_length: INT64) -> TensorType:
+    """split_dim(Tensor(a) a, int dim, SymInt outer_length) -> Tensor(a)"""
+
+    raise NotImplementedError()
+
+
 def prims_sqrt(self: TensorType) -> TensorType:
     """sqrt(Tensor self) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def prims_squeeze(a: TensorType, dimensions: Sequence[int]) -> TensorType:
+    """squeeze(Tensor(a) a, int[] dimensions) -> Tensor(a)"""
 
     raise NotImplementedError()
 
@@ -643,6 +703,12 @@ def prims_tanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def prims_transpose(a: TensorType, permutation: Sequence[int]) -> TensorType:
+    """transpose(Tensor(a) a, int[] permutation) -> Tensor(a)"""
+
+    raise NotImplementedError()
+
+
 def prims_trunc(self: TensorType) -> TensorType:
     """trunc(Tensor self) -> Tensor"""
 
@@ -664,6 +730,12 @@ def prims_var(
     output_dtype: Optional[int] = None,
 ) -> TensorType:
     """var(Tensor inp, int[]? dims, *, int correction, ScalarType? output_dtype=None) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def prims_view_of(a: TensorType) -> TensorType:
+    """view_of(Tensor(a) a) -> Tensor"""
 
     raise NotImplementedError()
 

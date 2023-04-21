@@ -243,7 +243,7 @@ def copyright_header() -> str:
 
 def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, FunctionSchema]:
     table: Dict[str, FunctionSchema] = {}
-    not_supported_ops = ["normal"]
+    not_supported_ops = ["as_strided", "copy_to", "normal", "resize"]
     for op_namespace in namespaces:
         for attr_name in dir(op_namespace):
             op_overload_packet = getattr(op_namespace, attr_name)
@@ -253,11 +253,7 @@ def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, F
             ):
                 continue
 
-            if attr_name in not_supported_ops or (
-                not isinstance(op_overload_packet.return_type, tuple)
-                and op_overload_packet.return_type.name.lower() != "new"
-            ):
-                print("=== not supported op and schema: ", op_overload_packet.schema)
+            if attr_name in not_supported_ops:
                 continue
 
             func_schema = FunctionSchema.parse(op_overload_packet.schema)
