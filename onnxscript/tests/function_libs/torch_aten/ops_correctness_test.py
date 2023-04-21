@@ -1811,5 +1811,5 @@ common_device_type.instantiate_device_type_tests(
     TestOutputConsistencyFullGraph, globals(), only_for="cpu"
 )
 
-if __name__ == "__main__":
-    unittest.main()
+# if __name__ == "__main__":
+#     unittest.main()
