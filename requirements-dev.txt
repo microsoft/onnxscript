@@ -13,7 +13,7 @@ sphinx-copybutton
 sphinx-gallery
 sphinx>=6
 
-# ATen lib
+# Torch lib
 beartype
 
 # Testing

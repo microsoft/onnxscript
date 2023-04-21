@@ -85,7 +85,7 @@ def test_onnx_func_expe(session):
     session.run(
         "pytest",
         "onnxscript",
-        "--ignore=onnxscript/tests/function_libs/torch_aten/ops_correctness_test.py",
+        "--ignore=onnxscript/tests/function_libs/torch_lib/ops_correctness_test.py",
         *session.posargs,
     )
     session.run("pytest", "docs/test", *session.posargs)
