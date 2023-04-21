@@ -85,7 +85,7 @@ def test_onnx_func_expe(session):
     session.run(
         "pytest",
         "onnxscript",
-        "--ignore=onnxscript/tests/function_libs/torch_aten/ops_correctness_test.py",
+        "--ignore=onnxscript/tests/function_libs/torch_lib/ops_correctness_test.py",
         *session.posargs,
     )
     session.run("pytest", "docs/test", *session.posargs)
@@ -99,9 +99,7 @@ def test_torch_nightly(session):
         ONNX,
         ONNX_RUNTIME,
     )
-    session.install(
-        "--pre", "torch", "--index-url", "https://download.pytorch.org/whl/nightly/cpu"
-    )
+    session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)

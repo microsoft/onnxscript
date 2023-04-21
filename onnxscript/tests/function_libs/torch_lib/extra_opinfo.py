@@ -4,6 +4,7 @@ pytorch/torch/testing/_internal/common_methods_invocations.py.
 """
 
 import functools
+import itertools
 from typing import Any, List
 
 import torch
@@ -201,6 +202,95 @@ def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
+class _TestParamsMaxPoolEmptyStrideBase:
+    # Adapted from https://github.com/pytorch/pytorch/blob/d6d55f8590eab05d2536756fb4efcfb2d07eb81a/torch/testing/_internal/common_methods_invocations.py#L3203
+    def __init__(self):
+        self.kwargs = {
+            "kernel_size": [3],
+            "stride": [()],
+            "ceil_mode": [True, False],
+            "padding": [0, 1],
+            "dilation": [1],
+        }
+
+        # fmt: off
+        self.shapes = [
+            [1, 2, None],  # batch
+            [2],  # channels
+            [3, 6]  # signal
+        ]
+        # fmt: on
+
+    def _gen_shape(self):
+        for shape in itertools.product(*self.shapes):
+            # shape[0] is None indicates missing batch dimension
+            if shape[0] is None:
+                shape = shape[1:]
+
+            yield shape, torch.contiguous_format
+            # only 2d (N, C, H, W) rank 4 tensors support channels_last memory format
+            if len(self.shapes) == 4 and len(shape) == 4:
+                yield shape, torch.channels_last
+
+    def _gen_kwargs(self):
+        keys = self.kwargs.keys()
+        for values in itertools.product(*self.kwargs.values()):
+            yield dict(zip(keys, values))
+
+    def gen_input_params(self):
+        yield from itertools.product(self._gen_shape(), self._gen_kwargs())
+
+
+class _TestParamsMaxPool1dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
+    def __init__(self):
+        super().__init__()
+        self.kwargs["kernel_size"] += [(3,)]
+        self.kwargs["stride"] += [(2,)]
+        self.kwargs["padding"] += [(1,)]
+        self.kwargs["dilation"] += [(1,)]
+
+
+class _TestParamsMaxPool2dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
+    def __init__(self):
+        super().__init__()
+        self.kwargs["kernel_size"] += [(3, 2)]
+        self.kwargs["stride"] += [(2, 1)]
+        self.kwargs["padding"] += [(1, 1)]
+        self.kwargs["dilation"] += [(1, 2)]
+
+        self.shapes.append([6])
+
+
+class _TestParamsMaxPool3dEmptyStride(_TestParamsMaxPoolEmptyStrideBase):
+    def __init__(self):
+        super().__init__()
+        self.kwargs["kernel_size"] += [(3, 2, 3)]
+        self.kwargs["stride"] += [(2, 1, 2)]
+        self.kwargs["dilation"] += [(1, 2, 1)]
+
+        self.shapes.append([6])
+        self.shapes.append([5])
+
+
+def sample_inputs_max_pool_empty_strides(op_info, device, dtype, requires_grad, **kwargs):
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=False
+    )
+
+    # FIXME: (RuntimeError: non-empty 3D or 4D (batch mode) tensor expected for input)
+
+    params_generator_type_dict = {
+        "max_pool1d": _TestParamsMaxPool1dEmptyStride,
+        "max_pool2d": _TestParamsMaxPool2dEmptyStride,
+        "max_pool3d": _TestParamsMaxPool3dEmptyStride,
+    }
+
+    params_generator = params_generator_type_dict[op_info.name]()
+    for (shape, memory_format), kwargs in params_generator.gen_input_params():
+        arg = make_arg(shape).to(memory_format=memory_format).requires_grad_(requires_grad)
+        yield opinfo_core.SampleInput(arg, kwargs=kwargs)
+
+
 def sample_inputs_max_pool2d_with_indices(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -225,6 +315,39 @@ def sample_inputs_max_pool3d_with_indices(op_info, device, dtype, requires_grad,
     for (shape, memory_format), kwargs in params_generator.gen_input_params():
         arg = make_arg(shape).to(memory_format=memory_format).requires_grad_(requires_grad)
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
+
+
+def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # Ordered as input shape, C,N,HxW, and kwargs for group and eps
+    cases = (
+        ((1, 6, 3), (6,), (6,), 1, 6, 3, {"group": 2, "eps": 0.5}),
+        ((2, 6, 3), (6,), (6,), 2, 6, 3, {"group": 3, "eps": -0.5}),
+        ((5, 5, 5), (5,), (5,), 5, 5, 5, {"group": 1, "eps": 1e-5}),
+        ((5, 8, 10), (8,), (8,), 5, 8, 10, {"group": 4, "eps": 1e-5}),
+    )
+
+    for input_shape, weight, bias, N, C, HxW, kwargs in cases:
+        # args: running mean, running var, weight and bias should necessarily be of shape: (channels,)
+        channels = input_shape[1] if len(input_shape) > 1 else 0
+        weight = make_arg(channels) if channels > 0 else None
+        bias = make_arg(channels) if channels > 0 else None
+
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape),
+            args=(
+                weight,
+                bias,
+                N,
+                C,
+                HxW,
+            ),
+            kwargs=kwargs,
+        )
 
 
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
@@ -315,6 +438,30 @@ OP_DB: List[opinfo_core.OpInfo] = [
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
         skips=(),
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "native_group_norm",
+        op=torch.ops.aten.native_group_norm,
+        aten_name="native_group_norm",
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_native_group_norm,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "max_pool2d",
+        variant_test_name="empty_strides",
+        op=torch.ops.aten.max_pool2d,
+        aten_name="max_pool2d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_max_pool_empty_strides,
+    ),
+    opinfo_core.OpInfo(
+        "max_pool3d",
+        variant_test_name="empty_strides",
+        op=torch.ops.aten.max_pool3d,
+        aten_name="max_pool3d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_max_pool_empty_strides,
     ),
     opinfo_core.OpInfo(
         "nn.functional.conv3d",
