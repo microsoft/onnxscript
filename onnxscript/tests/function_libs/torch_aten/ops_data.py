@@ -27,7 +27,7 @@ wrangler function. See `_cat_input_wrangler` for an example.
     to one overload.
 """
 import copy
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, list, Tuple
 
 import numpy as np
 import torch
