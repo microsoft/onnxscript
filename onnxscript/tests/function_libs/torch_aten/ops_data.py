@@ -313,12 +313,13 @@ def _where_input_wrangler(
 # Split the scripted and traced ops to make sure we don't forget to script an op
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
-    onnxscript.OnnxFunction
-    | Callable[..., Any]
-    | tuple[
-        onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    ],
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+    # onnxscript.OnnxFunction
+    # | Callable[..., Any]
+    # | tuple[
+    #     onnxscript.OnnxFunction | Callable[..., Any],
+    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    # ],
 ] = {
     "all_dim": core_ops.aten_all_dim,
     "allclose": core_ops.aten_allclose,
