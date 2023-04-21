@@ -18,8 +18,8 @@ import math
 from typing import Optional, Sequence, Tuple
 
 from onnxscript import FLOAT, INT64
-from onnxscript.function_libs.torch_aten.registration import torch_op
-from onnxscript.function_libs.torch_aten.tensor_typing import (
+from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import (
     TFloat,
     TFloatOrBFloat16,
     TFloatOrUInt8,
