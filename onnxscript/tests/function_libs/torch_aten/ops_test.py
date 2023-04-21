@@ -55,14 +55,13 @@ from onnxscript.tests.function_libs.torch_aten.ops_data import (
     EXPECTED_SKIPS_OR_FAILS,
     NONDETERMINISTIC_OPS,
     OP_WITH_SKIPPED_SUBTESTS,
+    OPINFO_FUNCTION_MAPPING,
     OPINFO_FUNCTION_MAPPING_SCRIPTED,
     OPINFO_FUNCTION_MAPPING_TRACE_ONLY,
-    OPINFO_FUNCTION_MAPPING,
     OPS_DB,
     SKIP_SUBTESTS,
     TESTED_OPS,
 )
-
 
 # Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
 TESTED_DTYPES = (torch.float32,)
