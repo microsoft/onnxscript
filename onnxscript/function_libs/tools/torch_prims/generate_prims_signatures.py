@@ -244,7 +244,6 @@ def copyright_header() -> str:
 
 def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, FunctionSchema]:
     table: Dict[str, FunctionSchema] = {}
-    not_supported_ops = ["normal"]
     for op_namespace in namespaces:
         for attr_name in dir(op_namespace):
             op_overload_packet = getattr(op_namespace, attr_name)
@@ -254,15 +253,18 @@ def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, F
             ):
                 continue
 
-            if attr_name in not_supported_ops:
-                continue
-
             # Update schema to avoid returning mutable positional args
-            # which will fail FunctionSchema.parse.
+            # which fails FunctionSchema.parse(). For example:
+            # change "resize(Tensor(a!) a, SymInt[] shape) -> Tensor(a!)"
+            # to "resize(Tensor a, SymInt[] shape) -> Tensor"
             if "!" in op_overload_packet.schema:
                 op_overload_packet.schema = re.sub(  # type: ignore[attr-defined]
                     "[(][A-Za-z]![)]", "", op_overload_packet.schema
                 )
+
+            # FIXME: remove below code if the issue below is fixed.
+            # https://github.com/pytorch/pytorch/issues/99714
+            op_overload_packet.schema = op_overload_packet.schema.replace(",  ", ", ")  # type: ignore[attr-defined]
 
             func_schema = FunctionSchema.parse(op_overload_packet.schema)
             op_name = op_namespace.name + "_" + attr_name

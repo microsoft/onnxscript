@@ -545,6 +545,14 @@ def prims_nextafter(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+def prims_normal(
+    shape: INT64, mean: float, std: float, dtype: int, device: str, requires_grad: bool
+) -> TensorType:
+    """normal(SymInt[] shape, *, Scalar mean, Scalar std, ScalarType dtype, Device device, bool requires_grad) -> Tensor"""
+
+    raise NotImplementedError()
+
+
 def prims_pow(self: TensorType, other: TensorType) -> TensorType:
     """pow(Tensor self, Tensor other) -> Tensor"""
 
