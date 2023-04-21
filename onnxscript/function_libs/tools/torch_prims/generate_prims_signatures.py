@@ -10,6 +10,7 @@ import argparse
 import ast
 import logging
 import os
+import re
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
@@ -243,7 +244,7 @@ def copyright_header() -> str:
 
 def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, FunctionSchema]:
     table: Dict[str, FunctionSchema] = {}
-    not_supported_ops = ["as_strided", "copy_to", "normal", "resize"]
+    not_supported_ops = ["normal"]
     for op_namespace in namespaces:
         for attr_name in dir(op_namespace):
             op_overload_packet = getattr(op_namespace, attr_name)
@@ -255,6 +256,13 @@ def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, F
 
             if attr_name in not_supported_ops:
                 continue
+
+            # Update schema to avoid returning mutable positional args
+            # which will fail FunctionSchema.parse.
+            if "!" in op_overload_packet.schema:
+                op_overload_packet.schema = re.sub(  # type: ignore[attr-defined]
+                    "[(][A-Za-z]![)]", "", op_overload_packet.schema
+                )
 
             func_schema = FunctionSchema.parse(op_overload_packet.schema)
             op_name = op_namespace.name + "_" + attr_name

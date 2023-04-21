@@ -57,6 +57,14 @@ def prims_amin(
     raise NotImplementedError()
 
 
+def prims_as_strided(
+    a: TensorType, size: INT64, stride: INT64, storage_offset: INT64
+) -> TensorType:
+    """as_strided(Tensor a, SymInt[] size, SymInt[] stride, SymInt storage_offset) -> Tensor"""
+
+    raise NotImplementedError()
+
+
 def prims_as_strided_scatter(
     self: TensorType, src: TensorType, size: INT64, stride: INT64, storage_offset: INT64
 ) -> TensorType:
@@ -213,6 +221,12 @@ def prims_convert_element_type(a: TensorType, dtype: int) -> TensorType:
 
 def prims_copy_strided(a: TensorType, stride: INT64) -> TensorType:
     """copy_strided(Tensor a, SymInt[] stride) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def prims_copy_to(a: TensorType, b: TensorType) -> TensorType:
+    """copy_to(Tensor a, Tensor b) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -565,6 +579,12 @@ def prims_remainder(self: TensorType, other: TensorType) -> TensorType:
 
 def prims_reshape(a: TensorType, shape: INT64) -> TensorType:
     """reshape(Tensor a, SymInt[] shape) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def prims_resize(a: TensorType, shape: INT64) -> TensorType:
+    """resize(Tensor a, SymInt[] shape) -> Tensor"""
 
     raise NotImplementedError()
 
