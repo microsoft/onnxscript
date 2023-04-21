@@ -435,4 +435,3 @@ def _eager_executor(
         return function(*args, **kwargs)
 
     return executor
-

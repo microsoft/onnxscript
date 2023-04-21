@@ -27,21 +27,18 @@ wrangler function. See `_cat_input_wrangler` for an example.
     to one overload.
 """
 import copy
-from torch.testing._internal import common_methods_invocations
-from onnxscript.tests.function_libs.torch_aten import extra_opinfo
-from typing import (
-    Any,
-    Callable,
-)
-import numpy as np
-import onnxscript
-import torch
+from typing import Any, Callable
 
+import numpy as np
+import torch
+from torch.testing._internal import common_methods_invocations
+
+import onnxscript
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
-from onnxscript._internal import version_utils
-
+from onnxscript.tests.function_libs.torch_aten import extra_opinfo
 from onnxscript.tests.function_libs.torch_aten.ops_base import (
     DecorateMeta,
     duplicate_opinfo,

@@ -30,10 +30,7 @@ from __future__ import annotations
 
 import unittest
 import warnings
-from typing import (
-    Callable,
-    Optional,
-)
+from typing import Callable, Optional
 
 import numpy as np
 import onnx
@@ -47,19 +44,13 @@ from torch.utils import _pytree as pytree
 import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
-
-# Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
-TESTED_DTYPES = (torch.float32,)
-
-
 from onnxscript.tests.function_libs.torch_aten.ops_base import (
-    _convert_tensor_to_numpy,
     _convert_kwargs_for_onnx,
+    _convert_tensor_to_numpy,
     _eager_executor,
     _graph_executor,
     add_decorate_info,
 )
-
 from onnxscript.tests.function_libs.torch_aten.ops_data import (
     EXPECTED_SKIPS_OR_FAILS,
     NONDETERMINISTIC_OPS,
@@ -71,6 +62,10 @@ from onnxscript.tests.function_libs.torch_aten.ops_data import (
     SKIP_SUBTESTS,
     TESTED_OPS,
 )
+
+
+# Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
+TESTED_DTYPES = (torch.float32,)
 
 
 def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
