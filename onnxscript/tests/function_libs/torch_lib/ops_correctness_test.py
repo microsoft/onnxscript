@@ -59,11 +59,11 @@ from torch.utils import _pytree as pytree
 import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
-from onnxscript.function_libs.torch_aten import graph_building
-from onnxscript.function_libs.torch_aten.ops import core as core_ops
-from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
-from onnxscript.function_libs.torch_aten.ops import special as special_ops
-from onnxscript.tests.function_libs.torch_aten import extra_opinfo
+from onnxscript.function_libs.torch_lib import graph_building
+from onnxscript.function_libs.torch_lib.ops import core as core_ops
+from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
+from onnxscript.function_libs.torch_lib.ops import special as special_ops
+from onnxscript.tests.function_libs.torch_lib import extra_opinfo
 
 T = TypeVar("T")
 
@@ -701,7 +701,10 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "max": core_ops.aten_max,
+    "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
+    "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
     "native_batch_norm": core_ops.aten_native_batch_norm,
+    "native_group_norm": core_ops.aten_native_group_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,
@@ -800,19 +803,14 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "max_pool3d",
+        variant_name="empty_strides",
+        reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
+    ),
+    xfail(
         "min_dim",
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "native_batch_norm",
-        reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail(
-        "native_batch_norm",
-        reason="fixme: ONNX return 3 outputs(norm, mean, var), but last 2 outputs are different than Torch",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(

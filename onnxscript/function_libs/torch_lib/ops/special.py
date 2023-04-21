@@ -14,8 +14,8 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import FLOAT
-from onnxscript.function_libs.torch_aten.registration import torch_op
-from onnxscript.function_libs.torch_aten.tensor_typing import TFloatOrBFloat16
+from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloatOrBFloat16
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 

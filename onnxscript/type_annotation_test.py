@@ -102,9 +102,9 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "tensor_type_all",
                 onnxscript.onnx_types.TensorType,
-                list(type_annotation.ALL_TYPE_STRINGS),
+                list(type_annotation.ALL_TENSOR_TYPE_STRINGS),
             ),
-            ("none", None, list(type_annotation.ALL_TYPE_STRINGS)),
+            ("none", None, list(type_annotation.ALL_TENSOR_TYPE_STRINGS)),
             ("tensor_type", INT64, ["tensor(int64)"]),
             ("tensor_type_union", Union[INT64, FLOAT], ["tensor(float)", "tensor(int64)"]),
             ("tensor_type_variadic_shape", INT64[...], ["tensor(int64)"]),
@@ -122,9 +122,9 @@ class TypeConversionFunctionsTest(unittest.TestCase):
                 [
                     *[
                         f"optional({tensor_type})"
-                        for tensor_type in type_annotation.ALL_TYPE_STRINGS
+                        for tensor_type in type_annotation.ALL_TENSOR_TYPE_STRINGS
                     ],
-                    *type_annotation.ALL_TYPE_STRINGS,
+                    *type_annotation.ALL_TENSOR_TYPE_STRINGS,
                 ],
             ),
             (
@@ -180,7 +180,10 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             (
                 "sequence_type_all",
                 Sequence[onnxscript.onnx_types.TensorType],
-                [f"seq({tensor_type})" for tensor_type in type_annotation.ALL_TYPE_STRINGS],
+                [
+                    f"seq({tensor_type})"
+                    for tensor_type in type_annotation.ALL_TENSOR_TYPE_STRINGS
+                ],
             ),
             ("sequence_type", Sequence[INT64], ["seq(tensor(int64))"]),
             (
