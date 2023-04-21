@@ -241,7 +241,7 @@ def copyright_header() -> str:
     )
 
 
-def _get_func_schema_of_namespace(namespaces: List[_OpNamespace]) -> Dict[str, FunctionSchema]:
+def _get_func_schema_in_namespace(namespaces: List[_OpNamespace]) -> Dict[str, FunctionSchema]:
     table: Dict[str, FunctionSchema] = {}
     not_supported_ops = ["normal"]
     for op_namespace in namespaces:
@@ -268,10 +268,10 @@ def _get_func_schema_of_namespace(namespaces: List[_OpNamespace]) -> Dict[str, F
 
 
 def main(args: argparse.Namespace) -> None:
-    all_ops = _get_func_schema_of_namespace([torch.ops.prims])
+    all_functions = _get_func_schema_in_namespace([torch.ops.prims])
     functions: dict[str, dict[str, FunctionSchema]] = {}
-    for op_name, schema in all_ops.items():
-        if not should_generate_signature(op_name, schema):
+    for op_name, func_schema in all_functions.items():
+        if not should_generate_signature(op_name, func_schema):
             continue
 
         module_name = op_name.split("_")[0]
@@ -279,10 +279,12 @@ def main(args: argparse.Namespace) -> None:
             functions[module_name] = {}
         if op_name in functions[module_name]:
             logging.warning(
-                "Duplicated function: %s, overload: %s", op_name, schema.name.overload_name
+                "Duplicated function: %s, overload: %s",
+                op_name,
+                func_schema.name.overload_name,
             )
             continue
-        functions[module_name][op_name] = schema
+        functions[module_name][op_name] = func_schema
 
     os.makedirs(args.outdir, exist_ok=True)
 
