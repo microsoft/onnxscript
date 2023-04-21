@@ -103,4 +103,4 @@ api/index
 
 ## License
 
-onnxscript comes with a [MIT](https://github.com/microsoft/onnx-script/blob/main/LICENSE) license.
+onnxscript comes with a [MIT](https://github.com/microsoft/onnxscript/blob/main/LICENSE) license.

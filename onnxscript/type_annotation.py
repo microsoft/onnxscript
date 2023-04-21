@@ -7,10 +7,9 @@ from __future__ import annotations
 import collections
 import inspect
 import typing
-from typing import Optional, Sequence, TypeVar, Union
+from typing import Optional, Sequence, Union
 
 import onnx
-from typing_extensions import get_args, get_origin
 
 from onnxscript import onnx_types
 
@@ -44,7 +43,8 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
-ALL_TYPE_STRINGS = (
+# A sorted list of all type strings used in an OpSchema
+ALL_TENSOR_TYPE_STRINGS = (
     "tensor(bfloat16)",
     "tensor(bool)",
     "tensor(double)",
@@ -66,8 +66,8 @@ def _remove_annotation(typeinfo: TypeAnnotationValue) -> TypeAnnotationValue:
     """Remove Annotated wrapper if present, otherwise return typeinfo as is."""
     if hasattr(typing, "Annotated"):
         # Present in Python 3.9+
-        if get_origin(typeinfo) is typing.Annotated:
-            return get_args(typeinfo)[0]
+        if typing.get_origin(typeinfo) is typing.Annotated:
+            return typing.get_args(typeinfo)[0]
     return typeinfo
 
 
@@ -77,19 +77,19 @@ def _is_primitive_attr_type(typeinfo: TypeAnnotationValue) -> bool:
 
 def pytype_to_attrtype(
     pytype: TypeAnnotationValue,
-) -> typing.Optional[onnx.AttributeProto.AttributeType]:
+) -> Optional[onnx.AttributeProto.AttributeType]:
     pytype = _remove_annotation(pytype)
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return _PYTYPE_TO_ATTRTYPE_MAP[pytype]
-    type_constructor = get_origin(pytype)
+    type_constructor = typing.get_origin(pytype)
     # Remove Optional wrapper if present, which is represented as an Union[..., type(None)]
     if type_constructor is typing.Union:
         # Filter out type(None), since typing.Optional[X] evaluates to Union[X, type(None)]
-        args = [x for x in get_args(pytype) if x is not type(None)]
+        args = [x for x in typing.get_args(pytype) if x is not type(None)]
         if len(args) == 1:
             return pytype_to_attrtype(args[0])
     if type_constructor in _LIST_CONSTRUCTORS:
-        elt_type = get_args(pytype)[0]
+        elt_type = typing.get_args(pytype)[0]
         if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
             return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
     return None
@@ -112,16 +112,16 @@ def is_value_type(typeinfo: TypeAnnotationValue) -> bool:
         return True
     if _is_primitive_attr_type(typeinfo):
         return False
-    type_constructor = get_origin(typeinfo)
+    type_constructor = typing.get_origin(typeinfo)
     # Handle List-like type-constructor
     # Eg. List[INT32] is a value type, while List[int] is an attribute type
     if type_constructor in _LIST_CONSTRUCTORS:
-        elt_type = get_args(typeinfo)[0]
+        elt_type = typing.get_args(typeinfo)[0]
         return is_value_type(elt_type)
     # Handle Union and Optional type-constructors
     if type_constructor is typing.Union:
         # Filter out None, since typing.Optional[X] evaluates to Union[X, None]
-        args = [x for x in get_args(typeinfo) if x is not type(None)]
+        args = [x for x in typing.get_args(typeinfo) if x is not type(None)]
         args_value_check = [is_value_type(x) for x in args]
         if all(args_value_check):
             # Handles cases like Optional[INT32] as well as Union[FLOAT16, FLOAT, DOUBLE]
@@ -151,7 +151,7 @@ def is_valid_type(typeinfo: TypeAnnotationValue):
         return False
 
 
-def get_return_types(typeinfo: type | typing.Sequence[type]) -> typing.Sequence[type]:
+def get_return_types(typeinfo: type | Sequence[type]) -> Sequence[type]:
     """Converts return-type annotation into a sequence of types.
 
     The return type annotation can be either a single type (for a single output)
@@ -161,28 +161,9 @@ def get_return_types(typeinfo: type | typing.Sequence[type]) -> typing.Sequence[
     """
     if isinstance(typeinfo, typing.Sequence):
         return typeinfo
-    if get_origin(typeinfo) is tuple:
-        return get_args(typeinfo)
+    if typing.get_origin(typeinfo) is tuple:
+        return typing.get_args(typeinfo)
     return (typeinfo,)
-
-
-# A sorted list of all type strings used in an OpSchema
-ALL_TYPE_STRINGS = (
-    "tensor(bfloat16)",
-    "tensor(bool)",
-    "tensor(double)",
-    "tensor(float)",
-    "tensor(float16)",
-    "tensor(int16)",
-    "tensor(int32)",
-    "tensor(int64)",
-    "tensor(int8)",
-    "tensor(string)",
-    "tensor(uint16)",
-    "tensor(uint32)",
-    "tensor(uint64)",
-    "tensor(uint8)",
-)
 
 
 def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
@@ -196,22 +177,20 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
         Ensures that the list is sorted in the same order as ALL_TYPE_STRINGS.
     """
     if pytype is None:
-        return list(ALL_TYPE_STRINGS)
-    if pytype is type(None):
-        return list(ALL_TYPE_STRINGS)
+        return list(ALL_TENSOR_TYPE_STRINGS)
     if pytype is onnx_types.TensorType:
-        return list(ALL_TYPE_STRINGS)
+        return list(ALL_TENSOR_TYPE_STRINGS)
     if isinstance(pytype, type) and issubclass(pytype, onnx_types.TensorType):
         return [pytype.to_string()]
     if isinstance(pytype, onnx_types.TensorType):
         return [pytype.to_string()]
-    if isinstance(pytype, TypeVar):
+    if isinstance(pytype, typing.TypeVar):
         constraints = pytype.__constraints__
         if constraints:
             return pytype_to_input_strings(Union.__getitem__(constraints))
         bound = pytype.__bound__
         if bound is None:
-            return list(ALL_TYPE_STRINGS)
+            return list(ALL_TENSOR_TYPE_STRINGS)
         return pytype_to_input_strings(bound)
     if typing.get_origin(pytype) is Union:
         options = []
@@ -250,16 +229,21 @@ def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:
         - Prefixes the name with "Sequence_" if the type annotation is a Sequence[].
         - Returns None if the type annotation does not have a type constraint.
     """
-    if isinstance(pytype, TypeVar):
+    if isinstance(pytype, typing.TypeVar):
         return pytype.__name__
     if typing.get_origin(pytype) is Union:
         subtypes = typing.get_args(pytype)
         if len(subtypes) == 2 and type(None) in subtypes:
+            # An Optional type
             for subtype in subtypes:
-                if isinstance(subtype, TypeVar):
-                    return f"Optional_{subtype.__name__}"
+                if subtype is type(None):
+                    continue
+                type_param_name = get_type_constraint_name(subtype)
+                return f"Optional_{type_param_name}" if type_param_name else None
+        else:
+            return None
     if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
         subtypes = typing.get_args(pytype)
-        if len(subtypes) == 1 and isinstance(subtypes[0], TypeVar):
-            return f"Sequence_{get_type_constraint_name(subtypes[0])}"
+        type_param_name = get_type_constraint_name(subtypes[0])
+        return f"Sequence_{type_param_name}" if type_param_name else None
     return None
