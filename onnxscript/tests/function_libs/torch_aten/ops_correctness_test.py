@@ -704,6 +704,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
     "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
     "native_batch_norm": core_ops.aten_native_batch_norm,
+    "native_group_norm": core_ops.aten_native_group_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "new_empty": core_ops.aten_new_empty,
     "new_empty_strided": core_ops.aten_new_empty_strided,

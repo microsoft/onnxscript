@@ -317,6 +317,39 @@ def sample_inputs_max_pool3d_with_indices(op_info, device, dtype, requires_grad,
         yield opinfo_core.SampleInput(arg, kwargs=kwargs)
 
 
+def sample_inputs_native_group_norm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    # Ordered as input shape, C,N,HxW, and kwargs for group and eps
+    cases = (
+        ((1, 6, 3), (6,), (6,), 1, 6, 3, {"group": 2, "eps": 0.5}),
+        ((2, 6, 3), (6,), (6,), 2, 6, 3, {"group": 3, "eps": -0.5}),
+        ((5, 5, 5), (5,), (5,), 5, 5, 5, {"group": 1, "eps": 1e-5}),
+        ((5, 8, 10), (8,), (8,), 5, 8, 10, {"group": 4, "eps": 1e-5}),
+    )
+
+    for input_shape, weight, bias, N, C, HxW, kwargs in cases:
+        # args: running mean, running var, weight and bias should necessarily be of shape: (channels,)
+        channels = input_shape[1] if len(input_shape) > 1 else 0
+        weight = make_arg(channels) if channels > 0 else None
+        bias = make_arg(channels) if channels > 0 else None
+
+        yield opinfo_core.SampleInput(
+            make_arg(input_shape),
+            args=(
+                weight,
+                bias,
+                N,
+                C,
+                HxW,
+            ),
+            kwargs=kwargs,
+        )
+
+
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     # input_shape, output_size, kernal, dilation, padding, stride
@@ -404,6 +437,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_fwgrad_bwgrad=True,
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
         skips=(),
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "native_group_norm",
+        op=torch.ops.aten.native_group_norm,
+        aten_name="native_group_norm",
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_native_group_norm,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
