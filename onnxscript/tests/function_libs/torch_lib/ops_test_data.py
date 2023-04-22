@@ -29,38 +29,15 @@ wrangler function. See `_cat_input_wrangler` for an example.
 from __future__ import annotations
 
 import copy
-# import dataclasses
-# import multiprocessing
-# import os
-# import pprint
-# import unittest
-# import warnings
-from typing import (
-    Any,
-    Callable,
-    # Collection,
-    # Iterable,
-    # Mapping,
-    # Optional,
-    # Sequence,
-    # TypeVar,
-)
+from typing import Any, Callable
 
 import numpy as np
-# import onnx
-# import onnxruntime as ort
-# import onnxruntime.capi.onnxruntime_pybind11_state
-# import parameterized
 import torch
-# from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal import common_methods_invocations
-# from torch.testing._internal.opinfo import core as opinfo_core
-# from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
-# from onnxscript.function_libs.torch_lib import graph_building
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
@@ -603,7 +580,7 @@ OPINFO_FUNCTION_MAPPING: dict[
     str,
     onnxscript.OnnxFunction
     | Callable[..., Any]
-    | Tuple[
+    | tuple[
         onnxscript.OnnxFunction | Callable[..., Any],
         Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
     ],
