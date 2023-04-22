@@ -47,10 +47,10 @@ from typing import (
 )
 
 import numpy as np
-import onnx
-import onnxruntime as ort
-import onnxruntime.capi.onnxruntime_pybind11_state
-import parameterized
+# import onnx
+# import onnxruntime as ort
+# import onnxruntime.capi.onnxruntime_pybind11_state
+# import parameterized
 import torch
 from torch.testing._internal import common_device_type, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -64,7 +64,7 @@ from onnxscript.function_libs.torch_aten.ops import core as core_ops
 from onnxscript.function_libs.torch_aten.ops import nn as nn_ops
 from onnxscript.function_libs.torch_aten.ops import special as special_ops
 from onnxscript.tests.function_libs.torch_aten import extra_opinfo
-from onnxscript.tests.function_libs.torch_aten.ops_base import (
+from onnxscript.tests.function_libs.torch_aten.ops_test_common import (
     DecorateMeta,
     duplicate_opinfo,
     skip,

@@ -1747,69 +1747,69 @@ def run_test_output_match(
                     raise
 
 
-class TestOutputConsistencyEager(unittest.TestCase):
-    """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
+# class TestOutputConsistencyEager(unittest.TestCase):
+#     """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
 
-    This is a parameterized test suite.
-    """
+#     This is a parameterized test suite.
+#     """
 
-    def setUp(self) -> None:
-        torch.manual_seed(42)
-        np.random.seed(42)
-        ort.set_seed(42)
+#     def setUp(self) -> None:
+#         torch.manual_seed(42)
+#         np.random.seed(42)
+#         ort.set_seed(42)
 
-    @add_decorate_info(
-        OPS_DB,
-        "TestOutputConsistencyEager",
-        "test_output_match_opinfo_",
-        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
-    )
-    @common_device_type.ops(  # type: ignore[misc]
-        [info for info in OPS_DB if info.name in TESTED_OPS],
-        allowed_dtypes=TESTED_DTYPES,
-    )
-    def test_output_match_opinfo_(
-        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
-    ):
-        """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
-        run_test_output_match(self, device, dtype, op, _eager_executor)
-
-
-class TestOutputConsistencyFullGraph(unittest.TestCase):
-    """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
-
-    This is a parameterized test suite.
-    """
-
-    def setUp(self) -> None:
-        torch.manual_seed(42)
-        np.random.seed(42)
-        ort.set_seed(42)
-
-    @add_decorate_info(
-        OPS_DB,
-        "TestOutputConsistencyFullGraph",
-        "test_output_match_opinfo_",
-        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
-    )
-    @common_device_type.ops(  # type: ignore[misc]
-        [info for info in OPS_DB if info.name in TESTED_OPS],
-        allowed_dtypes=TESTED_DTYPES,
-    )
-    def test_output_match_opinfo_(
-        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
-    ):
-        """Base test method for testing each op by running the full ONNX graph."""
-        run_test_output_match(self, device, dtype, op, _graph_executor)
+#     @add_decorate_info(
+#         OPS_DB,
+#         "TestOutputConsistencyEager",
+#         "test_output_match_opinfo_",
+#         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
+#     )
+#     @common_device_type.ops(  # type: ignore[misc]
+#         [info for info in OPS_DB if info.name in TESTED_OPS],
+#         allowed_dtypes=TESTED_DTYPES,
+#     )
+#     def test_output_match_opinfo_(
+#         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+#     ):
+#         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
+#         run_test_output_match(self, device, dtype, op, _eager_executor)
 
 
-common_device_type.instantiate_device_type_tests(
-    TestOutputConsistencyEager, globals(), only_for="cpu"
-)
+# class TestOutputConsistencyFullGraph(unittest.TestCase):
+#     """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
 
-common_device_type.instantiate_device_type_tests(
-    TestOutputConsistencyFullGraph, globals(), only_for="cpu"
-)
+#     This is a parameterized test suite.
+#     """
+
+#     def setUp(self) -> None:
+#         torch.manual_seed(42)
+#         np.random.seed(42)
+#         ort.set_seed(42)
+
+#     @add_decorate_info(
+#         OPS_DB,
+#         "TestOutputConsistencyFullGraph",
+#         "test_output_match_opinfo_",
+#         skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
+#     )
+#     @common_device_type.ops(  # type: ignore[misc]
+#         [info for info in OPS_DB if info.name in TESTED_OPS],
+#         allowed_dtypes=TESTED_DTYPES,
+#     )
+#     def test_output_match_opinfo_(
+#         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+#     ):
+#         """Base test method for testing each op by running the full ONNX graph."""
+#         run_test_output_match(self, device, dtype, op, _graph_executor)
+
+
+# common_device_type.instantiate_device_type_tests(
+#     TestOutputConsistencyEager, globals(), only_for="cpu"
+# )
+
+# common_device_type.instantiate_device_type_tests(
+#     TestOutputConsistencyFullGraph, globals(), only_for="cpu"
+# )
 
 # if __name__ == "__main__":
 #     unittest.main()

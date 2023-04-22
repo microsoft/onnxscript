@@ -44,7 +44,7 @@ from torch.utils import _pytree as pytree
 import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
-from onnxscript.tests.function_libs.torch_aten.ops_base import (
+from onnxscript.tests.function_libs.torch_aten.ops_test_common import (
     _convert_kwargs_for_onnx,
     _convert_tensor_to_numpy,
     _eager_executor,
