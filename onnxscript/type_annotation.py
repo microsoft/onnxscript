@@ -151,6 +151,11 @@ def is_valid_type(typeinfo: TypeAnnotationValue):
         return False
 
 
+def is_optional(pytype) -> bool:
+    """Returns whether a pytype is an Optional."""
+    return typing.get_origin(pytype) is typing.Union and type(None) in typing.get_args(pytype)
+
+
 def get_return_types(typeinfo: type | Sequence[type]) -> Sequence[type]:
     """Converts return-type annotation into a sequence of types.
 
@@ -196,12 +201,12 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
         options = []
         subtypes = typing.get_args(pytype)
         # A None type in a Union is equivalent to an optional type
-        is_optional = any(subtype is type(None) for subtype in subtypes)
+        optional = is_optional(pytype)
         for subtype in subtypes:
             if subtype is type(None):
                 # Skip None type because we are handling it with is_optional
                 continue
-            if is_optional:
+            if optional:
                 options += [
                     *pytype_to_input_strings(subtype),
                     *[f"optional({s})" for s in pytype_to_input_strings(subtype)],
@@ -231,17 +236,13 @@ def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:
     """
     if isinstance(pytype, typing.TypeVar):
         return pytype.__name__
-    if typing.get_origin(pytype) is Union:
+    if is_optional(pytype):
         subtypes = typing.get_args(pytype)
-        if len(subtypes) == 2 and type(None) in subtypes:
-            # An Optional type
-            for subtype in subtypes:
-                if subtype is type(None):
-                    continue
-                type_param_name = get_type_constraint_name(subtype)
-                return f"Optional_{type_param_name}" if type_param_name else None
-        else:
-            return None
+        for subtype in subtypes:
+            if subtype is type(None):
+                continue
+            type_param_name = get_type_constraint_name(subtype)
+            return f"Optional_{type_param_name}" if type_param_name else None
     if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
         subtypes = typing.get_args(pytype)
         type_param_name = get_type_constraint_name(subtypes[0])
