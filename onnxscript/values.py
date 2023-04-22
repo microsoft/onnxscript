@@ -7,10 +7,9 @@ from __future__ import annotations
 import dataclasses
 import logging
 import types
-import typing
 from enum import IntFlag
 from typing import _GenericAlias  # type: ignore[attr-defined]
-from typing import Any, Optional, Sequence, TypeVar, Union
+from typing import Any, Optional, Sequence
 
 import onnx
 import onnx.defs
@@ -333,9 +332,11 @@ class OnnxFunction(Op):
             onnx.defs.OpSchema.FormalParameter(
                 arg.name,
                 type_to_constraint[arg.typeinfo].name,
-                param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
-                if typing.get_origin(arg.typeinfo) is Union and typing.get_args(arg.typeinfo)
-                else onnx.defs.OpSchema.FormalParameterOption.Single,
+                param_option=(
+                    onnx.defs.OpSchema.FormalParameterOption.Optional
+                    if type_annotation.is_optional(arg.typeinfo)
+                    else onnx.defs.OpSchema.FormalParameterOption.Single
+                ),
                 # TODO(justinchu): Check this is_homogeneous thing
                 is_homogeneous=True,
             )
@@ -345,9 +346,11 @@ class OnnxFunction(Op):
             onnx.defs.OpSchema.FormalParameter(
                 arg.name,
                 type_to_constraint[arg.typeinfo].name,
-                param_option=onnx.defs.OpSchema.FormalParameterOption.Optional
-                if typing.get_origin(arg.typeinfo) is Union and typing.get_args(arg.typeinfo)
-                else onnx.defs.OpSchema.FormalParameterOption.Single,
+                param_option=(
+                    onnx.defs.OpSchema.FormalParameterOption.Optional
+                    if type_annotation.is_optional(arg.typeinfo)
+                    else onnx.defs.OpSchema.FormalParameterOption.Single
+                ),
                 # TODO(justinchu): Check this is_homogeneous thing
                 is_homogeneous=True,
             )
