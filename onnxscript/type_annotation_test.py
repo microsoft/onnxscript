@@ -4,7 +4,7 @@
 # --------------------------------------------------------------------------
 
 import unittest
-from typing import Any, Optional, Sequence, TypeVar, Union
+from typing import Any, List, Optional, Sequence, TypeVar, Union
 
 import parameterized
 
@@ -214,7 +214,7 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             ),
         ]
     )
-    def test_pytype_to_input_strings(self, _, pytype: Any, expected: list[str]):
+    def test_pytype_to_input_strings(self, _, pytype: Any, expected: List[str]):
         self.assertEqual(type_annotation.pytype_to_input_strings(pytype), expected)
 
     @parameterized.parameterized.expand(
