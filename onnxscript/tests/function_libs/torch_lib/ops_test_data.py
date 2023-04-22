@@ -52,9 +52,10 @@ import numpy as np
 # import onnxruntime.capi.onnxruntime_pybind11_state
 # import parameterized
 import torch
-from torch.testing._internal import common_device_type, common_methods_invocations
-from torch.testing._internal.opinfo import core as opinfo_core
-from torch.utils import _pytree as pytree
+# from torch.testing._internal import common_device_type, common_methods_invocations
+from torch.testing._internal import common_methods_invocations
+# from torch.testing._internal.opinfo import core as opinfo_core
+# from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
