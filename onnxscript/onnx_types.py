@@ -207,22 +207,3 @@ def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
 
 # Currently, only tensor types are supported. Need to expand support for other ONNX types.
 ONNXType = TensorType
-
-ALL_TENSOR_TYPES = (
-    BFLOAT16,
-    BOOL,
-    COMPLEX128,
-    COMPLEX64,
-    DOUBLE,
-    FLOAT,
-    FLOAT16,
-    INT16,
-    INT32,
-    INT64,
-    INT8,
-    STRING,
-    UINT16,
-    UINT32,
-    UINT64,
-    UINT8,
-)
