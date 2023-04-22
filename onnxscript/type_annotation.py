@@ -236,17 +236,13 @@ def get_type_constraint_name(pytype: TypeAnnotationValue) -> Optional[str]:
     """
     if isinstance(pytype, typing.TypeVar):
         return pytype.__name__
-    if typing.get_origin(pytype) is Union:
+    if is_optional(pytype):
         subtypes = typing.get_args(pytype)
-        if len(subtypes) == 2 and type(None) in subtypes:
-            # An Optional type
-            for subtype in subtypes:
-                if subtype is type(None):
-                    continue
-                type_param_name = get_type_constraint_name(subtype)
-                return f"Optional_{type_param_name}" if type_param_name else None
-        else:
-            return None
+        for subtype in subtypes:
+            if subtype is type(None):
+                continue
+            type_param_name = get_type_constraint_name(subtype)
+            return f"Optional_{type_param_name}" if type_param_name else None
     if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
         subtypes = typing.get_args(pytype)
         type_param_name = get_type_constraint_name(subtypes[0])
