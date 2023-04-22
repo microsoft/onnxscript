@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import unittest
 import warnings
-from typing import Callable, Optional
+from typing import Callable, Optional, Sequence
 
 import numpy as np
 import onnx
@@ -65,6 +65,11 @@ from onnxscript.tests.function_libs.torch_lib.ops_test_data import (
 
 # Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
 TESTED_DTYPES = (torch.float32,)
+
+
+def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
+    """Returns all dtypes except the ones specified."""
+    return tuple(dtype for dtype in TESTED_DTYPES if dtype not in dtypes)
 
 
 def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
