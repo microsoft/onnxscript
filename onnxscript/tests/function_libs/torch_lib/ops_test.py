@@ -44,14 +44,14 @@ from torch.utils import _pytree as pytree
 import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
-from onnxscript.tests.function_libs.torch_aten.ops_test_common import (
+from onnxscript.tests.function_libs.torch_lib.ops_test_common import (
     _convert_kwargs_for_onnx,
     _convert_tensor_to_numpy,
     _eager_executor,
     _graph_executor,
     add_decorate_info,
 )
-from onnxscript.tests.function_libs.torch_aten.ops_data import (
+from onnxscript.tests.function_libs.torch_lib.ops_test_data import (
     EXPECTED_SKIPS_OR_FAILS,
     NONDETERMINISTIC_OPS,
     OP_WITH_SKIPPED_SUBTESTS,

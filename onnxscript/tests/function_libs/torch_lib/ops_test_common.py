@@ -27,7 +27,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript.function_libs.torch_aten import graph_building
+from onnxscript.function_libs.torch_lib import graph_building
 
 T = TypeVar("T")
 
