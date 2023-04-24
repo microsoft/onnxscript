@@ -4530,7 +4530,8 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     zero = op.Constant(value_float=0.0)
-    return op.Expand(zero, size)
+    result = op.Expand(zero, size)
+    return result
 
 
 @torch_op("aten::new_zeros", overload=True)
