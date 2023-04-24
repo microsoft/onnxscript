@@ -1391,13 +1391,13 @@ def aten_conv_transpose1d(
 def aten_convolution(
     input: TFloat,
     weight: TFloat,
-    bias: Optional[TFloat],
-    stride: Sequence[int],
-    padding: Sequence[int],
-    dilation: Sequence[int],
-    transposed: bool,
-    output_padding: Sequence[int],
-    groups: int,
+    bias: Optional[TFloat] = None,
+    stride: Sequence[int] = (1,),
+    padding: Sequence[int] = (0,),
+    dilation: Sequence[int] = (1,),
+    transposed: bool = False,
+    output_padding: Sequence[int] = (0,),
+    groups: int = 1,
 ) -> TFloat:
     """convolution(Tensor input, Tensor weight, Tensor? bias, int[] stride, SymInt[] padding, int[] dilation, bool transposed, SymInt[] output_padding, int groups) -> Tensor"""
 
@@ -3218,7 +3218,7 @@ def aten_layer_norm(
 def _aten_layer_norm_onnx(
     input: TReal,
     weight: TReal,
-    bias: Optional[TReal],
+    bias: TReal,
     axis: int,
     eps: float = 1e-05,
 ) -> TReal:
@@ -4396,9 +4396,9 @@ def aten_native_group_norm_backward(
 def aten_native_layer_norm(
     input: TReal,
     normalized_shape: INT64,
-    weight: Optional[TReal],
-    bias: Optional[TReal],
-    eps: float,
+    weight: Optional[TReal] = None,
+    bias: Optional[TReal] = None,
+    eps: float = 1e-05,
 ) -> Tuple[TReal, TReal, TReal]:
     """native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)"""
 
@@ -4528,7 +4528,7 @@ def aten_new_ones_dtype(
 
 
 @torch_op("aten::new_zeros")
-def aten_new_zeros(self: TReal, size: INT64, device: str) -> TReal:  # pylint: disable=unused-argument
+def aten_new_zeros(self: TReal, size: INT64, device: str = "CPU") -> TReal:  # pylint: disable=unused-argument
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     zero = op.Constant(value_float=0.0)
@@ -4538,7 +4538,7 @@ def aten_new_zeros(self: TReal, size: INT64, device: str) -> TReal:  # pylint: d
 
 @torch_op("aten::new_zeros", overload=True)
 def aten_new_zeros_dtype(
-    self: TReal, size: INT64, dtype: int, device: str  # pylint: disable=unused-argument
+    self: TReal, size: INT64, dtype: int, device: str = "CPU"  # pylint: disable=unused-argument
 ) -> TReal:
     zero = op.Constant(value_float=0.0)
     zero_cast = op.Cast(zero, to=dtype)
