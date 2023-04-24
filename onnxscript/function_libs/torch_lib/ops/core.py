@@ -4534,7 +4534,7 @@ def aten_new_zeros(
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
-    zero = size1 - size2
+    zero = op.Cast(size1 - size2, to=FLOAT.dtype)
     result = op.Expand(zero, size)
     return result
 
