@@ -4533,6 +4533,7 @@ def aten_new_ones_dtype(
 @torch_op("aten::new_zeros")
 def aten_new_zeros(self: TReal, size: INT64) -> TReal:
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
     zero = op.Cast(size1 - size2, to=FLOAT.dtype)
