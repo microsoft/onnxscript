@@ -1032,7 +1032,8 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
     xfail(
         "tile",
-        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape) or not sample.input.shape,
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
+        or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
     xfail(

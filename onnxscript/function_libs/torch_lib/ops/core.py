@@ -5900,6 +5900,7 @@ def aten_threshold_backward(
 
     raise NotImplementedError()
 
+
 @torch_op("aten::tile")
 def aten_tile(self: TTensor, dims: INT64) -> TTensor:
     """tile(Tensor self, int[] dims) -> Tensor"""
@@ -5923,8 +5924,8 @@ def aten_tile(self: TTensor, dims: INT64) -> TTensor:
         exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
         self_final_shape = op.Concat(exapnd_ones, self_shape, axis=0)
         self = op.Reshape(self, self_final_shape)
-    
-    return  op.Tile(self, dims)
+
+    return op.Tile(self, dims)
 
 
 def aten_to_dense(self: TensorType, dtype: Optional[int] = None) -> TensorType:
