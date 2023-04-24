@@ -90,6 +90,7 @@ def aten_adaptive_max_pool1d(
     self: TensorType, output_size: Sequence[int]
 ) -> tuple[TensorType, TensorType]:
     """adaptive_max_pool1d(Tensor self, int[1] output_size) -> (Tensor, Tensor)"""
+    # Add a comment
 
     raise NotImplementedError()
 
