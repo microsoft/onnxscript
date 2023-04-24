@@ -4512,7 +4512,9 @@ def aten_new_full(
 def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    one = op.Constant(value_float=1.0)
+    size1 = op.Size(op.Shape(self))
+    size2 = op.Size(op.Shape(self))
+    one = op.Cast(size1/size2, to=FLOAT.dtype)
     result = op.Expand(one, size)
     return result
 
@@ -4521,37 +4523,30 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 def aten_new_ones_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
-    one = op.Constant(value_float=1.0)
-    one_cast = op.Cast(one, to=dtype)
+    size1 = op.Size(op.Shape(self))
+    size2 = op.Size(op.Shape(self))
+    one_cast = op.Cast(size1 - size2, to=dtype)
     result = op.Expand(one_cast, size)
     return result
 
 
 @torch_op("aten::new_zeros")
-def aten_new_zeros(
-    self: TReal, size: INT64, device: str = "cpu"  # pylint: disable=unused-argument
-) -> TReal:
+def aten_new_zeros(self: TReal, size: INT64) -> TReal:
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
     zero = op.Cast(size1 - size2, to=FLOAT.dtype)
-    result = op.Expand(zero, size)
-    return result
+    return op.Expand(zero, size)
 
 
 @torch_op("aten::new_zeros", overload=True)
 def aten_new_zeros_dtype(
-    self: TReal,
-    size: INT64,
-    dtype: int,
-    device: str = "cpu",  # pylint: disable=unused-argument
-) -> TReal:
+    self: TReal, size: INT64, dtype: int) -> TReal:
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
     zero = size1 - size2
     zero_cast = op.Cast(zero, to=dtype)
-    result = op.Expand(zero_cast, size)
-    return result
+    return op.Expand(zero_cast, size)
 
 
 def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
