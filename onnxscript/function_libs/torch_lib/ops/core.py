@@ -5819,8 +5819,8 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
-    start = op.Reshape(dim, [1])
-    end = op.Reshape(dim + 1, [1])
+    start = op.Reshape(dim, op.Constant(value_ints=[1]))
+    end = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
     return op.Slice(shape, start, end)
 
 
@@ -5904,20 +5904,25 @@ def aten_threshold_backward(
 def aten_tile(self: TTensor, dims: INT64) -> TTensor:
     """tile(Tensor self, int[] dims) -> Tensor"""
 
-    self_rank = op.Size(op.Shape(self))
+    self_shape = op.Shape(self)
+    self_rank = op.Size(self_shape)
     dims_rank = op.Size(dims)
     diff = op.Sub(self_rank, dims_rank)
 
     if diff > 0:
         # dims is shorter than self.shape
         # pad dims with 1
-        dims = op.Concat([dims, op.Constant(value_ints=[1] * diff)], axis=0)
+        diff_1d = op.Reshape(diff, op.Constant(value_ints=[1]))
+        exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
+        dims = op.Concat(exapnd_ones, dims, axis=0)
+
     if diff < 0:
         # dims is longer than self.shape
         # pad self.shape with 1
-        self_shape = op.Shape(self)
-        self_shape = op.Concat([self_shape, op.Constant(value_ints=[1] * -diff)], axis=0)
-        self = op.Reshape(self, self_shape)
+        diff_1d = op.Reshape(op.Abs(diff), op.Constant(value_ints=[1]))
+        exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
+        self_final_shape = op.Concat(exapnd_ones, self_shape, axis=0)
+        self = op.Reshape(self, self_final_shape)
     
     return  op.Tile(self, dims)
 
