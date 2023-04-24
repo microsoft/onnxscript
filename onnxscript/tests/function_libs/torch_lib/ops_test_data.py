@@ -725,6 +725,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "tile",
+        reason="Shape inference error. Remove after ONNX 1.14 release",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnx_older_than("1.14"),
+    ),
+    xfail(
         "unflatten",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
