@@ -4529,13 +4529,11 @@ def aten_new_ones_dtype(
 
 @torch_op("aten::new_zeros")
 def aten_new_zeros(
-    self: TReal,
-    size: INT64,
-    device: str = "cpu"  # pylint: disable=unused-argument
+    self: TReal, size: INT64, device: str = "cpu"  # pylint: disable=unused-argument
 ) -> TReal:
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-    op.Size(self)
-    zero = op.Constant(value_float=0.0)
+    size = op.Size(op.Shape(self))
+    zero = size - size
     result = op.Expand(zero, size)
     return result
 
@@ -4545,10 +4543,10 @@ def aten_new_zeros_dtype(
     self: TReal,
     size: INT64,
     dtype: int,
-    device: str = "cpu"  # pylint: disable=unused-argument
+    device: str = "cpu",  # pylint: disable=unused-argument
 ) -> TReal:
-    op.Size(self)
-    zero = op.Constant(value_float=0.0)
+    size = op.Size(op.Shape(self))
+    zero = size - size
     zero_cast = op.Cast(zero, to=dtype)
     result = op.Expand(zero_cast, size)
     return result
