@@ -1,3 +1,5 @@
+"""Common utils for testing operators."""
+
 from __future__ import annotations
 
 import copy
