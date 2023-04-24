@@ -484,6 +484,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
+    "tile": core_ops.aten_tile,
     "topk": core_ops.aten_topk,
     "tril": core_ops.aten_tril,
     "triu": core_ops.aten_triu,

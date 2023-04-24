@@ -5901,10 +5901,10 @@ def aten_threshold_backward(
     raise NotImplementedError()
 
 
-def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
+def aten_tile(self: TTensor, dims: INT64) -> TTensor:
     """tile(Tensor self, int[] dims) -> Tensor"""
-
-    raise NotImplementedError()
+    
+    raise op.Tile(self, dims)
 
 
 def aten_to_dense(self: TensorType, dtype: Optional[int] = None) -> TensorType:
