@@ -4528,7 +4528,7 @@ def aten_new_ones_dtype(
 
 
 @torch_op("aten::new_zeros")
-def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
+def aten_new_zeros(self: TReal, size: INT64, decice: str) -> TReal:  # pylint: disable=unused-argument
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     zero = op.Constant(value_float=0.0)
@@ -4538,7 +4538,7 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused
 
 @torch_op("aten::new_zeros", overload=True)
 def aten_new_zeros_dtype(
-    self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
+    self: TReal, size: INT64, dtype: int, device: str  # pylint: disable=unused-argument
 ) -> TReal:
     zero = op.Constant(value_float=0.0)
     zero_cast = op.Cast(zero, to=dtype)
