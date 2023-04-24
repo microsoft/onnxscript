@@ -637,18 +637,18 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    xfail(
-        "new_ones",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_ones_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
+    # xfail(
+    #     "new_ones",
+    #     reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+    #     test_class_name="TestOutputConsistencyFullGraph",
+    #     enabled_if=version_utils.onnxruntime_older_than("1.15"),
+    # ),
+    # xfail(
+    #     "new_ones_dtype",
+    #     reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+    #     test_class_name="TestOutputConsistencyFullGraph",
+    #     enabled_if=version_utils.onnxruntime_older_than("1.15"),
+    # ),
     # xfail(
     #     "new_zeros",
     #     reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
