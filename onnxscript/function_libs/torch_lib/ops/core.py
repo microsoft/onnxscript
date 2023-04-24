@@ -4514,7 +4514,7 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
-    one = op.Cast(size1/size2, to=FLOAT.dtype)
+    one = op.Cast(size1 / size2, to=FLOAT.dtype)
     result = op.Expand(one, size)
     return result
 
@@ -4523,7 +4523,7 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 def aten_new_ones_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
-    one_cast = op.Cast(size1 - size2, to=dtype)
+    one_cast = op.Cast(size1 / size2, to=dtype)
     result = op.Expand(one_cast, size)
     return result
 
