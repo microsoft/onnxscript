@@ -4532,8 +4532,9 @@ def aten_new_zeros(
     self: TReal, size: INT64, device: str = "cpu"  # pylint: disable=unused-argument
 ) -> TReal:
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-    size = op.Size(op.Shape(self))
-    zero = size - size
+    size1 = op.Size(op.Shape(self))
+    size2 = op.Size(op.Shape(self))
+    zero = size1 - size2
     result = op.Expand(zero, size)
     return result
 
@@ -4545,8 +4546,9 @@ def aten_new_zeros_dtype(
     dtype: int,
     device: str = "cpu",  # pylint: disable=unused-argument
 ) -> TReal:
-    size = op.Size(op.Shape(self))
-    zero = size - size
+    size1 = op.Size(op.Shape(self))
+    size2 = op.Size(op.Shape(self))
+    zero = size1 - size2
     zero_cast = op.Cast(zero, to=dtype)
     result = op.Expand(zero_cast, size)
     return result
