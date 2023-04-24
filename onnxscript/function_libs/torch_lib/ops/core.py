@@ -4540,7 +4540,8 @@ def aten_new_zeros_dtype(
 ) -> TReal:
     zero = op.Constant(value_float=0.0)
     zero = op.Cast(zero, to=dtype)
-    return op.Expand(zero, size)
+    result = op.Expand(zero, size)
+    return result
 
 
 def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
