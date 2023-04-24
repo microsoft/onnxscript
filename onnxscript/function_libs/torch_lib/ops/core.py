@@ -4520,9 +4520,7 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 
 
 @torch_op("aten::new_ones", overload=True)
-def aten_new_ones_dtype(
-    self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
-) -> TReal:
+def aten_new_ones_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
     one_cast = op.Cast(size1 - size2, to=dtype)
