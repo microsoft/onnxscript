@@ -1,6 +1,6 @@
 # This file is auto updated by dependabot
 # RUFF, RUFF-FIX
-ruff==0.0.261
+ruff==0.0.262
 # MYPY
 mypy==1.2.0
 types-PyYAML==6.0.12.9
