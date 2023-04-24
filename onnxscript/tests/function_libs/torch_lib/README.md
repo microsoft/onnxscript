@@ -18,7 +18,7 @@ pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k nn_functional_sca
 This test use PyTorch's OpInfo mechanism to generate test cases for each operator.
 You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fdd2c9b978dc6aa4923144684a3f51/torch/testing/_internal/common_methods_invocations.py#L8804
 
-1. To enable test cases for an operator
+1. To enable test cases for an operator, add the op name in ops_test_data.py
     1a. If the op is not `trace_only`, add an entry to the
     `OPINFO_FUNCTION_MAPPING_SCRIPTED` map.
     1b. If the op is `trace_only`, add an entry to the
