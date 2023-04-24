@@ -4513,8 +4513,11 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     size1 = op.Size(op.Shape(self))
-    size2 = op.Size(op.Shape(self))
-    one = op.Cast(size1 / size2, to=FLOAT.dtype)
+    if size1 == 0:
+        one = op.Constant(value_float=1.0)
+    else:
+        size2 = op.Size(op.Shape(self))
+        one = op.Cast(size1 / size2, to=FLOAT.dtype)
     result = op.Expand(one, size)
     return result
 
@@ -4522,9 +4525,12 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 @torch_op("aten::new_ones", overload=True)
 def aten_new_ones_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
     size1 = op.Size(op.Shape(self))
-    size2 = op.Size(op.Shape(self))
-    one_cast = op.Cast(size1 / size2, to=dtype)
-    result = op.Expand(one_cast, size)
+    if size1 == 0:
+        one = op.Constant(value_float=1.0)
+    else:
+        size2 = op.Size(op.Shape(self))
+        one = op.Cast(size1 / size2, to=dtype)
+    result = op.Expand(one, size)
     return result
 
 
