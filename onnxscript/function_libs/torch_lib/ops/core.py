@@ -4521,8 +4521,8 @@ def aten_new_ones_dtype(
     self: TReal, size: INT64, dtype: int  # pylint: disable=unused-argument
 ) -> TReal:
     one = op.Constant(value_float=1.0)
-    one = op.Cast(one, to=dtype)
-    return op.Expand(one, size)
+    one_cast = op.Cast(one, to=dtype)
+    return op.Expand(one_cast, size)
 
 
 @torch_op("aten::new_zeros")
