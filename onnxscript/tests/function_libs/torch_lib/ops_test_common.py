@@ -91,7 +91,7 @@ def xfail(
         reason: The reason for the failure.
         dtypes: The dtypes to expect the failure.
         matcher: A function that matches the test sample input. It is used only when
-            the skip is in the SKIP_SUBTESTS list.
+            the xfail is in the SKIP_SUBTESTS list.
         enabled_if: Whether the xfail is enabled.
         test_class_name: The test class name to apply the xfail to. If None, the
             xfail is applied to all test classes.
