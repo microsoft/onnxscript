@@ -4540,8 +4540,7 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:
 
 
 @torch_op("aten::new_zeros", overload=True)
-def aten_new_zeros_dtype(
-    self: TReal, size: INT64, dtype: int) -> TReal:
+def aten_new_zeros_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
     size1 = op.Size(op.Shape(self))
     size2 = op.Size(op.Shape(self))
     zero = size1 - size2
