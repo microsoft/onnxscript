@@ -728,7 +728,8 @@ EXPECTED_SKIPS_OR_FAILS = (
         "tile",
         reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnx_older_than("1.14") or version_utils.onnxruntime_older_than("1.15"),
+        enabled_if=version_utils.onnx_older_than("1.14")
+        or version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "unflatten",
