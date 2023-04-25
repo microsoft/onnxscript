@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import dataclasses
+import inspect
 import logging
 import types
 from enum import IntFlag
@@ -285,7 +286,7 @@ class OnnxFunction(Op):
 
     def __init__(
         self,
-        opset: Opset,
+        opset: Optional[Opset],
         pyfun: types.FunctionType,
         irfun: irbuilder.IRFunction,
         source: str,
@@ -299,6 +300,8 @@ class OnnxFunction(Op):
         self.kwargs = kwargs
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
         self._opschema: Optional[onnx.defs.OpSchema] = None
+        # Set the signature of the class to function's
+        self.__signature__ = inspect.signature(pyfun)
 
     @property
     def name(self):
