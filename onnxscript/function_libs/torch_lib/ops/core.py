@@ -4469,8 +4469,7 @@ def aten_new_empty(self: TTensor, size: INT64) -> TTensor:
     """new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # using zero to simulate empty array
-    zero = op.Constant(value_float=0.0)
-    result = op.Expand(zero, size)
+    result = op.ConstantOfShape(size)
     return op.CastLike(result, self)
 
 
@@ -4479,8 +4478,7 @@ def aten_new_empty_dtype(self: TTensor, size: INT64, dtype: int) -> TTensor:
     """new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # using zero to simulate empty array
-    zero = op.Constant(value_float=0.0)
-    result = op.Expand(zero, size)
+    result = op.ConstantOfShape(size)
     return op.Cast(result, dtype)
 
 
@@ -4549,15 +4547,13 @@ def aten_new_ones_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
 def aten_new_zeros(self: TReal, size: INT64) -> TReal:
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    zero = op.Constant(value_float=0.0)
-    result = op.Expand(zero, size)
+    result = op.ConstantOfShape(size)
     return op.CastLike(result, self)
 
 
 @torch_op("aten::new_zeros", overload=True)
 def aten_new_zeros_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
-    zero = op.Constant(value_float=0.0)
-    result = op.Expand(zero, size)
+    result = op.ConstantOfShape(size)
     return op.Cast(result, to=dtype)
 
 
