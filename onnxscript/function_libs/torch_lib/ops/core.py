@@ -4464,47 +4464,68 @@ def aten_negative(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::new_empty", trace_only=True)
-def aten_new_empty(self: TTensor, size: INT64, dtype: int = -1) -> TTensor:
+@torch_op("aten::new_empty")
+def aten_new_empty(self: TTensor, size: INT64) -> TTensor:
     """new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # using zero to simulate empty array
     zero = op.Constant(value_float=0.0)
     result = op.Expand(zero, size)
-    if dtype == -1:
-        result = op.CastLike(result, self)
-    else:
-        result = op.Cast(result, to=dtype)
-    return result
+    return op.CastLike(result, self)
 
 
-@torch_op("aten::new_empty_strided", trace_only=True)
+@torch_op("aten::new_empty", overload=True)
+def aten_new_empty_dtype(self: TTensor, size: INT64, dtype: int) -> TTensor:
+    """new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
+    # using zero to simulate empty array
+    zero = op.Constant(value_float=0.0)
+    result = op.Expand(zero, size)
+    return op.Cast(result, dtype)
+
+
+@torch_op("aten::new_empty_strided")
 def aten_new_empty_strided(
     self: TTensor,
     size: INT64,
     stride: INT64,  # pylint: disable=unused-argument
-    dtype: int = -1,
 ) -> TTensor:
     """new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # using zero to simulate empty array
     zero = op.ConstantOfShape(size)
-    if dtype == -1:
-        result = op.CastLike(zero, self)
-    else:
-        result = op.Cast(zero, to=dtype)
-    return result
+    return op.CastLike(zero, self)
+
+
+@torch_op("aten::new_empty_strided", overload=True)
+def aten_new_empty_strided_dtype(
+    self: TTensor,
+    size: INT64,
+    stride: INT64,  # pylint: disable=unused-argument
+    dtype: int,
+) -> TTensor:
+    """new_empty_strided(Tensor self, SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
+    # using zero to simulate empty array
+    zero = op.ConstantOfShape(size)
+    return op.Cast(zero, to=dtype)
 
 
 @torch_op("aten::new_full")
-def aten_new_full(
-    self, size: IntType, fill_value: TensorType, dtype: int = FLOAT.dtype
-):  # pylint: disable=unused-argument
+def aten_new_full(self: TTensor, size: INT64, fill_value: TTensor) -> TTensor:
     # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    size = op.Cast(size, to=INT64.dtype)
-    fill_value = op.Cast(fill_value, to=dtype)
+    fill_value = op.CastLike(fill_value, self)
+    return op.Expand(fill_value, size)
 
+
+@torch_op("aten::new_full", overload=True)
+def aten_new_full_dtype(
+    self: TTensor, size: INT64, fill_value: TensorType, dtype: int
+) -> TTensor:
+    # new_full(Tensor self, SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+
+    fill_value = op.Cast(fill_value, to=dtype)
     return op.Expand(fill_value, size)
 
 
@@ -4512,45 +4533,32 @@ def aten_new_full(
 def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-argument
     """new_ones(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    size1 = op.Size(op.Shape(self))
-    if size1 == 0:
-        one = op.Constant(value_float=1.0)
-    else:
-        size2 = op.Size(op.Shape(self))
-        one = op.Cast(size1 / size2, to=FLOAT.dtype)
+    one = op.Constant(value_float=1.0)
     result = op.Expand(one, size)
-    return result
+    return op.CastLike(result, self)
 
 
 @torch_op("aten::new_ones", overload=True)
 def aten_new_ones_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
-    size1 = op.Size(op.Shape(self))
-    if size1 == 0:
-        one = op.Cast(op.Constant(value_float=1.0), to=dtype)
-    else:
-        size2 = op.Size(op.Shape(self))
-        one = op.Cast(size1 / size2, to=dtype)
+    one = op.Constant(value_float=1.0)
     result = op.Expand(one, size)
-    return result
+    return op.Cast(result, to=dtype)
 
 
 @torch_op("aten::new_zeros")
 def aten_new_zeros(self: TReal, size: INT64) -> TReal:
     """new_zeros(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    size1 = op.Size(op.Shape(self))
-    size2 = op.Size(op.Shape(self))
-    zero = op.Cast(size1 - size2, to=FLOAT.dtype)
-    return op.Expand(zero, size)
+    zero = op.Constant(value_float=0.0)
+    result = op.Expand(zero, size)
+    return op.CastLike(result, self)
 
 
 @torch_op("aten::new_zeros", overload=True)
 def aten_new_zeros_dtype(self: TReal, size: INT64, dtype: int) -> TReal:
-    size1 = op.Size(op.Shape(self))
-    size2 = op.Size(op.Shape(self))
-    zero = size1 - size2
-    zero_cast = op.Cast(zero, to=dtype)
-    return op.Expand(zero_cast, size)
+    zero = op.Constant(value_float=0.0)
+    result = op.Expand(zero, size)
+    return op.Cast(result, to=dtype)
 
 
 def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
