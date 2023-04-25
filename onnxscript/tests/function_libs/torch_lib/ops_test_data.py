@@ -1030,13 +1030,13 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
-    xfail(
+    skip(
         "tile",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    xfail(
+    skip(
         "unflatten",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
