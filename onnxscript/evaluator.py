@@ -354,7 +354,7 @@ def _cache_(model, providers):
     import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
     serialized = model.SerializeToString()
-    key = serialized, tuple(providers)
+    # key = serialized, tuple(providers)
     # if key in _cache_models:
     #     return _cache_models[key]
     session = ort.InferenceSession(serialized, providers=providers)
