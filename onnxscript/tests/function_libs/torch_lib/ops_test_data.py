@@ -29,215 +29,32 @@ wrangler function. See `_cat_input_wrangler` for an example.
 from __future__ import annotations
 
 import copy
-import dataclasses
-import multiprocessing
-import os
-import pprint
-import unittest
-import warnings
-from typing import (
-    Any,
-    Callable,
-    Collection,
-    Iterable,
-    Mapping,
-    Optional,
-    Sequence,
-    TypeVar,
-)
+from typing import Any, Callable
 
 import numpy as np
-import onnx
-import onnxruntime as ort
-import onnxruntime.capi.onnxruntime_pybind11_state
-import parameterized
 import torch
-from torch.testing._internal import common_device_type, common_methods_invocations
-from torch.testing._internal.opinfo import core as opinfo_core
-from torch.utils import _pytree as pytree
+from torch.testing._internal import common_methods_invocations
 
 import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
-from onnxscript.function_libs.torch_lib import graph_building
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo
-
-T = TypeVar("T")
-
-# Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
-TESTED_DTYPES = (torch.float32,)
-
-# Convenience tuples for creating dtype lists when skipping or xfailing tests
-
-BOOL_TYPES = (torch.bool,)
-
-INT_TYPES = (
-    torch.int8,
-    torch.int16,
-    torch.int32,
-    torch.int64,
-    torch.uint8,
+from onnxscript.tests.function_libs.torch_lib.ops_test_common import (
+    DecorateMeta,
+    duplicate_opinfo,
+    skip,
+    xfail,
 )
-
-FLOAT_TYPES = (
-    torch.float16,
-    torch.float32,
-    torch.float64,
-)
-
-TEST_OPSET_VERSION = 18
-IS_WINDOWS = os.name == "nt"
-
-
-def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
-    """Returns all dtypes except the ones specified."""
-    return tuple(dtype for dtype in TESTED_DTYPES if dtype not in dtypes)
-
-
-@dataclasses.dataclass
-class DecorateMeta:
-    """A dataclass for storing information about a test case to skip or xfail.
-
-    Adapted from functorch: functorch/test/common_utils.py
-    """
-
-    op_name: str
-    variant_name: str
-    decorator: Callable[..., Any]
-    dtypes: Optional[Collection[torch.dtype]]
-    reason: str
-    matcher: Optional[Callable[[Any], bool]] = None
-    enabled_if: bool = True
-    # The test_class_name to apply the decorator to. If None, the decorator is
-    # applied to all test classes.
-    test_class_name: Optional[str] = None
-
-
-def xfail(
-    op_name: str,
-    variant_name: str = "",
-    *,
-    reason: str,
-    dtypes: Optional[Collection[torch.dtype]] = None,
-    enabled_if: bool = True,
-    test_class_name: Optional[str] = None,
-) -> DecorateMeta:
-    """Expects an OpInfo test to fail.
-
-    Args:
-        op_name: The name of the operator.
-        variant_name: Optional OpInfo variant_test_name.
-        reason: The reason for the failure.
-        dtypes: The dtypes to expect the failure.
-        enabled_if: Whether the xfail is enabled.
-        test_class_name: The test class name to apply the xfail to. If None, the
-            xfail is applied to all test classes.
-    """
-    return DecorateMeta(
-        op_name=op_name,
-        variant_name=variant_name,
-        decorator=unittest.expectedFailure,
-        dtypes=dtypes,
-        reason=reason,
-        enabled_if=enabled_if,
-        test_class_name=test_class_name,
-    )
-
-
-def skip(
-    op_name: str,
-    variant_name: str = "",
-    *,
-    reason: str,
-    dtypes: Optional[Collection[torch.dtype]] = None,
-    matcher: Optional[Callable[[Any], Any]] = None,
-    enabled_if: bool = True,
-    test_class_name: Optional[str] = None,
-) -> DecorateMeta:
-    """Skips an OpInfo test.
-
-    Args:
-        op_name: The name of the operator.
-        variant_name: Optional OpInfo variant_test_name.
-        reason: The reason for skipping.
-        dtypes: The dtypes to skip.
-        matcher: A function that matches the test sample input. It is used only when
-            the skip is in the SKIP_SUBTESTS list.
-        enabled_if: Whether the skip is enabled.
-        test_class_name: The test class name to apply the skip to. If None, the skip
-            is applied to all test classes.
-    """
-    return DecorateMeta(
-        op_name=op_name,
-        variant_name=variant_name,
-        decorator=unittest.skip(f"Skip: {reason}"),
-        dtypes=dtypes,
-        reason=reason,
-        matcher=matcher,
-        enabled_if=enabled_if,
-        test_class_name=test_class_name,
-    )
-
-
-def add_decorate_info(
-    all_opinfos: Sequence[opinfo_core.OpInfo],
-    test_class_name: str,
-    base_test_name: str,
-    skip_or_xfails: Iterable[DecorateMeta],
-) -> Callable[[T], T]:
-    """Decorates OpInfo tests with decorators based on the skip_or_xfails list."""
-    ops_mapping = {(info.name, info.variant_test_name): info for info in all_opinfos}
-    for decorate_meta in skip_or_xfails:
-        opinfo = ops_mapping.get((decorate_meta.op_name, decorate_meta.variant_name))
-        assert (
-            opinfo is not None
-        ), f"Couldn't find OpInfo for {decorate_meta}. Did you need to specify variant_name?"
-        decorators = list(opinfo.decorators)
-        new_decorator = opinfo_core.DecorateInfo(
-            decorate_meta.decorator,
-            decorate_meta.test_class_name or test_class_name,
-            base_test_name,
-            dtypes=decorate_meta.dtypes,
-            active_if=decorate_meta.enabled_if,
-        )
-        decorators.append(new_decorator)
-        opinfo.decorators = tuple(decorators)
-
-    # This decorator doesn't modify fn in any way
-    def wrapped(fn):
-        return fn
-
-    return wrapped
-
-
-def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tuple[str, ...]):
-    """Duplicate an opinfo in the opinfo database and give it a new name."""
-    duplicated = []
-    all_info_names = {opinfo.name for opinfo in opinfos}
-    for opinfo in opinfos:
-        if opinfo.name == name:
-            for new_name in new_names:
-                if new_name in all_info_names:
-                    # NOTE: Avoid duplicating an opinfo that already exists in the database.
-                    # New opinfos are expected to be added in torch-nightly.
-                    warnings.warn(
-                        f"OpInfo {new_name} already exists in the database.", stacklevel=1
-                    )
-                    continue
-                new_opinfo = copy.deepcopy(opinfo)
-                new_opinfo.name = new_name
-                duplicated.append(new_opinfo)
-    opinfos.extend(duplicated)
-
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 # Append extra op_db into the op database for testing
 OPS_DB.extend(extra_opinfo.OP_DB)
+
 
 # Modify this section ##########################################################
 
@@ -499,12 +316,13 @@ def _where_input_wrangler(
 # Split the scripted and traced ops to make sure we don't forget to script an op
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
-    onnxscript.OnnxFunction
-    | Callable[..., Any]
-    | tuple[
-        onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    ],
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+    # onnxscript.OnnxFunction
+    # | Callable[..., Any]
+    # | tuple[
+    #     onnxscript.OnnxFunction | Callable[..., Any],
+    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    # ],
 ] = {
     "all_dim": core_ops.aten_all_dim,
     "allclose": core_ops.aten_allclose,
@@ -666,6 +484,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
+    "tile": core_ops.aten_tile,
     "topk": core_ops.aten_topk,
     "tril": core_ops.aten_tril,
     "triu": core_ops.aten_triu,
@@ -904,6 +723,13 @@ EXPECTED_SKIPS_OR_FAILS = (
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "tile",
+        reason="Shape inference error. Remove after ONNX 1.14 release",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnx_older_than("1.14")
+        or version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "unflatten",
@@ -1206,6 +1032,17 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
     skip(
+        "tile",
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
+        or not sample.input.shape,
+        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
+    ),
+    skip(
+        "unflatten",
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
+    ),
+    skip(
         "var_mean",
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
@@ -1225,11 +1062,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
-    ),
-    skip(
-        "unflatten",
-        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
-        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
 )
 
@@ -1304,10 +1136,6 @@ duplicate_opinfo(
     ),
 )
 
-
-# END OF SECTION TO MODIFY #####################################################
-
-
 OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
@@ -1315,515 +1143,3 @@ assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in
 assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
-
-TORCH_TYPE_TO_ONNX = {
-    torch.bool: onnx.TensorProto.BOOL,
-    torch.uint8: onnx.TensorProto.UINT8,
-    torch.int8: onnx.TensorProto.INT8,
-    torch.int16: onnx.TensorProto.INT16,
-    torch.int32: onnx.TensorProto.INT32,
-    torch.int64: onnx.TensorProto.INT64,
-    torch.float16: onnx.TensorProto.FLOAT16,
-    torch.float32: onnx.TensorProto.FLOAT,
-    torch.float64: onnx.TensorProto.DOUBLE,
-    torch.complex64: onnx.TensorProto.COMPLEX64,
-    torch.complex128: onnx.TensorProto.COMPLEX128,
-    torch.bfloat16: onnx.TensorProto.BFLOAT16,
-}
-
-
-def _convert_tensor_to_numpy(input: Any) -> Any:
-    if isinstance(input, torch.Tensor):
-        return input.detach().cpu().numpy()
-    if isinstance(input, (tuple, list)):
-        if len(input) == 0:
-            return np.array((), dtype=np.int64)
-        if isinstance(input[0], torch.Tensor):
-            return [_convert_tensor_to_numpy(x) for x in input]
-        if isinstance(input[0], bool):
-            return np.array(input, dtype=np.bool_)
-
-        # Just a sequence of numbers
-        if isinstance(input[0], int):
-            return np.array(input, dtype=np.int64)
-        if isinstance(input[0], float):
-            return np.array(input)
-
-    return input
-
-
-def _convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Converts kwargs to be compatible with ONNX Runtime.
-
-    ONNX Runtime doesn't support torch.bool, so we convert them to torch.uint8.
-    """
-    new_kwargs = {}
-    for key, value in kwargs.items():
-        if key == "device":
-            continue
-        if key == "dtype":
-            value = TORCH_TYPE_TO_ONNX[value]
-        if isinstance(value, torch.Tensor):
-            value = np.array(value)
-        new_kwargs[key] = value
-    return new_kwargs
-
-
-def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
-    """Returns a reason if a test sample should be skipped."""
-    if op_name not in OP_WITH_SKIPPED_SUBTESTS:
-        return None
-    for decorator_meta in SKIP_SUBTESTS:
-        # Linear search on SKIP_SUBTESTS. That's fine because the list is small.
-        if decorator_meta.op_name == op_name:
-            assert decorator_meta.matcher is not None, "Matcher must be defined"
-            if decorator_meta.matcher(sample):
-                return decorator_meta.reason
-    return None
-
-
-class OrtAbortedError(RuntimeError):
-    """ONNX Runtime Aborted."""
-
-
-def _ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
-    """Run a model with ONNX Runtime."""
-
-    # Disable all ORT optimizations
-    session_options = onnxruntime.SessionOptions()
-    session_options.graph_optimization_level = (
-        onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
-    )
-    session = ort.InferenceSession(serialized_model, session_options)
-    return session.run(None, ort_inputs)
-
-
-def _ort_session_run_return_dict(
-    serialized_model: bytes, ort_inputs: Mapping[str, Any], return_dict
-) -> None:
-    """Run a model with ONNX Runtime and store the results in return_dict."""
-
-    try:
-        return_dict["results"] = _ort_session_run(serialized_model, ort_inputs)
-        return_dict["error"] = None
-    except Exception as e:  # pylint: disable=broad-except
-        return_dict["results"] = None
-        return_dict["error"] = e
-
-
-def _safe_ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
-    """Run a model with ONNX Runtime in a separate process.
-
-    Args:
-        serialized_model: Serialized ONNX model proto.
-        ort_inputs: Inputs to the model.
-
-    Returns:
-        The inference result.
-
-    Raises:
-        OrtAbortedError if the process did not execute successfully.
-    """
-    manager = multiprocessing.Manager()
-    return_dict = manager.dict()
-    process = multiprocessing.Process(
-        target=_ort_session_run_return_dict, args=(serialized_model, ort_inputs, return_dict)
-    )
-    process.start()
-    process.join()
-    process.close()
-    if not return_dict:
-        raise OrtAbortedError()
-    if return_dict["error"] is not None:
-        raise return_dict["error"]
-    return return_dict["results"]
-
-
-def _format_model_and_input_information(onnx_model, inputs):
-    return (
-        f"Inputs:\n"
-        f"{pprint.pformat(inputs)}\n"
-        f"Model:\n"
-        f"{onnxscript.proto2text(onnx_model)}"
-    )
-
-
-class TestFunctionValidity(unittest.TestCase):
-    def test_all_script_functions_are_onnx_functions(self):
-        functions = set()
-        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
-            if isinstance(func_with_wrangler, tuple):
-                func = func_with_wrangler[0]
-            else:
-                func = func_with_wrangler
-            functions.add(func)
-
-        # TODO(justinchuby): Add from the registry
-        for func in functions:
-            if not isinstance(func, onnxscript.OnnxFunction):
-                raise AssertionError(
-                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
-                    "If the function is trace_only, please move it to the "
-                    "'OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
-                )
-
-    def test_all_trace_only_functions_are_not_onnx_functions(self):
-        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_TRACE_ONLY.values():
-            if isinstance(func_with_wrangler, tuple):
-                func = func_with_wrangler[0]
-            else:
-                func = func_with_wrangler
-            if isinstance(func, onnxscript.OnnxFunction):
-                raise AssertionError(
-                    f"'{func.name}' is an OnnxFunction. "
-                    "If the function is not trace_only, please move it to the "
-                    "'OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
-                )
-
-    @parameterized.parameterized.expand(list(OPINFO_FUNCTION_MAPPING_SCRIPTED.items()))
-    @unittest.skipIf(
-        version_utils.onnx_older_than("1.14"),
-        "Function checker is not available before ONNX 1.14",
-    )
-    def test_script_function_passes_checker(self, _, func_with_wrangler):
-        if isinstance(func_with_wrangler, tuple):
-            func = func_with_wrangler[0]
-        else:
-            func = func_with_wrangler
-        function_proto = func.to_function_proto()
-        onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
-
-    @parameterized.parameterized.expand(list(OPINFO_FUNCTION_MAPPING_SCRIPTED.items()))
-    @unittest.skipIf(
-        version_utils.onnx_older_than("1.14"),
-        "OpSchema is not writable before ONNX 1.14",
-    )
-    def test_script_function_has_op_schema(self, _, func_with_wrangler):
-        if isinstance(func_with_wrangler, tuple):
-            func = func_with_wrangler[0]
-        else:
-            func = func_with_wrangler
-        op_schema = func.opschema
-        assert op_schema is not None
-        self.assertEqual(op_schema.name, func.name)
-
-
-def _graph_executor(
-    outputs: Sequence[Any],
-) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
-    """Eagerly executes a function."""
-
-    def _capture_graph_and_evaluate_torch_script_evaluator(function: Callable, args, kwargs):
-        """Captures the graph of a function and evaluates it using TorchScriptEvaluator."""
-
-        # Initialize the ONNX graph
-        onnxscript_graph = graph_building.TorchScriptGraph()
-        tracer = graph_building.TorchScriptTracingEvaluator(onnxscript_graph)
-        ort_inputs = {}
-        onnxscript_args: list[Any] = []
-        onnxscript_kwargs = {}
-        for i, arg in enumerate(args):
-            if isinstance(arg, np.ndarray):
-                input_name = f"input_{i}"
-                input = onnxscript_graph.add_input(
-                    input_name,
-                    torch.tensor(arg).shape,
-                    torch.tensor(arg).dtype,
-                )
-                input.value = arg
-                onnxscript_args.append(input)
-                ort_inputs[input_name] = arg
-            elif isinstance(arg, Sequence):
-                sequence_input = []
-                for j, subarg in enumerate(arg):
-                    if isinstance(subarg, np.ndarray):
-                        input_name = f"input_{i}_{j}"
-                        input = onnxscript_graph.add_input(
-                            input_name,
-                            torch.tensor(subarg).shape,
-                            torch.tensor(subarg).dtype,
-                        )
-                        input.value = subarg
-                        sequence_input.append(input)
-                        ort_inputs[input_name] = subarg
-                onnxscript_args.append(sequence_input)
-            else:
-                onnxscript_args.append(arg)
-        for key, value in kwargs.items():
-            if isinstance(value, np.ndarray):
-                input = onnxscript_graph.add_input(
-                    key,
-                    torch.tensor(value).shape,
-                    torch.tensor(value).dtype,
-                )
-                input.value = value
-                ort_inputs[key] = value
-                onnxscript_kwargs[key] = input
-            else:
-                onnxscript_kwargs[key] = value
-
-        with onnxscript.evaluator.default_as(tracer):
-            symbolic_outputs = function(*onnxscript_args, **onnxscript_kwargs)
-        if not isinstance(symbolic_outputs, Sequence):
-            symbolic_outputs = (symbolic_outputs,)
-
-        # We need to set the size of the output tensors for the ONNX model to be valid
-        for output, symbolic_output in zip(outputs, symbolic_outputs):
-            if isinstance(output, Sequence):
-                # Output is a sequence, set the type correctly to ListType
-                symbolic_output.dtype = output[0].dtype
-                symbolic_output.symbolic_value().setType(torch.ListType.ofTensors())
-                continue
-            output = (
-                output
-                if isinstance(output, torch.Tensor)
-                else torch.tensor(output, device="cpu")
-            )
-            symbolic_output.shape = output.shape
-            symbolic_output.dtype = output.dtype
-
-        onnxscript_graph.register_outputs(symbolic_outputs)
-
-        onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
-        # Make sure the model is valid
-        try:
-            onnx.checker.check_model(onnx_model, full_check=True)
-        except onnx.checker.ValidationError as e:
-            raise AssertionError(
-                f"ONNX model is invalid: {e}. "
-                f"Model:\n"
-                f"{onnxscript.proto2text(onnx_model)}"
-            ) from e
-
-        try:
-            if os.environ.get("CATCH_ORT_SEGFAULT") == "1":
-                # Use an individual process to run ONNX Runtime to catch segfaults
-                return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
-
-            return _ort_session_run(onnx_model.SerializeToString(), ort_inputs)
-        except (
-            # pylint: disable=c-extension-no-member
-            onnxruntime.capi.onnxruntime_pybind11_state.Fail,
-            onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException,
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidArgument,
-            onnxruntime.capi.onnxruntime_pybind11_state.InvalidGraph,
-            onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
-            # pylint: enable=c-extension-no-member
-        ) as e:
-            raise AssertionError(
-                "ONNX Runtime failed to evaluate:\n"
-                + _format_model_and_input_information(onnx_model, ort_inputs)
-            ) from e
-        except OrtAbortedError as e:
-            raise AssertionError(
-                "ONNX Runtime aborted:\n"
-                + _format_model_and_input_information(onnx_model, ort_inputs)
-            ) from e
-
-    return _capture_graph_and_evaluate_torch_script_evaluator
-
-
-def _eager_executor(
-    outputs,
-) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
-    """Eagerly executes a function."""
-
-    del outputs  # Unused
-
-    def executor(function, args, kwargs):
-        return function(*args, **kwargs)
-
-    return executor
-
-
-def run_test_output_match(
-    test_suite: unittest.TestCase,
-    device: str,
-    dtype: torch.dtype,
-    op: opinfo_core.OpInfo,
-    function_executor: Callable,
-):
-    """Base test method for testing each opset, used by instantiate_device_type_tests.
-
-    Args:
-        test_suite: The test class instance.
-        device: The PyTorch device. instantiate_device_type_tests provides this.
-        dtype: The PyTorch dtype. instantiate_device_type_tests provides this.
-        op: The OpInfo instance. instantiate_device_type_tests provides this.
-        function_executor: The function executor. This is a function that takes
-            a function and its arguments and returns the output of the function.
-    """
-    samples = op.sample_inputs(
-        device,
-        dtype,
-        requires_grad=False,
-    )
-
-    onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
-    input_wrangler = None
-    if isinstance(onnx_function_and_wrangler, tuple):
-        # Obtain the input_wrangler that manipulates the OpInfo inputs
-        # to match the aten operator signature
-        # An example is nn.functional.upsample_nearest2d, which has a different signature
-        # than the aten operator upsample_nearest2d
-        onnx_function, input_wrangler = onnx_function_and_wrangler
-    else:
-        assert callable(onnx_function_and_wrangler)
-        onnx_function = onnx_function_and_wrangler
-
-    for i, cpu_sample in enumerate(samples):
-        inputs = (cpu_sample.input, *cpu_sample.args)
-        # Provide the repr to subtest because tensors are not serializable in parallel test runs
-        with test_suite.subTest(
-            sample_num=i,
-            inputs=repr(
-                [
-                    f"Tensor<{inp.shape}, dtype={inp.dtype}>"
-                    if isinstance(inp, torch.Tensor)
-                    else inp
-                    for inp in inputs
-                ]
-            ),
-            kwargs=repr(cpu_sample.kwargs),
-        ):
-            skip_reason = _should_skip_test_sample(op.name, cpu_sample)
-            if skip_reason is not None:
-                # Cannot use self.skip because pytest would skip the entire test
-                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}", stacklevel=1)
-                continue
-            input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
-            kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
-            if input_wrangler:
-                input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
-            torch_output = op(*inputs, **cpu_sample.kwargs)
-
-            reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
-            if op.name.startswith("split"):
-                # Hack for handling split
-                # Split returns a Sequence that should be treats as a single
-                # value. So we wrap it into a tuple.
-                # TODO(justinchuby): Find a more general solution
-                reference_torch_outputs = [reference_torch_outputs]
-
-            function_output = function_executor(reference_torch_outputs)(
-                onnx_function, input_onnx, kwargs_onnx
-            )
-            # Finally we re-flatten everything
-            # TODO: add pytree structure comparison.
-            flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
-            flattened_function_outputs, _ = pytree.tree_flatten(function_output)
-
-            assert flattened_torch_outputs
-            assert len(flattened_torch_outputs) == len(flattened_function_outputs)
-
-            for j, (torch_output, function_output) in enumerate(
-                zip(flattened_torch_outputs, flattened_function_outputs)
-            ):
-                if dtype == torch.float32:
-                    # Relax atol and rtol for float32 based on empirical results
-                    # The current most relaxed values are for aten::matmul
-                    rtol = 3.7e-5
-                    atol = 1.8e-4
-                else:
-                    rtol = None
-                    atol = None
-
-                if not isinstance(function_output, np.ndarray):
-                    # An onnxscript tensor
-                    function_output = function_output.value
-
-                actual = torch.tensor(function_output)
-                expected = (
-                    torch_output
-                    if isinstance(torch_output, torch.Tensor)
-                    else torch.tensor(torch_output)
-                )
-
-                if op.name in NONDETERMINISTIC_OPS:
-                    # Check shape and dtype only for ops that are known to be
-                    # nondeterministic
-                    test_suite.assertEqual(actual.shape, expected.shape)
-                    test_suite.assertEqual(actual.dtype, expected.dtype)
-                    continue
-
-                # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
-                try:
-                    torch.testing.assert_close(
-                        actual,
-                        expected,
-                        rtol=rtol,
-                        atol=atol,
-                        check_device=False,
-                    )
-                except AssertionError as e:
-                    if len(flattened_torch_outputs) > 1:
-                        raise AssertionError(f"Output {j} mismatch") from e
-                    raise
-
-
-class TestOutputConsistencyEager(unittest.TestCase):
-    """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
-
-    This is a parameterized test suite.
-    """
-
-    def setUp(self) -> None:
-        torch.manual_seed(42)
-        np.random.seed(42)
-        ort.set_seed(42)
-
-    @add_decorate_info(
-        OPS_DB,
-        "TestOutputConsistencyEager",
-        "test_output_match_opinfo_",
-        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
-    )
-    @common_device_type.ops(  # type: ignore[misc]
-        [info for info in OPS_DB if info.name in TESTED_OPS],
-        allowed_dtypes=TESTED_DTYPES,
-    )
-    def test_output_match_opinfo_(
-        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
-    ):
-        """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
-        run_test_output_match(self, device, dtype, op, _eager_executor)
-
-
-class TestOutputConsistencyFullGraph(unittest.TestCase):
-    """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
-
-    This is a parameterized test suite.
-    """
-
-    def setUp(self) -> None:
-        torch.manual_seed(42)
-        np.random.seed(42)
-        ort.set_seed(42)
-
-    @add_decorate_info(
-        OPS_DB,
-        "TestOutputConsistencyFullGraph",
-        "test_output_match_opinfo_",
-        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
-    )
-    @common_device_type.ops(  # type: ignore[misc]
-        [info for info in OPS_DB if info.name in TESTED_OPS],
-        allowed_dtypes=TESTED_DTYPES,
-    )
-    def test_output_match_opinfo_(
-        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
-    ):
-        """Base test method for testing each op by running the full ONNX graph."""
-        run_test_output_match(self, device, dtype, op, _graph_executor)
-
-
-common_device_type.instantiate_device_type_tests(
-    TestOutputConsistencyEager, globals(), only_for="cpu"
-)
-
-common_device_type.instantiate_device_type_tests(
-    TestOutputConsistencyFullGraph, globals(), only_for="cpu"
-)
-
-if __name__ == "__main__":
-    unittest.main()
