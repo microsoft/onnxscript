@@ -355,10 +355,10 @@ def _cache_(model, providers):
 
     serialized = model.SerializeToString()
     key = serialized, tuple(providers)
-    if key in _cache_models:
-        return _cache_models[key]
+    # if key in _cache_models:
+    #     return _cache_models[key]
     session = ort.InferenceSession(serialized, providers=providers)
-    _cache_models[key] = session
+    # _cache_models[key] = session
     return session
 
 
