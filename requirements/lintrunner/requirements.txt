@@ -1,6 +1,6 @@
 # This file is auto updated by dependabot
 # RUFF, RUFF-FIX
-ruff==0.0.261
+ruff==0.0.262
 # MYPY
 mypy==1.2.0
 types-PyYAML==6.0.12.9
@@ -8,6 +8,6 @@ types-PyYAML==6.0.12.9
 black==23.3.0
 isort==5.12.0
 # PYLINT
-pylint==2.17.2
+pylint==2.17.3
 # EDITORCONFIG-CHECKER
 editorconfig-checker==2.7.1
