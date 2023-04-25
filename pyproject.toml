@@ -77,7 +77,7 @@ module = [
 ignore_errors = true
 
 [tool.black]
-target-version = ["py37", "py38", "py39", "py310"]
+target-version = ["py38", "py39", "py310", "py311"]
 # Black's extend-exclude needs to be a regex string
 extend-exclude = "/onnxscript/tests/models|/onnxscript/tests/onnx_backend_test_code"
 line-length = 95
