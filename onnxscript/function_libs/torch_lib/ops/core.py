@@ -4475,7 +4475,9 @@ def aten_new_empty(self: TTensor, size: INT64) -> TTensor:
 
 @torch_op("aten::new_empty", overload=True)
 def aten_new_empty_dtype(
-    self: TTensor, size: INT64, dtype: int,  # pylint: disable=unused-argument
+    self: TTensor,  # pylint: disable=unused-argument
+    size: INT64,
+    dtype: int,
 ) -> TTensor:
     """new_empty(Tensor self, SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
@@ -4543,7 +4545,9 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
 
 @torch_op("aten::new_ones", overload=True)
 def aten_new_ones_dtype(
-    self: TReal, size: INT64, dtype: int,  # pylint: disable=unused-argument
+    self: TReal,  # pylint: disable=unused-argument
+    size: INT64,
+    dtype: int,
 ) -> TReal:
     one = op.Constant(value_float=1.0)
     result = op.Expand(one, size)
@@ -4560,7 +4564,9 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:
 
 @torch_op("aten::new_zeros", overload=True)
 def aten_new_zeros_dtype(
-    self: TReal, size: INT64, dtype: int,  # pylint: disable=unused-argument
+    self: TReal,  # pylint: disable=unused-argument
+    size: INT64,
+    dtype: int,
 ) -> TReal:
     result = op.ConstantOfShape(size)
     return op.Cast(result, to=dtype)
