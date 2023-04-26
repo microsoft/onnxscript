@@ -31,24 +31,7 @@ from torch.utils import _pytree as pytree
 import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
-from onnxscript.tests.function_libs.torch_lib.ops_test_common import (
-    _convert_kwargs_for_onnx,
-    _convert_tensor_to_numpy,
-    _eager_executor,
-    _graph_executor,
-    add_decorate_info,
-)
-from onnxscript.tests.function_libs.torch_lib.ops_test_data import (
-    EXPECTED_SKIPS_OR_FAILS,
-    NONDETERMINISTIC_OPS,
-    OP_WITH_SKIPPED_SUBTESTS,
-    OPINFO_FUNCTION_MAPPING,
-    OPINFO_FUNCTION_MAPPING_SCRIPTED,
-    OPINFO_FUNCTION_MAPPING_TRACE_ONLY,
-    OPS_DB,
-    SKIP_SUBTESTS,
-    TESTED_OPS,
-)
+from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
 
 # Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
 TESTED_DTYPES = (torch.float32,)
@@ -61,10 +44,10 @@ def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
 
 def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
     """Returns a reason if a test sample should be skipped."""
-    if op_name not in OP_WITH_SKIPPED_SUBTESTS:
+    if op_name not in ops_test_data.OP_WITH_SKIPPED_SUBTESTS:
         return None
-    for decorator_meta in SKIP_SUBTESTS:
-        # Linear search on SKIP_SUBTESTS. That's fine because the list is small.
+    for decorator_meta in ops_test_data.SKIP_SUBTESTS:
+        # Linear search on ops_test_data.SKIP_SUBTESTS. That's fine because the list is small.
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
             if decorator_meta.matcher(sample):
@@ -75,7 +58,7 @@ def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
         functions = set()
-        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
+        for func_with_wrangler in ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
             if isinstance(func_with_wrangler, tuple):
                 func = func_with_wrangler[0]
             else:
@@ -88,11 +71,11 @@ class TestFunctionValidity(unittest.TestCase):
                 raise AssertionError(
                     f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
                     "If the function is trace_only, please move it to the "
-                    "'OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
+                    "'ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
                 )
 
     def test_all_trace_only_functions_are_not_onnx_functions(self):
-        for func_with_wrangler in OPINFO_FUNCTION_MAPPING_TRACE_ONLY.values():
+        for func_with_wrangler in ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY.values():
             if isinstance(func_with_wrangler, tuple):
                 func = func_with_wrangler[0]
             else:
@@ -101,10 +84,12 @@ class TestFunctionValidity(unittest.TestCase):
                 raise AssertionError(
                     f"'{func.name}' is an OnnxFunction. "
                     "If the function is not trace_only, please move it to the "
-                    "'OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
+                    "'ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
                 )
 
-    @parameterized.parameterized.expand(list(OPINFO_FUNCTION_MAPPING_SCRIPTED.items()))
+    @parameterized.parameterized.expand(
+        list(ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.items())
+    )
     @unittest.skipIf(
         version_utils.onnx_older_than("1.14"),
         "Function checker is not available before ONNX 1.14",
@@ -141,7 +126,7 @@ def run_test_output_match(
         requires_grad=False,
     )
 
-    onnx_function_and_wrangler = OPINFO_FUNCTION_MAPPING[op.name]
+    onnx_function_and_wrangler = ops_test_data.OPINFO_FUNCTION_MAPPING[op.name]
     input_wrangler = None
     if isinstance(onnx_function_and_wrangler, tuple):
         # Obtain the input_wrangler that manipulates the OpInfo inputs
@@ -173,8 +158,8 @@ def run_test_output_match(
                 # Cannot use self.skip because pytest would skip the entire test
                 warnings.warn(f"skipped sample {i}. Reason: {skip_reason}", stacklevel=1)
                 continue
-            input_onnx = [_convert_tensor_to_numpy(x) for x in inputs]
-            kwargs_onnx = _convert_kwargs_for_onnx(cpu_sample.kwargs)
+            input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
+            kwargs_onnx = ops_test_common.convert_kwargs_for_onnx(cpu_sample.kwargs)
             if input_wrangler:
                 input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
             torch_output = op(*inputs, **cpu_sample.kwargs)
@@ -221,7 +206,7 @@ def run_test_output_match(
                     else torch.tensor(torch_output)
                 )
 
-                if op.name in NONDETERMINISTIC_OPS:
+                if op.name in ops_test_data.NONDETERMINISTIC_OPS:
                     # Check shape and dtype only for ops that are known to be
                     # nondeterministic
                     test_suite.assertEqual(actual.shape, expected.shape)
@@ -254,21 +239,21 @@ class TestOutputConsistencyEager(unittest.TestCase):
         np.random.seed(42)
         ort.set_seed(42)
 
-    @add_decorate_info(
-        OPS_DB,
+    @ops_test_common.add_decorate_info(
+        ops_test_data.OPS_DB,
         "TestOutputConsistencyEager",
         "test_output_match_opinfo_",
-        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
+        skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
     )
     @common_device_type.ops(  # type: ignore[misc]
-        [info for info in OPS_DB if info.name in TESTED_OPS],
+        [info for info in ops_test_data.OPS_DB if info.name in ops_test_data.TESTED_OPS],
         allowed_dtypes=TESTED_DTYPES,
     )
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
-        run_test_output_match(self, device, dtype, op, _eager_executor)
+        run_test_output_match(self, device, dtype, op, ops_test_common.eager_executor)
 
 
 class TestOutputConsistencyFullGraph(unittest.TestCase):
@@ -282,21 +267,21 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
         np.random.seed(42)
         ort.set_seed(42)
 
-    @add_decorate_info(
-        OPS_DB,
+    @ops_test_common.add_decorate_info(
+        ops_test_data.OPS_DB,
         "TestOutputConsistencyFullGraph",
         "test_output_match_opinfo_",
-        skip_or_xfails=EXPECTED_SKIPS_OR_FAILS,
+        skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
     )
     @common_device_type.ops(  # type: ignore[misc]
-        [info for info in OPS_DB if info.name in TESTED_OPS],
+        [info for info in ops_test_data.OPS_DB if info.name in ops_test_data.TESTED_OPS],
         allowed_dtypes=TESTED_DTYPES,
     )
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
         """Base test method for testing each op by running the full ONNX graph."""
-        run_test_output_match(self, device, dtype, op, _graph_executor)
+        run_test_output_match(self, device, dtype, op, ops_test_common.graph_executor)
 
 
 common_device_type.instantiate_device_type_tests(
