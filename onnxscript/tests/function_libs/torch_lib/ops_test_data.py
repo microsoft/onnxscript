@@ -338,6 +338,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
+    "atan2": core_ops.aten_atan2,
     "atanh": core_ops.aten_atanh,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
@@ -489,6 +490,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "t": core_ops.aten_t,
     "tan": core_ops.aten_tan,
     "tanh": core_ops.aten_tanh,
+    "tile": core_ops.aten_tile,
     "topk": core_ops.aten_topk,
     "tril": core_ops.aten_tril,
     "triu": core_ops.aten_triu,
@@ -733,6 +735,13 @@ EXPECTED_SKIPS_OR_FAILS = (
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "tile",
+        reason="Shape inference error. Remove after ONNX 1.14 release",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnx_older_than("1.14")
+        or version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "unflatten",
@@ -1065,6 +1074,17 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
     skip(
+        "tile",
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
+        or not sample.input.shape,
+        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
+    ),
+    skip(
+        "unflatten",
+        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
+    ),
+    skip(
         "var_mean",
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
@@ -1084,11 +1104,6 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
-    ),
-    skip(
-        "unflatten",
-        matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
-        reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
 )
 

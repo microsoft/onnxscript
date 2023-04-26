@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
@@ -33,6 +34,7 @@ from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
+_MATH_PI = math.pi
 
 
 @torch_op("aten::abs")
@@ -615,10 +617,18 @@ def aten_atan(self: TFloat) -> TFloat:
     return op.Atan(self)
 
 
-def aten_atan2(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::atan2")
+def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
     """atan2(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    # self is y, and other is x on coordinate
+    slope = op.Div(self, other)
+    atan = op.Atan(slope)
+
+    second_third_quadrant = op.Where(self > 0.0, atan + _MATH_PI, atan - _MATH_PI)
+    result = op.Where(other < 0.0, second_third_quadrant, atan)
+
+    return result
 
 
 @torch_op("aten::atanh")
@@ -5849,8 +5859,8 @@ def aten_sym_size(self: TReal, dim: int = 0) -> TReal:
     shape = op.Shape(self)
     # Reshape helps dim from int to tensor, and
     # input arguments support attribute processing.
-    start = op.Reshape(dim, [1])
-    end = op.Reshape(dim + 1, [1])
+    start = op.Reshape(dim, op.Constant(value_ints=[1]))
+    end = op.Reshape(dim + 1, op.Constant(value_ints=[1]))
     return op.Slice(shape, start, end)
 
 
@@ -5931,10 +5941,31 @@ def aten_threshold_backward(
     raise NotImplementedError()
 
 
-def aten_tile(self: TensorType, dims: Sequence[int]) -> TensorType:
+@torch_op("aten::tile")
+def aten_tile(self: TTensor, dims: INT64) -> TTensor:
     """tile(Tensor self, int[] dims) -> Tensor"""
 
-    raise NotImplementedError()
+    self_shape = op.Shape(self)
+    self_rank = op.Size(self_shape)
+    dims_rank = op.Size(dims)
+    diff = op.Sub(self_rank, dims_rank)
+
+    if diff > 0:
+        # dims is shorter than self.shape
+        # pad dims with 1
+        diff_1d = op.Reshape(diff, op.Constant(value_ints=[1]))
+        exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
+        dims = op.Concat(exapnd_ones, dims, axis=0)
+
+    if diff < 0:
+        # dims is longer than self.shape
+        # pad self.shape with 1
+        diff_1d = op.Reshape(op.Abs(diff), op.Constant(value_ints=[1]))
+        exapnd_ones = op.Expand(op.Constant(value_ints=[1]), diff_1d)
+        self_final_shape = op.Concat(exapnd_ones, self_shape, axis=0)
+        self = op.Reshape(self, self_final_shape)
+
+    return op.Tile(self, dims)
 
 
 def aten_to_dense(self: TensorType, dtype: Optional[int] = None) -> TensorType:
