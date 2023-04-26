@@ -180,7 +180,12 @@ class Op:
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval(self.get_schema(), args, kwargs)
+        schema = self.get_schema()
+        if schema is None:
+            raise RuntimeError(
+                f"Op '{self.opname}' does not have an OpSchema and cannot be evaluated."
+            )
+        return evaluator.default().eval(schema, args, kwargs)
 
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
