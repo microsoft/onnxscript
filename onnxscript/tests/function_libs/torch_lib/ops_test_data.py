@@ -412,6 +412,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
+    "new_empty_dtype": core_ops.aten_new_empty_dtype,
+    "new_empty": core_ops.aten_new_empty,
+    "new_empty_strided_dtype": core_ops.aten_new_empty_strided_dtype,
+    "new_empty_strided": core_ops.aten_new_empty_strided,
+    "new_full_dtype": core_ops.aten_new_full_dtype,
     "new_full": core_ops.aten_new_full,
     "new_ones_dtype": core_ops.aten_new_ones_dtype,
     "new_ones": core_ops.aten_new_ones,
@@ -526,8 +531,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "native_batch_norm": core_ops.aten_native_batch_norm,
     "native_group_norm": core_ops.aten_native_group_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
-    "new_empty": core_ops.aten_new_empty,
-    "new_empty_strided": core_ops.aten_new_empty_strided,
     "nn.functional.avg_pool2d": (nn_ops.aten_avg_pool2d, _avg_pool2d_input_wrangler),
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
@@ -571,7 +574,9 @@ NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
     (
         "empty_like",
         "empty",
+        "new_empty_strided_dtype",
         "new_empty_strided",
+        "new_empty_dtype",
         "new_empty",
         "normal",
         "randn",
@@ -634,32 +639,38 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "new_full",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        "new_empty_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
-        "new_ones",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        "new_empty_strided_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided_dtype: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+    ),
+    xfail(
+        "new_empty_strided",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+    ),
+    xfail(
+        "new_full_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_zeros",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_ones_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_zeros_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
@@ -835,6 +846,36 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another int as args",
+    ),
+    skip(
+        "new_empty",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="this Aten overload only accept 2 inputs:(self, size)",
+    ),
+    skip(
+        "new_empty_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="this Aten overload must have 3 inputs:(self, size, dtype)",
+    ),
+    skip(
+        "new_empty_strided",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="this Aten overload only accept 3 inputs:(self, size, stride)",
+    ),
+    skip(
+        "new_empty_strided_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="this Aten overload must have 4 inputs:(self, size, stride, dtype)",
+    ),
+    skip(
+        "new_full",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
+    ),
+    skip(
+        "new_full_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
     ),
     skip(
         "new_ones",
@@ -1078,6 +1119,12 @@ duplicate_opinfo(
 )
 
 duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+
+duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
+
+duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
+
+duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 
 duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 
