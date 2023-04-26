@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
@@ -33,6 +34,7 @@ from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
+_MATH_PI = math.pi
 
 
 @torch_op("aten::abs")
@@ -615,10 +617,18 @@ def aten_atan(self: TFloat) -> TFloat:
     return op.Atan(self)
 
 
-def aten_atan2(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::atan2")
+def aten_atan2(self: TFloat, other: TFloat) -> TFloat:
     """atan2(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    # self is y, and other is x on coordinate
+    slope = op.Div(self, other)
+    atan = op.Atan(slope)
+
+    second_third_quadrant = op.Where(self > 0.0, atan + _MATH_PI, atan - _MATH_PI)
+    result = op.Where(other < 0.0, second_third_quadrant, atan)
+
+    return result
 
 
 @torch_op("aten::atanh")

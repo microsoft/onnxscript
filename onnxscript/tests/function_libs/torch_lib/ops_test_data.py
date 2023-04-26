@@ -338,6 +338,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
+    "atan2": core_ops.aten_atan2,
     "atanh": core_ops.aten_atanh,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
