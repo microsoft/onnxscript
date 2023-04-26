@@ -597,11 +597,6 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    # xfail(
-    #     "any",
-    #     reason="fixme: ORT shape inference error",
-    #     test_class_name="TestOutputConsistencyFullGraph",
-    # ),
     xfail(
         "as_strided",
         variant_name="partial_views",
