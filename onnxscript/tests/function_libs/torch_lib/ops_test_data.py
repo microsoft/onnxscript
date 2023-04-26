@@ -16,10 +16,10 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
 
     The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to ops_test_common.skip or ops_test_common.xfail tests.
-Prefer ops_test_common.xfail over ops_test_common.skip when possible.
+2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
+Prefer xfail over skip when possible.
     2a. If a test is now failing because of xpass, because some previous errors
-    are now fixed, removed the corresponding ops_test_common.xfail.
+    are now fixed, removed the corresponding xfail.
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
 4. To test different ONNX functions that are registered as overloads of the same
@@ -42,6 +42,9 @@ from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
+
+# For readability, these two are allowed to be imported given the high usage
+from onnxscript.tests.function_libs.torch_lib.ops_test_common import skip, xfail
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
@@ -590,158 +593,154 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    ops_test_common.xfail(
+    xfail(
         "any",
         reason="fixme: ORT shape inference error",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
+    xfail(
         "as_strided",
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
     ),
-    ops_test_common.xfail(
+    xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
-    ops_test_common.xfail(
+    xfail(
         "index_select",
         reason="fixme: ORT shape inference error on rank-0 input",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
-        "logcumsumexp", reason="naive implementation not numerically stable"
-    ),
-    ops_test_common.xfail(
+    xfail("logcumsumexp", reason="naive implementation not numerically stable"),
+    xfail(
         "max",
         variant_name="binary",
         reason="fixme: current implementation gets shape inference error",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
+    xfail(
         "max",
         variant_name="reduction_with_dim",
         reason="fixme: current implementation gets shape inference error",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
+    xfail(
         "max_pool3d",
         variant_name="empty_strides",
         reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
     ),
-    ops_test_common.xfail(
+    xfail(
         "min_dim",
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
+    xfail(
         "new_empty_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "new_empty_strided_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "new_empty_strided",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "new_full_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "new_ones_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_ones_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "new_zeros_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_zeros_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "nn.functional.adaptive_avg_pool1d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "nn.functional.adaptive_avg_pool3d",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "nn.functional.mse_loss",
         reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnx_older_than("1.14"),
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
-    ops_test_common.xfail(
+    xfail(
         "nn.functional.upsample_bilinear2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
+    xfail(
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
+    xfail(
         "repeat",
         reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnx_older_than("1.14"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "round",
         variant_name="decimals_0",
         reason="The op does not support decimals yet",
         test_class_name="TestOutputConsistencyEager",
     ),
-    ops_test_common.xfail(
-        "round", variant_name="decimals_3", reason="The op does not support decimals yet"
-    ),
-    ops_test_common.xfail(
+    xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
+    xfail(
         "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
     ),
-    ops_test_common.xfail(
+    xfail(
         "scatter_reduce",
         variant_name="mean",
         reason="ONNX doesn't support reduce='mean' option",
     ),
-    ops_test_common.xfail(
+    xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    ops_test_common.xfail(
+    xfail(
         "tile",
         reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnx_older_than("1.14")
         or version_utils.onnxruntime_older_than("1.15"),
     ),
-    ops_test_common.xfail(
+    xfail(
         "unflatten",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -750,255 +749,255 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 
 SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
-    ops_test_common.skip(
+    skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
         reason="this Aten overload only support one tensor as input by design",
     ),
-    ops_test_common.skip(
+    skip(
         "all_dim",
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    ops_test_common.skip(
+    skip(
         "amax",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
     ),
-    ops_test_common.skip(
+    skip(
         "amin",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
     ),
-    ops_test_common.skip(
+    skip(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
     ),
-    ops_test_common.skip(
+    skip(
         "arange",
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
     ),
-    ops_test_common.skip(
+    skip(
         "arange_start",
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
-    ops_test_common.skip(
+    skip(
         "arange_start_step",
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
-    ops_test_common.skip(
+    skip(
         "cat",
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="cat does not support zero-dim tensors yet",
     ),
-    ops_test_common.skip(
+    skip(
         "div",
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.grid_sample",
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
         or len(sample.args[0].shape) != 4,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
-    ops_test_common.skip(
+    skip(
         "grid_sampler_2d",
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
-    ops_test_common.skip(
+    skip(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
     ),
-    ops_test_common.skip(
+    skip(
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
     ),
-    ops_test_common.skip(
+    skip(
         "matmul",
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
-    ops_test_common.skip(
+    skip(
         "min",  # aten_mean
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
-    ops_test_common.skip(
+    skip(
         "min_other",  # aten_min_other(self, other)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
-    ops_test_common.skip(
+    skip(
         "min_dim",  # aten_min_dim(self, dim)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
-    ops_test_common.skip(
+    skip(
         "new_empty",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="this Aten overload only accept 2 inputs:(self, size)",
     ),
-    ops_test_common.skip(
+    skip(
         "new_empty_dtype",
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 3 inputs:(self, size, dtype)",
     ),
-    ops_test_common.skip(
+    skip(
         "new_empty_strided",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="this Aten overload only accept 3 inputs:(self, size, stride)",
     ),
-    ops_test_common.skip(
+    skip(
         "new_empty_strided_dtype",
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 4 inputs:(self, size, stride, dtype)",
     ),
-    ops_test_common.skip(
+    skip(
         "new_full",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
     ),
-    ops_test_common.skip(
+    skip(
         "new_full_dtype",
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
     ),
-    ops_test_common.skip(
+    skip(
         "new_ones",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",
     ),
-    ops_test_common.skip(
+    skip(
         "new_ones_dtype",
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    ops_test_common.skip(
+    skip(
         "new_zeros",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",
     ),
-    ops_test_common.skip(
+    skip(
         "new_zeros_dtype",
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    ops_test_common.skip(
+    skip(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
     ),
-    ops_test_common.skip(
+    skip(
         "normal",
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.adaptive_avg_pool1d",
         # Shape should be [N, C, D1]
         matcher=lambda sample: sample.args[0] not in {1, (1,)},
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.adaptive_avg_pool2d",
         matcher=lambda sample: sample.args[0] != (1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.adaptive_avg_pool3d",
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.avg_pool2d",
         matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
         reason="ONNX doesn't support divisor_override argument",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.conv1d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv1d",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.conv2d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.cross_entropy",
         matcher=lambda sample: not isinstance(sample.kwargs.get("weight"), int),
         reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[weight] is int type",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.dropout",
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.max_pool2d_with_indices",
         matcher=lambda sample: sample.kwargs.get("return_indices") is False,
         reason="this aten overload assume return_indices=True",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.max_pool2d",
         matcher=lambda sample: sample.kwargs.get("return_indices") is True,
         reason="this aten overload assume return_indices=False",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.max_pool3d",
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
         and sample.kwargs.get("padding") == 1,
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.max_pool3d",
         matcher=lambda sample: sample.kwargs.get("return_indices") is True,
         reason="this aten overload assume return_indices=False",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.max_pool3d_with_indices",
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
         and sample.kwargs.get("padding") == 1,
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.max_pool3d_with_indices",
         matcher=lambda sample: sample.kwargs.get("return_indices") is False,
         reason="this aten overload assume return_indices=True",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.nll_loss",
         matcher=lambda sample: "weight" in sample.kwargs,
         reason="this Aten overload doesn't accept weight as kwargs",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.nll_loss_weight",
         matcher=lambda sample: "weight" not in sample.kwargs,
         reason="this Aten overload need weight as kwargs",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.reflection_pad2d",
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "reflect"),
         reason="this Aten overload need args[1] == 'reflect' for pad mode",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.replication_pad2d",
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
         reason="this Aten overload need args[1] == 'replicate' for pad mode",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.replication_pad3d",
         matcher=lambda sample: not (
             len(sample.args) > 1
@@ -1007,88 +1006,88 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         ),
         reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.scaled_dot_product_attention",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype == torch.bool,
         reason="this overload takes a non-boolean mask",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.scaled_dot_product_attention",
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype != torch.bool,
         reason="this overload takes a boolean mask",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
         reason="only test on 2d inputs",
     ),
-    ops_test_common.skip(
+    skip(
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
     ),
-    ops_test_common.skip(
+    skip(
         "permute",
         matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
         reason="Negative value in perm is not supported",
     ),
-    ops_test_common.skip(
+    skip(
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
     ),
-    ops_test_common.skip(
+    skip(
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     ),
-    ops_test_common.skip(
+    skip(
         "scatter_reduce",
         # ONNX has not include_self parameter and default is include_self=True mode
         matcher=lambda sample: sample.kwargs.get("include_self") is False,
         reason="ONNX does't support include_self=False option",
     ),
-    ops_test_common.skip(
+    skip(
         "squeeze",
         matcher=lambda sample: not (len(sample.args) == 0),
         reason="this Aten overload only support one tensor as input by design",
     ),
-    ops_test_common.skip(
+    skip(
         "squeeze_dim",
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
-    ops_test_common.skip(
+    skip(
         "tile",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    ops_test_common.skip(
+    skip(
         "unflatten",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    ops_test_common.skip(
+    skip(
         "var_mean",
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
         reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
     ),
-    ops_test_common.skip(
+    skip(
         "var_mean_dim",
         # kwargs["dim"] must exist, kwargs["correction"] must not exist
         matcher=lambda sample: not (
@@ -1097,7 +1096,7 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         ),
         reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
     ),
-    ops_test_common.skip(
+    skip(
         "var_mean_correction",
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
