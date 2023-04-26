@@ -208,14 +208,14 @@ TORCH_TYPE_TO_ONNX = {
 }
 
 
-def _convert_tensor_to_numpy(input: Any) -> Any:
+def convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, torch.Tensor):
         return input.detach().cpu().numpy()
     if isinstance(input, (tuple, list)):
         if len(input) == 0:
             return np.array((), dtype=np.int64)
         if isinstance(input[0], torch.Tensor):
-            return [_convert_tensor_to_numpy(x) for x in input]
+            return [convert_tensor_to_numpy(x) for x in input]
         if isinstance(input[0], bool):
             return np.array(input, dtype=np.bool_)
 
@@ -228,7 +228,7 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
     return input
 
 
-def _convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
+def convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Converts kwargs to be compatible with ONNX Runtime.
 
     ONNX Runtime doesn't support torch.bool, so we convert them to torch.uint8.
@@ -311,7 +311,7 @@ def _format_model_and_input_information(onnx_model, inputs):
     )
 
 
-def _graph_executor(
+def graph_executor(
     outputs: Sequence[Any],
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
@@ -426,7 +426,7 @@ def _graph_executor(
     return _capture_graph_and_evaluate_torch_script_evaluator
 
 
-def _eager_executor(
+def eager_executor(
     outputs,
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""

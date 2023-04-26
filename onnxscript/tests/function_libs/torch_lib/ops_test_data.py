@@ -23,7 +23,7 @@ Prefer xfail over skip when possible.
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
 4. To test different ONNX functions that are registered as overloads of the same
-    op, use `duplicate_opinfo` to create new OpInfo with new names and map each
+    op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
 """
 from __future__ import annotations
@@ -41,13 +41,10 @@ from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
-from onnxscript.tests.function_libs.torch_lib import extra_opinfo
-from onnxscript.tests.function_libs.torch_lib.ops_test_common import (
-    DecorateMeta,
-    duplicate_opinfo,
-    skip,
-    xfail,
-)
+from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
+
+# For readability, these two are allowed to be imported given the high usage
+from onnxscript.tests.function_libs.torch_lib.ops_test_common import skip, xfail
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
@@ -751,7 +748,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
+SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
@@ -1107,9 +1104,9 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
 )
 
-duplicate_opinfo(OPS_DB, "all", ("all_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "arange",
     (
@@ -1118,21 +1115,23 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 
-duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
-duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
+)
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
     (
@@ -1142,13 +1141,13 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "min",
     (
@@ -1157,13 +1156,13 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
     ("nn.functional.upsample_bilinear2d",),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
     (
@@ -1173,9 +1172,9 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "var_mean",
     (
