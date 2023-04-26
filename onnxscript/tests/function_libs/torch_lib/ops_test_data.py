@@ -337,8 +337,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
     "argmax": core_ops.aten_argmax,
     "argmax_dim": core_ops.aten_argmax_dim,
-    "argmin": core_ops.aten_argmax,
-    #"argmin_dim": core_ops.aten_argmax_dim,
+    "argmin": core_ops.aten_argmin,
+    "argmin_dim": core_ops.aten_argmin_dim,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -774,16 +774,16 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    # skip(
-    #     "argmin",
-    #     matcher=lambda sample: not (len(sample.kwargs) == 0),
-    #     reason="this Aten overload only support one tensor as input by design",
-    # ),
-    # skip(
-    #     "argmin_dim",
-    #     matcher=lambda sample: not (len(sample.kwargs) > 0),
-    #     reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
-    # ),
+    skip(
+        "argmin",
+        matcher=lambda sample: not (len(sample.kwargs) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    skip(
+        "argmin_dim",
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    ),
     skip(
         "amax",
         matcher=lambda sample: len(sample.input.shape) == 0,
@@ -1142,7 +1142,7 @@ duplicate_opinfo(
 
 duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
 
-#duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
+duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
 
 duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 

@@ -445,7 +445,7 @@ def aten_arctanh(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::argmax")
-def aten_argmax(self: TReal, keepdim: bool = False) -> TReal:
+def aten_argmax(self: TReal, keepdim: bool = False) -> TInt:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -458,7 +458,7 @@ def aten_argmax(self: TReal, keepdim: bool = False) -> TReal:
 
 
 @torch_op("aten::argmax", overload=True)
-def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TInt:
     self_is_scaler = op.Size(op.Shape(self)) == 0
     if self_is_scaler:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
@@ -470,20 +470,21 @@ def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
     return result
 
 
-@torch_op("aten::argmin", trace_only=True)
-def aten_argmin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
-    """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
+@torch_op("aten::argmin")
+def aten_argmin(self: TReal, keepdim: bool = False) -> TInt:
+    """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMin(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return aten_argmin_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
-@torch_op("aten::argmin", overload=True)
-def aten_argmin_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
-    """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
-
+@torch_op("aten::argmax", overload=True)
+def aten_argmin_dim(self: TReal, dim: int, keepdim: bool = False) -> TInt:
     self_is_scaler = op.Size(op.Shape(self)) == 0
     if self_is_scaler:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
