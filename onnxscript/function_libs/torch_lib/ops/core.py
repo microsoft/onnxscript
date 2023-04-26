@@ -444,20 +444,21 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::argmax", trace_only=True)
-def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+@torch_op("aten::argmax")
+def aten_argmax(self: TReal, keepdim: bool = False) -> TReal:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMax(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return aten_argmax_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
 @torch_op("aten::argmax", overload=True)
 def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
-    """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
-
     self_is_scaler = op.Size(op.Shape(self)) == 0
     if self_is_scaler:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))

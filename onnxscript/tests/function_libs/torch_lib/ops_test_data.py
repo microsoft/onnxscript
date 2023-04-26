@@ -335,6 +335,10 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
     "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
     "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
+    "argmax": core_ops.aten_argmax,
+    "argmax_dim": core_ops.aten_argmax_dim,
+    "argmin": core_ops.aten_argmax,
+    #"argmin_dim": core_ops.aten_argmax_dim,
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -512,8 +516,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
-    "argmax": core_ops.aten_argmax,
-    "argmin": core_ops.aten_argmin,
     "as_strided": core_ops.aten_as_strided,
     "clamp": core_ops.aten_clamp,
     "col2im": nn_ops.aten_col2im,
@@ -762,6 +764,26 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
+    skip(
+        "argmax",
+        matcher=lambda sample: not (len(sample.kwargs) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    skip(
+        "argmax_dim",
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    ),
+    # skip(
+    #     "argmin",
+    #     matcher=lambda sample: not (len(sample.kwargs) == 0),
+    #     reason="this Aten overload only support one tensor as input by design",
+    # ),
+    # skip(
+    #     "argmin_dim",
+    #     matcher=lambda sample: not (len(sample.kwargs) > 0),
+    #     reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    # ),
     skip(
         "amax",
         matcher=lambda sample: len(sample.input.shape) == 0,
@@ -1117,6 +1139,10 @@ duplicate_opinfo(
         "arange_start_step",
     ),
 )
+
+duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
+
+#duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
 
 duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 
