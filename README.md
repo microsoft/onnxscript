@@ -190,19 +190,19 @@ If you want to see what lintrunner init will install, run `lintrunner init --dry
 To lint local changes:
 
 ```bash
-lintrunner -m main
+lintrunner
+```
+
+To format files:
+
+```bash
+lintrunner f
 ```
 
 To lint all files:
 
 ```bash
 lintrunner --all-files
-```
-
-To format files:
-
-```bash
-lintrunner f -m main
 ```
 
 Use `--output oneline` to produce a compact list of lint errors, useful when
