@@ -402,6 +402,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
+    "max_dim": core_ops.aten_max_dim,
+    "max_other": core_ops.aten_max_other,
+    "max": core_ops.aten_max,
     "min_dim": core_ops.aten_min_dim,
     "min_other": core_ops.aten_min_other,
     "min": core_ops.aten_min,
@@ -633,6 +636,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
     ),
     xfail(
+        "max_dim",
+        variant_name="reduction_with_dim",
+        reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
         "min_dim",
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
@@ -831,7 +840,24 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     skip(
-        "min",  # aten_mean
+        "max",  # aten_max
+        matcher=lambda sample: len(sample.args) > 0,
+        reason="this ATen overload only supports one tensor as input by design",
+    ),
+    skip(
+        "max_other",  # aten_max_other(self, other)
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another tensor as args",
+    ),
+    skip(
+        "max_dim",  # aten_max_dim(self, dim)
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another int as args",
+    ),
+    skip(
+        "min",  # aten_min
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
@@ -1146,6 +1172,15 @@ duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
+)
+
+duplicate_opinfo(
+    OPS_DB,
+    "max",
+    (
+        "max_other",
+        "max_dim",
+    ),
 )
 
 duplicate_opinfo(

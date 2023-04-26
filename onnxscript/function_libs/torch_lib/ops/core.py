@@ -3590,57 +3590,90 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::max", trace_only=True)
-def aten_max(
-    self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None
-) -> TReal:
-    """max(Tensor self) -> Tensor"""
+# @torch_op("aten::max", trace_only=True)
+# def aten_max(
+#     self: TReal, dim_or_other: Union[TReal, INT64] = None, keepdim: BOOL = None
+# ) -> TReal:
+#     """max(Tensor self) -> Tensor"""
 
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_int=[-1]))
+#     self_rank = op.Size(op.Shape(self))
+#     if self_rank == 0:
+#         self = op.Reshape(self, op.Constant(value_int=[-1]))
 
-    output = 1
+#     output = 1
 
-    if op.OptionalHasElement(dim_or_other):
-        if isinstance(dim_or_other, int):
-            if not op.OptionalHasElement(keepdim):
-                keepdim = False
-            result, indices = _aten_max_with_dim(self, dim_or_other, keepdim)
-            output = 2
-        else:  # dim_or_other is tensor
-            result = _aten_max_with_other(self, dim_or_other)
+#     if op.OptionalHasElement(dim_or_other):
+#         if isinstance(dim_or_other, int):
+#             if not op.OptionalHasElement(keepdim):
+#                 keepdim = False
+#             result, indices = _aten_max_with_dim(self, dim_or_other, keepdim)
+#             output = 2
+#         else:  # dim_or_other is tensor
+#             result = _aten_max_with_other(self, dim_or_other)
+#     else:
+#         result = _aten_max_with_no_dim(self)
+
+#     if self_rank == 0:
+#         result = op.Squeeze(result)
+
+#     if output == 2:
+#         if self_rank == 0:
+#             indices = op.Squeeze(indices)  # type: ignore[has-type]
+#         return result, indices
+#     return result
+
+
+# @torch_op("aten::max", private=True)
+# def _aten_max_with_no_dim(self: TReal) -> TReal:
+#     result = op.ReduceMax(self, keepdims=0)
+#     return result
+
+
+# @torch_op("aten::max", private=True)
+# def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
+#     result = op.Max(self, other)
+#     return result
+
+
+# @torch_op("aten::max", private=True)
+# def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
+#     dims = op.Reshape(dim, op.Constant(value_int=[-1]))
+#     result = op.ReduceMax(self, dims, keepdims=keepdim)
+#     indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
+#     return result, indices
+
+
+
+@torch_op("aten::max")
+def aten_max(self: TReal) -> TReal:
+    """min(Tensor self) -> Tensor"""
+
+    return op.ReduceMax(self, keepdims=0)
+
+
+@torch_op("aten::max", overload=True)
+def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+        indices = op.Constant(value_int=0)
     else:
-        result = _aten_max_with_no_dim(self)
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMax(self, dims, keepdims=keepdim)
+        indices = op.ArgMin(self, axis=dim, keepdims=keepdim)
 
-    if self_rank == 0:
-        result = op.Squeeze(result)
-
-    if output == 2:
-        if self_rank == 0:
-            indices = op.Squeeze(indices)  # type: ignore[has-type]
-        return result, indices
-    return result
-
-
-@torch_op("aten::max", private=True)
-def _aten_max_with_no_dim(self: TReal) -> TReal:
-    result = op.ReduceMax(self, keepdims=0)
-    return result
-
-
-@torch_op("aten::max", private=True)
-def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
-    result = op.Max(self, other)
-    return result
-
-
-@torch_op("aten::max", private=True)
-def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
-    dims = op.Reshape(dim, op.Constant(value_int=[-1]))
-    result = op.ReduceMax(self, dims, keepdims=keepdim)
-    indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
     return result, indices
+
+
+@torch_op("aten::max", overload=True)
+def aten_max_other(self: TReal, other: TReal) -> TReal:
+    return op.Max(self, other)
+
+
+@torch_op("aten::minimum")
+def aten_minimum(self: TReal, other: TReal) -> TReal:
+    """minimum(Tensor self, Tensor other) -> Tensor"""
+
+    return op.Min(self, other)
 
 
 @torch_op("aten::maximum")
