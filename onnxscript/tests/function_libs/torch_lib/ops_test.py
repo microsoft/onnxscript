@@ -16,13 +16,13 @@ Usage:
 from __future__ import annotations
 
 import unittest
-import warnings
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, Tuple
 
 import numpy as np
 import onnx
 import onnxruntime as ort
 import parameterized
+import pytest
 import torch
 from torch.testing._internal import common_device_type
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -42,16 +42,20 @@ def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
     return tuple(dtype for dtype in TESTED_DTYPES if dtype not in dtypes)
 
 
-def _should_skip_test_sample(op_name: str, sample) -> Optional[str]:
+def _should_skip_xfail_test_sample(op_name: str, sample) -> Optional[Tuple[str, Callable]]:
     """Returns a reason if a test sample should be skipped."""
-    if op_name not in ops_test_data.OP_WITH_SKIPPED_SUBTESTS:
+    if op_name not in ops_test_data.OP_WITH_SKIPPED_XFAIL_SUBTESTS:
         return None
-    for decorator_meta in ops_test_data.SKIP_SUBTESTS:
-        # Linear search on ops_test_data.SKIP_SUBTESTS. That's fine because the list is small.
+    for decorator_meta in ops_test_data.SKIP_XFAIL_SUBTESTS:
+        # Linear search on ops_test_data.SKIP_XFAIL_SUBTESTS. That's fine because the list is small.
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
             if decorator_meta.matcher(sample):
-                return decorator_meta.reason
+                assert decorator_meta.name in ("skip", "xfail"), "Invalid decorator_meta name"
+                if decorator_meta.name == "xfail":
+                    return decorator_meta.reason, pytest.xfail
+                else:
+                    return decorator_meta.reason, pytest.skip
     return None
 
 
@@ -153,11 +157,12 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            skip_reason = _should_skip_test_sample(op.name, cpu_sample)
-            if skip_reason is not None:
-                # Cannot use self.skip because pytest would skip the entire test
-                warnings.warn(f"skipped sample {i}. Reason: {skip_reason}", stacklevel=1)
-                continue
+            skip_xfail_or_not: Optional[Tuple[str, Callable]] = _should_skip_xfail_test_sample(
+                op.name, cpu_sample
+            )
+            if skip_xfail_or_not is not None:
+                skip_xfail_or_not[1](skip_xfail_or_not[0])
+
             input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
             kwargs_onnx = ops_test_common.convert_kwargs_for_onnx(cpu_sample.kwargs)
             if input_wrangler:

@@ -73,6 +73,7 @@ class DecorateMeta:
     # The test_class_name to apply the decorator to. If None, the decorator is
     # applied to all test classes.
     test_class_name: Optional[str] = None
+    name: str = ""
 
 
 def xfail(
@@ -81,8 +82,10 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
+    matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
+    name: str = "xfail",
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
@@ -91,18 +94,24 @@ def xfail(
         variant_name: Optional OpInfo variant_test_name.
         reason: The reason for the failure.
         dtypes: The dtypes to expect the failure.
+        matcher: A function that matches the test sample input. It is used only when
+            the xfail is in the SKIP_XFAIL_SUBTESTS list.
         enabled_if: Whether the xfail is enabled.
         test_class_name: The test class name to apply the xfail to. If None, the
             xfail is applied to all test classes.
+        name: The name of the xfail. This is used to identify the xfail in the
+            SKIP_XFAIL_SUBTESTS list.
     """
     return DecorateMeta(
         op_name=op_name,
         variant_name=variant_name,
         decorator=unittest.expectedFailure,
         dtypes=dtypes,
+        matcher=matcher,
         reason=reason,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
+        name=name,
     )
 
 
@@ -115,6 +124,7 @@ def skip(
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
+    name: str = "skip",
 ) -> DecorateMeta:
     """Skips an OpInfo test.
 
@@ -124,10 +134,12 @@ def skip(
         reason: The reason for skipping.
         dtypes: The dtypes to skip.
         matcher: A function that matches the test sample input. It is used only when
-            the skip is in the SKIP_SUBTESTS list.
+            the skip is in the SKIP_XFAIL_SUBTESTS list.
         enabled_if: Whether the skip is enabled.
         test_class_name: The test class name to apply the skip to. If None, the skip
             is applied to all test classes.
+        name: The name of the skip. This is used to identify the skip in the
+            SKIP_XFAIL_SUBTESTS list.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -138,6 +150,7 @@ def skip(
         matcher=matcher,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
+        name=name,
     )
 
 

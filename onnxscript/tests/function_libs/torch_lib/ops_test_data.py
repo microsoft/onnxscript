@@ -16,7 +16,7 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
 
     The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
+2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_XFAIL_SUBTESTS` to skip or xfail tests.
 Prefer xfail over skip when possible.
     2a. If a test is now failing because of xpass, because some previous errors
     are now fixed, removed the corresponding xfail.
@@ -748,7 +748,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
+SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
@@ -759,12 +759,12 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    skip(
+    xfail(
         "amax",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
     ),
-    skip(
+    xfail(
         "amin",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
@@ -799,14 +799,14 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
     ),
-    skip(
+    xfail(
         "nn.functional.grid_sample",
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
         or len(sample.args[0].shape) != 4,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
-    skip(
+    xfail(
         "grid_sampler_2d",
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.args[1] == 2,
@@ -874,22 +874,22 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
     ),
-    skip(
+    xfail(
         "new_ones",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",
     ),
-    skip(
+    xfail(
         "new_ones_dtype",
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    skip(
+    xfail(
         "new_zeros",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",
     ),
-    skip(
+    xfail(
         "new_zeros_dtype",
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
@@ -955,7 +955,7 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("return_indices") is True,
         reason="this aten overload assume return_indices=False",
     ),
-    skip(
+    xfail(
         "nn.functional.max_pool3d",
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
         and sample.kwargs.get("padding") == 1,
@@ -966,7 +966,7 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("return_indices") is True,
         reason="this aten overload assume return_indices=False",
     ),
-    skip(
+    xfail(
         "nn.functional.max_pool3d_with_indices",
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
         and sample.kwargs.get("padding") == 1,
@@ -1034,7 +1034,7 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
         reason="only test on 2d inputs",
     ),
-    skip(
+    xfail(
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
@@ -1049,7 +1049,7 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
     ),
-    skip(
+    xfail(
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
@@ -1070,13 +1070,13 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
-    skip(
+    xfail(
         "tile",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    skip(
+    xfail(
         "unflatten",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
@@ -1183,7 +1183,7 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
-OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
+OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(meta.op_name for meta in SKIP_XFAIL_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
