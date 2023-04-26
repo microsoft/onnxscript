@@ -51,6 +51,8 @@ exclude_patterns = [
     'onnxscript/tests/loop_test.py',
     'onnxscript/tests/operator_test.py',
     'onnxscript/type_annotation_test.py',
+    'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
+    'onnxscript/_internal/onnx_opset/**', # Generated code
 ]
 command = [
     'python',
