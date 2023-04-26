@@ -22,7 +22,6 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import parameterized
-import pytest
 import torch
 from torch.testing._internal import common_device_type
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -42,21 +41,19 @@ def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
     return tuple(dtype for dtype in TESTED_DTYPES if dtype not in dtypes)
 
 
-def _should_skip_xfail_test_sample(op_name: str, sample) -> Optional[Tuple[str, Callable]]:
+def _should_skip_xfail_test_sample(
+    op_name: str, sample
+) -> Tuple[Optional[str], Optional[str]]:
     """Returns a reason if a test sample should be skipped."""
     if op_name not in ops_test_data.OP_WITH_SKIPPED_XFAIL_SUBTESTS:
-        return None
+        return None, None
     for decorator_meta in ops_test_data.SKIP_XFAIL_SUBTESTS:
         # Linear search on ops_test_data.SKIP_XFAIL_SUBTESTS. That's fine because the list is small.
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
             if decorator_meta.matcher(sample):
-                assert decorator_meta.name in ("skip", "xfail"), "Invalid decorator_meta name"
-                if decorator_meta.name == "xfail":
-                    return decorator_meta.reason, pytest.xfail
-                else:
-                    return decorator_meta.reason, pytest.skip
-    return None
+                return decorator_meta.name, decorator_meta.reason
+    return None, None
 
 
 class TestFunctionValidity(unittest.TestCase):
@@ -157,80 +154,77 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            skip_xfail_or_not: Optional[Tuple[str, Callable]] = _should_skip_xfail_test_sample(
-                op.name, cpu_sample
-            )
-            if skip_xfail_or_not is not None:
-                skip_xfail_or_not[1](skip_xfail_or_not[0])
+            test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample)
 
-            input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
-            kwargs_onnx = ops_test_common.convert_kwargs_for_onnx(cpu_sample.kwargs)
-            if input_wrangler:
-                input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
-            torch_output = op(*inputs, **cpu_sample.kwargs)
+            with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):
+                input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
+                kwargs_onnx = ops_test_common.convert_kwargs_for_onnx(cpu_sample.kwargs)
+                if input_wrangler:
+                    input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
+                torch_output = op(*inputs, **cpu_sample.kwargs)
 
-            reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
-            if op.name.startswith("split"):
-                # Hack for handling split
-                # Split returns a Sequence that should be treats as a single
-                # value. So we wrap it into a tuple.
-                # TODO(justinchuby): Find a more general solution
-                reference_torch_outputs = [reference_torch_outputs]
+                reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
+                if op.name.startswith("split"):
+                    # Hack for handling split
+                    # Split returns a Sequence that should be treats as a single
+                    # value. So we wrap it into a tuple.
+                    # TODO(justinchuby): Find a more general solution
+                    reference_torch_outputs = [reference_torch_outputs]
 
-            function_output = function_executor(reference_torch_outputs)(
-                onnx_function, input_onnx, kwargs_onnx
-            )
-            # Finally we re-flatten everything
-            # TODO: add pytree structure comparison.
-            flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
-            flattened_function_outputs, _ = pytree.tree_flatten(function_output)
-
-            assert flattened_torch_outputs
-            assert len(flattened_torch_outputs) == len(flattened_function_outputs)
-
-            for j, (torch_output, function_output) in enumerate(
-                zip(flattened_torch_outputs, flattened_function_outputs)
-            ):
-                if dtype == torch.float32:
-                    # Relax atol and rtol for float32 based on empirical results
-                    # The current most relaxed values are for aten::matmul
-                    rtol = 3.7e-5
-                    atol = 1.8e-4
-                else:
-                    rtol = None
-                    atol = None
-
-                if not isinstance(function_output, np.ndarray):
-                    # An onnxscript tensor
-                    function_output = function_output.value
-
-                actual = torch.tensor(function_output)
-                expected = (
-                    torch_output
-                    if isinstance(torch_output, torch.Tensor)
-                    else torch.tensor(torch_output)
+                function_output = function_executor(reference_torch_outputs)(
+                    onnx_function, input_onnx, kwargs_onnx
                 )
+                # Finally we re-flatten everything
+                # TODO: add pytree structure comparison.
+                flattened_torch_outputs, _ = pytree.tree_flatten(torch_output)
+                flattened_function_outputs, _ = pytree.tree_flatten(function_output)
 
-                if op.name in ops_test_data.NONDETERMINISTIC_OPS:
-                    # Check shape and dtype only for ops that are known to be
-                    # nondeterministic
-                    test_suite.assertEqual(actual.shape, expected.shape)
-                    test_suite.assertEqual(actual.dtype, expected.dtype)
-                    continue
+                assert flattened_torch_outputs
+                assert len(flattened_torch_outputs) == len(flattened_function_outputs)
 
-                # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
-                try:
-                    torch.testing.assert_close(
-                        actual,
-                        expected,
-                        rtol=rtol,
-                        atol=atol,
-                        check_device=False,
+                for j, (torch_output, function_output) in enumerate(
+                    zip(flattened_torch_outputs, flattened_function_outputs)
+                ):
+                    if dtype == torch.float32:
+                        # Relax atol and rtol for float32 based on empirical results
+                        # The current most relaxed values are for aten::matmul
+                        rtol = 3.7e-5
+                        atol = 1.8e-4
+                    else:
+                        rtol = None
+                        atol = None
+
+                    if not isinstance(function_output, np.ndarray):
+                        # An onnxscript tensor
+                        function_output = function_output.value
+
+                    actual = torch.tensor(function_output)
+                    expected = (
+                        torch_output
+                        if isinstance(torch_output, torch.Tensor)
+                        else torch.tensor(torch_output)
                     )
-                except AssertionError as e:
-                    if len(flattened_torch_outputs) > 1:
-                        raise AssertionError(f"Output {j} mismatch") from e
-                    raise
+
+                    if op.name in ops_test_data.NONDETERMINISTIC_OPS:
+                        # Check shape and dtype only for ops that are known to be
+                        # nondeterministic
+                        test_suite.assertEqual(actual.shape, expected.shape)
+                        test_suite.assertEqual(actual.dtype, expected.dtype)
+                        continue
+
+                    # Use torch.testing as opposed to np.testing to ensure dtypes and shapes match
+                    try:
+                        torch.testing.assert_close(
+                            actual,
+                            expected,
+                            rtol=rtol,
+                            atol=atol,
+                            check_device=False,
+                        )
+                    except AssertionError as e:
+                        if len(flattened_torch_outputs) > 1:
+                            raise AssertionError(f"Output {j} mismatch") from e
+                        raise
 
 
 class TestOutputConsistencyEager(unittest.TestCase):

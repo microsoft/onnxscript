@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import dataclasses
 import multiprocessing
@@ -24,6 +25,7 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import onnxruntime.capi.onnxruntime_pybind11_state
+import pytest
 import torch
 from torch.testing._internal.opinfo import core as opinfo_core
 
@@ -68,12 +70,12 @@ class DecorateMeta:
     decorator: Callable[..., Any]
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
+    name: str
     matcher: Optional[Callable[[Any], bool]] = None
     enabled_if: bool = True
     # The test_class_name to apply the decorator to. If None, the decorator is
     # applied to all test classes.
     test_class_name: Optional[str] = None
-    name: str = ""
 
 
 def xfail(
@@ -85,7 +87,6 @@ def xfail(
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
-    name: str = "xfail",
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
@@ -99,8 +100,6 @@ def xfail(
         enabled_if: Whether the xfail is enabled.
         test_class_name: The test class name to apply the xfail to. If None, the
             xfail is applied to all test classes.
-        name: The name of the xfail. This is used to identify the xfail in the
-            SKIP_XFAIL_SUBTESTS list.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -111,7 +110,7 @@ def xfail(
         reason=reason,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
-        name=name,
+        name="xfail",
     )
 
 
@@ -124,7 +123,6 @@ def skip(
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
-    name: str = "skip",
 ) -> DecorateMeta:
     """Skips an OpInfo test.
 
@@ -138,8 +136,6 @@ def skip(
         enabled_if: Whether the skip is enabled.
         test_class_name: The test class name to apply the skip to. If None, the skip
             is applied to all test classes.
-        name: The name of the skip. This is used to identify the skip in the
-            SKIP_XFAIL_SUBTESTS list.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -150,7 +146,7 @@ def skip(
         matcher=matcher,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
-        name=name,
+        name="skip",
     )
 
 
@@ -450,3 +446,35 @@ def eager_executor(
         return function(*args, **kwargs)
 
     return executor
+
+
+@contextlib.contextmanager
+def normal_xfail_skip_test_behaviors(
+    test_behavior: Optional[str] = None, reason: Optional[str] = None
+):
+    """This context manager is used to handle the different behaviors of xfail and skip.
+
+    Args:
+        test_behavior (optional[str]): From DecorateMeta name, can be 'skip', 'xfail', or None.
+        reason (optional[str]): The reason for the failure or skip.
+
+    Raises:
+        e: Any exception raised by the test case if it's not an expected failure.
+    """
+
+    # We need to skip as soon as possible, as SegFault might also be a case.
+    if test_behavior is not None and test_behavior == "skip":
+        pytest.skip(reason=reason)
+
+    try:
+        yield
+    # We could use `except (AssertionError, RuntimeError, ...) as e:`, but it needs
+    # to go over all test cases to find the right exception type.
+    except Exception as e:  # pylint: disable=broad-exception-caught`
+        if test_behavior is None:
+            raise e
+        if test_behavior == "xfail":
+            pytest.xfail(reason=reason)
+    else:
+        if test_behavior is not None and test_behavior == "xfail":
+            pytest.fail("Test unexpectedly passed")
