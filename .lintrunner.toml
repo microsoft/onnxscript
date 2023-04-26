@@ -44,15 +44,9 @@ exclude_patterns = [
     'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'onnxscript/tests/eager_mode_test.py',
-    'onnxscript/tests/eager_test.py',
-    'onnxscript/tests/external_tensor_test.py',
-    'onnxscript/tests/functions/**',
-    'onnxscript/tests/loop_test.py',
-    'onnxscript/tests/operator_test.py',
-    'onnxscript/type_annotation_test.py',
+    'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
-    'onnxscript/_internal/onnx_opset/**', # Generated code
+    'onnxscript/onnx_opset/**', # Generated code
 ]
 command = [
     'python',
