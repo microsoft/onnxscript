@@ -1028,7 +1028,7 @@ def aten_choose_qparams_optimized(
 
 
 @torch_op("aten::chunk")
-def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> TTensor:
+def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> Tuple[TTensor, ...]:
     """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
 
     return op.Split(self, axis=dim, num_outputs=chunks)
