@@ -171,8 +171,8 @@ def get_return_types(typeinfo: type | Sequence[type]) -> Sequence[type]:
     return (typeinfo,)
 
 
-def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
-    """Returns a list of all supported input types in string representation for a given type annotation.
+def pytype_to_type_strings(pytype: TypeAnnotationValue) -> list[str]:
+    """Returns a list of type-strings corresponding to a given type annotation.
 
     Args:
         pytype: A type annotation.
@@ -192,11 +192,11 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
     if isinstance(pytype, typing.TypeVar):
         constraints = pytype.__constraints__
         if constraints:
-            return pytype_to_input_strings(Union.__getitem__(constraints))
+            return pytype_to_type_strings(Union.__getitem__(constraints))
         bound = pytype.__bound__
         if bound is None:
             return list(ALL_TENSOR_TYPE_STRINGS)
-        return pytype_to_input_strings(bound)
+        return pytype_to_type_strings(bound)
     if typing.get_origin(pytype) is Union:
         options = []
         subtypes = typing.get_args(pytype)
@@ -208,16 +208,16 @@ def pytype_to_input_strings(pytype: TypeAnnotationValue) -> list[str]:
                 continue
             if optional:
                 options += [
-                    *pytype_to_input_strings(subtype),
-                    *[f"optional({s})" for s in pytype_to_input_strings(subtype)],
+                    *pytype_to_type_strings(subtype),
+                    *[f"optional({s})" for s in pytype_to_type_strings(subtype)],
                 ]
             else:
-                options += pytype_to_input_strings(subtype)
+                options += pytype_to_type_strings(subtype)
         # Remove duplicates
         return sorted(set(options))
     if typing.get_origin(pytype) in _LIST_CONSTRUCTORS:
         subtypes = typing.get_args(pytype)
-        return [f"seq({s})" for s in pytype_to_input_strings(subtypes[0])]
+        return [f"seq({s})" for s in pytype_to_type_strings(subtypes[0])]
 
     raise ValueError(f"Unsupported type: {pytype}")
 
