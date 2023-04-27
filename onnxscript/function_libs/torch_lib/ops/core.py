@@ -304,7 +304,7 @@ def aten_any_dim(self: TTensor, dim: int, keepdim: bool = True) -> BOOL:
         self_bool = op.Cast(self, to=BOOL.dtype)
         # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        # Change int(dim) to tensor(dims)
+        # Change dim from int to INT64[1]
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         result_max = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
         result = op.Greater(result_max, op.Constant(value_int=0))
