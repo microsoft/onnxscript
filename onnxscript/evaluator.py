@@ -349,6 +349,7 @@ def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
 _cache_models: dict[Any, ort.InferenceSession] = {}
 cache_ort_session = os.environ.get("CACHE_ORT_SESSION", "1")
 
+
 def _cache_(model, providers):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
