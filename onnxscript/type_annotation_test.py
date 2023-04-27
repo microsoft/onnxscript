@@ -214,8 +214,8 @@ class TypeConversionFunctionsTest(unittest.TestCase):
             ),
         ]
     )
-    def test_pytype_to_input_strings(self, _, pytype: Any, expected: List[str]):
-        self.assertEqual(type_annotation.pytype_to_input_strings(pytype), expected)
+    def test_pytype_to_type_strings(self, _, pytype: Any, expected: List[str]):
+        self.assertEqual(type_annotation.pytype_to_type_strings(pytype), expected)
 
     @parameterized.parameterized.expand(
         [
