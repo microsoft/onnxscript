@@ -16,7 +16,7 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
 
     The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
+2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_XFAIL_SUBTESTS` to skip or xfail tests.
 Prefer xfail over skip when possible.
     2a. If a test is now failing because of xpass, because some previous errors
     are now fixed, removed the corresponding xfail.
@@ -748,13 +748,13 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
+SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
         reason="this Aten overload only support one tensor as input by design",
     ),
-    skip(
+    xfail(
         "all_dim",
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
@@ -762,19 +762,19 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
         "amax",
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
+        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18",
     ),
     skip(
         "amin",
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
+        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18",
     ),
-    skip(
+    xfail(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
     ),
-    skip(
+    xfail(
         "arange",
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
@@ -784,7 +784,7 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
-    skip(
+    xfail(
         "arange_start_step",
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
@@ -812,12 +812,12 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
-    skip(
+    xfail(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
     ),
-    skip(
+    xfail(
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
@@ -832,13 +832,13 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
-    skip(
+    xfail(
         "min_other",  # aten_min_other(self, other)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
-    skip(
+    xfail(
         "min_dim",  # aten_min_dim(self, dim)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
@@ -894,7 +894,7 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    skip(
+    xfail(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
@@ -904,38 +904,38 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
     ),
-    skip(
+    xfail(
         "nn.functional.adaptive_avg_pool1d",
         # Shape should be [N, C, D1]
         matcher=lambda sample: sample.args[0] not in {1, (1,)},
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    skip(
+    xfail(
         "nn.functional.adaptive_avg_pool2d",
         matcher=lambda sample: sample.args[0] != (1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    skip(
+    xfail(
         "nn.functional.adaptive_avg_pool3d",
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    skip(
+    xfail(
         "nn.functional.avg_pool2d",
         matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
         reason="ONNX doesn't support divisor_override argument",
     ),
-    skip(
+    xfail(
         "nn.functional.conv1d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv1d",
     ),
-    skip(
+    xfail(
         "nn.functional.conv2d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
     ),
-    skip(
+    xfail(
         "nn.functional.cross_entropy",
         matcher=lambda sample: not isinstance(sample.kwargs.get("weight"), int),
         reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[weight] is int type",
@@ -1034,22 +1034,22 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
         reason="only test on 2d inputs",
     ),
-    skip(
+    xfail(
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
     ),
-    skip(
+    xfail(
         "permute",
         matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
         reason="Negative value in perm is not supported",
     ),
-    skip(
+    xfail(
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
     ),
-    skip(
+    xfail(
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
@@ -1076,18 +1076,18 @@ SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    skip(
+    xfail(
         "unflatten",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    skip(
+    xfail(
         "var_mean",
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
         reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
     ),
-    skip(
+    xfail(
         "var_mean_dim",
         # kwargs["dim"] must exist, kwargs["correction"] must not exist
         matcher=lambda sample: not (
@@ -1183,7 +1183,7 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
-OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
+OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(meta.op_name for meta in SKIP_XFAIL_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
