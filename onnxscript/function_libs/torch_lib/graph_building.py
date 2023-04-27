@@ -354,7 +354,7 @@ class TorchScriptGraph:
         torch_value = self._torch_graph.addInput(name)
         torch_value.setType(torch.TensorType.create_from_tensor(value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
-        return tensor_value
+        return tensor_value  # type: ignore[return-value]
 
     @beartype
     def register_outputs(
