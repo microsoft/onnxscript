@@ -70,7 +70,7 @@ class DecorateMeta:
     decorator: Callable[..., Any]
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
-    name: str
+    test_behavior: str
     matcher: Optional[Callable[[Any], bool]] = None
     enabled_if: bool = True
     # The test_class_name to apply the decorator to. If None, the decorator is
@@ -110,7 +110,7 @@ def xfail(
         reason=reason,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
-        name="xfail",
+        test_behavior="xfail",
     )
 
 
@@ -146,7 +146,7 @@ def skip(
         matcher=matcher,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
-        name="skip",
+        test_behavior="skip",
     )
 
 
@@ -463,18 +463,18 @@ def normal_xfail_skip_test_behaviors(
     """
 
     # We need to skip as soon as possible, as SegFault might also be a case.
-    if test_behavior is not None and test_behavior == "skip":
+    if test_behavior == "skip":
         pytest.skip(reason=reason)
 
     try:
         yield
     # We could use `except (AssertionError, RuntimeError, ...) as e:`, but it needs
     # to go over all test cases to find the right exception type.
-    except Exception as e:  # pylint: disable=broad-exception-caught`
+    except Exception as e:  # pylint: disable=broad-exception-caught
         if test_behavior is None:
             raise e
         if test_behavior == "xfail":
             pytest.xfail(reason=reason)
     else:
-        if test_behavior is not None and test_behavior == "xfail":
+        if test_behavior == "xfail":
             pytest.fail("Test unexpectedly passed")

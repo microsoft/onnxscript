@@ -52,7 +52,7 @@ def _should_skip_xfail_test_sample(
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
             if decorator_meta.matcher(sample):
-                return decorator_meta.name, decorator_meta.reason
+                return decorator_meta.test_behavior, decorator_meta.reason
     return None, None
 
 
