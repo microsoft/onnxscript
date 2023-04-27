@@ -39,6 +39,7 @@ import onnxscript
 import onnxscript.evaluator
 from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
+from onnxscript.function_libs.torch_lib.ops import prims as prims_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
@@ -325,6 +326,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "allclose": core_ops.aten_allclose,
     "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
+    "abs": prims_ops.prims_abs,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,

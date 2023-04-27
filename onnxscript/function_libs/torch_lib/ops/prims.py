@@ -17,12 +17,26 @@ from onnxscript import INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+from onnxscript.function_libs.torch_lib.tensor_typing import (
+    # IntType,
+    # RealType,
+    # TFloat,
+    # TFloatOrBFloat16,
+    # TInt,
+    TReal,
+    # TrealOrUInt8,
+    # TRealUnlessFloat16OrInt8,
+    # TRealUnlessInt16OrInt8,
+    # TTensor,
+    # TTensorOrString,
+)
 
 
-def prims_abs(self: TensorType) -> TensorType:
+@torch_op("prims::abs")
+def prims_abs(self: TReal) -> TReal:
     """abs(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Abs(self)
 
 
 def prims_acos(self: TensorType) -> TensorType:
