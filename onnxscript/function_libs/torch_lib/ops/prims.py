@@ -14,6 +14,8 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import INT64
+from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
@@ -213,10 +215,11 @@ def prims_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("prims::convert_element_type")
 def prims_convert_element_type(a: TensorType, dtype: int) -> TensorType:
     """convert_element_type(Tensor a, ScalarType dtype) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Cast(a, to=dtype)
 
 
 def prims_copy_strided(a: TensorType, stride: INT64) -> TensorType:
