@@ -11,7 +11,6 @@ import onnx
 
 import onnxscript
 from onnxscript import converter as ons_converter
-from onnxscript import type_annotation
 from onnxscript._internal import version_utils
 
 _ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
@@ -34,7 +33,7 @@ def _get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
     return src, f_ast
 
 
-class TraceOnlyFunction:
+class TraceOnlyFunction(onnxscript.values.HasOpSchema):
     """TraceOnlyFunction.
 
     Attributes:
@@ -93,77 +92,7 @@ class TraceOnlyFunction:
 
         function_ir = converter.translate_function_signature(func_ast)
 
-        # Find all distinct types in the inputs and outputs
-        distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
-            {arg.typeinfo for arg in function_ir.outputs}
-        )
-        # Create a mapping from type to a unique name
-        type_to_constraint = {}
-        for i, type_ in enumerate(distinct_types):
-            name = f"T{i}"
-            type_to_constraint[type_] = onnxscript.values.TypeConstraint(
-                name=type_annotation.get_type_constraint_name(type_) or name,
-                allowed_types=type_annotation.pytype_to_input_strings(type_),
-            )
-
-        formal_inputs = [
-            onnx.defs.OpSchema.FormalParameter(
-                arg.name,
-                type_to_constraint[arg.typeinfo].name,
-                param_option=(
-                    onnx.defs.OpSchema.FormalParameterOption.Optional
-                    if type_annotation.is_optional(arg.typeinfo)
-                    else onnx.defs.OpSchema.FormalParameterOption.Single
-                ),
-                # TODO(justinchu): Check this is_homogeneous thing
-                is_homogeneous=True,
-            )
-            for arg in function_ir.inputs
-        ]
         # FIXME(justinchuby): outputs are empty. Need to fix.
-        formal_outputs = [
-            onnx.defs.OpSchema.FormalParameter(
-                arg.name,
-                type_to_constraint[arg.typeinfo].name,
-                param_option=(
-                    onnx.defs.OpSchema.FormalParameterOption.Optional
-                    if type_annotation.is_optional(arg.typeinfo)
-                    else onnx.defs.OpSchema.FormalParameterOption.Single
-                ),
-                # TODO(justinchu): Check this is_homogeneous thing
-                is_homogeneous=True,
-            )
-            for arg in function_ir.outputs
-        ]
-
-        self._opschema = onnx.defs.OpSchema(
-            self.name,
-            self.opset.domain,
-            since_version=self.opset.version,
-            doc=self._func.__doc__ or "",
-            inputs=formal_inputs,
-            outputs=formal_outputs,
-            type_constraints=[
-                constraint.as_tuple() for constraint in type_to_constraint.values()
-            ],
-            attributes=[
-                *[
-                    onnx.defs.OpSchema.Attribute(
-                        attr.name,
-                        type=onnx.defs.OpSchema.AttrType(attr.type),
-                    )
-                    for attr in function_ir.attrs
-                    if not attr.has_default
-                ],
-                *[
-                    onnx.defs.OpSchema.Attribute(
-                        attr.name,
-                        default_value=attr.attr_proto,
-                    )
-                    for attr in function_ir.attrs
-                    if attr.has_default
-                ],
-            ],
-        )
+        self._opschema = onnxscript.values.op_schema_from_function_ir(function_ir, self._opset)
 
         return self._opschema
