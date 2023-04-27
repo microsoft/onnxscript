@@ -25,12 +25,13 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
 
     The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
+2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_XFAIL_SUBTESTS` to skip or xfail tests.
 Prefer xfail over skip when possible.
     2a. If a test is now failing because of xpass, because some previous errors
-    are now fixed, removed the corresponding xfail.
+    are now fixed, **removed the corresponding xfail**.
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
 4. To test different ONNX functions that are registered as overloads of the same
     op, use `duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
+5. If the op doesn't have test in torch OP_DB, please manually add ones in extra_opinfo.py

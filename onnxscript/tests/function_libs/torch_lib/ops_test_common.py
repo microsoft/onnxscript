@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import dataclasses
 import multiprocessing
@@ -24,6 +25,7 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import onnxruntime.capi.onnxruntime_pybind11_state
+import pytest
 import torch
 from torch.testing._internal.opinfo import core as opinfo_core
 
@@ -68,6 +70,7 @@ class DecorateMeta:
     decorator: Callable[..., Any]
     dtypes: Optional[Collection[torch.dtype]]
     reason: str
+    test_behavior: str
     matcher: Optional[Callable[[Any], bool]] = None
     enabled_if: bool = True
     # The test_class_name to apply the decorator to. If None, the decorator is
@@ -81,6 +84,7 @@ def xfail(
     *,
     reason: str,
     dtypes: Optional[Collection[torch.dtype]] = None,
+    matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
 ) -> DecorateMeta:
@@ -91,6 +95,8 @@ def xfail(
         variant_name: Optional OpInfo variant_test_name.
         reason: The reason for the failure.
         dtypes: The dtypes to expect the failure.
+        matcher: A function that matches the test sample input. It is used only when
+            the xfail is in the SKIP_XFAIL_SUBTESTS list.
         enabled_if: Whether the xfail is enabled.
         test_class_name: The test class name to apply the xfail to. If None, the
             xfail is applied to all test classes.
@@ -100,9 +106,11 @@ def xfail(
         variant_name=variant_name,
         decorator=unittest.expectedFailure,
         dtypes=dtypes,
+        matcher=matcher,
         reason=reason,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
+        test_behavior="xfail",
     )
 
 
@@ -124,7 +132,7 @@ def skip(
         reason: The reason for skipping.
         dtypes: The dtypes to skip.
         matcher: A function that matches the test sample input. It is used only when
-            the skip is in the SKIP_SUBTESTS list.
+            the skip is in the SKIP_XFAIL_SUBTESTS list.
         enabled_if: Whether the skip is enabled.
         test_class_name: The test class name to apply the skip to. If None, the skip
             is applied to all test classes.
@@ -138,6 +146,7 @@ def skip(
         matcher=matcher,
         enabled_if=enabled_if,
         test_class_name=test_class_name,
+        test_behavior="skip",
     )
 
 
@@ -208,14 +217,14 @@ TORCH_TYPE_TO_ONNX = {
 }
 
 
-def _convert_tensor_to_numpy(input: Any) -> Any:
+def convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, torch.Tensor):
         return input.detach().cpu().numpy()
     if isinstance(input, (tuple, list)):
         if len(input) == 0:
             return np.array((), dtype=np.int64)
         if isinstance(input[0], torch.Tensor):
-            return [_convert_tensor_to_numpy(x) for x in input]
+            return [convert_tensor_to_numpy(x) for x in input]
         if isinstance(input[0], bool):
             return np.array(input, dtype=np.bool_)
 
@@ -228,7 +237,7 @@ def _convert_tensor_to_numpy(input: Any) -> Any:
     return input
 
 
-def _convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
+def convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
     """Converts kwargs to be compatible with ONNX Runtime.
 
     ONNX Runtime doesn't support torch.bool, so we convert them to torch.uint8.
@@ -311,7 +320,7 @@ def _format_model_and_input_information(onnx_model, inputs):
     )
 
 
-def _graph_executor(
+def graph_executor(
     outputs: Sequence[Any],
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
@@ -426,7 +435,7 @@ def _graph_executor(
     return _capture_graph_and_evaluate_torch_script_evaluator
 
 
-def _eager_executor(
+def eager_executor(
     outputs,
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
@@ -437,3 +446,35 @@ def _eager_executor(
         return function(*args, **kwargs)
 
     return executor
+
+
+@contextlib.contextmanager
+def normal_xfail_skip_test_behaviors(
+    test_behavior: Optional[str] = None, reason: Optional[str] = None
+):
+    """This context manager is used to handle the different behaviors of xfail and skip.
+
+    Args:
+        test_behavior (optional[str]): From DecorateMeta name, can be 'skip', 'xfail', or None.
+        reason (optional[str]): The reason for the failure or skip.
+
+    Raises:
+        e: Any exception raised by the test case if it's not an expected failure.
+    """
+
+    # We need to skip as soon as possible, as SegFault might also be a case.
+    if test_behavior == "skip":
+        pytest.skip(reason=reason)
+
+    try:
+        yield
+    # We could use `except (AssertionError, RuntimeError, ...) as e:`, but it needs
+    # to go over all test cases to find the right exception type.
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        if test_behavior is None:
+            raise e
+        if test_behavior == "xfail":
+            pytest.xfail(reason=reason)
+    else:
+        if test_behavior == "xfail":
+            pytest.fail("Test unexpectedly passed")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import FunctionType
 from typing import Any, Callable, Optional
 
 import onnxscript
@@ -86,6 +87,7 @@ def torch_op(
         else:
             # Compile the function
             custom_opset = onnxscript.values.Opset(domain="onnxscript.atenlib", version=1)
+            assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
