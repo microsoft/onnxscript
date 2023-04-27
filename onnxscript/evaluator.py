@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import abc
 import contextlib
+import os
 import pprint
 import typing
 from typing import (
@@ -346,7 +347,7 @@ def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
 
 
 _cache_models: dict[Any, ort.InferenceSession] = {}
-
+cache_ort_session = os.environ.get("CACHE_ORT_SESSION", "1")
 
 def _cache_(model, providers):
     # Delay import onnxruntime so that onnxscript can be used without
@@ -354,11 +355,15 @@ def _cache_(model, providers):
     import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
     serialized = model.SerializeToString()
+    if cache_ort_session == "0":
+        return ort.InferenceSession(serialized, providers=providers)
+
     key = serialized, tuple(providers)
     if key in _cache_models:
         return _cache_models[key]
     session = ort.InferenceSession(serialized, providers=providers)
     _cache_models[key] = session
+
     return session
 
 
