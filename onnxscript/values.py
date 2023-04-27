@@ -240,10 +240,10 @@ class OpLike(Protocol):
         ...
 
     @property
-    def opschema(self) -> onnx.defs.OpSchema:
+    def opschema(self) -> Optional[onnx.defs.OpSchema]:
         ...
 
-    def param_schemas(self) -> tuple[ParamSchema, ...]:
+    def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
         ...
 
 
