@@ -86,6 +86,7 @@ def torch_op(
         # Compile the function
         custom_opset = onnxscript.values.Opset(domain="onnxscript.atenlib", version=1)
 
+        processed_func: onnxscript.OnnxFunction | tracing.TraceOnlyFunction
         if trace_only:
             processed_func = tracing.TraceOnlyFunction(custom_opset, func)
         else:
