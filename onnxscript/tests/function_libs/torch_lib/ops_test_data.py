@@ -332,6 +332,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
     "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
     "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
+    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
+    "any_dim": core_ops.aten_any_dim,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -505,7 +507,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -593,11 +594,6 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    xfail(
-        "any",
-        reason="fixme: ORT shape inference error",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
     xfail(
         "as_strided",
         variant_name="partial_views",
@@ -756,6 +752,16 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     ),
     xfail(
         "all_dim",
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    ),
+    skip(
+        "any",
+        matcher=lambda sample: not (len(sample.kwargs) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    skip(
+        "any_dim",
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
@@ -1105,6 +1111,8 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
+
+ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
 
 ops_test_common.duplicate_opinfo(
     OPS_DB,
