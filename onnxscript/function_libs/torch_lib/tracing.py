@@ -33,7 +33,7 @@ def _get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
     return src, f_ast
 
 
-class TraceOnlyFunction(onnxscript.values.HasOpSchema):
+class TraceOnlyFunction:
     """TraceOnlyFunction.
 
     Attributes:

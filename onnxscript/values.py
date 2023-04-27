@@ -41,15 +41,6 @@ _EmptyDefault = object()
 _ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
 
 
-@typing.runtime_checkable
-class HasOpSchema(Protocol):
-    """A protocol for objects that have an ONNX OpSchema."""
-
-    @property
-    def opschema(self) -> onnx.defs.OpSchema:
-        ...
-
-
 class Opset:
     """Represents an ONNX Opset, which consists of a domain name, a version.
 
@@ -172,7 +163,7 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     return onnx.helper.get_attribute_value(attr_proto)
 
 
-class Op(HasOpSchema):
+class Op:
     """Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
     It belongs to a particular Opset and has a name.
 
