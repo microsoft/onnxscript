@@ -46,7 +46,7 @@ class HasOpSchema(Protocol):
     """A protocol for objects that have an ONNX OpSchema."""
 
     @property
-    def opschema(self) -> Optional[onnx.defs.OpSchema]:
+    def opschema(self) -> onnx.defs.OpSchema:
         ...
 
 
