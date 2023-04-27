@@ -1,15 +1,38 @@
 """Module for trace_only functions."""
 from __future__ import annotations
 
+import ast
 import inspect
-from typing import Callable, Optional
-import typing
+import textwrap
+import types
+from typing import Optional
+
 import onnx
-from onnxscript import type_annotation
+
 import onnxscript
+from onnxscript import converter as ons_converter
+from onnxscript import type_annotation
 from onnxscript._internal import version_utils
 
 _ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
+
+
+def _get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
+    try:
+        src = inspect.getsource(f)
+    except OSError as e:
+        raise RuntimeError(
+            f"Decorator script does not work on dynamically "
+            f"compiled function {f.__name__}."
+        ) from e
+    src = textwrap.dedent(src)
+    top_level_ast = ast.parse(src)
+    assert isinstance(top_level_ast, ast.Module)
+    assert len(top_level_ast.body) == 1
+    f_ast = top_level_ast.body[0]
+    assert isinstance(f_ast, ast.FunctionDef)
+    return src, f_ast
+
 
 class TraceOnlyFunction:
     """TraceOnlyFunction.
@@ -19,7 +42,7 @@ class TraceOnlyFunction:
         func: Function.
     """
 
-    def __init__(self, opset: onnxscript.values.Opset, func: Callable):
+    def __init__(self, opset: onnxscript.values.Opset, func: types.FunctionType):
         self._opset = opset
         self._func = func
         self._opschema: Optional[onnx.defs.OpSchema] = None
@@ -43,6 +66,11 @@ class TraceOnlyFunction:
         return inspect.getsource(self._func)
 
     @property
+    def opset(self) -> onnxscript.values.Opset:
+        """Return the opset."""
+        return self._opset
+
+    @property
     def opschema(self) -> Optional[onnx.defs.OpSchema]:
         """Return the opschema."""
 
@@ -52,7 +80,18 @@ class TraceOnlyFunction:
         if not _ONNX_OP_SCHEMA_WRITABLE:
             return None
 
-        # TODO: Construct inputs and outputs and attrs
+        src, func_ast = _get_src_and_ast(self._func)
+        module = inspect.getmodule(self._func)
+        closure = inspect.getclosurevars(self._func)
+        global_names = module.__dict__.copy()
+        global_names.update(closure.nonlocals)
+        converter = ons_converter.Converter(
+            opset=self._opset,
+            global_names=global_names,
+            source=src,
+        )
+
+        function_ir = converter.translate_function_signature(func_ast)
 
         # Find all distinct types in the inputs and outputs
         distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
@@ -81,6 +120,7 @@ class TraceOnlyFunction:
             )
             for arg in function_ir.inputs
         ]
+        # FIXME(justinchuby): outputs are empty. Need to fix.
         formal_outputs = [
             onnx.defs.OpSchema.FormalParameter(
                 arg.name,

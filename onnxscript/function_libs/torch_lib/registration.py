@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from types import FunctionType
 from typing import Any, Callable, Optional
 
 import onnxscript
+from onnxscript.function_libs.torch_lib import tracing
 
 
 class OverloadedFunction:
@@ -66,7 +68,7 @@ def torch_op(
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     private: bool = False,
-) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction | Callable[..., Any]]:
+) -> Callable[[FunctionType], onnxscript.OnnxFunction | tracing.TraceOnlyFunction]:
     """Register a torch op.
 
     Args:
@@ -80,12 +82,14 @@ def torch_op(
     if registry is None:
         registry = default_registry
 
-    def wrapper(func: Callable[..., Any]) -> onnxscript.OnnxFunction | Callable[..., Any]:
+    def wrapper(func: FunctionType) -> onnxscript.OnnxFunction | tracing.TraceOnlyFunction:
+        # Compile the function
+        custom_opset = onnxscript.values.Opset(domain="onnxscript.atenlib", version=1)
+
         if trace_only:
-            processed_func = func
+            processed_func = tracing.TraceOnlyFunction(custom_opset, func)
         else:
-            # Compile the function
-            custom_opset = onnxscript.values.Opset(domain="onnxscript.atenlib", version=1)
+            assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None

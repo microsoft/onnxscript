@@ -23,7 +23,7 @@ Prefer xfail over skip when possible.
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
 4. To test different ONNX functions that are registered as overloads of the same
-    op, use `duplicate_opinfo` to create new OpInfo with new names and map each
+    op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
 """
 from __future__ import annotations
@@ -41,13 +41,10 @@ from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
-from onnxscript.tests.function_libs.torch_lib import extra_opinfo
-from onnxscript.tests.function_libs.torch_lib.ops_test_common import (
-    DecorateMeta,
-    duplicate_opinfo,
-    skip,
-    xfail,
-)
+from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
+
+# For readability, these two are allowed to be imported given the high usage
+from onnxscript.tests.function_libs.torch_lib.ops_test_common import skip, xfail
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
@@ -338,6 +335,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
+    "atan2": core_ops.aten_atan2,
     "atanh": core_ops.aten_atanh,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
@@ -411,6 +409,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": core_ops.aten_ne,
     "neg": core_ops.aten_neg,
+    "new_empty_dtype": core_ops.aten_new_empty_dtype,
+    "new_empty": core_ops.aten_new_empty,
+    "new_empty_strided_dtype": core_ops.aten_new_empty_strided_dtype,
+    "new_empty_strided": core_ops.aten_new_empty_strided,
+    "new_full_dtype": core_ops.aten_new_full_dtype,
     "new_full": core_ops.aten_new_full,
     "new_ones_dtype": core_ops.aten_new_ones_dtype,
     "new_ones": core_ops.aten_new_ones,
@@ -525,8 +528,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "native_batch_norm": core_ops.aten_native_batch_norm,
     "native_group_norm": core_ops.aten_native_group_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
-    "new_empty": core_ops.aten_new_empty,
-    "new_empty_strided": core_ops.aten_new_empty_strided,
     "nn.functional.avg_pool2d": (nn_ops.aten_avg_pool2d, _avg_pool2d_input_wrangler),
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
@@ -570,7 +571,9 @@ NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
     (
         "empty_like",
         "empty",
+        "new_empty_strided_dtype",
         "new_empty_strided",
+        "new_empty_dtype",
         "new_empty",
         "normal",
         "randn",
@@ -633,32 +636,38 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "new_full",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        "new_empty_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
-        "new_ones",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        "new_empty_strided_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided_dtype: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+    ),
+    xfail(
+        "new_empty_strided",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided: failed validating the check: !(it.GetName().empty())'",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+    ),
+    xfail(
+        "new_full_dtype",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_ones_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_zeros",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_ones_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "new_zeros_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full: failed validating the check: !(it.GetName().empty())'",
+        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_zeros_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
@@ -739,7 +748,7 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
+SKIP_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
@@ -834,6 +843,36 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another int as args",
+    ),
+    skip(
+        "new_empty",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="this Aten overload only accept 2 inputs:(self, size)",
+    ),
+    skip(
+        "new_empty_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="this Aten overload must have 3 inputs:(self, size, dtype)",
+    ),
+    skip(
+        "new_empty_strided",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="this Aten overload only accept 3 inputs:(self, size, stride)",
+    ),
+    skip(
+        "new_empty_strided_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="this Aten overload must have 4 inputs:(self, size, stride, dtype)",
+    ),
+    skip(
+        "new_full",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
+    ),
+    skip(
+        "new_full_dtype",
+        matcher=lambda sample: sample.kwargs.get("dtype") is None,
+        reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
     ),
     skip(
         "new_ones",
@@ -1065,9 +1104,9 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
 )
 
-duplicate_opinfo(OPS_DB, "all", ("all_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "arange",
     (
@@ -1076,15 +1115,23 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 
-duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
 
-duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
+
+ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
+)
+
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
     (
@@ -1094,13 +1141,13 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "min",
     (
@@ -1109,13 +1156,13 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
     ("nn.functional.upsample_bilinear2d",),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
     (
@@ -1125,9 +1172,9 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "var_mean",
     (
