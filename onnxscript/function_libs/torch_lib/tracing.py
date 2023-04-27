@@ -5,13 +5,17 @@ import ast
 import inspect
 import textwrap
 import types
-from typing import Optional
+import typing
+from typing import Optional, Tuple
 
 import onnx
 
 import onnxscript
 from onnxscript import converter as ons_converter
 from onnxscript._internal import version_utils
+
+if typing.TYPE_CHECKING:
+    from onnxscript import irbuilder
 
 _ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
 
@@ -33,7 +37,7 @@ def _get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
     return src, f_ast
 
 
-class TraceOnlyFunction:
+class TraceOnlyFunction(onnxscript.values.OpLike):
     """TraceOnlyFunction.
 
     Attributes:
@@ -44,9 +48,11 @@ class TraceOnlyFunction:
     def __init__(self, opset: onnxscript.values.Opset, func: types.FunctionType):
         self._opset = opset
         self._func = func
-        self._opschema: Optional[onnx.defs.OpSchema] = None
         # Set the signature of the class to function's
         self.__signature__ = inspect.signature(func)
+        # Cached computed fields
+        self._opschema: Optional[onnx.defs.OpSchema] = None
+        self._param_schemas: Optional[Tuple[onnxscript.values.ParamSchema, ...]] = None
 
     def __call__(self, *args, **kwargs):
         return self._func(*args, **kwargs)
@@ -72,13 +78,32 @@ class TraceOnlyFunction:
     @property
     def opschema(self) -> Optional[onnx.defs.OpSchema]:
         """Return the opschema."""
-
         if self._opschema is not None:
             return self._opschema
-
         if not _ONNX_OP_SCHEMA_WRITABLE:
             return None
 
+        # FIXME(justinchuby): outputs are empty. Need to fix.
+        self._opschema = onnxscript.values.op_schema_from_function_ir(
+            self._function_ir(), self._opset
+        )
+
+        return self._opschema
+
+    def param_schemas(self) -> tuple[onnxscript.values.ParamSchema, ...]:
+        """Generate param_schemas for the TraceOnlyFunction."""
+        if self._param_schemas is None:
+            self._param_schemas = onnxscript.values.param_schemas_from_function_ir(
+                self._function_ir()
+            )
+
+        return self._param_schemas
+
+    def _function_ir(self) -> irbuilder.IRFunction:
+        """Return the IRFunction of the function.
+
+        This IRFunction contains only the function signature.
+        """
         src, func_ast = _get_src_and_ast(self._func)
         module = inspect.getmodule(self._func)
         closure = inspect.getclosurevars(self._func)
@@ -90,9 +115,4 @@ class TraceOnlyFunction:
             source=src,
         )
 
-        function_ir = converter.translate_function_signature(func_ast)
-
-        # FIXME(justinchuby): outputs are empty. Need to fix.
-        self._opschema = onnxscript.values.op_schema_from_function_ir(function_ir, self._opset)
-
-        return self._opschema
+        return converter.translate_function_signature(func_ast)

@@ -202,7 +202,7 @@ class IRStmt:
 
         args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
         domain = self.callee.opset.domain
-        opname = self.callee.opname
+        opname = self.callee.name
         callee = f"{domain}.{opname}" if (domain != "") else opname
         return f"{lhs} = {callee} {attrs}{args}"
 
@@ -212,7 +212,7 @@ class IRStmt:
 
     def to_node_proto(self, node_name: str) -> onnx.NodeProto:
         n = helper.make_node(
-            self.callee.opname,
+            self.callee.name,
             [_opt_var_to_str(x) for x in self.args],
             [str(x) for x in self.result],
             domain=self.callee.opset.domain,
