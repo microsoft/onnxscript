@@ -25,7 +25,7 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
 
     The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
+2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_XFAIL_SUBTESTS` to skip or xfail tests.
 Prefer xfail over skip when possible.
     2a. If a test is now failing because of xpass, because some previous errors
     are now fixed, **removed the corresponding xfail**.
