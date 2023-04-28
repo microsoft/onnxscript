@@ -269,7 +269,7 @@ class Op(OpLike):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        schema = self.get_schema()
+        schema = self.opschema
         if schema is None:
             raise RuntimeError(
                 f"Op '{self.name}' does not have an OpSchema and cannot be evaluated."
@@ -288,22 +288,16 @@ class Op(OpLike):
     def opschema(self) -> Optional[onnx.defs.OpSchema]:
         return self._opschema
 
-    def get_schema(self) -> Optional[onnx.defs.OpSchema]:
-        """Returns the ONNX OpSchema for this op."""
-        if self.opschema is not None:
-            return self.opschema
-        return self.opset[self.name]
-
     def has_schema(self) -> bool:
         """Returns True if this op has an OpSchema."""
-        return self.get_schema() is not None
+        return self.opschema is not None
 
     def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
         """Returns the parameter schemas for this op, if it has one."""
         if self._param_schemas is not None:
             return self._param_schemas
 
-        op_schema = self.get_schema()
+        op_schema = self.opschema
         if op_schema is None:
             return None
 
