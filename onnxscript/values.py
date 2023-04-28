@@ -267,7 +267,7 @@ class Op(OpLike):
         self._opset = opset
         self._name = opname
         if op_schema is None:
-            self._op_schema = self.opset[self.name]
+            self._op_schema = opset[opname]
         else:
             self._op_schema = op_schema
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
@@ -276,8 +276,8 @@ class Op(OpLike):
             logging.debug(
                 "An OpSchema was not provided for Op '%s' and "
                 "there is not one found in opset '%s'.",
-                self.name,
-                self.opset,
+                opname,
+                opset,
             )
 
     def __call__(self, *args, **kwargs):
@@ -556,11 +556,6 @@ class TracedOnnxFunction(Op):
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.func!r})"
-
-    @property
-    def name(self) -> str:
-        """Return the name of the op."""
-        return self.func.__name__
 
     @property
     def function_ir(self) -> irbuilder.IRFunction:
