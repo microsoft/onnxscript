@@ -82,7 +82,7 @@ def script(
         if not inspect.isfunction(f):
             raise TypeError("The ONNXScript decorator should be applied to functions only.")
 
-        src, f_ast = ast_utils.get_src_and_ast(f)  # pylint: disable=redefined-outer-name
+        src, f_ast = ast_utils.get_src_and_ast(f)
         # The script should be compiled using the globals/locals at the definition site.
         # This allows the script to reference names defined outside the script,
         # which is used for a few different purposes.

@@ -399,7 +399,7 @@ def op_schema_from_function_ir(
             *[
                 onnx.defs.OpSchema.Attribute(
                     attr.name,
-                    type=onnx.defs.OpSchema.AttrType(attr.type),
+                    type=onnx.defs.OpSchema.AttrType(attr.type),  # type: ignore[call-arg]
                 )
                 for attr in function_ir.attrs
                 if not attr.has_default
@@ -550,15 +550,11 @@ class TracedOnnxFunction(Op):
         return self.func.__name__
 
     @property
-    def opschema(self) -> Optional[onnx.defs.OpSchema]:
-        """Return the opschema."""
+    def function_ir(self) -> irbuilder.IRFunction:
+        """Return the function_ir.
 
-        if self._opschema is not None:
-            return self._opschema
-
-        if not _ONNX_OP_SCHEMA_WRITABLE:
-            return None
-
+        This function IR contains only the signature of the function.
+        """
         src, func_ast = ast_utils.get_src_and_ast(self.func)
         module = inspect.getmodule(self.func)
         closure = inspect.getclosurevars(self.func)
@@ -570,10 +566,20 @@ class TracedOnnxFunction(Op):
             source=src,
         )
 
-        function_ir = converter.translate_function_signature(func_ast)
+        return converter.translate_function_signature(func_ast)
+
+    @property
+    def opschema(self) -> Optional[onnx.defs.OpSchema]:
+        """Return the opschema."""
+
+        if self._opschema is not None:
+            return self._opschema
+
+        if not _ONNX_OP_SCHEMA_WRITABLE:
+            return None
 
         # FIXME(justinchuby): outputs are empty. Need to fix.
-        self._opschema = op_schema_from_function_ir(function_ir, self._opset)
+        self._opschema = op_schema_from_function_ir(self.function_ir, self._opset)
 
         return self._opschema
 
