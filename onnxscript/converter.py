@@ -777,7 +777,7 @@ class Converter:
         else:
             args = [self.translate_opt_expr(x) for x in node.args]
             attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
-        args = autocast.static_cast_inputs(self, callee.get_schema(), *args)
+        args = autocast.static_cast_inputs(self, callee.opschema, *args)
 
         # In ONNX, there is no way to explicitly specify a None value for an attribute.
         # Instead, the attribute must be omitted from the attribute list.
@@ -786,7 +786,7 @@ class Converter:
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, op, left, right):
-        schema = op.get_schema()
+        schema = op.opschema
         return autocast.static_cast_inputs(self, schema, left, right)
 
     def translate_bool_op_expr(self, node: ast.BoolOp) -> ConverterExpression:
