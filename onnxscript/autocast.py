@@ -12,7 +12,7 @@ def cast_inputs(
     get_type_info: Callable[[Any], Any],
     cast: Callable[[Any, Any], Any],
     op_schema: OpSchema,
-    *args,
+    args,
 ) -> tuple[Any, ...]:
     """Uses schema specification to support a limited form of auto-casting.
 
@@ -83,13 +83,11 @@ def dynamic_cast_inputs(op_schema: OpSchema, *args):
             return tensor.Tensor(np.array(x, dtype=dtype))
         return x
 
-    return cast_inputs(get_type_info, cast, op_schema, *args)
+    return cast_inputs(get_type_info, cast, op_schema, args)
 
 
-def static_cast_inputs(converter, op_schema: Optional[OpSchema], *args):
+def static_cast_inputs(converter, op_schema: Optional[OpSchema], *args) -> tuple[str, ...]:
     """Used for autocast during script-translation."""
-    if op_schema is None:
-        return args
 
     def get_type_info(x):
         return x if not x.is_const() else None
@@ -108,4 +106,4 @@ def static_cast_inputs(converter, op_schema: Optional[OpSchema], *args):
             return tmp
         return x.name
 
-    return cast_inputs(get_type_info, cast, op_schema, *args)
+    return cast_inputs(get_type_info, cast, op_schema, args)
