@@ -243,7 +243,7 @@ class OpLike(Protocol):
         ...
 
     @property
-    def opschema(self) -> Optional[onnx.defs.OpSchema]:
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
         ...
 
     def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
@@ -258,22 +258,33 @@ class Op(OpLike):
     Attributes:
         opset: The Opset that this op belongs to.
         name: The name of the op.
-        opschema: The ONNX OpSchema for the op.
+        op_schema: The ONNX OpSchema for the op.
     """
 
     def __init__(
-        self, opset: Opset, opname: str, opschema: Optional[onnx.defs.OpSchema] = None
+        self, opset: Opset, opname: str, op_schema: Optional[onnx.defs.OpSchema] = None
     ) -> None:
         self._opset = opset
         self._name = opname
-        self._opschema = opschema
+        if op_schema is None:
+            self._op_schema = self.opset[self.name]
+        else:
+            self._op_schema = op_schema
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
+
+        if self._op_schema is None:
+            logging.debug(
+                "An OpSchema was not provided for Op '%s' and "
+                "there is not one found in opset '%s'.",
+                self.name,
+                self.opset,
+            )
 
     def __call__(self, *args, **kwargs):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        schema = self.opschema
+        schema = self.op_schema
         if schema is None:
             raise RuntimeError(
                 f"Op '{self.name}' does not have an OpSchema and cannot be evaluated."
@@ -289,19 +300,19 @@ class Op(OpLike):
         return self._opset
 
     @property
-    def opschema(self) -> Optional[onnx.defs.OpSchema]:
-        return self._opschema
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
+        return self._op_schema
 
     def has_schema(self) -> bool:
         """Returns True if this op has an OpSchema."""
-        return self.opschema is not None
+        return self.op_schema is not None
 
     def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
         """Returns the parameter schemas for this op, if it has one."""
         if self._param_schemas is not None:
             return self._param_schemas
 
-        op_schema = self.opschema
+        op_schema = self.op_schema
         if op_schema is None:
             return None
 
@@ -428,7 +439,7 @@ class OnnxFunction(Op):
         function_ir: Python code parsed as an :class:`irbuilder.IRFunction`.
         source: Source code used to generate the function.
         kwargs: Additional properties used to construct a ModelProto.
-        opschema: Generated ONNX OpSchema for this op.
+        op_schema: Generated ONNX OpSchema for this op.
     """
 
     def __init__(
@@ -456,20 +467,20 @@ class OnnxFunction(Op):
         self.source = source
         self.kwargs = kwargs
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
-        self._opschema: Optional[onnx.defs.OpSchema] = None
+        self._op_schema: Optional[onnx.defs.OpSchema] = None
 
     @property
-    def opschema(self) -> Optional[onnx.defs.OpSchema]:
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
         """Construct an OpSchema from function_ir."""
-        if self._opschema is not None:
-            return self._opschema
+        if self._op_schema is not None:
+            return self._op_schema
 
         if not _ONNX_OP_SCHEMA_WRITABLE:
             return None
 
-        self._opschema = op_schema_from_function_ir(self.function_ir, self.opset)
+        self._op_schema = op_schema_from_function_ir(self.function_ir, self.opset)
 
-        return self._opschema
+        return self._op_schema
 
     def __getitem__(self, instance):
         """Returns a lambda to evaluate function using given evaluator instance.
@@ -571,19 +582,19 @@ class TracedOnnxFunction(Op):
         return converter.translate_function_signature(func_ast)
 
     @property
-    def opschema(self) -> Optional[onnx.defs.OpSchema]:
-        """Return the opschema."""
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
+        """Return the OpSchema."""
 
-        if self._opschema is not None:
-            return self._opschema
+        if self._op_schema is not None:
+            return self._op_schema
 
         if not _ONNX_OP_SCHEMA_WRITABLE:
             return None
 
         # FIXME(justinchuby): outputs are empty. Need to fix.
-        self._opschema = op_schema_from_function_ir(self.function_ir, self._opset)
+        self._op_schema = op_schema_from_function_ir(self.function_ir, self._opset)
 
-        return self._opschema
+        return self._op_schema
 
     def param_schemas(self) -> tuple[ParamSchema, ...]:
         """Returns the parameter schemas of this function."""
