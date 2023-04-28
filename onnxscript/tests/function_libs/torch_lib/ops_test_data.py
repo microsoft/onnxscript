@@ -1191,6 +1191,7 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
+# Call dir(torch.ops.prims) to get the ops below
 PRIMS_OPS_WITH_OP_INFO = (
     "abs",
     "acos",
@@ -1285,7 +1286,7 @@ PRIMS_OPS_WITH_OP_INFO = (
 )
 
 for op in PRIMS_OPS_WITH_OP_INFO:
-    # Duplicate opinfo for prim ops. The names all start with "prim_". E.g. "abs" -> "prim_abs"
+    # Duplicate opinfo for prim ops. The new names all start with "prims_". E.g. "abs" -> "prims_abs".
     ops_test_common.duplicate_opinfo_for_prims(OPS_DB, op)
 
 OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(meta.op_name for meta in SKIP_XFAIL_SUBTESTS)

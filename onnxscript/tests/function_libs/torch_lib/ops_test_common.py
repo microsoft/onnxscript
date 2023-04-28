@@ -219,13 +219,11 @@ def duplicate_opinfo_for_prims(
         prims_name = name
     # The name of the new OpInfo
     new_name = f"prims_{prims_name}"
-    assert prims_name.startswith("prims_")
     all_info_names = {opinfo.name for opinfo in opinfos}
     for opinfo in opinfos:
         if opinfo.name == name:
             if new_name in all_info_names:
                 # NOTE: Avoid duplicating an opinfo that already exists in the database.
-                # New opinfos are expected to be added in torch-nightly.
                 warnings.warn(
                     f"OpInfo {new_name} already exists in the database.", stacklevel=1
                 )
