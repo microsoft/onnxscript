@@ -86,7 +86,7 @@ def dynamic_cast_inputs(op_schema: OpSchema, *args):
     return cast_inputs(get_type_info, cast, op_schema, *args)
 
 
-def static_cast_inputs(converter, op_schema: OpSchema, *args):
+def static_cast_inputs(converter, op_schema: Optional[OpSchema], *args):
     """Used for autocast during script-translation."""
     if op_schema is None:
         return args
