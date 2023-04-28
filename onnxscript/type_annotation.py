@@ -44,21 +44,8 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
 # A sorted list of all type strings used in an OpSchema
-ALL_TENSOR_TYPE_STRINGS = (
-    "tensor(bfloat16)",
-    "tensor(bool)",
-    "tensor(double)",
-    "tensor(float)",
-    "tensor(float16)",
-    "tensor(int16)",
-    "tensor(int32)",
-    "tensor(int64)",
-    "tensor(int8)",
-    "tensor(string)",
-    "tensor(uint16)",
-    "tensor(uint32)",
-    "tensor(uint64)",
-    "tensor(uint8)",
+ALL_TENSOR_TYPE_STRINGS = tuple(
+    sorted(tensor_type.to_string() for tensor_type in onnx_types.tensor_type_registry.values())
 )
 
 
