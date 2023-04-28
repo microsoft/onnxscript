@@ -602,11 +602,6 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
-    xfail(
-        "index_select",
-        reason="fixme: ORT shape inference error on rank-0 input",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
         "max",
