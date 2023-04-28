@@ -1365,6 +1365,7 @@ class Converter:
         return self._current_fn
 
     def translate_function_def(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
+        """Translate a function definition, including the signature and its body."""
         logger.debug("Converter:translate_function_def:%s", fn.name)
         _ = self.translate_function_signature(fn)
         for i, s in enumerate(fn.body):
