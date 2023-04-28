@@ -8,12 +8,14 @@ import dataclasses
 import logging
 import types
 from enum import IntFlag
-from typing import Any, Optional, Sequence, _GenericAlias  # type: ignore[attr-defined]
+from typing import _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, Optional, Sequence
 
 import onnx
 import onnx.defs
 
-from onnxscript import irbuilder, sourceinfo
+from onnxscript import irbuilder, sourceinfo, type_annotation
+from onnxscript._internal import version_utils
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -34,6 +36,7 @@ _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
 
 # A special value to indicate that the default value is not specified
 _EmptyDefault = object()
+_ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
 
 
 class Opset:
@@ -173,7 +176,7 @@ class Op:
     ) -> None:
         self.opset = opset
         self.opname = opname
-        self.opschema = opschema
+        self._opschema = opschema
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
     def __call__(self, *args, **kwargs):
@@ -190,9 +193,13 @@ class Op:
     def is_single_op(self) -> bool:
         return isinstance(self.opname, str)
 
+    @property
+    def opschema(self) -> Optional[onnx.defs.OpSchema]:
+        return self._opschema
+
     def get_schema(self) -> Optional[onnx.defs.OpSchema]:
         """Returns the ONNX OpSchema for this op."""
-        if self.opschema:
+        if self.opschema is not None:
             return self.opschema
         return self.opset[self.opname]
 
@@ -249,6 +256,100 @@ class OnnxClosure:
     function: Any
 
 
+@dataclasses.dataclass
+class TypeConstraint:
+    """Represents a type constraint for an ONNX op.
+
+    Attributes:
+        name: The name of the type constraint.
+        allowed_types: The allowed types for the type constraint.
+    """
+
+    name: str
+    allowed_types: list[str]
+    description: str = ""
+
+    def as_tuple(self) -> tuple[str, list[str], str]:
+        """Returns the type constraint as a tuple."""
+        return (self.name, self.allowed_types, self.description)
+
+
+def op_schema_from_function_ir(
+    function_ir: irbuilder.IRFunction, opset: Opset
+) -> onnx.defs.OpSchema:
+    """Construct an ONNX OpSchema from an IRFunction."""
+
+    # Find all distinct types in the inputs and outputs
+    distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
+        {arg.typeinfo for arg in function_ir.outputs}
+    )
+    # Create a mapping from type to a unique name
+    type_to_constraint = {}
+    for i, type_ in enumerate(distinct_types):
+        name = f"T{i}"
+        type_to_constraint[type_] = TypeConstraint(
+            name=type_annotation.get_type_constraint_name(type_) or name,
+            allowed_types=type_annotation.pytype_to_type_strings(type_),
+        )
+
+    formal_inputs = [
+        onnx.defs.OpSchema.FormalParameter(
+            arg.name,
+            type_to_constraint[arg.typeinfo].name,
+            param_option=(
+                onnx.defs.OpSchema.FormalParameterOption.Optional
+                if type_annotation.is_optional(arg.typeinfo)
+                else onnx.defs.OpSchema.FormalParameterOption.Single
+            ),
+            # TODO(justinchu): Check this is_homogeneous thing
+            is_homogeneous=True,
+        )
+        for arg in function_ir.inputs
+    ]
+    formal_outputs = [
+        onnx.defs.OpSchema.FormalParameter(
+            arg.name,
+            type_to_constraint[arg.typeinfo].name,
+            param_option=(
+                onnx.defs.OpSchema.FormalParameterOption.Optional
+                if type_annotation.is_optional(arg.typeinfo)
+                else onnx.defs.OpSchema.FormalParameterOption.Single
+            ),
+            # TODO(justinchu): Check this is_homogeneous thing
+            is_homogeneous=True,
+        )
+        for arg in function_ir.outputs
+    ]
+
+    return onnx.defs.OpSchema(
+        function_ir.name,
+        opset.domain,
+        since_version=opset.version,
+        doc=function_ir.docstring,
+        inputs=formal_inputs,
+        outputs=formal_outputs,
+        type_constraints=[constraint.as_tuple() for constraint in type_to_constraint.values()],
+        attributes=[
+            *[
+                onnx.defs.OpSchema.Attribute(
+                    attr.name,
+                    type=onnx.defs.OpSchema.AttrType(attr.type),
+                )
+                for attr in function_ir.attrs
+                if not attr.has_default
+            ],
+            *[
+                onnx.defs.OpSchema.Attribute(
+                    attr.name,
+                    default_value=attr.attr_proto,
+                )
+                for attr in function_ir.attrs
+                if attr.has_default
+            ],
+        ],
+    )
+
+
 class OnnxFunction(Op):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
 
@@ -276,11 +377,25 @@ class OnnxFunction(Op):
         self.source = source
         self.kwargs = kwargs
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
+        self._opschema: Optional[onnx.defs.OpSchema] = None
 
     @property
     def name(self):
         """Returns the function name."""
         return self.opname
+
+    @property
+    def opschema(self) -> Optional[onnx.defs.OpSchema]:
+        """Construct an OpSchema from function_ir."""
+        if self._opschema is not None:
+            return self._opschema
+
+        if not _ONNX_OP_SCHEMA_WRITABLE:
+            return None
+
+        self._opschema = op_schema_from_function_ir(self.function_ir, self.opset)
+
+        return self._opschema
 
     def __getitem__(self, instance):
         """Returns a lambda to evaluate function using given evaluator instance.
@@ -311,6 +426,9 @@ class OnnxFunction(Op):
         if self._param_schemas is not None:
             return self._param_schemas
 
+        # NOTE: We generate the parameter schemas from the function_ir instead
+        # of relying on the auto generated OpSchema because we need to preserve the keyword
+        # argument order from the Python function definition, which is lost in OpSchema.
         function_ir = self.function_ir
         # The first len(func_ir.inputs) arguments are onnx inputs
         inputs = function_ir.inputs

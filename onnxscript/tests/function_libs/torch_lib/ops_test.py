@@ -106,6 +106,19 @@ class TestFunctionValidity(unittest.TestCase):
         function_proto = func.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
+    @parameterized.parameterized.expand(
+        list(ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.items())
+    )
+    @unittest.skipIf(
+        version_utils.onnx_older_than("1.15"),
+        "OpSchema is not writable before ONNX 1.15",
+    )
+    def test_script_function_has_op_schema(self, _, func_with_wrangler):
+        func, _ = _split_function_and_wrangler(func_with_wrangler)
+        schema = func.opschema
+        self.assertIsNotNone(schema)
+        self.assertEqual(schema.name, func.name)
+
 
 def run_test_output_match(
     test_suite: unittest.TestCase,
