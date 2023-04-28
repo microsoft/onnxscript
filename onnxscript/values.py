@@ -291,7 +291,7 @@ def op_schema_from_function_ir(
         name = f"T{i}"
         type_to_constraint[type_] = TypeConstraint(
             name=type_annotation.get_type_constraint_name(type_) or name,
-            allowed_types=type_annotation.pytype_to_input_strings(type_),
+            allowed_types=type_annotation.pytype_to_type_strings(type_),
         )
 
     formal_inputs = [
