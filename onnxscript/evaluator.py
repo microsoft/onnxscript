@@ -347,22 +347,23 @@ def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
 
 _cache_models: dict[Any, ort.InferenceSession] = {}
 
+
 def _cache_(model, providers):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
     import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
     serialized = model.SerializeToString()
-    if feature_switch.cache_ort_session == "0":
-        return ort.InferenceSession(serialized, providers=providers)
+    if feature_switch.CACHE_ORT_SESSIONS:
+        key = serialized, tuple(providers)
+        if key in _cache_models:
+            return _cache_models[key]
+        session = ort.InferenceSession(serialized, providers=providers)
+        _cache_models[key] = session
 
-    key = serialized, tuple(providers)
-    if key in _cache_models:
-        return _cache_models[key]
-    session = ort.InferenceSession(serialized, providers=providers)
-    _cache_models[key] = session
+        return session
 
-    return session
+    return ort.InferenceSession(serialized, providers=providers)
 
 
 def _os_to_ort_value(v):

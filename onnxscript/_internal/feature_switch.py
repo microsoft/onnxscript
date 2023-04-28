@@ -7,4 +7,4 @@
 import os
 
 # By default: Enable
-cache_ort_session = os.environ.get("CACHE_ORT_SESSION", "1")
+CACHE_ORT_SESSIONS: bool = os.getenv("CACHE_ORT_SESSIONS", "1") != "0"
