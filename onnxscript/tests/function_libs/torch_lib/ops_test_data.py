@@ -602,11 +602,6 @@ EXPECTED_SKIPS_OR_FAILS = (
     xfail(
         "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
-    xfail(
-        "index_select",
-        reason="fixme: ORT shape inference error on rank-0 input",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
         "max",
@@ -678,12 +673,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "nn.functional.mse_loss",
-        reason="Shape inference error. Remove after ONNX 1.14 release",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnx_older_than("1.14"),
     ),
     skip(
         "nn.functional.scaled_dot_product_attention",
