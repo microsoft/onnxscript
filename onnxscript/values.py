@@ -53,6 +53,8 @@ class Opset:
     Only a single instance of Opset is created for a given (domain, version) pair.
     """
 
+    domain: str
+    version: int
     cache: dict[tuple[type, str, int], Opset] = {}
 
     def __new__(cls, domain: str, version: int):

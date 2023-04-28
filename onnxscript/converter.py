@@ -135,7 +135,7 @@ class ConverterExpression:
     def is_const(self):
         return self.kind == ConverterExpressionKind.CONST
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
