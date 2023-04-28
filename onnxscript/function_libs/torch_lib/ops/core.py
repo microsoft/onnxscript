@@ -2930,14 +2930,17 @@ def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
 def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
-    if op.Size(op.Shape(self)) == 0:
-        result = self
-    else:
-        # Index can be a scalar. Reshape it to a rank 1 tensor.
-        index = op.Reshape(index, op.Constant(value_ints=[-1]))
-        index = op.Cast(index, to=INT64.dtype)
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-        result = op.Gather(self, index, axis=dim)
+    # Index may be a scalar. Reshape it to a rank 1 tensor.
+    index = op.Reshape(index, op.Constant(value_ints=[-1]))
+    index = op.Cast(index, to=INT64.dtype)
+    result = op.Gather(self, index, axis=dim)
+
+    if self_is_scalar:
+        result = op.Squeeze(result)
 
     return result
 
