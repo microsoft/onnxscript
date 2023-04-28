@@ -1021,7 +1021,7 @@ def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
     result = op.Mul(self - target, self - target)
     if reduction == 1:  # mean
         result = op.ReduceMean(result, keepdims=0)
-    elif reduction == 2:  # sum
+    if reduction == 2:  # sum
         result = op.ReduceSum(result, keepdims=0)
 
     return result
