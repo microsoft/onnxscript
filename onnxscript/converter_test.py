@@ -638,6 +638,17 @@ class TestConverter(testutils.TestBase):
 
         onnxscript.testing.assert_isomorphic_function(positional, keyword)
 
+    def test_none_as_input_for_op_with_no_schema(self):
+        """Test conversion of None as an input value in a call to an op with no known schema."""
+
+        @script()
+        def none_as_input(X):
+            return op.UnknownOp(X, None, X)
+
+        # None should be translated into an empty string in NodeProto's input list
+        node = none_as_input.to_function_proto().node[0]
+        self.assertEqual(node.input[1], "")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
