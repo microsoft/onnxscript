@@ -53,6 +53,8 @@ class Opset:
     Only a single instance of Opset is created for a given (domain, version) pair.
     """
 
+    domain: str
+    version: int
     cache: dict[tuple[type, str, int], Opset] = {}
 
     def __new__(cls, domain: str, version: int):
@@ -279,7 +281,7 @@ class Op(OpLike):
         return evaluator.default().eval(schema, args, kwargs)
 
     def is_single_op(self) -> bool:
-        return isinstance(self.opname, str)
+        return isinstance(self.name, str)
 
     @property
     def name(self) -> str:
@@ -297,7 +299,7 @@ class Op(OpLike):
         """Returns the ONNX OpSchema for this op."""
         if self.opschema is not None:
             return self.opschema
-        return self.opset[self.opname]
+        return self.opset[self.name]
 
     def has_schema(self) -> bool:
         """Returns True if this op has an OpSchema."""
