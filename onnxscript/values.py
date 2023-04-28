@@ -8,10 +8,9 @@ import dataclasses
 import inspect
 import logging
 import types
-import typing
 from enum import IntFlag
 from typing import _GenericAlias  # type: ignore[attr-defined]
-from typing import Any, Optional, Protocol, Sequence
+from typing import Any, Optional, Sequence
 
 import onnx
 import onnx.defs
