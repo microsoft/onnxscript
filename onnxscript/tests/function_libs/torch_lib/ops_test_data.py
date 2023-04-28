@@ -1210,7 +1210,6 @@ PRIMS_OPS_WITH_OP_INFO = (
     "bitwise_not",
     "bitwise_or",
     "bitwise_xor",
-    "broadcast_in_dim",
     "cat",
     "ceil",
     "clone",
