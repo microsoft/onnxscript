@@ -674,12 +674,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    xfail(
-        "nn.functional.mse_loss",
-        reason="Shape inference error. Remove after ONNX 1.14 release",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnx_older_than("1.14"),
-    ),
     skip(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
