@@ -256,6 +256,10 @@ def run_test_output_match(
                         raise
 
 
+@unittest.skipIf(
+    version_utils.onnx_older_than("1.14"),
+    "OpSchema not available for functions before ONNX 1.14",
+)
 class TestOutputConsistencyEager(unittest.TestCase):
     """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
 
@@ -284,6 +288,10 @@ class TestOutputConsistencyEager(unittest.TestCase):
         run_test_output_match(self, device, dtype, op, ops_test_common.eager_executor)
 
 
+@unittest.skipIf(
+    version_utils.onnx_older_than("1.14"),
+    "OpSchema not available for functions before ONNX 1.14",
+)
 class TestOutputConsistencyFullGraph(unittest.TestCase):
     """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
 
