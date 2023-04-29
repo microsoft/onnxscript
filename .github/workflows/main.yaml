@@ -28,7 +28,6 @@ jobs:
           - py310
           - py39
           - py38
-          - py310-experimental
           - py310-torch-nightly
           - py310-onnx-weekly
           - py310-ort-nightly
@@ -42,9 +41,6 @@ jobs:
           - name: py38
             python-version: "3.8"
             nox-tag: test
-          - name: py310-experimental
-            python-version: "3.10"
-            nox-tag: test-function-experiment
           - name: py310-torch-nightly
             python-version: "3.10"
             nox-tag: test-torch-nightly
