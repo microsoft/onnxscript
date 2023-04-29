@@ -67,7 +67,7 @@ def torch_op(
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     private: bool = False,
-) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction | Callable[..., Any]]:
+) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
     Args:
@@ -81,12 +81,16 @@ def torch_op(
     if registry is None:
         registry = default_registry
 
-    def wrapper(func: Callable[..., Any]) -> onnxscript.OnnxFunction | Callable[..., Any]:
+    def wrapper(
+        func: FunctionType,
+    ) -> onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction:
+        # Compile the function
+        custom_opset = onnxscript.values.Opset(domain="onnxscript.atenlib", version=1)
+
+        processed_func: onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction
         if trace_only:
-            processed_func = func
+            processed_func = onnxscript.values.TracedOnnxFunction(custom_opset, func)
         else:
-            # Compile the function
-            custom_opset = onnxscript.values.Opset(domain="onnxscript.atenlib", version=1)
             assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
