@@ -320,6 +320,41 @@ def _format_model_and_input_information(onnx_model, inputs):
     )
 
 
+TORCH_DTYPE_TO_ONNX_STRING = {
+    torch.bool: "tensor(bool)",
+    torch.uint8: "tensor(uint8)",
+    torch.int8: "tensor(int8)",
+    torch.int16: "tensor(int16)",
+    torch.int32: "tensor(int32)",
+    torch.int64: "tensor(int64)",
+    torch.float16: "tensor(float16)",
+    torch.float32: "tensor(float)",
+    torch.float64: "tensor(double)",
+    torch.complex64: "tensor(complex64)",
+    torch.complex128: "tensor(complex128)",
+    torch.bfloat16: "tensor(bfloat16)",
+}
+
+
+def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -> bool:
+    if not schema.inputs:
+        # If there are no inputs, we can't check compatibility. Assume it is compatible.
+        # e.g. aten_randn has only attributes.
+        return True
+    if schema.inputs[0].name not in {"self", "input"}:
+        # If the first input is not self or input, it is usually another input that is not
+        # the same type as the output. Assume it is compatible.
+        # e.g. aten_add has inputs "self" and "other".
+        return True
+    first_input_dtype = schema.inputs[0].type_str
+    compatible_types = next(
+        (x for x in schema.type_constraints if x.type_param_str == first_input_dtype), None
+    )
+    assert compatible_types is not None
+    allowed_type_strs = compatible_types.allowed_type_strs
+    return TORCH_DTYPE_TO_ONNX_STRING[dtype] in allowed_type_strs
+
+
 def graph_executor(
     outputs: Sequence[Any],
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
