@@ -27,7 +27,7 @@ import onnx.helper
 from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import param_manipulation
+from onnxscript._internal import feature_switch, param_manipulation
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -354,12 +354,16 @@ def _cache_(model, providers):
     import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
     serialized = model.SerializeToString()
-    key = serialized, tuple(providers)
-    if key in _cache_models:
-        return _cache_models[key]
-    session = ort.InferenceSession(serialized, providers=providers)
-    _cache_models[key] = session
-    return session
+    if feature_switch.CACHE_ORT_SESSIONS:
+        key = serialized, tuple(providers)
+        if key in _cache_models:
+            return _cache_models[key]
+        session = ort.InferenceSession(serialized, providers=providers)
+        _cache_models[key] = session
+
+        return session
+
+    return ort.InferenceSession(serialized, providers=providers)
 
 
 def _os_to_ort_value(v):
