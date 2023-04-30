@@ -1183,7 +1183,7 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
-# Call dir(torch.ops.prims) to get the ops below
+# Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
 PRIMS_OPS_WITH_OP_INFO = (
     "abs",
     "acos",
