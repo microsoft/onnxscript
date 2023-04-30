@@ -233,7 +233,7 @@ def duplicate_opinfo_for_prims(
             new_opinfo.op = getattr(torch.ops.prims, prims_name)
             opinfos.append(new_opinfo)
             return
-    raise RuntimeError(f"OpInfo {name} not found in the database.")
+    raise RuntimeError(f"OpInfo '{name}' not found in the database.")
 
 
 TORCH_TYPE_TO_ONNX = {

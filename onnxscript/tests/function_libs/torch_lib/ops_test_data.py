@@ -34,6 +34,7 @@ from typing import Any, Callable
 import numpy as np
 import torch
 from torch.testing._internal import common_methods_invocations
+from torch.testing._internal.opinfo import definitions as opinfo_definitions
 
 import onnxscript
 import onnxscript.evaluator
@@ -50,6 +51,8 @@ from onnxscript.tests.function_libs.torch_lib.ops_test_common import skip, xfail
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 # Append extra op_db into the op database for testing
+OPS_DB.extend(opinfo_definitions.signal.op_db)
+OPS_DB.extend(opinfo_definitions.special.op_db)
 OPS_DB.extend(extra_opinfo.OP_DB)
 
 
@@ -1209,7 +1212,6 @@ PRIMS_OPS_WITH_OP_INFO = (
     "digamma",
     "div",
     "empty",
-    "empty_permuted",
     "eq",
     "erf",
     "erfc",
@@ -1276,6 +1278,20 @@ PRIMS_OPS_WITH_OP_INFO = (
 for op in PRIMS_OPS_WITH_OP_INFO:
     # Duplicate opinfo for prim ops. The new names all start with "prims_". E.g. "abs" -> "prims_abs".
     ops_test_common.duplicate_opinfo_for_prims(OPS_DB, op)
+
+# Duplicate cases where the prims op name is different from the torch op name
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "i0", "bessel_i0")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j0", "bessel_j0")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j1", "bessel_j1")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.erfcx", "erfcx")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i0e", "bessel_i0e")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i1", "bessel_i1")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i1e", "bessel_i1e")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.ndtri", "ndtri")
+ops_test_common.duplicate_opinfo_for_prims(
+    OPS_DB, "special.spherical_bessel_j0", "spherical_bessel_j0"
+)
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.zeta", "zeta")
 
 OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(meta.op_name for meta in SKIP_XFAIL_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
