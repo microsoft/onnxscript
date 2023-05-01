@@ -62,7 +62,7 @@ def cast_inputs(
     return tuple(cast_args)
 
 
-def dynamic_cast_inputs(op_schema: OpSchema, *args):
+def dynamic_cast_inputs(op_schema: OpSchema, args):
     """Used for autocast during eager-mode execution."""
 
     def get_type_info(x):
@@ -86,7 +86,7 @@ def dynamic_cast_inputs(op_schema: OpSchema, *args):
     return cast_inputs(get_type_info, cast, op_schema, args)
 
 
-def static_cast_inputs(converter, op_schema: Optional[OpSchema], *args) -> tuple[str, ...]:
+def static_cast_inputs(converter, op_schema: Optional[OpSchema], args) -> tuple[str, ...]:
     """Used for autocast during script-translation."""
 
     def get_type_info(x):
