@@ -165,7 +165,7 @@ def run_test_output_match(
     if not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.opschema):
         test_suite.skipTest(
             f"dtype '{dtype}' is not supported by the op '{op.name}'. "
-            f"Type constraints: {onnx_function.opschema.type_constraints}"
+            f"Type constraints: {onnx_function.op_schema.type_constraints}"
         )
 
     for i, cpu_sample in enumerate(samples):
