@@ -206,7 +206,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
         Enables some syntactic sugar, such as the use of Python scalars,
         in a manner consistent with the translator. See autocast.py for details.
         """
-        return autocast.dynamic_cast_inputs(schema, *inputs)
+        return autocast.dynamic_cast_inputs(schema, inputs)
 
     def adapt_attributes(
         self, schema: onnx.defs.OpSchema, attributes: Mapping[str, ExtendedModeValue]
