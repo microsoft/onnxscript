@@ -136,6 +136,7 @@ class ConverterExpression:
         return self.kind == ConverterExpressionKind.CONST
 
     def __str__(self) -> str:
+        assert isinstance(self.name, str), "`name` is not a string. This is likely a bug."
         return self.name
 
 
