@@ -162,7 +162,7 @@ def run_test_output_match(
     # An example is nn.functional.upsample_nearest2d, which has a different signature
     # than the aten operator upsample_nearest2d
     onnx_function, input_wrangler = _split_function_and_wrangler(onnx_function_and_wrangler)
-    if not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.opschema):
+    if not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.op_schema):
         test_suite.skipTest(
             f"dtype '{dtype}' is not supported by the op '{op.name}'. "
             f"Type constraints: {onnx_function.op_schema.type_constraints}"
