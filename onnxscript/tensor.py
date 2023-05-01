@@ -73,32 +73,49 @@ class Tensor:
         op = self._opset
         if op.version < 13:
             raise RuntimeError("Indexing requires opset 13 or later.")
+        if not isinstance(index, tuple):
+            # Normalize representation to a tuple.
+            # A single index-value is equivalent to a tuple with a single element.
+            index = (index,)
         if isinstance(index, int):
             # case A[i]: indexing
             # promote integer input to tensor
             i = Tensor(np.array(index))
             # use Gather to perform indexing
             return op.Gather(self, i, axis=0)
-        if not isinstance(index, (slice, tuple)):
-            raise TypeError(f"Unexpected type {type(index)} for index.")
-        # case A[i:j] or A[i:j:k], A[i:k, j:l]
-        if isinstance(index, slice):
-            # Treat 1-dimensional slicing A[i:j] as generic n-dimensional case A[i:j,...]
-            index = (index,)
+
+        if len(index) > self.rank:
+            raise ValueError(f"Number of indices {len(index)} is greater than rank {self.rank}")
         shape = self.shape
         indices_ = []
+        scalar_indices_ = []
         to_squeeze = []
         for axis_, s in enumerate(index):
             if isinstance(s, slice):
+                if s.start is None and s.stop is None and s.step is None:
+                    continue
                 if s.step is None or s.step > 0:
                     indices_.append([s.start or 0, s.stop or shape[axis_], axis_, s.step or 1])
                 else:
-                    indices_.append([s.start or (shape[axis_] - 1), s.stop, axis_, s.step])
+                    indices_.append([s.start or (shape[axis_] - 1), s.stop  or -(shape[axis_] + 1), axis_, s.step])
             elif isinstance(s, int):
-                indices_.append([s, s + 1, axis_, 1])
+                scalar_indices_.append([s, s + 1, axis_, 1])
                 to_squeeze.append(axis_)
             else:
                 raise TypeError(f"Unexpected type {type(s)}: slice or int expected.")
+        # Handle empty indices
+        if not indices_ and not scalar_indices_:
+            # Edge case: no index specified
+            return op.Identity(self)
+        if not indices_ and len(scalar_indices_) == 1:
+            # Special case of indexing along a single axis: A[i], A[:, i], A[:, :, i] etc.
+            # promote integer input to tensor
+            axis = to_squeeze[0]
+            index_value = index[axis]
+            i = Tensor(np.array(index_value))
+            # use Gather to perform indexing
+            return op.Gather(self, i, axis=axis)
+        indices_ = indices_ + scalar_indices_
         indices = np.array(indices_, dtype=np.int64).T
         starts = Tensor(indices[0])
         ends = Tensor(indices[1])

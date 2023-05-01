@@ -158,6 +158,25 @@ same type as some other (non-constant) operand. For example, the expression
 `2 * X` is expanded to `op.CastLike(2, X) * X`, which allows the same
 code to work for different types of `X`.
 
+## Indexing and Slicing
+
+{{onnxscript}} supports the use of Python's indexing and slicing operations on
+tensors, which are translated into ONNX's `Slice` and `Gather` operations.
+The semantics of this operation is similar to that of Numpy's and PyTorch's.
+In the expression `e[i_1, i_2, ..., i_n]`, `n` is either the rank of the
+input tensor or any value less than that. Each index-value `i_j` may be
+a scalar value (a tensor of rank zero) or higher-dimensional tensor or
+a slice-expression of the form `start:end:step`. Semantically, a
+slice-expression `start:end:step` is equivalent to a 1-dimensional tensor
+containing the corresponding sequence of values. However, the translator
+maps indexing using slice-expressions to ONNX's `Slice` operation which
+may be more efficient than the corresponding `Gather` operation. The more
+general case (where `i_j` is an arbitrary tensor) is translated using
+the `Gather` operation.
+
+A limitation of the current implementation is that it does not support the use
+of ellipsis or newaxis in the index.
+
 ## Control-Flow
 
 The support for control-flow constructs in {{ onnxscript }} is limited by
