@@ -115,7 +115,7 @@ class TestFunctionValidity(unittest.TestCase):
     )
     def test_script_function_has_op_schema(self, _, func_with_wrangler):
         func, _ = _split_function_and_wrangler(func_with_wrangler)
-        schema = func.opschema
+        schema = func.op_schema
         self.assertIsNotNone(schema)
         self.assertEqual(schema.name, func.name)
 
@@ -128,7 +128,7 @@ class TestFunctionValidity(unittest.TestCase):
     )
     def test_trace_only_function_has_op_schema(self, _, func_with_wrangler):
         func, _ = _split_function_and_wrangler(func_with_wrangler)
-        schema = func.opschema
+        schema = func.op_schema
         self.assertIsNotNone(schema)
         self.assertEqual(schema.name, func.name)
 
