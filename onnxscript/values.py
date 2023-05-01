@@ -266,10 +266,7 @@ class Op(OpLike):
     ) -> None:
         self._opset = opset
         self._name = opname
-        if op_schema is None:
-            self._op_schema = opset[opname]
-        else:
-            self._op_schema = op_schema
+        self._op_schema = op_schema or opset[opname]
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
         if self._op_schema is None:
