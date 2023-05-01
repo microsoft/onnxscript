@@ -201,6 +201,41 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
     opinfos.extend(duplicated)
 
 
+def duplicate_opinfo_for_prims(
+    opinfos: list[opinfo_core.OpInfo], name: str, prims_name: str | None = None
+):
+    """Duplicate an opinfo in the opinfo database for a prims op.
+
+    The function sets the new OpInfo to use the variation torch.ops.prims.
+    The new OpInfo will have the name "prims_{prims_name}" where `prims_name` is the
+    name of the prims op. If `prims_name` is None, it will be set to "prims_{name}".
+
+    Args:
+        opinfos: The list of opinfo_core.OpInfo to add the new opinfo to.
+        name: The name of the opinfo to duplicate.
+        prims_name: The name of the prims op. If None, it will be set to `name`.
+    """
+    if prims_name is None:
+        prims_name = name
+    # The name of the new OpInfo
+    new_name = f"prims_{prims_name}"
+    all_info_names = {opinfo.name for opinfo in opinfos}
+    for opinfo in opinfos:
+        if opinfo.name == name:
+            if new_name in all_info_names:
+                # NOTE: Avoid duplicating an opinfo that already exists in the database.
+                warnings.warn(
+                    f"OpInfo {new_name} already exists in the database.", stacklevel=1
+                )
+                continue
+            new_opinfo = copy.deepcopy(opinfo)
+            new_opinfo.name = new_name
+            new_opinfo.op = getattr(torch.ops.prims, prims_name)
+            opinfos.append(new_opinfo)
+            return
+    raise RuntimeError(f"OpInfo '{name}' not found in the database.")
+
+
 TORCH_TYPE_TO_ONNX = {
     torch.bool: onnx.TensorProto.BOOL,
     torch.uint8: onnx.TensorProto.UINT8,
