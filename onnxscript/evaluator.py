@@ -318,7 +318,7 @@ def _rename_io(prefix, i, arg):
 
 def compute_num_outputs(
     schema: onnx.defs.OpSchema, args: Sequence[Any], kwargs: Mapping[str, Any]
-):
+) -> int:
     """Returns the number of outputs expected."""
 
     # TODO: Use ONNX type inference to replace the special-case handling below.
