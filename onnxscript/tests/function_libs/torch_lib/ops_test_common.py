@@ -397,12 +397,13 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
         # has the first input as `size`, which is an integer, but it can support
         # any dtype.
         return True
-    first_input_dtype = schema.inputs[0].type_str
-    compatible_types = next(
-        (x for x in schema.type_constraints if x.type_param_str == first_input_dtype), None
+    first_input_type_name = schema.inputs[0].type_str
+    # Find the type constraint for the first input by matching the parameter name
+    first_input_type_constraint = next(
+        (x for x in schema.type_constraints if x.type_param_str == first_input_type_name), None
     )
-    assert compatible_types is not None
-    allowed_type_strs = compatible_types.allowed_type_strs
+    assert first_input_type_constraint is not None
+    allowed_type_strs = first_input_type_constraint.allowed_type_strs
     return TORCH_DTYPE_TO_ONNX_STRING[dtype] in allowed_type_strs
 
 
