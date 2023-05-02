@@ -162,17 +162,19 @@ code to work for different types of `X`.
 
 {{onnxscript}} supports the use of Python's indexing and slicing operations on
 tensors, which are translated into ONNX's `Slice` and `Gather` operations.
-The semantics of this operation is similar to that of Numpy's and PyTorch's.
+The semantics of this operation is similar to that of Numpy's
+.
 In the expression `e[i_1, i_2, ..., i_n]`, `n` is either the rank of the
 input tensor or any value less than that. Each index-value `i_j` may be
-a scalar value (a tensor of rank zero) or higher-dimensional tensor or
+a scalar value (a tensor of rank zero) or a higher-dimensional tensor or
 a slice-expression of the form `start:end:step`. Semantically, a
 slice-expression `start:end:step` is equivalent to a 1-dimensional tensor
-containing the corresponding sequence of values. However, the translator
-maps indexing using slice-expressions to ONNX's `Slice` operation which
-may be more efficient than the corresponding `Gather` operation. The more
-general case (where `i_j` is an arbitrary tensor) is translated using
-the `Gather` operation.
+containing the corresponding sequence of values.
+
+However, the translator maps indexing using slice-expressions to ONNX's
+`Slice` operation which may be more efficient than the corresponding `Gather`
+operation. The more general case (where `i_j` is an arbitrary tensor) is
+translated using the `Gather` operation.
 
 A limitation of the current implementation is that it does not support the use
 of ellipsis or newaxis in the index.

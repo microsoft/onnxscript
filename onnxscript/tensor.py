@@ -40,6 +40,10 @@ class Tensor:
         return len(self.value.shape)
 
     @property
+    def is_scalar(self) -> bool:
+        return self.rank == 0
+
+    @property
     def shape(self) -> tuple[int, ...]:
         return self.value.shape
 
@@ -77,15 +81,12 @@ class Tensor:
             # Normalize representation to a tuple.
             # A single index-value is equivalent to a tuple with a single element.
             index = (index,)
-        if isinstance(index, int):
-            # case A[i]: indexing
-            # promote integer input to tensor
-            i = Tensor(np.array(index))
-            # use Gather to perform indexing
-            return op.Gather(self, i, axis=0)
-
         if len(index) > self.rank:
             raise ValueError(f"Number of indices {len(index)} is greater than rank {self.rank}")
+        from onnxscript import autocast
+        # Promote integer indices to tensors of rank 0
+        index = [autocast.cast_scalar_to_tensor(x) for x in index]
+        # Process all elements in index
         shape = self.shape
         indices_ = []
         scalar_indices_ = []
@@ -98,9 +99,12 @@ class Tensor:
                     indices_.append([s.start or 0, s.stop or shape[axis_], axis_, s.step or 1])
                 else:
                     indices_.append([s.start or (shape[axis_] - 1), s.stop  or -(shape[axis_] + 1), axis_, s.step])
-            elif isinstance(s, int):
-                scalar_indices_.append([s, s + 1, axis_, 1])
-                to_squeeze.append(axis_)
+            elif isinstance(s, Tensor):
+                if s.is_scalar:
+                    scalar_indices_.append([s, s + 1, axis_, 1])
+                    to_squeeze.append(axis_)
+                else:
+                    raise NotImplemented("Non-scalar indices.")
             else:
                 raise TypeError(f"Unexpected type {type(s)}: slice or int expected.")
         # Handle empty indices
@@ -112,9 +116,8 @@ class Tensor:
             # promote integer input to tensor
             axis = to_squeeze[0]
             index_value = index[axis]
-            i = Tensor(np.array(index_value))
             # use Gather to perform indexing
-            return op.Gather(self, i, axis=axis)
+            return op.Gather(self, index_value, axis=axis)
         indices_ = indices_ + scalar_indices_
         indices = np.array(indices_, dtype=np.int64).T
         starts = Tensor(indices[0])
