@@ -458,11 +458,12 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
+        n_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
         result = self._add_torchscript_op_call(
             f"onnx::{onnx_op_schema.name}",
             onnx_inputs,
             onnx_attributes,
-            n_outputs=len(onnx_op_schema.outputs),
+            n_outputs=n_outputs,
         )
 
         return result
