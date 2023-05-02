@@ -272,31 +272,42 @@ def aten_angle(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::any", trace_only=True)
-def aten_any(self: TTensor, dim: Optional[int] = None, keepdim: bool = True) -> BOOL:
+@torch_op("aten::any")
+def aten_any(
+    self: TTensor,
+    keepdim: bool = True,  # pylint: disable=unused-argument
+) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
-    negative_one = op.Constant(value_ints=[-1])
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, negative_one)
-
-    # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
-    self_bool = op.Cast(self, to=BOOL.dtype)
-    # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
-    self_int = op.Cast(self_bool, to=INT64.dtype)
-
-    if op.OptionalHasElement(dim):
-        dim = op.Reshape(dim, negative_one)
-        dims = op.Cast(dim, to=INT64.dtype)
-        result_max = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result = op.Not(op.Equal(self, 0.0))
     else:
+        # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
+        self_int = op.Cast(self_bool, to=INT64.dtype)
         result_max = op.ReduceMax(self_int, keepdims=0, noop_with_empty_axes=0)
+        result = op.Greater(result_max, op.Constant(value_int=0))
+    return result
 
-    result = op.Greater(result_max, op.Constant(value_int=0))
+
+@torch_op("aten::any", overload=True)
+def aten_any_dim(self: TTensor, dim: int, keepdim: bool = True) -> BOOL:
+    """any(Tensor self) -> Tensor"""
+
+    self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        result = op.Squeeze(result)
-
+        result = op.Not(op.Equal(self, 0.0))
+    else:
+        # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        # Change dim from int to INT64[1]
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result_max = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result = op.Greater(result_max, op.Constant(value_int=0))
     return result
 
 
@@ -2902,14 +2913,17 @@ def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
 def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
-    if op.Size(op.Shape(self)) == 0:
-        result = self
-    else:
-        # Index can be a scalar. Reshape it to a rank 1 tensor.
-        index = op.Reshape(index, op.Constant(value_ints=[-1]))
-        index = op.Cast(index, to=INT64.dtype)
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-        result = op.Gather(self, index, axis=dim)
+    # Index may be a scalar. Reshape it to a rank 1 tensor.
+    index = op.Reshape(index, op.Constant(value_ints=[-1]))
+    index = op.Cast(index, to=INT64.dtype)
+    result = op.Gather(self, index, axis=dim)
+
+    if self_is_scalar:
+        result = op.Squeeze(result)
 
     return result
 

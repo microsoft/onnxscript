@@ -16,14 +16,14 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
 
     The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_SUBTESTS` to skip or xfail tests.
+2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_XFAIL_SUBTESTS` to skip or xfail tests.
 Prefer xfail over skip when possible.
     2a. If a test is now failing because of xpass, because some previous errors
     are now fixed, removed the corresponding xfail.
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
 4. To test different ONNX functions that are registered as overloads of the same
-    op, use `duplicate_opinfo` to create new OpInfo with new names and map each
+    op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
 """
 from __future__ import annotations
@@ -34,6 +34,7 @@ from typing import Any, Callable
 import numpy as np
 import torch
 from torch.testing._internal import common_methods_invocations
+from torch.testing._internal.opinfo import definitions as opinfo_definitions
 
 import onnxscript
 import onnxscript.evaluator
@@ -41,18 +42,17 @@ from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
-from onnxscript.tests.function_libs.torch_lib import extra_opinfo
-from onnxscript.tests.function_libs.torch_lib.ops_test_common import (
-    DecorateMeta,
-    duplicate_opinfo,
-    skip,
-    xfail,
-)
+from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
+
+# For readability, these two are allowed to be imported given the high usage
+from onnxscript.tests.function_libs.torch_lib.ops_test_common import skip, xfail
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 # Append extra op_db into the op database for testing
+OPS_DB.extend(opinfo_definitions.signal.op_db)
+OPS_DB.extend(opinfo_definitions.special.op_db)
 OPS_DB.extend(extra_opinfo.OP_DB)
 
 
@@ -335,6 +335,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
     "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
     "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
+    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
+    "any_dim": core_ops.aten_any_dim,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "asin": core_ops.aten_asin,
     "asinh": core_ops.aten_asinh,
     "atan": core_ops.aten_atan,
@@ -508,7 +510,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
     "arange_start_step": core_ops.aten_arange_start_step,
     "arange_start": core_ops.aten_arange_start,
     "arange": core_ops.aten_arange,
@@ -597,18 +598,10 @@ TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
     xfail(
-        "any",
-        reason="fixme: ORT shape inference error",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
         "as_strided",
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
     ),
-    # xfail(
-    #     "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
-    # ),
     xfail(
         "index_select",
         reason="fixme: ORT shape inference error on rank-0 input",
@@ -686,12 +679,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
-    xfail(
-        "nn.functional.mse_loss",
-        reason="Shape inference error. Remove after ONNX 1.14 release",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnx_older_than("1.14"),
-    ),
     skip(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
@@ -751,33 +738,43 @@ EXPECTED_SKIPS_OR_FAILS = (
 )
 
 
-SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
+SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
         reason="this Aten overload only support one tensor as input by design",
     ),
-    skip(
+    xfail(
         "all_dim",
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    ),
+    skip(
+        "any",
+        matcher=lambda sample: not (len(sample.kwargs) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    skip(
+        "any_dim",
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
     skip(
         "amax",
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: ORT aborts on scalar inputs to ReduceMax-18",
+        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18",
     ),
     skip(
         "amin",
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: ORT aborts on scalar inputs to ReduceMin-18",
+        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18",
     ),
-    skip(
+    xfail(
         "arange",
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
     ),
-    skip(
+    xfail(
         "arange",
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
@@ -787,7 +784,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
-    skip(
+    xfail(
         "arange_start_step",
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
@@ -815,12 +812,12 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
-    skip(
+    xfail(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
     ),
-    skip(
+    xfail(
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
@@ -835,13 +832,13 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
-    skip(
+    xfail(
         "min_other",  # aten_min_other(self, other)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
-    skip(
+    xfail(
         "min_dim",  # aten_min_dim(self, dim)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
@@ -897,7 +894,7 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    skip(
+    xfail(
         "nonzero",
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
@@ -907,38 +904,38 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
     ),
-    skip(
+    xfail(
         "nn.functional.adaptive_avg_pool1d",
         # Shape should be [N, C, D1]
         matcher=lambda sample: sample.args[0] not in {1, (1,)},
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    skip(
+    xfail(
         "nn.functional.adaptive_avg_pool2d",
         matcher=lambda sample: sample.args[0] != (1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    skip(
+    xfail(
         "nn.functional.adaptive_avg_pool3d",
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    skip(
+    xfail(
         "nn.functional.avg_pool2d",
         matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
         reason="ONNX doesn't support divisor_override argument",
     ),
-    skip(
+    xfail(
         "nn.functional.conv1d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv1d",
     ),
-    skip(
+    xfail(
         "nn.functional.conv2d",
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
     ),
-    skip(
+    xfail(
         "nn.functional.cross_entropy",
         matcher=lambda sample: not isinstance(sample.kwargs.get("weight"), int),
         reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[weight] is int type",
@@ -1037,22 +1034,22 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
         reason="only test on 2d inputs",
     ),
-    skip(
+    xfail(
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
     ),
-    skip(
+    xfail(
         "permute",
         matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
         reason="Negative value in perm is not supported",
     ),
-    skip(
+    xfail(
         "permute",
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
     ),
-    skip(
+    xfail(
         "scatter_add",
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
@@ -1079,18 +1076,18 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    skip(
+    xfail(
         "unflatten",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    skip(
+    xfail(
         "var_mean",
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
         reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
     ),
-    skip(
+    xfail(
         "var_mean_dim",
         # kwargs["dim"] must exist, kwargs["correction"] must not exist
         matcher=lambda sample: not (
@@ -1107,9 +1104,11 @@ SKIP_SUBTESTS: tuple[DecorateMeta, ...] = (
     ),
 )
 
-duplicate_opinfo(OPS_DB, "all", ("all_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
+
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "arange",
     (
@@ -1118,21 +1117,23 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 
-duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 
-duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
 
-duplicate_opinfo(OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",))
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
+)
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
     (
@@ -1142,13 +1143,13 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "min",
     (
@@ -1157,13 +1158,13 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
     ("nn.functional.upsample_bilinear2d",),
 )
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
     (
@@ -1173,9 +1174,9 @@ duplicate_opinfo(
     ),
 )
 
-duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 
-duplicate_opinfo(
+ops_test_common.duplicate_opinfo(
     OPS_DB,
     "var_mean",
     (
@@ -1184,7 +1185,117 @@ duplicate_opinfo(
     ),
 )
 
-OP_WITH_SKIPPED_SUBTESTS = frozenset(meta.op_name for meta in SKIP_SUBTESTS)
+# Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
+PRIMS_OPS_WITH_OP_INFO = (
+    "abs",
+    "acos",
+    "acosh",
+    "add",
+    "amax",
+    "amin",
+    "as_strided",
+    "as_strided_scatter",
+    "asin",
+    "asinh",
+    "atan",
+    "atan2",
+    "atanh",
+    "bitwise_and",
+    "bitwise_not",
+    "bitwise_or",
+    "bitwise_xor",
+    "cat",
+    "ceil",
+    "clone",
+    "conj",
+    "conj_physical",
+    "cos",
+    "cosh",
+    "digamma",
+    "div",
+    "empty",
+    "eq",
+    "erf",
+    "erfc",
+    "exp",
+    "exp2",
+    "expm1",
+    "fill",
+    "floor",
+    "fmax",
+    "fmin",
+    "fmod",
+    "full",
+    "full_like",
+    "gcd",
+    "ge",
+    "gt",
+    "hypot",
+    "igamma",
+    "igammac",
+    "imag",
+    "isfinite",
+    "le",
+    "lgamma",
+    "log",
+    "log10",
+    "log1p",
+    "log2",
+    "lt",
+    "maximum",
+    "minimum",
+    "mul",
+    "ne",
+    "neg",
+    "nextafter",
+    "normal",
+    "pow",
+    "prod",
+    "real",
+    "reciprocal",
+    "remainder",
+    "reshape",
+    "round",
+    "rsqrt",
+    "scalar_tensor",
+    "sign",
+    "signbit",
+    "sin",
+    "sinh",
+    "slice",
+    "sqrt",
+    "squeeze",
+    "sub",
+    "sum",
+    "svd",
+    "tan",
+    "tanh",
+    "transpose",
+    "trunc",
+    "uniform",
+    "var",
+    "where",
+)
+
+for op in PRIMS_OPS_WITH_OP_INFO:
+    # Duplicate opinfo for prim ops. The new names all start with "prims_". E.g. "abs" -> "prims_abs".
+    ops_test_common.duplicate_opinfo_for_prims(OPS_DB, op)
+
+# Duplicate cases where the prims op name is different from the torch op name
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "i0", "bessel_i0")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j0", "bessel_j0")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j1", "bessel_j1")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.erfcx", "erfcx")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i0e", "bessel_i0e")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i1", "bessel_i1")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i1e", "bessel_i1e")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.ndtri", "ndtri")
+ops_test_common.duplicate_opinfo_for_prims(
+    OPS_DB, "special.spherical_bessel_j0", "spherical_bessel_j0"
+)
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.zeta", "zeta")
+
+OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(meta.op_name for meta in SKIP_XFAIL_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
 assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"

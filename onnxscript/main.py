@@ -8,7 +8,6 @@ from __future__ import annotations
 import ast
 import inspect
 import sys
-import textwrap
 import types
 from typing import Any, Callable, Optional, Sequence, cast
 
@@ -16,28 +15,7 @@ import onnx.helper
 
 import onnxscript
 from onnxscript import converter, irbuilder, values
-
-
-def get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
-    try:
-        src = inspect.getsource(f)
-    except OSError as e:
-        raise RuntimeError(
-            f"Decorator script does not work on dynamically "
-            f"compiled function {f.__name__}."
-        ) from e
-    src = textwrap.dedent(src)
-    top_level_ast = ast.parse(src)
-    assert isinstance(top_level_ast, ast.Module)
-    assert len(top_level_ast.body) == 1
-    f_ast = top_level_ast.body[0]
-    assert isinstance(f_ast, ast.FunctionDef)
-    return src, f_ast
-
-
-def get_ast(f: types.FunctionType) -> ast.FunctionDef:
-    _, f_ast = get_src_and_ast(f)
-    return f_ast
+from onnxscript._internal import ast_utils
 
 
 def script_check(
@@ -104,7 +82,7 @@ def script(
         if not inspect.isfunction(f):
             raise TypeError("The ONNXScript decorator should be applied to functions only.")
 
-        src, f_ast = get_src_and_ast(f)  # pylint: disable=redefined-outer-name
+        src, f_ast = ast_utils.get_src_and_ast(f)
         # The script should be compiled using the globals/locals at the definition site.
         # This allows the script to reference names defined outside the script,
         # which is used for a few different purposes.
