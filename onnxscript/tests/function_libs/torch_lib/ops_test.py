@@ -193,8 +193,8 @@ def run_test_output_match(
                 torch_output = op(*inputs, **cpu_sample.kwargs)
 
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
-                if op.name.startswith("split"):
-                    # Hack for handling split
+                if op.name.startswith("split") or op.name.startswith("chunk"):
+                    # Hack for handling split and chunk
                     # Split returns a Sequence that should be treats as a single
                     # value. So we wrap it into a tuple.
                     # TODO(justinchuby): Find a more general solution

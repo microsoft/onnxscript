@@ -316,10 +316,12 @@ def _rename_io(prefix, i, arg):
     return f"{prefix}{i}"
 
 
-def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
-    """Returns the number of outputs expected.
-    TODO: Use ONNX type inference to replace the special-case handling below.
-    """
+def compute_num_outputs(
+    schema: onnx.defs.OpSchema, args: Sequence[Any], kwargs: Mapping[str, Any]
+) -> int:
+    """Returns the number of outputs expected."""
+
+    # TODO: Use ONNX type inference to replace the special-case handling below.
     if schema.domain == "":
         if schema.name == "BatchNormalization":
             if not kwargs.get("training_mode", 0):
@@ -414,7 +416,7 @@ def _call_ort(
     # Construct ONNX model with a single op call:
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
-    num_outputs = _compute_num_outputs(schema, *args, **kwargs)
+    num_outputs = compute_num_outputs(schema, args, kwargs)
     outputs = [f"output{i}" for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)
