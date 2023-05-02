@@ -397,6 +397,27 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
         # has the first input as `size`, which is an integer, but it can support
         # any dtype.
         return True
+
+    # Otherwise we check the type constraints of the first input.
+    # For example, when dtype=torch.float32, and the op being tested has the schema
+    # ```
+    # OpSchema(
+    #     name='aten_abs',
+    #     domain='onnxscript.atenlib',
+    #     since_version=1,
+    #     doc='abs(Tensor self) -> Tensor',
+    #     type_constraints=[OpSchema.TypeConstraintParam(type_param_str='TReal', allowed_type_strs=['tensor(float)', 'tensor(int8)', 'tensor(int16)', 'tensor(int32)', 'tensor(int64)', 'tensor(float16)', 'tensor(double)', 'tensor(bfloat16)'], description='')],
+    #     inputs=[OpSchema.FormalParameter(name='self', type_str='TReal', description='', param_option=<FormalParameterOption.Single: 0>, is_homogeneous=True, min_arity=1, differentiation_category=<DifferentiationCategory.Unknown: 0>)],
+    #     outputs=[OpSchema.FormalParameter(name='return_val', type_str='TReal', description='', param_option=<FormalParameterOption.Single: 0>, is_homogeneous=True, min_arity=1, differentiation_category=<DifferentiationCategory.Unknown: 0>)],
+    #     attributes={}
+    # )
+    # ```
+    # we see the first input type is "TReal", corresponding to the type constraint
+    # with allowed types ['tensor(float)', 'tensor(int8)', 'tensor(int16)',
+    # 'tensor(int32)', 'tensor(int64)', 'tensor(float16)', 'tensor(double)',
+    # 'tensor(bfloat16)'].
+    # Since torch.float32 (tensor(float)) is in the allowed types, we return True.
+
     first_input_type_name = schema.inputs[0].type_str
     # Find the type constraint for the first input by matching the parameter name
     first_input_type_constraint = next(
