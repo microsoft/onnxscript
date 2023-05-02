@@ -372,14 +372,30 @@ TORCH_DTYPE_TO_ONNX_STRING = {
 
 
 def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -> bool:
+    """Checks if the dtype is compatible with the schema.
+
+    When a dtype is "compatible" with the schema, it means we can use the dtype
+    to create sample inputs by OpInfo to test the ONNX function and expect outputs to match.
+
+    Args:
+        dtype: The torch dtype used to create sample inputs by OpInfo.
+        schema: The ONNX schema of the function.
+
+    Returns:
+        True if the dtype is compatible with the schema.
+    """
     if not schema.inputs:
         # If there are no inputs, we can't check compatibility. Assume it is compatible.
         # e.g. aten_randn has only attributes.
         return True
     if schema.inputs[0].name not in {"self", "input"}:
-        # If the first input is not self or input, it is usually another input that is not
-        # the same type as the output. Assume it is compatible.
-        # e.g. aten_add has inputs "self" and "other".
+        # If the name of the first input is not "self" or "input",
+        # it is usually an input that is not of the same type as the output.
+        # We assume support in this case.
+        #
+        # For example, `aten_ones(size: IntType, dtype: int = FLOAT.dtype)`
+        # has the first input as `size`, which is an integer, but it can support
+        # any dtype.
         return True
     first_input_dtype = schema.inputs[0].type_str
     compatible_types = next(
