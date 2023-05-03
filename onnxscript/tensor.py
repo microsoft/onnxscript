@@ -82,8 +82,11 @@ class Tensor:
             # A single index-value is equivalent to a tuple with a single element.
             index = (index,)
         if len(index) > self.rank:
-            raise ValueError(f"Number of indices {len(index)} is greater than rank {self.rank}")
+            raise ValueError(
+                f"Number of indices {len(index)} is greater than rank {self.rank}"
+            )
         from onnxscript import autocast
+
         # Promote integer indices to tensors of rank 0
         index = [autocast.cast_scalar_to_tensor(x) for x in index]
         # Process all elements in index
@@ -97,9 +100,18 @@ class Tensor:
                 if s.start is None and s.stop is None and s.step is None:
                     continue
                 if s.step is None or s.step > 0:
-                    sliced_indices.append([s.start or 0, s.stop or shape[axis_], axis_, s.step or 1])
+                    sliced_indices.append(
+                        [s.start or 0, s.stop or shape[axis_], axis_, s.step or 1]
+                    )
                 else:
-                    sliced_indices.append([s.start or (shape[axis_] - 1), s.stop  or -(shape[axis_] + 1), axis_, s.step])
+                    sliced_indices.append(
+                        [
+                            s.start or (shape[axis_] - 1),
+                            s.stop or -(shape[axis_] + 1),
+                            axis_,
+                            s.step,
+                        ]
+                    )
             elif isinstance(s, Tensor):
                 if s.is_scalar:
                     scalar_indices.append([s, s + 1, axis_, 1])
@@ -138,7 +150,7 @@ class Tensor:
                 result = Tensor(np.squeeze(result.value, axis=tuple(to_squeeze)))
         else:
             result = self
-        for (axis, value) in non_scalar_indices:
+        for axis, value in non_scalar_indices:
             result = op.Gather(result, value, axis=axis)
 
         return result
