@@ -406,7 +406,7 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
     # ```
     # OpSchema(
     #     name='aten_abs',
-    #     domain='onnxscript.atenlib',
+    #     domain='pkg.onnxscript.torch_lib',
     #     since_version=1,
     #     doc='abs(Tensor self) -> Tensor',
     #     type_constraints=[OpSchema.TypeConstraintParam(type_param_str='TReal', allowed_type_strs=['tensor(float)', 'tensor(int8)', 'tensor(int16)', 'tensor(int32)', 'tensor(int64)', 'tensor(float16)', 'tensor(double)', 'tensor(bfloat16)'], description='')],
