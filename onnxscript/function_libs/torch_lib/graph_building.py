@@ -139,7 +139,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
 
     @property
-    def is_complex(self):
+    def is_complex(self) -> bool:
         return self._is_complex
 
     @is_complex.setter

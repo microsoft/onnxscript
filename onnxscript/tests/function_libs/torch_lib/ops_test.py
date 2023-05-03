@@ -177,7 +177,7 @@ def run_test_output_match(
     onnx_function, input_wrangler = _split_function_and_wrangler(onnx_function_and_wrangler)
     if (
         not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.op_schema)
-        and dtype != torch.complex64
+        and dtype not in COMPLEX_TYPES
     ):
         test_suite.skipTest(
             f"dtype '{dtype}' is not supported by the op '{op.name}'. "
