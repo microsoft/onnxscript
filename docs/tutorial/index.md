@@ -162,8 +162,8 @@ code to work for different types of `X`.
 
 {{onnxscript}} supports the use of Python's indexing and slicing operations on
 tensors, which are translated into ONNX's `Slice` and `Gather` operations.
-The semantics of this operation is similar to that of Numpy's
-.
+The semantics of this operation is similar to that of Numpy's.
+
 In the expression `e[i_1, i_2, ..., i_n]`, `n` is either the rank of the
 input tensor or any value less than that. Each index-value `i_j` may be
 a scalar value (a tensor of rank zero) or a higher-dimensional tensor or
