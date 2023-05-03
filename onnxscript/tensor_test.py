@@ -122,5 +122,28 @@ class TestTensor(unittest.TestCase):
         # Should return first row, first 2 columns:
         self._check_values_and_shape(y, [0, 1], (2,))
 
+    def test_getitem_gather(self):
+        # Create tensor:
+        # [ [0, 1, 2],
+        #   [3, 4, 5],
+        #   [6, 7, 8],
+        #   [9, 10, 11] ]
+        data = np.array(range(12), dtype=np.int32).reshape(4, 3)
+        x = tensor.Tensor(data)
+
+        indices_0_and_3 = tensor.Tensor(np.array([0,3], dtype=np.int32))
+        y = x[indices_0_and_3]
+        # Should return row 0 and row 3
+        self._check_values_and_shape(y, [0, 1, 2, 9, 10, 11], (2,3))
+
+        index_0 = tensor.Tensor(np.array([0], dtype=np.int32))
+        y = x[index_0]
+        # Should return row 0, but of shape 1x3
+        self._check_values_and_shape(y, [0, 1, 2], (1,3))
+
+        y = x[indices_0_and_3, index_0]
+        # Should return submatrix consisting of rows 0 and 3, column 0
+        self._check_values_and_shape(y, [0, 9], (2,1))
+
 if __name__ == "__main__":
     unittest.main()

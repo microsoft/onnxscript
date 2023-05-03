@@ -88,45 +88,59 @@ class Tensor:
         index = [autocast.cast_scalar_to_tensor(x) for x in index]
         # Process all elements in index
         shape = self.shape
-        indices_ = []
-        scalar_indices_ = []
+        sliced_indices = []
+        scalar_indices = []
         to_squeeze = []
+        non_scalar_indices = []
         for axis_, s in enumerate(index):
             if isinstance(s, slice):
                 if s.start is None and s.stop is None and s.step is None:
                     continue
                 if s.step is None or s.step > 0:
-                    indices_.append([s.start or 0, s.stop or shape[axis_], axis_, s.step or 1])
+                    sliced_indices.append([s.start or 0, s.stop or shape[axis_], axis_, s.step or 1])
                 else:
-                    indices_.append([s.start or (shape[axis_] - 1), s.stop  or -(shape[axis_] + 1), axis_, s.step])
+                    sliced_indices.append([s.start or (shape[axis_] - 1), s.stop  or -(shape[axis_] + 1), axis_, s.step])
             elif isinstance(s, Tensor):
                 if s.is_scalar:
-                    scalar_indices_.append([s, s + 1, axis_, 1])
+                    scalar_indices.append([s, s + 1, axis_, 1])
                     to_squeeze.append(axis_)
                 else:
-                    raise NotImplemented("Non-scalar indices.")
+                    non_scalar_indices.append((axis_, s))
             else:
                 raise TypeError(f"Unexpected type {type(s)}: slice or int expected.")
-        # Handle empty indices
-        if not indices_ and not scalar_indices_:
-            # Edge case: no index specified
+
+        # Non-scalar-indexing requires the use of ONNX Gather operation.
+        # Slicing can be implemented efficiently using ONNX's Slice operation.
+        # Scalar-indexing can be implemented using either Gather or with the Slice operation.
+        # We map scalar-indexing into the Slice operation, except in the special case
+        # of a single scalar-index (with no other sliced_index), which we map directly
+        # to a Gather.
+
+        if not (sliced_indices or scalar_indices or non_scalar_indices):
+            # Edge case: no index specified. Eg. A[:, :]
             return op.Identity(self)
-        if not indices_ and len(scalar_indices_) == 1:
+        if not sliced_indices and len(scalar_indices) == 1:
             # Special case of indexing along a single axis: A[i], A[:, i], A[:, :, i] etc.
             # promote integer input to tensor
             axis = to_squeeze[0]
             index_value = index[axis]
             # use Gather to perform indexing
-            return op.Gather(self, index_value, axis=axis)
-        indices_ = indices_ + scalar_indices_
-        indices = np.array(indices_, dtype=np.int64).T
-        starts = Tensor(indices[0])
-        ends = Tensor(indices[1])
-        axis = Tensor(indices[2])
-        steps = Tensor(indices[3])
-        result = op.Slice(self, starts, ends, axis, steps)
-        if to_squeeze:
-            result = Tensor(np.squeeze(result.value, axis=tuple(to_squeeze)))
+            result = op.Gather(self, index_value, axis=axis)
+        elif sliced_indices or scalar_indices:
+            sliced_indices = sliced_indices + scalar_indices
+            indices = np.array(sliced_indices, dtype=np.int64).T
+            starts = Tensor(indices[0])
+            ends = Tensor(indices[1])
+            axis = Tensor(indices[2])
+            steps = Tensor(indices[3])
+            result = op.Slice(self, starts, ends, axis, steps)
+            if to_squeeze:
+                result = Tensor(np.squeeze(result.value, axis=tuple(to_squeeze)))
+        else:
+            result = self
+        for (axis, value) in non_scalar_indices:
+            result = op.Gather(result, value, axis=axis)
+
         return result
 
     def __mod__(self, other):
