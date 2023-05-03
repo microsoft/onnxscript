@@ -1510,7 +1510,7 @@ def aten_scaled_dot_product_attention(
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
-):
+) -> TFloat:
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
 
     Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
@@ -1557,7 +1557,7 @@ def aten_scaled_dot_product_attention_bool_mask(
     dropout_p: float = 0.0,
     is_causal: bool = False,
     scale: Optional[float] = None,
-):
+) -> TFloat:
     """scaled_dot_product_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_mask=None, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> Tensor
 
     Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
@@ -1605,7 +1605,7 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     value: TFloat,
     scale: FLOAT,
     dropout_p: float,
-):
+) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
     key_last_dim = key_shape[-1:]
@@ -1641,7 +1641,7 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     attn_mask: BOOL,
     scale: FLOAT,
     dropout_p: float,
-):
+) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
     key_last_dim = key_shape[-1:]
@@ -1679,7 +1679,7 @@ def _aten_scaled_dot_product_attention_float_mask_onnx(
     attn_mask: TFloat,
     scale: TFloat,
     dropout_p: float,
-):
+) -> TFloat:
     # Swap the last two axes of key
     key_shape = op.Shape(key)
     key_last_dim = key_shape[-1:]
