@@ -44,6 +44,19 @@ def aten_abs(self: TReal) -> TReal:
     return op.Abs(self)
 
 
+@torch_op("aten::abs", overload=True)
+def aten_abs_complex(self: TReal) -> TReal:
+    """abs(Tensor self) -> Tensor"""
+    # self_real = self[..., 0]
+    self_real = op.Gather(self, 0, axis=-1)
+    # self_imag = self[..., 1]
+    self_imag = op.Gather(self, 1, axis=-1)
+    real_pow = op.Pow(self_real, 2)
+    imag_pow = op.Pow(self_imag, 2)
+    real_plus_imag = op.Add(real_pow, imag_pow)
+    return op.Sqrt(real_plus_imag)
+
+
 @torch_op("aten::acos")
 def aten_acos(self: TFloat) -> TFloat:
     """acos(Tensor self) -> Tensor"""
@@ -1039,9 +1052,9 @@ def aten_choose_qparams_optimized(
 
 
 @torch_op("aten::chunk")
-def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
+def aten_chunk(self: TTensor, chunks: int, dim: int = 0) -> Sequence[TTensor]:
     """chunk(Tensor(a -> *) self, int chunks, int dim=0) -> Tensor(a)[]"""
-
+    # This will create a Sequence of tensors
     neg_1 = op.Constant(value_ints=[-1])
     # Get size of specified dim
     self_shape = op.Shape(self)
@@ -1059,7 +1072,8 @@ def aten_chunk(self: TTensor, chunks: INT64, dim: int = 0) -> TTensor:
     if remainder > 0:  # type: ignore[operator]
         # Append the remainder to the [n, n, n, n, ..., r]
         list_split = op.Concat(list_split, op.Reshape(remainder, neg_1), axis=0)
-    return op.Split(self, list_split, axis=dim)
+
+    return op.SplitToSequence(self, list_split, axis=dim)
 
 
 @torch_op("aten::clamp", trace_only=True)

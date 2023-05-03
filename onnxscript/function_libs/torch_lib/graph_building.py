@@ -74,6 +74,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._concrete_value: Optional[np.ndarray] = None
         self._shape: Optional[Tuple[int | None, ...]] = None
         self._name: Optional[str] = None
+        self._is_complex: bool = False
 
     def __repr__(self):
         return f"TorchScriptTensor('{self._torch_value!r}')"
@@ -136,6 +137,14 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @dtype.setter
     def dtype(self, dtype: torch.dtype):
         self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
+
+    @property
+    def is_complex(self) -> bool:
+        return self._is_complex
+
+    @is_complex.setter
+    def is_complex(self, is_complex: bool):
+        self._is_complex = is_complex
 
     @property
     def onnx_dtype(self):
@@ -458,11 +467,12 @@ class TorchScriptGraph:
         onnx_attributes: Mapping[str, ValidArgumentType],
     ):
         # Compute outputs from the onnx_op op schema
+        n_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
         result = self._add_torchscript_op_call(
             f"onnx::{onnx_op_schema.name}",
             onnx_inputs,
             onnx_attributes,
-            n_outputs=len(onnx_op_schema.outputs),
+            n_outputs=n_outputs,
         )
 
         return result

@@ -201,6 +201,41 @@ def duplicate_opinfo(opinfos: list[opinfo_core.OpInfo], name: str, new_names: tu
     opinfos.extend(duplicated)
 
 
+def duplicate_opinfo_for_prims(
+    opinfos: list[opinfo_core.OpInfo], name: str, prims_name: str | None = None
+):
+    """Duplicate an opinfo in the opinfo database for a prims op.
+
+    The function sets the new OpInfo to use the variation torch.ops.prims.
+    The new OpInfo will have the name "prims_{prims_name}" where `prims_name` is the
+    name of the prims op. If `prims_name` is None, it will be set to "prims_{name}".
+
+    Args:
+        opinfos: The list of opinfo_core.OpInfo to add the new opinfo to.
+        name: The name of the opinfo to duplicate.
+        prims_name: The name of the prims op. If None, it will be set to `name`.
+    """
+    if prims_name is None:
+        prims_name = name
+    # The name of the new OpInfo
+    new_name = f"prims_{prims_name}"
+    all_info_names = {opinfo.name for opinfo in opinfos}
+    for opinfo in opinfos:
+        if opinfo.name == name:
+            if new_name in all_info_names:
+                # NOTE: Avoid duplicating an opinfo that already exists in the database.
+                warnings.warn(
+                    f"OpInfo {new_name} already exists in the database.", stacklevel=1
+                )
+                continue
+            new_opinfo = copy.deepcopy(opinfo)
+            new_opinfo.name = new_name
+            new_opinfo.op = getattr(torch.ops.prims, prims_name)
+            opinfos.append(new_opinfo)
+            return
+    raise RuntimeError(f"OpInfo '{name}' not found in the database.")
+
+
 TORCH_TYPE_TO_ONNX = {
     torch.bool: onnx.TensorProto.BOOL,
     torch.uint8: onnx.TensorProto.UINT8,
@@ -219,6 +254,9 @@ TORCH_TYPE_TO_ONNX = {
 
 def convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, torch.Tensor):
+        if torch.is_complex(input):
+            # from complex to real representation
+            input = torch.view_as_real(input)
         return input.detach().cpu().numpy()
     if isinstance(input, (tuple, list)):
         if len(input) == 0:
@@ -318,6 +356,79 @@ def _format_model_and_input_information(onnx_model, inputs):
         f"Model:\n"
         f"{onnxscript.proto2text(onnx_model)}"
     )
+
+
+TORCH_DTYPE_TO_ONNX_STRING = {
+    torch.bool: "tensor(bool)",
+    torch.uint8: "tensor(uint8)",
+    torch.int8: "tensor(int8)",
+    torch.int16: "tensor(int16)",
+    torch.int32: "tensor(int32)",
+    torch.int64: "tensor(int64)",
+    torch.float16: "tensor(float16)",
+    torch.float32: "tensor(float)",
+    torch.float64: "tensor(double)",
+    torch.complex64: "tensor(complex64)",
+    torch.complex128: "tensor(complex128)",
+    torch.bfloat16: "tensor(bfloat16)",
+}
+
+
+def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -> bool:
+    """Checks if the dtype is compatible with the schema.
+
+    When a dtype is "compatible" with the schema, it means we can use the dtype
+    to create sample inputs by OpInfo to test the ONNX function and expect outputs to match.
+
+    Args:
+        dtype: The torch dtype used to create sample inputs by OpInfo.
+        schema: The ONNX schema of the function.
+
+    Returns:
+        True if the dtype is compatible with the schema.
+    """
+    if not schema.inputs:
+        # If there are no inputs, we can't check compatibility. Assume it is compatible.
+        # e.g. aten_randn has only attributes.
+        return True
+    if schema.inputs[0].name not in {"self", "input"}:
+        # If the name of the first input is not "self" or "input",
+        # it is usually an input that is not of the same type as the output.
+        # We assume support in this case.
+        #
+        # For example, `aten_ones(size: IntType, dtype: int = FLOAT.dtype)`
+        # has the first input as `size`, which is an integer, but it can support
+        # any dtype.
+        return True
+
+    # Otherwise we check the type constraints of the first input.
+    # For example, when dtype=torch.float32, and the op being tested has the schema
+    # ```
+    # OpSchema(
+    #     name='aten_abs',
+    #     domain='pkg.onnxscript.torch_lib',
+    #     since_version=1,
+    #     doc='abs(Tensor self) -> Tensor',
+    #     type_constraints=[OpSchema.TypeConstraintParam(type_param_str='TReal', allowed_type_strs=['tensor(float)', 'tensor(int8)', 'tensor(int16)', 'tensor(int32)', 'tensor(int64)', 'tensor(float16)', 'tensor(double)', 'tensor(bfloat16)'], description='')],
+    #     inputs=[OpSchema.FormalParameter(name='self', type_str='TReal', description='', param_option=<FormalParameterOption.Single: 0>, is_homogeneous=True, min_arity=1, differentiation_category=<DifferentiationCategory.Unknown: 0>)],
+    #     outputs=[OpSchema.FormalParameter(name='return_val', type_str='TReal', description='', param_option=<FormalParameterOption.Single: 0>, is_homogeneous=True, min_arity=1, differentiation_category=<DifferentiationCategory.Unknown: 0>)],
+    #     attributes={}
+    # )
+    # ```
+    # we see the first input type is "TReal", corresponding to the type constraint
+    # with allowed types ['tensor(float)', 'tensor(int8)', 'tensor(int16)',
+    # 'tensor(int32)', 'tensor(int64)', 'tensor(float16)', 'tensor(double)',
+    # 'tensor(bfloat16)'].
+    # Since torch.float32 (tensor(float)) is in the allowed types, we return True.
+
+    first_input_type_name = schema.inputs[0].type_str
+    # Find the type constraint for the first input by matching the parameter name
+    first_input_type_constraint = next(
+        (x for x in schema.type_constraints if x.type_param_str == first_input_type_name), None
+    )
+    assert first_input_type_constraint is not None
+    allowed_type_strs = first_input_type_constraint.allowed_type_strs
+    return TORCH_DTYPE_TO_ONNX_STRING[dtype] in allowed_type_strs
 
 
 def graph_executor(

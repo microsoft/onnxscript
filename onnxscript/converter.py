@@ -135,7 +135,8 @@ class ConverterExpression:
     def is_const(self):
         return self.kind == ConverterExpressionKind.CONST
 
-    def __str__(self):
+    def __str__(self) -> str:
+        assert isinstance(self.name, str), "`name` is not a string. This is likely a bug."
         return self.name
 
 
@@ -777,7 +778,7 @@ class Converter:
         else:
             args = [self.translate_opt_expr(x) for x in node.args]
             attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
-        args = autocast.static_cast_inputs(self, callee.get_schema(), *args)
+        args = autocast.static_cast_inputs(self, callee.op_schema, args)
 
         # In ONNX, there is no way to explicitly specify a None value for an attribute.
         # Instead, the attribute must be omitted from the attribute list.
@@ -786,8 +787,8 @@ class Converter:
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, op, left, right):
-        schema = op.get_schema()
-        return autocast.static_cast_inputs(self, schema, left, right)
+        schema = op.op_schema
+        return autocast.static_cast_inputs(self, schema, (left, right))
 
     def translate_bool_op_expr(self, node: ast.BoolOp) -> ConverterExpression:
         if isinstance(node.op, ast.And):

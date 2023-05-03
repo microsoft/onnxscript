@@ -34,6 +34,7 @@ from typing import Any, Callable
 import numpy as np
 import torch
 from torch.testing._internal import common_methods_invocations
+from torch.testing._internal.opinfo import definitions as opinfo_definitions
 
 import onnxscript
 import onnxscript.evaluator
@@ -50,6 +51,8 @@ from onnxscript.tests.function_libs.torch_lib.ops_test_common import skip, xfail
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 # Append extra op_db into the op database for testing
+OPS_DB.extend(opinfo_definitions.signal.op_db)
+OPS_DB.extend(opinfo_definitions.special.op_db)
 OPS_DB.extend(extra_opinfo.OP_DB)
 
 
@@ -598,9 +601,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "as_strided",
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
-    ),
-    xfail(
-        "chunk", reason="fixme: ORT error", test_class_name="TestOutputConsistencyFullGraph"
     ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
@@ -1179,6 +1179,135 @@ ops_test_common.duplicate_opinfo(
         "var_mean_correction",
     ),
 )
+
+# NOTE: Complex supported functions
+# TODO: Expand this list with trace_only_ops when it is needed
+# Ops to be tested for numerical consistency between onnx and pytorch
+# Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
+COMPLEX_FUNCTION_MAPPING_SCRIPTED: dict[
+    str,
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+    # onnxscript.OnnxFunction
+    # | Callable[..., Any]
+    # | tuple[
+    #     onnxscript.OnnxFunction | Callable[..., Any],
+    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    # ],
+] = {
+    "abs": core_ops.aten_abs_complex,
+}
+
+COMPLEX_TESTED_OPS = frozenset(COMPLEX_FUNCTION_MAPPING_SCRIPTED)
+
+# Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
+PRIMS_OPS_WITH_OP_INFO = (
+    "abs",
+    "acos",
+    "acosh",
+    "add",
+    "amax",
+    "amin",
+    "as_strided",
+    "as_strided_scatter",
+    "asin",
+    "asinh",
+    "atan",
+    "atan2",
+    "atanh",
+    "bitwise_and",
+    "bitwise_not",
+    "bitwise_or",
+    "bitwise_xor",
+    "cat",
+    "ceil",
+    "clone",
+    "conj",
+    "conj_physical",
+    "cos",
+    "cosh",
+    "digamma",
+    "div",
+    "empty",
+    "eq",
+    "erf",
+    "erfc",
+    "exp",
+    "exp2",
+    "expm1",
+    "fill",
+    "floor",
+    "fmax",
+    "fmin",
+    "fmod",
+    "full",
+    "full_like",
+    "gcd",
+    "ge",
+    "gt",
+    "hypot",
+    "igamma",
+    "igammac",
+    "imag",
+    "isfinite",
+    "le",
+    "lgamma",
+    "log",
+    "log10",
+    "log1p",
+    "log2",
+    "lt",
+    "maximum",
+    "minimum",
+    "mul",
+    "ne",
+    "neg",
+    "nextafter",
+    "normal",
+    "pow",
+    "prod",
+    "real",
+    "reciprocal",
+    "remainder",
+    "reshape",
+    "round",
+    "rsqrt",
+    "scalar_tensor",
+    "sign",
+    "signbit",
+    "sin",
+    "sinh",
+    "slice",
+    "sqrt",
+    "squeeze",
+    "sub",
+    "sum",
+    "svd",
+    "tan",
+    "tanh",
+    "transpose",
+    "trunc",
+    "uniform",
+    "var",
+    "where",
+)
+
+for op in PRIMS_OPS_WITH_OP_INFO:
+    # Duplicate opinfo for prim ops. The new names all start with "prims_". E.g. "abs" -> "prims_abs".
+    ops_test_common.duplicate_opinfo_for_prims(OPS_DB, op)
+
+# Duplicate cases where the prims op name is different from the torch op name
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "i0", "bessel_i0")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j0", "bessel_j0")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j1", "bessel_j1")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.erfcx", "erfcx")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i0e", "bessel_i0e")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i1", "bessel_i1")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i1e", "bessel_i1e")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.ndtri", "ndtri")
+ops_test_common.duplicate_opinfo_for_prims(
+    OPS_DB, "special.spherical_bessel_j0", "spherical_bessel_j0"
+)
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.zeta", "zeta")
 
 OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(meta.op_name for meta in SKIP_XFAIL_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
