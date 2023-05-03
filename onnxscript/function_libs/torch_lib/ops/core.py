@@ -5752,6 +5752,7 @@ def aten_std_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, 
     raise NotImplementedError()
 
 
+@torch_op("aten::stft", trace_only=True)
 def aten_stft(
     self: TensorType,
     n_fft: int,
@@ -5764,7 +5765,26 @@ def aten_stft(
 ) -> TensorType:
     """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # NOTE: regarless of the value of return_complex, we always return a real representation.
+
+    # Get STFT sizes
+    frame_step_value = hop_length if hop_length is not None else n_fft // 4
+    frame_step_const = op.Constant(value_ints=frame_step_value)
+    frame_length_const = op.Constant(value_ints=n_fft)
+
+    # Pre-process input if needed
+    signal_shape = op.Shape(self)
+    signal_rank = op.Size(signal_shape)
+    if signal_rank == 1:
+        # Add a batch dimension
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+
+    # Get window and make sure it's the same size as `win_length` or `n_fft`
+    if window is not None:
+        win_length_default = win_length if win_length else n_fft
+
+    result = op.STFT(signal, frame_step, window, frame_length, onesided=onesided)
+    return result
 
 
 @torch_op("aten::sub")
