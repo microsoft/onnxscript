@@ -328,7 +328,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "allclose": core_ops.aten_allclose,
     "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
-    "abs_complex": core_ops.aten_abs_complex,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
@@ -739,11 +738,6 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
-        "abs_complex",
-        matcher=lambda sample: sample.input.dtype == torch.float32,
-        reason="This overload only supports complex dtypes",
-    ),
-    skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
         reason="this Aten overload only support one tensor as input by design",
@@ -1108,8 +1102,6 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     ),
 )
 
-ops_test_common.duplicate_opinfo(OPS_DB, "abs", ("abs_complex",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
@@ -1190,6 +1182,25 @@ ops_test_common.duplicate_opinfo(
         "var_mean_correction",
     ),
 )
+
+# NOTE: Complex supported functions
+# TODO: Expand this list with trace_only_ops when it is needed
+# Ops to be tested for numerical consistency between onnx and pytorch
+# Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
+COMPLEX_FUNCTION_MAPPING_SCRIPTED: dict[
+    str,
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+    # onnxscript.OnnxFunction
+    # | Callable[..., Any]
+    # | tuple[
+    #     onnxscript.OnnxFunction | Callable[..., Any],
+    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    # ],
+] = {
+    "abs": core_ops.aten_abs_complex,
+}
+
+COMPLEX_TESTED_OPS = frozenset(COMPLEX_FUNCTION_MAPPING_SCRIPTED)
 
 # Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
 PRIMS_OPS_WITH_OP_INFO = (

@@ -34,7 +34,9 @@ from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_d
 
 # Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
 # complex64 would be flattened to float32.
-TESTED_DTYPES = (torch.float32, torch.complex64)
+TESTED_DTYPES = (torch.float32,)
+# NOTE: torch.complex32 is experimental in torch
+COMPLEX_TYPES = (torch.complex64,)
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -140,6 +142,15 @@ def run_test_output_match(
     dtype: torch.dtype,
     op: opinfo_core.OpInfo,
     function_executor: Callable,
+    tested_op_mapping: dict[
+        str,
+        onnxscript.OnnxFunction
+        | Callable[..., Any]
+        | tuple[
+            onnxscript.OnnxFunction | Callable[..., Any],
+            Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+        ],
+    ],
 ):
     """Base test method for testing each opset, used by instantiate_device_type_tests.
 
@@ -150,6 +161,7 @@ def run_test_output_match(
         op: The OpInfo instance. instantiate_device_type_tests provides this.
         function_executor: The function executor. This is a function that takes
             a function and its arguments and returns the output of the function.
+        tested_op_mapping: The mapping of op name to the tested op.
     """
     samples = op.sample_inputs(
         device,
@@ -157,7 +169,7 @@ def run_test_output_match(
         requires_grad=False,
     )
 
-    onnx_function_and_wrangler = ops_test_data.OPINFO_FUNCTION_MAPPING[op.name]
+    onnx_function_and_wrangler = tested_op_mapping[op.name]
     # Obtain the input_wrangler that manipulates the OpInfo inputs
     # to match the aten operator signature
     # An example is nn.functional.upsample_nearest2d, which has a different signature
@@ -196,10 +208,7 @@ def run_test_output_match(
                     input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
 
-                if (
-                    isinstance(torch_output, torch.Tensor)
-                    and torch_output.dtype == torch.complex64
-                ):
+                if isinstance(torch_output, torch.Tensor) and torch.is_complex(torch_output):
                     torch_output = torch.view_as_real(torch_output)
 
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
@@ -295,7 +304,41 @@ class TestOutputConsistencyEager(unittest.TestCase):
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
-        run_test_output_match(self, device, dtype, op, ops_test_common.eager_executor)
+        run_test_output_match(
+            self,
+            device,
+            dtype,
+            op,
+            ops_test_common.eager_executor,
+            ops_test_data.OPINFO_FUNCTION_MAPPING,
+        )
+
+    @ops_test_common.add_decorate_info(
+        ops_test_data.OPS_DB,
+        "TestOutputConsistencyEager",
+        "test_output_match_opinfo_",
+        skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
+    )
+    @common_device_type.ops(  # type: ignore[misc]
+        [
+            info
+            for info in ops_test_data.OPS_DB
+            if info.name in ops_test_data.COMPLEX_TESTED_OPS
+        ],
+        allowed_dtypes=COMPLEX_TYPES,
+    )
+    def test_complex_output_match_opinfo_(
+        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+    ):
+        """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
+        run_test_output_match(
+            self,
+            device,
+            dtype,
+            op,
+            ops_test_common.eager_executor,
+            ops_test_data.COMPLEX_FUNCTION_MAPPING_SCRIPTED,
+        )
 
 
 @unittest.skipIf(
@@ -327,7 +370,41 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
         """Base test method for testing each op by running the full ONNX graph."""
-        run_test_output_match(self, device, dtype, op, ops_test_common.graph_executor)
+        run_test_output_match(
+            self,
+            device,
+            dtype,
+            op,
+            ops_test_common.graph_executor,
+            ops_test_data.OPINFO_FUNCTION_MAPPING,
+        )
+
+    @ops_test_common.add_decorate_info(
+        ops_test_data.OPS_DB,
+        "TestOutputConsistencyFullGraph",
+        "test_output_match_opinfo_",
+        skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
+    )
+    @common_device_type.ops(  # type: ignore[misc]
+        [
+            info
+            for info in ops_test_data.OPS_DB
+            if info.name in ops_test_data.COMPLEX_TESTED_OPS
+        ],
+        allowed_dtypes=COMPLEX_TYPES,
+    )
+    def test_complex_output_match_opinfo_(
+        self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
+    ):
+        """Base test method for testing each op by running the full ONNX graph."""
+        run_test_output_match(
+            self,
+            device,
+            dtype,
+            op,
+            ops_test_common.graph_executor,
+            ops_test_data.COMPLEX_FUNCTION_MAPPING_SCRIPTED,
+        )
 
 
 common_device_type.instantiate_device_type_tests(
