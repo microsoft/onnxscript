@@ -328,6 +328,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "allclose": core_ops.aten_allclose,
     "all": core_ops.aten_all,
     "abs": core_ops.aten_abs,
+    "abs_complex": core_ops.aten_abs_complex,
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
@@ -738,6 +739,11 @@ EXPECTED_SKIPS_OR_FAILS = (
 
 SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     skip(
+        "abs_complex",
+        matcher=lambda sample: sample.input.dtype == torch.float32,
+        reason="This overload only supports complex dtypes",
+    ),
+    skip(
         "all",
         matcher=lambda sample: not (len(sample.kwargs) == 0),
         reason="this Aten overload only support one tensor as input by design",
@@ -1101,6 +1107,8 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="this Aten overload only support when correction attribute exists",
     ),
 )
+
+ops_test_common.duplicate_opinfo(OPS_DB, "abs", ("abs_complex",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 

@@ -33,7 +33,8 @@ from onnxscript._internal import version_utils
 from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
 
 # Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
-TESTED_DTYPES = (torch.float32,)
+# complex64 would be flattened to float32.
+TESTED_DTYPES = (torch.float32, torch.complex64)
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
@@ -162,7 +163,10 @@ def run_test_output_match(
     # An example is nn.functional.upsample_nearest2d, which has a different signature
     # than the aten operator upsample_nearest2d
     onnx_function, input_wrangler = _split_function_and_wrangler(onnx_function_and_wrangler)
-    if not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.op_schema):
+    if (
+        not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.op_schema)
+        and dtype != torch.complex64
+    ):
         test_suite.skipTest(
             f"dtype '{dtype}' is not supported by the op '{op.name}'. "
             f"Type constraints: {onnx_function.op_schema.type_constraints}"
@@ -191,6 +195,12 @@ def run_test_output_match(
                 if input_wrangler:
                     input_onnx, kwargs_onnx = input_wrangler(input_onnx, kwargs_onnx)
                 torch_output = op(*inputs, **cpu_sample.kwargs)
+
+                if (
+                    isinstance(torch_output, torch.Tensor)
+                    and torch_output.dtype == torch.complex64
+                ):
+                    torch_output = torch.view_as_real(torch_output)
 
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 if op.name.startswith("split"):

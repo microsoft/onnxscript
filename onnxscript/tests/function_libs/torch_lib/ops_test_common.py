@@ -254,6 +254,9 @@ TORCH_TYPE_TO_ONNX = {
 
 def convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, torch.Tensor):
+        if input.dtype in (torch.complex64, torch.complex32):
+            # from complex to real representation
+            input = torch.view_as_real(input)
         return input.detach().cpu().numpy()
     if isinstance(input, (tuple, list)):
         if len(input) == 0:
