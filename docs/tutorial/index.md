@@ -176,8 +176,9 @@ However, the translator maps indexing using slice-expressions to ONNX's
 operation. The more general case (where `i_j` is an arbitrary tensor) is
 translated using the `Gather` operation.
 
-A limitation of the current implementation is that it does not support the use
-of ellipsis or newaxis in the index.
+Note: The current implementation does not yet support the use of arbitrary
+tensors in the index-expressions. It does not support the use of ellipsis or
+newaxis in the index.
 
 ## Control-Flow
 
