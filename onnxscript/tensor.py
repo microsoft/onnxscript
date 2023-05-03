@@ -11,7 +11,7 @@ import numpy as np
 import onnx.helper
 from onnx import TensorProto
 
-from onnxscript import onnx_opset
+from onnxscript import autocast, onnx_opset
 
 
 class Tensor:
@@ -85,7 +85,6 @@ class Tensor:
             raise ValueError(
                 f"Number of indices {len(index)} is greater than rank {self.rank}"
             )
-        from onnxscript import autocast
 
         # Promote integer indices to tensors of rank 0
         index = [autocast.cast_scalar_to_tensor(x) for x in index]
