@@ -1180,6 +1180,25 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
+# NOTE: Complex supported functions
+# TODO: Expand this list with trace_only_ops when it is needed
+# Ops to be tested for numerical consistency between onnx and pytorch
+# Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
+COMPLEX_FUNCTION_MAPPING_SCRIPTED: dict[
+    str,
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+    # onnxscript.OnnxFunction
+    # | Callable[..., Any]
+    # | tuple[
+    #     onnxscript.OnnxFunction | Callable[..., Any],
+    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    # ],
+] = {
+    "abs": core_ops.aten_abs_complex,
+}
+
+COMPLEX_TESTED_OPS = frozenset(COMPLEX_FUNCTION_MAPPING_SCRIPTED)
+
 # Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
 PRIMS_OPS_WITH_OP_INFO = (
     "abs",
