@@ -2584,7 +2584,7 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-# NOTE: made up aten op to include getitem into registry
+# NOTE: The name is made up for `getitem` to be included in the registry
 @torch_op("aten::getitem")
 def aten_getitem(self: Sequence[TReal], i: INT64) -> TReal:
     return op.SequenceAt(self, i)
