@@ -5766,7 +5766,7 @@ def aten_std_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, 
 
 
 @torch_op("aten::stft", private=True)
-def _add_batch_dimension(self):
+def _add_batch_dimension(self: TensorType):
     signal_shape = op.Shape(self)
     signal_rank = op.Size(signal_shape)
     if signal_rank == 1:
@@ -5776,33 +5776,64 @@ def _add_batch_dimension(self):
 
 
 @torch_op("aten::stft", private=True)
-def _center_window_around_zeros_if_needed(window, n_fft):
+def _center_window_around_zeros_if_needed(window: TensorType, n_fft: int):
     # first dimension
     n_win = op.Gather(op.Shape(window), 0)
     # Center window around zeros if needed (required by ONNX's STFT)
     if n_win < n_fft:
         left = (n_fft - n_win) / 2
-        left = op.Floor(left)
+
         right = n_fft - left - n_win
-        left_zeros = [0] * left
-        left_win = op.Constant(value_ints=left_zeros)
-        right_zeros = [0] * right
-        right_win = op.Constant(value_ints=right_zeros)
+        left = op.Reshape(left, op.Constant(value_ints=[1]))
+        right = op.Reshape(right, op.Constant(value_ints=[1]))
+
+        left_win = op.Expand(op.Constant(value_int=0), left)
+        right_win = op.Expand(op.Constant(value_int=0), right)
+        right_win = op.CastLike(right_win, window)
+        left_win = op.CastLike(left_win, window)
         window = op.Concat(left_win, window, right_win, axis=0)
+
     return window
 
 
 @torch_op("aten::stft", private=True)
-def _normalization(signal, result, n_fft):
+def _create_window_from_win_length(win_length: int, n_fft: int):
+    left = (n_fft - win_length) / 2
+
+    right = n_fft - left - win_length
+    left = op.Reshape(left, op.Constant(value_ints=[1]))
+    right = op.Reshape(right, op.Constant(value_ints=[1]))
+    win_length = op.Reshape(win_length, op.Constant(value_ints=[1]))
+
+    left_win = op.Expand(op.Constant(value_int=0), left)
+    right_win = op.Expand(op.Constant(value_int=0), right)
+    window_list = op.Expand(op.Constant(value_int=1), win_length)
+    return op.Concat(left_win, window_list, right_win, axis=0)
+
+
+@torch_op("aten::stft", private=True)
+def _create_window_from_n_fft(n_fft: int):
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    window = op.Expand(op.Constant(value_int=1), n_fft_tensor)
+    return window
+
+
+@torch_op("aten::stft", private=True)
+def _normalization(signal: TensorType, result: TensorType, n_fft: int):
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
-    result = op.Div(result, sqrt_nfft)
+    result = result / sqrt_nfft
     return result
 
 
 @torch_op("aten::stft", private=True)
 def _aten_stft_onnx(
-    signal, frame_step_const, window, frame_length_const, onesided, signal_rank
+    signal: TensorType,
+    frame_step_const: TensorType,
+    window: TensorType,
+    frame_length_const: TensorType,
+    signal_rank: TensorType,
+    onesided: int,
 ):
     window = op.CastLike(window, signal)
     result = op.STFT(signal, frame_step_const, window, frame_length_const, onesided=onesided)
@@ -5830,11 +5861,11 @@ def aten_stft(
 
     # Get STFT sizes
     if hop_length is None:
-        frame_step_value = n_fft // 4
-    else:
-        frame_step_value = hop_length
-    frame_step_const = op.Constant(value_int=frame_step_value)
-    frame_length_const = op.Constant(value_int=n_fft)
+        # core dump
+        # hop_leagth = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
+        hop_length = n_fft // 4
+    frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
+    frame_length_const = op.Reshape(n_fft, op.Constant(value_ints=[1]))
 
     # Pre-process input if needed
     self, signal_rank = _add_batch_dimension(self)
@@ -5842,18 +5873,18 @@ def aten_stft(
     # Get window and make sure it's the same size as `win_length` or `n_fft`
     if window is not None:
         window = _center_window_around_zeros_if_needed(window, n_fft)
+    elif win_length is not None:
+        window = _create_window_from_win_length(win_length, n_fft)
     else:
-        if win_length is not None:
-            left = (n_fft - win_length) // 2
-            right = n_fft - left - win_length
-            window_list = [0] * left + [1] * win_length + [0] * right
-            window = op.Constant(value_ints=window_list)
-        else:
-            nfft_ones = [1] * n_fft
-            window = op.Constant(value_ints=nfft_ones)
+        window = _create_window_from_n_fft(n_fft)
 
+    if onesided is None or onesided:
+        onesided = 1
+    else:
+        onesided = 0
+    # remove batch dimension included
     result = _aten_stft_onnx(
-        self, frame_step_const, window, frame_length_const, onesided, signal_rank
+        self, frame_step_const, window, frame_length_const, signal_rank, onesided
     )
 
     # Normalize, if needed

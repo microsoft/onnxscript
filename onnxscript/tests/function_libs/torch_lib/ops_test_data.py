@@ -1068,8 +1068,8 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     ),
     skip(
         "stft",
-        reason="ONNX STFT does not support complex results",
-        matcher=lambda sample: sample.kwargs.get("return_complex") is True,
+        matcher=lambda sample: sample.kwargs.get("center") is not None,
+        reason="This overloads doesn't support center padding.",
     ),
     skip(
         "tile",
