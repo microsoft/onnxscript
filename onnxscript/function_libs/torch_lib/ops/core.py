@@ -2584,6 +2584,12 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+# NOTE: The name is made up for `getitem` to be included in the registry
+@torch_op("aten::getitem")
+def aten_getitem(self: Sequence[TReal], i: INT64) -> TReal:
+    return op.SequenceAt(self, i)
+
+
 @torch_op("aten::greater")
 def aten_greater(self: TReal, other: TReal) -> BOOL:
     """greater.Tensor(Tensor self, Tensor other) -> Tensor"""
