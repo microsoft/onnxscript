@@ -2587,9 +2587,6 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
 # NOTE: made up aten op to include getitem into registry
 @torch_op("aten::getitem")
 def aten_getitem(self: Sequence[TReal], i: INT64) -> TReal:
-    # TODO(justinchuby): Support
-    # i = opset18.Unsqueeze(i, opset18.Constant(value_ints=[0]))
-    # return opset18.Gather(self, i, axis=0)
     return op.SequenceAt(self, i)
 
 
