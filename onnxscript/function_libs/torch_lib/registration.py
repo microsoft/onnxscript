@@ -88,7 +88,7 @@ def torch_op(
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
             be true for all functions with names starting with "_".
-        complex: Whether or not the function supports complex.
+        complex: Whether or not the function takes in complex inputs.
     """
     if registry is None:
         registry = default_registry
