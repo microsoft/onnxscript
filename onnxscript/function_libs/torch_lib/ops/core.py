@@ -44,7 +44,7 @@ def aten_abs(self: TReal) -> TReal:
     return op.Abs(self)
 
 
-@torch_op("aten::abs", overload=True)
+@torch_op("aten::abs", complex=True)
 def aten_abs_complex(self: TReal) -> TReal:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
