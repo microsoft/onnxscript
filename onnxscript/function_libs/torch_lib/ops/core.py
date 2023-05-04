@@ -5813,7 +5813,7 @@ def _aten_stft_onnx(
     return result
 
 
-@torch_op("aten::stft", trace_only=True, complex=True)
+@torch_op("aten::stft", trace_only=True)
 def aten_stft(
     self: TensorType,
     n_fft: int,
