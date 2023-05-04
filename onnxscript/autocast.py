@@ -8,7 +8,7 @@ from onnx.defs import OpSchema
 from onnxscript import tensor, values
 
 
-def cast_scalar_to_tensor(x, dtype: Optional[np.dtype] = None):
+def cast_scalar_to_tensor(x, dtype=None):
     """Promotes scalar values (bool, int, float) into tensors of rank zero.
     The optional argument dtype specifies the desired np.dtype of the tensor.
     Other types of inputs are returned as is.

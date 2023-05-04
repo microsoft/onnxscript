@@ -142,9 +142,9 @@ class Tensor:
             indices = np.array(sliced_indices, dtype=np.int64).T
             starts = Tensor(indices[0])
             ends = Tensor(indices[1])
-            axis = Tensor(indices[2])
+            axes = Tensor(indices[2])
             steps = Tensor(indices[3])
-            result = op.Slice(self, starts, ends, axis, steps)
+            result = op.Slice(self, starts, ends, axes, steps)
             if to_squeeze:
                 result = Tensor(np.squeeze(result.value, axis=tuple(to_squeeze)))
         else:
