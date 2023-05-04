@@ -8,10 +8,10 @@ from onnxscript import tensor
 
 
 class TestTensor(unittest.TestCase):
-    def _check_values_and_shape(self, tensor, elements, shape):
-        values = list(tensor.value.flatten())
+    def _check_values_and_shape(self, result, elements, shape):
+        values = list(result.value.flatten())
         self.assertEqual(values, elements)
-        self.assertEqual(tensor.shape, shape)
+        self.assertEqual(result.shape, shape)
 
     def test_scalar_tensor_supports_python_range(self):
         x = tensor.Tensor(np.array(3))
