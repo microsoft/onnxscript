@@ -5752,7 +5752,55 @@ def aten_std_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, 
     raise NotImplementedError()
 
 
-@torch_op("aten::stft", trace_only=True)
+@torch_op("aten::stft", private=True)
+def _add_batch_dimension(self):
+    signal_shape = op.Shape(self)
+    signal_rank = op.Size(signal_shape)
+    if signal_rank == 1:
+        # Add a batch dimension
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    return self, signal_rank
+
+
+@torch_op("aten::stft", private=True)
+def _center_window_around_zeros_if_needed(window, n_fft):
+    # first dimension
+    n_win = op.Gather(op.Shape(window), 0)
+    # Center window around zeros if needed (required by ONNX's STFT)
+    if n_win < n_fft:
+        left = (n_fft - n_win) / 2
+        left = op.Floor(left)
+        right = n_fft - left - n_win
+        left_zeros = [0] * left
+        left_win = op.Constant(value_ints=left_zeros)
+        right_zeros = [0] * right
+        right_win = op.Constant(value_ints=right_zeros)
+        window = op.Concat(left_win, window, right_win, axis=0)
+    return window
+
+
+@torch_op("aten::stft", private=True)
+def _normalization(signal, result, n_fft):
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
+    result = op.Div(result, sqrt_nfft)
+    return result
+
+
+@torch_op("aten::stft", private=True)
+def _aten_stft_onnx(
+    signal, frame_step_const, window, frame_length_const, onesided, signal_rank
+):
+    window = op.CastLike(window, signal)
+    result = op.STFT(signal, frame_step_const, window, frame_length_const, onesided=onesided)
+    result = op.Transpose(result, perm=[0, 2, 1, 3])
+    # Remove batch dimension, if needed
+    if signal_rank == 1:
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+    return result
+
+
+@torch_op("aten::stft", trace_only=True, complex=True)
 def aten_stft(
     self: TensorType,
     n_fft: int,
@@ -5761,29 +5809,44 @@ def aten_stft(
     window: Optional[TensorType] = None,
     normalized: bool = False,
     onesided: Optional[bool] = None,
-    return_complex: Optional[bool] = None,
+    return_complex: Optional[bool] = None,  # pylint: disable=unused-argument
 ) -> TensorType:
     """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
 
     # NOTE: regarless of the value of return_complex, we always return a real representation.
 
     # Get STFT sizes
-    frame_step_value = hop_length if hop_length is not None else n_fft // 4
-    frame_step_const = op.Constant(value_ints=frame_step_value)
-    frame_length_const = op.Constant(value_ints=n_fft)
+    if hop_length is None:
+        frame_step_value = n_fft // 4
+    else:
+        frame_step_value = hop_length
+    frame_step_const = op.Constant(value_int=frame_step_value)
+    frame_length_const = op.Constant(value_int=n_fft)
 
     # Pre-process input if needed
-    signal_shape = op.Shape(self)
-    signal_rank = op.Size(signal_shape)
-    if signal_rank == 1:
-        # Add a batch dimension
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    self, signal_rank = _add_batch_dimension(self)
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
     if window is not None:
-        win_length_default = win_length if win_length else n_fft
+        window = _center_window_around_zeros_if_needed(window, n_fft)
+    else:
+        if win_length is not None:
+            left = (n_fft - win_length) // 2
+            right = n_fft - left - win_length
+            window_list = [0] * left + [1] * win_length + [0] * right
+            window = op.Constant(value_ints=window_list)
+        else:
+            nfft_ones = [1] * n_fft
+            window = op.Constant(value_ints=nfft_ones)
 
-    result = op.STFT(signal, frame_step, window, frame_length, onesided=onesided)
+    result = _aten_stft_onnx(
+        self, frame_step_const, window, frame_length_const, onesided, signal_rank
+    )
+
+    # Normalize, if needed
+    if normalized:
+        result = _normalization(self, result, n_fft)
+
     return result
 
 

@@ -16,6 +16,7 @@ class OverloadedFunction:
         default: Default function.
         overloads: Overloads.
         privates: Private functions not exposed to users.
+        complex: Complex supported functions.
     """
 
     def __init__(self, name: str):
@@ -23,6 +24,7 @@ class OverloadedFunction:
         self.default: Optional[Any] = None
         self.overloads: list[Any] = []
         self.privates: list[Any] = []
+        self.complex: list[Any] = []
 
 
 class Registry:
@@ -32,7 +34,13 @@ class Registry:
         self._registry: dict[str, OverloadedFunction] = {}
 
     def register(
-        self, func: Any, name: str, *, overload: bool = False, private: bool = False
+        self,
+        func: Any,
+        name: str,
+        *,
+        overload: bool = False,
+        private: bool = False,
+        complex: bool = False,
     ) -> None:
         """Register a function."""
 
@@ -40,6 +48,8 @@ class Registry:
             self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
         elif private:
             self._registry.setdefault(name, OverloadedFunction(name)).privates.append(func)
+        elif complex:
+            self._registry.setdefault(name, OverloadedFunction(name)).complex.append(func)
         else:
             self._registry.setdefault(name, OverloadedFunction(name)).default = func
 
@@ -67,6 +77,7 @@ def torch_op(
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     private: bool = False,
+    complex: bool = False,
 ) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
@@ -77,6 +88,7 @@ def torch_op(
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
             be true for all functions with names starting with "_".
+        complex: Whether or not the function supports complex.
     """
     if registry is None:
         registry = default_registry
@@ -95,7 +107,9 @@ def torch_op(
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        registry.register(processed_func, name, overload=overload, private=private)
+        registry.register(
+            processed_func, name, overload=overload, private=private, complex=complex
+        )
         return processed_func
 
     return wrapper

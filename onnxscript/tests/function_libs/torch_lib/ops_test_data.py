@@ -562,6 +562,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
+    "stft": core_ops.aten_stft,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
     "var_mean": core_ops.aten_var_mean,
@@ -1064,6 +1065,11 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         "squeeze_dim",
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
+    ),
+    skip(
+        "stft",
+        reason="ONNX STFT does not support complex results",
+        matcher=lambda sample: sample.kwargs.get("return_complex") is True,
     ),
     skip(
         "tile",
