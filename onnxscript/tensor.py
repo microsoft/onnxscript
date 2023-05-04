@@ -100,13 +100,18 @@ class Tensor:
                     continue
                 if s.step is None or s.step > 0:
                     sliced_indices.append(
-                        [s.start or 0, s.stop or shape[axis_], axis_, s.step or 1]
+                        [
+                            s.start or 0,
+                            s.stop if s.stop is not None else shape[axis_],
+                            axis_,
+                            s.step or 1,
+                        ]
                     )
                 else:
                     sliced_indices.append(
                         [
-                            s.start or (shape[axis_] - 1),
-                            s.stop or -(shape[axis_] + 1),
+                            s.start if s.start is not None else (shape[axis_] - 1),
+                            s.stop if s.stop is not None else -(shape[axis_] + 1),
                             axis_,
                             s.step,
                         ]
