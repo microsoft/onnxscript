@@ -8,6 +8,25 @@ from onnx.defs import OpSchema
 from onnxscript import tensor, values
 
 
+def cast_scalar_to_tensor(x, dtype=None):
+    """Promotes scalar values (bool, int, float) into tensors of rank zero.
+    The optional argument dtype specifies the desired np.dtype of the tensor.
+    Other types of inputs are returned as is.
+    """
+    if isinstance(x, (bool, int, float)):
+        # Scalar values are promoted to tensors of a type chosen as below:
+        if dtype is None:
+            if isinstance(x, bool):
+                dtype = np.bool_
+            elif isinstance(x, int):
+                dtype = np.int64
+            else:
+                assert isinstance(x, float)
+                dtype = np.float32
+        return tensor.Tensor(np.array(x, dtype=dtype))
+    return x
+
+
 def cast_inputs(
     get_type_info: Callable[[Any], Any],
     cast: Callable[[Any, Any], Any],
@@ -68,22 +87,7 @@ def dynamic_cast_inputs(op_schema: OpSchema, args):
     def get_type_info(x):
         return x.dtype if isinstance(x, tensor.Tensor) else None
 
-    def cast(x, typeinfo) -> tensor.Tensor:
-        if isinstance(x, (bool, int, float)):
-            # Scalar values are promoted to tensors of a type chosen as below:
-            if typeinfo is not None:
-                dtype = typeinfo
-            elif isinstance(x, bool):
-                dtype = np.bool_
-            elif isinstance(x, int):
-                dtype = np.int64
-            else:
-                assert isinstance(x, float)
-                dtype = np.float32
-            return tensor.Tensor(np.array(x, dtype=dtype))
-        return x
-
-    return cast_inputs(get_type_info, cast, op_schema, args)
+    return cast_inputs(get_type_info, cast_scalar_to_tensor, op_schema, args)
 
 
 def static_cast_inputs(converter, op_schema: Optional[OpSchema], args) -> tuple[str, ...]:
