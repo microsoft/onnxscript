@@ -3348,7 +3348,7 @@ def aten_linspace(start: float, end: float, steps: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("log")
+@torch_op("aten::log")
 def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """log(Tensor self) -> Tensor"""
 
