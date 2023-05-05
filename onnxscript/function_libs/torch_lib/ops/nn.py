@@ -1126,7 +1126,7 @@ def aten_nll_loss(
     return result
 
 
-@torch_op("aten::nll_loss", overload=True)
+@torch_op("aten::nll_loss")
 def aten_nll_loss_weight(
     self: TFloat,
     target: INT64,
@@ -1548,7 +1548,7 @@ def aten_scaled_dot_product_attention(
     )
 
 
-@torch_op("aten::scaled_dot_product_attention", trace_only=True, overload=True)
+@torch_op("aten::scaled_dot_product_attention", trace_only=True)
 def aten_scaled_dot_product_attention_bool_mask(
     query: TFloat,
     key: TFloat,

@@ -13,15 +13,13 @@ class OverloadedFunction:
 
     Attributes:
         name: Name of the op. E.g. "aten::add".
-        default: Default function.
-        overloads: Overloads.
+        overloads: Overloads function.
         privates: Private functions not exposed to users.
         complex: Complex supported functions.
     """
 
     def __init__(self, name: str):
         self.name = name
-        self.default: Optional[Any] = None
         self.overloads: list[Any] = []
         self.privates: list[Any] = []
         self.complex: list[Any] = []
@@ -33,25 +31,21 @@ class Registry:
     def __init__(self):
         self._registry: dict[str, OverloadedFunction] = {}
 
-    def register(
-        self,
+    def register(self,
         func: Any,
         name: str,
         *,
-        overload: bool = False,
+       
         private: bool = False,
-        complex: bool = False,
-    ) -> None:
+        complex: bool = False,) -> None:
         """Register a function."""
 
-        if overload:
-            self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
-        elif private:
+        if private:
             self._registry.setdefault(name, OverloadedFunction(name)).privates.append(func)
         elif complex:
             self._registry.setdefault(name, OverloadedFunction(name)).complex.append(func)
         else:
-            self._registry.setdefault(name, OverloadedFunction(name)).default = func
+            self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
 
     def __getitem__(self, name):
         return self._registry[name]
@@ -73,7 +67,6 @@ default_registry = Registry()
 def torch_op(
     name,
     *,
-    overload: bool = False,
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     private: bool = False,
@@ -83,7 +76,6 @@ def torch_op(
 
     Args:
         name: ATen name of the function. E.g. "aten::add".
-        overload: Whether the function is an overload (not default).
         registry: Registry to register the function to. If None, the default registry is used.
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
@@ -108,7 +100,7 @@ def torch_op(
 
         assert registry is not None
         registry.register(
-            processed_func, name, overload=overload, private=private, complex=complex
+            processed_func, name, private=private, complex=complex
         )
         return processed_func
 

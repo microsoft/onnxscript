@@ -205,9 +205,9 @@ def aten_all(self: TTensor) -> BOOL:
     return result
 
 
-@torch_op("aten::all", overload=True)
+@torch_op("aten::all.dim")
 def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
-    """all(Tensor self) -> Tensor"""
+    """all.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:
         result = op.Cast(self, to=BOOL.dtype)
@@ -305,9 +305,9 @@ def aten_any(
     return result
 
 
-@torch_op("aten::any", overload=True)
+@torch_op("aten::any.dim")
 def aten_any_dim(self: TTensor, dim: int, keepdim: bool = True) -> BOOL:
-    """any(Tensor self) -> Tensor"""
+    """any.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
@@ -364,7 +364,7 @@ def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1)
     return result
 
 
-@torch_op("aten::arange", overload=True, trace_only=True)
+@torch_op("aten::arange.start", trace_only=True)
 def aten_arange_start(
     start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, dtype: int = -1
 ) -> TensorType:
@@ -394,7 +394,7 @@ def aten_arange_start(
     return result
 
 
-@torch_op("aten::arange", overload=True, trace_only=True)
+@torch_op("aten::arange.start_step", trace_only=True)
 def aten_arange_start_step(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
@@ -478,7 +478,7 @@ def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -
     return aten_argmax_dim(self, dim=dim, keepdim=keepdim)
 
 
-@torch_op("aten::argmax", overload=True)
+@torch_op("aten::argmax")
 def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -503,7 +503,7 @@ def aten_argmin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -
     return aten_argmin_dim(self, dim=dim, keepdim=keepdim)
 
 
-@torch_op("aten::argmin", overload=True)
+@torch_op("aten::argmin")
 def aten_argmin_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -888,7 +888,7 @@ def aten_bitwise_not(self: TInt) -> TInt:
     return op.BitwiseNot(self)
 
 
-@torch_op("aten::bitwise_not", overload=True)
+@torch_op("aten::bitwise_not")
 def aten_bitwise_not_bool(self: BOOL) -> BOOL:
     """bitwise_not(Tensor self) -> Tensor"""
     return op.Not(self)
@@ -2584,6 +2584,12 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+# NOTE: The name is made up for `getitem` to be included in the registry
+@torch_op("aten::getitem")
+def aten_getitem(self: Sequence[TReal], i: INT64) -> TReal:
+    return op.SequenceAt(self, i)
+
+
 @torch_op("aten::greater")
 def aten_greater(self: TReal, other: TReal) -> BOOL:
     """greater.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -2877,7 +2883,7 @@ def aten_index_put(
     return result
 
 
-@torch_op("aten::index_put_bool", overload=True)
+@torch_op("aten::index_put")
 def aten_index_put_bool(
     self: TReal,
     indices: Sequence[BOOL],
@@ -3703,8 +3709,9 @@ def aten_min(self: TReal) -> TReal:
     return op.ReduceMin(self, keepdims=0)
 
 
-@torch_op("aten::min", overload=True)
+@torch_op("aten::min.dim")
 def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
+    """min.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
     if op.Size(op.Shape(self)) == 0:
         result = self
         indices = op.Constant(value_int=0)
@@ -3716,8 +3723,9 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op("aten::min", overload=True)
+@torch_op("aten::min.other")
 def aten_min_other(self: TReal, other: TReal) -> TReal:
+    """min.other(Tensor self, Tensor other) -> Tensor"""
     return op.Min(self, other)
 
 
@@ -4073,7 +4081,7 @@ def aten_mul(self: TReal, other: TReal) -> TReal:
     return op.Mul(self, other)
 
 
-@torch_op("aten::mul", overload=True)
+@torch_op("aten::mul")
 def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
 
@@ -4511,7 +4519,7 @@ def aten_new_empty(self: TTensor, size: INT64) -> TTensor:
     return op.CastLike(result, self)
 
 
-@torch_op("aten::new_empty", overload=True)
+@torch_op("aten::new_empty")
 def aten_new_empty_dtype(
     self: TTensor,  # pylint: disable=unused-argument
     size: INT64,
@@ -4537,7 +4545,7 @@ def aten_new_empty_strided(
     return op.CastLike(zero, self)
 
 
-@torch_op("aten::new_empty_strided", overload=True)
+@torch_op("aten::new_empty_strided")
 def aten_new_empty_strided_dtype(
     self: TTensor,  # pylint: disable=unused-argument
     size: INT64,
@@ -4559,7 +4567,7 @@ def aten_new_full(self: TTensor, size: INT64, fill_value: TTensor) -> TTensor:
     return op.Expand(fill_value, size)
 
 
-@torch_op("aten::new_full", overload=True)
+@torch_op("aten::new_full")
 def aten_new_full_dtype(
     self: TTensor,  # pylint: disable=unused-argument
     size: INT64,
@@ -4581,7 +4589,7 @@ def aten_new_ones(self: TReal, size: INT64) -> TReal:  # pylint: disable=unused-
     return op.CastLike(result, self)
 
 
-@torch_op("aten::new_ones", overload=True)
+@torch_op("aten::new_ones")
 def aten_new_ones_dtype(
     self: TReal,  # pylint: disable=unused-argument
     size: INT64,
@@ -4600,7 +4608,7 @@ def aten_new_zeros(self: TReal, size: INT64) -> TReal:
     return op.CastLike(result, self)
 
 
-@torch_op("aten::new_zeros", overload=True)
+@torch_op("aten::new_zeros")
 def aten_new_zeros_dtype(
     self: TReal,  # pylint: disable=unused-argument
     size: INT64,
@@ -5169,7 +5177,7 @@ def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrB
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
-@torch_op("aten::remainder", overload=True)
+@torch_op("aten::remainder")
 def aten_remainder_int(self: TInt, other: TInt) -> TInt:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -5403,7 +5411,7 @@ def aten_scatter_reduce(
     return _aten_scatter_reduce_onnx(self, index, src, dim, onnx_reduce)
 
 
-@torch_op("aten::scatter_reduce", overload=True)
+@torch_op("aten::scatter_reduce", private=True)
 def _aten_scatter_reduce_onnx(
     self: TReal,
     index: TInt,
@@ -5719,7 +5727,7 @@ def aten_squeeze(self: TTensor) -> TTensor:
     return op.Squeeze(self)
 
 
-@torch_op("aten::squeeze", overload=True)
+@torch_op("aten::squeeze.dim")
 def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
     result = self
     if op.Size(op.Shape(self)) > 0:  # type: ignore[operator]
@@ -6448,7 +6456,7 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
     return _aten_var_mean_onnx(self, correction=float(unbiased), keepdim=False)
 
 
-@torch_op("aten::var_mean", overload=True, trace_only=True)
+@torch_op("aten::var_mean.dim", trace_only=True)
 def aten_var_mean_dim(
     self: TReal, dim: Optional[int], unbiased: bool = True, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
@@ -6465,7 +6473,7 @@ def aten_var_mean_dim(
     )
 
 
-@torch_op("aten::var_mean", overload=True, trace_only=True)
+@torch_op("aten::var_mean.correction", trace_only=True)
 def aten_var_mean_correction(
     self: TReal,
     dim: Optional[int] = None,
@@ -6508,7 +6516,7 @@ def _aten_var_mean_onnx(
     return var, mean
 
 
-@torch_op("aten::var_mean", private=True)
+@torch_op("aten::var_mean.dim", private=True)
 def _aten_var_mean_dim_onnx(
     self: TReal, dim: INT64, correction: float, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
