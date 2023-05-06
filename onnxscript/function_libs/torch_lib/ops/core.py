@@ -2586,7 +2586,7 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
 
 # NOTE: The name is made up for `getitem` to be included in the registry
 @torch_op("aten::getitem")
-def aten_getitem(self: Sequence[TReal], i: INT64) -> TReal:
+def aten_getitem(self: Sequence[TTensor], i: INT64) -> TTensor:
     return op.SequenceAt(self, i)
 
 
