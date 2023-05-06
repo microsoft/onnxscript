@@ -75,6 +75,8 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._shape: Optional[Tuple[int | None, ...]] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
+        # TODO(titaiwang): sequence type support
+        self._onnx_type_string: Optional[str] = None
 
     def __repr__(self):
         return f"TorchScriptTensor('{self._torch_value!r}')"
@@ -130,9 +132,12 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @property
     def dtype(self):
         # TODO: Return numpy dtype
-        return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
+        torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
-        ).dtype()
+        )
+        if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
+            raise ValueError(f"{self.name} has undefined dtype!")
+        return torch_dtype.dtype()
 
     @dtype.setter
     def dtype(self, dtype: torch.dtype):
@@ -151,6 +156,14 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, _type_utils.JitScalarType.UNDEFINED
         ).onnx_type()
+
+    @property
+    def onnx_type_string(self):
+        return self._onnx_type_string
+
+    @onnx_type_string.setter
+    def onnx_type_string(self, onnx_type_string: str):
+        self._onnx_type_string = onnx_type_string
 
     def symbolic_value(self) -> torch.Value:
         """The symbolic Value in torch.Graph."""
