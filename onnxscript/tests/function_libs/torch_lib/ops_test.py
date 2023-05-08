@@ -34,9 +34,10 @@ from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_d
 
 # Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
 # complex64 would be flattened to float32.
-TESTED_DTYPES = (torch.float32,)
+TESTED_DTYPES = (torch.float32, torch.float16)
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
+
 
 
 def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
