@@ -40,13 +40,6 @@ class Registry:
     def __getitem__(self, name):
         return self._registry[name]
 
-    def get_functions(self, name: str):
-        return self._registry.get(name, None)
-
-    def is_registered(self, name: str):
-        overloads = self.get_functions(name)
-        return overloads is not None
-
     def __contains__(self, name):
         return name in self._registry
 
@@ -55,6 +48,9 @@ class Registry:
 
     def __repr__(self):
         return repr(self._registry)
+
+    def items(self):
+        yield from self._registry.items()
 
 
 # Default registry

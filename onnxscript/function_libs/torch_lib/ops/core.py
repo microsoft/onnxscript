@@ -38,14 +38,14 @@ _MATH_PI = math.pi
 
 
 @torch_op("aten::abs")
-def aten_abs(self: TReal) -> TReal:
+def aten_abs(self: TrealOrUInt8) -> TrealOrUInt8:
     """abs(Tensor self) -> Tensor"""
 
     return op.Abs(self)
 
 
 @torch_op("aten::abs")
-def aten_abs_complex(self: TReal) -> TReal:
+def aten_abs_complex(self: TrealOrUInt8) -> TrealOrUInt8:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
     self_real = op.Gather(self, 0, axis=-1)
@@ -469,7 +469,9 @@ def aten_arctanh(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::argmax", trace_only=True)
-def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+def aten_argmax(
+    self: TrealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
+) -> TrealOrUInt8:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     if dim is None:  # TODO: use OptionalHasElement(dim)
@@ -494,7 +496,9 @@ def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
 
 
 @torch_op("aten::argmin", trace_only=True)
-def aten_argmin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+def aten_argmin(
+    self: TrealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
+) -> TrealOrUInt8:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     if dim is None:  # TODO: use OptionalHasElement(dim)
