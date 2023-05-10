@@ -250,7 +250,7 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 
 
 @torch_op("aten::amax")
-def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_amax(self: TrealOrUInt8, dim: INT64, keepdim: bool = False) -> TrealOrUInt8:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMax reduces all dimensions when dim is empty
@@ -258,7 +258,7 @@ def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
 
 
 @torch_op("aten::amin")
-def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_amin(self: TrealOrUInt8, dim: INT64, keepdim: bool = False) -> TrealOrUInt8:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMin reduces all dimensions when dim is empty
@@ -2462,7 +2462,7 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::fmod")
-def aten_fmod(self: TReal, other: TReal) -> TReal:
+def aten_fmod(self: TrealOrUInt8, other: TrealOrUInt8) -> TrealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Mod(self, other, fmod=1)
