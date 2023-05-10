@@ -75,10 +75,6 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._shape: Optional[Tuple[int | None, ...]] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
-        # NOTE(titaiwang): PyTorch doesn't support ONNX dtype: seq(tensor),
-        # so we use string format type annotation to enable dtype, but it's
-        # not supported in torchscript.
-        self._sequence_dtype_str: Optional[set] = None
 
     def __repr__(self):
         return f"TorchScriptTensor('{self._torch_value!r}')"
@@ -132,23 +128,16 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._torch_value.setType(self._torch_value.type().with_sizes(list(shape)))
 
     @property
-    def dtype(self):
+    def dtype(self) -> torch.dtype | None:
         # TODO: Return numpy dtype
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
-            self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
+            self._torch_value, default=None
         )
-        if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
-            if self._sequence_dtype_str is not None:
-                return self._sequence_dtype_str
-            raise ValueError(f"{self.name} has undefined dtype!")
         return torch_dtype.dtype()
 
     @dtype.setter
-    def dtype(self, dtype: torch.dtype | set[str]):
-        if isinstance(dtype, set):
-            self._sequence_dtype_str = dtype
-        else:
-            self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
+    def dtype(self, dtype: torch.dtype):
+        self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
 
     @property
     def is_complex(self) -> bool:
