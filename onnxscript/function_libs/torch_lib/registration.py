@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import FunctionType
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Generator, Optional
 
 import onnxscript
 
@@ -49,7 +49,7 @@ class Registry:
     def __repr__(self):
         return repr(self._registry)
 
-    def items(self):
+    def items(self) -> Generator[tuple[str, OverloadedFunction], None, None]:
         yield from self._registry.items()
 
 
