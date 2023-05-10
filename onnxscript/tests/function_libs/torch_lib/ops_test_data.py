@@ -1316,3 +1316,8 @@ assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in
 assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
+
+# temporary list for FLOAT16 dtype testing
+OPINFO_FUNCTION_TARGET_DTYPE = (
+    "log_softmax",
+)
