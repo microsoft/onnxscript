@@ -348,10 +348,6 @@ class TestOutputConsistencyEager(unittest.TestCase):
     def test_complex_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
-        from ops_test_data import OPINFO_FUNCTION_TARGET_DTYPE
-        if op.name not in OPINFO_FUNCTION_TARGET_DTYPE:
-            return
-
         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
         run_test_output_match(
             self,
