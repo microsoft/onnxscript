@@ -44,7 +44,7 @@ def aten_abs(self: TrealOrUInt8) -> TrealOrUInt8:
     return op.Abs(self)
 
 
-@torch_op("aten::abs")
+@torch_op("aten::abs", complex=True)
 def aten_abs_complex(self: TrealOrUInt8) -> TrealOrUInt8:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
@@ -477,11 +477,11 @@ def aten_argmax(
     if dim is None:  # TODO: use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    return aten_argmax_dim(self, dim=dim, keepdim=keepdim)
+    return _aten_argmax_dim(self, dim=dim, keepdim=keepdim)
 
 
-@torch_op("aten::argmax")
-def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+@torch_op("aten::argmax", private=True)
+def _aten_argmax_dim(self: TrealOrUInt8, dim: int, keepdim: bool = False) -> TrealOrUInt8:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -504,11 +504,11 @@ def aten_argmin(
     if dim is None:  # TODO: use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    return aten_argmin_dim(self, dim=dim, keepdim=keepdim)
+    return _aten_argmin_dim(self, dim=dim, keepdim=keepdim)
 
 
-@torch_op("aten::argmin")
-def aten_argmin_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+@torch_op("aten::argmin", private=True)
+def _aten_argmin_dim(self: TrealOrUInt8, dim: int, keepdim: bool = False) -> TrealOrUInt8:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
