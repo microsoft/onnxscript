@@ -34,7 +34,7 @@ from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_d
 
 # Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
 # complex64 would be flattened to float32.
-TESTED_DTYPES = (torch.float16,)
+TESTED_DTYPES = (torch.float32, torch.float16,)
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
 
@@ -71,18 +71,26 @@ def _split_function_and_wrangler(
     return onnx_function_and_wrangler, None
 
 
-def _get_rtol_atol_by_dtype(dtype):
-    # according to https://pytorch.org/docs/stable/testing.html
-    table = {
-        # Relax atol and rtol for float32 based on empirical results
-        # The current most relaxed values are for aten::matmul
-        torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
-        torch.float16: (1e-3, 1e-5),
-    }
-    if dtype in table:
-        return table[dtype]
+# according to https://pytorch.org/docs/stable/testing.html
+OPINFO_PRECISION_TABLE = {
+    # Relax atol and rtol for float32 based on empirical results
+    # The current most relaxed values are for aten::matmul
+    torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
+    torch.float16: (1e-3, 1e-5),
+}
+
+
+def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple(Any, Any):
+    if dtype in OPINFO_PRECISION_TABLE:
+        return OPINFO_PRECISION_TABLE[dtype]
     else:
         return (0.0, 0.0)
+
+
+def _is_op_can_run_with_dtype(op_name: str, dtype: torch.dtype) -> bool:
+    dtype_list = ops_test_data.OPINFO_FUNCTION_TARGET_DTYPE.get(op_name)
+    return dtype in dtype_list
+
 
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
@@ -212,8 +220,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i != 0: continue
-
             test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample)
 
             with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):
@@ -248,14 +254,6 @@ def run_test_output_match(
                 for j, (torch_output, function_output) in enumerate(
                     zip(flattened_torch_outputs, flattened_function_outputs)
                 ):
-                    # if dtype == torch.float32:
-                    #     # Relax atol and rtol for float32 based on empirical results
-                    #     # The current most relaxed values are for aten::matmul
-                    #     rtol = 3.7e-5
-                    #     atol = 1.8e-4
-                    # else:
-                    #     rtol = None
-                    #     atol = None
                     rtol, atol = _get_rtol_atol_by_dtype(dtype)
 
                     if not isinstance(function_output, np.ndarray):
@@ -320,8 +318,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
 
-        from ops_test_data import OPINFO_FUNCTION_TARGET_DTYPE
-        if op.name not in OPINFO_FUNCTION_TARGET_DTYPE:
+        if not _is_op_can_run_with_dtype(op.name, dtype):
             return
 
         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
@@ -394,6 +391,9 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
+        if not _is_op_can_run_with_dtype(op.name, dtype):
+            return
+
         """Base test method for testing each op by running the full ONNX graph."""
         run_test_output_match(
             self,
