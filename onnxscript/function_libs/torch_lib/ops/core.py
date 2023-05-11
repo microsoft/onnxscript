@@ -2880,7 +2880,10 @@ def aten_index_put(
     if op.Cast(accumulate, to=BOOL.dtype):
         # put values into zeros array first, then add to input
         zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+        zeros = op.CastLike(zeros, values)
         result = op.ScatterElements(zeros, new_ind_t, values)
+        # FIXME: type promotion
+        result = op.CastLike(result, self)
         result = op.Add(result, self)
     else:
         result = op.ScatterElements(self, new_ind_t, values)
@@ -2921,7 +2924,10 @@ def aten_index_put_bool(
 
         if op.Cast(accumulate, to=BOOL.dtype):
             zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+            zeros = op.CastLike(zeros, values)
             result = op.ScatterElements(zeros, new_ind_t, values)
+            # FIXME: type promotion
+            result = op.CastLike(result, self)
             result = op.Add(result, self)
         else:
             result = op.ScatterElements(self, new_ind_t, values)
