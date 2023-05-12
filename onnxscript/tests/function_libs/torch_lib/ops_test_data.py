@@ -1317,8 +1317,10 @@ assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
 
-# temporary list for FLOAT16 dtype testing
-OPINFO_FUNCTION_TARGET_DTYPE = {
+# List for different input dtype testing flag
+OPINFO_FUNCTION_TARGET_DTYPE: dict[
+    str, tuple[Any,...],
+] = {
     "all_dim": (torch.float32,),
     "allclose": (torch.float32,),
     "all": (torch.float32,),

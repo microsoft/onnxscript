@@ -32,8 +32,9 @@ import onnxscript.evaluator
 from onnxscript._internal import version_utils
 from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
 
-# Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
+# All dtypes will be tested on the generated symbolic functions.
 # complex64 would be flattened to float32.
+# add new dtype in the tuple, and also add the new typpe in OPINFO_FUNCTION_TARGET_DTYPE right after the aten function you are testing
 TESTED_DTYPES = (torch.float32, torch.float16,)
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
@@ -84,10 +85,10 @@ def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple(Any, Any):
     if dtype in OPINFO_PRECISION_TABLE:
         return OPINFO_PRECISION_TABLE[dtype]
     else:
-        return (0.0, 0.0)
+        return (None, None)
 
 
-def _is_op_can_run_with_dtype(op_name: str, dtype: torch.dtype) -> bool:
+def _dtype_is_supported_by_op(op_name: str, dtype: torch.dtype) -> bool:
     dtype_list = ops_test_data.OPINFO_FUNCTION_TARGET_DTYPE.get(op_name)
     return dtype in dtype_list
 
@@ -318,7 +319,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
 
-        if not _is_op_can_run_with_dtype(op.name, dtype):
+        if not _dtype_is_supported_by_op(op.name, dtype):
             return
 
         """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
@@ -387,7 +388,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
-        if not _is_op_can_run_with_dtype(op.name, dtype):
+        if not _dtype_is_supported_by_op(op.name, dtype):
             return
 
         """Base test method for testing each op by running the full ONNX graph."""
