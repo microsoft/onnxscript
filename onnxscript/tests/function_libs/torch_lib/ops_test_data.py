@@ -1320,7 +1320,7 @@ assert NONDETERMINISTIC_OPS.issubset(
 # List for different input dtype testing flag
 OPINFO_FUNCTION_TARGET_DTYPE: dict[
     str,
-    tuple[Any,...],
+    tuple[Any, ...],
 ] = {
     "all_dim": (torch.float32,),
     "allclose": (torch.float32,),
