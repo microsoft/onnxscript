@@ -1322,30 +1322,99 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     str,
     tuple[Any, ...],
 ] = {
-    "all_dim": (torch.float32,),
-    "allclose": (torch.float32,),
-    "all": (torch.float32,),
-    "abs": (torch.float32,),
-    "acos": (torch.float32,),
-    "acosh": (torch.float32,),
-    "add": (torch.float32,),
-    "addmm": (torch.float32,),
+    "all_dim": (
+        torch.float32,
+        torch.float16,
+    ),
+    "allclose": (
+        torch.float32,
+        torch.float16,
+    ),
+    "all": (
+        torch.float32,
+        torch.float16,
+    ),
+    "abs": (
+        torch.float32,
+        torch.float16,
+    ),
+    "acos": (
+        torch.float32,
+        torch.float16,
+    ),
+    "acosh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "add": (
+        torch.float32,
+        # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+    ),
+    "addmm": (
+        torch.float32,
+        torch.float16,
+    ),
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
-    "amax": (torch.float32,),
-    "amin": (torch.float32,),
-    "any": (torch.float32,),
-    "any_dim": (torch.float32,),
-    "arange_start_step": (torch.float32,),
-    "arange_start": (torch.float32,),
-    "arange": (torch.float32,),
-    "argmax": (torch.float32,),
-    "argmin": (torch.float32,),
-    "as_strided": (torch.float32,),
-    "asin": (torch.float32,),
-    "asinh": (torch.float32,),
-    "atan": (torch.float32,),
-    "atan2": (torch.float32,),
-    "atanh": (torch.float32,),
+    "amax": (
+        torch.float32,
+        torch.float16,
+    ),
+    "amin": (
+        torch.float32,
+        torch.float16,
+    ),
+    "any": (
+        torch.float32,
+        torch.float16,
+    ),
+    "any_dim": (
+        torch.float32,
+        torch.float16,
+    ),
+    "arange_start_step": (
+        torch.float32,
+        torch.float16,
+    ),
+    "arange_start": (
+        torch.float32,
+        torch.float16,
+    ),
+    "arange": (
+        torch.float32,
+        torch.float16,
+    ),
+    "argmax": (
+        torch.float32,
+        torch.float16,
+    ),
+    "argmin": (
+        torch.float32,
+        torch.float16,
+    ),
+    "as_strided": (
+        torch.float32,
+        torch.float16,
+    ),
+    "asin": (
+        torch.float32,
+        torch.float16,
+    ),
+    "asinh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atan": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atan2": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atanh": (
+        torch.float32,
+        torch.float16,
+    ),
     "baddbmm": (torch.float32,),
     "bmm": (torch.float32,),
     "broadcast_to": (torch.float32,),
@@ -1406,7 +1475,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "le": (torch.float32,),
     "log10": (torch.float32,),
     "log1p": (torch.float32,),
-    "log_softmax": (torch.float32,),
+    "log_softmax": (torch.float32),
     "log2": (torch.float32,),
     "logaddexp": (torch.float32,),
     "logaddexp2": (torch.float32,),

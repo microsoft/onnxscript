@@ -75,8 +75,8 @@ def aten_acosh(self: TFloat) -> TFloat:
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # FIXME(titaiwang): get rid of this when we have type_promotion
-    other = op.CastLike(other, self)
-    alpha = op.CastLike(alpha, other)
+    # other = op.CastLike(other, self)
+    # alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
     return op.Add(self, other)
 
