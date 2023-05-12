@@ -35,7 +35,10 @@ from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_d
 # All dtypes will be tested on the generated symbolic functions.
 # complex64 would be flattened to float32.
 # add new dtype in the tuple, and also add the new typpe in OPINFO_FUNCTION_TARGET_DTYPE right after the aten function you are testing
-TESTED_DTYPES = (torch.float32, torch.float16,)
+TESTED_DTYPES = (
+    torch.float32,
+    torch.float16,
+)
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
 
@@ -318,11 +321,10 @@ class TestOutputConsistencyEager(unittest.TestCase):
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
-
         if not _dtype_is_supported_by_op(op.name, dtype):
             return
 
-        """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
+        # Base test method for testing each op with the eager executor, used by instantiate_device_type_tests.
         run_test_output_match(
             self,
             device,
@@ -391,7 +393,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
         if not _dtype_is_supported_by_op(op.name, dtype):
             return
 
-        """Base test method for testing each op by running the full ONNX graph."""
+        # Base test method for testing each op by running the full ONNX graph.
         run_test_output_match(
             self,
             device,
