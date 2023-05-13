@@ -22,6 +22,7 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import parameterized
+import pytest
 import torch
 from torch.testing._internal import common_device_type
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -36,8 +37,22 @@ from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_d
 # complex64 would be flattened to float32.
 # add new dtype in the tuple, and also add the new typpe in OPINFO_FUNCTION_TARGET_DTYPE right after the aten function you are testing
 TESTED_DTYPES = (
-    torch.float32,
     torch.float16,
+    torch.float32,
+    # Uncomment below item when we really need testing it
+    # torch.bfloat16,
+    # torch.float64,
+    # torch.bool,
+    # torch.int8,
+    # torch.int16,
+    # torch.int32,
+    # torch.int64,
+    # torch.uint8,
+    # torch.uint16,
+    # torch.uint32,
+    # torch.uint64,
+    # torch.complex64,
+    # ......
 )
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
@@ -87,8 +102,7 @@ OPINFO_PRECISION_TABLE = {
 def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple(Any, Any):
     if dtype in OPINFO_PRECISION_TABLE:
         return OPINFO_PRECISION_TABLE[dtype]
-    else:
-        return (None, None)
+    return (None, None)
 
 
 def _dtype_is_supported_by_op(op_name: str, dtype: torch.dtype) -> bool:
@@ -322,7 +336,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
         if not _dtype_is_supported_by_op(op.name, dtype):
-            return
+            pytest.skip(reason=f"{op.name} cannot support {dtype}")
 
         # Base test method for testing each op with the eager executor, used by instantiate_device_type_tests.
         run_test_output_match(
@@ -391,7 +405,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
         if not _dtype_is_supported_by_op(op.name, dtype):
-            return
+            pytest.skip(reason=f"{op.name} cannot support {dtype}")
 
         # Base test method for testing each op by running the full ONNX graph.
         run_test_output_match(
