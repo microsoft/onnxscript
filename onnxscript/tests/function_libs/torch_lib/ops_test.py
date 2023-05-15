@@ -22,6 +22,7 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import parameterized
+import pytest
 import torch
 from torch.testing._internal import common_device_type
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -32,9 +33,27 @@ import onnxscript.evaluator
 from onnxscript._internal import version_utils
 from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
 
-# Test only float32 inputs. All dtypes will be tested on the generated symbolic functions.
+# All dtypes will be tested on the generated symbolic functions.
 # complex64 would be flattened to float32.
-TESTED_DTYPES = (torch.float32,)
+# add new dtype in the tuple, and also add the new typpe in OPINFO_FUNCTION_TARGET_DTYPE right after the aten function you are testing
+TESTED_DTYPES = (
+    torch.float16,
+    torch.float32,
+    # Uncomment below item when we really need testing it
+    # torch.bfloat16,
+    # torch.float64,
+    # torch.bool,
+    # torch.int8,
+    # torch.int16,
+    # torch.int32,
+    # torch.int64,
+    # torch.uint8,
+    # torch.uint16,
+    # torch.uint32,
+    # torch.uint64,
+    # torch.complex64,
+    # ......
+)
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
 
@@ -69,6 +88,26 @@ def _split_function_and_wrangler(
 
     assert callable(onnx_function_and_wrangler)
     return onnx_function_and_wrangler, None
+
+
+# according to https://pytorch.org/docs/stable/testing.html
+OPINFO_PRECISION_TABLE = {
+    # Relax atol and rtol for float32 based on empirical results
+    # The current most relaxed values are for aten::matmul
+    torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
+    torch.float16: (1e-3, 1e-5),
+}
+
+
+def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple(Any, Any):
+    if dtype in OPINFO_PRECISION_TABLE:
+        return OPINFO_PRECISION_TABLE[dtype]
+    return (None, None)
+
+
+def _dtype_is_supported_by_op(op_name: str, dtype: torch.dtype) -> bool:
+    dtype_list = ops_test_data.OPINFO_FUNCTION_TARGET_DTYPE.get(op_name)
+    return dtype in dtype_list
 
 
 class TestFunctionValidity(unittest.TestCase):
@@ -233,14 +272,7 @@ def run_test_output_match(
                 for j, (torch_output, function_output) in enumerate(
                     zip(flattened_torch_outputs, flattened_function_outputs)
                 ):
-                    if dtype == torch.float32:
-                        # Relax atol and rtol for float32 based on empirical results
-                        # The current most relaxed values are for aten::matmul
-                        rtol = 3.7e-5
-                        atol = 1.8e-4
-                    else:
-                        rtol = None
-                        atol = None
+                    rtol, atol = _get_rtol_atol_by_dtype(dtype)
 
                     if not isinstance(function_output, np.ndarray):
                         # An onnxscript tensor
@@ -303,7 +335,10 @@ class TestOutputConsistencyEager(unittest.TestCase):
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
-        """Base test method for testing each op with the eager executor, used by instantiate_device_type_tests."""
+        if not _dtype_is_supported_by_op(op.name, dtype):
+            pytest.skip(reason=f"{op.name} cannot support {dtype}")
+
+        # Base test method for testing each op with the eager executor, used by instantiate_device_type_tests.
         run_test_output_match(
             self,
             device,
@@ -369,7 +404,10 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
-        """Base test method for testing each op by running the full ONNX graph."""
+        if not _dtype_is_supported_by_op(op.name, dtype):
+            pytest.skip(reason=f"{op.name} cannot support {dtype}")
+
+        # Base test method for testing each op by running the full ONNX graph.
         run_test_output_match(
             self,
             device,
