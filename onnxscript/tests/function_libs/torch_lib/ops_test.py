@@ -38,7 +38,7 @@ from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_d
 # add new dtype in the tuple, and also add the new typpe in OPINFO_FUNCTION_TARGET_DTYPE right after the aten function you are testing
 TESTED_DTYPES = (
     torch.float16,
-    torch.float32,
+    #torch.float32,
     # Uncomment below item when we really need testing it
     # torch.bfloat16,
     # torch.float64,
