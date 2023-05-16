@@ -1636,7 +1636,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "log_softmax": (
         torch.float32,
-        #torch.float16,  # FIXME: ORT failed.
+        # torch.float16,  # FIXME: ORT failed.
     ),
     "log2": (
         torch.float32,
@@ -1830,7 +1830,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.gelu": (
         torch.float32,
-        torch.float16, # check why skipped
+        torch.float16,  # check why skipped
     ),
     "nn.functional.grid_sample": (
         torch.float32,
@@ -2032,7 +2032,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "split": (
         torch.float32,
-        #torch.float16,  # ORT failed
+        # torch.float16,  # ORT failed
     ),
     "sqrt": (
         torch.float32,
