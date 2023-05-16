@@ -1686,11 +1686,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "max_pool2d": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     "max_pool3d": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     "min_dim": (
         torch.float32,
@@ -1722,7 +1722,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "native_batch_norm": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     "native_group_norm": (
         torch.float32,
@@ -1730,7 +1730,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "native_layer_norm": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": (
@@ -1803,7 +1803,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.conv1d": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     "nn.functional.conv2d": (
         torch.float32,
@@ -1832,11 +1832,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.gelu": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     "nn.functional.grid_sample": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     "nn.functional.hardtanh": (
         torch.float32,
@@ -1848,7 +1848,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.linear": (
         torch.float32,
-        torch.float16,  # check why skipped
+        torch.float16,
     ),
     "nn.functional.logsigmoid": (
         torch.float32,
