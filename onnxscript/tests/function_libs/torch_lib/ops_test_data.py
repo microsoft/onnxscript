@@ -1437,7 +1437,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "chunk": (
         torch.float32,
-        #torch.float16,
+        # torch.float16,  # FIXME: SplitToSequence op inference failed
     ),
     "clamp": (
         torch.float32,
