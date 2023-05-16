@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import FunctionType
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Generator, Optional
 
 import onnxscript
 
@@ -15,12 +15,14 @@ class OverloadedFunction:
         name: Name of the op. E.g. "aten::add".
         overloads: Overloads function.
         privates: Private functions not exposed to users.
+        complex: Support complex functions.
     """
 
     def __init__(self, name: str):
         self.name = name
         self.overloads: list[Any] = []
         self.privates: list[Any] = []
+        self.complex: list[Any] = []
 
 
 class Registry:
@@ -29,11 +31,15 @@ class Registry:
     def __init__(self):
         self._registry: dict[str, OverloadedFunction] = {}
 
-    def register(self, func: Any, name: str, *, private: bool = False) -> None:
+    def register(
+        self, func: Any, name: str, *, private: bool = False, complex: bool = False
+    ) -> None:
         """Register a function."""
 
         if private:
             self._registry.setdefault(name, OverloadedFunction(name)).privates.append(func)
+        elif complex:
+            self._registry.setdefault(name, OverloadedFunction(name)).complex.append(func)
         else:
             self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
 
@@ -49,6 +55,9 @@ class Registry:
     def __repr__(self):
         return repr(self._registry)
 
+    def items(self) -> Generator[tuple[str, OverloadedFunction], None, None]:
+        yield from self._registry.items()
+
 
 # Default registry
 default_registry = Registry()
@@ -60,6 +69,7 @@ def torch_op(
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     private: bool = False,
+    complex: bool = False,
 ) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
@@ -69,6 +79,7 @@ def torch_op(
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
             be true for all functions with names starting with "_".
+        complex: Whether the function supports complex.
     """
     if registry is None:
         registry = default_registry
@@ -87,7 +98,7 @@ def torch_op(
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        registry.register(processed_func, name, private=private)
+        registry.register(processed_func, name, private=private, complex=complex)
         return processed_func
 
     return wrapper

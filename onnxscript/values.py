@@ -396,7 +396,6 @@ def op_schema_from_function_ir(
         )
         for arg in function_ir.outputs
     ]
-
     return onnx.defs.OpSchema(
         function_ir.name,
         opset.domain,

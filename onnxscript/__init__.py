@@ -54,7 +54,7 @@ from .onnx_types import (
 # isort: on
 
 from .utils import external_tensor, proto2text
-from .values import OnnxFunction
+from .values import OnnxFunction, TracedOnnxFunction
 
 try:
     __version__ = importlib.metadata.version("onnxscript")
@@ -66,6 +66,7 @@ __all__ = [
     "script",
     "export_onnx_lib",
     "OnnxFunction",
+    "TracedOnnxFunction",
     "proto2python",
     "proto2text",
     "external_tensor",
