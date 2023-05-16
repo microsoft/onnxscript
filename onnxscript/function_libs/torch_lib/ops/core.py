@@ -38,14 +38,14 @@ _MATH_PI = math.pi
 
 
 @torch_op("aten::abs")
-def aten_abs(self: TReal) -> TReal:
+def aten_abs(self: TrealOrUInt8) -> TrealOrUInt8:
     """abs(Tensor self) -> Tensor"""
 
     return op.Abs(self)
 
 
-@torch_op("aten::abs")
-def aten_abs_complex(self: TReal) -> TReal:
+@torch_op("aten::abs", complex=True)
+def aten_abs_complex(self: TrealOrUInt8) -> TrealOrUInt8:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
     self_real = op.Gather(self, 0, axis=-1)
@@ -250,7 +250,7 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 
 
 @torch_op("aten::amax")
-def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_amax(self: TrealOrUInt8, dim: INT64, keepdim: bool = False) -> TrealOrUInt8:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMax reduces all dimensions when dim is empty
@@ -258,7 +258,7 @@ def aten_amax(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
 
 
 @torch_op("aten::amin")
-def aten_amin(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+def aten_amin(self: TrealOrUInt8, dim: INT64, keepdim: bool = False) -> TrealOrUInt8:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMin reduces all dimensions when dim is empty
@@ -469,17 +469,19 @@ def aten_arctanh(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::argmax", trace_only=True)
-def aten_argmax(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+def aten_argmax(
+    self: TrealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
+) -> TrealOrUInt8:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     if dim is None:  # TODO: use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    return aten_argmax_dim(self, dim=dim, keepdim=keepdim)
+    return _aten_argmax_dim(self, dim=dim, keepdim=keepdim)
 
 
-@torch_op("aten::argmax")
-def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+@torch_op("aten::argmax", private=True)
+def _aten_argmax_dim(self: TrealOrUInt8, dim: int, keepdim: bool = False) -> TrealOrUInt8:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -494,17 +496,19 @@ def aten_argmax_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
 
 
 @torch_op("aten::argmin", trace_only=True)
-def aten_argmin(self: TReal, dim: Optional[int] = None, keepdim: bool = False) -> TReal:
+def aten_argmin(
+    self: TrealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
+) -> TrealOrUInt8:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     if dim is None:  # TODO: use OptionalHasElement(dim)
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    return aten_argmin_dim(self, dim=dim, keepdim=keepdim)
+    return _aten_argmin_dim(self, dim=dim, keepdim=keepdim)
 
 
-@torch_op("aten::argmin")
-def aten_argmin_dim(self: TReal, dim: int, keepdim: bool = False) -> TReal:
+@torch_op("aten::argmin", private=True)
+def _aten_argmin_dim(self: TrealOrUInt8, dim: int, keepdim: bool = False) -> TrealOrUInt8:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -2458,7 +2462,7 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::fmod")
-def aten_fmod(self: TReal, other: TReal) -> TReal:
+def aten_fmod(self: TrealOrUInt8, other: TrealOrUInt8) -> TrealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Mod(self, other, fmod=1)
@@ -2586,7 +2590,7 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
 
 # NOTE: The name is made up for `getitem` to be included in the registry
 @torch_op("aten::getitem")
-def aten_getitem(self: Sequence[TReal], i: INT64) -> TReal:
+def aten_getitem(self: Sequence[TTensor], i: INT64) -> TTensor:
     return op.SequenceAt(self, i)
 
 
@@ -2876,7 +2880,10 @@ def aten_index_put(
     if op.Cast(accumulate, to=BOOL.dtype):
         # put values into zeros array first, then add to input
         zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+        zeros = op.CastLike(zeros, values)
         result = op.ScatterElements(zeros, new_ind_t, values)
+        # FIXME: type promotion
+        result = op.CastLike(result, self)
         result = op.Add(result, self)
     else:
         result = op.ScatterElements(self, new_ind_t, values)
@@ -2917,7 +2924,10 @@ def aten_index_put_bool(
 
         if op.Cast(accumulate, to=BOOL.dtype):
             zeros = op.Expand(op.Constant(value_float=0.0), op.Shape(self))
+            zeros = op.CastLike(zeros, values)
             result = op.ScatterElements(zeros, new_ind_t, values)
+            # FIXME: type promotion
+            result = op.CastLike(result, self)
             result = op.Add(result, self)
         else:
             result = op.ScatterElements(self, new_ind_t, values)
@@ -3348,7 +3358,7 @@ def aten_linspace(start: float, end: float, steps: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("log")
+@torch_op("aten::log")
 def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """log(Tensor self) -> Tensor"""
 
