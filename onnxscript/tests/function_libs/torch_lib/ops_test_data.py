@@ -1475,7 +1475,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "le": (torch.float32,),
     "log10": (torch.float32,),
     "log1p": (torch.float32,),
-    "log_softmax": (torch.float32),
+    "log_softmax": (torch.float32,),
     "log2": (torch.float32,),
     "logaddexp": (torch.float32,),
     "logaddexp2": (torch.float32,),
