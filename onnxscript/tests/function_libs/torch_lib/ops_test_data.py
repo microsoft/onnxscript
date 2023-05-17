@@ -1348,7 +1348,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "add": (
         torch.float32,
-        # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+        torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
     ),
     "addmm": (
         torch.float32,
