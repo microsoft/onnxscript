@@ -5805,8 +5805,8 @@ def _center_window_around_zeros_if_needed(window: TensorType, n_fft: int):
         left = op.Reshape(left, op.Constant(value_ints=[1]))
         right = op.Reshape(right, op.Constant(value_ints=[1]))
 
-        left_win = op.Expand(op.Constant(value_int=0), left)
-        right_win = op.Expand(op.Constant(value_int=0), right)
+        left_win = op.Expand(op.Constant(value_ints=[0]), left)
+        right_win = op.Expand(op.Constant(value_ints=[0]), right)
         right_win = op.CastLike(right_win, window)
         left_win = op.CastLike(left_win, window)
         window = op.Concat(left_win, window, right_win, axis=0)
@@ -5823,16 +5823,16 @@ def _create_window_from_win_length(win_length: int, n_fft: int):
     right = op.Reshape(right, op.Constant(value_ints=[1]))
     win_length = op.Reshape(win_length, op.Constant(value_ints=[1]))
 
-    left_win = op.Expand(op.Constant(value_int=0), left)
-    right_win = op.Expand(op.Constant(value_int=0), right)
-    window_list = op.Expand(op.Constant(value_int=1), win_length)
+    left_win = op.Expand(op.Constant(value_ints=[0]), left)
+    right_win = op.Expand(op.Constant(value_ints=[0]), right)
+    window_list = op.Expand(op.Constant(value_ints=[1]), win_length)
     return op.Concat(left_win, window_list, right_win, axis=0)
 
 
 @torch_op("aten::stft", private=True)
 def _create_window_from_n_fft(n_fft: int):
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
-    window = op.Expand(op.Constant(value_int=1), n_fft_tensor)
+    window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
     return window
 
 
@@ -5889,12 +5889,13 @@ def aten_stft(
     self, signal_rank = _add_batch_dimension(self)
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
-    if window is not None:
+    if window is None:
+        if win_length is not None:
+            window = _create_window_from_win_length(win_length, n_fft)
+        else:
+            window = _create_window_from_n_fft(n_fft)
+    elif window.shape[0] is not None:
         window = _center_window_around_zeros_if_needed(window, n_fft)
-    elif win_length is not None:
-        window = _create_window_from_win_length(win_length, n_fft)
-    else:
-        window = _create_window_from_n_fft(n_fft)
 
     if onesided is None or onesided:
         onesided = 1

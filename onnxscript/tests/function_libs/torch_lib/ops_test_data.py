@@ -2060,6 +2060,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
+    "stft": (torch.float32,),
     "sub": (
         torch.float32,
         torch.float16,
