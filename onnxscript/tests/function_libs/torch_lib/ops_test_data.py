@@ -1348,7 +1348,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "add": (
         torch.float32,
-        torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+        # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+        # using https://github.com/microsoft/onnxruntime/issues/15977 to track
     ),
     "addmm": (
         torch.float32,
@@ -1438,6 +1439,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "chunk": (
         torch.float32,
         # torch.float16,  # FIXME: SplitToSequence op inference failed
+        # using https://github.com/microsoft/onnxruntime/issues/16006 to track
     ),
     "clamp": (
         torch.float32,
@@ -1456,8 +1458,9 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "col2im": (
-        torch.float32,
+        #torch.float32,
         # torch.float16,  # FIXME: Tensor-likes are not close
+        # using https://github.com/microsoft/onnxruntime/issues/16007 to track
     ),
     "constant_pad_nd": (
         torch.float32,
@@ -1556,7 +1559,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "full_like": (
         torch.float32,
-        # torch.float16,  # FIXME: dtype don't match.
+        torch.float16,  # FIXME: dtype don't match.
     ),
     "gather": (
         torch.float32,
