@@ -1322,3 +1322,827 @@ assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in
 assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
+
+# List for different input dtype testing flag
+OPINFO_FUNCTION_TARGET_DTYPE: dict[
+    str,
+    tuple[Any, ...],
+] = {
+    "all_dim": (
+        torch.float32,
+        torch.float16,
+    ),
+    "allclose": (
+        torch.float32,
+        torch.float16,
+    ),
+    "all": (
+        torch.float32,
+        torch.float16,
+    ),
+    "abs": (
+        torch.float32,
+        torch.float16,
+    ),
+    "acos": (
+        torch.float32,
+        torch.float16,
+    ),
+    "acosh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "add": (
+        torch.float32,
+        # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+    ),
+    "addmm": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
+    "amax": (
+        torch.float32,
+        torch.float16,
+    ),
+    "amin": (
+        torch.float32,
+        torch.float16,
+    ),
+    "any": (
+        torch.float32,
+        torch.float16,
+    ),
+    "any_dim": (
+        torch.float32,
+        torch.float16,
+    ),
+    "arange_start_step": (
+        torch.float32,
+        torch.float16,
+    ),
+    "arange_start": (
+        torch.float32,
+        torch.float16,
+    ),
+    "arange": (
+        torch.float32,
+        torch.float16,
+    ),
+    "argmax": (
+        torch.float32,
+        torch.float16,
+    ),
+    "argmin": (
+        torch.float32,
+        torch.float16,
+    ),
+    "as_strided": (
+        torch.float32,
+        torch.float16,
+    ),
+    "asin": (
+        torch.float32,
+        torch.float16,
+    ),
+    "asinh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atan": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atan2": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atanh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "baddbmm": (
+        torch.float32,
+        torch.float16,
+    ),
+    "bmm": (
+        torch.float32,
+        torch.float16,
+    ),
+    "broadcast_to": (
+        torch.float32,
+        torch.float16,
+    ),
+    "cat": (
+        torch.float32,
+        torch.float16,
+    ),
+    "ceil": (
+        torch.float32,
+        torch.float16,
+    ),
+    "chunk": (
+        torch.float32,
+        # torch.float16,  # FIXME: SplitToSequence op inference failed
+    ),
+    "clamp": (
+        torch.float32,
+        torch.float16,
+    ),
+    "clamp_max": (
+        torch.float32,
+        torch.float16,
+    ),
+    "clamp_min": (
+        torch.float32,
+        torch.float16,
+    ),
+    "clone": (
+        torch.float32,
+        torch.float16,
+    ),
+    "col2im": (
+        torch.float32,
+        # torch.float16,  # FIXME: Tensor-likes are not close
+    ),
+    "constant_pad_nd": (
+        torch.float32,
+        torch.float16,
+    ),
+    "contiguous": (
+        torch.float32,
+        torch.float16,
+    ),
+    "convolution": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
+    "cos": (
+        torch.float32,
+        torch.float16,
+    ),
+    "cosh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "cross": (
+        torch.float32,
+        torch.float16,
+    ),
+    "cumsum": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
+    "div": (
+        torch.float32,
+        torch.float16,
+    ),
+    "dot": (
+        torch.float32,
+        torch.float16,
+    ),
+    "empty": (
+        torch.float32,
+        torch.float16,
+    ),
+    "empty_like": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
+    "eq": (
+        torch.float32,
+        torch.float16,
+    ),
+    "equal": (
+        torch.float32,
+        torch.float16,
+    ),
+    "exp": (
+        torch.float32,
+        torch.float16,
+    ),
+    "exp2": (
+        torch.float32,
+        torch.float16,
+    ),
+    "expand": (
+        torch.float32,
+        torch.float16,
+    ),
+    "expand_as": (
+        torch.float32,
+        torch.float16,
+    ),
+    "erf": (
+        torch.float32,
+        torch.float16,
+    ),
+    "fill": (
+        torch.float32,
+        torch.float16,
+    ),
+    "flip": (
+        torch.float32,
+        torch.float16,
+    ),
+    "floor": (
+        torch.float32,
+        torch.float16,
+    ),
+    "fmod": (
+        torch.float32,
+        torch.float16,
+    ),
+    "full": (
+        torch.float32,
+        torch.float16,
+    ),
+    "full_like": (
+        torch.float32,
+        # torch.float16,  # FIXME: dtype don't match.
+    ),
+    "gather": (
+        torch.float32,
+        torch.float16,
+    ),
+    "ge": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
+    # "greater": core_ops.aten_greater,  # no test case in OPS_DB
+    "grid_sampler_2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "gt": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
+    # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
+    "index_put_bool": (
+        torch.float32,
+        # torch.float16,  # FIXME: ORT failed.
+    ),
+    "index_put": (
+        torch.float32,
+        # torch.float16,  # FIXME: ORT failed.
+    ),
+    "index_select": (
+        torch.float32,
+        torch.float16,
+    ),
+    "isclose": (
+        torch.float32,
+        torch.float16,
+    ),
+    "isfinite": (
+        torch.float32,
+        # torch.float16,  # FIXME: shape inference error
+    ),
+    "isinf": (
+        torch.float32,
+        torch.float16,
+    ),
+    "isnan": (
+        torch.float32,
+        torch.float16,
+    ),
+    "isneginf": (
+        torch.float32,
+        # torch.float16,  # FIXME: shape inference error
+    ),
+    "isposinf": (
+        torch.float32,
+        # torch.float16,  # FIXME: shape inference error
+    ),
+    "layer_norm": (
+        torch.float32,
+        # torch.float16,  # FIXME: skipped, check reason
+    ),
+    "log": (
+        torch.float32,
+        torch.float16,
+    ),
+    "le": (
+        torch.float32,
+        torch.float16,
+    ),
+    "log10": (
+        torch.float32,
+        # windows-latest, py310-torch-nightly
+        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+    ),
+    "log1p": (
+        torch.float32,
+        torch.float16,
+    ),
+    "log_softmax": (
+        torch.float32,
+        # torch.float16,  # FIXME: ORT failed.
+    ),
+    "log2": (
+        torch.float32,
+        # windows-latest, py310-torch-nightly
+        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+    ),
+    "logaddexp": (
+        torch.float32,
+        torch.float16,
+    ),
+    "logaddexp2": (
+        torch.float32,
+        torch.float16,
+    ),
+    "logcumsumexp": (
+        torch.float32,
+        torch.float16,
+    ),
+    "logdet": (
+        torch.float32,
+        torch.float16,
+    ),
+    "logsumexp": (
+        torch.float32,
+        torch.float16,
+    ),
+    "lt": (
+        torch.float32,
+        torch.float16,
+    ),
+    "masked_fill": (
+        torch.float32,
+        torch.float16,
+    ),
+    "matmul": (
+        torch.float32,
+        torch.float16,
+    ),
+    "maximum": (
+        torch.float32,
+        torch.float16,
+    ),
+    "max": (
+        torch.float32,
+        torch.float16,
+    ),
+    "max_pool2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "max_pool3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "min_dim": (
+        torch.float32,
+        torch.float16,
+    ),
+    "min_other": (
+        torch.float32,
+        torch.float16,
+    ),
+    "min": (
+        torch.float32,
+        torch.float16,
+    ),
+    "minimum": (
+        torch.float32,
+        torch.float16,
+    ),
+    "mm": (
+        torch.float32,
+        torch.float16,
+    ),
+    "mul": (
+        torch.float32,
+        torch.float16,
+    ),
+    "narrow": (
+        torch.float32,
+        torch.float16,
+    ),
+    "native_batch_norm": (
+        torch.float32,
+        torch.float16,
+    ),
+    "native_group_norm": (
+        torch.float32,
+        # torch.float16,  # ORT not implemented
+    ),
+    "native_layer_norm": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
+    "ne": (
+        torch.float32,
+        torch.float16,
+    ),
+    "neg": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_empty_dtype": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_empty": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_empty_strided_dtype": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_empty_strided": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_full_dtype": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_full": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_ones_dtype": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_ones": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_zeros_dtype": (
+        torch.float32,
+        torch.float16,
+    ),
+    "new_zeros": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.adaptive_avg_pool1d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.adaptive_avg_pool2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.adaptive_avg_pool3d": (
+        torch.float32,
+        # torch.float16,  # FIXME: ORT inference error GlobalAveragePool
+    ),
+    "nn.functional.avg_pool2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.celu": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.conv1d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.conv2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.conv3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
+    "nn.functional.cross_entropy": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.dropout": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.elu": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.embedding": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.gelu": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.grid_sample": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.hardtanh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.leaky_relu": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.linear": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.logsigmoid": (
+        torch.float32,
+        # windows-latest, py310-torch-nightly
+        # torch.float16,  # FIXME: Tensor-likes are not close
+    ),
+    "nn.functional.max_pool2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.max_pool2d_with_indices": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.max_pool3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.max_pool3d_with_indices": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.nll_loss_weight": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.nll_loss": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.reflection_pad2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.relu": (
+        torch.float32,
+        # ubuntu-latest, py310-torch-nightly
+        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+    ),
+    "nn.functional.relu6": (
+        torch.float32,
+        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+    ),
+    "nn.functional.replication_pad2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.replication_pad3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.scaled_dot_product_attention": (
+        torch.float32,
+        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+    ),
+    "nn.functional.scaled_dot_product_attention_bool_mask": (
+        torch.float32,
+        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+    ),
+    "nn.functional.selu": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.mse_loss": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.upsample_bilinear2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.upsample_nearest2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nonzero": (
+        torch.float32,
+        torch.float16,
+    ),
+    "normal": (
+        torch.float32,
+        # torch.float16,  # FIXME: RandomNormal in ORT failed
+    ),
+    "ones": (
+        torch.float32,
+        torch.float16,
+    ),
+    "ones_like": (
+        torch.float32,
+        # torch.float16,  # FIXME" ORT inference failed
+    ),
+    "permute": (
+        torch.float32,
+        torch.float16,
+    ),
+    "pow": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "rand": core_ops.aten_rand,  # no test case in OPS_DB
+    "randn": (
+        torch.float32,
+        # torch.float16,  # FIXME: shape inference error
+    ),
+    "reciprocal": (
+        torch.float32,
+        torch.float16,
+    ),
+    "remainder": (
+        torch.float32,
+        # torch.float16,  # tensor-like are not close
+    ),
+    "repeat": (
+        torch.float32,
+        torch.float16,
+    ),
+    "reshape": (
+        torch.float32,
+        torch.float16,
+    ),
+    "resolve_conj": (
+        torch.float32,
+        torch.float16,
+    ),
+    "resolve_neg": (
+        torch.float32,
+        torch.float16,
+    ),
+    "round": (
+        torch.float32,
+        torch.float16,
+    ),
+    "rsqrt": (
+        torch.float32,
+        torch.float16,
+    ),
+    "rsub": (
+        torch.float32,
+        torch.float16,
+    ),
+    "scatter_reduce": (
+        torch.float32,
+        # torch.float16,  # FIXME: ORT failed
+    ),
+    "select": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
+    "scatter_add": (
+        torch.float32,
+        # torch.float16,  # FIXME" ORT failed
+    ),
+    "sigmoid": (
+        torch.float32,
+        torch.float16,
+    ),
+    "sign": (
+        torch.float32,
+        torch.float16,
+    ),
+    "sin": (
+        torch.float32,
+        torch.float16,
+    ),
+    "sinh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "slice_scatter": (
+        torch.float32,
+        torch.float16,
+    ),
+    "slice": (
+        torch.float32,
+        torch.float16,
+    ),
+    "softmax": (
+        torch.float32,
+        # torch.float16,  # FIXME: ORT failed
+    ),
+    "split_with_sizes": (
+        torch.float32,
+        # torch.float16,  # FIXME: ORT failed
+    ),
+    "split": (
+        torch.float32,
+        # torch.float16,  # ORT failed
+    ),
+    "sqrt": (
+        torch.float32,
+        torch.float16,
+    ),
+    "squeeze_dim": (
+        torch.float32,
+        torch.float16,
+    ),
+    "squeeze": (
+        torch.float32,
+        torch.float16,
+    ),
+    "stack": (
+        torch.float32,
+        torch.float16,
+    ),
+    "sub": (
+        torch.float32,
+        torch.float16,
+    ),
+    "sum": (
+        torch.float32,
+        torch.float16,
+    ),
+    # "sym_size": core_ops.aten_sym_size,  # no test case in OPS_DB
+    "t": (
+        torch.float32,
+        torch.float16,
+    ),
+    "tan": (
+        torch.float32,
+        torch.float16,
+    ),
+    "tanh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "tile": (
+        torch.float32,
+        torch.float16,
+    ),
+    "topk": (
+        torch.float32,
+        torch.float16,
+    ),
+    "transpose": (
+        torch.float32,
+        torch.float16,
+    ),
+    "tril": (
+        torch.float32,
+        torch.float16,
+    ),
+    "triu": (
+        torch.float32,
+        torch.float16,
+    ),
+    "trunc": (
+        torch.float32,
+        torch.float16,
+    ),
+    "unflatten": (
+        torch.float32,
+        torch.float16,
+    ),
+    "unsqueeze": (
+        torch.float32,
+        torch.float16,
+    ),
+    "var_mean": (
+        torch.float32,
+        # torch.float16,
+    ),
+    "var_mean_dim": (
+        torch.float32,
+        # torch.float16,
+    ),
+    "var_mean_correction": (
+        torch.float32,
+        # torch.float16,
+    ),
+    "view": (
+        torch.float32,
+        torch.float16,
+    ),
+    "where": (
+        torch.float32,
+        torch.float16,
+    ),
+    "xlogy": (
+        torch.float32,
+        torch.float16,
+    ),
+    "zeros": (
+        torch.float32,
+        torch.float16,
+    ),
+    "zeros_like": (
+        torch.float32,
+        torch.float16,
+    ),
+}

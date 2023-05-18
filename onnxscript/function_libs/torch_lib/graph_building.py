@@ -127,12 +127,15 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._shape = shape
         self._torch_value.setType(self._torch_value.type().with_sizes(list(shape)))
 
-    @property
-    def dtype(self):
+    @property  # type: ignore[override]
+    def dtype(self) -> torch.dtype | None:
         # TODO: Return numpy dtype
-        return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
+        torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
-        ).dtype()
+        )
+        if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
+            return None
+        return torch_dtype.dtype()
 
     @dtype.setter
     def dtype(self, dtype: torch.dtype):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import FunctionType
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Generator, Optional
 
 import onnxscript
 
@@ -15,7 +15,7 @@ class OverloadedFunction:
         name: Name of the op. E.g. "aten::add".
         overloads: Overloads function.
         privates: Private functions not exposed to users.
-        complex: Complex supported functions.
+        complex: Support complex functions.
     """
 
     def __init__(self, name: str):
@@ -31,13 +31,9 @@ class Registry:
     def __init__(self):
         self._registry: dict[str, OverloadedFunction] = {}
 
-    def register(self,
-        func: Any,
-        name: str,
-        *,
-       
-        private: bool = False,
-        complex: bool = False,) -> None:
+    def register(
+        self, func: Any, name: str, *, private: bool = False, complex: bool = False
+    ) -> None:
         """Register a function."""
 
         if private:
@@ -58,6 +54,9 @@ class Registry:
 
     def __repr__(self):
         return repr(self._registry)
+
+    def items(self) -> Generator[tuple[str, OverloadedFunction], None, None]:
+        yield from self._registry.items()
 
 
 # Default registry
@@ -80,7 +79,7 @@ def torch_op(
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
             be true for all functions with names starting with "_".
-        complex: Whether or not the function takes in complex inputs.
+        complex: Whether the function supports complex.
     """
     if registry is None:
         registry = default_registry
@@ -99,9 +98,7 @@ def torch_op(
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        registry.register(
-            processed_func, name, private=private, complex=complex
-        )
+        registry.register(processed_func, name, private=private, complex=complex)
         return processed_func
 
     return wrapper
