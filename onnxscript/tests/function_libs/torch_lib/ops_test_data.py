@@ -373,6 +373,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "floor": core_ops.aten_floor,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
+    "full_like_dtype": core_ops.aten_full_like_dtype,
     "full_like": core_ops.aten_full_like,
     "gather": (core_ops.aten_gather, _gather_input_wrangler),
     "ge": core_ops.aten_ge,
@@ -795,11 +796,14 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
-        "nn.functional.grid_sample",
-        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
-        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
-        or len(sample.args[0].shape) != 4,
-        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+        "full_like",
+        matcher=lambda sample: ("dtype" in sample.kwargs),
+        reason="this Aten overload only support dtype not in kwargs",
+    ),
+    skip(
+        "full_like_dtype",
+        matcher=lambda sample: "dtype" not in sample.kwargs,
+        reason="this Aten overload only support dtype in kwargs",
     ),
     skip(
         "grid_sampler_2d",
@@ -939,6 +943,13 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         "nn.functional.dropout",
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
+    ),
+    skip(
+        "nn.functional.grid_sample",
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
+        or len(sample.args[0].shape) != 4,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
     skip(
         "nn.functional.max_pool2d_with_indices",
@@ -1111,6 +1122,8 @@ ops_test_common.duplicate_opinfo(
         "arange_start_step",
     ),
 )
+
+ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 
@@ -1348,7 +1361,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "add": (
         torch.float32,
-        # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+        # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+        # using https://github.com/microsoft/onnxruntime/issues/15977 to track
     ),
     "addmm": (
         torch.float32,
@@ -1438,6 +1452,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "chunk": (
         torch.float32,
         # torch.float16,  # FIXME: SplitToSequence op inference failed
+        # using https://github.com/microsoft/onnxruntime/issues/16006 to track
     ),
     "clamp": (
         torch.float32,
@@ -1458,6 +1473,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "col2im": (
         torch.float32,
         # torch.float16,  # FIXME: Tensor-likes are not close
+        # using https://github.com/microsoft/onnxruntime/issues/16007 to track
     ),
     "constant_pad_nd": (
         torch.float32,
