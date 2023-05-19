@@ -802,7 +802,7 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     ),
     skip(
         "full_like_dtype",
-        matcher=lambda sample: not ("dtype" in sample.kwargs),
+        matcher=lambda sample: "dtype" not in sample.kwargs,
         reason="this Aten overload only support dtype in kwargs",
     ),
     skip(
@@ -1471,7 +1471,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "col2im": (
-        #torch.float32,
+        torch.float32,
         # torch.float16,  # FIXME: Tensor-likes are not close
         # using https://github.com/microsoft/onnxruntime/issues/16007 to track
     ),
