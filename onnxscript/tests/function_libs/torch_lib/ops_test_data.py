@@ -1616,7 +1616,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isfinite": (
         torch.float32,
-        torch.float16,  # FIXME: shape inference error
+        torch.float16,
     ),
     "isinf": (
         torch.float32,
@@ -1628,15 +1628,15 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isneginf": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        torch.float16,
     ),
     "isposinf": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        torch.float16,
     ),
     "layer_norm": (
         torch.float32,
-        # torch.float16,  # FIXME: skipped, check reason
+        torch.float16,
     ),
     "log": (
         torch.float32,
@@ -1746,11 +1746,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "native_group_norm": (
         torch.float32,
-        # torch.float16,  # ORT not implemented
+        torch.float16,  # ORT not implemented
     ),
     "native_layer_norm": (
         torch.float32,
-        torch.float16,
+        # torch.float16,
     ),
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": (

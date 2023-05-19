@@ -3171,9 +3171,10 @@ def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
 
 
 @torch_op("aten::isinf")
-def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
+def aten_isinf(self: TFloatOrBFloat16) -> BOOL:
     """isinf(Tensor self) -> Tensor"""
 
+    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all float types
     return op.IsInf(self)
 
 
@@ -3181,20 +3182,23 @@ def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
 def aten_isnan(self: TFloatOrBFloat16) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
+    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all float types
     return op.IsNaN(self)
 
 
 @torch_op("aten::isneginf")
-def aten_isneginf(self: TReal) -> BOOL:
+def aten_isneginf(self: TFloatOrBFloat16) -> BOOL:
     """isneginf(Tensor self) -> Tensor"""
 
+    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all float types
     return op.And(op.Less(self, 0), op.IsInf(self))
 
 
 @torch_op("aten::isposinf")
-def aten_isposinf(self: TReal) -> BOOL:
+def aten_isposinf(self: TFloatOrBFloat16) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
+    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all float types
     return op.And(op.Greater(self, 0), op.IsInf(self))
 
 
