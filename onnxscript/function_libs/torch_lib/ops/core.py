@@ -2504,13 +2504,20 @@ def aten_full(size: INT64, fill_value: FLOAT, dtype: int = FLOAT.dtype):
 
 
 @torch_op("aten::full_like")
-def aten_full_like(self, fill_value: TensorType, dtype: int = -1):
+def aten_full_like(self, fill_value: TTensor) -> TTensor:
     """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    if dtype == -1:
-        fill_value = op.CastLike(fill_value, self)
-    else:
-        fill_value = op.Cast(fill_value, to=dtype)
+    fill_value = op.CastLike(fill_value, self)
+    self_shape = op.Shape(self)
+
+    return op.Expand(fill_value, self_shape)
+
+
+@torch_op("aten::full_like")
+def aten_full_like_dtype(self, fill_value: TTensor, dtype: int) -> TTensor:
+    """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+
+    fill_value = op.Cast(fill_value, to=dtype)
     self_shape = op.Shape(self)
 
     return op.Expand(fill_value, self_shape)
