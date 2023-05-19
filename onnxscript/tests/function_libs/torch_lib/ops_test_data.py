@@ -807,12 +807,12 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
-    xfail(
+    skip(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
     ),
-    xfail(
+    skip(
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
@@ -1556,7 +1556,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "full_like": (
         torch.float32,
-        # torch.float16,  # FIXME: dtype don't match.
+        torch.float16,
+    ),
+    "full_like_dtype": (
+        torch.float32,
+        torch.float16,
     ),
     "gather": (
         torch.float32,
@@ -1580,11 +1584,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
+        torch.float16,
     ),
     "index_put": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
+        torch.float16,
     ),
     "index_select": (
         torch.float32,
@@ -1596,7 +1600,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isfinite": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        torch.float16,  # FIXME: shape inference error
     ),
     "isinf": (
         torch.float32,

@@ -3154,7 +3154,8 @@ def aten_isclose(
 def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
-    not_inf = op.Not(op.IsInf(self))
+    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all real types
+    not_inf = op.Not(op.IsInf(self))  # op.IsInf() only support FLOAT and DOUBLE
     not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
     return op.And(not_inf, not_nan)
 
