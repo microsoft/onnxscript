@@ -1746,7 +1746,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "native_group_norm": (
         torch.float32,
-        torch.float16,  # ORT not implemented
+        # torch.float16,  # "GroupNormKernelImpl" not implemented for 'Half' in nightly and weekly
     ),
     "native_layer_norm": (
         torch.float32,
