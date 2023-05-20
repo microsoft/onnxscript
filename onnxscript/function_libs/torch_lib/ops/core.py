@@ -3182,7 +3182,6 @@ def aten_isinf(self: TFloatOrBFloat16) -> BOOL:
 def aten_isnan(self: TFloatOrBFloat16) -> BOOL:
     """isnan(Tensor self) -> Tensor"""
 
-    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all float types
     return op.IsNaN(self)
 
 
