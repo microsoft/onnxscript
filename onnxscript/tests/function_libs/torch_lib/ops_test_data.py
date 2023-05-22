@@ -1331,6 +1331,12 @@ assert NONDETERMINISTIC_OPS.issubset(
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
 
 # List for different input dtype testing flag
+# Added Cast inside below functions so they can support all real dtypes naturally
+# -- isfinite, isinf, isneginf, isposinf
+# Note:
+# Converter fp32 to fp16 model is a significant feature for end users,
+# another approach is to add cast before/after the function call,
+# that way we also need a list to remember which function need cast
 OPINFO_FUNCTION_TARGET_DTYPE: dict[
     str,
     tuple[Any, ...],
@@ -1616,6 +1622,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isfinite": (
         torch.float32,
+        # Added Cast inside the function so it can support all real dtypes naturally
         torch.float16,
     ),
     "isinf": (
@@ -1628,10 +1635,12 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isneginf": (
         torch.float32,
+        # Added Cast inside the function so it can support all real dtypes naturally
         torch.float16,
     ),
     "isposinf": (
         torch.float32,
+        # Added Cast inside the function so it can support all real dtypes naturally
         torch.float16,
     ),
     "layer_norm": (
