@@ -3175,7 +3175,8 @@ def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
 def aten_isinf(self: TFloatOrBFloat16) -> BOOL:
     """isinf(Tensor self) -> Tensor"""
 
-    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all float types
+    # Added Cast inside the function so it can support all real dtypes naturally
+    self = op.Cast(self, to=FLOAT.dtype)
     return op.IsInf(self)
 
 
@@ -3199,7 +3200,8 @@ def aten_isneginf(self: TFloatOrBFloat16) -> BOOL:
 def aten_isposinf(self: TFloatOrBFloat16) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
-    self = op.Cast(self, to=FLOAT.dtype)  # Make this function support all float types
+    # Added Cast inside the function so it can support all real dtypes naturally
+    self = op.Cast(self, to=FLOAT.dtype)
     return op.And(op.Greater(self, 0), op.IsInf(self))
 
 

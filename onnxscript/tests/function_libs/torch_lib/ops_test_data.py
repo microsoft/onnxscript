@@ -1657,7 +1657,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "log10": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
+        # py310-torch-nightly,Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float)
         torch.float16,
     ),
     "log1p": (
@@ -1670,8 +1670,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "log2": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        torch.float16,
+        # windows-latest, py310-torch-nightly, RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
+        # torch.float16,
     ),
     "logaddexp": (
         torch.float32,
@@ -1881,8 +1881,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.logsigmoid": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        torch.float16,
+        # windows-latest, py310-torch-nightly, AssetionError in ORT: Tensor-likes are not close
+        # torch.float16,
     ),
     "nn.functional.max_pool2d": (
         torch.float32,
@@ -1919,7 +1919,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.relu6": (
         torch.float32,
-        torch.float16,
+        # py310-torch-nightly, FullGraph, AssertionError in ORT
+        # torch.float16,
     ),
     "nn.functional.replication_pad2d": (
         torch.float32,
@@ -2142,11 +2143,13 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "var_mean_dim": (
         torch.float32,
-        torch.float16,
+        # py310-torch-nightly, FullGraph, AssertionError in ORT
+        # torch.float16,
     ),
     "var_mean_correction": (
         torch.float32,
-        torch.float16,
+        # py310-onnx-weekly, FullGraph, AssertionError in ORT
+        # torch.float16,
     ),
     "view": (
         torch.float32,
