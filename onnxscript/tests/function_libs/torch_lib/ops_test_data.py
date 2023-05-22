@@ -1658,7 +1658,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "log10": (
         torch.float32,
         # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+        torch.float16,
     ),
     "log1p": (
         torch.float32,
@@ -1671,7 +1671,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "log2": (
         torch.float32,
         # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+        torch.float16,
     ),
     "logaddexp": (
         torch.float32,
@@ -1759,7 +1759,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "native_layer_norm": (
         torch.float32,
-        # torch.float16,
+        torch.float16,
     ),
     # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
     "ne": (
@@ -1882,7 +1882,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "nn.functional.logsigmoid": (
         torch.float32,
         # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: Tensor-likes are not close
+        torch.float16,
     ),
     "nn.functional.max_pool2d": (
         torch.float32,
@@ -1915,11 +1915,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "nn.functional.relu": (
         torch.float32,
         # ubuntu-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+        torch.float16,
     ),
     "nn.functional.relu6": (
         torch.float32,
-        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+        torch.float16,
     ),
     "nn.functional.replication_pad2d": (
         torch.float32,
@@ -1967,7 +1967,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "ones_like": (
         torch.float32,
-        # torch.float16,  # FIXME" ORT inference failed
+        torch.float16,
     ),
     "permute": (
         torch.float32,
@@ -2061,11 +2061,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "split_with_sizes": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed
+        torch.float16,  # FIXME: ORT failed
     ),
     "split": (
         torch.float32,
-        # torch.float16,  # ORT failed
+        torch.float16,  # ORT failed
     ),
     "sqrt": (
         torch.float32,
@@ -2138,15 +2138,15 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "var_mean": (
         torch.float32,
-        # torch.float16,
+        torch.float16,
     ),
     "var_mean_dim": (
         torch.float32,
-        # torch.float16,
+        torch.float16,
     ),
     "var_mean_correction": (
         torch.float32,
-        # torch.float16,
+        torch.float16,
     ),
     "view": (
         torch.float32,
