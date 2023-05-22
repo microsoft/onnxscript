@@ -811,12 +811,12 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
-    xfail(
+    skip(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
     ),
-    xfail(
+    skip(
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
@@ -1331,6 +1331,12 @@ assert NONDETERMINISTIC_OPS.issubset(
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
 
 # List for different input dtype testing flag
+# Added Cast inside below functions so they can support all real dtypes naturally
+# -- isfinite, isinf, isneginf, isposinf
+# Note:
+# Converter fp32 to fp16 model is a significant feature for end users,
+# another approach is to add cast before/after the function call,
+# that way we also need a list to remember which function need cast
 OPINFO_FUNCTION_TARGET_DTYPE: dict[
     str,
     tuple[Any, ...],
@@ -1572,11 +1578,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "full_like": (
         torch.float32,
-        torch.float16,  # FIXME: dtype don't match.
+        torch.float16,
     ),
     "full_like_dtype": (
         torch.float32,
-        torch.float16,  # FIXME: dtype don't match.
+        torch.float16,
     ),
     "gather": (
         torch.float32,
@@ -1600,11 +1606,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
+        torch.float16,
     ),
     "index_put": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
+        torch.float16,
     ),
     "index_select": (
         torch.float32,
@@ -1616,7 +1622,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isfinite": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        # Added Cast inside the function so it can support all real dtypes naturally
+        torch.float16,
     ),
     "isinf": (
         torch.float32,
@@ -1628,15 +1635,17 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isneginf": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        # Added Cast inside the function so it can support all real dtypes naturally
+        torch.float16,
     ),
     "isposinf": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        # Added Cast inside the function so it can support all real dtypes naturally
+        torch.float16,
     ),
     "layer_norm": (
         torch.float32,
-        # torch.float16,  # FIXME: skipped, check reason
+        torch.float16,
     ),
     "log": (
         torch.float32,
@@ -1648,8 +1657,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "log10": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+        # py310-torch-nightly,Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float)
+        # torch.float16,
     ),
     "log1p": (
         torch.float32,
@@ -1661,8 +1670,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "log2": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+        # windows-latest, py310-torch-nightly, RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
+        # torch.float16,
     ),
     "logaddexp": (
         torch.float32,
@@ -1746,7 +1755,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "native_group_norm": (
         torch.float32,
-        # torch.float16,  # ORT not implemented
+        # torch.float16,  # "GroupNormKernelImpl" not implemented for 'Half' in nightly and weekly
     ),
     "native_layer_norm": (
         torch.float32,
@@ -1872,8 +1881,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.logsigmoid": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: Tensor-likes are not close
+        # windows-latest, py310-torch-nightly, AssetionError in ORT: Tensor-likes are not close
+        # torch.float16,
     ),
     "nn.functional.max_pool2d": (
         torch.float32,
@@ -1906,11 +1915,13 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "nn.functional.relu": (
         torch.float32,
         # ubuntu-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+        # Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
+        # torch.float16,
     ),
     "nn.functional.relu6": (
         torch.float32,
-        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+        # macos-latest, py310-torch-nightly, FullGraph, AssertionError in ORT
+        # torch.float16,
     ),
     "nn.functional.replication_pad2d": (
         torch.float32,
@@ -1958,7 +1969,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "ones_like": (
         torch.float32,
-        # torch.float16,  # FIXME" ORT inference failed
+        torch.float16,
     ),
     "permute": (
         torch.float32,
@@ -2129,14 +2140,17 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "var_mean": (
         torch.float32,
+        # py31--torch-nightly, Unable to create onnxruntime InferenceSession for executing .Mul op with onnx model
         # torch.float16,
     ),
     "var_mean_dim": (
         torch.float32,
+        # py310-torch-nightly, FullGraph, AssertionError in ORT
         # torch.float16,
     ),
     "var_mean_correction": (
         torch.float32,
+        # py310-onnx-weekly, FullGraph, AssertionError in ORT
         # torch.float16,
     ),
     "view": (
