@@ -246,13 +246,6 @@ def _replication_pad3d_input_wrangler(
     return args, kwargs
 
 
-def _scatter_add_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["dim"] = args.pop(1)
-    return args, kwargs
-
-
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -476,7 +469,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
-    "scatter_add": (core_ops.aten_scatter_add, _scatter_add_input_wrangler),
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -560,6 +552,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
+    "scatter_add": core_ops.aten_scatter_add,
     "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
