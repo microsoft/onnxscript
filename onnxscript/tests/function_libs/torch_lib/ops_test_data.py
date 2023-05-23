@@ -249,7 +249,7 @@ def _replication_pad3d_input_wrangler(
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    # Put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    # Put the string into kwargs, otherwise FullGraph mode could not find get 'reduce' argument
     kwargs["reduce"] = args.pop(4)
     return args, kwargs
 
