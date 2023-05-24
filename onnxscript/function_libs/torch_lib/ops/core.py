@@ -5199,10 +5199,19 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    # a - a.div(b, rounding_mode="floor") * b
-    rounded_quotient = op.Floor(op.Div(self, other))
+    # Have to cast to float32 at very beinging to avoid accuracy loss
+    # e.g. self=7.7500, other=0.1582
+    # in float32 mode: result = 0.1562
+    # in float16 mode: result = 0.0
+    # The difference is too big to use larger atol and rtol to tolerate
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    other_float = op.Cast(other, to=FLOAT.dtype)
 
-    return op.Sub(self, op.Mul(rounded_quotient, other))
+    # a - a.div(b, rounding_mode="floor") * b
+    rounded_quotient = op.Floor(op.Div(self_float, other_float))
+
+    result = op.Sub(self_float, op.Mul(rounded_quotient, other_float))
+    return op.CastLike(result, self)
 
 
 @torch_op("aten::remainder")

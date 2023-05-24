@@ -1907,13 +1907,13 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.relu": (
         torch.float32,
-        # Cannot support relu in float16
+        # ORT cannot support relu in float16
         # file issue: https://github.com/microsoft/onnxruntime/issues/16069
         # torch.float16,
     ),
     "nn.functional.relu6": (
         torch.float32,
-        # Cannot support relu in float16
+        # ORT cannot support relu in float16
         # file issue: https://github.com/microsoft/onnxruntime/issues/16069
         # torch.float16,
     ),
@@ -1927,11 +1927,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.scaled_dot_product_attention": (
         torch.float32,
-        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+        torch.float16,  # OpSchema is not writable before ONNX 1.15
     ),
     "nn.functional.scaled_dot_product_attention_bool_mask": (
         torch.float32,
-        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+        torch.float16,  # OpSchema is not writable before ONNX 1.15
     ),
     "nn.functional.selu": (
         torch.float32,
