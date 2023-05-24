@@ -605,11 +605,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "max_pool3d",
-        variant_name="empty_strides",
-        reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
-    ),
-    xfail(
         "new_empty_dtype",
         reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_dtype: failed validating the check: !(it.GetName().empty())'",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -696,11 +691,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         variant_name="mean",
         reason="ONNX doesn't support reduce='mean' option",
     ),
-    # xfail(
-    #     "t",
-    #     reason="ORT Graph attribute inferencing failed on rank-1 input",
-    #     test_class_name="TestOutputConsistencyFullGraph",
-    # ),
     xfail(
         "tile",
         reason="Shape inference error. Remove after ONNX 1.14 release",
