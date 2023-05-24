@@ -1907,13 +1907,14 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.relu": (
         torch.float32,
-        # ubuntu-latest, py310-torch-nightly
-        # Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
+        # Cannot support relu in float16
+        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
         # torch.float16,
     ),
     "nn.functional.relu6": (
         torch.float32,
-        # macos-latest, py310-torch-nightly, FullGraph, AssertionError in ORT
+        # Cannot support relu in float16
+        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
         # torch.float16,
     ),
     "nn.functional.replication_pad2d": (
