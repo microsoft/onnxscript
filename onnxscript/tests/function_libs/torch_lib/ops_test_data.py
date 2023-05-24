@@ -591,11 +591,6 @@ OPINFO_FUNCTION_MAPPING: dict[
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS = (
-    xfail(
-        "as_strided",
-        variant_name="partial_views",
-        reason="ONNX doesn't have partial view for tensor",
-    ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
         "max",
@@ -613,12 +608,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "max_pool3d",
         variant_name="empty_strides",
         reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
-    ),
-    xfail(
-        "min_dim",
-        variant_name="reduction_with_dim",
-        reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
-        test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
         "new_empty_dtype",
@@ -707,11 +696,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         variant_name="mean",
         reason="ONNX doesn't support reduce='mean' option",
     ),
-    xfail(
-        "t",
-        reason="ORT Graph attribute inferencing failed on rank-1 input",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
+    # xfail(
+    #     "t",
+    #     reason="ORT Graph attribute inferencing failed on rank-1 input",
+    #     test_class_name="TestOutputConsistencyFullGraph",
+    # ),
     xfail(
         "tile",
         reason="Shape inference error. Remove after ONNX 1.14 release",
@@ -824,13 +813,13 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
-    xfail(
+    skip(
         "min_other",  # aten_min_other(self, other)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
-    xfail(
+    skip(
         "min_dim",  # aten_min_dim(self, dim)
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
