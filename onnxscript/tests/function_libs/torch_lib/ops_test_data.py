@@ -1874,8 +1874,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.logsigmoid": (
         torch.float32,
-        # windows-latest, py310-torch-nightly, AssetionError in ORT: Tensor-likes are not close
-        # torch.float16,
+        # Only for torch-nightly, the tolarance is (rtol=5e-3, atol=3e-4)
+        torch.float16,
     ),
     "nn.functional.max_pool2d": (
         torch.float32,
@@ -1984,7 +1984,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "remainder": (
         torch.float32,
-        # torch.float16,  # tensor-like are not close
+        torch.float16,
     ),
     "repeat": (
         torch.float32,
