@@ -519,6 +519,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
+    "logit": core_ops.aten_logit,
     "max": core_ops.aten_max,
     "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
     "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
@@ -1679,6 +1680,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "logdet": (
+        torch.float32,
+        torch.float16,
+    ),
+    "logit": (
         torch.float32,
         torch.float16,
     ),

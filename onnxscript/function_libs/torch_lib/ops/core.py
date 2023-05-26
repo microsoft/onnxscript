@@ -3468,10 +3468,25 @@ def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     return op.Xor(self, other)
 
 
-def aten_logit(self: TensorType, eps: Optional[float] = None) -> TensorType:
-    """logit(Tensor self, float? eps=None) -> Tensor"""
+@torch_op("aten::logit", private=True)
+def _aten_logit_onnx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+    return op.Log(op.Div(self, op.Sub(1.0, self)))
 
-    raise NotImplementedError()
+
+@torch_op("aten::logit", private=True)
+def _aten_logit_clamp_onnx(self: TFloatOrBFloat16, eps: float) -> TFloatOrBFloat16:
+    temporary_self = op.Where(self <= 1.0 - eps, self, 1.0 - eps)
+    z = op.Where(temporary_self < eps, eps, temporary_self)
+
+    return op.Log(op.Div(z, op.Sub(1.0, z)))
+
+
+@torch_op("aten::logit", trace_only=True)
+def aten_logit(self: TFloatOrBFloat16, eps: Optional[float] = None) -> TFloatOrBFloat16:
+    """logit(Tensor self, float? eps=None) -> Tensor"""
+    if eps is None:
+        return _aten_logit_onnx(self)
+    return _aten_logit_clamp_onnx(self, eps)
 
 
 def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> TensorType:
