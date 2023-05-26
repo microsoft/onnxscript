@@ -830,7 +830,6 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
-
     skip(
         "mean",
         matcher=lambda sample: sample.kwargs.get("dim") is not None,
@@ -841,7 +840,6 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("dim") is None,
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
-
     skip(
         "min",  # aten_min
         matcher=lambda sample: len(sample.args) > 0,
