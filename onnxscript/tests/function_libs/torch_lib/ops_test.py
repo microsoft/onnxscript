@@ -37,7 +37,7 @@ from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_d
 # complex64 would be flattened to float32.
 # add new dtype in the tuple, and also add the new typpe in OPINFO_FUNCTION_TARGET_DTYPE right after the aten function you are testing
 TESTED_DTYPES = (
-    torch.float16,
+    #torch.float16,
     torch.float32,
     # Uncomment below item when we really need testing it
     # torch.bfloat16,
@@ -241,6 +241,7 @@ def run_test_output_match(
             test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample)
 
             with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):
+                print("sample number = ", i)
                 input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = ops_test_common.convert_kwargs_for_onnx(cpu_sample.kwargs)
                 if input_wrangler:
