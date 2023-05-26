@@ -3713,25 +3713,25 @@ def aten_maximum(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op("aten::mean")
-def aten_mean_nodtype(self: TReal) -> TReal:
+def aten_mean(self: TReal) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
     result = op.ReduceMean(self)
     return op.Squeeze(result)
 
 
-@torch_op("aten::mean")
+@torch_op("aten::mean.dim")
 def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
-    self_is_scalar = op.Size(op.Shape(self)) == 0
-    if self_is_scalar:
+    if op.Size(op.Shape(self)) == 0:
         result = self
     else:
         if op.Size(op.Shape(dim)) == 0:
             dim = op.Unsqueeze(dim, axes=0)
         result = op.ReduceMean(self, axes=dim, keepdims=keepdim)
     return result
+
 
 def aten_median(self: TensorType) -> TensorType:
     """median(Tensor self) -> Tensor"""

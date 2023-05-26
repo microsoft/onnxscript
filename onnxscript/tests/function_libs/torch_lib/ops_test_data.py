@@ -189,7 +189,8 @@ def _mean_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Make the dims as tensor
-    kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
+    if "dim" in kwargs:
+        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
     return args, kwargs
 
 
@@ -1738,11 +1739,13 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
-    "mean_nodtype": (
+    "mean": (
         torch.float32,
+        torch.float16,
     ),
     "mean_dim": (
         torch.float32,
+        torch.float16,
     ),
     "min_dim": (
         torch.float32,
