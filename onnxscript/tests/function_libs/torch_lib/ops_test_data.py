@@ -1922,7 +1922,6 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.logsigmoid": (
         torch.float32,
-        # Only for torch-nightly, the tolarance is (rtol=5e-3, atol=3e-4)
         torch.float16,
     ),
     "nn.functional.max_pool2d": (
