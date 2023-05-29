@@ -5229,7 +5229,9 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    # a - a.div(b, rounding_mode="floor") * b
     rounded_quotient = op.Floor(op.Div(self, other))
+
     return op.Sub(self, op.Mul(rounded_quotient, other))
 
 
