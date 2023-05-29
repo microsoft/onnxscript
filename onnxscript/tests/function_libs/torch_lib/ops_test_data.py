@@ -680,6 +680,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
+    xfail(
+        "nn.functional.logsigmoid",
+        dtypes=[torch.float16],
+        reason="Eager mode failed on case(0,2) at location(0,6) due to precision loss",
+        test_class_name="TestOutputConsistencyEager",
+    ),
     skip(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
