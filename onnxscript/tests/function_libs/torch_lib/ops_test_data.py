@@ -1894,7 +1894,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.elu": (
         torch.float32,
-        torch.float16,
+        # torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
     ),
     "nn.functional.embedding": (
         torch.float32,
