@@ -224,7 +224,7 @@ def aten_special_log_softmax(
 
 def aten_special_logit(self: TensorType, eps: Optional[float] = None) -> TensorType:
     """special_logit(Tensor self, float? eps=None) -> Tensor"""
-
+    # TODO: alias of core.aten_logit
     raise NotImplementedError()
 
 
