@@ -185,6 +185,15 @@ def _max_pool_input_wrangler(
     return args, kwargs
 
 
+def _mean_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the dims as tensor
+    if "dim" in kwargs:
+        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
+    return args, kwargs
+
+
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -398,6 +407,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
+    "mean": (core_ops.aten_mean, _mean_input_wrangler),
+    "mean_dim": (core_ops.aten_mean_dim, _mean_input_wrangler),
     "min_dim": core_ops.aten_min_dim,
     "min_other": core_ops.aten_min_other,
     "min": core_ops.aten_min,
@@ -519,6 +530,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
+    "logit": core_ops.aten_logit,
     "max": core_ops.aten_max,
     "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
     "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
@@ -826,7 +838,17 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     skip(
-        "min",  # aten_mean
+        "mean",
+        matcher=lambda sample: sample.kwargs.get("dim") is not None,
+        reason="this Aten overload only accept 1 inputs: self",
+    ),
+    skip(
+        "mean_dim",
+        matcher=lambda sample: sample.kwargs.get("dim") is None,
+        reason="this Aten overload can accept 2 inputs:(self, dim)",
+    ),
+    skip(
+        "min",  # aten_min
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
@@ -1125,6 +1147,8 @@ ops_test_common.duplicate_opinfo(
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+
+ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 
@@ -1688,6 +1712,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
+    "logit": (
+        torch.float32,
+        torch.float16,
+    ),
     "logsumexp": (
         torch.float32,
         torch.float16,
@@ -1717,6 +1745,14 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "max_pool3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "mean": (
+        torch.float32,
+        torch.float16,
+    ),
+    "mean_dim": (
         torch.float32,
         torch.float16,
     ),
