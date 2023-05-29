@@ -95,8 +95,7 @@ OPINFO_PRECISION_TABLE = {
     # Tolerance value (rtol, atol)
     # The current most relaxed values are for aten::matmul
     torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
-    # This value is for aten::remainder
-    torch.float16: (8e-3, 7e-4),  # default is 1e-3, 1e-5
+    torch.float16: (1e-3, 1e-5),  # default is 1e-3, 1e-5
 }
 
 

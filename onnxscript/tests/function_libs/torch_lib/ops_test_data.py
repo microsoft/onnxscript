@@ -687,6 +687,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "remainder",
+        dtypes=[torch.float16],
+        reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    xfail(
         "repeat",
         reason="Shape inference error. Remove after ONNX 1.14 release",
         test_class_name="TestOutputConsistencyFullGraph",
