@@ -1902,7 +1902,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.gelu": (
         torch.float32,
-        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
+        torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
     ),
     "nn.functional.grid_sample": (
         torch.float32,
