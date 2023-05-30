@@ -1894,7 +1894,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.elu": (
         torch.float32,
-        # torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
+        torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
     ),
     "nn.functional.embedding": (
         torch.float32,
@@ -1956,13 +1956,13 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         # ORT cannot support relu in float16
         # file issue: https://github.com/microsoft/onnxruntime/issues/16069
-        # torch.float16,
+        torch.float16,
     ),
     "nn.functional.relu6": (
         torch.float32,
         # ORT cannot support relu in float16
         # file issue: https://github.com/microsoft/onnxruntime/issues/16069
-        # torch.float16,
+        torch.float16,
     ),
     "nn.functional.replication_pad2d": (
         torch.float32,
@@ -1982,7 +1982,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.selu": (
         torch.float32,
-        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
+        torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
     ),
     "nn.functional.mse_loss": (
         torch.float32,
