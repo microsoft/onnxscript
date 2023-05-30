@@ -532,6 +532,11 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.conv3d": core_ops.aten_conv3d,
     "nn.functional.gelu": nn_ops.aten_gelu,
     "nn.functional.linear": nn_ops.aten_linear,
+    # "nn.functional.max_pool1d": (nn_ops.aten_max_pool1d, _max_pool_input_wrangler),
+    "nn.functional.max_pool1d_with_indices": (
+        nn_ops.aten_max_pool1d_with_indices,
+        _max_pool_input_wrangler,
+    ),
     "nn.functional.max_pool2d": (nn_ops.aten_max_pool2d, _max_pool_input_wrangler),
     "nn.functional.max_pool2d_with_indices": (
         nn_ops.aten_max_pool2d_with_indices,
@@ -944,6 +949,16 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
         or len(sample.args[0].shape) != 4,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+    ),
+    skip(
+        "nn.functional.max_pool1d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    skip(
+        "nn.functional.max_pool1d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
     ),
     skip(
         "nn.functional.max_pool2d_with_indices",
@@ -1881,6 +1896,14 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         # windows-latest, py310-torch-nightly, AssetionError in ORT: Tensor-likes are not close
         # torch.float16,
+    ),
+    "nn.functional.max_pool1d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "nn.functional.max_pool1d_with_indices": (
+        torch.float32,
+        torch.float16,
     ),
     "nn.functional.max_pool2d": (
         torch.float32,
