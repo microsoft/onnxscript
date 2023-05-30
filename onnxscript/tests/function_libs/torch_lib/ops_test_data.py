@@ -185,6 +185,15 @@ def _max_pool_input_wrangler(
     return args, kwargs
 
 
+def _mean_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the dims as tensor
+    if "dim" in kwargs:
+        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
+    return args, kwargs
+
+
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -398,6 +407,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
+    "mean": (core_ops.aten_mean, _mean_input_wrangler),
+    "mean_dim": (core_ops.aten_mean_dim, _mean_input_wrangler),
     "min_dim": core_ops.aten_min_dim,
     "min_other": core_ops.aten_min_other,
     "min": core_ops.aten_min,
@@ -674,6 +685,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
+    xfail(
+        "nn.functional.logsigmoid",
+        dtypes=[torch.float16],
+        reason="Eager mode failed on case(0,2) at location(0,6) due to precision loss",
+        test_class_name="TestOutputConsistencyEager",
+    ),
     skip(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
@@ -691,6 +708,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "remainder",
+        dtypes=[torch.float16],
+        reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
+        test_class_name="TestOutputConsistencyEager",
     ),
     xfail(
         "repeat",
@@ -826,7 +849,17 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     skip(
-        "min",  # aten_mean
+        "mean",
+        matcher=lambda sample: sample.kwargs.get("dim") is not None,
+        reason="this Aten overload only accept 1 inputs: self",
+    ),
+    skip(
+        "mean_dim",
+        matcher=lambda sample: sample.kwargs.get("dim") is None,
+        reason="this Aten overload can accept 2 inputs:(self, dim)",
+    ),
+    skip(
+        "min",  # aten_min
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
@@ -1135,6 +1168,8 @@ ops_test_common.duplicate_opinfo(
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+
+ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 
@@ -1734,6 +1769,14 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
+    "mean": (
+        torch.float32,
+        torch.float16,
+    ),
+    "mean_dim": (
+        torch.float32,
+        torch.float16,
+    ),
     "min_dim": (
         torch.float32,
         torch.float16,
@@ -1866,7 +1909,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.elu": (
         torch.float32,
-        torch.float16,
+        # torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
     ),
     "nn.functional.embedding": (
         torch.float32,
@@ -1874,7 +1917,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.gelu": (
         torch.float32,
-        torch.float16,
+        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
     ),
     "nn.functional.grid_sample": (
         torch.float32,
@@ -1894,8 +1937,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.logsigmoid": (
         torch.float32,
-        # windows-latest, py310-torch-nightly, AssetionError in ORT: Tensor-likes are not close
-        # torch.float16,
+        torch.float16,
     ),
     "nn.functional.max_pool1d": (
         torch.float32,
@@ -1935,13 +1977,14 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.relu": (
         torch.float32,
-        # ubuntu-latest, py310-torch-nightly
-        # Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
+        # ORT cannot support relu in float16
+        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
         # torch.float16,
     ),
     "nn.functional.relu6": (
         torch.float32,
-        # macos-latest, py310-torch-nightly, FullGraph, AssertionError in ORT
+        # ORT cannot support relu in float16
+        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
         # torch.float16,
     ),
     "nn.functional.replication_pad2d": (
@@ -1954,15 +1997,15 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.scaled_dot_product_attention": (
         torch.float32,
-        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+        torch.float16,
     ),
     "nn.functional.scaled_dot_product_attention_bool_mask": (
         torch.float32,
-        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+        torch.float16,
     ),
     "nn.functional.selu": (
         torch.float32,
-        torch.float16,
+        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
     ),
     "nn.functional.mse_loss": (
         torch.float32,
@@ -2011,7 +2054,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "remainder": (
         torch.float32,
-        # torch.float16,  # tensor-like are not close
+        torch.float16,
     ),
     "repeat": (
         torch.float32,
