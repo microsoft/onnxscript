@@ -2002,7 +2002,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "normal": (
         torch.float32,
-        # torch.float16,  # FIXME: RandomNormal in ORT failed
+        torch.float16,  # FIXME: RandomNormal in ORT failed
     ),
     "ones": (
         torch.float32,
@@ -2023,7 +2023,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     # "rand": core_ops.aten_rand,  # no test case in OPS_DB
     "randn": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        torch.float16,  # FIXME: shape inference error
     ),
     "reciprocal": (
         torch.float32,
