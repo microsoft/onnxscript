@@ -538,6 +538,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "native_group_norm": core_ops.aten_native_group_norm,
     "native_layer_norm": core_ops.aten_native_layer_norm,
     "nn.functional.avg_pool2d": (nn_ops.aten_avg_pool2d, _avg_pool2d_input_wrangler),
+    "nn.functional.avg_pool3d": (nn_ops.aten_avg_pool3d, _avg_pool2d_input_wrangler),
     "nn.functional.conv1d": core_ops.aten_conv1d,
     "nn.functional.conv2d": core_ops.aten_conv2d,
     "nn.functional.conv3d": core_ops.aten_conv3d,
