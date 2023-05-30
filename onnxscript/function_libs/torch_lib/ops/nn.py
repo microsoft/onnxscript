@@ -645,13 +645,13 @@ def aten_logit_backward(
 
 @torch_op("aten::max_pool1d", trace_only=True)
 def aten_max_pool1d(
-    self: TensorType,
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> TensorType:
+) -> TFloatOrUInt8:
     """max_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> Tensor"""
 
     # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
@@ -667,13 +667,13 @@ def aten_max_pool1d(
 
 @torch_op("aten::max_pool1d_with_indices", trace_only=True)
 def aten_max_pool1d_with_indices(
-    self: TensorType,
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> tuple[TensorType, TensorType]:
+) -> tuple[TFloatOrUInt8, INT64]:
     """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
