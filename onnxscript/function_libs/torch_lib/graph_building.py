@@ -4,12 +4,24 @@ from __future__ import annotations
 import logging
 import typing
 import warnings
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Final,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 import onnx
 import onnx.checker
 import onnx.defs
+import onnx.helper
 import onnx.shape_inference
 import torch
 from beartype import beartype
@@ -236,7 +248,10 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     ):
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = function.param_schemas()
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+        (
+            inputs,
+            attributes,
+        ) = param_manipulation.separate_input_attributes_from_arguments(
             param_schemas, args, kwargs, fill_defaults=True, allow_extra_kwargs=True
         )
         name_to_schema = {param.name: param for param in param_schemas}
@@ -315,12 +330,26 @@ def _create_op_call_in_torch_graph(
 
 
 class TorchScriptGraph:
-    def __init__(self):
+    _LOCAL_FUNCTION_DOMAIN_NAME: Final[str] = "torch_export"
+    """The domain name for local functions."""
+
+    def __init__(self, parent_torch_script_graph: Optional[TorchScriptGraph] = None):
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
+        # Mapping from intializer name to data(torch.Tensor).
         self._initializers: Dict[str, torch.Tensor] = {}
+        # Mapping from intializer name to input(TorchScriptTensor).
+        self._initializers_inputs: Dict[str, TorchScriptTensor] = {}
+        # Mapping from intializer name to input(TorchScriptTensor) from parent graph.
+        self._initializers_inputs_from_parent: Dict[str, TorchScriptTensor] = {}
+        # Mapping from model local function type name to function graph.
+        # Local function type name is expected to be unique. Converter creates
+        # a unique name and a unique function graph for every module call.
+        self._sub_torch_script_graphs: Dict[str, TorchScriptGraph] = {}
+        # Parent graph. None if this is the top level graph.
+        self._parent_torch_script_graph = parent_torch_script_graph
 
     @property
     def torch_graph(self):
@@ -329,6 +358,18 @@ class TorchScriptGraph:
     @property
     def initializers(self) -> Mapping[str, torch.Tensor]:
         return self._initializers
+
+    @property
+    def initializers_inputs(self) -> Mapping[str, TorchScriptTensor]:
+        return self._initializers_inputs
+
+    @property
+    def initializers_inputs_from_parent(self) -> Mapping[str, TorchScriptTensor]:
+        return self._initializers_inputs_from_parent
+
+    @property
+    def num_outputs(self) -> int:
+        return len(list(self._torch_graph.outputs()))
 
     @beartype
     def add_input(
@@ -360,12 +401,36 @@ class TorchScriptGraph:
 
     @beartype
     def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
-        if name in self._initializers:
-            raise ValueError(f"Initializer '{name}' exists already")
+        if name in self._initializers_inputs:
+            # NOTE: Previously it raises when `name` is already set. This is relaxed
+            # because this will be invoked multiple times when submodule is called
+            # multiple times.
+            if name in self._initializers and self._initializers[name] != value:
+                raise ValueError(
+                    f"Initializer '{name}' exists already with a different value."
+                )
+            return self._initializers_inputs[name]  # type: ignore[return-value]
+
+        if (
+            self != self._parent_torch_script_graph
+            and self._parent_torch_script_graph is not None
+        ):
+            # Only the root graph can have initializers. Add as initializer
+            # to root graph, and add as input to current graph.
+            self._initializers_inputs_from_parent[
+                name
+            ] = self._parent_torch_script_graph.add_initializer(name, value)
+            torch_value = self._torch_graph.addInput(name)
+            torch_value.setType(torch.TensorType.create_from_tensor(value))
+            tensor_value = _wrap_torch_value_to_tensor(torch_value)
+            self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
+            return tensor_value  # type: ignore[return-value]
+
         self._initializers[name] = value
         torch_value = self._torch_graph.addInput(name)
         torch_value.setType(torch.TensorType.create_from_tensor(value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
         return tensor_value  # type: ignore[return-value]
 
     @beartype
@@ -463,12 +528,38 @@ class TorchScriptGraph:
         return tuple(TorchScriptTensor(v) for v in result)
 
     @beartype
+    def fetch_function_proto_dict(
+        self, opset_version: int
+    ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
+        function_proto_dict: Dict[Tuple[str, str], onnx.FunctionProto] = {}
+        for (
+            sub_graph_name,
+            sub_torch_script_graph,
+        ) in self._sub_torch_script_graphs.items():
+            function_proto_dict.update(
+                sub_torch_script_graph.fetch_function_proto_dict(opset_version)
+            )
+            name_domain = (
+                sub_graph_name,
+                self._LOCAL_FUNCTION_DOMAIN_NAME,
+            )
+            assert (
+                name_domain not in function_proto_dict
+            ), f"Sub graph name already exists. {name_domain}"
+            function_proto_dict[name_domain] = sub_torch_script_graph.to_function_proto(
+                opset_version, sub_graph_name
+            )
+        for name_domain, function in self._function_store.items():
+            function_proto_dict[name_domain] = function.to_function_proto()
+        return function_proto_dict
+
+    @beartype
     def add_op_call(
         self,
         onnx_op_schema: onnx.defs.OpSchema,
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
-    ):
+    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         # Compute outputs from the onnx_op op schema
         n_outputs = evaluator.compute_num_outputs(onnx_op_schema, onnx_inputs, onnx_attributes)
         result = self._add_torchscript_op_call(
@@ -486,7 +577,7 @@ class TorchScriptGraph:
         onnx_function: onnxscript.OnnxFunction,
         onnx_inputs: Sequence[ValidInputType],
         onnx_attributes: Mapping[str, ValidArgumentType],
-    ):
+    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         identifier = (onnx_function.name, onnx_function.function_ir.domain)
         self._function_store[identifier] = onnx_function
 
@@ -501,7 +592,71 @@ class TorchScriptGraph:
         return result
 
     @beartype
+    def add_module_call(
+        self,
+        name: str,
+        sub_torch_script_graph: TorchScriptGraph,
+        onnx_inputs: Sequence[ValidInputType],
+    ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
+        self._sub_torch_script_graphs[name] = sub_torch_script_graph
+        return self._add_torchscript_op_call(
+            f"{self._LOCAL_FUNCTION_DOMAIN_NAME}::{name}",
+            onnx_inputs=(
+                *onnx_inputs,
+                *sub_torch_script_graph.initializers_inputs_from_parent.values(),
+            ),
+            onnx_attributes={},
+            n_outputs=sub_torch_script_graph.num_outputs,
+        )
+
+    @beartype
+    def to_function_proto(self, opset_version: int, function_name: str) -> onnx.FunctionProto:
+        assert len(self.initializers) == 0, "Model local functions cannot have initializers."
+        (
+            proto,
+            _,
+            _,
+            _,
+        ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+            initializers={},
+            onnx_opset_version=opset_version,
+            dynamic_axes={},
+            defer_weight_export=False,
+            operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
+            strip_doc_string=False,
+            keep_initializers_as_inputs=False,
+            custom_opsets={},
+            add_node_names=True,
+            onnx_file_path="",  # Large model export. Out of scope.
+            node_attr_to_name={},  # Current module as function feature does not utilize attributes.
+        )
+
+        onnx_model = onnx.load_from_string(proto)
+
+        # Dissect the model proto and transform to function proto.
+        onnx_function = onnx.helper.make_function(
+            domain=self._LOCAL_FUNCTION_DOMAIN_NAME,
+            fname=function_name,
+            inputs=[input.name for input in onnx_model.graph.input],
+            outputs=[output.name for output in onnx_model.graph.output],
+            nodes=onnx_model.graph.node,
+            opset_imports=onnx_model.opset_import,
+            doc_string=onnx_model.doc_string,
+        )
+        # TODO: onnx.checker.check_function(onnx_function)?
+        return onnx_function
+
+    @beartype
     def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
+        function_proto_dict: Mapping[
+            Tuple[str, str], onnx.FunctionProto
+        ] = self.fetch_function_proto_dict(opset_version)
+        unique_custom_domains: Dict[str, int] = {}
+
+        for _, function_proto in function_proto_dict.items():
+            # TODO: All local function domain versions are hardcoded as 1.
+            unique_custom_domains[function_proto.domain] = 1
+
         (
             proto,
             _,
@@ -523,10 +678,21 @@ class TorchScriptGraph:
         )
 
         onnx_model = onnx.load_from_string(proto)
-        function_proto_list = []
-        for onnx_function in self._function_store.values():
-            function_proto_list.append(onnx_function.to_function_proto())
-        onnx_model.functions.extend(function_proto_list)
+        onnx_model.functions.extend(function_proto_dict.values())
+
+        # `_export_onnx` only exports opset_imports that is visible to it. It does not
+        # export opset_imports for nested functions, since it does not have access to
+        # them. We manually add them back and merge with existing opset_imports in the
+        # model proto.
+        while len(onnx_model.opset_import) > 0:
+            opsetid = onnx_model.opset_import.pop()
+            unique_custom_domains[opsetid.domain] = opsetid.version
+        onnx_model.opset_import.extend(
+            [
+                onnx.helper.make_opsetid(domain, version)
+                for domain, version in unique_custom_domains.items()
+            ]
+        )
 
         try:
             onnx_model = onnx.shape_inference.infer_shapes(
