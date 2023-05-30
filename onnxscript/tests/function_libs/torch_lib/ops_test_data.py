@@ -532,6 +532,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "layer_norm": core_ops.aten_layer_norm,
     "logit": core_ops.aten_logit,
     "max": core_ops.aten_max,
+    "max_pool1d": nn_ops.aten_max_pool1d,  # Custom from extra_opinfo
     "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
     "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
     "native_batch_norm": core_ops.aten_native_batch_norm,
@@ -1758,6 +1759,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "max": (
+        torch.float32,
+        torch.float16,
+    ),
+    "max_pool1d": (
         torch.float32,
         torch.float16,
     ),

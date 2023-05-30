@@ -461,6 +461,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "max_pool1d",
+        variant_test_name="empty_strides",
+        op=torch.ops.aten.max_pool1d,
+        aten_name="max_pool1d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_max_pool_empty_strides,
+    ),
+    opinfo_core.OpInfo(
         "max_pool2d",
         variant_test_name="empty_strides",
         op=torch.ops.aten.max_pool2d,
