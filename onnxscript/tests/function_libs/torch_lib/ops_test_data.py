@@ -2100,15 +2100,15 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "softmax": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed
+        torch.float16,  # FIXME: ORT failed
     ),
     "split_with_sizes": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed
+        torch.float16,  # FIXME: ORT failed
     ),
     "split": (
         torch.float32,
-        # torch.float16,  # ORT failed
+        torch.float16,  # ORT failed
     ),
     "sqrt": (
         torch.float32,
