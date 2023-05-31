@@ -1764,15 +1764,15 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "max_pool1d": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "max_pool2d": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "max_pool3d": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "mean": (
         torch.float32,
@@ -1946,27 +1946,27 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.max_pool1d": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "nn.functional.max_pool1d_with_indices": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "nn.functional.max_pool2d": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "nn.functional.max_pool2d_with_indices": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "nn.functional.max_pool3d": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "nn.functional.max_pool3d_with_indices": (
         torch.float32,
-        torch.float16,
+        torch.float16,  # There is no float16 tests in OPS_DB for this op
     ),
     "nn.functional.nll_loss_weight": (
         torch.float32,
