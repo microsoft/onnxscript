@@ -949,6 +949,11 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
+    # xfail(
+    #     "nn.functional.avg_pool1d",
+    #     matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
+    #     reason="ONNX has different ciel mode strategy to PyTorch",
+    # ),
     xfail(
         "nn.functional.avg_pool2d",
         matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)

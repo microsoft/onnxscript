@@ -146,7 +146,7 @@ def _adjust_attributes_of_avg_pool(
     elif len(padding) == 2:
         pads = padding * expand_size
     else:
-        pads = padding
+        pads = padding * 2
 
     if isinstance(stride, int):
         strides = [stride] * expand_size
@@ -287,11 +287,11 @@ def aten_avg_pool3d(
 
     result = op.AveragePool(
         self,
-        ceil_mode=ceil_mode,
-        count_include_pad=count_include_pad,
         kernel_shape=kernel_shape,
-        pads=pads,
         strides=strides,
+        pads=pads,
+        count_include_pad=count_include_pad,
+        ceil_mode=ceil_mode,
     )
 
     # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
