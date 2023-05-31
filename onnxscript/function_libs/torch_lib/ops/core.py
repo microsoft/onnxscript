@@ -2504,7 +2504,17 @@ def aten_full(size: INT64, fill_value: FLOAT, dtype: int = FLOAT.dtype):
 
 
 @torch_op("aten::full_like")
-def aten_full_like(self, fill_value: TensorType, dtype: int = FLOAT.dtype):
+def aten_full_like(self, fill_value: TTensor) -> TTensor:
+    """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+
+    fill_value = op.CastLike(fill_value, self)
+    self_shape = op.Shape(self)
+
+    return op.Expand(fill_value, self_shape)
+
+
+@torch_op("aten::full_like")
+def aten_full_like_dtype(self, fill_value: TTensor, dtype: int) -> TTensor:
     """full_like(Tensor self, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     fill_value = op.Cast(fill_value, to=dtype)
@@ -3154,15 +3164,19 @@ def aten_isclose(
 def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
-    not_inf = op.Not(op.IsInf(self))
+    # Added Cast inside the function so it can support all real dtypes naturally
+    self = op.Cast(self, to=FLOAT.dtype)
+    not_inf = op.Not(op.IsInf(self))  # op.IsInf() only support FLOAT and DOUBLE
     not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
     return op.And(not_inf, not_nan)
 
 
 @torch_op("aten::isinf")
-def aten_isinf(self: Union[FLOAT, DOUBLE]) -> BOOL:
+def aten_isinf(self: TFloatOrBFloat16) -> BOOL:
     """isinf(Tensor self) -> Tensor"""
 
+    # Added Cast inside the function so it can support all real dtypes naturally
+    self = op.Cast(self, to=FLOAT.dtype)
     return op.IsInf(self)
 
 
@@ -3174,16 +3188,20 @@ def aten_isnan(self: TFloatOrBFloat16) -> BOOL:
 
 
 @torch_op("aten::isneginf")
-def aten_isneginf(self: TReal) -> BOOL:
+def aten_isneginf(self: TFloatOrBFloat16) -> BOOL:
     """isneginf(Tensor self) -> Tensor"""
 
+    # Added Cast inside the function so it can support all real dtypes naturally
+    self = op.Cast(self, to=FLOAT.dtype)
     return op.And(op.Less(self, 0), op.IsInf(self))
 
 
 @torch_op("aten::isposinf")
-def aten_isposinf(self: TReal) -> BOOL:
+def aten_isposinf(self: TFloatOrBFloat16) -> BOOL:
     """isposinf(Tensor self) -> Tensor"""
 
+    # Added Cast inside the function so it can support all real dtypes naturally
+    self = op.Cast(self, to=FLOAT.dtype)
     return op.And(op.Greater(self, 0), op.IsInf(self))
 
 
@@ -3450,10 +3468,25 @@ def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     return op.Xor(self, other)
 
 
-def aten_logit(self: TensorType, eps: Optional[float] = None) -> TensorType:
-    """logit(Tensor self, float? eps=None) -> Tensor"""
+@torch_op("aten::logit", private=True)
+def _aten_logit_onnx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
+    return op.Log(op.Div(self, op.Sub(1.0, self)))
 
-    raise NotImplementedError()
+
+@torch_op("aten::logit", private=True)
+def _aten_logit_clamp_onnx(self: TFloatOrBFloat16, eps: float) -> TFloatOrBFloat16:
+    temporary_self = op.Where(self <= 1.0 - eps, self, 1.0 - eps)
+    z = op.Where(temporary_self < eps, eps, temporary_self)
+
+    return op.Log(op.Div(z, op.Sub(1.0, z)))
+
+
+@torch_op("aten::logit", trace_only=True)
+def aten_logit(self: TFloatOrBFloat16, eps: Optional[float] = None) -> TFloatOrBFloat16:
+    """logit(Tensor self, float? eps=None) -> Tensor"""
+    if eps is None:
+        return _aten_logit_onnx(self)
+    return _aten_logit_clamp_onnx(self, eps)
 
 
 def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> TensorType:
@@ -3694,10 +3727,25 @@ def aten_maximum(self: TReal, other: TReal) -> TReal:
     return op.Max(self, other)
 
 
-def aten_mean(self: TensorType, dtype: Optional[int] = None) -> TensorType:
+@torch_op("aten::mean")
+def aten_mean(self: TReal) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
 
-    raise NotImplementedError()
+    result = op.ReduceMean(self)
+    return op.Squeeze(result)
+
+
+@torch_op("aten::mean.dim")
+def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
+    """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+    else:
+        if op.Size(op.Shape(dim)) == 0:
+            dim = op.Unsqueeze(dim, axes=0)
+        result = op.ReduceMean(self, axes=dim, keepdims=keepdim)
+    return result
 
 
 def aten_median(self: TensorType) -> TensorType:
@@ -5386,12 +5434,12 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
-@torch_op("aten::scatter_add")
+@torch_op("aten::scatter_add", trace_only=True)
 def aten_scatter_add(
     self: TReal,
+    dim: int,  # we have to use int here because ScatterElements() will use this attribute
     index: TInt,
     src: TReal,
-    dim: int,
 ) -> TReal:
     """scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor"""
 

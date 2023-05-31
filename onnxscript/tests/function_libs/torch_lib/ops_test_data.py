@@ -185,6 +185,15 @@ def _max_pool_input_wrangler(
     return args, kwargs
 
 
+def _mean_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the dims as tensor
+    if "dim" in kwargs:
+        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
+    return args, kwargs
+
+
 def _mse_loss_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -246,17 +255,10 @@ def _replication_pad3d_input_wrangler(
     return args, kwargs
 
 
-def _scatter_add_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    kwargs["dim"] = args.pop(1)
-    return args, kwargs
-
-
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    # Put the string into kwargs, otherwise FullGraph mode will cannot find get 'reduce' argument
+    # Put the string into kwargs, otherwise FullGraph mode could not find get 'reduce' argument
     kwargs["reduce"] = args.pop(4)
     return args, kwargs
 
@@ -373,6 +375,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "floor": core_ops.aten_floor,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
+    "full_like_dtype": core_ops.aten_full_like_dtype,
     "full_like": core_ops.aten_full_like,
     "gather": (core_ops.aten_gather, _gather_input_wrangler),
     "ge": core_ops.aten_ge,
@@ -404,6 +407,8 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
+    "mean": (core_ops.aten_mean, _mean_input_wrangler),
+    "mean_dim": (core_ops.aten_mean_dim, _mean_input_wrangler),
     "min_dim": core_ops.aten_min_dim,
     "min_other": core_ops.aten_min_other,
     "min": core_ops.aten_min,
@@ -475,7 +480,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "rsub": core_ops.aten_rsub,
     "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
-    "scatter_add": (core_ops.aten_scatter_add, _scatter_add_input_wrangler),
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -526,6 +530,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
+    "logit": core_ops.aten_logit,
     "max": core_ops.aten_max,
     "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
     "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
@@ -559,6 +564,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
+    "scatter_add": core_ops.aten_scatter_add,
     "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
@@ -675,6 +681,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
         enabled_if=version_utils.onnxruntime_older_than("1.15"),
     ),
+    xfail(
+        "nn.functional.logsigmoid",
+        dtypes=[torch.float16],
+        reason="Eager mode failed on case(0,2) at location(0,6) due to precision loss",
+        test_class_name="TestOutputConsistencyEager",
+    ),
     skip(
         "nn.functional.scaled_dot_product_attention",
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
@@ -692,6 +704,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "remainder",
+        dtypes=[torch.float16],
+        reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
+        test_class_name="TestOutputConsistencyEager",
     ),
     xfail(
         "repeat",
@@ -796,11 +814,14 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="rounding_mode is not yet supported",
     ),
     skip(
-        "nn.functional.grid_sample",
-        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
-        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
-        or len(sample.args[0].shape) != 4,
-        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+        "full_like",
+        matcher=lambda sample: ("dtype" in sample.kwargs),
+        reason="this Aten overload only support dtype not in kwargs",
+    ),
+    skip(
+        "full_like_dtype",
+        matcher=lambda sample: "dtype" not in sample.kwargs,
+        reason="this Aten overload only support dtype in kwargs",
     ),
     skip(
         "grid_sampler_2d",
@@ -808,12 +829,12 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
-    xfail(
+    skip(
         "index_put",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
         reason="this Aten overload only support tensor(int) as args",
     ),
-    xfail(
+    skip(
         "index_put_bool",
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
@@ -824,7 +845,17 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     skip(
-        "min",  # aten_mean
+        "mean",
+        matcher=lambda sample: sample.kwargs.get("dim") is not None,
+        reason="this Aten overload only accept 1 inputs: self",
+    ),
+    skip(
+        "mean_dim",
+        matcher=lambda sample: sample.kwargs.get("dim") is None,
+        reason="this Aten overload can accept 2 inputs:(self, dim)",
+    ),
+    skip(
+        "min",  # aten_min
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
@@ -940,6 +971,13 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         "nn.functional.dropout",
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
+    ),
+    skip(
+        "nn.functional.grid_sample",
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
+        or len(sample.args[0].shape) != 4,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
     skip(
         "nn.functional.max_pool2d_with_indices",
@@ -1118,7 +1156,11 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
+ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
+
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+
+ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 
@@ -1324,6 +1366,12 @@ assert NONDETERMINISTIC_OPS.issubset(
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
 
 # List for different input dtype testing flag
+# Added Cast inside below functions so they can support all real dtypes naturally
+# -- isfinite, isinf, isneginf, isposinf
+# Note:
+# Converter fp32 to fp16 model is a significant feature for end users,
+# another approach is to add cast before/after the function call,
+# that way we also need a list to remember which function need cast
 OPINFO_FUNCTION_TARGET_DTYPE: dict[
     str,
     tuple[Any, ...],
@@ -1354,7 +1402,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "add": (
         torch.float32,
-        # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+        # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
+        # using https://github.com/microsoft/onnxruntime/issues/15977 to track
     ),
     "addmm": (
         torch.float32,
@@ -1444,6 +1493,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "chunk": (
         torch.float32,
         # torch.float16,  # FIXME: SplitToSequence op inference failed
+        # using https://github.com/microsoft/onnxruntime/issues/16006 to track
     ),
     "clamp": (
         torch.float32,
@@ -1464,6 +1514,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "col2im": (
         torch.float32,
         # torch.float16,  # FIXME: Tensor-likes are not close
+        # using https://github.com/microsoft/onnxruntime/issues/16007 to track
     ),
     "constant_pad_nd": (
         torch.float32,
@@ -1562,7 +1613,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "full_like": (
         torch.float32,
-        # torch.float16,  # FIXME: dtype don't match.
+        torch.float16,
+    ),
+    "full_like_dtype": (
+        torch.float32,
+        torch.float16,
     ),
     "gather": (
         torch.float32,
@@ -1586,11 +1641,11 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
+        torch.float16,
     ),
     "index_put": (
         torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
+        torch.float16,
     ),
     "index_select": (
         torch.float32,
@@ -1602,7 +1657,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isfinite": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        # Added Cast inside the function so it can support all real dtypes naturally
+        torch.float16,
     ),
     "isinf": (
         torch.float32,
@@ -1614,15 +1670,17 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "isneginf": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        # Added Cast inside the function so it can support all real dtypes naturally
+        torch.float16,
     ),
     "isposinf": (
         torch.float32,
-        # torch.float16,  # FIXME: shape inference error
+        # Added Cast inside the function so it can support all real dtypes naturally
+        torch.float16,
     ),
     "layer_norm": (
         torch.float32,
-        # torch.float16,  # FIXME: skipped, check reason
+        torch.float16,
     ),
     "log": (
         torch.float32,
@@ -1634,8 +1692,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "log10": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+        # py310-torch-nightly,Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float)
+        # torch.float16,
     ),
     "log1p": (
         torch.float32,
@@ -1647,8 +1705,8 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "log2": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: op_tupe: Div, node name: n3) B has inconsistent type tensor(float)
+        # windows-latest, py310-torch-nightly, RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
+        # torch.float16,
     ),
     "logaddexp": (
         torch.float32,
@@ -1663,6 +1721,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "logdet": (
+        torch.float32,
+        torch.float16,
+    ),
+    "logit": (
         torch.float32,
         torch.float16,
     ),
@@ -1695,6 +1757,14 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "max_pool3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "mean": (
+        torch.float32,
+        torch.float16,
+    ),
+    "mean_dim": (
         torch.float32,
         torch.float16,
     ),
@@ -1732,7 +1802,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "native_group_norm": (
         torch.float32,
-        # torch.float16,  # ORT not implemented
+        # torch.float16,  # "GroupNormKernelImpl" not implemented for 'Half' in nightly and weekly
     ),
     "native_layer_norm": (
         torch.float32,
@@ -1830,7 +1900,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.elu": (
         torch.float32,
-        torch.float16,
+        # torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
     ),
     "nn.functional.embedding": (
         torch.float32,
@@ -1838,7 +1908,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.gelu": (
         torch.float32,
-        torch.float16,
+        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
     ),
     "nn.functional.grid_sample": (
         torch.float32,
@@ -1858,8 +1928,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.logsigmoid": (
         torch.float32,
-        # windows-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: Tensor-likes are not close
+        torch.float16,
     ),
     "nn.functional.max_pool2d": (
         torch.float32,
@@ -1891,12 +1960,15 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.relu": (
         torch.float32,
-        # ubuntu-latest, py310-torch-nightly
-        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+        # ORT cannot support relu in float16
+        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
+        # torch.float16,
     ),
     "nn.functional.relu6": (
         torch.float32,
-        # torch.float16,  # FIXME: Unable to create ort InferenceSession for .Div op
+        # ORT cannot support relu in float16
+        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
+        # torch.float16,
     ),
     "nn.functional.replication_pad2d": (
         torch.float32,
@@ -1908,15 +1980,15 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "nn.functional.scaled_dot_product_attention": (
         torch.float32,
-        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+        torch.float16,
     ),
     "nn.functional.scaled_dot_product_attention_bool_mask": (
         torch.float32,
-        # torch.float16,  # OpSchema is not writable before ONNX 1.15
+        torch.float16,
     ),
     "nn.functional.selu": (
         torch.float32,
-        torch.float16,
+        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
     ),
     "nn.functional.mse_loss": (
         torch.float32,
@@ -1944,7 +2016,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "ones_like": (
         torch.float32,
-        # torch.float16,  # FIXME" ORT inference failed
+        torch.float16,
     ),
     "permute": (
         torch.float32,
@@ -1965,7 +2037,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "remainder": (
         torch.float32,
-        # torch.float16,  # tensor-like are not close
+        torch.float16,
     ),
     "repeat": (
         torch.float32,
@@ -2116,14 +2188,17 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "var_mean": (
         torch.float32,
+        # py31--torch-nightly, Unable to create onnxruntime InferenceSession for executing .Mul op with onnx model
         # torch.float16,
     ),
     "var_mean_dim": (
         torch.float32,
+        # py310-torch-nightly, FullGraph, AssertionError in ORT
         # torch.float16,
     ),
     "var_mean_correction": (
         torch.float32,
+        # py310-onnx-weekly, FullGraph, AssertionError in ORT
         # torch.float16,
     ),
     "view": (
