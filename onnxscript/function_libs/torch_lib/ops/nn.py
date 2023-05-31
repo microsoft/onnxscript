@@ -514,8 +514,6 @@ def aten_fractional_max_pool3d_backward(
 def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
-    self = op.Cast(self, to=FLOAT.dtype)
-
     if approximate == "tanh":
         result = _aten_gelu_approximate_tanh(self)
     else:
@@ -527,7 +525,6 @@ def aten_gelu(self: TReal, approximate: str = "none") -> TReal:
 def _aten_gelu_approximate_none(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
-    self = op.Cast(self, to=FLOAT.dtype)
     # GELU(x) = 0.5 * x * [1 + ERF(x/sqrt(2)]
     inner = op.Div(self, 1.4142135623730951)
     erf = op.Erf(inner)
@@ -541,7 +538,6 @@ def _aten_gelu_approximate_none(self: TReal) -> TReal:
 def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     """gelu(Tensor self, *, str approximate='none') -> Tensor"""
 
-    self = op.Cast(self, to=FLOAT.dtype)
     # GELU(x) = 0.5 * x * {1 + Tanh[\sqrt(2/pi) * (x + 0.044715 * x^3)]}
     cubed = op.Pow(self, 3)
     inner = op.Mul(0.044715, cubed)
