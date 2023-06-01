@@ -611,7 +611,6 @@ class TracedOnnxFunction(Op):
         # NOTE: We generate the parameter schemas from the function_ir instead
         # of relying on the auto generated OpSchema because we need to preserve the keyword
         # argument order from the Python function definition, which is lost in OpSchema.
-        # FIXME(justinchuby): Fix param ordering when attributes come before inputs.
         self._param_schemas = param_schemas_from_function_ir(self.function_ir)
         return self._param_schemas
 
