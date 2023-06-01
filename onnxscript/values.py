@@ -195,37 +195,53 @@ def param_schemas_from_op_schema(
     return tuple(schemas)
 
 
+def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
+    if isinstance(input.typeinfo, onnx.TypeProto.Optional):
+        required = False
+    else:
+        required = True
+    return ParamSchema(name=input.name, type=input.typeinfo, is_input=True, required=required)
+
+
+def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
+    return ParamSchema(
+        name=attr.name,
+        type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
+            onnx.defs.OpSchema.AttrType(attr.type)  # type: ignore[call-arg]
+        ),
+        default=_EmptyDefault if attr.default_value is None else attr.default_value,
+        is_input=False,
+        required=not attr.has_default,
+    )
+
+
 def param_schemas_from_function_ir(
     function_ir: irbuilder.IRFunction,
 ) -> tuple[ParamSchema, ...]:
     """Get the parameter schemas from a FunctionIR."""
-    # The first len(func_ir.inputs) arguments are onnx inputs
-    # The rest is onnx attributes
-
     schemas = []
-    for arg in function_ir.inputs:
-        if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
-            required = False
-        else:
-            required = True
-        schemas.append(
-            ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True, required=required)
-        )
 
-    for attr_parameter in function_ir.attrs:
-        schemas.append(
-            ParamSchema(
-                name=attr_parameter.name,
-                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
-                    onnx.defs.OpSchema.AttrType(attr_parameter.type)  # type: ignore[call-arg]
-                ),
-                default=_EmptyDefault
-                if attr_parameter.default_value is None
-                else attr_parameter.default_value,
-                is_input=False,
-                required=not attr_parameter.has_default,
-            )
-        )
+    if function_ir.ordered_inputs_and_attrs:
+        # OnnxFunction supports intersected inputs and attributes.
+        # When order metadata is available, preserve the original order of inputs and
+        # attributes
+        for arg in function_ir.ordered_inputs_and_attrs:
+            if isinstance(arg, irbuilder.IRVar):
+                # input
+                schemas.append(_param_schema_from_function_ir_input(arg))
+            elif isinstance(arg, irbuilder.IRAttributeParameter):
+                # attr
+                schemas.append(_param_schema_from_function_ir_attr(arg))
+            else:
+                raise TypeError(f"Unknown input/attr type {type(arg)} from FunctionIR.")
+    else:
+        # When order metadata is not available.
+        # The first len(func_ir.inputs) arguments are onnx inputs
+        # The rest is onnx attributes
+        for arg in function_ir.inputs:
+            schemas.append(_param_schema_from_function_ir_input(arg))
+        for attr_parameter in function_ir.attrs:
+            schemas.append(_param_schema_from_function_ir_attr(attr_parameter))
 
     return tuple(schemas)
 
