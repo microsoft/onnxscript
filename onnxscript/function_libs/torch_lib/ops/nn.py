@@ -187,19 +187,6 @@ def aten_avg_pool1d(
         strides=strides,
     )
 
-    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
-    # mask = [
-    #    1, 2, 3, S,..3, 2, 1
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    S, 2S,3S,SS,3S,2S, S
-    #    3, 6, 9, 3S, 9, 6, 3
-    #    2, 4, 6, 2S, 6, 4, 2
-    #    1, 2, 3, S,..3, 2, 1
-    # ]
-    # S is stride size, in this case S=4,
-    # S may dup lot of times according to the image size
-
     return result
 
 

@@ -952,7 +952,7 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     # xfail(
     #     "nn.functional.avg_pool1d",
     #     matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
-    #     reason="ONNX has different ciel mode strategy to PyTorch",
+    #     reason="ONNX has different ceil mode strategy to PyTorch",
     # ),
     xfail(
         "nn.functional.avg_pool2d",
