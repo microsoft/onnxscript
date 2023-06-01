@@ -382,6 +382,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
     # "greater": core_ops.aten_greater,  # no test case in OPS_DB
     "gt": core_ops.aten_gt,
+    "hstack": core_ops.aten_hstack,
     # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": core_ops.aten_index_put_bool,
@@ -1644,6 +1645,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "gt": (
+        torch.float32,
+        torch.float16,
+    ),
+    "hstack": (
         torch.float32,
         torch.float16,
     ),

@@ -2811,10 +2811,25 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_hstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::hstack")
+def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO: Due to lack of for loop, we couldn't use at::atleast_1d
+    # and examine the first tensor dim like torch did in their implementation.
+
+    # In PyTorch:
+    # Tensor hstack(TensorList tensors) {
+    #   TORCH_CHECK(!tensors.empty(),
+    #            "hstack expects a non-empty TensorList");
+    #   auto rep = at::atleast_1d(tensors);
+    #   if (rep[0].dim() == 1) {
+    #     return at::cat(rep, 0);
+    #   }
+    #   return at::cat(rep, 1);
+    # }
+
+    return op.ConcatFromSequence(tensors, axis=-1, new_axis=0)
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
