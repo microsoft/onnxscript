@@ -147,14 +147,6 @@ def _empty_input_wrangler(
     return args, kwargs
 
 
-def _flip_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dims as tensor
-    kwargs["dims"] = np.array(kwargs["dims"], dtype=np.int64)
-    return args, kwargs
-
-
 def _grid_sample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -174,15 +166,6 @@ def _max_pool_input_wrangler(
     # Remove return_indices argument because this op doesn't accept it
     if "return_indices" in kwargs:
         del kwargs["return_indices"]
-    return args, kwargs
-
-
-def _mean_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dims as tensor
-    if "dim" in kwargs:
-        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
     return args, kwargs
 
 
@@ -252,14 +235,6 @@ def _scatter_reduce_input_wrangler(
 ) -> tuple[list[Any], dict[str, Any]]:
     # Put the string into kwargs, otherwise FullGraph mode could not find get 'reduce' argument
     kwargs["reduce"] = args.pop(4)
-    return args, kwargs
-
-
-def _sum_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    if kwargs.get("dim") is not None:
-        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
     return args, kwargs
 
 
@@ -363,7 +338,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "expand_as": core_ops.aten_expand_as,
     "erf": core_ops.aten_erf,
     "fill": core_ops.aten_fill,
-    "flip": (core_ops.aten_flip, _flip_input_wrangler),
     "floor": core_ops.aten_floor,
     "fmod": core_ops.aten_fmod,
     "full": core_ops.aten_full,
@@ -398,8 +372,6 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "masked_fill": core_ops.aten_masked_fill,
     "matmul": core_ops.aten_matmul,
     "maximum": core_ops.aten_maximum,
-    "mean": (core_ops.aten_mean, _mean_input_wrangler),
-    "mean_dim": (core_ops.aten_mean_dim, _mean_input_wrangler),
     "min_dim": core_ops.aten_min_dim,
     "min_other": core_ops.aten_min_other,
     "min": core_ops.aten_min,
@@ -559,7 +531,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
-    "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
     "var_mean": core_ops.aten_var_mean,
     "var_mean_dim": core_ops.aten_var_mean_dim,

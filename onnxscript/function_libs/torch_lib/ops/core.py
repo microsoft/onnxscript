@@ -3737,7 +3737,7 @@ def aten_mean(self: TReal) -> TReal:
 
 @torch_op("aten::mean.dim")
 def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
-    """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+    """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:
         result = self
