@@ -234,11 +234,8 @@ class IRFunction:
     def __init__(self, name: str, domain: str = "") -> None:
         self.domain = domain
         self.name = name
-        # self.inputs: list[IRVar] = []
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
-        # attribute parameters
-        # self.attrs: list[IRAttributeParameter] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
@@ -257,7 +254,11 @@ class IRFunction:
 
     @property
     def attrs(self) -> Sequence[IRAttributeParameter]:
-        return [attr for attr in self.ordered_inputs_and_attrs if isinstance(attr, IRAttributeParameter)]
+        return [
+            attr
+            for attr in self.ordered_inputs_and_attrs
+            if isinstance(attr, IRAttributeParameter)
+        ]
 
     def __str__(self):
         attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
