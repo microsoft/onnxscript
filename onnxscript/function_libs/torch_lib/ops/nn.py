@@ -639,30 +639,59 @@ def aten_logit_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::max_pool1d", trace_only=True)
 def aten_max_pool1d(
-    self: TensorType,
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> TensorType:
+) -> TFloatOrUInt8:
     """max_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> Tensor"""
 
-    raise NotImplementedError()
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a tuple of three ints for all sides explicitly.
+    expand_size = 1
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 2)
 
 
+@torch_op("aten::max_pool1d_with_indices", trace_only=True)
 def aten_max_pool1d_with_indices(
-    self: TensorType,
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> tuple[TensorType, TensorType]:
+) -> tuple[TFloatOrUInt8, INT64]:
     """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a tuple of three ints for all sides explicitly.
+    expand_size = 1
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_with_indices_onnx(
+        self,
+        kernel_shape,
+        strides,
+        pads,
+        dilations,
+        ceil_mode,
+        2,
+        ([1] * expand_size),
+        ([0] * expand_size),
+        ([2 + i for i in range(expand_size)]),
+    )
 
 
 def _adjust_attributes_of_max_pool(
