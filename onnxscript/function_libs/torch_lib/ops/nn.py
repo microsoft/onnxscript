@@ -711,14 +711,16 @@ def _adjust_attributes_of_max_pool(
     else:
         kernel_shape = kernel_size
 
+    # expand_size is the dimension of pooling kernel,
+    # ONNX needs begin and end padding so we need to double the padding
     if isinstance(padding, int):
         pads = [padding] * expand_size * 2
     elif len(padding) == 1:
         pads = padding * expand_size * 2
     elif len(padding) == 2:
         pads = padding * expand_size
-    else:
-        pads = padding
+    elif len(padding) == 3:
+        pads = padding * 2
 
     if isinstance(stride, int):
         strides = [stride] * expand_size
@@ -786,8 +788,8 @@ def aten_max_pool3d(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
     stride: Sequence[int] = (),
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0, 0),
+    dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
 ) -> TFloatOrUInt8:
     """max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor"""
@@ -856,8 +858,8 @@ def aten_max_pool3d_with_indices(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
     stride: Sequence[int] = (),
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0, 0),
+    dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
 ) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool3d_with_indices(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
