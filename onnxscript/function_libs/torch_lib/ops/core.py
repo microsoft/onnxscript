@@ -2829,7 +2829,12 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     #   return at::cat(rep, 1);
     # }
 
-    return op.ConcatFromSequence(tensors, axis=-1, new_axis=0)
+    first_tensor = op.SequenceAt(tensors, 0)
+    if op.Size(op.Shape(first_tensor)) == 1:
+        result = op.ConcatFromSequence(tensors, axis=0, new_axis=0)
+    else:
+        result = op.ConcatFromSequence(tensors, axis=1, new_axis=0)
+    return result
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
