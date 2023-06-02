@@ -754,6 +754,12 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
+    xfail(
+        "nn.functional.cross_entropy",
+        reason="ORT < 1.15 fails on a few subtests with error 'index < data_.size() was false'. Resolved in ORT 1.15+",
+        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.15"),
+    ),
 )
 
 
