@@ -20,6 +20,7 @@ from typing import Optional, Sequence, Tuple
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
+    IntType,
     TFloat,
     TFloatOrBFloat16,
     TFloatOrUInt8,
@@ -318,7 +319,7 @@ def aten_conv_depthwise3d(
 @torch_op("aten::cross_entropy_loss")
 def aten_cross_entropy_loss(
     self: TFloatOrBFloat16,
-    target: Sequence[int],
+    target: IntType,
     weight: Optional[TFloatOrBFloat16] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
