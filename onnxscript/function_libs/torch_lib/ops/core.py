@@ -6552,10 +6552,20 @@ def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::vstack")
+def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO: Support at_least2d
+
+    # Tensor vstack(TensorList tensors) {
+    #   TORCH_CHECK(!tensors.empty(),
+    #            "vstack expects a non-empty TensorList");
+    #   auto rep = at::atleast_2d(tensors);
+    #   return at::cat(rep, 0);
+    # }
+
+    return op.ConcatFromSequence(tensors, axis=0)
 
 
 @torch_op("aten::where")

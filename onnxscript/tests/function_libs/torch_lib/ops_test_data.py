@@ -505,6 +505,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
+    "vstack": core_ops.aten_vstack,
     "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
@@ -1151,6 +1152,11 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
+    ),
+    xfail(
+        "vstack",
+        matcher=lambda sample: len(sample.input[0].shape) < 2,
+        reason="fixme: Need aten::at_least2d supported",
     ),
 )
 
@@ -2228,6 +2234,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         # torch.float16,
     ),
     "view": (
+        torch.float32,
+        torch.float16,
+    ),
+    "vstack": (
         torch.float32,
         torch.float16,
     ),

@@ -485,6 +485,8 @@ def graph_executor(
             else:
                 onnxscript_kwargs[key] = value
 
+        # print("onnxscript_args", onnxscript_args)
+
         with onnxscript.evaluator.default_as(tracer):
             symbolic_outputs = function(*onnxscript_args, **onnxscript_kwargs)
         if not isinstance(symbolic_outputs, Sequence):
