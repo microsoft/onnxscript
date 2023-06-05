@@ -2811,7 +2811,7 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::hstack")
+@torch_op("aten::hstack", trace_only=True)
 def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
@@ -2829,8 +2829,7 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     #   return at::cat(rep, 1);
     # }
 
-    first_tensor = op.SequenceAt(tensors, 0)
-    if op.Size(op.Shape(first_tensor)) == 1:
+    if len(tensors[0].shape) == 1:
         result = op.ConcatFromSequence(tensors, axis=0, new_axis=0)
     else:
         result = op.ConcatFromSequence(tensors, axis=1, new_axis=0)
