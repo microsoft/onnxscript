@@ -8,7 +8,7 @@ from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import onnx_script_test_case, testutils
 
-from onnxscript.tests.models.pnp import roi_indices_3d, aggrregate_predictor_output, sliding_window_inference
+from onnxscript.tests.models.pnp import roi_indices_3d, aggrregate_predictor_output, sliding_window_inference, predict_mock
 
 class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
     def test_roi_indices_3d(delf):
@@ -52,13 +52,12 @@ class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
         roi_D, roi_H, roi_W = 2, 2, 2
         input = np.ones((D, H, W), dtype=np.float32)
         roi_size = np.array([roi_D, roi_H, roi_W], dtype=np.int64)
-        output = input + input
-        count_output = np.ones((D, H, W), dtype=np.int64)
+        output = predict_mock(input)
 
         case = onnx_script_test_case.FunctionTestParams(
             sliding_window_inference,
             [input, roi_size],
-            [output, count_output]
+            [output]
             )
         self.run_eager_test(case)
         self.run_converter_test(case)

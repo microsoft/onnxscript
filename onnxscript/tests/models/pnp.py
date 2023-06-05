@@ -67,7 +67,7 @@ def aggrregate_predictor_output(
     return aggrregated_pred_out, aggrregated_count_out
 
 @script()
-def predict_(inputs: FLOAT["roi_D", "roi_H", "roi_W"]) -> FLOAT["roi_D", "roi_H", "roi_W"]:
+def predict_mock(inputs: FLOAT["roi_D", "roi_H", "roi_W"]) -> FLOAT["roi_D", "roi_H", "roi_W"]:
     """
     This function is used to predict the output from the input.
     """
@@ -147,7 +147,7 @@ def sliding_window_inference(inputs: FLOAT["D", "H", "W"], roi_size: INT64[3]) -
     aggrregated_count = op.CastLike(op.ConstantOfShape(op.Shape(inputs)), roi_size)
     for slice_g in range(S):
         win_data, start, stop = prepare_for_predictor_batch_size_is_1_script(inputs, slice_g, slices)
-        pred = predict_(win_data)
-        aggrregated_pred, aggrregated_count = aggrregate_predictor_output(aggrregated_pred, aggrregated_count, pred, start, stop)
+        pred = predict_mock(win_data)
+        aggrregated_pred, aggrregated_count = aggrregate_predictor_output(pred, start, stop, aggrregated_pred, aggrregated_count)
     
-    return aggrregated_pred / aggrregated_count
+    return aggrregated_pred / op.CastLike(aggrregated_count, aggrregated_pred)

@@ -187,7 +187,7 @@ class OnnxScriptTestCase(unittest.TestCase):
             raise AssertionError(f"Unable to load model\n{model}") from e
         # input['input_2'] = None
         actual = session.run(None, input)
-        if isinstance(actual, (list, tuple)) and isinstance(actual, (list, tuple)):
+        if isinstance(actual, (list, tuple)) and isinstance(param.output, (list, tuple)):
             for actual_tensor, expected_tensor in zip(actual, param.output):
                 np.testing.assert_allclose(actual_tensor, expected_tensor, rtol=self.rtol)
         else:
@@ -200,7 +200,7 @@ class OnnxScriptTestCase(unittest.TestCase):
         atol: Optional[float] = None,
     ):
         actual = param.function(*param.input, **(param.attrs or {}))
-        if isinstance(actual, (list, tuple)) and isinstance(actual, (list, tuple)):
+        if isinstance(actual, (list, tuple)) and isinstance(param.output, (list, tuple)):
             for actual_tensor, expected_tensor in zip(actual, param.output):
                 np.testing.assert_allclose(actual_tensor, expected_tensor, rtol=self.rtol)
         else:
