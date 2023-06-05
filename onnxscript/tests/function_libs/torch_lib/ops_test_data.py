@@ -344,6 +344,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan": core_ops.aten_atan,
     "atan2": core_ops.aten_atan2,
     "atanh": core_ops.aten_atanh,
+    "atleast_1d": core_ops.aten_atleast_1d,
+    "atleast_2d": core_ops.aten_atleast_2d,
+    "atleast_3d": core_ops.aten_atleast_3d,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
     "broadcast_to": core_ops.aten_broadcast_to,
@@ -1477,6 +1480,18 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "atanh": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_1d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_3d": (
         torch.float32,
         torch.float16,
     ),

@@ -666,22 +666,70 @@ def aten_atanh(self: TFloat) -> TFloat:
     return op.Atanh(self)
 
 
-def aten_atleast_1d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_1d")
+def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    sequence_length = op.Shape(self)
+
+    for i in range(sequence_length):
+        tensor = op.SequenceAt(self, i)
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        rank_required = op.Constant(value_ints=[1])
+        if rank < 1:
+            # Get how many dim needs to be added
+            one = op.Constant(value_ints=[1])
+            one_count = op.Sub(rank, rank_required)
+            append_shape = op.Expand(one, one_count)
+            new_shape = op.Concat(shape, append_shape, axis=0)
+            # Do we need a new Sequence?
+            tensor = op.Reshape(tensor, new_shape)
+    return self
 
 
-def aten_atleast_2d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_2d")
+def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    sequence_length = op.Shape(self)
+
+    for i in range(sequence_length):
+        tensor = op.SequenceAt(self, i)
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        rank_required = op.Constant(value_ints=[2])
+        if rank < 3:
+            # Get how many dim needs to be added
+            one = op.Constant(value_ints=[1])
+            one_count = op.Sub(rank, rank_required)
+            append_shape = op.Expand(one, one_count)
+            new_shape = op.Concat(shape, append_shape, axis=0)
+            # Do we need a new Sequence?
+            tensor = op.Reshape(tensor, new_shape)
+    return self
 
 
-def aten_atleast_3d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_3d")
+def aten_atleast_3d(self: Sequence[TTensor]) -> TTensor:
     """atleast_3d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    sequence_length = op.Shape(self)
+
+    for i in range(sequence_length):
+        tensor = op.SequenceAt(self, i)
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        rank_required = op.Constant(value_ints=[3])
+        if rank < 1:
+            # Get how many dim needs to be added
+            one = op.Constant(value_ints=[1])
+            one_count = op.Sub(rank, rank_required)
+            append_shape = op.Expand(one, one_count)
+            new_shape = op.Concat(shape, append_shape, axis=0)
+            # Do we need a new Sequence?
+            tensor = op.Reshape(tensor, new_shape)
+    return self
 
 
 def aten_avg_pool1d(
