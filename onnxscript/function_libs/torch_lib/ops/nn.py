@@ -711,16 +711,26 @@ def _adjust_attributes_of_max_pool(
     else:
         kernel_shape = kernel_size
 
-    # expand_size is the dimension of pooling kernel,
+    # NOTE: expand_size is the dimension of pooling kernel,
     # ONNX needs begin and end padding so we need to double the padding
+
+    # NOTE: expand size prevents padding from being a single int in
+    # multiple dimension cases
     if isinstance(padding, int):
         pads = [padding] * expand_size * 2
     elif len(padding) == 1:
         pads = padding * expand_size * 2
     elif len(padding) == 2:
-        pads = padding * expand_size
-    elif len(padding) == 3:
+        # 2D padding
         pads = padding * 2
+    elif len(padding) == 3:
+        # 3D padding
+        pads = padding * 2
+    else:
+        # When padding is already done for all dimensions,
+        # we don't need to double it
+        # eg: (1, 1, 1, 1, 1, 1)
+        pads = padding
 
     if isinstance(stride, int):
         strides = [stride] * expand_size
