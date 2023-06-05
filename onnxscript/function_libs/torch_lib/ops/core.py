@@ -677,7 +677,7 @@ def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
         shape = op.Shape(tensor)
         rank = op.Size(shape)
         rank_required = op.Constant(value_ints=[1])
-        if rank < 1:
+        if rank < rank_required:
             # Get how many dim needs to be added
             one = op.Constant(value_ints=[1])
             one_count = op.Sub(rank, rank_required)
@@ -699,7 +699,7 @@ def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
         shape = op.Shape(tensor)
         rank = op.Size(shape)
         rank_required = op.Constant(value_ints=[2])
-        if rank < 3:
+        if rank < rank_required:
             # Get how many dim needs to be added
             one = op.Constant(value_ints=[1])
             one_count = op.Sub(rank, rank_required)
@@ -721,7 +721,7 @@ def aten_atleast_3d(self: Sequence[TTensor]) -> TTensor:
         shape = op.Shape(tensor)
         rank = op.Size(shape)
         rank_required = op.Constant(value_ints=[3])
-        if rank < 1:
+        if rank < rank_required:
             # Get how many dim needs to be added
             one = op.Constant(value_ints=[1])
             one_count = op.Sub(rank, rank_required)
