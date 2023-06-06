@@ -41,14 +41,10 @@ class ExternalPropertyFileReferences(object):
     ] = dataclasses.field(default=None, metadata={"schema_property_name": "graphs"})
     invocations: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "invocations"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "invocations"})
     logical_locations: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "logicalLocations"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "logicalLocations"})
     policies: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
     ] = dataclasses.field(default=None, metadata={"schema_property_name": "policies"})
@@ -68,19 +64,13 @@ class ExternalPropertyFileReferences(object):
     )
     translations: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "translations"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "translations"})
     web_requests: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "webRequests"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "webRequests"})
     web_responses: Optional[
         List[_external_property_file_reference.ExternalPropertyFileReference]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "webResponses"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "webResponses"})
 
 
 # flake8: noqa

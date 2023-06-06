@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import beartype
 import functools
 import traceback
 from typing import Any, Callable, Dict, Optional, Tuple, Type
 
+import beartype
+
 from onnxscript.diagnostics import infra
 from onnxscript.diagnostics.infra import formatter, utils
-
 
 MessageFormatterType = Callable[..., str]
 
@@ -116,9 +116,7 @@ def diagnose_call(
                 stack.frames.insert(0, infra.StackFrame(location=fn_location))
 
             additional_messages = [
-                format_function_signature_in_markdown(
-                    fn, args, kwargs, format_argument
-                ),
+                format_function_signature_in_markdown(fn, args, kwargs, format_argument),
             ]
 
             return_values: Any = None

@@ -35,15 +35,13 @@ class ReportingDescriptor(object):
     )
     full_description: Optional[
         _multiformat_message_string.MultiformatMessageString
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "fullDescription"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "fullDescription"})
     guid: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "guid"}
     )
-    help: Optional[
-        _multiformat_message_string.MultiformatMessageString
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "help"})
+    help: Optional[_multiformat_message_string.MultiformatMessageString] = dataclasses.field(
+        default=None, metadata={"schema_property_name": "help"}
+    )
     help_uri: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "helpUri"}
     )
@@ -58,14 +56,10 @@ class ReportingDescriptor(object):
     )
     relationships: Optional[
         List[_reporting_descriptor_relationship.ReportingDescriptorRelationship]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "relationships"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "relationships"})
     short_description: Optional[
         _multiformat_message_string.MultiformatMessageString
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "shortDescription"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "shortDescription"})
 
 
 # flake8: noqa

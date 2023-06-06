@@ -6,11 +6,7 @@ from __future__ import annotations
 import dataclasses
 from typing import List, Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _exception,
-    _property_bag,
-    _stack,
-)
+from onnxscript.diagnostics.infra.sarif import _exception, _property_bag, _stack
 
 
 @dataclasses.dataclass

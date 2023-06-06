@@ -6,12 +6,7 @@ from __future__ import annotations
 import dataclasses
 from typing import List, Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _location,
-    _message,
-    _node,
-    _property_bag,
-)
+from onnxscript.diagnostics.infra.sarif import _location, _message, _node, _property_bag
 
 
 @dataclasses.dataclass

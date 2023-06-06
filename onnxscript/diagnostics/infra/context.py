@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 import contextlib
-
 import dataclasses
 import gzip
-
 import logging
-
 from typing import Callable, Generator, List, Literal, Mapping, Optional, TypeVar
 
 from onnxscript.diagnostics import infra
 from onnxscript.diagnostics.infra import formatter, sarif, utils
 from onnxscript.diagnostics.infra.sarif import version as sarif_version
-
 
 # This is a workaround for mypy not supporting Self from typing_extensions.
 _Diagnostic = TypeVar("_Diagnostic", bound="Diagnostic")
@@ -71,9 +67,7 @@ class Diagnostic:
                 ]
             )
         ]
-        sarif_result.properties = sarif.PropertyBag(
-            tags=[tag.value for tag in self.tags]
-        )
+        sarif_result.properties = sarif.PropertyBag(tags=[tag.value for tag in self.tags])
         return sarif_result
 
     def with_location(self: _Diagnostic, location: infra.Location) -> _Diagnostic:
@@ -143,9 +137,7 @@ class Diagnostic:
         self.with_thread_flow_location(thread_flow_location)
         return thread_flow_location
 
-    def pretty_print(
-        self, verbose: bool = False, log_level: infra.Level = infra.Level.ERROR
-    ):
+    def pretty_print(self, verbose: bool = False, log_level: infra.Level = infra.Level.ERROR):
         """Prints the diagnostics in a human-readable format.
 
         Args:
@@ -262,9 +254,7 @@ class DiagnosticContext:
     def log_and_raise_if_error(self, diagnostic: Diagnostic) -> None:
         self.log(diagnostic)
         if diagnostic.level == infra.Level.ERROR:
-            raise RuntimeErrorWithDiagnostic(
-                diagnostic
-            ) from diagnostic.source_exception
+            raise RuntimeErrorWithDiagnostic(diagnostic) from diagnostic.source_exception
 
     @contextlib.contextmanager
     def add_inflight_diagnostic(
@@ -331,9 +321,7 @@ class DiagnosticContext:
         if log_level is None:
             log_level = self.options.log_level
 
-        formatter.pretty_print_title(
-            f"Diagnostic Run {self.name} version {self.version}"
-        )
+        formatter.pretty_print_title(f"Diagnostic Run {self.name} version {self.version}")
         print(f"verbose: {verbose}, log level: {log_level}")
         diagnostic_stats = {level: 0 for level in infra.Level}
         for diagnostic in self.diagnostics:

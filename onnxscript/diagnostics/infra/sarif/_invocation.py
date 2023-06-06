@@ -36,9 +36,7 @@ class Invocation(object):
     environment_variables: Any = dataclasses.field(
         default=None, metadata={"schema_property_name": "environmentVariables"}
     )
-    executable_location: Optional[
-        _artifact_location.ArtifactLocation
-    ] = dataclasses.field(
+    executable_location: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "executableLocation"}
     )
     exit_code: Optional[int] = dataclasses.field(
@@ -71,9 +69,7 @@ class Invocation(object):
     properties: Optional[_property_bag.PropertyBag] = dataclasses.field(
         default=None, metadata={"schema_property_name": "properties"}
     )
-    response_files: Optional[
-        List[_artifact_location.ArtifactLocation]
-    ] = dataclasses.field(
+    response_files: Optional[List[_artifact_location.ArtifactLocation]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "responseFiles"}
     )
     rule_configuration_overrides: Optional[
@@ -107,9 +103,7 @@ class Invocation(object):
     ] = dataclasses.field(
         default=None, metadata={"schema_property_name": "toolExecutionNotifications"}
     )
-    working_directory: Optional[
-        _artifact_location.ArtifactLocation
-    ] = dataclasses.field(
+    working_directory: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "workingDirectory"}
     )
 

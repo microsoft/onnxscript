@@ -6,11 +6,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _artifact_content,
-    _property_bag,
-    _region,
-)
+from onnxscript.diagnostics.infra.sarif import _artifact_content, _property_bag, _region
 
 
 @dataclasses.dataclass

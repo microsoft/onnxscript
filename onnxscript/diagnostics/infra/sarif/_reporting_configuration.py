@@ -25,9 +25,7 @@ class ReportingConfiguration(object):
     properties: Optional[_property_bag.PropertyBag] = dataclasses.field(
         default=None, metadata={"schema_property_name": "properties"}
     )
-    rank: float = dataclasses.field(
-        default=-1.0, metadata={"schema_property_name": "rank"}
-    )
+    rank: float = dataclasses.field(default=-1.0, metadata={"schema_property_name": "rank"})
 
 
 # flake8: noqa

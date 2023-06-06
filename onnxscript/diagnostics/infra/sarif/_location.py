@@ -24,17 +24,13 @@ class Location(object):
         default=None, metadata={"schema_property_name": "annotations"}
     )
     id: int = dataclasses.field(default=-1, metadata={"schema_property_name": "id"})
-    logical_locations: Optional[
-        List[_logical_location.LogicalLocation]
-    ] = dataclasses.field(
+    logical_locations: Optional[List[_logical_location.LogicalLocation]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "logicalLocations"}
     )
     message: Optional[_message.Message] = dataclasses.field(
         default=None, metadata={"schema_property_name": "message"}
     )
-    physical_location: Optional[
-        _physical_location.PhysicalLocation
-    ] = dataclasses.field(
+    physical_location: Optional[_physical_location.PhysicalLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "physicalLocation"}
     )
     properties: Optional[_property_bag.PropertyBag] = dataclasses.field(
@@ -42,9 +38,7 @@ class Location(object):
     )
     relationships: Optional[
         List[_location_relationship.LocationRelationship]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "relationships"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "relationships"})
 
 
 # flake8: noqa

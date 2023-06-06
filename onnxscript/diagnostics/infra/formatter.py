@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import beartype
 import dataclasses
 import json
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from onnxscript.diagnostics.infra import sarif
+import beartype
 
+from onnxscript.diagnostics.infra import sarif
 
 # A list of types in the SARIF module to support pretty printing.
 # This is solely for type annotation for the functions below.

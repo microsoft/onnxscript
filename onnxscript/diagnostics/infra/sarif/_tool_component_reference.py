@@ -16,9 +16,7 @@ class ToolComponentReference(object):
     guid: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "guid"}
     )
-    index: int = dataclasses.field(
-        default=-1, metadata={"schema_property_name": "index"}
-    )
+    index: int = dataclasses.field(default=-1, metadata={"schema_property_name": "index"})
     name: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "name"}
     )

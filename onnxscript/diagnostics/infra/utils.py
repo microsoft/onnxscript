@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import beartype
 import functools
-
 import inspect
 import traceback
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
+
+import beartype
 
 from onnxscript.diagnostics.infra import _infra, formatter
 

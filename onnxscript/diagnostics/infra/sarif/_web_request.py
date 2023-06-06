@@ -6,10 +6,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any, Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _artifact_content,
-    _property_bag,
-)
+from onnxscript.diagnostics.infra.sarif import _artifact_content, _property_bag
 
 
 @dataclasses.dataclass
@@ -22,9 +19,7 @@ class WebRequest(object):
     headers: Any = dataclasses.field(
         default=None, metadata={"schema_property_name": "headers"}
     )
-    index: int = dataclasses.field(
-        default=-1, metadata={"schema_property_name": "index"}
-    )
+    index: int = dataclasses.field(default=-1, metadata={"schema_property_name": "index"})
     method: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "method"}
     )

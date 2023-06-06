@@ -21,9 +21,7 @@ class PhysicalLocation(object):
     address: Optional[_address.Address] = dataclasses.field(
         default=None, metadata={"schema_property_name": "address"}
     )
-    artifact_location: Optional[
-        _artifact_location.ArtifactLocation
-    ] = dataclasses.field(
+    artifact_location: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "artifactLocation"}
     )
     context_region: Optional[_region.Region] = dataclasses.field(

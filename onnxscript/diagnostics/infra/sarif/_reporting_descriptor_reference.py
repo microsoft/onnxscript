@@ -6,10 +6,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _property_bag,
-    _tool_component_reference,
-)
+from onnxscript.diagnostics.infra.sarif import _property_bag, _tool_component_reference
 
 
 @dataclasses.dataclass
@@ -22,17 +19,13 @@ class ReportingDescriptorReference(object):
     id: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "id"}
     )
-    index: int = dataclasses.field(
-        default=-1, metadata={"schema_property_name": "index"}
-    )
+    index: int = dataclasses.field(default=-1, metadata={"schema_property_name": "index"})
     properties: Optional[_property_bag.PropertyBag] = dataclasses.field(
         default=None, metadata={"schema_property_name": "properties"}
     )
     tool_component: Optional[
         _tool_component_reference.ToolComponentReference
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "toolComponent"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "toolComponent"})
 
 
 # flake8: noqa

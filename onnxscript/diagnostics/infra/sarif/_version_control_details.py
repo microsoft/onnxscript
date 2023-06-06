@@ -6,19 +6,14 @@ from __future__ import annotations
 import dataclasses
 from typing import Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _artifact_location,
-    _property_bag,
-)
+from onnxscript.diagnostics.infra.sarif import _artifact_location, _property_bag
 
 
 @dataclasses.dataclass
 class VersionControlDetails(object):
     """Specifies the information necessary to retrieve a desired revision from a version control system."""
 
-    repository_uri: str = dataclasses.field(
-        metadata={"schema_property_name": "repositoryUri"}
-    )
+    repository_uri: str = dataclasses.field(metadata={"schema_property_name": "repositoryUri"})
     as_of_time_utc: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "asOfTimeUtc"}
     )

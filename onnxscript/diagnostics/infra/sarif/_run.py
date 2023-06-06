@@ -40,15 +40,13 @@ class Run(object):
     )
     automation_details: Optional[
         _run_automation_details.RunAutomationDetails
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "automationDetails"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "automationDetails"})
     baseline_guid: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "baselineGuid"}
     )
-    column_kind: Optional[
-        Literal["utf16CodeUnits", "unicodeCodePoints"]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "columnKind"})
+    column_kind: Optional[Literal["utf16CodeUnits", "unicodeCodePoints"]] = dataclasses.field(
+        default=None, metadata={"schema_property_name": "columnKind"}
+    )
     conversion: Optional[_conversion.Conversion] = dataclasses.field(
         default=None, metadata={"schema_property_name": "conversion"}
     )
@@ -73,9 +71,7 @@ class Run(object):
     language: str = dataclasses.field(
         default="en-US", metadata={"schema_property_name": "language"}
     )
-    logical_locations: Optional[
-        List[_logical_location.LogicalLocation]
-    ] = dataclasses.field(
+    logical_locations: Optional[List[_logical_location.LogicalLocation]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "logicalLocations"}
     )
     newline_sequences: List[str] = dataclasses.field(
@@ -99,12 +95,8 @@ class Run(object):
     )
     run_aggregates: Optional[
         List[_run_automation_details.RunAutomationDetails]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "runAggregates"}
-    )
-    special_locations: Optional[
-        _special_locations.SpecialLocations
-    ] = dataclasses.field(
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "runAggregates"})
+    special_locations: Optional[_special_locations.SpecialLocations] = dataclasses.field(
         default=None, metadata={"schema_property_name": "specialLocations"}
     )
     taxonomies: Optional[List[_tool_component.ToolComponent]] = dataclasses.field(

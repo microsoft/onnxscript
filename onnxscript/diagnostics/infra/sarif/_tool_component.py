@@ -38,9 +38,7 @@ class ToolComponent(object):
     )
     full_description: Optional[
         _multiformat_message_string.MultiformatMessageString
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "fullDescription"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "fullDescription"})
     full_name: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "fullName"}
     )
@@ -67,15 +65,11 @@ class ToolComponent(object):
     )
     minimum_required_localized_data_semantic_version: Optional[str] = dataclasses.field(
         default=None,
-        metadata={
-            "schema_property_name": "minimumRequiredLocalizedDataSemanticVersion"
-        },
+        metadata={"schema_property_name": "minimumRequiredLocalizedDataSemanticVersion"},
     )
     notifications: Optional[
         List[_reporting_descriptor.ReportingDescriptor]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "notifications"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "notifications"})
     organization: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "organization"}
     )
@@ -91,17 +85,15 @@ class ToolComponent(object):
     release_date_utc: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "releaseDateUtc"}
     )
-    rules: Optional[
-        List[_reporting_descriptor.ReportingDescriptor]
-    ] = dataclasses.field(default=None, metadata={"schema_property_name": "rules"})
+    rules: Optional[List[_reporting_descriptor.ReportingDescriptor]] = dataclasses.field(
+        default=None, metadata={"schema_property_name": "rules"}
+    )
     semantic_version: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "semanticVersion"}
     )
     short_description: Optional[
         _multiformat_message_string.MultiformatMessageString
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "shortDescription"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "shortDescription"})
     supported_taxonomies: Optional[
         List[_tool_component_reference.ToolComponentReference]
     ] = dataclasses.field(

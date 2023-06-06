@@ -6,10 +6,7 @@ from __future__ import annotations
 import dataclasses
 from typing import List, Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _physical_location,
-    _property_bag,
-)
+from onnxscript.diagnostics.infra.sarif import _physical_location, _property_bag
 
 
 @dataclasses.dataclass
@@ -18,9 +15,7 @@ class ResultProvenance(object):
 
     conversion_sources: Optional[
         List[_physical_location.PhysicalLocation]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "conversionSources"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "conversionSources"})
     first_detection_run_guid: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "firstDetectionRunGuid"}
     )

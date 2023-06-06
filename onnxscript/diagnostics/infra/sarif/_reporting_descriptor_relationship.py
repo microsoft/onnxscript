@@ -17,8 +17,8 @@ from onnxscript.diagnostics.infra.sarif import (
 class ReportingDescriptorRelationship(object):
     """Information about the relation of one reporting descriptor to another."""
 
-    target: _reporting_descriptor_reference.ReportingDescriptorReference = (
-        dataclasses.field(metadata={"schema_property_name": "target"})
+    target: _reporting_descriptor_reference.ReportingDescriptorReference = dataclasses.field(
+        metadata={"schema_property_name": "target"}
     )
     description: Optional[_message.Message] = dataclasses.field(
         default=None, metadata={"schema_property_name": "description"}

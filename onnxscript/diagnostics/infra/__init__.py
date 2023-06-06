@@ -3,7 +3,6 @@ from ._infra import (
     Graph,
     Invocation,
     Level,
-    levels,
     Location,
     Rule,
     RuleCollection,
@@ -11,6 +10,7 @@ from ._infra import (
     StackFrame,
     Tag,
     ThreadFlowLocation,
+    levels,
 )
 from .context import Diagnostic, DiagnosticContext, RuntimeErrorWithDiagnostic
 

@@ -29,9 +29,7 @@ class ThreadFlowLocation(object):
     importance: Literal["important", "essential", "unimportant"] = dataclasses.field(
         default="important", metadata={"schema_property_name": "importance"}
     )
-    index: int = dataclasses.field(
-        default=-1, metadata={"schema_property_name": "index"}
-    )
+    index: int = dataclasses.field(default=-1, metadata={"schema_property_name": "index"})
     kinds: Optional[List[str]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "kinds"}
     )
@@ -50,9 +48,7 @@ class ThreadFlowLocation(object):
     stack: Optional[_stack.Stack] = dataclasses.field(
         default=None, metadata={"schema_property_name": "stack"}
     )
-    state: Any = dataclasses.field(
-        default=None, metadata={"schema_property_name": "state"}
-    )
+    state: Any = dataclasses.field(default=None, metadata={"schema_property_name": "state"})
     taxa: Optional[
         List[_reporting_descriptor_reference.ReportingDescriptorReference]
     ] = dataclasses.field(default=None, metadata={"schema_property_name": "taxa"})

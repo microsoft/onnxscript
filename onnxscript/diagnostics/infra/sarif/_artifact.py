@@ -27,15 +27,11 @@ class Artifact(object):
     encoding: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "encoding"}
     )
-    hashes: Any = dataclasses.field(
-        default=None, metadata={"schema_property_name": "hashes"}
-    )
+    hashes: Any = dataclasses.field(default=None, metadata={"schema_property_name": "hashes"})
     last_modified_time_utc: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "lastModifiedTimeUtc"}
     )
-    length: int = dataclasses.field(
-        default=-1, metadata={"schema_property_name": "length"}
-    )
+    length: int = dataclasses.field(default=-1, metadata={"schema_property_name": "length"})
     location: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "location"}
     )

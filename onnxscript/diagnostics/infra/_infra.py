@@ -157,9 +157,7 @@ class Location:
                     snippet=sarif.ArtifactContent(text=self.snippet),
                 ),
             ),
-            message=sarif.Message(text=self.message)
-            if self.message is not None
-            else None,
+            message=sarif.Message(text=self.message) if self.message is not None else None,
         )
 
     def pretty_print(self):
@@ -197,9 +195,7 @@ class Stack:
         """Returns the SARIF representation of this stack."""
         return sarif.Stack(
             frames=[frame.sarif() for frame in self.frames],
-            message=sarif.Message(text=self.message)
-            if self.message is not None
-            else None,
+            message=sarif.Message(text=self.message) if self.message is not None else None,
         )
 
     def pretty_print(self):

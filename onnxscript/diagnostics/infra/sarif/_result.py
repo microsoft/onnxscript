@@ -29,9 +29,7 @@ from onnxscript.diagnostics.infra.sarif import (
 class Result(object):
     """A result produced by an analysis tool."""
 
-    message: _message.Message = dataclasses.field(
-        metadata={"schema_property_name": "message"}
-    )
+    message: _message.Message = dataclasses.field(metadata={"schema_property_name": "message"})
     analysis_target: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(
         default=None, metadata={"schema_property_name": "analysisTarget"}
     )
@@ -40,9 +38,7 @@ class Result(object):
     )
     baseline_state: Optional[
         Literal["new", "unchanged", "updated", "absent"]
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "baselineState"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "baselineState"})
     code_flows: Optional[List[_code_flow.CodeFlow]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "codeFlows"}
     )
@@ -55,9 +51,7 @@ class Result(object):
     fixes: Optional[List[_fix.Fix]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "fixes"}
     )
-    graph_traversals: Optional[
-        List[_graph_traversal.GraphTraversal]
-    ] = dataclasses.field(
+    graph_traversals: Optional[List[_graph_traversal.GraphTraversal]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "graphTraversals"}
     )
     graphs: Optional[List[_graph.Graph]] = dataclasses.field(
@@ -90,9 +84,7 @@ class Result(object):
     provenance: Optional[_result_provenance.ResultProvenance] = dataclasses.field(
         default=None, metadata={"schema_property_name": "provenance"}
     )
-    rank: float = dataclasses.field(
-        default=-1.0, metadata={"schema_property_name": "rank"}
-    )
+    rank: float = dataclasses.field(default=-1.0, metadata={"schema_property_name": "rank"})
     related_locations: Optional[List[_location.Location]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "relatedLocations"}
     )

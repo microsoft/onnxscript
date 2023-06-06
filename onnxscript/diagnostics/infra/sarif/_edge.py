@@ -14,12 +14,8 @@ class Edge(object):
     """Represents a directed edge in a graph."""
 
     id: str = dataclasses.field(metadata={"schema_property_name": "id"})
-    source_node_id: str = dataclasses.field(
-        metadata={"schema_property_name": "sourceNodeId"}
-    )
-    target_node_id: str = dataclasses.field(
-        metadata={"schema_property_name": "targetNodeId"}
-    )
+    source_node_id: str = dataclasses.field(metadata={"schema_property_name": "sourceNodeId"})
+    target_node_id: str = dataclasses.field(metadata={"schema_property_name": "targetNodeId"})
     label: Optional[_message.Message] = dataclasses.field(
         default=None, metadata={"schema_property_name": "label"}
     )

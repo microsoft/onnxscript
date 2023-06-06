@@ -6,11 +6,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any, List, Optional
 
-from onnxscript.diagnostics.infra.sarif import (
-    _edge_traversal,
-    _message,
-    _property_bag,
-)
+from onnxscript.diagnostics.infra.sarif import _edge_traversal, _message, _property_bag
 
 
 @dataclasses.dataclass

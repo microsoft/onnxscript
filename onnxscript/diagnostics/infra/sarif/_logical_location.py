@@ -19,9 +19,7 @@ class LogicalLocation(object):
     fully_qualified_name: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "fullyQualifiedName"}
     )
-    index: int = dataclasses.field(
-        default=-1, metadata={"schema_property_name": "index"}
-    )
+    index: int = dataclasses.field(default=-1, metadata={"schema_property_name": "index"})
     kind: Optional[str] = dataclasses.field(
         default=None, metadata={"schema_property_name": "kind"}
     )

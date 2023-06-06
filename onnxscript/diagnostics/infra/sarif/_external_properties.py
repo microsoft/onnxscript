@@ -53,9 +53,7 @@ class ExternalProperties(object):
     invocations: Optional[List[_invocation.Invocation]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "invocations"}
     )
-    logical_locations: Optional[
-        List[_logical_location.LogicalLocation]
-    ] = dataclasses.field(
+    logical_locations: Optional[List[_logical_location.LogicalLocation]] = dataclasses.field(
         default=None, metadata={"schema_property_name": "logicalLocations"}
     )
     policies: Optional[List[_tool_component.ToolComponent]] = dataclasses.field(

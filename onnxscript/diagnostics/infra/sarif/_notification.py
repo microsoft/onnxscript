@@ -19,14 +19,10 @@ from onnxscript.diagnostics.infra.sarif import (
 class Notification(object):
     """Describes a condition relevant to the tool itself, as opposed to being relevant to a target being analyzed by the tool."""
 
-    message: _message.Message = dataclasses.field(
-        metadata={"schema_property_name": "message"}
-    )
+    message: _message.Message = dataclasses.field(metadata={"schema_property_name": "message"})
     associated_rule: Optional[
         _reporting_descriptor_reference.ReportingDescriptorReference
-    ] = dataclasses.field(
-        default=None, metadata={"schema_property_name": "associatedRule"}
-    )
+    ] = dataclasses.field(default=None, metadata={"schema_property_name": "associatedRule"})
     descriptor: Optional[
         _reporting_descriptor_reference.ReportingDescriptorReference
     ] = dataclasses.field(default=None, metadata={"schema_property_name": "descriptor"})
