@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -670,42 +670,39 @@ def aten_atanh(self: TFloat) -> TFloat:
 def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
-    sequence_length = op.Shape(self)
-
-    for i in range(sequence_length):
-        tensor = op.SequenceAt(self, i)
+    @graph()
+    def reshape_to_1d(tensor):
         shape = op.Shape(tensor)
         rank = op.Size(shape)
         if rank == 0:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1]))
-    return self
+        return tensor
+
+    return op.SequenceMap(self, body=reshape_to_1d)
 
 
 @torch_op("aten::atleast_2d")
 def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
-    sequence_length = op.Shape(self)
-
-    for i in range(sequence_length):
-        tensor = op.SequenceAt(self, i)
+    @graph()
+    def reshape_to_2d(tensor):
         shape = op.Shape(tensor)
         rank = op.Size(shape)
         if rank == 0:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1, 1]))
         elif rank == 1:
             tensor = op.Unsqueeze(tensor, op.Constant(value_ints=[0]))
-    return self
+
+    return op.SequenceMap(self, body=reshape_to_2d)
 
 
 @torch_op("aten::atleast_3d")
 def aten_atleast_3d(self: Sequence[TTensor]) -> TTensor:
     """atleast_3d(Tensor self) -> Tensor"""
 
-    sequence_length = op.Shape(self)
-
-    for i in range(sequence_length):
-        tensor = op.SequenceAt(self, i)
+    @graph()
+    def reshape_to_3d(tensor):
         shape = op.Shape(tensor)
         rank = op.Size(shape)
         if rank == 0:
@@ -715,7 +712,8 @@ def aten_atleast_3d(self: Sequence[TTensor]) -> TTensor:
             tensor = op.Unsqueeze(tensor, op.Constant(value_ints=[-1]))
         elif rank == 2:
             tensor = op.Unsqueeze(tensor, op.Constant(value_ints=[-1]))
-    return self
+
+    return op.SequenceMap(self, body=reshape_to_3d)
 
 
 def aten_avg_pool1d(
