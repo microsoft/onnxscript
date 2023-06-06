@@ -345,8 +345,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan2": core_ops.aten_atan2,
     "atanh": core_ops.aten_atanh,
     "atleast_1d": core_ops.aten_atleast_1d,
+    "atleast_1d_single_tensor": core_ops.aten_atleast_1d_single_tensor,
     "atleast_2d": core_ops.aten_atleast_2d,
+    "atleast_2d_single_tensor": core_ops.aten_atleast_2d_single_tensor,
     "atleast_3d": core_ops.aten_atleast_3d,
+    "atleast_3d_single_tensor": core_ops.aten_atleast_3d_single_tensor,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
     "broadcast_to": core_ops.aten_broadcast_to,
@@ -812,6 +815,21 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
     skip(
+        "atleast_1d_single_tensor",
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="atleast_1d_single_tensor overload takes single tensor as input",
+    ),
+    skip(
+        "atleast_2d_single_tensor",
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="atleast_2d_single_tensor overload takes single tensor as input",
+    ),
+    skip(
+        "atleast_3d_single_tensor",
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="atleast_3d_single_tensor overload takes single tensor as input",
+    ),
+    skip(
         "cat",
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="cat does not support zero-dim tensors yet",
@@ -1169,6 +1187,11 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
+
+
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
@@ -1487,11 +1510,23 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
+    "atleast_1d_single_tensor": (
+        torch.float32,
+        torch.float16,
+    ),
     "atleast_2d": (
         torch.float32,
         torch.float16,
     ),
+    "atleast_2d_single_tensor": (
+        torch.float32,
+        torch.float16,
+    ),
     "atleast_3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_3d_single_tensor": (
         torch.float32,
         torch.float16,
     ),
