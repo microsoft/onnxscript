@@ -409,13 +409,13 @@ class OpsetsBuilder:
         for input in schema.inputs:
             optional = input.option == OpSchema.FormalParameterOption.Optional
             variadic = input.option == OpSchema.FormalParameterOption.Variadic
-            heterogeneous = not input.isHomogeneous
+            heterogeneous = not input.is_homogeneous
             differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.Differentiable
             )
             non_differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.NonDifferentiable
             )
 
