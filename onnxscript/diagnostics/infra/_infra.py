@@ -313,9 +313,7 @@ class Invocation:
 
 @dataclasses.dataclass
 class DiagnosticOptions:
-    """
-    Options for diagnostic context.
-    """
+    """Options for diagnostic context."""
 
     log_verbose: bool = dataclasses.field(default=False)
     log_level: Level = dataclasses.field(default=Level.ERROR)

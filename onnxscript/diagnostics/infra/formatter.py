@@ -5,7 +5,7 @@ import json
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
-import beartype
+from beartype import beartype
 
 from onnxscript.diagnostics.infra import sarif
 

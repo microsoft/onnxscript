@@ -240,6 +240,7 @@ class DiagnosticContext:
         """Adds a diagnostic to the context.
 
         Use this method to add diagnostics that are not created by the context.
+
         Args:
             diagnostic: The diagnostic to add.
         """
@@ -263,6 +264,7 @@ class DiagnosticContext:
         """Adds a diagnostic to the context.
 
         Use this method to add diagnostics that are not created by the context.
+
         Args:
             diagnostic: The diagnostic to add.
         """

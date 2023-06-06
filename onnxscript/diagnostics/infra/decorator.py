@@ -4,7 +4,7 @@ import functools
 import traceback
 from typing import Any, Callable, Dict, Optional, Tuple, Type
 
-import beartype
+from beartype import beartype
 
 from onnxscript.diagnostics import infra
 from onnxscript.diagnostics.infra import formatter, utils
@@ -27,7 +27,7 @@ def format_exception_in_markdown(exception: Exception) -> str:
     return "\n".join(msg_list)
 
 
-@_bearpe.beartype
+@beartype
 def format_function_signature_in_markdown(
     fn: Callable,
     args: Tuple[Any, ...],
