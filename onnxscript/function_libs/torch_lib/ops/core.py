@@ -2879,20 +2879,11 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
 def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    # TODO: Due to lack of for loop, we couldn't use at::atleast_1d
-    # and examine the first tensor dim like torch did in their implementation.
+    # Use another onnx function
+    tensors = aten_atleast_1d(tensors)
 
-    # In PyTorch:
-    # Tensor hstack(TensorList tensors) {
-    #   TORCH_CHECK(!tensors.empty(),
-    #            "hstack expects a non-empty TensorList");
-    #   auto rep = at::atleast_1d(tensors);
-    #   if (rep[0].dim() == 1) {
-    #     return at::cat(rep, 0);
-    #   }
-    #   return at::cat(rep, 1);
-    # }
-
+    # NOTE: The if/else graph has different shape/type which breaks the
+    #       graph matching. We need to use trace_only.
     if len(tensors[0].shape) == 1:
         result = op.ConcatFromSequence(tensors, axis=0, new_axis=0)
     else:
@@ -6619,16 +6610,18 @@ def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
 def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    # TODO: Support at_least2d
+    # TODO: This is exactly from aten_atleast_2d
+    @graph()
+    def reshape_to_2d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
+        return tensor
+    
+    new_tensors = op.SequenceMap(tensors, body=reshape_to_2d)
 
-    # Tensor vstack(TensorList tensors) {
-    #   TORCH_CHECK(!tensors.empty(),
-    #            "vstack expects a non-empty TensorList");
-    #   auto rep = at::atleast_2d(tensors);
-    #   return at::cat(rep, 0);
-    # }
-
-    return op.ConcatFromSequence(tensors, axis=0)
+    return op.ConcatFromSequence(new_tensors, axis=0)
 
 
 @torch_op("aten::where")
