@@ -136,6 +136,8 @@ ignore = [
     "N806",
     "N999", # Invalid module name
     "NPY002", # We may not always need a generator
+    "UP006", # keep-runtime-typing
+    "UP007", # keep-runtime-typing
 ]
 line-length = 120
 ignore-init-module-imports = true
@@ -152,8 +154,3 @@ ban-relative-imports = "all"
 
 [tool.ruff.pydocstyle]
 convention = "google"
-
-[tool.ruff.pyupgrade]
-# Preserve types, even if a file imports `from __future__ import annotations`.
-# This is needed for ONNX Script function syntaxes
-keep-runtime-typing = true
