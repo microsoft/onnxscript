@@ -5,6 +5,33 @@ from onnxscript import script
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import FLOAT, INT64
 
+from typing import (
+    Any,
+    Callable,
+    Mapping,
+)
+
+@script()
+def extend_roi_indices(roi_indices: INT64["roi_D", "roi_H", "roi_W", 3], seg_C: INT64) -> INT64[1, "seg_C", "roi_D", "roi_H", "roi_W", 5]:
+    """
+    This function is used to extend the roi indices to the segment dimension.
+    """
+    zero = op.Constant(value_int=0)
+    one = op.Constant(value_int=1)
+    one_ = op.Constant(value_ints=[1])
+    roi_D, roi_H, roi_W, _ = op.Split(op.Shape(roi_indices), num_outputs=4)
+    shape_1_seg_C_roi_D_H_W_1 = op.Concat(one_, seg_C, roi_D, roi_H, roi_W, one_, axis=0)
+    zeros_1_seg_C_D_H_W_1 = op.Cast(op.ConstantOfShape(shape_1_seg_C_roi_D_H_W_1), to=INT64.dtype) # seg_C, roi_D, roi_H, roi_W, 1
+
+    seg_indices = op.Range(zero, seg_C, one)
+    seg_indices_unsqueezed = op.Unsqueeze(seg_indices, op.Constant(value_ints=[0, 2, 3, 4, 5])) # 1, seg_C, 1, 1, 1, 1
+    seg_indices_1_C_D_H_W_1 = seg_indices_unsqueezed + zeros_1_seg_C_D_H_W_1 # 1, seg_C, roi_D, roi_H, roi_W, 1
+    roi_indices_unsqueezed = op.Unsqueeze(roi_indices, op.Constant(value_ints=[0, 1])) # 1, 1, roi_D, roi_H, roi_W, 3
+    roi_indices_1_C_D_H_W_3 = roi_indices_unsqueezed + zeros_1_seg_C_D_H_W_1 # 1, seg_C, roi_D, roi_H, roi_W, 3 
+
+    extended_roi_indices = op.Concat(zeros_1_seg_C_D_H_W_1, seg_indices_1_C_D_H_W_1, roi_indices_1_C_D_H_W_3, axis=-1)
+    return extended_roi_indices
+
 @script()
 def roi_indices_3d(start: INT64[3], stop: INT64[3], step: INT64[3]) -> (INT64["roi_D", "roi_H", "roi_W"], INT64[3]):
     """
@@ -36,19 +63,20 @@ def roi_indices_3d(start: INT64[3], stop: INT64[3], step: INT64[3]) -> (INT64["r
     grid_w = grid_w_0 + zeros_D_H_W
 
     indices_seq = op.SequenceConstruct(grid_d, grid_h, grid_w)
-
     indices = op.ConcatFromSequence(indices_seq, axis=-1, new_axis=1)  # [D, H, W, 3]
+    # output_shape = op.Concat(roi_shape, op.Constant(value_ints=[3]), axis=0)
+    # indices = op.Reshape(op.Concat(grid_d, grid_h, grid_w, axis=-1), output_shape) # [D, H, W, 3]
 
     return indices, roi_shape
 
 @script()
 def aggrregate_predictor_output(
-    pred: FLOAT["roi_D", "roi_H", "roi_W"],
+    pred: FLOAT["N", "seg_C", "roi_D", "roi_H", "roi_W"],
     start: INT64[3],
     stop: INT64[3],
-    aggrregated_pred: FLOAT["D", "H", "W"],
-    aggrregated_count: INT64["D", "H", "W"],
-) -> (FLOAT["D", "H", "W"], INT64["D", "H", "W"]):
+    aggrregated_pred: FLOAT["N", "Seg_C", "D", "H", "W"],
+    aggrregated_count: FLOAT["N", 1, "D", "H", "W"],
+) -> (FLOAT["N", "Seg_C", "D", "H", "W"], INT64["N", 1, "D", "H", "W"]):
     """
     This function is used to aggregate the predictor output to the final output, count is used to record the number of
     pixels that are aggregated to the final output.
@@ -58,12 +86,16 @@ def aggrregate_predictor_output(
     # k = indices.shape[-1] = 3
     # indices = [start_z:stop_z, start_y:stop_y, start_x:stop_x
     
+    N, seg_C, _, _, _ = op.Split(op.Shape(pred), num_outputs=5)
     step_ones = op.Constant(value_ints=[1, 1, 1])
-    indices, roi_shape = roi_indices_3d(start, stop, step_ones)
-    aggrregated_pred_out = op.ScatterND(aggrregated_pred, indices, pred, reduction="add")
+    indices, roi_shape = roi_indices_3d(start, stop, step_ones) # (D, H, W, 3), [D, H, W]
+    indices_w_seg = extend_roi_indices(indices, seg_C) # (1, seg_C, D, H, W, 5)
 
-    count_ones = op.ConstantOfShape(roi_shape, value=make_tensor("one", TensorProto.INT64, [1], [1]))
-    aggrregated_count_out = op.ScatterND(aggrregated_count, indices, count_ones, reduction="add")
+    aggrregated_pred_out = op.ScatterND(aggrregated_pred, indices_w_seg, pred, reduction="add")
+
+    indices_w_1_N = extend_roi_indices(indices, op.Constant(value_ints=[1]))  # 1, 1, D, H, W, 3
+    count_ones = op.ConstantOfShape(op.Concat(op.Constant(value_ints=[1, 1]), roi_shape, axis=0), value=make_tensor("one", TensorProto.INT64, [1], [1])) # 1, 1, D, H, W
+    aggrregated_count_out = op.ScatterND(aggrregated_count, indices_w_1_N, count_ones, reduction="add")
     return aggrregated_pred_out, aggrregated_count_out
 
 @script()
@@ -72,6 +104,17 @@ def predict_mock(inputs: FLOAT["roi_D", "roi_H", "roi_W"]) -> FLOAT["roi_D", "ro
     This function is used to predict the output from the input.
     """
     return op.Add(inputs, inputs)
+
+@script()
+def predict_mock_2(inputs: FLOAT["N", 1, "roi_D", "roi_H", "roi_W"]) -> FLOAT["N", "seg_C", "roi_D", "roi_H", "roi_W"]:
+    """
+    This function is used to predict the output from the input.
+    """
+
+    c0 = op.Add(inputs, inputs)
+    c1 = op.Add(inputs, inputs)
+    c = op.Concat(c0, c1, axis=1)
+    return c
 
 @script()
 def dense_patch_slices_script(image_size: INT64[3], patch_size: INT64[3], scan_interval: INT64[3]) -> INT64["N", 3, 2]:
@@ -106,10 +149,10 @@ def dense_patch_slices_script(image_size: INT64[3], patch_size: INT64[3], scan_i
     return slices
 
 @script()
-def prepare_for_predictor_batch_size_is_1_script(inputs: FLOAT["D", "H", "W"], slice_g: INT64, slices: INT64["N", 3, 2]) -> (FLOAT["D1", "H1", "W1"], INT64[3], INT64[3]):
+def prepare_for_predictor_batch_size_is_1_script(inputs: FLOAT["N", 1, "D", "H", "W"], slice_g: INT64, slices: INT64["N", 3, 2]) -> (FLOAT["N", 1, "roi_D", "roi_H", "roi_W"], INT64[3], INT64[3]):
     # assume batch size N is 1
     num_win, _, _ = op.Split(op.Shape(slices), num_outputs=3)
-    spatial_axes = op.Range(0, 3, 1)
+    spatial_axes = op.Range(2, 5, 1)
     zero_int = op.Constant(value_ints=[0])
     one_int = op.Constant(value_ints=[1])
     two_int = op.Constant(value_ints=[2])
@@ -126,28 +169,32 @@ def prepare_for_predictor_batch_size_is_1_script(inputs: FLOAT["D", "H", "W"], s
     return win_data, start, stop
 
 @script()
-def sliding_window_inference(inputs: FLOAT["D", "H", "W"], roi_size: INT64[3]) -> FLOAT["D", "H", "W"]:
+def sliding_window_inference(inputs: FLOAT["N", 1, "D", "H", "W"], roi_size: INT64[3]) -> FLOAT["N", "Seg_C", "D", "H", "W"]:
     """
-    for simplicity, we assume that the step size is the same as the roi size. D is multiple of roi_size in 3 dimensions,
+    for simplicity, we assume that the step size is the same as the roi size. D/H/W are multiple of roi_size in 3 dimensions,
     no overlay, no padding. weight is 1.
     """
     inputs_shape = op.Shape(inputs)
-    D, H, W = op.Split(inputs_shape, num_outputs=3)
+    inputs_spatial_shape = op.Slice(inputs_shape, op.Constant(value_ints=[2]), op.Constant(value_ints=[5]), op.Constant(value_ints=[0])) 
+    N, _, D, H, W = op.Split(inputs_shape, num_outputs=5)
     roi_D, roi_H, roi_W = op.Split(roi_size, num_outputs=3)
     
     scan_interval = roi_size
-    slices = dense_patch_slices_script(inputs_shape, roi_size, scan_interval)
+    slices = dense_patch_slices_script(inputs_spatial_shape, roi_size, scan_interval)
     S_, _, _ = op.Split(op.Shape(slices), num_outputs=3)
-
-    # following code in stft
-    zero = op.Constant(value=make_tensor("zero", TensorProto.INT64, [1], [0]))
+    zero = op.Constant(value_ints=[0])
     S = op.Squeeze(S_, zero)
 
-    aggrregated_pred = op.CastLike(op.ConstantOfShape(op.Shape(inputs)), inputs)
-    aggrregated_count = op.CastLike(op.ConstantOfShape(op.Shape(inputs)), roi_size)
+    seg_C = op.Constant(value_ints=[2])
+    one = op.Constant(value_ints=[1])
+    output_shape = op.Concat(one, seg_C, inputs_spatial_shape, axis=0)
+
+    aggrregated_pred = op.CastLike(op.ConstantOfShape(output_shape), inputs)
+    aggrregated_count = op.CastLike(op.ConstantOfShape(inputs_shape), roi_size)
     for slice_g in range(S):
         win_data, start, stop = prepare_for_predictor_batch_size_is_1_script(inputs, slice_g, slices)
-        pred = predict_mock(win_data)
+        pred = predict_mock_2(win_data)
         aggrregated_pred, aggrregated_count = aggrregate_predictor_output(pred, start, stop, aggrregated_pred, aggrregated_count)
     
     return aggrregated_pred / op.CastLike(aggrregated_count, aggrregated_pred)
+
