@@ -6618,7 +6618,7 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
         if rank <= 1:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
         return tensor
-    
+
     new_tensors = op.SequenceMap(tensors, body=reshape_to_2d)
 
     return op.ConcatFromSequence(new_tensors, axis=0)
