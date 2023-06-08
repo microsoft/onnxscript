@@ -10,7 +10,7 @@
 # pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Tuple, Union
+from typing import Optional, Sequence, Tuple, TypeVar
 
 from onnx import TensorProto
 from onnx.defs import get_schema
@@ -27,9 +27,13 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
     def __init__(self):
         super().__init__()
 
+    T1 = TypeVar("T1", DOUBLE, FLOAT, INT32, INT64)
+
+    T2 = TypeVar("T2", INT64, STRING)
+
     def TreeEnsembleClassifier(
         self,
-        X: Union[DOUBLE, FLOAT, INT32, INT64],
+        X: T1,
         base_values: Optional[Sequence[float]] = None,
         base_values_as_tensor: Optional[TensorProto] = None,
         class_ids: Optional[Sequence[int]] = None,
@@ -51,7 +55,7 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
         nodes_values: Optional[Sequence[float]] = None,
         nodes_values_as_tensor: Optional[TensorProto] = None,
         post_transform: str = "NONE",
-    ) -> Tuple[Union[INT64, STRING], FLOAT]:
+    ) -> Tuple[T2, FLOAT]:
         r"""[🌐 ai.onnx.ml::TreeEnsembleClassifier(3)](https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html#treeensembleclassifier-3 "Online Documentation")
 
 
@@ -134,9 +138,7 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
         """
 
         schema = get_schema("TreeEnsembleClassifier", 3, "ai.onnx.ml")
-        op: Callable[..., Tuple[Union[INT64, STRING], FLOAT]] = Op(
-            self, "TreeEnsembleClassifier", schema
-        )
+        op = Op(self, "TreeEnsembleClassifier", schema)
         return op(
             *self._prepare_inputs(schema, X),
             base_values=base_values,
@@ -162,9 +164,11 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
             post_transform=post_transform,
         )
 
+    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+
     def TreeEnsembleRegressor(
         self,
-        X: Union[DOUBLE, FLOAT, INT32, INT64],
+        X: T,
         aggregate_function: str = "SUM",
         base_values: Optional[Sequence[float]] = None,
         base_values_as_tensor: Optional[TensorProto] = None,
@@ -272,7 +276,7 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
         """
 
         schema = get_schema("TreeEnsembleRegressor", 3, "ai.onnx.ml")
-        op: Callable[..., FLOAT] = Op(self, "TreeEnsembleRegressor", schema)
+        op = Op(self, "TreeEnsembleRegressor", schema)
         return op(
             *self._prepare_inputs(schema, X),
             aggregate_function=aggregate_function,
