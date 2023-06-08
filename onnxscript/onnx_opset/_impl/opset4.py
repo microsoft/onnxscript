@@ -10,7 +10,7 @@
 # pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Union
+from typing import Optional, TypeVar
 
 from onnx.defs import get_schema
 
@@ -42,27 +42,8 @@ class Opset4(Opset3):
     def __init__(self):
         super().__init__()
 
-    def Concat(
-        self,
-        *inputs: Union[
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        axis: Optional[int] = None,
-    ) -> Union[
+    T = TypeVar(
+        "T",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -78,7 +59,9 @@ class Opset4(Opset3):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Concat(self, *inputs: T, axis: Optional[int] = None) -> T:
         r"""[🌐 Concat(4)](https://onnx.ai/onnx/operators/onnx__Concat.html#concat-4 "Online Documentation")
 
         Concatenate a list of tensors into a single tensor
@@ -90,24 +73,5 @@ class Opset4(Opset3):
         """
 
         schema = get_schema("Concat", 4, "")
-        op: Callable[
-            ...,
-            Union[
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Concat", schema)
+        op = Op(self, "Concat", schema)
         return op(*self._prepare_inputs(schema, *inputs), axis=axis)

@@ -17,6 +17,7 @@ from onnx.defs import onnx_opset_version
 import onnxscript
 from onnxscript import type_annotation as ta
 from onnxscript import values
+from onnxscript._internal import version_utils
 from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
@@ -172,7 +173,12 @@ class IRAttributeParameter:
                 "Attribute has no default value. Only attributes with default "
                 "values can be converted to AttributeProto."
             )
-        return helper.make_attribute(self.name, self.default_value)
+        if version_utils.onnx_older_than("1.14.1"):
+            # Argument 'attr_type' was added after version 1.14.0.
+            return helper.make_attribute(self.name, self.default_value)
+        # pylint: disable=unexpected-keyword-arg
+        return helper.make_attribute(self.name, self.default_value, attr_type=self.type)  # type: ignore[call-arg]
+        # pylint: enable=unexpected-keyword-arg
 
 
 class IRStmt:

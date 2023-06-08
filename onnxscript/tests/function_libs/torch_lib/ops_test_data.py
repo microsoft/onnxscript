@@ -344,6 +344,12 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "atan": core_ops.aten_atan,
     "atan2": core_ops.aten_atan2,
     "atanh": core_ops.aten_atanh,
+    "atleast_1d": core_ops.aten_atleast_1d,
+    "atleast_1d_single_tensor": core_ops.aten_atleast_1d_single_tensor,
+    "atleast_2d": core_ops.aten_atleast_2d,
+    "atleast_2d_single_tensor": core_ops.aten_atleast_2d_single_tensor,
+    "atleast_3d": core_ops.aten_atleast_3d,
+    "atleast_3d_single_tensor": core_ops.aten_atleast_3d_single_tensor,
     "baddbmm": core_ops.aten_baddbmm,
     "bmm": core_ops.aten_bmm,
     "broadcast_to": core_ops.aten_broadcast_to,
@@ -504,6 +510,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
+    "vstack": core_ops.aten_vstack,
     "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
@@ -527,6 +534,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
     "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
+    "hstack": core_ops.aten_hstack,
     "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
@@ -613,6 +621,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         "as_strided",
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
+    ),
+    xfail(
+        "hstack",
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
@@ -755,6 +767,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "vstack",
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+    ),
+    xfail(
         "nn.functional.cross_entropy",
         reason="ORT < 1.15 fails on a few subtests with error 'index < data_.size() was false'. Resolved in ORT 1.15+",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -813,6 +829,21 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         "arange_start_step",
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
+    ),
+    skip(
+        "atleast_1d_single_tensor",
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="atleast_1d_single_tensor overload takes single tensor as input",
+    ),
+    skip(
+        "atleast_2d_single_tensor",
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="atleast_2d_single_tensor overload takes single tensor as input",
+    ),
+    skip(
+        "atleast_3d_single_tensor",
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="atleast_3d_single_tensor overload takes single tensor as input",
     ),
     skip(
         "cat",
@@ -1173,6 +1204,11 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
+
+
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
@@ -1487,6 +1523,30 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
+    "atleast_1d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_1d_single_tensor": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_2d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_2d_single_tensor": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_3d": (
+        torch.float32,
+        torch.float16,
+    ),
+    "atleast_3d_single_tensor": (
+        torch.float32,
+        torch.float16,
+    ),
     "baddbmm": (
         torch.float32,
         torch.float16,
@@ -1651,6 +1711,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "gt": (
+        torch.float32,
+        torch.float16,
+    ),
+    "hstack": (
         torch.float32,
         torch.float16,
     ),
@@ -2230,6 +2294,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         # torch.float16,
     ),
     "view": (
+        torch.float32,
+        torch.float16,
+    ),
+    "vstack": (
         torch.float32,
         torch.float16,
     ),
