@@ -666,8 +666,8 @@ def aten_atanh(self: TFloat) -> TFloat:
     return op.Atanh(self)
 
 
-@torch_op("aten::atleast_1d")
-def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
+@torch_op("aten::atleast_1d", private=True)
+def _aten_atleast_1d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
     @graph()
@@ -682,6 +682,11 @@ def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
 
 
 @torch_op("aten::atleast_1d")
+def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_1d_onnx(self)
+
+
+@torch_op("aten::atleast_1d")
 def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
@@ -692,8 +697,8 @@ def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
     return self
 
 
-@torch_op("aten::atleast_2d")
-def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
+@torch_op("aten::atleast_2d", private=True)
+def _aten_atleast_2d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
     @graph()
@@ -705,6 +710,11 @@ def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
         return tensor
 
     return op.SequenceMap(self, body=reshape_to_2d)
+
+
+@torch_op("aten::atleast_2d")
+def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_2d_onnx(self)
 
 
 @torch_op("aten::atleast_2d")
@@ -2875,10 +2885,20 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_hstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::hstack", trace_only=True)
+def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    # Use another onnx function
+    tensors = _aten_atleast_1d_onnx(tensors)
+
+    # NOTE: The if/else graph has different shape/type which breaks the
+    #       graph matching. We need to use trace_only.
+    if len(tensors[0].shape) == 1:
+        result = op.ConcatFromSequence(tensors, axis=0, new_axis=0)
+    else:
+        result = op.ConcatFromSequence(tensors, axis=1, new_axis=0)
+    return result
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -6596,10 +6616,12 @@ def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::vstack")
+def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    tensors = _aten_atleast_2d_onnx(tensors)
+    return op.ConcatFromSequence(tensors, axis=0)
 
 
 @torch_op("aten::where")

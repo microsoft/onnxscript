@@ -510,6 +510,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
     "unsqueeze": core_ops.aten_unsqueeze,
     "view": core_ops.aten_view,
+    "vstack": core_ops.aten_vstack,
     "where": (core_ops.aten_where, _where_input_wrangler),
     "xlogy": special_ops.aten_special_xlogy,
     "zeros": core_ops.aten_zeros,
@@ -533,6 +534,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "convolution": core_ops.aten_convolution,
     "empty_like": core_ops.aten_empty_like,
     "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
+    "hstack": core_ops.aten_hstack,
     "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
     "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
@@ -619,6 +621,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         "as_strided",
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
+    ),
+    xfail(
+        "hstack",
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
@@ -759,6 +765,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         "unflatten",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "vstack",
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
 )
 
@@ -1697,6 +1707,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
+    "hstack": (
+        torch.float32,
+        torch.float16,
+    ),
     # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": (
@@ -2273,6 +2287,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         # torch.float16,
     ),
     "view": (
+        torch.float32,
+        torch.float16,
+    ),
+    "vstack": (
         torch.float32,
         torch.float16,
     ),
