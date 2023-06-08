@@ -666,8 +666,8 @@ def aten_atanh(self: TFloat) -> TFloat:
     return op.Atanh(self)
 
 
-@torch_op("aten::atleast_1d")
-def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
+@torch_op("aten::atleast_1d", private=True)
+def _aten_atleast_1d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
     @graph()
@@ -681,6 +681,11 @@ def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
     return op.SequenceMap(self, body=reshape_to_1d)
 
 
+@torch_op("aten::atleast_1d", trace_only=True)
+def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_1d_onnx(self)
+
+
 @torch_op("aten::atleast_1d")
 def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
@@ -692,8 +697,8 @@ def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
     return self
 
 
-@torch_op("aten::atleast_2d")
-def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
+@torch_op("aten::atleast_2d", private=True)
+def _aten_atleast_2d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
     @graph()
@@ -705,6 +710,11 @@ def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
         return tensor
 
     return op.SequenceMap(self, body=reshape_to_2d)
+
+
+@torch_op("aten::atleast_2d", trace_only=True)
+def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_2d_onnx(self)
 
 
 @torch_op("aten::atleast_2d")
@@ -2880,7 +2890,7 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
     # Use another onnx function
-    tensors = aten_atleast_1d(tensors)
+    tensors = _aten_atleast_1d_onnx(tensors)
 
     # NOTE: The if/else graph has different shape/type which breaks the
     #       graph matching. We need to use trace_only.
@@ -6610,18 +6620,8 @@ def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
 def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    # TODO: This is exactly from aten_atleast_2d
-    @graph()
-    def reshape_to_2d(tensor):
-        shape = op.Shape(tensor)
-        rank = op.Size(shape)
-        if rank <= 1:
-            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
-        return tensor
-
-    new_tensors = op.SequenceMap(tensors, body=reshape_to_2d)
-
-    return op.ConcatFromSequence(new_tensors, axis=0)
+    tensors = _aten_atleast_2d_onnx(tensors)
+    return op.ConcatFromSequence(tensors, axis=0)
 
 
 @torch_op("aten::where")

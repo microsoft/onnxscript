@@ -622,6 +622,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
     ),
+    xfail(
+        "hstack",
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+    ),
     xfail("logcumsumexp", reason="naive implementation not numerically stable"),
     xfail(
         "max",
@@ -761,6 +765,10 @@ EXPECTED_SKIPS_OR_FAILS = (
         "unflatten",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    xfail(
+        "vstack",
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
 )
 
@@ -1173,11 +1181,6 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
-    ),
-    xfail(
-        "vstack",
-        matcher=lambda sample: len(sample.input[0].shape) < 2,
-        reason="fixme: Need aten::at_least2d supported",
     ),
 )
 
