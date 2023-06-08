@@ -1,6 +1,6 @@
 setuptools>=61.0.0
 numpy
-onnx>=1.14.0
+onnx-weekly>=1.15.0.dev20230605
 onnxruntime
 typing_extensions
 
