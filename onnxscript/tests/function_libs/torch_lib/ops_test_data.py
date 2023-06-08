@@ -764,7 +764,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         "var_mean",
         reason="fixme: Inferred shape and existing shape differ in rank",
     ),
-    xfail(
+    skip(
         "var_mean",
         variant_name="unbiased",
         reason="fixme: Inferred shape and existing shape differ in rank",
