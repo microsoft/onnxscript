@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _edge, _message, _node, _property
 
 
 @dataclasses.dataclass
-class Graph(object):
+class Graph:
     """A network of nodes and directed edges that describes some aspect of the structure of the code (for example, a call graph)."""
 
     description: Optional[_message.Message] = dataclasses.field(

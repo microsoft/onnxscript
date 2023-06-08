@@ -14,7 +14,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Region(object):
+class Region:
     """A region within an artifact where a result was detected."""
 
     byte_length: Optional[int] = dataclasses.field(

@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _property_bag
 
 
 @dataclasses.dataclass
-class ReportingConfiguration(object):
+class ReportingConfiguration:
     """Information about a rule or notification that can be configured at runtime."""
 
     enabled: bool = dataclasses.field(

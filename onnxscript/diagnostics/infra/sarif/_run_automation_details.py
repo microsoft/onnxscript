@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag
 
 
 @dataclasses.dataclass
-class RunAutomationDetails(object):
+class RunAutomationDetails:
     """Information that describes a run's identity and role within an engineering system process."""
 
     correlation_guid: Optional[str] = dataclasses.field(

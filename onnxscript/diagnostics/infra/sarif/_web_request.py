@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _artifact_content, _property_bag
 
 
 @dataclasses.dataclass
-class WebRequest(object):
+class WebRequest:
     """Describes an HTTP request."""
 
     body: Optional[_artifact_content.ArtifactContent] = dataclasses.field(

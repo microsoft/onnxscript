@@ -14,7 +14,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ArtifactChange(object):
+class ArtifactChange:
     """A change to a single artifact."""
 
     artifact_location: _artifact_location.ArtifactLocation = dataclasses.field(

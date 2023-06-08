@@ -23,7 +23,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ExternalProperties(object):
+class ExternalProperties:
     """The top-level element of an external property file."""
 
     addresses: Optional[List[_address.Address]] = dataclasses.field(

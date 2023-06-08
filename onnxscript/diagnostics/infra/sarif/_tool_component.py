@@ -17,7 +17,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ToolComponent(object):
+class ToolComponent:
     """A component, such as a plug-in or the driver, of the analysis tool that was run."""
 
     name: str = dataclasses.field(metadata={"schema_property_name": "name"})

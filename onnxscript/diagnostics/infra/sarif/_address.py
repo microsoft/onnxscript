@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _property_bag
 
 
 @dataclasses.dataclass
-class Address(object):
+class Address:
     """A physical or virtual address, or a range of addresses, in an 'addressable region' (memory or a binary file)."""
 
     absolute_address: int = dataclasses.field(

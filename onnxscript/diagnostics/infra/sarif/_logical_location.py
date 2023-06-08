@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _property_bag
 
 
 @dataclasses.dataclass
-class LogicalLocation(object):
+class LogicalLocation:
     """A logical location of a construct that produced a result."""
 
     decorated_name: Optional[str] = dataclasses.field(

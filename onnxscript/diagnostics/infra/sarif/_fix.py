@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _artifact_change, _message, _prop
 
 
 @dataclasses.dataclass
-class Fix(object):
+class Fix:
     """A proposed fix for the problem represented by a result object. A fix specifies a set of artifacts to modify. For each artifact, it specifies a set of bytes to remove, and provides a set of new bytes to replace them."""
 
     artifact_changes: List[_artifact_change.ArtifactChange] = dataclasses.field(

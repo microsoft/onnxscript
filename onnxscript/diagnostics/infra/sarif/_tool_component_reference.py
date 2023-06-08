@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _property_bag
 
 
 @dataclasses.dataclass
-class ToolComponentReference(object):
+class ToolComponentReference:
     """Identifies a particular toolComponent object, either the driver or an extension."""
 
     guid: Optional[str] = dataclasses.field(

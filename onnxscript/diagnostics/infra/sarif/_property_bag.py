@@ -8,7 +8,7 @@ from typing import List, Optional
 
 
 @dataclasses.dataclass
-class PropertyBag(object):
+class PropertyBag:
     """Key/value pairs that provide additional information about the object."""
 
     tags: Optional[List[str]] = dataclasses.field(

@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _physical_location, _property_bag
 
 
 @dataclasses.dataclass
-class ResultProvenance(object):
+class ResultProvenance:
     """Contains information about how and when a result was detected."""
 
     conversion_sources: Optional[

@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _external_properties, _property_b
 
 
 @dataclasses.dataclass
-class SarifLog(object):
+class SarifLog:
     """Static Analysis Results Format (SARIF) Version 2.1.0 JSON Schema: a standard format for the output of static analysis tools."""
 
     runs: List[_run.Run] = dataclasses.field(metadata={"schema_property_name": "runs"})

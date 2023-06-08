@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _artifact_location, _property_bag
 
 
 @dataclasses.dataclass
-class SpecialLocations(object):
+class SpecialLocations:
     """Defines locations of special significance to SARIF consumers."""
 
     display_base: Optional[_artifact_location.ArtifactLocation] = dataclasses.field(

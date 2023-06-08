@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _artifact_location, _property_bag
 
 
 @dataclasses.dataclass
-class VersionControlDetails(object):
+class VersionControlDetails:
     """Specifies the information necessary to retrieve a desired revision from a version control system."""
 
     repository_uri: str = dataclasses.field(metadata={"schema_property_name": "repositoryUri"})

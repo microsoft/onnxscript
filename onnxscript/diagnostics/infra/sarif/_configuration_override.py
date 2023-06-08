@@ -14,7 +14,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ConfigurationOverride(object):
+class ConfigurationOverride:
     """Information about how a specific rule or notification was reconfigured at runtime."""
 
     configuration: _reporting_configuration.ReportingConfiguration = dataclasses.field(

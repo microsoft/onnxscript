@@ -16,7 +16,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Notification(object):
+class Notification:
     """Describes a condition relevant to the tool itself, as opposed to being relevant to a target being analyzed by the tool."""
 
     message: _message.Message = dataclasses.field(metadata={"schema_property_name": "message"})

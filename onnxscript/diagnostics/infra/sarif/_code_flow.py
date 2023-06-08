@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag, _thread_
 
 
 @dataclasses.dataclass
-class CodeFlow(object):
+class CodeFlow:
     """A set of threadFlows which together describe a pattern of code execution relevant to detecting a result."""
 
     thread_flows: List[_thread_flow.ThreadFlow] = dataclasses.field(

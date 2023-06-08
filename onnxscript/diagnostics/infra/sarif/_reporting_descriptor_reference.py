@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _property_bag, _tool_component_re
 
 
 @dataclasses.dataclass
-class ReportingDescriptorReference(object):
+class ReportingDescriptorReference:
     """Information about how to locate a relevant reporting descriptor."""
 
     guid: Optional[str] = dataclasses.field(

@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _exception, _property_bag, _stack
 
 
 @dataclasses.dataclass
-class Exception(object):
+class Exception:
     """Describes a runtime exception encountered during the execution of an analysis tool."""
 
     inner_exceptions: Optional[List[_exception.Exception]] = dataclasses.field(

@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag, _stack_f
 
 
 @dataclasses.dataclass
-class Stack(object):
+class Stack:
     """A call stack that is relevant to a result."""
 
     frames: List[_stack_frame.StackFrame] = dataclasses.field(

@@ -14,7 +14,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ThreadFlow(object):
+class ThreadFlow:
     """Describes a sequence of code locations that specify a path through a single thread of execution such as an operating system or fiber."""
 
     locations: List[_thread_flow_location.ThreadFlowLocation] = dataclasses.field(

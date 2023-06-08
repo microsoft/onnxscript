@@ -17,7 +17,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Location(object):
+class Location:
     """A location within a programming artifact."""
 
     annotations: Optional[List[_region.Region]] = dataclasses.field(

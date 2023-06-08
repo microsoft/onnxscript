@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _location, _property_bag
 
 
 @dataclasses.dataclass
-class StackFrame(object):
+class StackFrame:
     """A function call within a stack trace."""
 
     location: Optional[_location.Location] = dataclasses.field(

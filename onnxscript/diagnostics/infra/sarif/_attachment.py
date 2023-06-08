@@ -16,7 +16,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Attachment(object):
+class Attachment:
     """An artifact relevant to a result."""
 
     artifact_location: _artifact_location.ArtifactLocation = dataclasses.field(

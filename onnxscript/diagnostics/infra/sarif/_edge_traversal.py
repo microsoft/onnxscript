@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag
 
 
 @dataclasses.dataclass
-class EdgeTraversal(object):
+class EdgeTraversal:
     """Represents the traversal of a single edge during a graph traversal."""
 
     edge_id: str = dataclasses.field(metadata={"schema_property_name": "edgeId"})

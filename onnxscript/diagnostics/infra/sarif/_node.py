@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _location, _message, _node, _prop
 
 
 @dataclasses.dataclass
-class Node(object):
+class Node:
     """Represents a node in a graph."""
 
     id: str = dataclasses.field(metadata={"schema_property_name": "id"})

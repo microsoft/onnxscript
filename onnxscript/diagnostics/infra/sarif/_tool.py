@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _property_bag, _tool_component
 
 
 @dataclasses.dataclass
-class Tool(object):
+class Tool:
     """The analysis tool that was run."""
 
     driver: _tool_component.ToolComponent = dataclasses.field(

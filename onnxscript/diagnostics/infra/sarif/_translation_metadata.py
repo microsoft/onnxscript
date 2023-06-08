@@ -13,7 +13,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class TranslationMetadata(object):
+class TranslationMetadata:
     """Provides additional metadata related to translation."""
 
     name: str = dataclasses.field(metadata={"schema_property_name": "name"})

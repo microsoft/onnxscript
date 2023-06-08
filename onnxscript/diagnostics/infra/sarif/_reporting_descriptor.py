@@ -15,7 +15,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ReportingDescriptor(object):
+class ReportingDescriptor:
     """Metadata that describes a specific report produced by the tool, as part of the analysis it provides or its runtime reporting."""
 
     id: str = dataclasses.field(metadata={"schema_property_name": "id"})

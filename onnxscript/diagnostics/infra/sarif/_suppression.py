@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _location, _property_bag
 
 
 @dataclasses.dataclass
-class Suppression(object):
+class Suppression:
     """A suppression that is relevant to a result."""
 
     kind: Literal["inSource", "external"] = dataclasses.field(

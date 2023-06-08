@@ -17,7 +17,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ThreadFlowLocation(object):
+class ThreadFlowLocation:
     """A location visited by an analysis tool while simulating or monitoring the execution of a program."""
 
     execution_order: int = dataclasses.field(

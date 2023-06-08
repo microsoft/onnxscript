@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag
 
 
 @dataclasses.dataclass
-class LocationRelationship(object):
+class LocationRelationship:
     """Information about the relation of one location to another."""
 
     target: int = dataclasses.field(metadata={"schema_property_name": "target"})

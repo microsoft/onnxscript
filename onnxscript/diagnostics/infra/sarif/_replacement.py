@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _artifact_content, _property_bag,
 
 
 @dataclasses.dataclass
-class Replacement(object):
+class Replacement:
     """The replacement of a single region of an artifact."""
 
     deleted_region: _region.Region = dataclasses.field(

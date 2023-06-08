@@ -13,7 +13,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ArtifactContent(object):
+class ArtifactContent:
     """Represents the contents of an artifact."""
 
     binary: Optional[str] = dataclasses.field(

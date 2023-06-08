@@ -15,7 +15,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Invocation(object):
+class Invocation:
     """The runtime environment of the analysis tool run."""
 
     execution_successful: bool = dataclasses.field(

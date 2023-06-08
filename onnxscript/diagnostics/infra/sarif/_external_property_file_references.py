@@ -13,7 +13,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ExternalPropertyFileReferences(object):
+class ExternalPropertyFileReferences:
     """References to external property files that should be inlined with the content of a root log file."""
 
     addresses: Optional[

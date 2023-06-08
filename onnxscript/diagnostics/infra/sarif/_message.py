@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _property_bag
 
 
 @dataclasses.dataclass
-class Message(object):
+class Message:
     """Encapsulates a message intended to be read by the end user."""
 
     arguments: Optional[List[str]] = dataclasses.field(

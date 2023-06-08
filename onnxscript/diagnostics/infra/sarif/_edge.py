@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag
 
 
 @dataclasses.dataclass
-class Edge(object):
+class Edge:
     """Represents a directed edge in a graph."""
 
     id: str = dataclasses.field(metadata={"schema_property_name": "id"})

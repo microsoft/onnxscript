@@ -15,7 +15,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class PhysicalLocation(object):
+class PhysicalLocation:
     """A physical location relevant to a result. Specifies a reference to a programming artifact together with a range of bytes or characters within that artifact."""
 
     address: Optional[_address.Address] = dataclasses.field(

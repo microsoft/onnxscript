@@ -15,7 +15,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Artifact(object):
+class Artifact:
     """A single artifact. In some cases, this artifact might be nested within another artifact."""
 
     contents: Optional[_artifact_content.ArtifactContent] = dataclasses.field(

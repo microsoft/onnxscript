@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _artifact_location, _property_bag
 
 
 @dataclasses.dataclass
-class ExternalPropertyFileReference(object):
+class ExternalPropertyFileReference:
     """Contains information that enables a SARIF consumer to locate the external property file that contains the value of an externalized property associated with the run."""
 
     guid: Optional[str] = dataclasses.field(

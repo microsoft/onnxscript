@@ -26,7 +26,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Result(object):
+class Result:
     """A result produced by an analysis tool."""
 
     message: _message.Message = dataclasses.field(metadata={"schema_property_name": "message"})

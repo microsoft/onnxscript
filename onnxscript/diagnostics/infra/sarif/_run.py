@@ -28,7 +28,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Run(object):
+class Run:
     """Describes a single run of an analysis tool, and contains the reported output of that run."""
 
     tool: _tool.Tool = dataclasses.field(metadata={"schema_property_name": "tool"})

@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag
 
 
 @dataclasses.dataclass
-class ArtifactLocation(object):
+class ArtifactLocation:
     """Specifies the location of an artifact."""
 
     description: Optional[_message.Message] = dataclasses.field(

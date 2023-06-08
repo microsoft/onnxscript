@@ -15,7 +15,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class Conversion(object):
+class Conversion:
     """Describes how a converter transformed the output of a static analysis tool from the analysis tool's native output format into the SARIF format."""
 
     tool: _tool.Tool = dataclasses.field(metadata={"schema_property_name": "tool"})

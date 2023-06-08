@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _edge_traversal, _message, _prope
 
 
 @dataclasses.dataclass
-class GraphTraversal(object):
+class GraphTraversal:
     """Represents a path through a graph."""
 
     description: Optional[_message.Message] = dataclasses.field(

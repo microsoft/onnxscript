@@ -14,7 +14,7 @@ from onnxscript.diagnostics.infra.sarif import (
 
 
 @dataclasses.dataclass
-class ReportingDescriptorRelationship(object):
+class ReportingDescriptorRelationship:
     """Information about the relation of one reporting descriptor to another."""
 
     target: _reporting_descriptor_reference.ReportingDescriptorReference = dataclasses.field(

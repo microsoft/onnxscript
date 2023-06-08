@@ -10,7 +10,7 @@ from onnxscript.diagnostics.infra.sarif import _message, _property_bag
 
 
 @dataclasses.dataclass
-class Rectangle(object):
+class Rectangle:
     """An area within an image."""
 
     bottom: Optional[float] = dataclasses.field(
