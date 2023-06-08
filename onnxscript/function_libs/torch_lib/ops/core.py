@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -666,22 +666,86 @@ def aten_atanh(self: TFloat) -> TFloat:
     return op.Atanh(self)
 
 
-def aten_atleast_1d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_1d")
+def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    @graph()
+    def reshape_to_1d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank == 0:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1]))
+        return tensor
+
+    return op.SequenceMap(self, body=reshape_to_1d)
 
 
-def aten_atleast_2d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_1d")
+def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
+    """atleast_1d(Tensor self) -> Tensor"""
+
+    shape = op.Shape(self)
+    rank = op.Size(shape)
+    if rank == 0:
+        self = op.Reshape(self, op.Constant(value_ints=[1]))
+    return self
+
+
+@torch_op("aten::atleast_2d")
+def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    @graph()
+    def reshape_to_2d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
+        return tensor
+
+    return op.SequenceMap(self, body=reshape_to_2d)
 
 
-def aten_atleast_3d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_2d")
+def aten_atleast_2d_single_tensor(self: TTensor) -> TTensor:
+    """atleast_2d(Tensor self) -> Tensor"""
+
+    shape = op.Shape(self)
+    rank = op.Size(shape)
+    if rank <= 1:
+        self = op.Reshape(self, op.Constant(value_ints=[1, -1]))
+    return self
+
+
+@torch_op("aten::atleast_3d")
+def aten_atleast_3d(self: Sequence[TTensor]) -> TTensor:
     """atleast_3d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    @graph()
+    def reshape_to_3d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1, 1]))
+        elif rank == 2:
+            tensor = op.Unsqueeze(tensor, op.Constant(value_ints=[-1]))
+        return tensor
+
+    return op.SequenceMap(self, body=reshape_to_3d)
+
+
+@torch_op("aten::atleast_3d")
+def aten_atleast_3d_single_tensor(self: TTensor) -> TTensor:
+    """atleast_3d(Tensor self) -> Tensor"""
+
+    shape = op.Shape(self)
+    rank = op.Size(shape)
+    if rank <= 1:
+        self = op.Reshape(self, op.Constant(value_ints=[1, -1, 1]))
+    elif rank == 2:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[-1]))
+    return self
 
 
 def aten_avg_pool1d(
