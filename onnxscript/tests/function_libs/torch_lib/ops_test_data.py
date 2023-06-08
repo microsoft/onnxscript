@@ -716,6 +716,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.upsample_bilinear2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
     ),
     xfail(
         "nn.functional.upsample_nearest2d",
