@@ -14,9 +14,9 @@ MessageFormatterType = Callable[..., str]
 
 @beartype
 def format_message_in_text(
-    fn: Callable,
-    *args: Any,  # pylint: disable=unused-argument
-    **kwargs: Any,  # pylint: disable=unused-argument
+    fn: Callable,  # pylint: disable=unused-argument
+    *args: Any,
+    **kwargs: Any,
 ) -> str:
     return f"{formatter.display_name(fn)}. "
 
@@ -72,7 +72,7 @@ def diagnose_call(
 ) -> Callable:
     def decorator(fn):
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):  # pylint: disable=inconsistent-return-statements
             common_error_message = "diagnose_call can only be applied to callables"
             if not callable(fn):
                 raise AssertionError(
