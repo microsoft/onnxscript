@@ -61,7 +61,7 @@ class Opset17(Opset16):
         UINT8,
     )
 
-    def BlackmanWindow(self, size: T1, output_datatype: int = 1, periodic: int = 1) -> T2:
+    def BlackmanWindow(self, size: T1, *, output_datatype: int = 1, periodic: int = 1) -> T2:
         r"""[🌐 BlackmanWindow(17)](https://onnx.ai/onnx/operators/onnx__BlackmanWindow.html#blackmanwindow-17 "Online Documentation")
 
 
@@ -98,6 +98,7 @@ class Opset17(Opset16):
         self,
         input: T1,
         dft_length: Optional[T2] = None,
+        *,
         axis: int = 1,
         inverse: int = 0,
         onesided: int = 0,
@@ -163,7 +164,7 @@ class Opset17(Opset16):
         UINT8,
     )
 
-    def HammingWindow(self, size: T1, output_datatype: int = 1, periodic: int = 1) -> T2:
+    def HammingWindow(self, size: T1, *, output_datatype: int = 1, periodic: int = 1) -> T2:
         r"""[🌐 HammingWindow(17)](https://onnx.ai/onnx/operators/onnx__HammingWindow.html#hammingwindow-17 "Online Documentation")
 
 
@@ -210,7 +211,7 @@ class Opset17(Opset16):
         UINT8,
     )
 
-    def HannWindow(self, size: T1, output_datatype: int = 1, periodic: int = 1) -> T2:
+    def HannWindow(self, size: T1, *, output_datatype: int = 1, periodic: int = 1) -> T2:
         r"""[🌐 HannWindow(17)](https://onnx.ai/onnx/operators/onnx__HannWindow.html#hannwindow-17 "Online Documentation")
 
 
@@ -248,6 +249,7 @@ class Opset17(Opset16):
         X: T,
         Scale: T,
         B: Optional[T] = None,
+        *,
         axis: int = -1,
         epsilon: float = 9.999999747378752e-06,
         stash_type: int = 1,
@@ -349,6 +351,7 @@ class Opset17(Opset16):
         sample_rate: T1,
         lower_edge_hertz: T2,
         upper_edge_hertz: T2,
+        *,
         output_datatype: int = 1,
     ) -> T3:
         r"""[🌐 MelWeightMatrix(17)](https://onnx.ai/onnx/operators/onnx__MelWeightMatrix.html#melweightmatrix-17 "Online Documentation")
@@ -413,6 +416,7 @@ class Opset17(Opset16):
         frame_step: T2,
         window: Optional[T1] = None,
         frame_length: Optional[T2] = None,
+        *,
         onesided: int = 1,
     ) -> T1:
         r"""[🌐 STFT(17)](https://onnx.ai/onnx/operators/onnx__STFT.html#stft-17 "Online Documentation")

@@ -43,7 +43,7 @@ class Opset2(Opset1):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def GlobalLpPool(self, X: T, p: int = 2) -> T:
+    def GlobalLpPool(self, X: T, *, p: int = 2) -> T:
         r"""[🌐 GlobalLpPool(2)](https://onnx.ai/onnx/operators/onnx__GlobalLpPool.html#globallppool-2 "Online Documentation")
 
 
@@ -70,6 +70,7 @@ class Opset2(Opset1):
     def LpPool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         kernel_shape: Optional[Sequence[int]] = None,
         p: int = 2,
@@ -132,6 +133,7 @@ class Opset2(Opset1):
     def Pad(
         self,
         data: T,
+        *,
         mode: str = "constant",
         pads: Optional[Sequence[int]] = None,
         value: float = 0.0,
@@ -196,7 +198,7 @@ class Opset2(Opset1):
         UINT8,
     )
 
-    def Split(self, input: T, axis: int = 0, split: Optional[Sequence[int]] = None) -> T:
+    def Split(self, input: T, *, axis: int = 0, split: Optional[Sequence[int]] = None) -> T:
         r"""[🌐 Split(2)](https://onnx.ai/onnx/operators/onnx__Split.html#split-2 "Online Documentation")
 
         Split a tensor into a list of tensors, along the specified

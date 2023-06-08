@@ -142,6 +142,7 @@ class Opset7(Opset6):
     def AveragePool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         count_include_pad: int = 0,
         kernel_shape: Optional[Sequence[int]] = None,
@@ -229,6 +230,7 @@ class Opset7(Opset6):
         B: T,
         mean: T,
         var: T,
+        *,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
         spatial: int = 1,
@@ -327,7 +329,7 @@ class Opset7(Opset6):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def Dropout(self, data: T, ratio: float = 0.5) -> Tuple[T, T]:
+    def Dropout(self, data: T, *, ratio: float = 0.5) -> Tuple[T, T]:
         r"""[🌐 Dropout(7)](https://onnx.ai/onnx/operators/onnx__Dropout.html#dropout-7 "Online Documentation")
 
 
@@ -385,6 +387,7 @@ class Opset7(Opset6):
         B: Optional[T] = None,
         sequence_lens: Optional[T1] = None,
         initial_h: Optional[T] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
@@ -546,6 +549,7 @@ class Opset7(Opset6):
         A: T,
         B: T,
         C: T,
+        *,
         alpha: float = 1.0,
         beta: float = 1.0,
         transA: int = 0,
@@ -633,6 +637,7 @@ class Opset7(Opset6):
         initial_h: Optional[T] = None,
         initial_c: Optional[T] = None,
         P: Optional[T] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
@@ -852,7 +857,7 @@ class Opset7(Opset6):
     T2 = TypeVar("T2", INT32, INT64)
 
     def Multinomial(
-        self, input: T1, dtype: int = 6, sample_size: int = 1, seed: Optional[float] = None
+        self, input: T1, *, dtype: int = 6, sample_size: int = 1, seed: Optional[float] = None
     ) -> T2:
         r"""[🌐 Multinomial(7)](https://onnx.ai/onnx/operators/onnx__Multinomial.html#multinomial-7 "Online Documentation")
 
@@ -964,6 +969,7 @@ class Opset7(Opset6):
         B: Optional[T] = None,
         sequence_lens: Optional[T1] = None,
         initial_h: Optional[T] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Sequence[str] = ("Tanh", "Tanh"),
@@ -1174,7 +1180,7 @@ class Opset7(Opset6):
     )
 
     def Upsample(
-        self, X: T, mode: str = "nearest", scales: Optional[Sequence[float]] = None
+        self, X: T, *, mode: str = "nearest", scales: Optional[Sequence[float]] = None
     ) -> T:
         r"""[🌐 Upsample(7)](https://onnx.ai/onnx/operators/onnx__Upsample.html#upsample-7 "Online Documentation")
 

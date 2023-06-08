@@ -112,6 +112,7 @@ class Opset8(Opset7):
     def MaxPool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,

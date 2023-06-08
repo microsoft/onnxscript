@@ -148,7 +148,7 @@ class Opset18(Opset17):
     Tind = TypeVar("Tind", INT32, INT64)
 
     def CenterCropPad(
-        self, input_data: T, shape: Tind, axes: Optional[Sequence[int]] = None
+        self, input_data: T, shape: Tind, *, axes: Optional[Sequence[int]] = None
     ) -> T:
         r"""[🌐 CenterCropPad(18)](https://onnx.ai/onnx/operators/onnx__CenterCropPad.html#centercroppad-18 "Online Documentation")
 
@@ -205,6 +205,7 @@ class Opset18(Opset17):
         input: T,
         image_shape: INT64,
         block_shape: INT64,
+        *,
         dilations: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
@@ -278,6 +279,7 @@ class Opset18(Opset17):
         X: T,
         scale: T,
         bias: T,
+        *,
         epsilon: float = 9.999999747378752e-06,
         num_groups: Optional[int] = None,
     ) -> T:
@@ -334,6 +336,7 @@ class Opset18(Opset17):
     def LpPool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
@@ -673,6 +676,7 @@ class Opset18(Opset17):
         pads: INT64,
         constant_value: Optional[T] = None,
         axes: Optional[Tind] = None,
+        *,
         mode: str = "constant",
     ) -> T:
         r"""[🌐 Pad(18)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-18 "Online Documentation")
@@ -797,6 +801,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -843,6 +848,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -889,6 +895,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -935,6 +942,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -983,6 +991,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -1029,6 +1038,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -1077,6 +1087,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -1123,6 +1134,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -1169,6 +1181,7 @@ class Opset18(Opset17):
         self,
         data: T,
         axes: Optional[INT64] = None,
+        *,
         keepdims: int = 1,
         noop_with_empty_axes: int = 0,
     ) -> T:
@@ -1237,6 +1250,7 @@ class Opset18(Opset17):
         roi: Optional[T2] = None,
         scales: Optional[FLOAT] = None,
         sizes: Optional[INT64] = None,
+        *,
         antialias: int = 0,
         axes: Optional[Sequence[int]] = None,
         coordinate_transformation_mode: str = "half_pixel",
@@ -1427,7 +1441,7 @@ class Opset18(Opset17):
     Tind = TypeVar("Tind", INT32, INT64)
 
     def ScatterElements(
-        self, data: T, indices: Tind, updates: T, axis: int = 0, reduction: str = "none"
+        self, data: T, indices: Tind, updates: T, *, axis: int = 0, reduction: str = "none"
     ) -> T:
         r"""[🌐 ScatterElements(18)](https://onnx.ai/onnx/operators/onnx__ScatterElements.html#scatterelements-18 "Online Documentation")
 
@@ -1553,7 +1567,7 @@ class Opset18(Opset17):
         UINT8,
     )
 
-    def ScatterND(self, data: T, indices: INT64, updates: T, reduction: str = "none") -> T:
+    def ScatterND(self, data: T, indices: INT64, updates: T, *, reduction: str = "none") -> T:
         r"""[🌐 ScatterND(18)](https://onnx.ai/onnx/operators/onnx__ScatterND.html#scatternd-18 "Online Documentation")
 
 
@@ -1684,6 +1698,7 @@ class Opset18(Opset17):
         self,
         input: T,
         split: Optional[INT64] = None,
+        *,
         axis: int = 0,
         num_outputs: Optional[int] = None,
     ) -> T:

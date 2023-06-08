@@ -90,6 +90,7 @@ class Opset14(Opset13):
         B: T,
         input_mean: U,
         input_var: U,
+        *,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
         training_mode: int = 0,
@@ -182,7 +183,7 @@ class Opset14(Opset13):
 
     T2 = TypeVar("T2", INT32, INT64)
 
-    def CumSum(self, x: T, axis: T2, exclusive: int = 0, reverse: int = 0) -> T:
+    def CumSum(self, x: T, axis: T2, *, exclusive: int = 0, reverse: int = 0) -> T:
         r"""[🌐 CumSum(14)](https://onnx.ai/onnx/operators/onnx__CumSum.html#cumsum-14 "Online Documentation")
 
 
@@ -276,6 +277,7 @@ class Opset14(Opset13):
         B: Optional[T] = None,
         sequence_lens: Optional[T1] = None,
         initial_h: Optional[T] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
@@ -497,6 +499,7 @@ class Opset14(Opset13):
         initial_h: Optional[T] = None,
         initial_c: Optional[T] = None,
         P: Optional[T] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
@@ -698,6 +701,7 @@ class Opset14(Opset13):
         B: Optional[T] = None,
         sequence_lens: Optional[T1] = None,
         initial_h: Optional[T] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Sequence[str] = ("Tanh", "Tanh"),
@@ -863,7 +867,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Reshape(self, data: T, shape: INT64, allowzero: int = 0) -> T:
+    def Reshape(self, data: T, shape: INT64, *, allowzero: int = 0) -> T:
         r"""[🌐 Reshape(14)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-14 "Online Documentation")
 
 
@@ -955,7 +959,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Trilu(self, input: T, k: Optional[INT64] = None, upper: int = 1) -> T:
+    def Trilu(self, input: T, k: Optional[INT64] = None, *, upper: int = 1) -> T:
         r"""[🌐 Trilu(14)](https://onnx.ai/onnx/operators/onnx__Trilu.html#trilu-14 "Online Documentation")
 
 

@@ -46,7 +46,7 @@ class Opset11(Opset10):
         "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
     )
 
-    def ArgMax(self, data: T, axis: int = 0, keepdims: int = 1) -> INT64:
+    def ArgMax(self, data: T, *, axis: int = 0, keepdims: int = 1) -> INT64:
         r"""[🌐 ArgMax(11)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-11 "Online Documentation")
 
 
@@ -73,7 +73,7 @@ class Opset11(Opset10):
         "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
     )
 
-    def ArgMin(self, data: T, axis: int = 0, keepdims: int = 1) -> INT64:
+    def ArgMin(self, data: T, *, axis: int = 0, keepdims: int = 1) -> INT64:
         r"""[🌐 ArgMin(11)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-11 "Online Documentation")
 
 
@@ -101,6 +101,7 @@ class Opset11(Opset10):
     def AveragePool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         count_include_pad: int = 0,
@@ -196,7 +197,7 @@ class Opset11(Opset10):
 
     T = TypeVar("T", UINT16, UINT32, UINT64, UINT8)
 
-    def BitShift(self, X: T, Y: T, direction: Optional[str] = None) -> T:
+    def BitShift(self, X: T, Y: T, *, direction: Optional[str] = None) -> T:
         r"""[🌐 BitShift(11)](https://onnx.ai/onnx/operators/onnx__BitShift.html#bitshift-11 "Online Documentation")
 
 
@@ -272,7 +273,7 @@ class Opset11(Opset10):
 
     T1 = TypeVar("T1", bound=BOOL)
 
-    def Compress(self, input: T, condition: T1, axis: Optional[int] = None) -> T:
+    def Compress(self, input: T, condition: T1, *, axis: Optional[int] = None) -> T:
         r"""[🌐 Compress(11)](https://onnx.ai/onnx/operators/onnx__Compress.html#compress-11 "Online Documentation")
 
 
@@ -374,7 +375,7 @@ class Opset11(Opset10):
     )
 
     def ConcatFromSequence(
-        self, input_sequence: S, axis: Optional[int] = None, new_axis: int = 0
+        self, input_sequence: S, *, axis: Optional[int] = None, new_axis: int = 0
     ) -> T:
         r"""[🌐 ConcatFromSequence(11)](https://onnx.ai/onnx/operators/onnx__ConcatFromSequence.html#concatfromsequence-11 "Online Documentation")
 
@@ -421,6 +422,7 @@ class Opset11(Opset10):
 
     def Constant(
         self,
+        *,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
     ) -> T:
@@ -449,6 +451,7 @@ class Opset11(Opset10):
         X: T,
         W: T,
         B: Optional[T] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
@@ -538,6 +541,7 @@ class Opset11(Opset10):
         X: T,
         W: T,
         B: Optional[T] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
@@ -646,7 +650,7 @@ class Opset11(Opset10):
 
     T2 = TypeVar("T2", INT32, INT64)
 
-    def CumSum(self, x: T, axis: T2, exclusive: int = 0, reverse: int = 0) -> T:
+    def CumSum(self, x: T, axis: T2, *, exclusive: int = 0, reverse: int = 0) -> T:
         r"""[🌐 CumSum(11)](https://onnx.ai/onnx/operators/onnx__CumSum.html#cumsum-11 "Online Documentation")
 
 
@@ -710,7 +714,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def DepthToSpace(self, input: T, blocksize: Optional[int] = None, mode: str = "DCR") -> T:
+    def DepthToSpace(
+        self, input: T, *, blocksize: Optional[int] = None, mode: str = "DCR"
+    ) -> T:
         r"""[🌐 DepthToSpace(11)](https://onnx.ai/onnx/operators/onnx__DepthToSpace.html#depthtospace-11 "Online Documentation")
 
         DepthToSpace rearranges (permutes) data from depth into blocks of spatial data.
@@ -885,7 +891,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Flatten(self, input: T, axis: int = 1) -> T:
+    def Flatten(self, input: T, *, axis: int = 1) -> T:
         r"""[🌐 Flatten(11)](https://onnx.ai/onnx/operators/onnx__Flatten.html#flatten-11 "Online Documentation")
 
 
@@ -930,7 +936,7 @@ class Opset11(Opset10):
 
     Tind = TypeVar("Tind", INT32, INT64)
 
-    def Gather(self, data: T, indices: Tind, axis: int = 0) -> T:
+    def Gather(self, data: T, indices: Tind, *, axis: int = 0) -> T:
         r"""[🌐 Gather(11)](https://onnx.ai/onnx/operators/onnx__Gather.html#gather-11 "Online Documentation")
 
 
@@ -1031,7 +1037,7 @@ class Opset11(Opset10):
 
     Tind = TypeVar("Tind", INT32, INT64)
 
-    def GatherElements(self, data: T, indices: Tind, axis: int = 0) -> T:
+    def GatherElements(self, data: T, indices: Tind, *, axis: int = 0) -> T:
         r"""[🌐 GatherElements(11)](https://onnx.ai/onnx/operators/onnx__GatherElements.html#gatherelements-11 "Online Documentation")
 
 
@@ -1223,6 +1229,7 @@ class Opset11(Opset10):
         A: T,
         B: T,
         C: Optional[T] = None,
+        *,
         alpha: float = 1.0,
         beta: float = 1.0,
         transA: int = 0,
@@ -1277,7 +1284,7 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def Hardmax(self, input: T, axis: int = 1) -> T:
+    def Hardmax(self, input: T, *, axis: int = 1) -> T:
         r"""[🌐 Hardmax(11)](https://onnx.ai/onnx/operators/onnx__Hardmax.html#hardmax-11 "Online Documentation")
 
 
@@ -1335,6 +1342,7 @@ class Opset11(Opset10):
     def If(
         self,
         cond: B,
+        *,
         else_branch: Optional[GraphProto] = None,
         then_branch: Optional[GraphProto] = None,
     ) -> V:
@@ -1364,7 +1372,7 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def LogSoftmax(self, input: T, axis: int = 1) -> T:
+    def LogSoftmax(self, input: T, *, axis: int = 1) -> T:
         r"""[🌐 LogSoftmax(11)](https://onnx.ai/onnx/operators/onnx__LogSoftmax.html#logsoftmax-11 "Online Documentation")
 
 
@@ -1594,6 +1602,7 @@ class Opset11(Opset10):
     def LpPool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         kernel_shape: Optional[Sequence[int]] = None,
         p: int = 2,
@@ -1661,6 +1670,7 @@ class Opset11(Opset10):
     def MaxPool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
@@ -1766,6 +1776,7 @@ class Opset11(Opset10):
         X: T1,
         I: T2,
         output_shape: Optional[T2] = None,
+        *,
         kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
@@ -1848,6 +1859,7 @@ class Opset11(Opset10):
         max_output_boxes_per_class: Optional[INT64] = None,
         iou_threshold: Optional[FLOAT] = None,
         score_threshold: Optional[FLOAT] = None,
+        *,
         center_point_box: int = 0,
     ) -> INT64:
         r"""[🌐 NonMaxSuppression(11)](https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html#nonmaxsuppression-11 "Online Documentation")
@@ -1930,7 +1942,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def OneHot(self, indices: T1, depth: T2, values: T3, axis: int = -1) -> T3:
+    def OneHot(self, indices: T1, depth: T2, values: T3, *, axis: int = -1) -> T3:
         r"""[🌐 OneHot(11)](https://onnx.ai/onnx/operators/onnx__OneHot.html#onehot-11 "Online Documentation")
 
 
@@ -1991,7 +2003,12 @@ class Opset11(Opset10):
     )
 
     def Pad(
-        self, data: T, pads: INT64, constant_value: Optional[T] = None, mode: str = "constant"
+        self,
+        data: T,
+        pads: INT64,
+        constant_value: Optional[T] = None,
+        *,
+        mode: str = "constant",
     ) -> T:
         r"""[🌐 Pad(11)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-11 "Online Documentation")
 
@@ -2154,7 +2171,9 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceL1(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceL1(
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T:
         r"""[🌐 ReduceL1(11)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-11 "Online Documentation")
 
 
@@ -2182,7 +2201,9 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceL2(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceL2(
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T:
         r"""[🌐 ReduceL2(11)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-11 "Online Documentation")
 
 
@@ -2211,7 +2232,7 @@ class Opset11(Opset10):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceLogSum(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T:
         r"""[🌐 ReduceLogSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-11 "Online Documentation")
 
@@ -2241,7 +2262,7 @@ class Opset11(Opset10):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceLogSumExp(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T:
         r"""[🌐 ReduceLogSumExp(11)](https://onnx.ai/onnx/operators/onnx__ReduceLogSumExp.html#reducelogsumexp-11 "Online Documentation")
 
@@ -2270,7 +2291,9 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceMax(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMax(
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T:
         r"""[🌐 ReduceMax(11)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-11 "Online Documentation")
 
 
@@ -2299,7 +2322,7 @@ class Opset11(Opset10):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceMean(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T:
         r"""[🌐 ReduceMean(11)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-11 "Online Documentation")
 
@@ -2328,7 +2351,9 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceMin(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMin(
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T:
         r"""[🌐 ReduceMin(11)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-11 "Online Documentation")
 
 
@@ -2357,7 +2382,7 @@ class Opset11(Opset10):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceProd(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T:
         r"""[🌐 ReduceProd(11)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-11 "Online Documentation")
 
@@ -2386,7 +2411,9 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceSum(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceSum(
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T:
         r"""[🌐 ReduceSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceSum.html#reducesum-11 "Online Documentation")
 
 
@@ -2415,7 +2442,7 @@ class Opset11(Opset10):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def ReduceSumSquare(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
     ) -> T:
         r"""[🌐 ReduceSumSquare(11)](https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html#reducesumsquare-11 "Online Documentation")
 
@@ -2469,6 +2496,7 @@ class Opset11(Opset10):
         roi: T2,
         scales: FLOAT,
         sizes: Optional[INT64] = None,
+        *,
         coordinate_transformation_mode: str = "half_pixel",
         cubic_coeff_a: float = -0.75,
         exclude_outside: int = 0,
@@ -2842,7 +2870,7 @@ class Opset11(Opset10):
 
     Tind = TypeVar("Tind", INT32, INT64)
 
-    def ScatterElements(self, data: T, indices: Tind, updates: T, axis: int = 0) -> T:
+    def ScatterElements(self, data: T, indices: Tind, updates: T, *, axis: int = 0) -> T:
         r"""[🌐 ScatterElements(11)](https://onnx.ai/onnx/operators/onnx__ScatterElements.html#scatterelements-11 "Online Documentation")
 
 
@@ -3156,7 +3184,7 @@ class Opset11(Opset10):
         Sequence[UINT8],
     )
 
-    def SequenceEmpty(self, dtype: Optional[int] = None) -> S:
+    def SequenceEmpty(self, *, dtype: Optional[int] = None) -> S:
         r"""[🌐 SequenceEmpty(11)](https://onnx.ai/onnx/operators/onnx__SequenceEmpty.html#sequenceempty-11 "Online Documentation")
 
 
@@ -3414,7 +3442,7 @@ class Opset11(Opset10):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def Softmax(self, input: T, axis: int = 1) -> T:
+    def Softmax(self, input: T, *, axis: int = 1) -> T:
         r"""[🌐 Softmax(11)](https://onnx.ai/onnx/operators/onnx__Softmax.html#softmax-11 "Online Documentation")
 
 
@@ -3467,7 +3495,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Split(self, input: T, axis: int = 0, split: Optional[Sequence[int]] = None) -> T:
+    def Split(self, input: T, *, axis: int = 0, split: Optional[Sequence[int]] = None) -> T:
         r"""[🌐 Split(11)](https://onnx.ai/onnx/operators/onnx__Split.html#split-11 "Online Documentation")
 
         Split a tensor into a list of tensors, along the specified
@@ -3529,7 +3557,7 @@ class Opset11(Opset10):
     )
 
     def SplitToSequence(
-        self, input: T, split: Optional[I] = None, axis: int = 0, keepdims: int = 1
+        self, input: T, split: Optional[I] = None, *, axis: int = 0, keepdims: int = 1
     ) -> S:
         r"""[🌐 SplitToSequence(11)](https://onnx.ai/onnx/operators/onnx__SplitToSequence.html#splittosequence-11 "Online Documentation")
 
@@ -3585,7 +3613,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Squeeze(self, data: T, axes: Optional[Sequence[int]] = None) -> T:
+    def Squeeze(self, data: T, *, axes: Optional[Sequence[int]] = None) -> T:
         r"""[🌐 Squeeze(11)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-11 "Online Documentation")
 
 
@@ -3614,7 +3642,7 @@ class Opset11(Opset10):
     I = TypeVar("I", bound=INT64)
 
     def TopK(
-        self, X: T, K: INT64, axis: int = -1, largest: int = 1, sorted: int = 1
+        self, X: T, K: INT64, *, axis: int = -1, largest: int = 1, sorted: int = 1
     ) -> Tuple[T, I]:
         r"""[🌐 TopK(11)](https://onnx.ai/onnx/operators/onnx__TopK.html#topk-11 "Online Documentation")
 
@@ -3677,7 +3705,7 @@ class Opset11(Opset10):
     )
 
     def Unique(
-        self, X: T, axis: Optional[int] = None, sorted: int = 1
+        self, X: T, *, axis: Optional[int] = None, sorted: int = 1
     ) -> Tuple[T, INT64, INT64, INT64]:
         r"""[🌐 Unique(11)](https://onnx.ai/onnx/operators/onnx__Unique.html#unique-11 "Online Documentation")
 
@@ -3838,7 +3866,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Unsqueeze(self, data: T, axes: Optional[Sequence[int]] = None) -> T:
+    def Unsqueeze(self, data: T, *, axes: Optional[Sequence[int]] = None) -> T:
         r"""[🌐 Unsqueeze(11)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-11 "Online Documentation")
 
 

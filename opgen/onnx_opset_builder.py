@@ -362,7 +362,7 @@ class OpsetsBuilder:
         args = list(self._make_function_args(schema, func_context))
 
         for arg in args:
-            if arg.name == "self":
+            if arg.name in {"self", "*"}:
                 continue
             if arg.is_vararg:
                 op_inputs.append(cg.Starred(cg.Name(arg.name)))
@@ -461,8 +461,23 @@ class OpsetsBuilder:
             if optional:
                 doctags.append("optional")
             elif variadic:
-                # if we encounter a variadic input, previous
-                # inputs cannot have default values
+                # If we encounter a variadic input, previous inputs cannot have default
+                # values as this allows for ambiguity at the call site.
+                #
+                # Specifically this avoids pylint W1113 (keyword-arg-before-vararg):
+                #   https://pylint.pycqa.org/en/latest/user_guide/messages/warning/keyword-arg-before-vararg.html
+                #
+                # As of 2023-06-08, only Loop(1, 11, 13, 16) and Scan(8) exhibit this issue.
+                # Ex:
+                #
+                #     def Loop(
+                #         self,
+                #         M: Optional[I] = None,        <- ambiguity with *v_initial
+                #         cond: Optional[B] = None,     <- ambiguity with *v_initial
+                #         *v_initial: V,
+                #         body: Optional[GraphProto] = None,
+                #     ) -> V: ...
+                #
                 for prev_arg in args:
                     prev_arg.default_value = None
                 doctags.append("variadic")
@@ -494,7 +509,7 @@ class OpsetsBuilder:
         return args
 
     def _make_function_attr_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
-        attr_args = []
+        generate_kwonly_sentinel = True
         for attr in schema.attributes.values():
             attr_type = parse_attr_type(attr.type)
             default_value = None
@@ -519,17 +534,19 @@ class OpsetsBuilder:
             if default_value is None:
                 attr_type = cg.TypingRefs.Optional(attr_type)
 
-            attr_args.append(
-                cg.Arg(
-                    attr.name,
-                    type=attr_type,
-                    default_value=cg.Constant(default_value),
-                    doc=attr.description,
-                    is_kwarg=True,
-                )
-            )
+            if generate_kwonly_sentinel and not any(
+                i.option == OpSchema.FormalParameterOption.Variadic for i in schema.inputs
+            ):
+                generate_kwonly_sentinel = False
+                yield cg.Arg("*")
 
-        yield from sorted(attr_args, key=lambda p: p.has_default_value)
+            yield cg.Arg(
+                attr.name,
+                type=attr_type,
+                default_value=cg.Constant(default_value),
+                doc=attr.description,
+                is_kwarg=True,
+            )
 
     def _make_input_output_type(
         self,

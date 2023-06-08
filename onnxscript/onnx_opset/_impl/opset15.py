@@ -57,6 +57,7 @@ class Opset15(Opset14):
         B: T1,
         input_mean: T2,
         input_var: T2,
+        *,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
         training_mode: int = 0,
@@ -167,7 +168,7 @@ class Opset15(Opset14):
     )
 
     def Bernoulli(
-        self, input: T1, dtype: _Optional[int] = None, seed: _Optional[float] = None
+        self, input: T1, *, dtype: _Optional[int] = None, seed: _Optional[float] = None
     ) -> T2:
         r"""[🌐 Bernoulli(15)](https://onnx.ai/onnx/operators/onnx__Bernoulli.html#bernoulli-15 "Online Documentation")
 
@@ -318,7 +319,7 @@ class Opset15(Opset14):
         _Optional[UINT8],
     )
 
-    def Optional(self, input: _Optional[V] = None, type: _Optional[TypeProto] = None) -> O:
+    def Optional(self, input: _Optional[V] = None, *, type: _Optional[TypeProto] = None) -> O:
         r"""[🌐 Optional(15)](https://onnx.ai/onnx/operators/onnx__Optional.html#optional-15 "Online Documentation")
 
 
@@ -530,7 +531,7 @@ class Opset15(Opset14):
 
     T1 = TypeVar("T1", bound=INT64)
 
-    def Shape(self, data: T, end: _Optional[int] = None, start: int = 0) -> T1:
+    def Shape(self, data: T, *, end: _Optional[int] = None, start: int = 0) -> T1:
         r"""[🌐 Shape(15)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-15 "Online Documentation")
 
 

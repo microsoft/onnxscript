@@ -52,6 +52,7 @@ class Opset19(Opset18):
     def AveragePool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         count_include_pad: int = 0,
@@ -190,7 +191,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def Cast(self, input: T1, saturate: int = 1, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1, *, saturate: int = 1, to: Optional[int] = None) -> T2:
         r"""[🌐 Cast(19)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-19 "Online Documentation")
 
 
@@ -321,7 +322,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def CastLike(self, input: T1, target_type: T2, saturate: int = 1) -> T2:
+    def CastLike(self, input: T1, target_type: T2, *, saturate: int = 1) -> T2:
         r"""[🌐 CastLike(19)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-19 "Online Documentation")
 
 
@@ -373,6 +374,7 @@ class Opset19(Opset18):
 
     def Constant(
         self,
+        *,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
         value_float: Optional[float] = None,
@@ -435,6 +437,7 @@ class Opset19(Opset18):
         offset: T,
         B: Optional[T] = None,
         mask: Optional[T] = None,
+        *,
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
         kernel_shape: Optional[Sequence[int]] = None,
@@ -517,7 +520,7 @@ class Opset19(Opset18):
     T2 = TypeVar("T2", BFLOAT16, FLOAT, FLOAT16)
 
     def DequantizeLinear(
-        self, x: T1, x_scale: T2, x_zero_point: Optional[T1] = None, axis: int = 1
+        self, x: T1, x_scale: T2, x_zero_point: Optional[T1] = None, *, axis: int = 1
     ) -> T2:
         r"""[🌐 DequantizeLinear(19)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-19 "Online Documentation")
 
@@ -758,6 +761,7 @@ class Opset19(Opset18):
     def If(
         self,
         cond: B,
+        *,
         else_branch: Optional[GraphProto] = None,
         then_branch: Optional[GraphProto] = None,
     ) -> V:
@@ -1067,6 +1071,7 @@ class Opset19(Opset18):
         pads: INT64,
         constant_value: Optional[T] = None,
         axes: Optional[Tind] = None,
+        *,
         mode: str = "constant",
     ) -> T:
         r"""[🌐 Pad(19)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-19 "Online Documentation")
@@ -1221,6 +1226,7 @@ class Opset19(Opset18):
         x: T1,
         y_scale: T1,
         y_zero_point: Optional[T2] = None,
+        *,
         axis: int = 1,
         saturate: int = 1,
     ) -> T2:
@@ -1293,7 +1299,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def Reshape(self, data: T, shape: INT64, allowzero: int = 0) -> T:
+    def Reshape(self, data: T, shape: INT64, *, allowzero: int = 0) -> T:
         r"""[🌐 Reshape(19)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-19 "Online Documentation")
 
 
@@ -1356,6 +1362,7 @@ class Opset19(Opset18):
         roi: Optional[T2] = None,
         scales: Optional[FLOAT] = None,
         sizes: Optional[INT64] = None,
+        *,
         antialias: int = 0,
         axes: Optional[Sequence[int]] = None,
         coordinate_transformation_mode: str = "half_pixel",
@@ -1807,7 +1814,7 @@ class Opset19(Opset18):
 
     T1 = TypeVar("T1", bound=INT64)
 
-    def Shape(self, data: T, end: Optional[int] = None, start: int = 0) -> T1:
+    def Shape(self, data: T, *, end: Optional[int] = None, start: int = 0) -> T1:
         r"""[🌐 Shape(19)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-19 "Online Documentation")
 
 

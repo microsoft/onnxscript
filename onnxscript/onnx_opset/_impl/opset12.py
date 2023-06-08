@@ -47,7 +47,7 @@ class Opset12(Opset11):
     )
 
     def ArgMax(
-        self, data: T, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self, data: T, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMax(12)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-12 "Online Documentation")
 
@@ -87,7 +87,7 @@ class Opset12(Opset11):
     )
 
     def ArgMin(
-        self, data: T, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self, data: T, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMin(12)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-12 "Online Documentation")
 
@@ -124,7 +124,7 @@ class Opset12(Opset11):
 
     T = TypeVar("T", bound=FLOAT)
 
-    def Celu(self, X: T, alpha: float = 1.0) -> T:
+    def Celu(self, X: T, *, alpha: float = 1.0) -> T:
         r"""[🌐 Celu(12)](https://onnx.ai/onnx/operators/onnx__Celu.html#celu-12 "Online Documentation")
 
 
@@ -198,6 +198,7 @@ class Opset12(Opset11):
 
     def Constant(
         self,
+        *,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
         value_float: Optional[float] = None,
@@ -262,6 +263,7 @@ class Opset12(Opset11):
         data: T,
         ratio: Optional[T1] = None,
         training_mode: Optional[T2] = None,
+        *,
         seed: Optional[int] = None,
     ) -> Tuple[T, T2]:
         r"""[🌐 Dropout(12)](https://onnx.ai/onnx/operators/onnx__Dropout.html#dropout-12 "Online Documentation")
@@ -374,7 +376,7 @@ class Opset12(Opset11):
         UINT8,
     )
 
-    def GatherND(self, data: T, indices: INT64, batch_dims: int = 0) -> T:
+    def GatherND(self, data: T, indices: INT64, *, batch_dims: int = 0) -> T:
         r"""[🌐 GatherND(12)](https://onnx.ai/onnx/operators/onnx__GatherND.html#gathernd-12 "Online Documentation")
 
 
@@ -566,6 +568,7 @@ class Opset12(Opset11):
     def MaxPool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
@@ -691,6 +694,7 @@ class Opset12(Opset11):
         input: T,
         target: Tind,
         weight: Optional[T] = None,
+        *,
         ignore_index: Optional[int] = None,
         reduction: str = "mean",
     ) -> T:
@@ -820,7 +824,9 @@ class Opset12(Opset11):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, INT8, UINT32, UINT64, UINT8)
 
-    def ReduceMax(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMax(
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T:
         r"""[🌐 ReduceMax(12)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-12 "Online Documentation")
 
 
@@ -848,7 +854,9 @@ class Opset12(Opset11):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, INT8, UINT32, UINT64, UINT8)
 
-    def ReduceMin(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMin(
+        self, data: T, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T:
         r"""[🌐 ReduceMin(12)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-12 "Online Documentation")
 
 
@@ -883,6 +891,7 @@ class Opset12(Opset11):
         scores: T,
         labels: Tind,
         weights: Optional[T] = None,
+        *,
         ignore_index: Optional[int] = None,
         reduction: str = "mean",
     ) -> Tuple[T, T]:
