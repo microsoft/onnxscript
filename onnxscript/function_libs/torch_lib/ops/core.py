@@ -681,7 +681,7 @@ def _aten_atleast_1d_onnx(self: Sequence[TTensor]) -> TTensor:
     return op.SequenceMap(self, body=reshape_to_1d)
 
 
-@torch_op("aten::atleast_1d", trace_only=True)
+@torch_op("aten::atleast_1d")
 def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
     return _aten_atleast_1d_onnx(self)
 
@@ -712,7 +712,7 @@ def _aten_atleast_2d_onnx(self: Sequence[TTensor]) -> TTensor:
     return op.SequenceMap(self, body=reshape_to_2d)
 
 
-@torch_op("aten::atleast_2d", trace_only=True)
+@torch_op("aten::atleast_2d")
 def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
     return _aten_atleast_2d_onnx(self)
 
