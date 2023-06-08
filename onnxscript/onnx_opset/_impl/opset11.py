@@ -105,7 +105,7 @@ class Opset11(Opset10):
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         count_include_pad: int = 0,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
     ) -> T:
@@ -197,7 +197,7 @@ class Opset11(Opset10):
 
     T = TypeVar("T", UINT16, UINT32, UINT64, UINT8)
 
-    def BitShift(self, X: T, Y: T, *, direction: Optional[str] = None) -> T:
+    def BitShift(self, X: T, Y: T, *, direction: str) -> T:
         r"""[🌐 BitShift(11)](https://onnx.ai/onnx/operators/onnx__BitShift.html#bitshift-11 "Online Documentation")
 
 
@@ -320,7 +320,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Concat(self, *inputs: T, axis: Optional[int] = None) -> T:
+    def Concat(self, *inputs: T, axis: int) -> T:
         r"""[🌐 Concat(11)](https://onnx.ai/onnx/operators/onnx__Concat.html#concat-11 "Online Documentation")
 
         Concatenate a list of tensors into a single tensor. All input tensors must have the same shape, except for the dimension size of the axis to concatenate on.
@@ -374,9 +374,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def ConcatFromSequence(
-        self, input_sequence: S, *, axis: Optional[int] = None, new_axis: int = 0
-    ) -> T:
+    def ConcatFromSequence(self, input_sequence: S, *, axis: int, new_axis: int = 0) -> T:
         r"""[🌐 ConcatFromSequence(11)](https://onnx.ai/onnx/operators/onnx__ConcatFromSequence.html#concatfromsequence-11 "Online Documentation")
 
 
@@ -714,9 +712,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def DepthToSpace(
-        self, input: T, *, blocksize: Optional[int] = None, mode: str = "DCR"
-    ) -> T:
+    def DepthToSpace(self, input: T, *, blocksize: int, mode: str = "DCR") -> T:
         r"""[🌐 DepthToSpace(11)](https://onnx.ai/onnx/operators/onnx__DepthToSpace.html#depthtospace-11 "Online Documentation")
 
         DepthToSpace rearranges (permutes) data from depth into blocks of spatial data.
@@ -1339,13 +1335,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def If(
-        self,
-        cond: B,
-        *,
-        else_branch: Optional[GraphProto] = None,
-        then_branch: Optional[GraphProto] = None,
-    ) -> V:
+    def If(self, cond: B, *, else_branch: GraphProto, then_branch: GraphProto) -> V:
         r"""[🌐 If(11)](https://onnx.ai/onnx/operators/onnx__If.html#if-11 "Online Documentation")
 
         If conditional
@@ -1429,13 +1419,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Loop(
-        self,
-        M: Optional[I],
-        cond: Optional[B],
-        *v_initial: V,
-        body: Optional[GraphProto] = None,
-    ) -> V:
+    def Loop(self, M: Optional[I], cond: Optional[B], *v_initial: V, body: GraphProto) -> V:
         r"""[🌐 Loop(11)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-11 "Online Documentation")
 
 
@@ -1604,7 +1588,7 @@ class Opset11(Opset10):
         X: T,
         *,
         auto_pad: str = "NOTSET",
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         p: int = 2,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
@@ -1674,7 +1658,7 @@ class Opset11(Opset10):
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
         strides: Optional[Sequence[int]] = None,
@@ -1777,7 +1761,7 @@ class Opset11(Opset10):
         I: T2,
         output_shape: Optional[T2] = None,
         *,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
     ) -> T1:
@@ -1974,12 +1958,12 @@ class Opset11(Opset10):
                 values in the output tensor.In case 'indices' is of non-integer type,
                 the values will be casted to int64 before use.
 
-            depth: (non-differentiable) Scalar specifying the number of classes in
-                one-hot tensor. This is also the size of the one-hot dimension
-                (specified by 'axis' attribute) added on in the output tensor. The
-                values in the 'indices' input tensor are expected to be in the range
-                [-depth, depth-1]. In case 'depth' is of non-integer type, it will be
-                casted to int64 before use.
+            depth: (non-differentiable) Scalar or Rank 1 tensor containing exactly one
+                element, specifying the number of classes in one-hot tensor. This is
+                also the size of the one-hot dimension (specified by 'axis' attribute)
+                added on in the output tensor. The values in the 'indices' input tensor
+                are expected to be in the range [-depth, depth-1]. In case 'depth' is of
+                non-integer type, it will be casted to int64 before use.
 
             values: (non-differentiable) Rank 1 tensor containing exactly two elements,
                 in the format [off_value, on_value], where 'on_value' is the value used
@@ -2665,8 +2649,8 @@ class Opset11(Opset10):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
-        num_scan_inputs: Optional[int] = None,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
         scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
@@ -3866,7 +3850,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Unsqueeze(self, data: T, *, axes: Optional[Sequence[int]] = None) -> T:
+    def Unsqueeze(self, data: T, *, axes: Sequence[int]) -> T:
         r"""[🌐 Unsqueeze(11)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-11 "Online Documentation")
 
 

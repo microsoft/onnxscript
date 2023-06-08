@@ -187,7 +187,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def Cast(self, input: T1, *, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1, *, to: int) -> T2:
         r"""[🌐 Cast(9)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-9 "Online Documentation")
 
 
@@ -289,7 +289,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def Constant(self, *, value: Optional[TensorProto] = None) -> T:
+    def Constant(self, *, value: TensorProto) -> T:
         r"""[🌐 Constant(9)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-9 "Online Documentation")
 
         A constant tensor.
@@ -635,7 +635,7 @@ class Opset9(Opset8):
         I: T2,
         output_shape: Optional[T2] = None,
         *,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
     ) -> T1:
@@ -822,11 +822,12 @@ class Opset9(Opset8):
                 'off_value' values in the output tensor.In case 'indices' is of
                 non-integer type, the values will be casted to int64 before use.
 
-            depth: Scalar specifying the number of classes in one-hot tensor. This is
-                also the size of the one-hot dimension (specified by 'axis' attribute)
-                added on in the output tensor. The values in the 'indices' input tensor
-                are expected to be in the range [0, depth). In case 'depth' is of
-                non-integer type, it will be casted to int64 before use.
+            depth: Scalar or rank 1 tensor containing exactly one element, specifying
+                the number of classes in one-hot tensor. This is also the size of the
+                one-hot dimension (specified by 'axis' attribute) added on in the output
+                tensor. The values in the 'indices' input tensor are expected to be in
+                the range [0, depth). In case 'depth' is of non-integer type, it will be
+                casted to int64 before use.
 
             values: Rank 1 tensor containing exactly two elements, in the format
                 [off_value, on_value], where 'on_value' is the value used for filling
@@ -888,8 +889,8 @@ class Opset9(Opset8):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
-        num_scan_inputs: Optional[int] = None,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
         scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
@@ -1214,12 +1215,12 @@ class Opset9(Opset8):
         self,
         X: T,
         *,
-        max_gram_length: Optional[int] = None,
-        max_skip_count: Optional[int] = None,
-        min_gram_length: Optional[int] = None,
-        mode: Optional[str] = None,
-        ngram_counts: Optional[Sequence[int]] = None,
-        ngram_indexes: Optional[Sequence[int]] = None,
+        max_gram_length: int,
+        max_skip_count: int,
+        min_gram_length: int,
+        mode: str,
+        ngram_counts: Sequence[int],
+        ngram_indexes: Sequence[int],
         pool_int64s: Optional[Sequence[int]] = None,
         pool_strings: Optional[Sequence[str]] = None,
         weights: Optional[Sequence[float]] = None,

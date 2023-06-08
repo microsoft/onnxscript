@@ -514,9 +514,7 @@ class OpsetsBuilder:
             attr_type = parse_attr_type(attr.type)
             default_value = None
 
-            if attr.required:
-                pass
-            elif attr.default_value.name:
+            if attr.default_value.name:
                 default_value = get_attribute_value(attr.default_value)
 
                 def fmt(value: Any) -> str:
@@ -531,7 +529,7 @@ class OpsetsBuilder:
             else:
                 default_value = None
 
-            if default_value is None:
+            if not attr.required and default_value is None:
                 attr_type = cg.TypingRefs.Optional(attr_type)
 
             if generate_kwonly_sentinel and not any(
@@ -543,7 +541,7 @@ class OpsetsBuilder:
             yield cg.Arg(
                 attr.name,
                 type=attr_type,
-                default_value=cg.Constant(default_value),
+                default_value=None if attr.required else cg.Constant(default_value),
                 doc=attr.description,
                 is_kwarg=True,
             )

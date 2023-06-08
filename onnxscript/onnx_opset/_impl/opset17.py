@@ -512,9 +512,7 @@ class Opset17(Opset16):
         UINT8,
     )
 
-    def SequenceMap(
-        self, input_sequence: S, *additional_inputs: V, body: Optional[GraphProto] = None
-    ) -> S:
+    def SequenceMap(self, input_sequence: S, *additional_inputs: V, body: GraphProto) -> S:
         r"""[🌐 SequenceMap(17)](https://onnx.ai/onnx/operators/onnx__SequenceMap.html#sequencemap-17 "Online Documentation")
 
 

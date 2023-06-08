@@ -237,7 +237,7 @@ class Opset13(Opset12):
         UINT8,
     )
 
-    def Cast(self, input: T1, *, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1, *, to: int) -> T2:
         r"""[🌐 Cast(13)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-13 "Online Documentation")
 
 
@@ -367,7 +367,7 @@ class Opset13(Opset12):
         UINT8,
     )
 
-    def Concat(self, *inputs: T, axis: Optional[int] = None) -> T:
+    def Concat(self, *inputs: T, axis: int) -> T:
         r"""[🌐 Concat(13)](https://onnx.ai/onnx/operators/onnx__Concat.html#concat-13 "Online Documentation")
 
         Concatenate a list of tensors into a single tensor. All input tensors must have the same shape, except for the dimension size of the axis to concatenate on.
@@ -479,9 +479,7 @@ class Opset13(Opset12):
         UINT8,
     )
 
-    def DepthToSpace(
-        self, input: T, *, blocksize: Optional[int] = None, mode: str = "DCR"
-    ) -> T:
+    def DepthToSpace(self, input: T, *, blocksize: int, mode: str = "DCR") -> T:
         r"""[🌐 DepthToSpace(13)](https://onnx.ai/onnx/operators/onnx__DepthToSpace.html#depthtospace-13 "Online Documentation")
 
         DepthToSpace rearranges (permutes) data from depth into blocks of spatial data.
@@ -1363,13 +1361,7 @@ class Opset13(Opset12):
         UINT8,
     )
 
-    def If(
-        self,
-        cond: B,
-        *,
-        else_branch: Optional[GraphProto] = None,
-        then_branch: Optional[GraphProto] = None,
-    ) -> V:
+    def If(self, cond: B, *, else_branch: GraphProto, then_branch: GraphProto) -> V:
         r"""[🌐 If(13)](https://onnx.ai/onnx/operators/onnx__If.html#if-13 "Online Documentation")
 
         If conditional
@@ -1420,7 +1412,7 @@ class Opset13(Opset12):
         alpha: float = 9.999999747378752e-05,
         beta: float = 0.75,
         bias: float = 1.0,
-        size: Optional[int] = None,
+        size: int,
     ) -> T:
         r"""[🌐 LRN(13)](https://onnx.ai/onnx/operators/onnx__LRN.html#lrn-13 "Online Documentation")
 
@@ -1583,13 +1575,7 @@ class Opset13(Opset12):
         UINT8,
     )
 
-    def Loop(
-        self,
-        M: Optional[I],
-        cond: Optional[B],
-        *v_initial: V,
-        body: Optional[GraphProto] = None,
-    ) -> V:
+    def Loop(self, M: Optional[I], cond: Optional[B], *v_initial: V, body: GraphProto) -> V:
         r"""[🌐 Loop(13)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-13 "Online Documentation")
 
 
@@ -3519,7 +3505,7 @@ class Opset13(Opset12):
         UINT8,
     )
 
-    def SpaceToDepth(self, input: T, *, blocksize: Optional[int] = None) -> T:
+    def SpaceToDepth(self, input: T, *, blocksize: int) -> T:
         r"""[🌐 SpaceToDepth(13)](https://onnx.ai/onnx/operators/onnx__SpaceToDepth.html#spacetodepth-13 "Online Documentation")
 
         SpaceToDepth rearranges blocks of spatial data into depth. More specifically,

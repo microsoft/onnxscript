@@ -358,7 +358,7 @@ class Opset_ai_onnx_ml1(Opset):
         *,
         classlabels_ints: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
-        coefficients: Optional[Sequence[float]] = None,
+        coefficients: Sequence[float],
         intercepts: Optional[Sequence[float]] = None,
         multi_class: int = 0,
         post_transform: str = "NONE",

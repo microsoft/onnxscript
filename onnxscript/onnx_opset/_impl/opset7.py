@@ -145,7 +145,7 @@ class Opset7(Opset6):
         *,
         auto_pad: str = "NOTSET",
         count_include_pad: int = 0,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
     ) -> T:
@@ -1179,9 +1179,7 @@ class Opset7(Opset6):
         UINT8,
     )
 
-    def Upsample(
-        self, X: T, *, mode: str = "nearest", scales: Optional[Sequence[float]] = None
-    ) -> T:
+    def Upsample(self, X: T, *, mode: str = "nearest", scales: Sequence[float]) -> T:
         r"""[🌐 Upsample(7)](https://onnx.ai/onnx/operators/onnx__Upsample.html#upsample-7 "Online Documentation")
 
 

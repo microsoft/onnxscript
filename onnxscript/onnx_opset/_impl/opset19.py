@@ -57,7 +57,7 @@ class Opset19(Opset18):
         ceil_mode: int = 0,
         count_include_pad: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
     ) -> T:
@@ -191,7 +191,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def Cast(self, input: T1, *, saturate: int = 1, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1, *, saturate: int = 1, to: int) -> T2:
         r"""[🌐 Cast(19)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-19 "Online Documentation")
 
 
@@ -758,13 +758,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def If(
-        self,
-        cond: B,
-        *,
-        else_branch: Optional[GraphProto] = None,
-        then_branch: Optional[GraphProto] = None,
-    ) -> V:
+    def If(self, cond: B, *, else_branch: GraphProto, then_branch: GraphProto) -> V:
         r"""[🌐 If(19)](https://onnx.ai/onnx/operators/onnx__If.html#if-19 "Online Documentation")
 
         If conditional
@@ -873,13 +867,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def Loop(
-        self,
-        M: Optional[I],
-        cond: Optional[B],
-        *v_initial: V,
-        body: Optional[GraphProto] = None,
-    ) -> V:
+    def Loop(self, M: Optional[I], cond: Optional[B], *v_initial: V, body: GraphProto) -> V:
         r"""[🌐 Loop(19)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-19 "Online Documentation")
 
 
@@ -1604,8 +1592,8 @@ class Opset19(Opset18):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
-        num_scan_inputs: Optional[int] = None,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
         scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
