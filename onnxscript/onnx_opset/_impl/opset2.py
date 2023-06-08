@@ -72,7 +72,7 @@ class Opset2(Opset1):
         X: T,
         *,
         auto_pad: str = "NOTSET",
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         p: int = 2,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
@@ -131,12 +131,7 @@ class Opset2(Opset1):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
     def Pad(
-        self,
-        data: T,
-        *,
-        mode: str = "constant",
-        pads: Optional[Sequence[int]] = None,
-        value: float = 0.0,
+        self, data: T, *, mode: str = "constant", pads: Sequence[int], value: float = 0.0
     ) -> T:
         r"""[🌐 Pad(2)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-2 "Online Documentation")
 

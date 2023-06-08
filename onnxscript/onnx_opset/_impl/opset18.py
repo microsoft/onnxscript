@@ -281,7 +281,7 @@ class Opset18(Opset17):
         bias: T,
         *,
         epsilon: float = 9.999999747378752e-06,
-        num_groups: Optional[int] = None,
+        num_groups: int,
     ) -> T:
         r"""[🌐 GroupNormalization(18)](https://onnx.ai/onnx/operators/onnx__GroupNormalization.html#groupnormalization-18 "Online Documentation")
 
@@ -340,7 +340,7 @@ class Opset18(Opset17):
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         p: int = 2,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,

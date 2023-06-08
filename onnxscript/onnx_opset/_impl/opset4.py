@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 from onnx.defs import get_schema
 
@@ -60,7 +60,7 @@ class Opset4(Opset3):
         UINT8,
     )
 
-    def Concat(self, *inputs: T, axis: Optional[int] = None) -> T:
+    def Concat(self, *inputs: T, axis: int) -> T:
         r"""[🌐 Concat(4)](https://onnx.ai/onnx/operators/onnx__Concat.html#concat-4 "Online Documentation")
 
         Concatenate a list of tensors into a single tensor

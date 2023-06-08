@@ -318,13 +318,7 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    def If(
-        self,
-        cond: B,
-        *,
-        else_branch: Optional[GraphProto] = None,
-        then_branch: Optional[GraphProto] = None,
-    ) -> V:
+    def If(self, cond: B, *, else_branch: GraphProto, then_branch: GraphProto) -> V:
         r"""[🌐 If(16)](https://onnx.ai/onnx/operators/onnx__If.html#if-16 "Online Documentation")
 
         If conditional
@@ -480,13 +474,7 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    def Loop(
-        self,
-        M: Optional[I],
-        cond: Optional[B],
-        *v_initial: V,
-        body: Optional[GraphProto] = None,
-    ) -> V:
+    def Loop(self, M: Optional[I], cond: Optional[B], *v_initial: V, body: GraphProto) -> V:
         r"""[🌐 Loop(16)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-16 "Online Documentation")
 
 
@@ -779,8 +767,8 @@ class Opset16(Opset15):
     def Scan(
         self,
         *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
-        num_scan_inputs: Optional[int] = None,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
         scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,

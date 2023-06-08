@@ -314,7 +314,7 @@ class Opset12(Opset11):
         "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
     )
 
-    def Einsum(self, *Inputs: T, equation: Optional[str] = None) -> T:
+    def Einsum(self, *Inputs: T, equation: str) -> T:
         r"""[🌐 Einsum(12)](https://onnx.ai/onnx/operators/onnx__Einsum.html#einsum-12 "Online Documentation")
 
 
@@ -572,7 +572,7 @@ class Opset12(Opset11):
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
         strides: Optional[Sequence[int]] = None,

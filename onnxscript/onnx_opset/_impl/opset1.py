@@ -209,7 +209,7 @@ class Opset1(Opset):
         X: T,
         *,
         auto_pad: str = "NOTSET",
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
     ) -> T:
@@ -291,7 +291,7 @@ class Opset1(Opset):
         mean: T,
         var: T,
         *,
-        consumed_inputs: Optional[Sequence[int]] = None,
+        consumed_inputs: Sequence[int],
         epsilon: float = 9.999999747378752e-06,
         is_test: int = 0,
         momentum: float = 0.8999999761581421,
@@ -381,7 +381,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def Cast(self, input: T1, *, to: Optional[str] = None) -> T2:
+    def Cast(self, input: T1, *, to: str) -> T2:
         r"""[🌐 Cast(1)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-1 "Online Documentation")
 
 
@@ -480,7 +480,7 @@ class Opset1(Opset):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def Constant(self, *, value: Optional[TensorProto] = None) -> T:
+    def Constant(self, *, value: TensorProto) -> T:
         r"""[🌐 Constant(1)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-1 "Online Documentation")
 
         A constant tensor.
@@ -696,7 +696,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def DepthToSpace(self, input: T, *, blocksize: Optional[int] = None) -> T:
+    def DepthToSpace(self, input: T, *, blocksize: int) -> T:
         r"""[🌐 DepthToSpace(1)](https://onnx.ai/onnx/operators/onnx__DepthToSpace.html#depthtospace-1 "Online Documentation")
 
         DepthToSpace rearranges (permutes) data from depth into blocks of spatial data.
@@ -1466,13 +1466,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def If(
-        self,
-        cond: B,
-        *,
-        else_branch: Optional[GraphProto] = None,
-        then_branch: Optional[GraphProto] = None,
-    ) -> V:
+    def If(self, cond: B, *, else_branch: GraphProto, then_branch: GraphProto) -> V:
         r"""[🌐 If(1)](https://onnx.ai/onnx/operators/onnx__If.html#if-1 "Online Documentation")
 
         If conditional
@@ -1549,7 +1543,7 @@ class Opset1(Opset):
         alpha: float = 9.999999747378752e-05,
         beta: float = 0.75,
         bias: float = 1.0,
-        size: Optional[int] = None,
+        size: int,
     ) -> T:
         r"""[🌐 LRN(1)](https://onnx.ai/onnx/operators/onnx__LRN.html#lrn-1 "Online Documentation")
 
@@ -1915,13 +1909,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def Loop(
-        self,
-        M: Optional[I],
-        cond: Optional[B],
-        *v_initial: V,
-        body: Optional[GraphProto] = None,
-    ) -> V:
+    def Loop(self, M: Optional[I], cond: Optional[B], *v_initial: V, body: GraphProto) -> V:
         r"""[🌐 Loop(1)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-1 "Online Documentation")
 
 
@@ -2194,7 +2182,7 @@ class Opset1(Opset):
         X: T,
         *,
         auto_pad: str = "NOTSET",
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
     ) -> T:
@@ -2269,12 +2257,7 @@ class Opset1(Opset):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
     def MaxRoiPool(
-        self,
-        X: T,
-        rois: T,
-        *,
-        pooled_shape: Optional[Sequence[int]] = None,
-        spatial_scale: float = 1.0,
+        self, X: T, rois: T, *, pooled_shape: Sequence[int], spatial_scale: float = 1.0
     ) -> T:
         r"""[🌐 MaxRoiPool(1)](https://onnx.ai/onnx/operators/onnx__MaxRoiPool.html#maxroipool-1 "Online Documentation")
 
@@ -2502,12 +2485,7 @@ class Opset1(Opset):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
     def Pad(
-        self,
-        data: T,
-        *,
-        mode: str = "constant",
-        paddings: Optional[Sequence[int]] = None,
-        value: float = 0.0,
+        self, data: T, *, mode: str = "constant", paddings: Sequence[int], value: float = 0.0
     ) -> T:
         r"""[🌐 Pad(1)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-1 "Online Documentation")
 
@@ -2757,7 +2735,7 @@ class Opset1(Opset):
         mean: float = 0.0,
         scale: float = 1.0,
         seed: Optional[float] = None,
-        shape: Optional[Sequence[int]] = None,
+        shape: Sequence[int],
     ) -> T:
         r"""[🌐 RandomNormal(1)](https://onnx.ai/onnx/operators/onnx__RandomNormal.html#randomnormal-1 "Online Documentation")
 
@@ -2864,7 +2842,7 @@ class Opset1(Opset):
         high: float = 1.0,
         low: float = 0.0,
         seed: Optional[float] = None,
-        shape: Optional[Sequence[int]] = None,
+        shape: Sequence[int],
     ) -> T:
         r"""[🌐 RandomUniform(1)](https://onnx.ai/onnx/operators/onnx__RandomUniform.html#randomuniform-1 "Online Documentation")
 
@@ -3478,8 +3456,8 @@ class Opset1(Opset):
         data: T,
         *,
         axes: Optional[Sequence[int]] = None,
-        ends: Optional[Sequence[int]] = None,
-        starts: Optional[Sequence[int]] = None,
+        ends: Sequence[int],
+        starts: Sequence[int],
     ) -> T:
         r"""[🌐 Slice(1)](https://onnx.ai/onnx/operators/onnx__Slice.html#slice-1 "Online Documentation")
 
@@ -3622,7 +3600,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def SpaceToDepth(self, input: T, *, blocksize: Optional[int] = None) -> T:
+    def SpaceToDepth(self, input: T, *, blocksize: int) -> T:
         r"""[🌐 SpaceToDepth(1)](https://onnx.ai/onnx/operators/onnx__SpaceToDepth.html#spacetodepth-1 "Online Documentation")
 
         SpaceToDepth rearranges blocks of spatial data into depth. More specifically,
@@ -3853,7 +3831,7 @@ class Opset1(Opset):
 
     I = TypeVar("I", bound=INT64)
 
-    def TopK(self, X: T, *, axis: int = -1, k: Optional[int] = None) -> Tuple[T, I]:
+    def TopK(self, X: T, *, axis: int = -1, k: int) -> Tuple[T, I]:
         r"""[🌐 TopK(1)](https://onnx.ai/onnx/operators/onnx__TopK.html#topk-1 "Online Documentation")
 
 
@@ -3938,7 +3916,7 @@ class Opset1(Opset):
         UINT8,
     )
 
-    def Unsqueeze(self, data: T, *, axes: Optional[Sequence[int]] = None) -> T:
+    def Unsqueeze(self, data: T, *, axes: Sequence[int]) -> T:
         r"""[🌐 Unsqueeze(1)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-1 "Online Documentation")
 
 
@@ -3962,12 +3940,7 @@ class Opset1(Opset):
     T = TypeVar("T", BOOL, DOUBLE, FLOAT, FLOAT16, INT32, INT64)
 
     def Upsample(
-        self,
-        X: T,
-        *,
-        height_scale: Optional[float] = None,
-        mode: str = "nearest",
-        width_scale: Optional[float] = None,
+        self, X: T, *, height_scale: float, mode: str = "nearest", width_scale: float
     ) -> T:
         r"""[🌐 Upsample(1)](https://onnx.ai/onnx/operators/onnx__Upsample.html#upsample-1 "Online Documentation")
 

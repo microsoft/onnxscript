@@ -114,7 +114,7 @@ class Opset8(Opset7):
         X: T,
         *,
         auto_pad: str = "NOTSET",
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
         strides: Optional[Sequence[int]] = None,
@@ -254,9 +254,9 @@ class Opset8(Opset7):
         self,
         sequence_lens: Optional[I],
         *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
+        body: GraphProto,
         directions: Optional[Sequence[int]] = None,
-        num_scan_inputs: Optional[int] = None,
+        num_scan_inputs: int,
     ) -> V:
         r"""[🌐 Scan(8)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-8 "Online Documentation")
 

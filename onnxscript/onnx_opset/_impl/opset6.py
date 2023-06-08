@@ -205,7 +205,7 @@ class Opset6(Opset5):
         UINT8,
     )
 
-    def Cast(self, input: T1, *, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1, *, to: int) -> T2:
         r"""[🌐 Cast(6)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-6 "Online Documentation")
 
 

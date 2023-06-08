@@ -287,11 +287,7 @@ class Opset_ai_onnx_preview_training1(Opset):
     T2 = TypeVar("T2", DOUBLE, FLOAT, FLOAT16)
 
     def Gradient(
-        self,
-        *Inputs: T1,
-        xs: Optional[Sequence[str]] = None,
-        y: Optional[str] = None,
-        zs: Optional[Sequence[str]] = None,
+        self, *Inputs: T1, xs: Sequence[str], y: str, zs: Optional[Sequence[str]] = None
     ) -> T2:
         r"""[🌐 ai.onnx.preview.training::Gradient(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Gradient.html#gradient-1 "Online Documentation")
 
@@ -471,10 +467,10 @@ class Opset_ai_onnx_preview_training1(Opset):
         R: T1,
         T: T2,
         *inputs: T3,
-        alpha: Optional[float] = None,
-        beta: Optional[float] = None,
-        mode: Optional[str] = None,
-        norm_coefficient: Optional[float] = None,
+        alpha: float,
+        beta: float,
+        mode: str,
+        norm_coefficient: float,
     ) -> T3:
         r"""[🌐 ai.onnx.preview.training::Momentum(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Momentum.html#momentum-1 "Online Documentation")
 
