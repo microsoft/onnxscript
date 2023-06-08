@@ -12,7 +12,7 @@ from ._infra import (
     ThreadFlowLocation,
     levels,
 )
-from .context import Diagnostic, DiagnosticContext, RuntimeErrorWithDiagnostic
+from .context import Diagnostic, DiagnosticContext, RuntimeErrorWithDiagnosticError
 
 __all__ = [
     "Diagnostic",
@@ -25,7 +25,7 @@ __all__ = [
     "Location",
     "Rule",
     "RuleCollection",
-    "RuntimeErrorWithDiagnostic",
+    "RuntimeErrorWithDiagnosticError",
     "Stack",
     "StackFrame",
     "Tag",

@@ -171,7 +171,7 @@ class Diagnostic:
         # TODO: print help url to rule at the end.
 
 
-class RuntimeErrorWithDiagnostic(RuntimeError):
+class RuntimeErrorWithDiagnosticError(RuntimeError):
     """Runtime error with enclosed diagnostic information."""
 
     def __init__(self, diagnostic: Diagnostic):
@@ -230,10 +230,10 @@ class DiagnosticContext:
     def dump(self, file_path: str, compress: bool = False) -> None:
         """Dumps the SARIF log to a file."""
         if compress:
-            with gzip.open(file_path, "wt") as f:
+            with gzip.open(file_path, "wt", encoding="utf-8") as f:
                 f.write(self.to_json())
         else:
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(self.to_json())
 
     def log(self, diagnostic: Diagnostic) -> None:
@@ -255,7 +255,7 @@ class DiagnosticContext:
     def log_and_raise_if_error(self, diagnostic: Diagnostic) -> None:
         self.log(diagnostic)
         if diagnostic.level == infra.Level.ERROR:
-            raise RuntimeErrorWithDiagnostic(diagnostic) from diagnostic.source_exception
+            raise RuntimeErrorWithDiagnosticError(diagnostic) from diagnostic.source_exception
 
     @contextlib.contextmanager
     def add_inflight_diagnostic(

@@ -13,7 +13,11 @@ MessageFormatterType = Callable[..., str]
 
 
 @beartype
-def format_message_in_text(fn: Callable, *args: Any, **kwargs: Any) -> str:
+def format_message_in_text(
+    fn: Callable,
+    *args: Any,  # pylint: disable=unused-argument
+    **kwargs: Any,  # pylint: disable=unused-argument
+) -> str:
     return f"{formatter.display_name(fn)}. "
 
 
@@ -127,7 +131,7 @@ def diagnose_call(
                         format_return_values_in_markdown(return_values, format_argument)
                     )
                     return return_values
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     # Record exception.
                     diag.level = infra.levels.ERROR
                     # TODO(bowbao): Message emitting api.
