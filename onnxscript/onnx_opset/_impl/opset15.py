@@ -10,9 +10,8 @@
 # pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
 # --------------------------------------------------------------------------
 
-from typing import Callable
 from typing import Optional as _Optional
-from typing import Sequence, Tuple, Union
+from typing import Sequence, Tuple, TypeVar
 
 from onnx import TypeProto
 from onnx.defs import get_schema
@@ -46,21 +45,23 @@ class Opset15(Opset14):
     def __init__(self):
         super().__init__()
 
+    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    T1 = TypeVar("T1", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    T2 = TypeVar("T2", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
     def BatchNormalization(
         self,
-        X: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        scale: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        B: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        input_mean: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        input_var: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
+        X: T,
+        scale: T1,
+        B: T1,
+        input_mean: T2,
+        input_var: T2,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
         training_mode: int = 0,
-    ) -> Tuple[
-        Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-    ]:
+    ) -> Tuple[T, T2, T2]:
         r"""[🌐 BatchNormalization(15)](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html#batchnormalization-15 "Online Documentation")
 
 
@@ -139,14 +140,7 @@ class Opset15(Opset14):
         """
 
         schema = get_schema("BatchNormalization", 15, "")
-        op: Callable[
-            ...,
-            Tuple[
-                Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-                Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-                Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-            ],
-        ] = Op(self, "BatchNormalization", schema)
+        op = Op(self, "BatchNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, B, input_mean, input_var),
             epsilon=epsilon,
@@ -154,12 +148,10 @@ class Opset15(Opset14):
             training_mode=training_mode,
         )
 
-    def Bernoulli(
-        self,
-        input: Union[DOUBLE, FLOAT, FLOAT16],
-        dtype: _Optional[int] = None,
-        seed: _Optional[float] = None,
-    ) -> Union[
+    T1 = TypeVar("T1", DOUBLE, FLOAT, FLOAT16)
+
+    T2 = TypeVar(
+        "T2",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -173,7 +165,11 @@ class Opset15(Opset14):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Bernoulli(
+        self, input: T1, dtype: _Optional[int] = None, seed: _Optional[float] = None
+    ) -> T2:
         r"""[🌐 Bernoulli(15)](https://onnx.ai/onnx/operators/onnx__Bernoulli.html#bernoulli-15 "Online Documentation")
 
 
@@ -196,61 +192,11 @@ class Opset15(Opset14):
         """
 
         schema = get_schema("Bernoulli", 15, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                BOOL,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Bernoulli", schema)
+        op = Op(self, "Bernoulli", schema)
         return op(*self._prepare_inputs(schema, input), dtype=dtype, seed=seed)
 
-    def CastLike(
-        self,
-        input: Union[
-            BFLOAT16,
-            BOOL,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        target_type: Union[
-            BFLOAT16,
-            BOOL,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-    ) -> Union[
+    T1 = TypeVar(
+        "T1",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -265,7 +211,27 @@ class Opset15(Opset14):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    T2 = TypeVar(
+        "T2",
+        BFLOAT16,
+        BOOL,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    def CastLike(self, input: T1, target_type: T2) -> T2:
         r"""[🌐 CastLike(15)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-15 "Online Documentation")
 
 
@@ -282,182 +248,11 @@ class Opset15(Opset14):
         """
 
         schema = get_schema("CastLike", 15, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                BOOL,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "CastLike", schema)
+        op = Op(self, "CastLike", schema)
         return op(*self._prepare_inputs(schema, input, target_type))
 
-    def Optional(
-        self,
-        input: _Optional[
-            Union[
-                Sequence[BOOL],
-                Sequence[COMPLEX128],
-                Sequence[COMPLEX64],
-                Sequence[DOUBLE],
-                Sequence[FLOAT],
-                Sequence[FLOAT16],
-                Sequence[INT16],
-                Sequence[INT32],
-                Sequence[INT64],
-                Sequence[INT8],
-                Sequence[STRING],
-                Sequence[UINT16],
-                Sequence[UINT32],
-                Sequence[UINT64],
-                Sequence[UINT8],
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ]
-        ] = None,
-        type: _Optional[TypeProto] = None,
-    ) -> Union[
-        _Optional[Sequence[BOOL]],
-        _Optional[Sequence[COMPLEX128]],
-        _Optional[Sequence[COMPLEX64]],
-        _Optional[Sequence[DOUBLE]],
-        _Optional[Sequence[FLOAT]],
-        _Optional[Sequence[FLOAT16]],
-        _Optional[Sequence[INT16]],
-        _Optional[Sequence[INT32]],
-        _Optional[Sequence[INT64]],
-        _Optional[Sequence[INT8]],
-        _Optional[Sequence[STRING]],
-        _Optional[Sequence[UINT16]],
-        _Optional[Sequence[UINT32]],
-        _Optional[Sequence[UINT64]],
-        _Optional[Sequence[UINT8]],
-        _Optional[BOOL],
-        _Optional[COMPLEX128],
-        _Optional[COMPLEX64],
-        _Optional[DOUBLE],
-        _Optional[FLOAT],
-        _Optional[FLOAT16],
-        _Optional[INT16],
-        _Optional[INT32],
-        _Optional[INT64],
-        _Optional[INT8],
-        _Optional[STRING],
-        _Optional[UINT16],
-        _Optional[UINT32],
-        _Optional[UINT64],
-        _Optional[UINT8],
-    ]:
-        r"""[🌐 Optional(15)](https://onnx.ai/onnx/operators/onnx__Optional.html#optional-15 "Online Documentation")
-
-
-        Constructs an optional-type value containing either an empty optional of a certain type specified by the attribute,
-        or a non-empty value containing the input element.
-
-
-        Args:
-            input: (optional) The input element.
-
-            type: Type of the element in the optional output
-        """
-
-        schema = get_schema("Optional", 15, "")
-        op: Callable[
-            ...,
-            Union[
-                _Optional[Sequence[BOOL]],
-                _Optional[Sequence[COMPLEX128]],
-                _Optional[Sequence[COMPLEX64]],
-                _Optional[Sequence[DOUBLE]],
-                _Optional[Sequence[FLOAT]],
-                _Optional[Sequence[FLOAT16]],
-                _Optional[Sequence[INT16]],
-                _Optional[Sequence[INT32]],
-                _Optional[Sequence[INT64]],
-                _Optional[Sequence[INT8]],
-                _Optional[Sequence[STRING]],
-                _Optional[Sequence[UINT16]],
-                _Optional[Sequence[UINT32]],
-                _Optional[Sequence[UINT64]],
-                _Optional[Sequence[UINT8]],
-                _Optional[BOOL],
-                _Optional[COMPLEX128],
-                _Optional[COMPLEX64],
-                _Optional[DOUBLE],
-                _Optional[FLOAT],
-                _Optional[FLOAT16],
-                _Optional[INT16],
-                _Optional[INT32],
-                _Optional[INT64],
-                _Optional[INT8],
-                _Optional[STRING],
-                _Optional[UINT16],
-                _Optional[UINT32],
-                _Optional[UINT64],
-                _Optional[UINT8],
-            ],
-        ] = Op(self, "Optional", schema)
-        return op(*self._prepare_inputs(schema, input), type=type)
-
-    def OptionalGetElement(
-        self,
-        input: Union[
-            _Optional[Sequence[BOOL]],
-            _Optional[Sequence[COMPLEX128]],
-            _Optional[Sequence[COMPLEX64]],
-            _Optional[Sequence[DOUBLE]],
-            _Optional[Sequence[FLOAT]],
-            _Optional[Sequence[FLOAT16]],
-            _Optional[Sequence[INT16]],
-            _Optional[Sequence[INT32]],
-            _Optional[Sequence[INT64]],
-            _Optional[Sequence[INT8]],
-            _Optional[Sequence[STRING]],
-            _Optional[Sequence[UINT16]],
-            _Optional[Sequence[UINT32]],
-            _Optional[Sequence[UINT64]],
-            _Optional[Sequence[UINT8]],
-            _Optional[BOOL],
-            _Optional[COMPLEX128],
-            _Optional[COMPLEX64],
-            _Optional[DOUBLE],
-            _Optional[FLOAT],
-            _Optional[FLOAT16],
-            _Optional[INT16],
-            _Optional[INT32],
-            _Optional[INT64],
-            _Optional[INT8],
-            _Optional[STRING],
-            _Optional[UINT16],
-            _Optional[UINT32],
-            _Optional[UINT64],
-            _Optional[UINT8],
-        ],
-    ) -> Union[
+    V = TypeVar(
+        "V",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -488,7 +283,129 @@ class Opset15(Opset14):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    O = TypeVar(
+        "O",
+        _Optional[Sequence[BOOL]],
+        _Optional[Sequence[COMPLEX128]],
+        _Optional[Sequence[COMPLEX64]],
+        _Optional[Sequence[DOUBLE]],
+        _Optional[Sequence[FLOAT]],
+        _Optional[Sequence[FLOAT16]],
+        _Optional[Sequence[INT16]],
+        _Optional[Sequence[INT32]],
+        _Optional[Sequence[INT64]],
+        _Optional[Sequence[INT8]],
+        _Optional[Sequence[STRING]],
+        _Optional[Sequence[UINT16]],
+        _Optional[Sequence[UINT32]],
+        _Optional[Sequence[UINT64]],
+        _Optional[Sequence[UINT8]],
+        _Optional[BOOL],
+        _Optional[COMPLEX128],
+        _Optional[COMPLEX64],
+        _Optional[DOUBLE],
+        _Optional[FLOAT],
+        _Optional[FLOAT16],
+        _Optional[INT16],
+        _Optional[INT32],
+        _Optional[INT64],
+        _Optional[INT8],
+        _Optional[STRING],
+        _Optional[UINT16],
+        _Optional[UINT32],
+        _Optional[UINT64],
+        _Optional[UINT8],
+    )
+
+    def Optional(self, input: _Optional[V] = None, type: _Optional[TypeProto] = None) -> O:
+        r"""[🌐 Optional(15)](https://onnx.ai/onnx/operators/onnx__Optional.html#optional-15 "Online Documentation")
+
+
+        Constructs an optional-type value containing either an empty optional of a certain type specified by the attribute,
+        or a non-empty value containing the input element.
+
+
+        Args:
+            input: (optional) The input element.
+
+            type: Type of the element in the optional output
+        """
+
+        schema = get_schema("Optional", 15, "")
+        op = Op(self, "Optional", schema)
+        return op(*self._prepare_inputs(schema, input), type=type)
+
+    O = TypeVar(
+        "O",
+        _Optional[Sequence[BOOL]],
+        _Optional[Sequence[COMPLEX128]],
+        _Optional[Sequence[COMPLEX64]],
+        _Optional[Sequence[DOUBLE]],
+        _Optional[Sequence[FLOAT]],
+        _Optional[Sequence[FLOAT16]],
+        _Optional[Sequence[INT16]],
+        _Optional[Sequence[INT32]],
+        _Optional[Sequence[INT64]],
+        _Optional[Sequence[INT8]],
+        _Optional[Sequence[STRING]],
+        _Optional[Sequence[UINT16]],
+        _Optional[Sequence[UINT32]],
+        _Optional[Sequence[UINT64]],
+        _Optional[Sequence[UINT8]],
+        _Optional[BOOL],
+        _Optional[COMPLEX128],
+        _Optional[COMPLEX64],
+        _Optional[DOUBLE],
+        _Optional[FLOAT],
+        _Optional[FLOAT16],
+        _Optional[INT16],
+        _Optional[INT32],
+        _Optional[INT64],
+        _Optional[INT8],
+        _Optional[STRING],
+        _Optional[UINT16],
+        _Optional[UINT32],
+        _Optional[UINT64],
+        _Optional[UINT8],
+    )
+
+    V = TypeVar(
+        "V",
+        Sequence[BOOL],
+        Sequence[COMPLEX128],
+        Sequence[COMPLEX64],
+        Sequence[DOUBLE],
+        Sequence[FLOAT],
+        Sequence[FLOAT16],
+        Sequence[INT16],
+        Sequence[INT32],
+        Sequence[INT64],
+        Sequence[INT8],
+        Sequence[STRING],
+        Sequence[UINT16],
+        Sequence[UINT32],
+        Sequence[UINT64],
+        Sequence[UINT8],
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    def OptionalGetElement(self, input: O) -> V:
         r"""[🌐 OptionalGetElement(15)](https://onnx.ai/onnx/operators/onnx__OptionalGetElement.html#optionalgetelement-15 "Online Documentation")
 
 
@@ -501,78 +418,46 @@ class Opset15(Opset14):
         """
 
         schema = get_schema("OptionalGetElement", 15, "")
-        op: Callable[
-            ...,
-            Union[
-                Sequence[BOOL],
-                Sequence[COMPLEX128],
-                Sequence[COMPLEX64],
-                Sequence[DOUBLE],
-                Sequence[FLOAT],
-                Sequence[FLOAT16],
-                Sequence[INT16],
-                Sequence[INT32],
-                Sequence[INT64],
-                Sequence[INT8],
-                Sequence[STRING],
-                Sequence[UINT16],
-                Sequence[UINT32],
-                Sequence[UINT64],
-                Sequence[UINT8],
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "OptionalGetElement", schema)
+        op = Op(self, "OptionalGetElement", schema)
         return op(*self._prepare_inputs(schema, input))
 
-    def OptionalHasElement(
-        self,
-        input: Union[
-            _Optional[Sequence[BOOL]],
-            _Optional[Sequence[COMPLEX128]],
-            _Optional[Sequence[COMPLEX64]],
-            _Optional[Sequence[DOUBLE]],
-            _Optional[Sequence[FLOAT]],
-            _Optional[Sequence[FLOAT16]],
-            _Optional[Sequence[INT16]],
-            _Optional[Sequence[INT32]],
-            _Optional[Sequence[INT64]],
-            _Optional[Sequence[INT8]],
-            _Optional[Sequence[STRING]],
-            _Optional[Sequence[UINT16]],
-            _Optional[Sequence[UINT32]],
-            _Optional[Sequence[UINT64]],
-            _Optional[Sequence[UINT8]],
-            _Optional[BOOL],
-            _Optional[COMPLEX128],
-            _Optional[COMPLEX64],
-            _Optional[DOUBLE],
-            _Optional[FLOAT],
-            _Optional[FLOAT16],
-            _Optional[INT16],
-            _Optional[INT32],
-            _Optional[INT64],
-            _Optional[INT8],
-            _Optional[STRING],
-            _Optional[UINT16],
-            _Optional[UINT32],
-            _Optional[UINT64],
-            _Optional[UINT8],
-        ],
-    ) -> BOOL:
+    O = TypeVar(
+        "O",
+        _Optional[Sequence[BOOL]],
+        _Optional[Sequence[COMPLEX128]],
+        _Optional[Sequence[COMPLEX64]],
+        _Optional[Sequence[DOUBLE]],
+        _Optional[Sequence[FLOAT]],
+        _Optional[Sequence[FLOAT16]],
+        _Optional[Sequence[INT16]],
+        _Optional[Sequence[INT32]],
+        _Optional[Sequence[INT64]],
+        _Optional[Sequence[INT8]],
+        _Optional[Sequence[STRING]],
+        _Optional[Sequence[UINT16]],
+        _Optional[Sequence[UINT32]],
+        _Optional[Sequence[UINT64]],
+        _Optional[Sequence[UINT8]],
+        _Optional[BOOL],
+        _Optional[COMPLEX128],
+        _Optional[COMPLEX64],
+        _Optional[DOUBLE],
+        _Optional[FLOAT],
+        _Optional[FLOAT16],
+        _Optional[INT16],
+        _Optional[INT32],
+        _Optional[INT64],
+        _Optional[INT8],
+        _Optional[STRING],
+        _Optional[UINT16],
+        _Optional[UINT32],
+        _Optional[UINT64],
+        _Optional[UINT8],
+    )
+
+    B = TypeVar("B", bound=BOOL)
+
+    def OptionalHasElement(self, input: O) -> B:
         r"""[🌐 OptionalHasElement(15)](https://onnx.ai/onnx/operators/onnx__OptionalHasElement.html#optionalhaselement-15 "Online Documentation")
 
 
@@ -584,27 +469,28 @@ class Opset15(Opset14):
         """
 
         schema = get_schema("OptionalHasElement", 15, "")
-        op: Callable[..., BOOL] = Op(self, "OptionalHasElement", schema)
+        op = Op(self, "OptionalHasElement", schema)
         return op(*self._prepare_inputs(schema, input))
 
-    def Pow(
-        self,
-        X: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64],
-        Y: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-    ) -> Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64]:
+    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64)
+
+    T1 = TypeVar(
+        "T1",
+        BFLOAT16,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    def Pow(self, X: T, Y: T1) -> T:
         r"""[🌐 Pow(15)](https://onnx.ai/onnx/operators/onnx__Pow.html#pow-15 "Online Documentation")
 
 
@@ -620,34 +506,32 @@ class Opset15(Opset14):
         """
 
         schema = get_schema("Pow", 15, "")
-        op: Callable[..., Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64]] = Op(
-            self, "Pow", schema
-        )
+        op = Op(self, "Pow", schema)
         return op(*self._prepare_inputs(schema, X, Y))
 
-    def Shape(
-        self,
-        data: Union[
-            BFLOAT16,
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        end: _Optional[int] = None,
-        start: int = 0,
-    ) -> INT64:
+    T = TypeVar(
+        "T",
+        BFLOAT16,
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    T1 = TypeVar("T1", bound=INT64)
+
+    def Shape(self, data: T, end: _Optional[int] = None, start: int = 0) -> T1:
         r"""[🌐 Shape(15)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-15 "Online Documentation")
 
 
@@ -711,5 +595,5 @@ class Opset15(Opset14):
         """
 
         schema = get_schema("Shape", 15, "")
-        op: Callable[..., INT64] = Op(self, "Shape", schema)
+        op = Op(self, "Shape", schema)
         return op(*self._prepare_inputs(schema, data), end=end, start=start)

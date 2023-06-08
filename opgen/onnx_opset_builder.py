@@ -80,6 +80,31 @@ class TensorTypeRef(cg.TypeRef):
         super().__init__(MODULE_ONNX_SCRIPT_TYPES, "Tensor")
 
 
+class FunctionDefContext:
+    def __init__(self):
+        self.func: Optional[cg.FunctionDef] = None
+        self.__type_constraints: dict[str, list[cg.TypeRef]] = {}
+
+    def append_type_constraint(self, name: str, types: list[cg.TypeRef]):
+        self.__type_constraints.setdefault(name, types)
+
+    def make_type_constraint_typevars(self):
+        for name, types in self.__type_constraints.items():
+            if len(types) == 1:
+                typevar = cg.Call(
+                    cg.Name("TypeVar"),
+                    cg.Constant(name),
+                    cg.Assign(cg.Name("bound"), types[0]),
+                )
+            else:
+                typevar = cg.Call(
+                    cg.Name("TypeVar"),
+                    cg.Constant(name),
+                    *types,
+                )
+            yield cg.Assign(cg.Name(name), typevar)
+
+
 class UnsupportedOpError(NotImplementedError):
     def __init__(self, op: QualOpName, message: str):
         super().__init__(self, message)
@@ -235,11 +260,19 @@ class OpsetsBuilder:
                     continue
 
             try:
-                function = self._make_function(qualname, schema)
+                func_context = self._make_function(qualname, schema)
                 opset_class = cg.first_or_none(opset.get_children_of_type(cg.ClassDef))
+                have_typevars = False
                 if opset_class:
-                    opset_class.append_body(function)
+                    for typevar in func_context.make_type_constraint_typevars():
+                        have_typevars = True
+                        opset_class.append_body(typevar)
+                    opset_class.append_body(func_context.func)
                     self._result.all_ops_count += 1
+                if have_typevars:
+                    opset.prepend_child(
+                        cg.ImportFrom("typing", cg.Alias("TypeVar")), cg.Module.Roles.Body
+                    )
             except NotImplementedError as error:
                 if not isinstance(error, UnsupportedOpError):
                     error = UnsupportedOpError(qualname, str(error))
@@ -324,10 +357,11 @@ class OpsetsBuilder:
                 )
             module.accept(cg.ImportAdjuster())
 
-    def _make_function(self, qualname: QualOpName, schema: OpSchema) -> cg.FunctionDef:
+    def _make_function(self, qualname: QualOpName, schema: OpSchema) -> FunctionDefContext:
         op_inputs: list[cg.Expr] = []
         op_attrs: list[cg.Expr] = []
-        args = list(self._make_function_args(schema))
+        func_context = FunctionDefContext()
+        args = list(self._make_function_args(schema, func_context))
 
         for arg in args:
             if arg.name == "self":
@@ -355,10 +389,13 @@ class OpsetsBuilder:
         def return_type():
             return cg.TypeRef.make_composite_if_multiple(
                 cg.TypingRefs.Tuple,
-                *[self._make_union_typeref(output.types) for output in schema.outputs],
+                *[
+                    self._make_input_output_type(func_context, output.type_str, output.types)
+                    for output in schema.outputs
+                ],
             )
 
-        func = cg.FunctionDef(
+        func_context.func = cg.FunctionDef(
             qualname.name,
             *args,
             return_type=return_type(),
@@ -381,17 +418,18 @@ class OpsetsBuilder:
                         cg.Constant(qualname.name),
                         cg.Name("schema"),
                     ),
-                    cg.TypingRefs.Callable(cg.EllipsisTypeRef(), return_type()),
                 ),
                 cg.Return(op_call),
             ],
         )
 
-        return func
+        return func_context
 
-    def _make_function_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
+    def _make_function_args(
+        self, schema: OpSchema, func_context: FunctionDefContext
+    ) -> Iterable[cg.Arg]:
         yield cg.Arg("self")
-        yield from self._make_function_input_args(schema)
+        yield from self._make_function_input_args(schema, func_context)
         yield from self._make_function_attr_args(schema)
 
     def _make_input_arg_name(self, input_name: str, schema: OpSchema):
@@ -404,18 +442,20 @@ class OpsetsBuilder:
                 return f"{input_name}_"
         return input_name
 
-    def _make_function_input_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
+    def _make_function_input_args(
+        self, schema: OpSchema, func_context: FunctionDefContext
+    ) -> Iterable[cg.Arg]:
         args: list[cg.Arg] = []
         for input in schema.inputs:
             optional = input.option == OpSchema.FormalParameterOption.Optional
             variadic = input.option == OpSchema.FormalParameterOption.Variadic
-            heterogeneous = not input.isHomogeneous
+            heterogeneous = not input.is_homogeneous
             differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.Differentiable
             )
             non_differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.NonDifferentiable
             )
 
@@ -439,7 +479,7 @@ class OpsetsBuilder:
             if len(doctags) > 0:
                 doc = f"({', '.join(doctags)}) {doc}"
 
-            type = self._make_union_typeref(input.types)
+            type = self._make_input_output_type(func_context, input.type_str, input.types)
             if optional and not isinstance(type, cg.TypingRefs.Optional):
                 type = cg.TypingRefs.Optional(type)
 
@@ -493,11 +533,22 @@ class OpsetsBuilder:
 
         yield from sorted(attr_args, key=lambda p: p.has_default_value)
 
-    def _make_union_typeref(self, onnx_types: list[str]) -> cg.TypingRefs.Union:
-        return cg.TypeRef.make_composite_if_multiple(
-            cg.TypingRefs.Union,
-            *[parse_input_output_type(type) for type in sorted(onnx_types)],
-        )
+    def _make_input_output_type(
+        self,
+        func_context: FunctionDefContext,
+        constraint_name: str,
+        onnx_types: list[str],
+    ) -> cg.TypeRef:
+        py_types = [parse_input_output_type(type) for type in sorted(onnx_types)]
+        try:
+            # input.type_str will either be a valid ONNX type (e.g. 'tensor(int)')
+            # or the name of a type constraint. If it parses as a type, it's not
+            # constrained; otherwise bind the underlying types to the constraint.
+            parse_input_output_type(constraint_name)
+            return cg.TypeRef.make_composite_if_multiple(cg.TypingRefs.Union, *py_types)
+        except NotImplementedError:
+            func_context.append_type_constraint(constraint_name, py_types)
+            return cg.TypeRef(None, constraint_name)
 
 
 def parse_input_output_type(onnx_type: str) -> cg.TypeRef:
