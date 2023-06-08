@@ -64,7 +64,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def Add(self, A: T, B: T, axis: Optional[int] = None, broadcast: int = 0) -> T:
+    def Add(self, A: T, B: T, *, axis: Optional[int] = None, broadcast: int = 0) -> T:
         r"""[🌐 Add(6)](https://onnx.ai/onnx/operators/onnx__Add.html#add-6 "Online Documentation")
 
 
@@ -114,6 +114,7 @@ class Opset6(Opset5):
         B: T,
         mean: T,
         var: T,
+        *,
         epsilon: float = 9.999999747378752e-06,
         is_test: int = 0,
         momentum: float = 0.8999999761581421,
@@ -204,7 +205,7 @@ class Opset6(Opset5):
         UINT8,
     )
 
-    def Cast(self, input: T1, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1, *, to: Optional[int] = None) -> T2:
         r"""[🌐 Cast(6)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-6 "Online Documentation")
 
 
@@ -248,7 +249,11 @@ class Opset6(Opset5):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
     def Clip(
-        self, input: T, max: float = 3.4028234663852886e38, min: float = -3.4028234663852886e38
+        self,
+        input: T,
+        *,
+        max: float = 3.4028234663852886e38,
+        min: float = -3.4028234663852886e38,
     ) -> T:
         r"""[🌐 Clip(6)](https://onnx.ai/onnx/operators/onnx__Clip.html#clip-6 "Online Documentation")
 
@@ -272,7 +277,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def Div(self, A: T, B: T, axis: Optional[int] = None, broadcast: int = 0) -> T:
+    def Div(self, A: T, B: T, *, axis: Optional[int] = None, broadcast: int = 0) -> T:
         r"""[🌐 Div(6)](https://onnx.ai/onnx/operators/onnx__Div.html#div-6 "Online Documentation")
 
 
@@ -315,7 +320,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def Dropout(self, data: T, is_test: int = 0, ratio: float = 0.5) -> Tuple[T, T]:
+    def Dropout(self, data: T, *, is_test: int = 0, ratio: float = 0.5) -> Tuple[T, T]:
         r"""[🌐 Dropout(6)](https://onnx.ai/onnx/operators/onnx__Dropout.html#dropout-6 "Online Documentation")
 
 
@@ -341,7 +346,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def Elu(self, X: T, alpha: float = 1.0) -> T:
+    def Elu(self, X: T, *, alpha: float = 1.0) -> T:
         r"""[🌐 Elu(6)](https://onnx.ai/onnx/operators/onnx__Elu.html#elu-6 "Online Documentation")
 
 
@@ -404,6 +409,7 @@ class Opset6(Opset5):
         A: T,
         B: T,
         C: T,
+        *,
         alpha: float = 1.0,
         beta: float = 1.0,
         broadcast: int = 0,
@@ -454,7 +460,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def HardSigmoid(self, X: T, alpha: float = 0.20000000298023224, beta: float = 0.5) -> T:
+    def HardSigmoid(self, X: T, *, alpha: float = 0.20000000298023224, beta: float = 0.5) -> T:
         r"""[🌐 HardSigmoid(6)](https://onnx.ai/onnx/operators/onnx__HardSigmoid.html#hardsigmoid-6 "Online Documentation")
 
 
@@ -478,7 +484,7 @@ class Opset6(Opset5):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
     def InstanceNormalization(
-        self, input: T, scale: T, B: T, epsilon: float = 9.999999747378752e-06
+        self, input: T, scale: T, B: T, *, epsilon: float = 9.999999747378752e-06
     ) -> T:
         r"""[🌐 InstanceNormalization(6)](https://onnx.ai/onnx/operators/onnx__InstanceNormalization.html#instancenormalization-6 "Online Documentation")
 
@@ -511,7 +517,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def LeakyRelu(self, X: T, alpha: float = 0.009999999776482582) -> T:
+    def LeakyRelu(self, X: T, *, alpha: float = 0.009999999776482582) -> T:
         r"""[🌐 LeakyRelu(6)](https://onnx.ai/onnx/operators/onnx__LeakyRelu.html#leakyrelu-6 "Online Documentation")
 
 
@@ -603,7 +609,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def Mul(self, A: T, B: T, axis: Optional[int] = None, broadcast: int = 0) -> T:
+    def Mul(self, A: T, B: T, *, axis: Optional[int] = None, broadcast: int = 0) -> T:
         r"""[🌐 Mul(6)](https://onnx.ai/onnx/operators/onnx__Mul.html#mul-6 "Online Documentation")
 
 
@@ -728,7 +734,7 @@ class Opset6(Opset5):
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
     def Selu(
-        self, X: T, alpha: float = 1.6732631921768188, gamma: float = 1.0507010221481323
+        self, X: T, *, alpha: float = 1.6732631921768188, gamma: float = 1.0507010221481323
     ) -> T:
         r"""[🌐 Selu(6)](https://onnx.ai/onnx/operators/onnx__Selu.html#selu-6 "Online Documentation")
 
@@ -793,7 +799,7 @@ class Opset6(Opset5):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def Sub(self, A: T, B: T, axis: Optional[int] = None, broadcast: int = 0) -> T:
+    def Sub(self, A: T, B: T, *, axis: Optional[int] = None, broadcast: int = 0) -> T:
         r"""[🌐 Sub(6)](https://onnx.ai/onnx/operators/onnx__Sub.html#sub-6 "Online Documentation")
 
 

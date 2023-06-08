@@ -46,6 +46,7 @@ class Opset10(Opset9):
     def AveragePool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         count_include_pad: int = 0,
@@ -148,6 +149,7 @@ class Opset10(Opset9):
         w: T2,
         x_zero_point: Optional[T1] = None,
         w_zero_point: Optional[T2] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
@@ -270,7 +272,7 @@ class Opset10(Opset9):
 
     T1 = TypeVar("T1", bound=BOOL)
 
-    def Dropout(self, data: T, ratio: float = 0.5) -> Tuple[T, T1]:
+    def Dropout(self, data: T, *, ratio: float = 0.5) -> Tuple[T, T1]:
         r"""[🌐 Dropout(10)](https://onnx.ai/onnx/operators/onnx__Dropout.html#dropout-10 "Online Documentation")
 
 
@@ -296,7 +298,7 @@ class Opset10(Opset9):
 
     T2 = TypeVar("T2", bound=BOOL)
 
-    def IsInf(self, X: T1, detect_negative: int = 1, detect_positive: int = 1) -> T2:
+    def IsInf(self, X: T1, *, detect_negative: int = 1, detect_positive: int = 1) -> T2:
         r"""[🌐 IsInf(10)](https://onnx.ai/onnx/operators/onnx__IsInf.html#isinf-10 "Online Documentation")
 
         Map infinity to true and other values to false.
@@ -374,6 +376,7 @@ class Opset10(Opset9):
     def MaxPool(
         self,
         X: T,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
@@ -472,7 +475,7 @@ class Opset10(Opset9):
         "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
     )
 
-    def Mod(self, A: T, B: T, fmod: int = 0) -> T:
+    def Mod(self, A: T, B: T, *, fmod: int = 0) -> T:
         r"""[🌐 Mod(10)](https://onnx.ai/onnx/operators/onnx__Mod.html#mod-10 "Online Documentation")
 
 
@@ -511,6 +514,7 @@ class Opset10(Opset9):
         max_output_boxes_per_class: Optional[INT64] = None,
         iou_threshold: Optional[FLOAT] = None,
         score_threshold: Optional[FLOAT] = None,
+        *,
         center_point_box: int = 0,
     ) -> INT64:
         r"""[🌐 NonMaxSuppression(10)](https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html#nonmaxsuppression-10 "Online Documentation")
@@ -585,6 +589,7 @@ class Opset10(Opset9):
         y_scale: FLOAT,
         y_zero_point: T3,
         B: Optional[T4] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
@@ -820,7 +825,7 @@ class Opset10(Opset9):
         UINT8,
     )
 
-    def Resize(self, X: T, scales: FLOAT, mode: str = "nearest") -> T:
+    def Resize(self, X: T, scales: FLOAT, *, mode: str = "nearest") -> T:
         r"""[🌐 Resize(10)](https://onnx.ai/onnx/operators/onnx__Resize.html#resize-10 "Online Documentation")
 
 
@@ -865,7 +870,7 @@ class Opset10(Opset9):
     )
 
     def ReverseSequence(
-        self, input: T, sequence_lens: INT64, batch_axis: int = 1, time_axis: int = 0
+        self, input: T, sequence_lens: INT64, *, batch_axis: int = 1, time_axis: int = 0
     ) -> T:
         r"""[🌐 ReverseSequence(10)](https://onnx.ai/onnx/operators/onnx__ReverseSequence.html#reversesequence-10 "Online Documentation")
 
@@ -935,6 +940,7 @@ class Opset10(Opset9):
         X: T1,
         rois: T1,
         batch_indices: T2,
+        *,
         mode: str = "avg",
         output_height: int = 1,
         output_width: int = 1,
@@ -1089,6 +1095,7 @@ class Opset10(Opset9):
     def StringNormalizer(
         self,
         X: STRING,
+        *,
         case_change_action: str = "NONE",
         is_case_sensitive: int = 0,
         locale: Optional[str] = None,
@@ -1137,7 +1144,7 @@ class Opset10(Opset9):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def ThresholdedRelu(self, X: T, alpha: float = 1.0) -> T:
+    def ThresholdedRelu(self, X: T, *, alpha: float = 1.0) -> T:
         r"""[🌐 ThresholdedRelu(10)](https://onnx.ai/onnx/operators/onnx__ThresholdedRelu.html#thresholdedrelu-10 "Online Documentation")
 
 
@@ -1160,7 +1167,7 @@ class Opset10(Opset9):
 
     I = TypeVar("I", bound=INT64)
 
-    def TopK(self, X: T, K: INT64, axis: int = -1) -> Tuple[T, I]:
+    def TopK(self, X: T, K: INT64, *, axis: int = -1) -> Tuple[T, I]:
         r"""[🌐 TopK(10)](https://onnx.ai/onnx/operators/onnx__TopK.html#topk-10 "Online Documentation")
 
 

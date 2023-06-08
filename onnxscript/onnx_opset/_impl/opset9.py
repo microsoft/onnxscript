@@ -102,6 +102,7 @@ class Opset9(Opset8):
         B: T,
         mean: T,
         var: T,
+        *,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
     ) -> Tuple[T, T, T, T, T]:
@@ -186,7 +187,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def Cast(self, input: T1, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1, *, to: Optional[int] = None) -> T2:
         r"""[🌐 Cast(9)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-9 "Online Documentation")
 
 
@@ -243,7 +244,7 @@ class Opset9(Opset8):
 
     T1 = TypeVar("T1", bound=BOOL)
 
-    def Compress(self, input: T, condition: T1, axis: Optional[int] = None) -> T:
+    def Compress(self, input: T, condition: T1, *, axis: Optional[int] = None) -> T:
         r"""[🌐 Compress(9)](https://onnx.ai/onnx/operators/onnx__Compress.html#compress-9 "Online Documentation")
 
 
@@ -288,7 +289,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def Constant(self, value: Optional[TensorProto] = None) -> T:
+    def Constant(self, *, value: Optional[TensorProto] = None) -> T:
         r"""[🌐 Constant(9)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-9 "Online Documentation")
 
         A constant tensor.
@@ -319,7 +320,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def ConstantOfShape(self, input: T1, value: Optional[TensorProto] = None) -> T2:
+    def ConstantOfShape(self, input: T1, *, value: Optional[TensorProto] = None) -> T2:
         r"""[🌐 ConstantOfShape(9)](https://onnx.ai/onnx/operators/onnx__ConstantOfShape.html#constantofshape-9 "Online Documentation")
 
 
@@ -407,7 +408,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def EyeLike(self, input: T1, dtype: Optional[int] = None, k: int = 0) -> T2:
+    def EyeLike(self, input: T1, *, dtype: Optional[int] = None, k: int = 0) -> T2:
         r"""[🌐 EyeLike(9)](https://onnx.ai/onnx/operators/onnx__EyeLike.html#eyelike-9 "Online Documentation")
 
 
@@ -456,7 +457,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def Flatten(self, input: T, axis: int = 1) -> T:
+    def Flatten(self, input: T, *, axis: int = 1) -> T:
         r"""[🌐 Flatten(9)](https://onnx.ai/onnx/operators/onnx__Flatten.html#flatten-9 "Online Documentation")
 
 
@@ -486,6 +487,7 @@ class Opset9(Opset8):
         A: T,
         B: T,
         C: T,
+        *,
         alpha: float = 1.0,
         beta: float = 1.0,
         transA: int = 0,
@@ -632,6 +634,7 @@ class Opset9(Opset8):
         X: T1,
         I: T2,
         output_shape: Optional[T2] = None,
+        *,
         kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
@@ -708,7 +711,7 @@ class Opset9(Opset8):
 
     T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
-    def MeanVarianceNormalization(self, X: T, axes: Sequence[int] = (0, 2, 3)) -> T:
+    def MeanVarianceNormalization(self, X: T, *, axes: Sequence[int] = (0, 2, 3)) -> T:
         r"""[🌐 MeanVarianceNormalization(9)](https://onnx.ai/onnx/operators/onnx__MeanVarianceNormalization.html#meanvariancenormalization-9 "Online Documentation")
 
 
@@ -794,7 +797,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def OneHot(self, indices: T1, depth: T2, values: T3, axis: int = -1) -> T3:
+    def OneHot(self, indices: T1, depth: T2, values: T3, *, axis: int = -1) -> T3:
         r"""[🌐 OneHot(9)](https://onnx.ai/onnx/operators/onnx__OneHot.html#onehot-9 "Online Documentation")
 
 
@@ -1088,7 +1091,7 @@ class Opset9(Opset8):
 
     Tind = TypeVar("Tind", INT32, INT64)
 
-    def Scatter(self, data: T, indices: Tind, updates: T, axis: int = 0) -> T:
+    def Scatter(self, data: T, indices: Tind, updates: T, *, axis: int = 0) -> T:
         r"""[🌐 Scatter(9)](https://onnx.ai/onnx/operators/onnx__Scatter.html#scatter-9 "Online Documentation")
 
 
@@ -1144,7 +1147,7 @@ class Opset9(Opset8):
         "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
     )
 
-    def Shrink(self, input: T, bias: float = 0.0, lambd: float = 0.5) -> T:
+    def Shrink(self, input: T, *, bias: float = 0.0, lambd: float = 0.5) -> T:
         r"""[🌐 Shrink(9)](https://onnx.ai/onnx/operators/onnx__Shrink.html#shrink-9 "Online Documentation")
 
 
@@ -1210,6 +1213,7 @@ class Opset9(Opset8):
     def TfIdfVectorizer(
         self,
         X: T,
+        *,
         max_gram_length: Optional[int] = None,
         max_skip_count: Optional[int] = None,
         min_gram_length: Optional[int] = None,
@@ -1337,7 +1341,7 @@ class Opset9(Opset8):
         UINT8,
     )
 
-    def Upsample(self, X: T, scales: FLOAT, mode: str = "nearest") -> T:
+    def Upsample(self, X: T, scales: FLOAT, *, mode: str = "nearest") -> T:
         r"""[🌐 Upsample(9)](https://onnx.ai/onnx/operators/onnx__Upsample.html#upsample-9 "Online Documentation")
 
 

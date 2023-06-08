@@ -47,7 +47,7 @@ class Opset_ai_onnx_ml1(Opset):
 
     T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
 
-    def Binarizer(self, X: T, threshold: float = 0.0) -> T:
+    def Binarizer(self, X: T, *, threshold: float = 0.0) -> T:
         r"""[🌐 ai.onnx.ml::Binarizer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_Binarizer.html#binarizer-1 "Online Documentation")
 
 
@@ -69,7 +69,7 @@ class Opset_ai_onnx_ml1(Opset):
     T2 = TypeVar("T2", FLOAT, INT64, STRING)
 
     def CastMap(
-        self, X: T1, cast_to: str = "TO_FLOAT", map_form: str = "DENSE", max_map: int = 1
+        self, X: T1, *, cast_to: str = "TO_FLOAT", map_form: str = "DENSE", max_map: int = 1
     ) -> T2:
         r"""[🌐 ai.onnx.ml::CastMap(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_CastMap.html#castmap-1 "Online Documentation")
 
@@ -111,6 +111,7 @@ class Opset_ai_onnx_ml1(Opset):
     def CategoryMapper(
         self,
         X: T1,
+        *,
         cats_int64s: Optional[Sequence[int]] = None,
         cats_strings: Optional[Sequence[str]] = None,
         default_int64: int = -1,
@@ -175,6 +176,7 @@ class Opset_ai_onnx_ml1(Opset):
     def DictVectorizer(
         self,
         X: T1,
+        *,
         int64_vocabulary: Optional[Sequence[int]] = None,
         string_vocabulary: Optional[Sequence[str]] = None,
     ) -> T2:
@@ -247,6 +249,7 @@ class Opset_ai_onnx_ml1(Opset):
     def Imputer(
         self,
         X: T,
+        *,
         imputed_value_floats: Optional[Sequence[float]] = None,
         imputed_value_int64s: Optional[Sequence[int]] = None,
         replaced_value_float: float = 0.0,
@@ -298,6 +301,7 @@ class Opset_ai_onnx_ml1(Opset):
     def LabelEncoder(
         self,
         X: T1,
+        *,
         classes_strings: Optional[Sequence[str]] = None,
         default_int64: int = -1,
         default_string: str = "_Unused",
@@ -351,6 +355,7 @@ class Opset_ai_onnx_ml1(Opset):
     def LinearClassifier(
         self,
         X: T1,
+        *,
         classlabels_ints: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
         coefficients: Optional[Sequence[float]] = None,
@@ -402,6 +407,7 @@ class Opset_ai_onnx_ml1(Opset):
     def LinearRegressor(
         self,
         X: T,
+        *,
         coefficients: Optional[Sequence[float]] = None,
         intercepts: Optional[Sequence[float]] = None,
         post_transform: str = "NONE",
@@ -447,7 +453,7 @@ class Opset_ai_onnx_ml1(Opset):
 
     T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
 
-    def Normalizer(self, X: T, norm: str = "MAX") -> FLOAT:
+    def Normalizer(self, X: T, *, norm: str = "MAX") -> FLOAT:
         r"""[🌐 ai.onnx.ml::Normalizer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_Normalizer.html#normalizer-1 "Online Documentation")
 
 
@@ -484,6 +490,7 @@ class Opset_ai_onnx_ml1(Opset):
     def OneHotEncoder(
         self,
         X: T,
+        *,
         cats_int64s: Optional[Sequence[int]] = None,
         cats_strings: Optional[Sequence[str]] = None,
         zeros: int = 1,
@@ -533,6 +540,7 @@ class Opset_ai_onnx_ml1(Opset):
     def SVMClassifier(
         self,
         X: T1,
+        *,
         classlabels_ints: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
         coefficients: Optional[Sequence[float]] = None,
@@ -597,6 +605,7 @@ class Opset_ai_onnx_ml1(Opset):
     def SVMRegressor(
         self,
         X: T,
+        *,
         coefficients: Optional[Sequence[float]] = None,
         kernel_params: Optional[Sequence[float]] = None,
         kernel_type: str = "LINEAR",
@@ -651,6 +660,7 @@ class Opset_ai_onnx_ml1(Opset):
     def Scaler(
         self,
         X: T,
+        *,
         offset: Optional[Sequence[float]] = None,
         scale: Optional[Sequence[float]] = None,
     ) -> FLOAT:
@@ -683,6 +693,7 @@ class Opset_ai_onnx_ml1(Opset):
     def TreeEnsembleClassifier(
         self,
         X: T1,
+        *,
         base_values: Optional[Sequence[float]] = None,
         class_ids: Optional[Sequence[int]] = None,
         class_nodeids: Optional[Sequence[int]] = None,
@@ -797,6 +808,7 @@ class Opset_ai_onnx_ml1(Opset):
     def TreeEnsembleRegressor(
         self,
         X: T,
+        *,
         aggregate_function: str = "SUM",
         base_values: Optional[Sequence[float]] = None,
         n_targets: Optional[int] = None,
@@ -914,6 +926,7 @@ class Opset_ai_onnx_ml1(Opset):
     def ZipMap(
         self,
         X: FLOAT,
+        *,
         classlabels_int64s: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
     ) -> T:

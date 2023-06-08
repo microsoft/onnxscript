@@ -37,6 +37,7 @@ class Opset3(Opset2):
         B: Optional[T] = None,
         sequence_lens: Optional[T1] = None,
         initial_h: Optional[T] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,

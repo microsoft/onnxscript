@@ -33,6 +33,7 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
     def TreeEnsembleClassifier(
         self,
         X: T1,
+        *,
         base_values: Optional[Sequence[float]] = None,
         base_values_as_tensor: Optional[TensorProto] = None,
         class_ids: Optional[Sequence[int]] = None,
@@ -168,6 +169,7 @@ class Opset_ai_onnx_ml3(Opset_ai_onnx_ml2):
     def TreeEnsembleRegressor(
         self,
         X: T,
+        *,
         aggregate_function: str = "SUM",
         base_values: Optional[Sequence[float]] = None,
         base_values_as_tensor: Optional[TensorProto] = None,

@@ -106,6 +106,7 @@ class Opset16(Opset15):
         self,
         X: T1,
         grid: T2,
+        *,
         align_corners: int = 0,
         mode: str = "bilinear",
         padding_mode: str = "zeros",
@@ -320,6 +321,7 @@ class Opset16(Opset15):
     def If(
         self,
         cond: B,
+        *,
         else_branch: Optional[GraphProto] = None,
         then_branch: Optional[GraphProto] = None,
     ) -> V:
@@ -349,7 +351,7 @@ class Opset16(Opset15):
 
     T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    def LeakyRelu(self, X: T, alpha: float = 0.009999999776482582) -> T:
+    def LeakyRelu(self, X: T, *, alpha: float = 0.009999999776482582) -> T:
         r"""[🌐 LeakyRelu(16)](https://onnx.ai/onnx/operators/onnx__LeakyRelu.html#leakyrelu-16 "Online Documentation")
 
 
@@ -680,6 +682,7 @@ class Opset16(Opset15):
         X: T1,
         rois: T1,
         batch_indices: T2,
+        *,
         coordinate_transformation_mode: str = "half_pixel",
         mode: str = "avg",
         output_height: int = 1,
@@ -983,7 +986,7 @@ class Opset16(Opset15):
     Tind = TypeVar("Tind", INT32, INT64)
 
     def ScatterElements(
-        self, data: T, indices: Tind, updates: T, axis: int = 0, reduction: str = "none"
+        self, data: T, indices: Tind, updates: T, *, axis: int = 0, reduction: str = "none"
     ) -> T:
         r"""[🌐 ScatterElements(16)](https://onnx.ai/onnx/operators/onnx__ScatterElements.html#scatterelements-16 "Online Documentation")
 
@@ -1107,7 +1110,7 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    def ScatterND(self, data: T, indices: INT64, updates: T, reduction: str = "none") -> T:
+    def ScatterND(self, data: T, indices: INT64, updates: T, *, reduction: str = "none") -> T:
         r"""[🌐 ScatterND(16)](https://onnx.ai/onnx/operators/onnx__ScatterND.html#scatternd-16 "Online Documentation")
 
 

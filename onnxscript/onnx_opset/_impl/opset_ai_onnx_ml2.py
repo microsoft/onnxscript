@@ -32,6 +32,7 @@ class Opset_ai_onnx_ml2(Opset_ai_onnx_ml1):
     def LabelEncoder(
         self,
         X: T1,
+        *,
         default_float: float = -0.0,
         default_int64: int = -1,
         default_string: str = "_Unused",
