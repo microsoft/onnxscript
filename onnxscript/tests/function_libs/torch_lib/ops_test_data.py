@@ -767,6 +767,19 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
+        "var_mean",
+        reason="fixme: Inferred shape and existing shape differ in rank",
+    ),
+    skip(
+        "var_mean",
+        variant_name="unbiased",
+        reason="fixme: Inferred shape and existing shape differ in rank",
+    ),
+    xfail(
+        "var_mean_correction",
+        reason="fixme: Inferred shape and existing shape differ in rank",
+    ),
+    xfail(
         "vstack",
         reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),

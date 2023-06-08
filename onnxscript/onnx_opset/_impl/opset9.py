@@ -820,11 +820,12 @@ class Opset9(Opset8):
                 'off_value' values in the output tensor.In case 'indices' is of
                 non-integer type, the values will be casted to int64 before use.
 
-            depth: Scalar specifying the number of classes in one-hot tensor. This is
-                also the size of the one-hot dimension (specified by 'axis' attribute)
-                added on in the output tensor. The values in the 'indices' input tensor
-                are expected to be in the range [0, depth). In case 'depth' is of
-                non-integer type, it will be casted to int64 before use.
+            depth: Scalar or rank 1 tensor containing exactly one element, specifying
+                the number of classes in one-hot tensor. This is also the size of the
+                one-hot dimension (specified by 'axis' attribute) added on in the output
+                tensor. The values in the 'indices' input tensor are expected to be in
+                the range [0, depth). In case 'depth' is of non-integer type, it will be
+                casted to int64 before use.
 
             values: Rank 1 tensor containing exactly two elements, in the format
                 [off_value, on_value], where 'on_value' is the value used for filling
