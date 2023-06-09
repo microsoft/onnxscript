@@ -194,37 +194,46 @@ def param_schemas_from_op_schema(
     return tuple(schemas)
 
 
+def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
+    if type_annotation.is_optional(input.typeinfo):
+        required = False
+    else:
+        required = True
+    return ParamSchema(name=input.name, type=input.typeinfo, is_input=True, required=required)
+
+
+def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
+    return ParamSchema(
+        name=attr.name,
+        type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
+            onnx.defs.OpSchema.AttrType(attr.type)  # type: ignore[call-arg]
+        ),
+        default=_EmptyDefault if attr.default_value is None else attr.default_value,
+        is_input=False,
+        required=not attr.has_default,
+    )
+
+
 def param_schemas_from_function_ir(
     function_ir: irbuilder.IRFunction,
 ) -> tuple[ParamSchema, ...]:
     """Get the parameter schemas from a FunctionIR."""
-    # The first len(func_ir.inputs) arguments are onnx inputs
-    # The rest is onnx attributes
-
     schemas = []
-    for arg in function_ir.inputs:
-        if type_annotation.is_optional(arg.typeinfo):
-            required = False
-        else:
-            required = True
-        schemas.append(
-            ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True, required=required)
-        )
 
-    for attr_parameter in function_ir.attrs:
-        schemas.append(
-            ParamSchema(
-                name=attr_parameter.name,
-                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
-                    onnx.defs.OpSchema.AttrType(attr_parameter.type)  # type: ignore[call-arg]
-                ),
-                default=_EmptyDefault
-                if attr_parameter.default_value is None
-                else attr_parameter.default_value,
-                is_input=False,
-                required=not attr_parameter.has_default,
-            )
-        )
+    # OnnxFunction supports interleaving inputs and attributes as arguments.
+    # Preserve the original order for param_schemas.
+    # NOTE the interleave ordering is only preserved at OnnxFunction/FunctionIR level.
+    # ONNX OpSchema and FunctionProto does not support interleaving inputs and attributes.
+    # This is by design. See more at https://github.com/microsoft/onnxscript/issues/771.
+    for arg in function_ir.ordered_inputs_and_attrs:
+        if isinstance(arg, irbuilder.IRVar):
+            # input
+            schemas.append(_param_schema_from_function_ir_input(arg))
+        elif isinstance(arg, irbuilder.IRAttributeParameter):
+            # attr
+            schemas.append(_param_schema_from_function_ir_attr(arg))
+        else:
+            raise TypeError(f"Unknown input/attr type {type(arg)} from FunctionIR.")
 
     return tuple(schemas)
 
@@ -588,7 +597,6 @@ class TracedOnnxFunction(Op):
         # NOTE: We generate the parameter schemas from the function_ir instead
         # of relying on the auto generated OpSchema because we need to preserve the keyword
         # argument order from the Python function definition, which is lost in OpSchema.
-        # FIXME(justinchuby): Fix param ordering when attributes come before inputs.
         self._param_schemas = param_schemas_from_function_ir(self.function_ir)
         return self._param_schemas
 

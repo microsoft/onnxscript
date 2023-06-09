@@ -391,6 +391,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": core_ops.aten_index_put_bool,
     "index_put": core_ops.aten_index_put,
+    "index_select": core_ops.aten_index_select,
     "isclose": core_ops.aten_isclose,
     "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
@@ -535,7 +536,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
     "hstack": core_ops.aten_hstack,
     "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
-    "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "logit": core_ops.aten_logit,
     "max": core_ops.aten_max,

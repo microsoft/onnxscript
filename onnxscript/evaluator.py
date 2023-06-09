@@ -283,15 +283,34 @@ class BaseEvaluator(Evaluator, abc.ABC):
         param_schemas = function.param_schemas()
         # Split happens in the evaluator instead of the OnnxFunction __call__ method
         # so that evaluators can control behaviors like whether to fill in default values for attributes.
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+        tagged_args, tagged_kwargs = param_manipulation.tag_arguments_with_param_schemas(
             param_schemas,
             args,
             kwargs,
             fill_defaults=False,
             allow_extra_kwargs=self._ignore_unknown_function_kwargs,
         )
-        adapted_inputs, has_array = _adapt_to_eager_mode(inputs)
-        result = function.function(*adapted_inputs, **attributes)
+
+        adapted_args: list[ExtendedModeValue] = []
+        adapted_kwargs: dict[str, ExtendedModeValue] = {}
+        has_array = False
+        for arg, param_schema in tagged_args:
+            if param_schema.is_input:
+                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
+                has_array = has_array or _has_array
+                adapted_args.append(adapted_arg)
+            else:
+                adapted_args.append(arg)
+
+        for key, (arg, param_schema) in tagged_kwargs.items():
+            if param_schema.is_input:
+                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
+                has_array = has_array or _has_array
+                adapted_kwargs[key] = adapted_arg
+            else:
+                adapted_kwargs[key] = arg
+
+        result = function.function(*adapted_args, **adapted_kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one
