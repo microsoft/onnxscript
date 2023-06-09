@@ -32,6 +32,7 @@ from onnxscript.onnx_opset._impl.opset15 import Opset15
 from onnxscript.onnx_opset._impl.opset16 import Opset16
 from onnxscript.onnx_opset._impl.opset17 import Opset17
 from onnxscript.onnx_opset._impl.opset18 import Opset18
+from onnxscript.onnx_opset._impl.opset19 import Opset19
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml1 import Opset_ai_onnx_ml1
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml2 import Opset_ai_onnx_ml2
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml3 import Opset_ai_onnx_ml3
@@ -60,6 +61,7 @@ __all__ = [
     "opset16",
     "opset17",
     "opset18",
+    "opset19",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
@@ -91,6 +93,7 @@ opset15 = Opset15()
 opset16 = Opset16()
 opset17 = Opset17()
 opset18 = Opset18()
+opset19 = Opset19()
 opset_ai_onnx_ml1 = Opset_ai_onnx_ml1()
 opset_ai_onnx_ml2 = Opset_ai_onnx_ml2()
 opset_ai_onnx_ml3 = Opset_ai_onnx_ml3()
@@ -168,6 +171,10 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         "",
         18,
     ): opset18,
+    (
+        "",
+        19,
+    ): opset19,
     (
         "ai.onnx.ml",
         1,

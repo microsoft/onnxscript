@@ -38,7 +38,6 @@ from torch.testing._internal.opinfo import definitions as opinfo_definitions
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
@@ -651,54 +650,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     xfail(
-        "new_empty_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_dtype: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_empty_strided_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided_dtype: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_empty_strided",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_empty_strided: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_full_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_full_dtype: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_ones_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_ones_dtype: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "new_zeros_dtype",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_new_zeros_dtype: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "nn.functional.adaptive_avg_pool1d",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool1d: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
-        "nn.functional.adaptive_avg_pool3d",
-        reason="fixme: ORT fails with invalid model: 'ONNX Schema aten_adaptive_avg_pool3d: failed validating the check: !(it.GetName().empty())'",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
-    xfail(
         "nn.functional.logsigmoid",
         dtypes=[torch.float16],
         reason="Eager mode failed on case(0,2) at location(0,6) due to precision loss",
@@ -713,11 +664,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     ),
     xfail(
-        "nn.functional.upsample_bilinear2d",
-        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -727,12 +673,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         dtypes=[torch.float16],
         reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
         test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail(
-        "repeat",
-        reason="Shape inference error. Remove after ONNX 1.14 release",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnx_older_than("1.14"),
     ),
     xfail(
         "round",
@@ -753,13 +693,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "tile",
-        reason="Shape inference error. Remove after ONNX 1.14 release",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnx_older_than("1.14")
-        or version_utils.onnxruntime_older_than("1.15"),
     ),
     xfail(
         "unflatten",

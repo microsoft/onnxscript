@@ -30,7 +30,6 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript._internal import version_utils
 from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
 
 # All dtypes will be tested on the generated symbolic functions.
@@ -147,10 +146,6 @@ class TestFunctionValidity(unittest.TestCase):
     @parameterized.parameterized.expand(
         list(ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.items())
     )
-    @unittest.skipIf(
-        version_utils.onnx_older_than("1.15"),
-        "OpSchema is not writable before ONNX 1.15",
-    )
     def test_script_function_has_op_schema(self, _, func_with_wrangler):
         func, _ = _split_function_and_wrangler(func_with_wrangler)
         schema = func.op_schema
@@ -159,10 +154,6 @@ class TestFunctionValidity(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         list(ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY.items())
-    )
-    @unittest.skipIf(
-        version_utils.onnx_older_than("1.15"),
-        "OpSchema is not writable before ONNX 1.15",
     )
     def test_trace_only_function_has_op_schema(self, _, func_with_wrangler):
         func, _ = _split_function_and_wrangler(func_with_wrangler)
