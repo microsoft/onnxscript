@@ -203,7 +203,7 @@ def param_schemas_from_function_ir(
 
     schemas = []
     for arg in function_ir.inputs:
-        if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
+        if type_annotation.is_optional(arg.typeinfo):
             required = False
         else:
             required = True

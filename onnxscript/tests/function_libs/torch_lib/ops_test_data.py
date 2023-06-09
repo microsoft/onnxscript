@@ -946,8 +946,9 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     ),
     xfail(
         "nn.functional.cross_entropy",
-        matcher=lambda sample: not isinstance(sample.kwargs.get("weight"), int),
-        reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[weight] is int type",
+        matcher=lambda sample: len(sample.args) < 1
+        or (isinstance(sample.args[0], torch.Tensor) and sample.args[0].dtype != torch.int64),
+        reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[target] as int type",
     ),
     skip(
         "nn.functional.dropout",
