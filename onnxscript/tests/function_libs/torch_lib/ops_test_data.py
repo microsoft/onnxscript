@@ -154,14 +154,6 @@ def _flip_input_wrangler(
     return args, kwargs
 
 
-def _gather_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dim argument an attribute
-    kwargs["dim"] = args.pop(1)
-    return args, kwargs
-
-
 def _grid_sample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -382,7 +374,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full": core_ops.aten_full,
     "full_like_dtype": core_ops.aten_full_like_dtype,
     "full_like": core_ops.aten_full_like,
-    "gather": (core_ops.aten_gather, _gather_input_wrangler),
+    "gather": core_ops.aten_gather,
     "ge": core_ops.aten_ge,
     # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
     # "greater": core_ops.aten_greater,  # no test case in OPS_DB
