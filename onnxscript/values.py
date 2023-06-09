@@ -11,14 +11,14 @@ import types
 import typing
 from enum import IntFlag
 from typing import _GenericAlias  # type: ignore[attr-defined]
-from typing import Any, Optional, Protocol, Sequence, Union
+from typing import Any, Optional, Protocol, Sequence
 
 import onnx
 import onnx.defs
 
 from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
-from onnxscript._internal import ast_utils, version_utils
+from onnxscript._internal import ast_utils
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -39,7 +39,6 @@ _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
 
 # A special value to indicate that the default value is not specified
 _EmptyDefault = object()
-_ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
 
 
 class Opset:
@@ -195,16 +194,6 @@ def param_schemas_from_op_schema(
     return tuple(schemas)
 
 
-def _is_optional(typeinfo) -> bool:
-    if typing.get_origin(typeinfo) is Union and type(None) in typing.get_args(typeinfo):
-        # Python < 3.10
-        return True
-    if typing.get_origin(typeinfo) is Optional:
-        # Python >= 3.10
-        return True
-    return False
-
-
 def param_schemas_from_function_ir(
     function_ir: irbuilder.IRFunction,
 ) -> tuple[ParamSchema, ...]:
@@ -214,7 +203,7 @@ def param_schemas_from_function_ir(
 
     schemas = []
     for arg in function_ir.inputs:
-        if _is_optional(arg.typeinfo):
+        if type_annotation.is_optional(arg.typeinfo):
             required = False
         else:
             required = True
@@ -481,9 +470,6 @@ class OnnxFunction(Op):
         if self._op_schema is not None:
             return self._op_schema
 
-        if not _ONNX_OP_SCHEMA_WRITABLE:
-            return None
-
         self._op_schema = op_schema_from_function_ir(self.function_ir, self.opset)
 
         return self._op_schema
@@ -588,9 +574,6 @@ class TracedOnnxFunction(Op):
 
         if self._op_schema is not None:
             return self._op_schema
-
-        if not _ONNX_OP_SCHEMA_WRITABLE:
-            return None
 
         # FIXME(justinchuby): outputs are empty. Need to fix.
         self._op_schema = op_schema_from_function_ir(self.function_ir, self._opset)
