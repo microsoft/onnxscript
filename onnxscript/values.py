@@ -18,7 +18,7 @@ import onnx.defs
 
 from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
-from onnxscript._internal import ast_utils, version_utils
+from onnxscript._internal import ast_utils
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -39,7 +39,6 @@ _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
 
 # A special value to indicate that the default value is not specified
 _EmptyDefault = object()
-_ONNX_OP_SCHEMA_WRITABLE = not version_utils.onnx_older_than("1.14")
 
 
 class Opset:
@@ -471,9 +470,6 @@ class OnnxFunction(Op):
         if self._op_schema is not None:
             return self._op_schema
 
-        if not _ONNX_OP_SCHEMA_WRITABLE:
-            return None
-
         self._op_schema = op_schema_from_function_ir(self.function_ir, self.opset)
 
         return self._op_schema
@@ -578,9 +574,6 @@ class TracedOnnxFunction(Op):
 
         if self._op_schema is not None:
             return self._op_schema
-
-        if not _ONNX_OP_SCHEMA_WRITABLE:
-            return None
 
         # FIXME(justinchuby): outputs are empty. Need to fix.
         self._op_schema = op_schema_from_function_ir(self.function_ir, self._opset)
