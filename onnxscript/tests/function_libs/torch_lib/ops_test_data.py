@@ -716,12 +716,6 @@ EXPECTED_SKIPS_OR_FAILS = (
         "vstack",
         reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
-    xfail(
-        "nn.functional.cross_entropy",
-        reason="ORT < 1.15 fails on a few subtests with error 'index < data_.size() was false'. Resolved in ORT 1.15+",
-        test_class_name="TestOutputConsistencyFullGraph",
-        enabled_if=version_utils.onnxruntime_older_than("1.15"),
-    ),
 )
 
 
