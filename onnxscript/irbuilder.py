@@ -8,7 +8,7 @@ import dataclasses
 import io
 import logging
 import warnings
-from typing import Any, Optional, Protocol, Sequence
+from typing import Any, Optional, Protocol, Sequence, Union
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -240,21 +240,31 @@ class IRFunction:
     def __init__(self, name: str, domain: str = "") -> None:
         self.domain = domain
         self.name = name
-        self.inputs: list[IRVar] = []
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
-        # attribute parameters
-        self.attrs: list[IRAttributeParameter] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
+        self.ordered_inputs_and_attrs: list[Union[IRVar, IRAttributeParameter]] = []
 
     @property
     def assigned_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this function."""
         return [v for stmt in self.stmts for v in stmt.output_names]
+
+    @property
+    def inputs(self) -> Sequence[IRVar]:
+        return [var for var in self.ordered_inputs_and_attrs if isinstance(var, IRVar)]
+
+    @property
+    def attrs(self) -> Sequence[IRAttributeParameter]:
+        return [
+            attr
+            for attr in self.ordered_inputs_and_attrs
+            if isinstance(attr, IRAttributeParameter)
+        ]
 
     def __str__(self):
         attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
@@ -270,13 +280,13 @@ class IRFunction:
         self.stmts.append(stmt)
 
     def append_input(self, name: IRVar) -> None:
-        self.inputs.append(name)
+        self.ordered_inputs_and_attrs.append(name)
 
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
     def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
-        self.attrs.append(attr)
+        self.ordered_inputs_and_attrs.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
