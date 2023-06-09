@@ -185,7 +185,9 @@ def pytype_to_type_strings(pytype: TypeAnnotationValue) -> list[str]:
     if isinstance(pytype, typing.TypeVar):
         constraints = pytype.__constraints__
         if constraints:
-            return pytype_to_type_strings(Union[constraints])
+            return pytype_to_type_strings(
+                Union.__getitem__(constraints)
+            )  # pylint: disable=unnecessary-dunder-call
         bound = pytype.__bound__
         if bound is None:
             return list(ALL_TENSOR_TYPE_STRINGS)
