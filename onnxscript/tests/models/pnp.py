@@ -1,8 +1,11 @@
+import numpy as np
+
+import onnx
 from onnx import TensorProto
 from onnx.helper import make_tensor
 
-from onnxscript import script
-from onnxscript.onnx_opset import opset18 as op
+from onnxscript import script, graph
+# from onnxscript.onnx_opset import opset18ext as op
 from onnxscript.onnx_types import FLOAT, INT64
 
 from typing import (
@@ -10,6 +13,62 @@ from typing import (
     Callable,
     Mapping,
 )
+
+from onnxscript.onnx_opset._impl.opset18 import Opset18
+from onnxscript import tensor as onnxscript_tensor
+from onnxscript.onnx_types import (
+    BFLOAT16,
+    BOOL,
+    COMPLEX64,
+    COMPLEX128,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    STRING,
+    UINT8,
+    UINT16,
+    UINT32,
+    UINT64,
+)
+from onnxscript.values import Op, Opset
+from typing import Callable, Optional, Sequence, Tuple, Union
+
+import numpy as np
+import onnxruntime as rt
+import onnx
+
+class Opset18Ext(Opset18):
+    def __new__(cls):
+        return Opset.__new__(cls, "", 18)
+
+    def __init__(self):
+        super().__init__()
+
+    def OpaqueOp(self, input: FLOAT, model_path: STRING,
+    ) -> FLOAT:
+        model = onnx.load(model_path)
+        onnx.checker.check_model(model)
+        sess = rt.InferenceSession(model.SerializeToString(), providers=["CPUExecutionProvider"])
+
+        def op(input):
+            if isinstance(input, np.ndarray):
+                pred_roi = sess.run(None, {"image_roi": input})
+            else:
+                pred_roi = sess.run(None, {"image_roi": input.value})
+            pred_roi_tensor = onnxscript_tensor.Tensor(pred_roi[0])
+            # pred_roi_tensor = onnxscript_tensor.Tensor(input.value + np.ones(input.shape, dtype=input.dtype))
+            if isinstance(input, np.ndarray):
+                return pred_roi_tensor.value
+            else:
+                return pred_roi_tensor
+
+        return op(input)
+
+op = Opset18Ext()
 
 @script()
 def extend_roi_indices(roi_indices: INT64["roi_D", "roi_H", "roi_W", 3], seg_C: INT64) -> INT64[1, "seg_C", "roi_D", "roi_H", "roi_W", 5]:
@@ -173,9 +232,11 @@ def sliding_window_inference(inputs: FLOAT["N", 1, "D", "H", "W"], roi_size: INT
     """
     for simplicity, we assume that the step size is the same as the roi size. D/H/W are multiple of roi_size in 3 dimensions,
     no overlay, no padding. weight is 1.
+    TODOs: sw_batch_size > 1, roi_size is not multiple of D/H/W, overlay, padding, weight is not 1.
     """
+
     inputs_shape = op.Shape(inputs)
-    inputs_spatial_shape = op.Slice(inputs_shape, op.Constant(value_ints=[2]), op.Constant(value_ints=[5]), op.Constant(value_ints=[0])) 
+    inputs_spatial_shape = op.Slice(inputs_shape, op.Constant(value_ints=[2]), op.Constant(value_ints=[5]), op.Constant(value_ints=[0]))
     N, _, D, H, W = op.Split(inputs_shape, num_outputs=5)
     roi_D, roi_H, roi_W = op.Split(roi_size, num_outputs=3)
     
@@ -193,7 +254,8 @@ def sliding_window_inference(inputs: FLOAT["N", 1, "D", "H", "W"], roi_size: INT
     aggrregated_count = op.CastLike(op.ConstantOfShape(inputs_shape), roi_size)
     for slice_g in range(S):
         win_data, start, stop = prepare_for_predictor_batch_size_is_1_script(inputs, slice_g, slices)
-        pred = predict_mock_2(win_data)
+        # pred = predict_mock_2(win_data)
+        pred = op.OpaqueOp(win_data, model_path="C:/Temp/sliding_window_predictor_sw_batch_size_is_1.onnx")
         aggrregated_pred, aggrregated_count = aggrregate_predictor_output(pred, start, stop, aggrregated_pred, aggrregated_count)
     
     return aggrregated_pred / op.CastLike(aggrregated_count, aggrregated_pred)
