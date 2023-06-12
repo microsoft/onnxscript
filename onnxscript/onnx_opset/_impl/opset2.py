@@ -10,7 +10,7 @@
 # pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Union
+from typing import Optional, Sequence, TypeVar
 
 from onnx.defs import get_schema
 
@@ -42,9 +42,9 @@ class Opset2(Opset1):
     def __init__(self):
         super().__init__()
 
-    def GlobalLpPool(
-        self, X: Union[DOUBLE, FLOAT, FLOAT16], p: int = 2
-    ) -> Union[DOUBLE, FLOAT, FLOAT16]:
+    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+
+    def GlobalLpPool(self, X: T, p: int = 2) -> T:
         r"""[🌐 GlobalLpPool(2)](https://onnx.ai/onnx/operators/onnx__GlobalLpPool.html#globallppool-2 "Online Documentation")
 
 
@@ -63,18 +63,20 @@ class Opset2(Opset1):
         """
 
         schema = get_schema("GlobalLpPool", 2, "")
-        op: Callable[..., Union[DOUBLE, FLOAT, FLOAT16]] = Op(self, "GlobalLpPool", schema)
+        op = Op(self, "GlobalLpPool", schema)
         return op(*self._prepare_inputs(schema, X), p=p)
+
+    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
 
     def LpPool(
         self,
-        X: Union[DOUBLE, FLOAT, FLOAT16],
+        X: T,
         auto_pad: str = "NOTSET",
         kernel_shape: Optional[Sequence[int]] = None,
         p: int = 2,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> Union[DOUBLE, FLOAT, FLOAT16]:
+    ) -> T:
         r"""[🌐 LpPool(2)](https://onnx.ai/onnx/operators/onnx__LpPool.html#lppool-2 "Online Documentation")
 
 
@@ -116,7 +118,7 @@ class Opset2(Opset1):
         """
 
         schema = get_schema("LpPool", 2, "")
-        op: Callable[..., Union[DOUBLE, FLOAT, FLOAT16]] = Op(self, "LpPool", schema)
+        op = Op(self, "LpPool", schema)
         return op(
             *self._prepare_inputs(schema, X),
             auto_pad=auto_pad,
@@ -126,13 +128,15 @@ class Opset2(Opset1):
             strides=strides,
         )
 
+    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+
     def Pad(
         self,
-        data: Union[DOUBLE, FLOAT, FLOAT16],
+        data: T,
         mode: str = "constant",
         pads: Optional[Sequence[int]] = None,
         value: float = 0.0,
-    ) -> Union[DOUBLE, FLOAT, FLOAT16]:
+    ) -> T:
         r"""[🌐 Pad(2)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-2 "Online Documentation")
 
 
@@ -171,31 +175,11 @@ class Opset2(Opset1):
         """
 
         schema = get_schema("Pad", 2, "")
-        op: Callable[..., Union[DOUBLE, FLOAT, FLOAT16]] = Op(self, "Pad", schema)
+        op = Op(self, "Pad", schema)
         return op(*self._prepare_inputs(schema, data), mode=mode, pads=pads, value=value)
 
-    def Split(
-        self,
-        input: Union[
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        axis: int = 0,
-        split: Optional[Sequence[int]] = None,
-    ) -> Union[
+    T = TypeVar(
+        "T",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -211,7 +195,9 @@ class Opset2(Opset1):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Split(self, input: T, axis: int = 0, split: Optional[Sequence[int]] = None) -> T:
         r"""[🌐 Split(2)](https://onnx.ai/onnx/operators/onnx__Split.html#split-2 "Online Documentation")
 
         Split a tensor into a list of tensors, along the specified
@@ -228,24 +214,5 @@ class Opset2(Opset1):
         """
 
         schema = get_schema("Split", 2, "")
-        op: Callable[
-            ...,
-            Union[
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Split", schema)
+        op = Op(self, "Split", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis, split=split)

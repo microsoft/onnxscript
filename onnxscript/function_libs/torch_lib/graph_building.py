@@ -514,8 +514,10 @@ class TorchScriptGraph:
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
-        for value in onnx_attributes.values():
-            assert not isinstance(value, TorchScriptTensor)
+        for key, value in onnx_attributes.items():
+            assert not isinstance(
+                value, TorchScriptTensor
+            ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
         result = _create_op_call_in_torch_graph(
             self._torch_graph,
             name,
