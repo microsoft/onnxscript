@@ -5,8 +5,7 @@ import json
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from beartype import beartype
-
+from onnxscript._internal import _beartype
 from onnxscript.diagnostics.infra import sarif
 
 # A list of types in the SARIF module to support pretty printing.
@@ -19,7 +18,7 @@ _SarifClass = Union[
 ]
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def snake_case_to_camel_case(s: str) -> str:
     splits = s.split("_")
     if len(splits) <= 1:
@@ -27,17 +26,17 @@ def snake_case_to_camel_case(s: str) -> str:
     return "".join([splits[0], *map(str.capitalize, splits[1:])])
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def camel_case_to_snake_case(s: str) -> str:
     return re.sub(r"([A-Z])", r"_\1", s).lower()
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def kebab_case_to_snake_case(s: str) -> str:
     return s.replace("-", "_")
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def _convert_key(
     object: Union[Dict[str, Any], Any], convert: Callable[[str], str]
 ) -> Union[Dict[str, Any], Any]:
@@ -76,14 +75,14 @@ def _convert_key(
     return new_dict
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def sarif_to_json(attr_cls_obj: _SarifClass, indent: Optional[str] = " ") -> str:
     dict = dataclasses.asdict(attr_cls_obj)
     dict = _convert_key(dict, snake_case_to_camel_case)
     return json.dumps(dict, indent=indent, separators=(",", ":"))
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def pretty_print_title(
     title: str, width: int = 80, fill_char: str = "=", print_output: bool = True
 ) -> str:
@@ -97,7 +96,7 @@ def pretty_print_title(
     return msg
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def pretty_print_item_title(
     title: str, fill_char: str = "=", print_output: bool = True
 ) -> str:
@@ -116,12 +115,12 @@ def pretty_print_item_title(
     return msg
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def format_argument(obj: Any) -> str:
     return f"{type(obj)}"
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def display_name(fn: Callable) -> str:
     if hasattr(fn, "__qualname__"):
         return fn.__qualname__

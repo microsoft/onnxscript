@@ -4,15 +4,14 @@ import functools
 import traceback
 from typing import Any, Callable, Dict, Optional, Tuple, Type
 
-from beartype import beartype
-
+from onnxscript._internal import _beartype
 from onnxscript.diagnostics import infra
 from onnxscript.diagnostics.infra import formatter, utils
 
 MessageFormatterType = Callable[..., str]
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def format_message_in_text(
     fn: Callable,  # pylint: disable=unused-argument
     *args: Any,
@@ -21,7 +20,7 @@ def format_message_in_text(
     return f"{formatter.display_name(fn)}. "
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def format_exception_in_markdown(exception: Exception) -> str:
     msg_list = ["### Exception log", "```"]
     msg_list.extend(
@@ -31,7 +30,7 @@ def format_exception_in_markdown(exception: Exception) -> str:
     return "\n".join(msg_list)
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def format_function_signature_in_markdown(
     fn: Callable,
     args: Tuple[Any, ...],
@@ -48,7 +47,7 @@ def format_function_signature_in_markdown(
     return "\n".join(msg_list)
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def format_return_values_in_markdown(
     return_values: Any,
     format_argument: Callable[[Any], str] = formatter.format_argument,
@@ -61,7 +60,7 @@ ModifierCallableType = Callable[
 ]
 
 
-@beartype
+@_beartype.beartype  # type: ignore[misc]
 def diagnose_call(
     rule: infra.Rule,
     *,
