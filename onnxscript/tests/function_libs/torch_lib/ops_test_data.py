@@ -476,8 +476,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "round": core_ops.aten_round,
     "rsqrt": core_ops.aten_rsqrt,
     "rsub": core_ops.aten_rsub,
-    "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
+    "scatter_add": core_ops.aten_scatter_add,
+    "select": core_ops.aten_select,
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -569,7 +570,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
-    "scatter_add": core_ops.aten_scatter_add,
     "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
