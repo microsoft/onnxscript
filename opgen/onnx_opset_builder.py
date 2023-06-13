@@ -165,11 +165,12 @@ class OpsetsBuilder:
             writer.write("All rights reserved.\n")
             writer.write("# Licensed under the MIT License.\n")
             writer.write(dashline)
-            writer.write("# flake8: noqa\n")
-            writer.write("# mypy: disable-error-code=override\n")
-            writer.write("# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611\n")
+            writer.write("# pylint: disable=W0221,W0222,R0901,W0237\n")
+            writer.write("# ruff: noqa: N801,E741\n")
+            writer.write("# ruff: noqa: D214,D402,D405,D411,D412,D416,D417\n")
             writer.write(dashline)
             writer.write("\n")
+            writer.write("from __future__ import annotations\n")
 
     def __init__(
         self,
@@ -223,9 +224,6 @@ class OpsetsBuilder:
                     "__new__",
                     cg.Arg("cls"),
                     body=cg.ThunkStmt(f"return Opset.__new__(cls, {domain!r}, {version!r})"),
-                ),
-                cg.FunctionDef(
-                    "__init__", cg.Arg("self"), body=cg.ThunkStmt("super().__init__()")
                 ),
                 bases=[base_type],
             ),
