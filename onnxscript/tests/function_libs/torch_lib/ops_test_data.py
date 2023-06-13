@@ -154,14 +154,6 @@ def _flip_input_wrangler(
     return args, kwargs
 
 
-def _gather_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the dim argument an attribute
-    kwargs["dim"] = args.pop(1)
-    return args, kwargs
-
-
 def _grid_sample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -382,7 +374,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "full": core_ops.aten_full,
     "full_like_dtype": core_ops.aten_full_like_dtype,
     "full_like": core_ops.aten_full_like,
-    "gather": (core_ops.aten_gather, _gather_input_wrangler),
+    "gather": core_ops.aten_gather,
     "ge": core_ops.aten_ge,
     # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
     # "greater": core_ops.aten_greater,  # no test case in OPS_DB
@@ -391,6 +383,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
     "index_put_bool": core_ops.aten_index_put_bool,
     "index_put": core_ops.aten_index_put,
+    "index_select": core_ops.aten_index_select,
     "isclose": core_ops.aten_isclose,
     "isfinite": core_ops.aten_isfinite,
     "isinf": core_ops.aten_isinf,
@@ -483,8 +476,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "round": core_ops.aten_round,
     "rsqrt": core_ops.aten_rsqrt,
     "rsub": core_ops.aten_rsub,
-    "select": core_ops.aten_select,
     # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
+    "scatter_add": core_ops.aten_scatter_add,
+    "select": core_ops.aten_select,
     "sigmoid": core_ops.aten_sigmoid,
     "sign": core_ops.aten_sign,
     "sin": core_ops.aten_sin,
@@ -535,7 +529,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
     "hstack": core_ops.aten_hstack,
     "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
-    "index_select": core_ops.aten_index_select,
     "layer_norm": core_ops.aten_layer_norm,
     "logit": core_ops.aten_logit,
     "max": core_ops.aten_max,
@@ -577,7 +570,6 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
         _upsample_input_wrangler,
     ),
     "ones_like": core_ops.aten_ones_like,
-    "scatter_add": core_ops.aten_scatter_add,
     "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
@@ -946,8 +938,9 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
     ),
     xfail(
         "nn.functional.cross_entropy",
-        matcher=lambda sample: not isinstance(sample.kwargs.get("weight"), int),
-        reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[weight] is int type",
+        matcher=lambda sample: len(sample.args) < 1
+        or (isinstance(sample.args[0], torch.Tensor) and sample.args[0].dtype != torch.int64),
+        reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[target] as int type",
     ),
     skip(
         "nn.functional.dropout",

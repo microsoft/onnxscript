@@ -2620,8 +2620,8 @@ def aten_fused_moving_avg_obs_fake_quant(
 @torch_op("aten::gather")
 def aten_gather(
     self: TReal,
-    index: TInt,
     dim: int,
+    index: TInt,
     sparse_grad: bool = False,  # pylint: disable=unused-argument
 ) -> TReal:
     """gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor"""
@@ -3042,16 +3042,8 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-# FIXME(#277): Script when attributes can come before inputs
-@torch_op("aten::index_select", trace_only=True)
+@torch_op("aten::index_select")
 def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
-    """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
-
-    return _aten_index_select_onnx(self, index, dim=dim)
-
-
-@torch_op("aten::index_select", private=True)
-def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
     self_is_scalar = op.Size(op.Shape(self)) == 0
@@ -5518,7 +5510,7 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
-@torch_op("aten::scatter_add", trace_only=True)
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
