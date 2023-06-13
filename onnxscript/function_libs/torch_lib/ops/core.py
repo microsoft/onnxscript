@@ -5510,7 +5510,7 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
-@torch_op("aten::scatter_add", trace_only=True)
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
