@@ -47,7 +47,6 @@ exclude_patterns = [
     'onnxscript/tests/**', # Skip linting test files for speed
     'onnxscript/**/*_test.py', # Skip linting test files for speed
     'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
-    'onnxscript/onnx_opset/**', # Generated code
 ]
 command = [
     'python',

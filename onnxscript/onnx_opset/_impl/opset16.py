@@ -6,16 +6,18 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, TypeVar
+from typing import Optional, Sequence, TypeVar, Union
 
 from onnx import GraphProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset15 import Opset15
 from onnxscript.onnx_types import (
@@ -43,8 +45,8 @@ class Opset16(Opset15):
     def __new__(cls):
         return Opset.__new__(cls, "", 16)
 
-    T = TypeVar(
-        "T",
+    T_GreaterOrEqual = TypeVar(
+        "T_GreaterOrEqual",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -59,9 +61,9 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_GreaterOrEqual: TypeAlias = BOOL
 
-    def GreaterOrEqual(self, A: T, B: T) -> T1:
+    def GreaterOrEqual(self, A: T_GreaterOrEqual, B: T_GreaterOrEqual) -> T1_GreaterOrEqual:
         r"""[🌐 GreaterOrEqual(16)](https://onnx.ai/onnx/operators/onnx__GreaterOrEqual.html#greaterorequal-16 "Online Documentation")
 
 
@@ -81,8 +83,8 @@ class Opset16(Opset15):
         op = Op(self, "GreaterOrEqual", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T1 = TypeVar(
-        "T1",
+    T1_GridSample = TypeVar(
+        "T1_GridSample",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -100,17 +102,17 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    T2 = TypeVar("T2", DOUBLE, FLOAT, FLOAT16)
+    T2_GridSample = TypeVar("T2_GridSample", DOUBLE, FLOAT, FLOAT16)
 
     def GridSample(
         self,
-        X: T1,
-        grid: T2,
+        X: T1_GridSample,
+        grid: T2_GridSample,
         *,
         align_corners: int = 0,
         mode: str = "bilinear",
         padding_mode: str = "zeros",
-    ) -> T1:
+    ) -> T1_GridSample:
         r"""[🌐 GridSample(16)](https://onnx.ai/onnx/operators/onnx__GridSample.html#gridsample-16 "Online Documentation")
 
 
@@ -170,8 +172,8 @@ class Opset16(Opset15):
             padding_mode=padding_mode,
         )
 
-    V = TypeVar(
-        "V",
+    V_Identity = TypeVar(
+        "V_Identity",
         Optional[Sequence[BOOL]],
         Optional[Sequence[COMPLEX128]],
         Optional[Sequence[COMPLEX64]],
@@ -235,7 +237,7 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    def Identity(self, input: V) -> V:
+    def Identity(self, input: V_Identity) -> V_Identity:
         r"""[🌐 Identity(16)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-16 "Online Documentation")
 
         Identity operator
@@ -248,10 +250,9 @@ class Opset16(Opset15):
         op = Op(self, "Identity", schema)
         return op(*self._prepare_inputs(schema, input))
 
-    B = TypeVar("B", bound=BOOL)
+    B_If: TypeAlias = BOOL
 
-    V = TypeVar(
-        "V",
+    V_If: TypeAlias = Union[
         Optional[Sequence[BFLOAT16]],
         Optional[Sequence[BOOL]],
         Optional[Sequence[COMPLEX128]],
@@ -316,9 +317,9 @@ class Opset16(Opset15):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def If(self, cond: B, *, else_branch: GraphProto, then_branch: GraphProto) -> V:
+    def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(16)](https://onnx.ai/onnx/operators/onnx__If.html#if-16 "Online Documentation")
 
         If conditional
@@ -343,9 +344,9 @@ class Opset16(Opset15):
             then_branch=then_branch,
         )
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T_LeakyRelu = TypeVar("T_LeakyRelu", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    def LeakyRelu(self, X: T, *, alpha: float = 0.009999999776482582) -> T:
+    def LeakyRelu(self, X: T_LeakyRelu, *, alpha: float = 0.009999999776482582) -> T_LeakyRelu:
         r"""[🌐 LeakyRelu(16)](https://onnx.ai/onnx/operators/onnx__LeakyRelu.html#leakyrelu-16 "Online Documentation")
 
 
@@ -364,8 +365,8 @@ class Opset16(Opset15):
         op = Op(self, "LeakyRelu", schema)
         return op(*self._prepare_inputs(schema, X), alpha=alpha)
 
-    T = TypeVar(
-        "T",
+    T_LessOrEqual = TypeVar(
+        "T_LessOrEqual",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -380,9 +381,9 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_LessOrEqual: TypeAlias = BOOL
 
-    def LessOrEqual(self, A: T, B: T) -> T1:
+    def LessOrEqual(self, A: T_LessOrEqual, B: T_LessOrEqual) -> T1_LessOrEqual:
         r"""[🌐 LessOrEqual(16)](https://onnx.ai/onnx/operators/onnx__LessOrEqual.html#lessorequal-16 "Online Documentation")
 
 
@@ -402,12 +403,12 @@ class Opset16(Opset15):
         op = Op(self, "LessOrEqual", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    I = TypeVar("I", bound=INT64)
+    I_Loop: TypeAlias = INT64
 
-    B = TypeVar("B", bound=BOOL)
+    B_Loop: TypeAlias = BOOL
 
-    V = TypeVar(
-        "V",
+    V_Loop = TypeVar(
+        "V_Loop",
         Optional[Sequence[BFLOAT16]],
         Optional[Sequence[BOOL]],
         Optional[Sequence[COMPLEX128]],
@@ -474,7 +475,9 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    def Loop(self, M: Optional[I], cond: Optional[B], *v_initial: V, body: GraphProto) -> V:
+    def Loop(
+        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
+    ) -> V_Loop:
         r"""[🌐 Loop(16)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-16 "Online Documentation")
 
 
@@ -638,9 +641,11 @@ class Opset16(Opset15):
         op = Op(self, "Loop", schema)
         return op(*self._prepare_inputs(schema, M, cond, *v_initial), body=body)
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_PRelu = TypeVar(
+        "T_PRelu", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
 
-    def PRelu(self, X: T, slope: T) -> T:
+    def PRelu(self, X: T_PRelu, slope: T_PRelu) -> T_PRelu:
         r"""[🌐 PRelu(16)](https://onnx.ai/onnx/operators/onnx__PRelu.html#prelu-16 "Online Documentation")
 
 
@@ -661,15 +666,15 @@ class Opset16(Opset15):
         op = Op(self, "PRelu", schema)
         return op(*self._prepare_inputs(schema, X, slope))
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, FLOAT16)
+    T1_RoiAlign = TypeVar("T1_RoiAlign", DOUBLE, FLOAT, FLOAT16)
 
-    T2 = TypeVar("T2", bound=INT64)
+    T2_RoiAlign: TypeAlias = INT64
 
     def RoiAlign(
         self,
-        X: T1,
-        rois: T1,
-        batch_indices: T2,
+        X: T1_RoiAlign,
+        rois: T1_RoiAlign,
+        batch_indices: T2_RoiAlign,
         *,
         coordinate_transformation_mode: str = "half_pixel",
         mode: str = "avg",
@@ -677,7 +682,7 @@ class Opset16(Opset15):
         output_width: int = 1,
         sampling_ratio: int = 0,
         spatial_scale: float = 1.0,
-    ) -> T1:
+    ) -> T1_RoiAlign:
         r"""[🌐 RoiAlign(16)](https://onnx.ai/onnx/operators/onnx__RoiAlign.html#roialign-16 "Online Documentation")
 
 
@@ -744,8 +749,8 @@ class Opset16(Opset15):
             spatial_scale=spatial_scale,
         )
 
-    V = TypeVar(
-        "V",
+    V_Scan = TypeVar(
+        "V_Scan",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -766,14 +771,14 @@ class Opset16(Opset15):
 
     def Scan(
         self,
-        *initial_state_and_scan_inputs: V,
+        *initial_state_and_scan_inputs: V_Scan,
         body: GraphProto,
         num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
         scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
-    ) -> V:
+    ) -> V_Scan:
         r"""[🌐 Scan(16)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-16 "Online Documentation")
 
 
@@ -951,8 +956,8 @@ class Opset16(Opset15):
             scan_output_directions=scan_output_directions,
         )
 
-    T = TypeVar(
-        "T",
+    T_ScatterElements = TypeVar(
+        "T_ScatterElements",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -971,11 +976,17 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_ScatterElements = TypeVar("Tind_ScatterElements", INT32, INT64)
 
     def ScatterElements(
-        self, data: T, indices: Tind, updates: T, *, axis: int = 0, reduction: str = "none"
-    ) -> T:
+        self,
+        data: T_ScatterElements,
+        indices: Tind_ScatterElements,
+        updates: T_ScatterElements,
+        *,
+        axis: int = 0,
+        reduction: str = "none",
+    ) -> T_ScatterElements:
         r"""[🌐 ScatterElements(16)](https://onnx.ai/onnx/operators/onnx__ScatterElements.html#scatterelements-16 "Online Documentation")
 
 
@@ -1078,8 +1089,8 @@ class Opset16(Opset15):
             reduction=reduction,
         )
 
-    T = TypeVar(
-        "T",
+    T_ScatterND = TypeVar(
+        "T_ScatterND",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1098,7 +1109,14 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    def ScatterND(self, data: T, indices: INT64, updates: T, *, reduction: str = "none") -> T:
+    def ScatterND(
+        self,
+        data: T_ScatterND,
+        indices: INT64,
+        updates: T_ScatterND,
+        *,
+        reduction: str = "none",
+    ) -> T_ScatterND:
         r"""[🌐 ScatterND(16)](https://onnx.ai/onnx/operators/onnx__ScatterND.html#scatternd-16 "Online Documentation")
 
 
@@ -1190,10 +1208,10 @@ class Opset16(Opset15):
         op = Op(self, "ScatterND", schema)
         return op(*self._prepare_inputs(schema, data, indices, updates), reduction=reduction)
 
-    B = TypeVar("B", bound=BOOL)
+    B_Where: TypeAlias = BOOL
 
-    T = TypeVar(
-        "T",
+    T_Where = TypeVar(
+        "T_Where",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1212,7 +1230,7 @@ class Opset16(Opset15):
         UINT8,
     )
 
-    def Where(self, condition: B, X: T, Y: T) -> T:
+    def Where(self, condition: B_Where, X: T_Where, Y: T_Where) -> T_Where:
         r"""[🌐 Where(16)](https://onnx.ai/onnx/operators/onnx__Where.html#where-16 "Online Documentation")
 
 

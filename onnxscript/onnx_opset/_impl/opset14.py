@@ -6,6 +6,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
@@ -15,6 +16,7 @@ from __future__ import annotations
 from typing import Optional, Sequence, Tuple, TypeVar
 
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset13 import Opset13
 from onnxscript.onnx_types import (
@@ -42,8 +44,8 @@ class Opset14(Opset13):
     def __new__(cls):
         return Opset.__new__(cls, "", 14)
 
-    T = TypeVar(
-        "T",
+    T_Add = TypeVar(
+        "T_Add",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -58,7 +60,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Add(self, A: T, B: T) -> T:
+    def Add(self, A: T_Add, B: T_Add) -> T_Add:
         r"""[🌐 Add(14)](https://onnx.ai/onnx/operators/onnx__Add.html#add-14 "Online Documentation")
 
 
@@ -79,22 +81,22 @@ class Opset14(Opset13):
         op = Op(self, "Add", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T_BatchNormalization = TypeVar("T_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    U = TypeVar("U", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    U_BatchNormalization = TypeVar("U_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def BatchNormalization(
         self,
-        X: T,
-        scale: T,
-        B: T,
-        input_mean: U,
-        input_var: U,
+        X: T_BatchNormalization,
+        scale: T_BatchNormalization,
+        B: T_BatchNormalization,
+        input_mean: U_BatchNormalization,
+        input_var: U_BatchNormalization,
         *,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
         training_mode: int = 0,
-    ) -> Tuple[T, U, U]:
+    ) -> Tuple[T_BatchNormalization, U_BatchNormalization, U_BatchNormalization]:
         r"""[🌐 BatchNormalization(14)](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html#batchnormalization-14 "Online Documentation")
 
 
@@ -179,11 +181,15 @@ class Opset14(Opset13):
             training_mode=training_mode,
         )
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_CumSum = TypeVar(
+        "T_CumSum", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
 
-    T2 = TypeVar("T2", INT32, INT64)
+    T2_CumSum = TypeVar("T2_CumSum", INT32, INT64)
 
-    def CumSum(self, x: T, axis: T2, *, exclusive: int = 0, reverse: int = 0) -> T:
+    def CumSum(
+        self, x: T_CumSum, axis: T2_CumSum, *, exclusive: int = 0, reverse: int = 0
+    ) -> T_CumSum:
         r"""[🌐 CumSum(14)](https://onnx.ai/onnx/operators/onnx__CumSum.html#cumsum-14 "Online Documentation")
 
 
@@ -228,8 +234,8 @@ class Opset14(Opset13):
         op = Op(self, "CumSum", schema)
         return op(*self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse)
 
-    T = TypeVar(
-        "T",
+    T_Div = TypeVar(
+        "T_Div",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -244,7 +250,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Div(self, A: T, B: T) -> T:
+    def Div(self, A: T_Div, B: T_Div) -> T_Div:
         r"""[🌐 Div(14)](https://onnx.ai/onnx/operators/onnx__Div.html#div-14 "Online Documentation")
 
 
@@ -265,18 +271,18 @@ class Opset14(Opset13):
         op = Op(self, "Div", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_GRU = TypeVar("T_GRU", DOUBLE, FLOAT, FLOAT16)
 
-    T1 = TypeVar("T1", bound=INT32)
+    T1_GRU: TypeAlias = INT32
 
     def GRU(
         self,
-        X: T,
-        W: T,
-        R: T,
-        B: Optional[T] = None,
-        sequence_lens: Optional[T1] = None,
-        initial_h: Optional[T] = None,
+        X: T_GRU,
+        W: T_GRU,
+        R: T_GRU,
+        B: Optional[T_GRU] = None,
+        sequence_lens: Optional[T1_GRU] = None,
+        initial_h: Optional[T_GRU] = None,
         *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
@@ -286,7 +292,7 @@ class Opset14(Opset13):
         hidden_size: Optional[int] = None,
         layout: int = 0,
         linear_before_reset: int = 0,
-    ) -> Tuple[T, T]:
+    ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(14)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-14 "Online Documentation")
 
 
@@ -418,9 +424,9 @@ class Opset14(Opset13):
             linear_before_reset=linear_before_reset,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_HardSwish = TypeVar("T_HardSwish", DOUBLE, FLOAT, FLOAT16)
 
-    def HardSwish(self, X: T) -> T:
+    def HardSwish(self, X: T_HardSwish) -> T_HardSwish:
         r"""[🌐 HardSwish(14)](https://onnx.ai/onnx/operators/onnx__HardSwish.html#hardswish-14 "Online Documentation")
 
 
@@ -437,8 +443,8 @@ class Opset14(Opset13):
         op = Op(self, "HardSwish", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    V = TypeVar(
-        "V",
+    V_Identity = TypeVar(
+        "V_Identity",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -472,7 +478,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Identity(self, input: V) -> V:
+    def Identity(self, input: V_Identity) -> V_Identity:
         r"""[🌐 Identity(14)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-14 "Online Documentation")
 
         Identity operator
@@ -485,20 +491,20 @@ class Opset14(Opset13):
         op = Op(self, "Identity", schema)
         return op(*self._prepare_inputs(schema, input))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_LSTM = TypeVar("T_LSTM", DOUBLE, FLOAT, FLOAT16)
 
-    T1 = TypeVar("T1", bound=INT32)
+    T1_LSTM: TypeAlias = INT32
 
     def LSTM(
         self,
-        X: T,
-        W: T,
-        R: T,
-        B: Optional[T] = None,
-        sequence_lens: Optional[T1] = None,
-        initial_h: Optional[T] = None,
-        initial_c: Optional[T] = None,
-        P: Optional[T] = None,
+        X: T_LSTM,
+        W: T_LSTM,
+        R: T_LSTM,
+        B: Optional[T_LSTM] = None,
+        sequence_lens: Optional[T1_LSTM] = None,
+        initial_h: Optional[T_LSTM] = None,
+        initial_c: Optional[T_LSTM] = None,
+        P: Optional[T_LSTM] = None,
         *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
@@ -508,7 +514,7 @@ class Opset14(Opset13):
         hidden_size: Optional[int] = None,
         input_forget: int = 0,
         layout: int = 0,
-    ) -> Tuple[T, T, T]:
+    ) -> Tuple[T_LSTM, T_LSTM, T_LSTM]:
         r"""[🌐 LSTM(14)](https://onnx.ai/onnx/operators/onnx__LSTM.html#lstm-14 "Online Documentation")
 
 
@@ -652,8 +658,8 @@ class Opset14(Opset13):
             layout=layout,
         )
 
-    T = TypeVar(
-        "T",
+    T_Mul = TypeVar(
+        "T_Mul",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -668,7 +674,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Mul(self, A: T, B: T) -> T:
+    def Mul(self, A: T_Mul, B: T_Mul) -> T_Mul:
         r"""[🌐 Mul(14)](https://onnx.ai/onnx/operators/onnx__Mul.html#mul-14 "Online Documentation")
 
 
@@ -689,18 +695,18 @@ class Opset14(Opset13):
         op = Op(self, "Mul", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_RNN = TypeVar("T_RNN", DOUBLE, FLOAT, FLOAT16)
 
-    T1 = TypeVar("T1", bound=INT32)
+    T1_RNN: TypeAlias = INT32
 
     def RNN(
         self,
-        X: T,
-        W: T,
-        R: T,
-        B: Optional[T] = None,
-        sequence_lens: Optional[T1] = None,
-        initial_h: Optional[T] = None,
+        X: T_RNN,
+        W: T_RNN,
+        R: T_RNN,
+        B: Optional[T_RNN] = None,
+        sequence_lens: Optional[T1_RNN] = None,
+        initial_h: Optional[T_RNN] = None,
         *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
@@ -709,7 +715,7 @@ class Opset14(Opset13):
         direction: str = "forward",
         hidden_size: Optional[int] = None,
         layout: int = 0,
-    ) -> Tuple[T, T]:
+    ) -> Tuple[T_RNN, T_RNN]:
         r"""[🌐 RNN(14)](https://onnx.ai/onnx/operators/onnx__RNN.html#rnn-14 "Online Documentation")
 
 
@@ -828,9 +834,9 @@ class Opset14(Opset13):
             layout=layout,
         )
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8)
+    T_Relu = TypeVar("T_Relu", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8)
 
-    def Relu(self, X: T) -> T:
+    def Relu(self, X: T_Relu) -> T_Relu:
         r"""[🌐 Relu(14)](https://onnx.ai/onnx/operators/onnx__Relu.html#relu-14 "Online Documentation")
 
 
@@ -847,8 +853,8 @@ class Opset14(Opset13):
         op = Op(self, "Relu", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    T = TypeVar(
-        "T",
+    T_Reshape = TypeVar(
+        "T_Reshape",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -867,7 +873,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Reshape(self, data: T, shape: INT64, *, allowzero: int = 0) -> T:
+    def Reshape(self, data: T_Reshape, shape: INT64, *, allowzero: int = 0) -> T_Reshape:
         r"""[🌐 Reshape(14)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-14 "Online Documentation")
 
 
@@ -902,8 +908,8 @@ class Opset14(Opset13):
         op = Op(self, "Reshape", schema)
         return op(*self._prepare_inputs(schema, data, shape), allowzero=allowzero)
 
-    T = TypeVar(
-        "T",
+    T_Sub = TypeVar(
+        "T_Sub",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -918,7 +924,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Sub(self, A: T, B: T) -> T:
+    def Sub(self, A: T_Sub, B: T_Sub) -> T_Sub:
         r"""[🌐 Sub(14)](https://onnx.ai/onnx/operators/onnx__Sub.html#sub-14 "Online Documentation")
 
 
@@ -939,8 +945,8 @@ class Opset14(Opset13):
         op = Op(self, "Sub", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T = TypeVar(
-        "T",
+    T_Trilu = TypeVar(
+        "T_Trilu",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -959,7 +965,7 @@ class Opset14(Opset13):
         UINT8,
     )
 
-    def Trilu(self, input: T, k: Optional[INT64] = None, *, upper: int = 1) -> T:
+    def Trilu(self, input: T_Trilu, k: Optional[INT64] = None, *, upper: int = 1) -> T_Trilu:
         r"""[🌐 Trilu(14)](https://onnx.ai/onnx/operators/onnx__Trilu.html#trilu-14 "Online Documentation")
 
 
