@@ -80,29 +80,10 @@ class TensorTypeRef(cg.TypeRef):
         super().__init__(MODULE_ONNX_SCRIPT_TYPES, "Tensor")
 
 
-class FunctionDefContext:
-    def __init__(self):
-        self.func: Optional[cg.FunctionDef] = None
-        self.__type_constraints: dict[str, list[cg.TypeRef]] = {}
-
-    def append_type_constraint(self, name: str, types: list[cg.TypeRef]):
-        self.__type_constraints.setdefault(name, types)
-
-    def make_type_constraint_typevars(self):
-        for name, types in self.__type_constraints.items():
-            if len(types) == 1:
-                typevar = cg.Call(
-                    cg.Name("TypeVar"),
-                    cg.Constant(name),
-                    cg.Assign(cg.Name("bound"), types[0]),
-                )
-            else:
-                typevar = cg.Call(
-                    cg.Name("TypeVar"),
-                    cg.Constant(name),
-                    *types,
-                )
-            yield cg.Assign(cg.Name(name), typevar)
+class ConstraintTypeRef(cg.TypeRef):
+    def __init__(self, name: str, *typeargs: cg.TypeRef, is_output: bool):
+        super().__init__(None, name, *typeargs)
+        self.is_output = is_output
 
 
 class UnsupportedOpError(NotImplementedError):
@@ -166,6 +147,7 @@ class OpsetsBuilder:
             writer.write("# Licensed under the MIT License.\n")
             writer.write(dashline)
             writer.write("# pylint: disable=W0221,W0222,R0901,W0237\n")
+            writer.write("# mypy: disable-error-code=override\n")
             writer.write("# ruff: noqa: N801,E741\n")
             writer.write("# ruff: noqa: D214,D402,D405,D411,D412,D416,D417\n")
             writer.write(dashline)
@@ -218,6 +200,7 @@ class OpsetsBuilder:
             self.module_base_name,
             domain,
             version,
+            cg.ImportFrom("typing", cg.Alias("TypeVar")),
             cg.ClassDef(
                 _make_class_name(domain, version),
                 cg.FunctionDef(
@@ -258,19 +241,11 @@ class OpsetsBuilder:
                     continue
 
             try:
-                func_context = self._make_function(qualname, schema)
                 opset_class = cg.first_or_none(opset.get_children_of_type(cg.ClassDef))
-                have_typevars = False
-                if opset_class:
-                    for typevar in func_context.make_type_constraint_typevars():
-                        have_typevars = True
-                        opset_class.append_body(typevar)
-                    opset_class.append_body(func_context.func)
+                if opset_class is not None:
+                    for stmt in self._make_function(qualname, schema):
+                        opset_class.append_body(stmt)
                     self._result.all_ops_count += 1
-                if have_typevars:
-                    opset.prepend_child(
-                        cg.ImportFrom("typing", cg.Alias("TypeVar")), cg.Module.Roles.Body
-                    )
             except NotImplementedError as error:
                 if not isinstance(error, UnsupportedOpError):
                     error = UnsupportedOpError(qualname, str(error))
@@ -355,11 +330,104 @@ class OpsetsBuilder:
                 )
             module.accept(cg.ImportAdjuster())
 
-    def _make_function(self, qualname: QualOpName, schema: OpSchema) -> FunctionDefContext:
+    def _make_function_type_constraints(
+        self, schema: OpSchema, typerefs: Iterable[cg.TypeRef]
+    ) -> Iterable[cg.Assign]:
+        input_constraints: dict[str, list[cg.TypeRef]] = {}
+        output_constraints: dict[str, list[cg.TypeRef]] = {}
+
+        def constraint_is_compatible(
+            constraint_name: str, constraint_types: list[cg.TypeRef]
+        ) -> bool:
+            """Ensure that if we have already recoreded ``constraint_name`` in either
+            ``input_constraints`` or ``output_constraints`` that the constrained types
+            match by comparing the generated code that results from the types.
+            """
+            for existing_constraints in input_constraints, output_constraints:
+                if (existing := existing_constraints.get(constraint_name, None)) is not None:
+                    if len(existing) != len(constraint_types):
+                        return False  #  differing number of constraints, can't be compatible
+                    for a, b in zip(existing, constraint_types):
+                        if str(a) != str(b):
+                            return False  # a constrained type does not match
+            return True
+
+        def collect_constraints(typerefs: Iterable[cg.TypeRef]):
+            """Collect and validate all ConstraintTypeRef types recursively. Once a
+            constraint has been identified, it becomes the 'canonical' definition of
+            all constraints that will be collected with the same name.
+            """
+            for typeref in typerefs:
+                if isinstance(typeref, ConstraintTypeRef):
+                    typeref.name = f"{typeref.name}_{schema.name}"
+                    constraint_types = [ta.remove() for ta in typeref.typeargs]
+
+                    assert constraint_is_compatible(typeref.name, constraint_types), (
+                        "This should not happen since constraints are "
+                        "expected to be correct at the OpSchema spec level"
+                    )
+
+                    (output_constraints if typeref.is_output else input_constraints)[
+                        typeref.name
+                    ] = constraint_types
+                else:
+                    collect_constraints(typeref.typeargs)
+
+        collect_constraints(typerefs)
+
+        def make_type_alias(name: str, aliased_type: cg.TypeRef):
+            return cg.Assign(
+                cg.Name(name),
+                aliased_type,
+                cg.TypeRef("typing_extensions", "TypeAlias"),
+            )
+
+        # Pass 1: process input constraints first; if a constraint is bound to
+        # a single type, generate a TypeAlias, otherwise a TypeVar.
+        for constraint_name, constraint_typerefs in input_constraints.items():
+            if len(constraint_typerefs) == 1:
+                yield make_type_alias(constraint_name, constraint_typerefs[0])
+            else:
+                yield cg.Assign(
+                    cg.Name(constraint_name),
+                    cg.Call(
+                        cg.Name("TypeVar"),
+                        cg.Constant(constraint_name),
+                        *constraint_typerefs,
+                    ),
+                )
+
+        # Pass 2: process output constraints, only yielding constraints as
+        # TypeAliases when an output constraint is not also used as an
+        # input constraint. See https://github.com/microsoft/onnxscript/pull/778
+        # for details. When we can rely on Python 3.12, we can have output-only
+        # constraints as TypeVars, e.g. when the following syntax is allowed:
+        #    def func[T]() -> T: ...
+        for constraint_name, constraint_typerefs in output_constraints.items():
+            if constraint_name not in input_constraints:
+                yield make_type_alias(
+                    constraint_name,
+                    cg.TypeRef.make_composite_if_multiple(
+                        cg.TypingRefs.Union,
+                        *constraint_typerefs,
+                    ),
+                )
+
+    def _make_function(self, qualname: QualOpName, schema: OpSchema) -> Iterable[cg.Stmt]:
+        attr_args = self._make_function_attr_args(schema)
+        input_args = self._make_function_input_args(schema)
+        args = [cg.Arg("self"), *input_args, *attr_args]
+        output_types = [
+            self._make_input_output_type(output, is_output=True) for output in schema.outputs
+        ]
+
+        yield from self._make_function_type_constraints(
+            schema,
+            [arg.type for arg in input_args] + output_types,
+        )
+
         op_inputs: list[cg.Expr] = []
         op_attrs: list[cg.Expr] = []
-        func_context = FunctionDefContext()
-        args = list(self._make_function_args(schema, func_context))
 
         for arg in args:
             if arg.name in {"self", "*"}:
@@ -384,19 +452,13 @@ class OpsetsBuilder:
 
         doc = f'[🌐 {qualname}]({qualname.docuri} "Online Documentation")\n\n{schema.doc}'
 
-        def return_type():
-            return cg.TypeRef.make_composite_if_multiple(
-                cg.TypingRefs.Tuple,
-                *[
-                    self._make_input_output_type(func_context, output.type_str, output.types)
-                    for output in schema.outputs
-                ],
-            )
-
-        func_context.func = cg.FunctionDef(
+        yield cg.FunctionDef(
             qualname.name,
             *args,
-            return_type=return_type(),
+            return_type=cg.TypeRef.make_composite_if_multiple(
+                cg.TypingRefs.Tuple,
+                *output_types,
+            ),
             doc=_process_documentation(doc),
             body=[
                 cg.Assign(
@@ -421,15 +483,6 @@ class OpsetsBuilder:
             ],
         )
 
-        return func_context
-
-    def _make_function_args(
-        self, schema: OpSchema, func_context: FunctionDefContext
-    ) -> Iterable[cg.Arg]:
-        yield cg.Arg("self")
-        yield from self._make_function_input_args(schema, func_context)
-        yield from self._make_function_attr_args(schema)
-
     def _make_input_arg_name(self, input_name: str, schema: OpSchema):
         """ONNX allows for an op to have an input and an attribute with the same name.
         Attribute names have contextual meaning however, so detect this case and disambiguate
@@ -440,9 +493,7 @@ class OpsetsBuilder:
                 return f"{input_name}_"
         return input_name
 
-    def _make_function_input_args(
-        self, schema: OpSchema, func_context: FunctionDefContext
-    ) -> Iterable[cg.Arg]:
+    def _make_function_input_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
         args: list[cg.Arg] = []
         for input in schema.inputs:
             optional = input.option == OpSchema.FormalParameterOption.Optional
@@ -492,7 +543,7 @@ class OpsetsBuilder:
             if len(doctags) > 0:
                 doc = f"({', '.join(doctags)}) {doc}"
 
-            type = self._make_input_output_type(func_context, input.type_str, input.types)
+            type = self._make_input_output_type(input, is_output=False)
             if optional and not isinstance(type, cg.TypingRefs.Optional):
                 type = cg.TypingRefs.Optional(type)
 
@@ -548,20 +599,18 @@ class OpsetsBuilder:
 
     def _make_input_output_type(
         self,
-        func_context: FunctionDefContext,
-        constraint_name: str,
-        onnx_types: list[str],
+        parameter: OpSchema.FormalParameter,
+        is_output: bool,
     ) -> cg.TypeRef:
-        py_types = [parse_input_output_type(type) for type in sorted(onnx_types)]
+        py_types = [parse_input_output_type(type) for type in sorted(parameter.types)]
         try:
             # input.type_str will either be a valid ONNX type (e.g. 'tensor(int)')
             # or the name of a type constraint. If it parses as a type, it's not
             # constrained; otherwise bind the underlying types to the constraint.
-            parse_input_output_type(constraint_name)
+            parse_input_output_type(parameter.type_str)
             return cg.TypeRef.make_composite_if_multiple(cg.TypingRefs.Union, *py_types)
         except NotImplementedError:
-            func_context.append_type_constraint(constraint_name, py_types)
-            return cg.TypeRef(None, constraint_name)
+            return ConstraintTypeRef(parameter.type_str, *py_types, is_output=is_output)
 
 
 def parse_input_output_type(onnx_type: str) -> cg.TypeRef:

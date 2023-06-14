@@ -6,15 +6,17 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
 
-from typing import Mapping, Optional, Sequence, Tuple, TypeVar
+from typing import Mapping, Optional, Sequence, Tuple, TypeVar, Union
 
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_types import DOUBLE, FLOAT, INT32, INT64, STRING
 from onnxscript.values import Op, Opset
@@ -24,9 +26,13 @@ class Opset_ai_onnx_ml1(Opset):
     def __new__(cls):
         return Opset.__new__(cls, "ai.onnx.ml", 1)
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64, STRING)
+    T_ArrayFeatureExtractor = TypeVar(
+        "T_ArrayFeatureExtractor", DOUBLE, FLOAT, INT32, INT64, STRING
+    )
 
-    def ArrayFeatureExtractor(self, X: T, Y: INT64) -> T:
+    def ArrayFeatureExtractor(
+        self, X: T_ArrayFeatureExtractor, Y: INT64
+    ) -> T_ArrayFeatureExtractor:
         r"""[🌐 ai.onnx.ml::ArrayFeatureExtractor(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_ArrayFeatureExtractor.html#arrayfeatureextractor-1 "Online Documentation")
 
 
@@ -45,9 +51,9 @@ class Opset_ai_onnx_ml1(Opset):
         op = Op(self, "ArrayFeatureExtractor", schema)
         return op(*self._prepare_inputs(schema, X, Y))
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+    T_Binarizer = TypeVar("T_Binarizer", DOUBLE, FLOAT, INT32, INT64)
 
-    def Binarizer(self, X: T, *, threshold: float = 0.0) -> T:
+    def Binarizer(self, X: T_Binarizer, *, threshold: float = 0.0) -> T_Binarizer:
         r"""[🌐 ai.onnx.ml::Binarizer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_Binarizer.html#binarizer-1 "Online Documentation")
 
 
@@ -64,13 +70,18 @@ class Opset_ai_onnx_ml1(Opset):
         op = Op(self, "Binarizer", schema)
         return op(*self._prepare_inputs(schema, X), threshold=threshold)
 
-    T1 = TypeVar("T1", Mapping[int, FLOAT], Mapping[int, STRING])
+    T1_CastMap = TypeVar("T1_CastMap", Mapping[int, FLOAT], Mapping[int, STRING])
 
-    T2 = TypeVar("T2", FLOAT, INT64, STRING)
+    T2_CastMap: TypeAlias = Union[FLOAT, INT64, STRING]
 
     def CastMap(
-        self, X: T1, *, cast_to: str = "TO_FLOAT", map_form: str = "DENSE", max_map: int = 1
-    ) -> T2:
+        self,
+        X: T1_CastMap,
+        *,
+        cast_to: str = "TO_FLOAT",
+        map_form: str = "DENSE",
+        max_map: int = 1,
+    ) -> T2_CastMap:
         r"""[🌐 ai.onnx.ml::CastMap(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_CastMap.html#castmap-1 "Online Documentation")
 
 
@@ -104,19 +115,19 @@ class Opset_ai_onnx_ml1(Opset):
             max_map=max_map,
         )
 
-    T1 = TypeVar("T1", INT64, STRING)
+    T1_CategoryMapper = TypeVar("T1_CategoryMapper", INT64, STRING)
 
-    T2 = TypeVar("T2", INT64, STRING)
+    T2_CategoryMapper: TypeAlias = Union[INT64, STRING]
 
     def CategoryMapper(
         self,
-        X: T1,
+        X: T1_CategoryMapper,
         *,
         cats_int64s: Optional[Sequence[int]] = None,
         cats_strings: Optional[Sequence[str]] = None,
         default_int64: int = -1,
         default_string: str = "_Unused",
-    ) -> T2:
+    ) -> T2_CategoryMapper:
         r"""[🌐 ai.onnx.ml::CategoryMapper(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_CategoryMapper.html#categorymapper-1 "Online Documentation")
 
 
@@ -161,8 +172,8 @@ class Opset_ai_onnx_ml1(Opset):
             default_string=default_string,
         )
 
-    T1 = TypeVar(
-        "T1",
+    T1_DictVectorizer = TypeVar(
+        "T1_DictVectorizer",
         Mapping[int, DOUBLE],
         Mapping[int, FLOAT],
         Mapping[int, STRING],
@@ -171,15 +182,15 @@ class Opset_ai_onnx_ml1(Opset):
         Mapping[str, INT64],
     )
 
-    T2 = TypeVar("T2", DOUBLE, FLOAT, INT64, STRING)
+    T2_DictVectorizer: TypeAlias = Union[DOUBLE, FLOAT, INT64, STRING]
 
     def DictVectorizer(
         self,
-        X: T1,
+        X: T1_DictVectorizer,
         *,
         int64_vocabulary: Optional[Sequence[int]] = None,
         string_vocabulary: Optional[Sequence[str]] = None,
-    ) -> T2:
+    ) -> T2_DictVectorizer:
         r"""[🌐 ai.onnx.ml::DictVectorizer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_DictVectorizer.html#dictvectorizer-1 "Online Documentation")
 
 
@@ -217,10 +228,10 @@ class Opset_ai_onnx_ml1(Opset):
             string_vocabulary=string_vocabulary,
         )
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, INT32, INT64)
+    T1_FeatureVectorizer = TypeVar("T1_FeatureVectorizer", DOUBLE, FLOAT, INT32, INT64)
 
     def FeatureVectorizer(
-        self, *X: T1, inputdimensions: Optional[Sequence[int]] = None
+        self, *X: T1_FeatureVectorizer, inputdimensions: Optional[Sequence[int]] = None
     ) -> FLOAT:
         r"""[🌐 ai.onnx.ml::FeatureVectorizer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_FeatureVectorizer.html#featurevectorizer-1 "Online Documentation")
 
@@ -244,17 +255,17 @@ class Opset_ai_onnx_ml1(Opset):
         op = Op(self, "FeatureVectorizer", schema)
         return op(*self._prepare_inputs(schema, *X), inputdimensions=inputdimensions)
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+    T_Imputer = TypeVar("T_Imputer", DOUBLE, FLOAT, INT32, INT64)
 
     def Imputer(
         self,
-        X: T,
+        X: T_Imputer,
         *,
         imputed_value_floats: Optional[Sequence[float]] = None,
         imputed_value_int64s: Optional[Sequence[int]] = None,
         replaced_value_float: float = 0.0,
         replaced_value_int64: int = 0,
-    ) -> T:
+    ) -> T_Imputer:
         r"""[🌐 ai.onnx.ml::Imputer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_Imputer.html#imputer-1 "Online Documentation")
 
 
@@ -294,18 +305,18 @@ class Opset_ai_onnx_ml1(Opset):
             replaced_value_int64=replaced_value_int64,
         )
 
-    T1 = TypeVar("T1", INT64, STRING)
+    T1_LabelEncoder = TypeVar("T1_LabelEncoder", INT64, STRING)
 
-    T2 = TypeVar("T2", INT64, STRING)
+    T2_LabelEncoder: TypeAlias = Union[INT64, STRING]
 
     def LabelEncoder(
         self,
-        X: T1,
+        X: T1_LabelEncoder,
         *,
         classes_strings: Optional[Sequence[str]] = None,
         default_int64: int = -1,
         default_string: str = "_Unused",
-    ) -> T2:
+    ) -> T2_LabelEncoder:
         r"""[🌐 ai.onnx.ml::LabelEncoder(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_LabelEncoder.html#labelencoder-1 "Online Documentation")
 
 
@@ -348,13 +359,13 @@ class Opset_ai_onnx_ml1(Opset):
             default_string=default_string,
         )
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, INT32, INT64)
+    T1_LinearClassifier = TypeVar("T1_LinearClassifier", DOUBLE, FLOAT, INT32, INT64)
 
-    T2 = TypeVar("T2", INT64, STRING)
+    T2_LinearClassifier: TypeAlias = Union[INT64, STRING]
 
     def LinearClassifier(
         self,
-        X: T1,
+        X: T1_LinearClassifier,
         *,
         classlabels_ints: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
@@ -362,7 +373,7 @@ class Opset_ai_onnx_ml1(Opset):
         intercepts: Optional[Sequence[float]] = None,
         multi_class: int = 0,
         post_transform: str = "NONE",
-    ) -> Tuple[T2, FLOAT]:
+    ) -> Tuple[T2_LinearClassifier, FLOAT]:
         r"""[🌐 ai.onnx.ml::LinearClassifier(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_LinearClassifier.html#linearclassifier-1 "Online Documentation")
 
 
@@ -402,11 +413,11 @@ class Opset_ai_onnx_ml1(Opset):
             post_transform=post_transform,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+    T_LinearRegressor = TypeVar("T_LinearRegressor", DOUBLE, FLOAT, INT32, INT64)
 
     def LinearRegressor(
         self,
-        X: T,
+        X: T_LinearRegressor,
         *,
         coefficients: Optional[Sequence[float]] = None,
         intercepts: Optional[Sequence[float]] = None,
@@ -451,9 +462,9 @@ class Opset_ai_onnx_ml1(Opset):
             targets=targets,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+    T_Normalizer = TypeVar("T_Normalizer", DOUBLE, FLOAT, INT32, INT64)
 
-    def Normalizer(self, X: T, *, norm: str = "MAX") -> FLOAT:
+    def Normalizer(self, X: T_Normalizer, *, norm: str = "MAX") -> FLOAT:
         r"""[🌐 ai.onnx.ml::Normalizer(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_Normalizer.html#normalizer-1 "Online Documentation")
 
 
@@ -485,11 +496,11 @@ class Opset_ai_onnx_ml1(Opset):
         op = Op(self, "Normalizer", schema)
         return op(*self._prepare_inputs(schema, X), norm=norm)
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64, STRING)
+    T_OneHotEncoder = TypeVar("T_OneHotEncoder", DOUBLE, FLOAT, INT32, INT64, STRING)
 
     def OneHotEncoder(
         self,
-        X: T,
+        X: T_OneHotEncoder,
         *,
         cats_int64s: Optional[Sequence[int]] = None,
         cats_strings: Optional[Sequence[str]] = None,
@@ -533,13 +544,13 @@ class Opset_ai_onnx_ml1(Opset):
             zeros=zeros,
         )
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, INT32, INT64)
+    T1_SVMClassifier = TypeVar("T1_SVMClassifier", DOUBLE, FLOAT, INT32, INT64)
 
-    T2 = TypeVar("T2", INT64, STRING)
+    T2_SVMClassifier: TypeAlias = Union[INT64, STRING]
 
     def SVMClassifier(
         self,
-        X: T1,
+        X: T1_SVMClassifier,
         *,
         classlabels_ints: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
@@ -552,7 +563,7 @@ class Opset_ai_onnx_ml1(Opset):
         rho: Optional[Sequence[float]] = None,
         support_vectors: Optional[Sequence[float]] = None,
         vectors_per_class: Optional[Sequence[int]] = None,
-    ) -> Tuple[T2, FLOAT]:
+    ) -> Tuple[T2_SVMClassifier, FLOAT]:
         r"""[🌐 ai.onnx.ml::SVMClassifier(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_SVMClassifier.html#svmclassifier-1 "Online Documentation")
 
 
@@ -600,11 +611,11 @@ class Opset_ai_onnx_ml1(Opset):
             vectors_per_class=vectors_per_class,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+    T_SVMRegressor = TypeVar("T_SVMRegressor", DOUBLE, FLOAT, INT32, INT64)
 
     def SVMRegressor(
         self,
-        X: T,
+        X: T_SVMRegressor,
         *,
         coefficients: Optional[Sequence[float]] = None,
         kernel_params: Optional[Sequence[float]] = None,
@@ -655,11 +666,11 @@ class Opset_ai_onnx_ml1(Opset):
             support_vectors=support_vectors,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+    T_Scaler = TypeVar("T_Scaler", DOUBLE, FLOAT, INT32, INT64)
 
     def Scaler(
         self,
-        X: T,
+        X: T_Scaler,
         *,
         offset: Optional[Sequence[float]] = None,
         scale: Optional[Sequence[float]] = None,
@@ -686,13 +697,15 @@ class Opset_ai_onnx_ml1(Opset):
         op = Op(self, "Scaler", schema)
         return op(*self._prepare_inputs(schema, X), offset=offset, scale=scale)
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, INT32, INT64)
+    T1_TreeEnsembleClassifier = TypeVar(
+        "T1_TreeEnsembleClassifier", DOUBLE, FLOAT, INT32, INT64
+    )
 
-    T2 = TypeVar("T2", INT64, STRING)
+    T2_TreeEnsembleClassifier: TypeAlias = Union[INT64, STRING]
 
     def TreeEnsembleClassifier(
         self,
-        X: T1,
+        X: T1_TreeEnsembleClassifier,
         *,
         base_values: Optional[Sequence[float]] = None,
         class_ids: Optional[Sequence[int]] = None,
@@ -711,7 +724,7 @@ class Opset_ai_onnx_ml1(Opset):
         nodes_truenodeids: Optional[Sequence[int]] = None,
         nodes_values: Optional[Sequence[float]] = None,
         post_transform: str = "NONE",
-    ) -> Tuple[T2, FLOAT]:
+    ) -> Tuple[T2_TreeEnsembleClassifier, FLOAT]:
         r"""[🌐 ai.onnx.ml::TreeEnsembleClassifier(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_TreeEnsembleClassifier.html#treeensembleclassifier-1 "Online Documentation")
 
 
@@ -803,11 +816,11 @@ class Opset_ai_onnx_ml1(Opset):
             post_transform=post_transform,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64)
+    T_TreeEnsembleRegressor = TypeVar("T_TreeEnsembleRegressor", DOUBLE, FLOAT, INT32, INT64)
 
     def TreeEnsembleRegressor(
         self,
-        X: T,
+        X: T_TreeEnsembleRegressor,
         *,
         aggregate_function: str = "SUM",
         base_values: Optional[Sequence[float]] = None,
@@ -921,7 +934,7 @@ class Opset_ai_onnx_ml1(Opset):
             target_weights=target_weights,
         )
 
-    T = TypeVar("T", Sequence[Mapping[int, FLOAT]], Sequence[Mapping[str, FLOAT]])
+    T_ZipMap: TypeAlias = Union[Sequence[Mapping[int, FLOAT]], Sequence[Mapping[str, FLOAT]]]
 
     def ZipMap(
         self,
@@ -929,7 +942,7 @@ class Opset_ai_onnx_ml1(Opset):
         *,
         classlabels_int64s: Optional[Sequence[int]] = None,
         classlabels_strings: Optional[Sequence[str]] = None,
-    ) -> T:
+    ) -> T_ZipMap:
         r"""[🌐 ai.onnx.ml::ZipMap(1)](https://onnx.ai/onnx/operators/onnx_aionnxml_ZipMap.html#zipmap-1 "Online Documentation")
 
 
