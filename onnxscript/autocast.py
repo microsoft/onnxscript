@@ -62,7 +62,7 @@ def cast_inputs(
             expected = expected_inputs[i]
         elif expected_inputs[-1].option == OpSchema.FormalParameterOption.Variadic:
             expected = expected_inputs[-1]
-            if not expected.isHomogeneous:  # type: ignore[attr-defined]
+            if not expected.is_homogeneous:
                 args_typevars.append((x, None))
                 continue
         else:
@@ -70,7 +70,7 @@ def cast_inputs(
                 f"Number of actual parameters {len(args)} "
                 f"exceeds number of formal parameters {len(expected_inputs)}."
             )
-        typevar = expected.typeStr  # type: ignore[attr-defined]
+        typevar = expected.type_str
         if "(" not in typevar:
             # typevar is an identifier, like "T"
             typeinfo = get_type_info(x)
