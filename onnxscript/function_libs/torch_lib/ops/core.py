@@ -133,8 +133,8 @@ def aten_addcmul(
 
 @torch_op("aten::addmm")
 def aten_addmm(
-    self: TFloat, mat1: TFloat, mat2: TFloat, beta: float = 1.0, alpha: float = 1.0
-) -> TFloat:
+    self: TReal, mat1: TReal, mat2: TReal, beta: float = 1.0, alpha: float = 1.0
+) -> TReal:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     mat1_mat2 = op.MatMul(mat1, mat2)
@@ -145,8 +145,8 @@ def aten_addmm(
 
 @torch_op("aten::addmv")
 def aten_addmv(
-    self: TFloat, mat: TFloat, vec: TFloat, beta: float = 1.0, alpha: float = 1.0
-) -> TFloat:
+    self: TReal, mat: TReal, vec: TReal, beta: float = 1.0, alpha: float = 1.0
+) -> TReal:
     """addmv(Tensor self, Tensor mat, Tensor vec, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     return op.Add(op.Mul(self, beta), op.Mul(op.MatMul(mat, vec), alpha))
@@ -154,8 +154,8 @@ def aten_addmv(
 
 @torch_op("aten::addr")
 def aten_addr(
-    self: TFloat, vec1: TFloat, vec2: TFloat, beta: float = 1.0, alpha: float = 1.0
-) -> TFloat:
+    self: TReal, vec1: TReal, vec2: TReal, beta: float = 1.0, alpha: float = 1.0
+) -> TReal:
     """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
     Performs the outer-product of vectors vec1 and vec2 and adds it to the matrix input.
@@ -2965,8 +2965,6 @@ def aten_imag(self: TensorType) -> TensorType:
 
 def aten_index(self: TensorType, indices: Optional[Sequence[TensorType]]) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
-
-    # https://github.com/pytorch/pytorch/blob/f61b248d5b0c54db064fc27826c90d5956e0dfc0/aten/src/ATen/native/TensorAdvancedIndexing.cpp
 
     raise NotImplementedError()
 
