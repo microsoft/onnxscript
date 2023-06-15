@@ -88,25 +88,45 @@ def aten_addbmm(
     beta: float = 1.0,
     alpha: float = 1.0,
 ) -> TensorType:
-    """addbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+    """addbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs a batch matrix-matrix product of matrices stored in `batch1` and `batch2`,
+    with a reduced add step (all matrix multiplications get accumulated along the first
+    dimension). `self` is added to the final result.
+
+    `batch1` and `batch2` must be 3-D tensors each containing the same number of matrices.
+    """
+
+    scaled_self = op.Mul(self, beta)
+    reduced_batches = op.ReduceSum(op.MatMul(batch1, batch2), axes=0, keepdims=False)
+
+    return op.Add(scaled_self, op.Mul(reduced_batches, alpha))
 
 
+@torch_op("aten::addcdiv")
 def aten_addcdiv(
-    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0
-) -> TensorType:
-    """addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor"""
+    self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 1.0
+) -> TFloat:
+    """addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs the element-wise division of tensor1 by tensor2, multiplies the result
+    by the scalar value and adds it to self.
+    """
+
+    return op.Add(self, op.Mul(op.Div(tensor1, tensor2), value))
 
 
+@torch_op("aten::addcmul")
 def aten_addcmul(
-    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0
-) -> TensorType:
-    """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor"""
+    self: TTensor, tensor1: TTensor, tensor2: TTensor, value: float = 1.0
+) -> TTensor:
+    """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
+    result by the scalar value and adds it to self.
+    """
+
+    return op.Add(self, op.Mul(op.Mul(tensor1, tensor2), value))
 
 
 @torch_op("aten::addmm")
@@ -2933,6 +2953,8 @@ def aten_imag(self: TensorType) -> TensorType:
 
 def aten_index(self: TensorType, indices: Optional[Sequence[TensorType]]) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
+
+    # https://github.com/pytorch/pytorch/blob/f61b248d5b0c54db064fc27826c90d5956e0dfc0/aten/src/ATen/native/TensorAdvancedIndexing.cpp
 
     raise NotImplementedError()
 
