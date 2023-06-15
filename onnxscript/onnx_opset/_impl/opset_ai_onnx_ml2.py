@@ -5,12 +5,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
-# mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# pylint: disable=W0221,W0222,R0901,W0237
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Union
+from __future__ import annotations
+
+from typing import Optional, Sequence, TypeVar
 
 from onnx.defs import get_schema
 
@@ -23,12 +25,13 @@ class Opset_ai_onnx_ml2(Opset_ai_onnx_ml1):
     def __new__(cls):
         return Opset.__new__(cls, "ai.onnx.ml", 2)
 
-    def __init__(self):
-        super().__init__()
+    T1 = TypeVar("T1", FLOAT, INT64, STRING)
+
+    T2 = TypeVar("T2", FLOAT, INT64, STRING)
 
     def LabelEncoder(
         self,
-        X: Union[FLOAT, INT64, STRING],
+        X: T1,
         default_float: float = -0.0,
         default_int64: int = -1,
         default_string: str = "_Unused",
@@ -38,7 +41,7 @@ class Opset_ai_onnx_ml2(Opset_ai_onnx_ml1):
         values_floats: Optional[Sequence[float]] = None,
         values_int64s: Optional[Sequence[int]] = None,
         values_strings: Optional[Sequence[str]] = None,
-    ) -> Union[FLOAT, INT64, STRING]:
+    ) -> T2:
         r"""[🌐 ai.onnx.ml::LabelEncoder(2)](https://onnx.ai/onnx/operators/onnx_aionnxml_LabelEncoder.html#labelencoder-2 "Online Documentation")
 
 
@@ -91,7 +94,7 @@ class Opset_ai_onnx_ml2(Opset_ai_onnx_ml1):
         """
 
         schema = get_schema("LabelEncoder", 2, "ai.onnx.ml")
-        op: Callable[..., Union[FLOAT, INT64, STRING]] = Op(self, "LabelEncoder", schema)
+        op = Op(self, "LabelEncoder", schema)
         return op(
             *self._prepare_inputs(schema, X),
             default_float=default_float,

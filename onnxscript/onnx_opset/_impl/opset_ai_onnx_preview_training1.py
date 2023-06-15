@@ -5,12 +5,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
-# mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# pylint: disable=W0221,W0222,R0901,W0237
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Union
+from __future__ import annotations
+
+from typing import Optional, Sequence, TypeVar
 
 from onnx.defs import get_schema
 
@@ -38,18 +40,21 @@ class Opset_ai_onnx_preview_training1(Opset):
     def __new__(cls):
         return Opset.__new__(cls, "ai.onnx.preview.training", 1)
 
-    def __init__(self):
-        super().__init__()
+    T1 = TypeVar("T1", DOUBLE, FLOAT)
+
+    T2 = TypeVar("T2", bound=INT64)
+
+    T3 = TypeVar("T3", DOUBLE, FLOAT)
 
     def Adagrad(
         self,
-        R: Union[DOUBLE, FLOAT],
-        T: INT64,
-        *inputs: Union[DOUBLE, FLOAT],
+        R: T1,
+        T: T2,
+        *inputs: T3,
         decay_factor: float = 0.0,
         epsilon: float = 9.999999974752427e-07,
         norm_coefficient: float = 0.0,
-    ) -> Union[DOUBLE, FLOAT]:
+    ) -> T3:
         r"""[🌐 ai.onnx.preview.training::Adagrad(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Adagrad.html#adagrad-1 "Online Documentation")
 
 
@@ -129,7 +134,7 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Adagrad", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT]] = Op(self, "Adagrad", schema)
+        op = Op(self, "Adagrad", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
             decay_factor=decay_factor,
@@ -137,17 +142,23 @@ class Opset_ai_onnx_preview_training1(Opset):
             norm_coefficient=norm_coefficient,
         )
 
+    T1 = TypeVar("T1", DOUBLE, FLOAT)
+
+    T2 = TypeVar("T2", bound=INT64)
+
+    T3 = TypeVar("T3", DOUBLE, FLOAT)
+
     def Adam(
         self,
-        R: Union[DOUBLE, FLOAT],
-        T: INT64,
-        *inputs: Union[DOUBLE, FLOAT],
+        R: T1,
+        T: T2,
+        *inputs: T3,
         alpha: float = 0.8999999761581421,
         beta: float = 0.9990000128746033,
         epsilon: float = 9.999999974752427e-07,
         norm_coefficient: float = 0.0,
         norm_coefficient_post: float = 0.0,
-    ) -> Union[DOUBLE, FLOAT]:
+    ) -> T3:
         r"""[🌐 ai.onnx.preview.training::Adam(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Adam.html#adam-1 "Online Documentation")
 
 
@@ -244,7 +255,7 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Adam", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT]] = Op(self, "Adam", schema)
+        op = Op(self, "Adam", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
             alpha=alpha,
@@ -254,29 +265,34 @@ class Opset_ai_onnx_preview_training1(Opset):
             norm_coefficient_post=norm_coefficient_post,
         )
 
+    T1 = TypeVar(
+        "T1",
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    T2 = TypeVar("T2", DOUBLE, FLOAT, FLOAT16)
+
     def Gradient(
         self,
-        *Inputs: Union[
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
+        *Inputs: T1,
         xs: Optional[Sequence[str]] = None,
         y: Optional[str] = None,
         zs: Optional[Sequence[str]] = None,
-    ) -> Union[DOUBLE, FLOAT, FLOAT16]:
+    ) -> T2:
         r"""[🌐 ai.onnx.preview.training::Gradient(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Gradient.html#gradient-1 "Online Documentation")
 
 
@@ -441,19 +457,25 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Gradient", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT, FLOAT16]] = Op(self, "Gradient", schema)
+        op = Op(self, "Gradient", schema)
         return op(*self._prepare_inputs(schema, *Inputs), xs=xs, y=y, zs=zs)
+
+    T1 = TypeVar("T1", DOUBLE, FLOAT)
+
+    T2 = TypeVar("T2", bound=INT64)
+
+    T3 = TypeVar("T3", DOUBLE, FLOAT)
 
     def Momentum(
         self,
-        R: Union[DOUBLE, FLOAT],
-        T: INT64,
-        *inputs: Union[DOUBLE, FLOAT],
+        R: T1,
+        T: T2,
+        *inputs: T3,
         alpha: Optional[float] = None,
         beta: Optional[float] = None,
         mode: Optional[str] = None,
         norm_coefficient: Optional[float] = None,
-    ) -> Union[DOUBLE, FLOAT]:
+    ) -> T3:
         r"""[🌐 ai.onnx.preview.training::Momentum(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Momentum.html#momentum-1 "Online Documentation")
 
 
@@ -543,7 +565,7 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Momentum", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT]] = Op(self, "Momentum", schema)
+        op = Op(self, "Momentum", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
             alpha=alpha,

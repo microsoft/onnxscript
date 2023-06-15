@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -666,22 +666,96 @@ def aten_atanh(self: TFloat) -> TFloat:
     return op.Atanh(self)
 
 
-def aten_atleast_1d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_1d", private=True)
+def _aten_atleast_1d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    @graph()
+    def reshape_to_1d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank == 0:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1]))
+        return tensor
+
+    return op.SequenceMap(self, body=reshape_to_1d)
 
 
-def aten_atleast_2d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_1d")
+def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_1d_onnx(self)
+
+
+@torch_op("aten::atleast_1d")
+def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
+    """atleast_1d(Tensor self) -> Tensor"""
+
+    shape = op.Shape(self)
+    rank = op.Size(shape)
+    if rank == 0:
+        self = op.Reshape(self, op.Constant(value_ints=[1]))
+    return self
+
+
+@torch_op("aten::atleast_2d", private=True)
+def _aten_atleast_2d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    @graph()
+    def reshape_to_2d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
+        return tensor
+
+    return op.SequenceMap(self, body=reshape_to_2d)
 
 
-def aten_atleast_3d(self: TensorType) -> TensorType:
+@torch_op("aten::atleast_2d")
+def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_2d_onnx(self)
+
+
+@torch_op("aten::atleast_2d")
+def aten_atleast_2d_single_tensor(self: TTensor) -> TTensor:
+    """atleast_2d(Tensor self) -> Tensor"""
+
+    shape = op.Shape(self)
+    rank = op.Size(shape)
+    if rank <= 1:
+        self = op.Reshape(self, op.Constant(value_ints=[1, -1]))
+    return self
+
+
+@torch_op("aten::atleast_3d")
+def aten_atleast_3d(self: Sequence[TTensor]) -> TTensor:
     """atleast_3d(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    @graph()
+    def reshape_to_3d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1, 1]))
+        elif rank == 2:
+            tensor = op.Unsqueeze(tensor, op.Constant(value_ints=[-1]))
+        return tensor
+
+    return op.SequenceMap(self, body=reshape_to_3d)
+
+
+@torch_op("aten::atleast_3d")
+def aten_atleast_3d_single_tensor(self: TTensor) -> TTensor:
+    """atleast_3d(Tensor self) -> Tensor"""
+
+    shape = op.Shape(self)
+    rank = op.Size(shape)
+    if rank <= 1:
+        self = op.Reshape(self, op.Constant(value_ints=[1, -1, 1]))
+    elif rank == 2:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[-1]))
+    return self
 
 
 @torch_op("aten::baddbmm")
@@ -2533,8 +2607,8 @@ def aten_fused_moving_avg_obs_fake_quant(
 @torch_op("aten::gather")
 def aten_gather(
     self: TReal,
-    index: TInt,
     dim: int,
+    index: TInt,
     sparse_grad: bool = False,  # pylint: disable=unused-argument
 ) -> TReal:
     """gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor"""
@@ -2798,10 +2872,20 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_hstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::hstack", trace_only=True)
+def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    # Use another onnx function
+    tensors = _aten_atleast_1d_onnx(tensors)
+
+    # NOTE: The if/else graph has different shape/type which breaks the
+    #       graph matching. We need to use trace_only.
+    if len(tensors[0].shape) == 1:
+        result = op.ConcatFromSequence(tensors, axis=0, new_axis=0)
+    else:
+        result = op.ConcatFromSequence(tensors, axis=1, new_axis=0)
+    return result
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -2945,16 +3029,8 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-# FIXME(#277): Script when attributes can come before inputs
-@torch_op("aten::index_select", trace_only=True)
+@torch_op("aten::index_select")
 def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
-    """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
-
-    return _aten_index_select_onnx(self, index, dim=dim)
-
-
-@torch_op("aten::index_select", private=True)
-def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
     self_is_scalar = op.Size(op.Shape(self)) == 0
@@ -5421,7 +5497,7 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
-@torch_op("aten::scatter_add", trace_only=True)
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
@@ -6519,10 +6595,12 @@ def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::vstack")
+def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    tensors = _aten_atleast_2d_onnx(tensors)
+    return op.ConcatFromSequence(tensors, axis=0)
 
 
 @torch_op("aten::where")
