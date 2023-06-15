@@ -81,13 +81,14 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Add(self, other)
 
 
+@torch_op("aten::addbmm")
 def aten_addbmm(
-    self: TensorType,
-    batch1: TensorType,
-    batch2: TensorType,
+    self: TReal,
+    batch1: TReal,
+    batch2: TReal,
     beta: float = 1.0,
     alpha: float = 1.0,
-) -> TensorType:
+) -> TReal:
     """addbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
     Performs a batch matrix-matrix product of matrices stored in `batch1` and `batch2`,
@@ -98,7 +99,8 @@ def aten_addbmm(
     """
 
     scaled_self = op.Mul(self, beta)
-    reduced_batches = op.ReduceSum(op.MatMul(batch1, batch2), axes=0, keepdims=False)
+    axes = op.Constant(value_ints=[0])
+    reduced_batches = op.ReduceSum(op.MatMul(batch1, batch2), axes=axes, keepdims=False)
 
     return op.Add(scaled_self, op.Mul(reduced_batches, alpha))
 
@@ -118,8 +120,8 @@ def aten_addcdiv(
 
 @torch_op("aten::addcmul")
 def aten_addcmul(
-    self: TTensor, tensor1: TTensor, tensor2: TTensor, value: float = 1.0
-) -> TTensor:
+    self: TReal, tensor1: TReal, tensor2: TReal, value: float = 1.0
+) -> TReal:
     """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
     Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
@@ -141,20 +143,30 @@ def aten_addmm(
     return op.Add(scaled_self, scaled_mat1_mat2)
 
 
+@torch_op("aten::addmv")
 def aten_addmv(
-    self: TensorType, mat: TensorType, vec: TensorType, beta: float = 1.0, alpha: float = 1.0
-) -> TensorType:
+    self: TFloat, mat: TFloat, vec: TFloat, beta: float = 1.0, alpha: float = 1.0
+) -> TFloat:
     """addmv(Tensor self, Tensor mat, Tensor vec, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Add(op.Mul(self, beta), op.Mul(op.MatMul(mat, vec), alpha))
 
 
+@torch_op("aten::addr")
 def aten_addr(
-    self: TensorType, vec1: TensorType, vec2: TensorType, beta: float = 1.0, alpha: float = 1.0
-) -> TensorType:
-    """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+    self: TFloat, vec1: TFloat, vec2: TFloat, beta: float = 1.0, alpha: float = 1.0
+) -> TFloat:
+    """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs the outer-product of vectors vec1 and vec2 and adds it to the matrix input.
+    """
+    vec1_shape = op.Constant(value_ints=[-1, 1])
+    vec2_shape = op.Constant(value_ints=[1, -1])
+    vec1_reshaped = op.Reshape(vec1, vec1_shape)
+    vec2_reshaped = op.Reshape(vec2, vec2_shape)
+    outer = op.MatMul(vec1_reshaped, vec2_reshaped)
+
+    return op.Add(op.Mul(self, beta), op.Mul(outer, alpha))
 
 
 def aten_adjoint(self: TensorType) -> TensorType:
