@@ -6,6 +6,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
@@ -15,6 +16,7 @@ from __future__ import annotations
 from typing import Optional, Sequence, Tuple, TypeVar
 
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset9 import Opset9
 from onnxscript.onnx_types import (
@@ -41,18 +43,19 @@ class Opset10(Opset9):
     def __new__(cls):
         return Opset.__new__(cls, "", 10)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_AveragePool = TypeVar("T_AveragePool", DOUBLE, FLOAT, FLOAT16)
 
     def AveragePool(
         self,
-        X: T,
+        X: T_AveragePool,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         count_include_pad: int = 0,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_AveragePool:
         r"""[🌐 AveragePool(10)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-10 "Online Documentation")
 
 
@@ -136,25 +139,26 @@ class Opset10(Opset9):
             strides=strides,
         )
 
-    T1 = TypeVar("T1", INT8, UINT8)
+    T1_ConvInteger = TypeVar("T1_ConvInteger", INT8, UINT8)
 
-    T2 = TypeVar("T2", INT8, UINT8)
+    T2_ConvInteger = TypeVar("T2_ConvInteger", INT8, UINT8)
 
-    T3 = TypeVar("T3", bound=INT32)
+    T3_ConvInteger: TypeAlias = INT32
 
     def ConvInteger(
         self,
-        x: T1,
-        w: T2,
-        x_zero_point: Optional[T1] = None,
-        w_zero_point: Optional[T2] = None,
+        x: T1_ConvInteger,
+        w: T2_ConvInteger,
+        x_zero_point: Optional[T1_ConvInteger] = None,
+        w_zero_point: Optional[T2_ConvInteger] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
         kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T3:
+    ) -> T3_ConvInteger:
         r"""[🌐 ConvInteger(10)](https://onnx.ai/onnx/operators/onnx__ConvInteger.html#convinteger-10 "Online Documentation")
 
 
@@ -237,10 +241,13 @@ class Opset10(Opset9):
             strides=strides,
         )
 
-    T = TypeVar("T", INT32, INT8, UINT8)
+    T_DequantizeLinear = TypeVar("T_DequantizeLinear", INT32, INT8, UINT8)
 
     def DequantizeLinear(
-        self, x: T, x_scale: FLOAT, x_zero_point: Optional[T] = None
+        self,
+        x: T_DequantizeLinear,
+        x_scale: FLOAT,
+        x_zero_point: Optional[T_DequantizeLinear] = None,
     ) -> FLOAT:
         r"""[🌐 DequantizeLinear(10)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-10 "Online Documentation")
 
@@ -266,11 +273,11 @@ class Opset10(Opset9):
         op = Op(self, "DequantizeLinear", schema)
         return op(*self._prepare_inputs(schema, x, x_scale, x_zero_point))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Dropout = TypeVar("T_Dropout", DOUBLE, FLOAT, FLOAT16)
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_Dropout: TypeAlias = BOOL
 
-    def Dropout(self, data: T, ratio: float = 0.5) -> Tuple[T, T1]:
+    def Dropout(self, data: T_Dropout, *, ratio: float = 0.5) -> Tuple[T_Dropout, T1_Dropout]:
         r"""[🌐 Dropout(10)](https://onnx.ai/onnx/operators/onnx__Dropout.html#dropout-10 "Online Documentation")
 
 
@@ -292,11 +299,13 @@ class Opset10(Opset9):
         op = Op(self, "Dropout", schema)
         return op(*self._prepare_inputs(schema, data), ratio=ratio)
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT)
+    T1_IsInf = TypeVar("T1_IsInf", DOUBLE, FLOAT)
 
-    T2 = TypeVar("T2", bound=BOOL)
+    T2_IsInf: TypeAlias = BOOL
 
-    def IsInf(self, X: T1, detect_negative: int = 1, detect_positive: int = 1) -> T2:
+    def IsInf(
+        self, X: T1_IsInf, *, detect_negative: int = 1, detect_positive: int = 1
+    ) -> T2_IsInf:
         r"""[🌐 IsInf(10)](https://onnx.ai/onnx/operators/onnx__IsInf.html#isinf-10 "Online Documentation")
 
         Map infinity to true and other values to false.
@@ -321,19 +330,19 @@ class Opset10(Opset9):
             detect_positive=detect_positive,
         )
 
-    T1 = TypeVar("T1", INT8, UINT8)
+    T1_MatMulInteger = TypeVar("T1_MatMulInteger", INT8, UINT8)
 
-    T2 = TypeVar("T2", INT8, UINT8)
+    T2_MatMulInteger = TypeVar("T2_MatMulInteger", INT8, UINT8)
 
-    T3 = TypeVar("T3", bound=INT32)
+    T3_MatMulInteger: TypeAlias = INT32
 
     def MatMulInteger(
         self,
-        A: T1,
-        B: T2,
-        a_zero_point: Optional[T1] = None,
-        b_zero_point: Optional[T2] = None,
-    ) -> T3:
+        A: T1_MatMulInteger,
+        B: T2_MatMulInteger,
+        a_zero_point: Optional[T1_MatMulInteger] = None,
+        b_zero_point: Optional[T2_MatMulInteger] = None,
+    ) -> T3_MatMulInteger:
         r"""[🌐 MatMulInteger(10)](https://onnx.ai/onnx/operators/onnx__MatMulInteger.html#matmulinteger-10 "Online Documentation")
 
 
@@ -367,21 +376,22 @@ class Opset10(Opset9):
         op = Op(self, "MatMulInteger", schema)
         return op(*self._prepare_inputs(schema, A, B, a_zero_point, b_zero_point))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_MaxPool = TypeVar("T_MaxPool", DOUBLE, FLOAT, FLOAT16)
 
-    I = TypeVar("I", bound=INT64)
+    I_MaxPool: TypeAlias = INT64
 
     def MaxPool(
         self,
-        X: T,
+        X: T_MaxPool,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
         strides: Optional[Sequence[int]] = None,
-    ) -> Tuple[T, I]:
+    ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(10)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-10 "Online Documentation")
 
 
@@ -468,11 +478,22 @@ class Opset10(Opset9):
             strides=strides,
         )
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_Mod = TypeVar(
+        "T_Mod",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def Mod(self, A: T, B: T, fmod: int = 0) -> T:
+    def Mod(self, A: T_Mod, B: T_Mod, *, fmod: int = 0) -> T_Mod:
         r"""[🌐 Mod(10)](https://onnx.ai/onnx/operators/onnx__Mod.html#mod-10 "Online Documentation")
 
 
@@ -511,6 +532,7 @@ class Opset10(Opset9):
         max_output_boxes_per_class: Optional[INT64] = None,
         iou_threshold: Optional[FLOAT] = None,
         score_threshold: Optional[FLOAT] = None,
+        *,
         center_point_box: int = 0,
     ) -> INT64:
         r"""[🌐 NonMaxSuppression(10)](https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html#nonmaxsuppression-10 "Online Documentation")
@@ -566,32 +588,33 @@ class Opset10(Opset9):
             center_point_box=center_point_box,
         )
 
-    T1 = TypeVar("T1", INT8, UINT8)
+    T1_QLinearConv = TypeVar("T1_QLinearConv", INT8, UINT8)
 
-    T2 = TypeVar("T2", INT8, UINT8)
+    T2_QLinearConv = TypeVar("T2_QLinearConv", INT8, UINT8)
 
-    T3 = TypeVar("T3", INT8, UINT8)
+    T3_QLinearConv = TypeVar("T3_QLinearConv", INT8, UINT8)
 
-    T4 = TypeVar("T4", bound=INT32)
+    T4_QLinearConv: TypeAlias = INT32
 
     def QLinearConv(
         self,
-        x: T1,
+        x: T1_QLinearConv,
         x_scale: FLOAT,
-        x_zero_point: T1,
-        w: T2,
+        x_zero_point: T1_QLinearConv,
+        w: T2_QLinearConv,
         w_scale: FLOAT,
-        w_zero_point: T2,
+        w_zero_point: T2_QLinearConv,
         y_scale: FLOAT,
-        y_zero_point: T3,
-        B: Optional[T4] = None,
+        y_zero_point: T3_QLinearConv,
+        B: Optional[T4_QLinearConv] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
         kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T3:
+    ) -> T3_QLinearConv:
         r"""[🌐 QLinearConv(10)](https://onnx.ai/onnx/operators/onnx__QLinearConv.html#qlinearconv-10 "Online Documentation")
 
 
@@ -706,23 +729,23 @@ class Opset10(Opset9):
             strides=strides,
         )
 
-    T1 = TypeVar("T1", INT8, UINT8)
+    T1_QLinearMatMul = TypeVar("T1_QLinearMatMul", INT8, UINT8)
 
-    T2 = TypeVar("T2", INT8, UINT8)
+    T2_QLinearMatMul = TypeVar("T2_QLinearMatMul", INT8, UINT8)
 
-    T3 = TypeVar("T3", INT8, UINT8)
+    T3_QLinearMatMul = TypeVar("T3_QLinearMatMul", INT8, UINT8)
 
     def QLinearMatMul(
         self,
-        a: T1,
+        a: T1_QLinearMatMul,
         a_scale: FLOAT,
-        a_zero_point: T1,
-        b: T2,
+        a_zero_point: T1_QLinearMatMul,
+        b: T2_QLinearMatMul,
         b_scale: FLOAT,
-        b_zero_point: T2,
+        b_zero_point: T2_QLinearMatMul,
         y_scale: FLOAT,
-        y_zero_point: T3,
-    ) -> T3:
+        y_zero_point: T3_QLinearMatMul,
+    ) -> T3_QLinearMatMul:
         r"""[🌐 QLinearMatMul(10)](https://onnx.ai/onnx/operators/onnx__QLinearMatMul.html#qlinearmatmul-10 "Online Documentation")
 
 
@@ -773,11 +796,16 @@ class Opset10(Opset9):
             )
         )
 
-    T1 = TypeVar("T1", FLOAT, INT32)
+    T1_QuantizeLinear = TypeVar("T1_QuantizeLinear", FLOAT, INT32)
 
-    T2 = TypeVar("T2", INT8, UINT8)
+    T2_QuantizeLinear = TypeVar("T2_QuantizeLinear", INT8, UINT8)
 
-    def QuantizeLinear(self, x: T1, y_scale: FLOAT, y_zero_point: Optional[T2] = None) -> T2:
+    def QuantizeLinear(
+        self,
+        x: T1_QuantizeLinear,
+        y_scale: FLOAT,
+        y_zero_point: Optional[T2_QuantizeLinear] = None,
+    ) -> T2_QuantizeLinear:
         r"""[🌐 QuantizeLinear(10)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-10 "Online Documentation")
 
 
@@ -801,8 +829,8 @@ class Opset10(Opset9):
         op = Op(self, "QuantizeLinear", schema)
         return op(*self._prepare_inputs(schema, x, y_scale, y_zero_point))
 
-    T = TypeVar(
-        "T",
+    T_Resize = TypeVar(
+        "T_Resize",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -820,7 +848,7 @@ class Opset10(Opset9):
         UINT8,
     )
 
-    def Resize(self, X: T, scales: FLOAT, mode: str = "nearest") -> T:
+    def Resize(self, X: T_Resize, scales: FLOAT, *, mode: str = "nearest") -> T_Resize:
         r"""[🌐 Resize(10)](https://onnx.ai/onnx/operators/onnx__Resize.html#resize-10 "Online Documentation")
 
 
@@ -845,8 +873,8 @@ class Opset10(Opset9):
         op = Op(self, "Resize", schema)
         return op(*self._prepare_inputs(schema, X, scales), mode=mode)
 
-    T = TypeVar(
-        "T",
+    T_ReverseSequence = TypeVar(
+        "T_ReverseSequence",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -865,8 +893,13 @@ class Opset10(Opset9):
     )
 
     def ReverseSequence(
-        self, input: T, sequence_lens: INT64, batch_axis: int = 1, time_axis: int = 0
-    ) -> T:
+        self,
+        input: T_ReverseSequence,
+        sequence_lens: INT64,
+        *,
+        batch_axis: int = 1,
+        time_axis: int = 0,
+    ) -> T_ReverseSequence:
         r"""[🌐 ReverseSequence(10)](https://onnx.ai/onnx/operators/onnx__ReverseSequence.html#reversesequence-10 "Online Documentation")
 
 
@@ -926,21 +959,22 @@ class Opset10(Opset9):
             time_axis=time_axis,
         )
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, FLOAT16)
+    T1_RoiAlign = TypeVar("T1_RoiAlign", DOUBLE, FLOAT, FLOAT16)
 
-    T2 = TypeVar("T2", bound=INT64)
+    T2_RoiAlign: TypeAlias = INT64
 
     def RoiAlign(
         self,
-        X: T1,
-        rois: T1,
-        batch_indices: T2,
+        X: T1_RoiAlign,
+        rois: T1_RoiAlign,
+        batch_indices: T2_RoiAlign,
+        *,
         mode: str = "avg",
         output_height: int = 1,
         output_width: int = 1,
         sampling_ratio: int = 0,
         spatial_scale: float = 1.0,
-    ) -> T1:
+    ) -> T1_RoiAlign:
         r"""[🌐 RoiAlign(10)](https://onnx.ai/onnx/operators/onnx__RoiAlign.html#roialign-10 "Online Documentation")
 
 
@@ -1000,8 +1034,8 @@ class Opset10(Opset9):
             spatial_scale=spatial_scale,
         )
 
-    T = TypeVar(
-        "T",
+    T_Slice = TypeVar(
+        "T_Slice",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -1019,16 +1053,16 @@ class Opset10(Opset9):
         UINT8,
     )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_Slice = TypeVar("Tind_Slice", INT32, INT64)
 
     def Slice(
         self,
-        data: T,
-        starts: Tind,
-        ends: Tind,
-        axes: Optional[Tind] = None,
-        steps: Optional[Tind] = None,
-    ) -> T:
+        data: T_Slice,
+        starts: Tind_Slice,
+        ends: Tind_Slice,
+        axes: Optional[Tind_Slice] = None,
+        steps: Optional[Tind_Slice] = None,
+    ) -> T_Slice:
         r"""[🌐 Slice(10)](https://onnx.ai/onnx/operators/onnx__Slice.html#slice-10 "Online Documentation")
 
 
@@ -1089,6 +1123,7 @@ class Opset10(Opset9):
     def StringNormalizer(
         self,
         X: STRING,
+        *,
         case_change_action: str = "NONE",
         is_case_sensitive: int = 0,
         locale: Optional[str] = None,
@@ -1135,9 +1170,11 @@ class Opset10(Opset9):
             stopwords=stopwords,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_ThresholdedRelu = TypeVar("T_ThresholdedRelu", DOUBLE, FLOAT, FLOAT16)
 
-    def ThresholdedRelu(self, X: T, alpha: float = 1.0) -> T:
+    def ThresholdedRelu(
+        self, X: T_ThresholdedRelu, *, alpha: float = 1.0
+    ) -> T_ThresholdedRelu:
         r"""[🌐 ThresholdedRelu(10)](https://onnx.ai/onnx/operators/onnx__ThresholdedRelu.html#thresholdedrelu-10 "Online Documentation")
 
 
@@ -1156,11 +1193,11 @@ class Opset10(Opset9):
         op = Op(self, "ThresholdedRelu", schema)
         return op(*self._prepare_inputs(schema, X), alpha=alpha)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_TopK = TypeVar("T_TopK", DOUBLE, FLOAT, FLOAT16)
 
-    I = TypeVar("I", bound=INT64)
+    I_TopK: TypeAlias = INT64
 
-    def TopK(self, X: T, K: INT64, axis: int = -1) -> Tuple[T, I]:
+    def TopK(self, X: T_TopK, K: INT64, *, axis: int = -1) -> Tuple[T_TopK, I_TopK]:
         r"""[🌐 TopK(10)](https://onnx.ai/onnx/operators/onnx__TopK.html#topk-10 "Online Documentation")
 
 

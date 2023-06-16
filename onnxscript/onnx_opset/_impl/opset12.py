@@ -6,16 +6,18 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, Tuple, TypeVar
+from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 from onnx import SparseTensorProto, TensorProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset11 import Opset11
 from onnxscript.onnx_types import (
@@ -42,12 +44,23 @@ class Opset12(Opset11):
     def __new__(cls):
         return Opset.__new__(cls, "", 12)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_ArgMax = TypeVar(
+        "T_ArgMax",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
     def ArgMax(
-        self, data: T, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self, data: T_ArgMax, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMax(12)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-12 "Online Documentation")
 
@@ -82,12 +95,23 @@ class Opset12(Opset11):
             select_last_index=select_last_index,
         )
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_ArgMin = TypeVar(
+        "T_ArgMin",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
     def ArgMin(
-        self, data: T, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
+        self, data: T_ArgMin, *, axis: int = 0, keepdims: int = 1, select_last_index: int = 0
     ) -> INT64:
         r"""[🌐 ArgMin(12)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-12 "Online Documentation")
 
@@ -122,9 +146,9 @@ class Opset12(Opset11):
             select_last_index=select_last_index,
         )
 
-    T = TypeVar("T", bound=FLOAT)
+    T_Celu: TypeAlias = FLOAT
 
-    def Celu(self, X: T, alpha: float = 1.0) -> T:
+    def Celu(self, X: T_Celu, *, alpha: float = 1.0) -> T_Celu:
         r"""[🌐 Celu(12)](https://onnx.ai/onnx/operators/onnx__Celu.html#celu-12 "Online Documentation")
 
 
@@ -150,11 +174,24 @@ class Opset12(Opset11):
         op = Op(self, "Celu", schema)
         return op(*self._prepare_inputs(schema, X), alpha=alpha)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_Clip = TypeVar(
+        "T_Clip",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def Clip(self, input: T, min: Optional[T] = None, max: Optional[T] = None) -> T:
+    def Clip(
+        self, input: T_Clip, min: Optional[T_Clip] = None, max: Optional[T_Clip] = None
+    ) -> T_Clip:
         r"""[🌐 Clip(12)](https://onnx.ai/onnx/operators/onnx__Clip.html#clip-12 "Online Documentation")
 
 
@@ -177,8 +214,7 @@ class Opset12(Opset11):
         op = Op(self, "Clip", schema)
         return op(*self._prepare_inputs(schema, input, min, max))
 
-    T = TypeVar(
-        "T",
+    T_Constant: TypeAlias = Union[
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -194,10 +230,11 @@ class Opset12(Opset11):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
     def Constant(
         self,
+        *,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
         value_float: Optional[float] = None,
@@ -206,7 +243,7 @@ class Opset12(Opset11):
         value_ints: Optional[Sequence[int]] = None,
         value_string: Optional[str] = None,
         value_strings: Optional[Sequence[str]] = None,
-    ) -> T:
+    ) -> T_Constant:
         r"""[🌐 Constant(12)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-12 "Online Documentation")
 
 
@@ -251,19 +288,20 @@ class Opset12(Opset11):
             value_strings=value_strings,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Dropout = TypeVar("T_Dropout", DOUBLE, FLOAT, FLOAT16)
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, FLOAT16)
+    T1_Dropout = TypeVar("T1_Dropout", DOUBLE, FLOAT, FLOAT16)
 
-    T2 = TypeVar("T2", bound=BOOL)
+    T2_Dropout: TypeAlias = BOOL
 
     def Dropout(
         self,
-        data: T,
-        ratio: Optional[T1] = None,
-        training_mode: Optional[T2] = None,
+        data: T_Dropout,
+        ratio: Optional[T1_Dropout] = None,
+        training_mode: Optional[T2_Dropout] = None,
+        *,
         seed: Optional[int] = None,
-    ) -> Tuple[T, T2]:
+    ) -> Tuple[T_Dropout, T2_Dropout]:
         r"""[🌐 Dropout(12)](https://onnx.ai/onnx/operators/onnx__Dropout.html#dropout-12 "Online Documentation")
 
 
@@ -308,11 +346,22 @@ class Opset12(Opset11):
         op = Op(self, "Dropout", schema)
         return op(*self._prepare_inputs(schema, data, ratio, training_mode), seed=seed)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_Einsum = TypeVar(
+        "T_Einsum",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def Einsum(self, *Inputs: T, equation: Optional[str] = None) -> T:
+    def Einsum(self, *Inputs: T_Einsum, equation: str) -> T_Einsum:
         r"""[🌐 Einsum(12)](https://onnx.ai/onnx/operators/onnx__Einsum.html#einsum-12 "Online Documentation")
 
 
@@ -355,8 +404,8 @@ class Opset12(Opset11):
         op = Op(self, "Einsum", schema)
         return op(*self._prepare_inputs(schema, *Inputs), equation=equation)
 
-    T = TypeVar(
-        "T",
+    T_GatherND = TypeVar(
+        "T_GatherND",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -374,7 +423,7 @@ class Opset12(Opset11):
         UINT8,
     )
 
-    def GatherND(self, data: T, indices: INT64, batch_dims: int = 0) -> T:
+    def GatherND(self, data: T_GatherND, indices: INT64, *, batch_dims: int = 0) -> T_GatherND:
         r"""[🌐 GatherND(12)](https://onnx.ai/onnx/operators/onnx__GatherND.html#gathernd-12 "Online Documentation")
 
 
@@ -486,13 +535,24 @@ class Opset12(Opset11):
         op = Op(self, "GatherND", schema)
         return op(*self._prepare_inputs(schema, data, indices), batch_dims=batch_dims)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_GreaterOrEqual = TypeVar(
+        "T_GreaterOrEqual",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_GreaterOrEqual: TypeAlias = BOOL
 
-    def GreaterOrEqual(self, A: T, B: T) -> T1:
+    def GreaterOrEqual(self, A: T_GreaterOrEqual, B: T_GreaterOrEqual) -> T1_GreaterOrEqual:
         r"""[🌐 GreaterOrEqual(12)](https://onnx.ai/onnx/operators/onnx__GreaterOrEqual.html#greaterorequal-12 "Online Documentation")
 
 
@@ -512,13 +572,24 @@ class Opset12(Opset11):
         op = Op(self, "GreaterOrEqual", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_LessOrEqual = TypeVar(
+        "T_LessOrEqual",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_LessOrEqual: TypeAlias = BOOL
 
-    def LessOrEqual(self, A: T, B: T) -> T1:
+    def LessOrEqual(self, A: T_LessOrEqual, B: T_LessOrEqual) -> T1_LessOrEqual:
         r"""[🌐 LessOrEqual(12)](https://onnx.ai/onnx/operators/onnx__LessOrEqual.html#lessorequal-12 "Online Documentation")
 
 
@@ -538,11 +609,22 @@ class Opset12(Opset11):
         op = Op(self, "LessOrEqual", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_Max = TypeVar(
+        "T_Max",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def Max(self, *data_0: T) -> T:
+    def Max(self, *data_0: T_Max) -> T_Max:
         r"""[🌐 Max(12)](https://onnx.ai/onnx/operators/onnx__Max.html#max-12 "Online Documentation")
 
 
@@ -559,21 +641,22 @@ class Opset12(Opset11):
         op = Op(self, "Max", schema)
         return op(*self._prepare_inputs(schema, *data_0))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT8, UINT8)
+    T_MaxPool = TypeVar("T_MaxPool", DOUBLE, FLOAT, FLOAT16, INT8, UINT8)
 
-    I = TypeVar("I", bound=INT64)
+    I_MaxPool: TypeAlias = INT64
 
     def MaxPool(
         self,
-        X: T,
+        X: T_MaxPool,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
         strides: Optional[Sequence[int]] = None,
-    ) -> Tuple[T, I]:
+    ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(12)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-12 "Online Documentation")
 
 
@@ -661,11 +744,22 @@ class Opset12(Opset11):
             strides=strides,
         )
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_Min = TypeVar(
+        "T_Min",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def Min(self, *data_0: T) -> T:
+    def Min(self, *data_0: T_Min) -> T_Min:
         r"""[🌐 Min(12)](https://onnx.ai/onnx/operators/onnx__Min.html#min-12 "Online Documentation")
 
 
@@ -682,18 +776,21 @@ class Opset12(Opset11):
         op = Op(self, "Min", schema)
         return op(*self._prepare_inputs(schema, *data_0))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_NegativeLogLikelihoodLoss = TypeVar(
+        "T_NegativeLogLikelihoodLoss", DOUBLE, FLOAT, FLOAT16
+    )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_NegativeLogLikelihoodLoss = TypeVar("Tind_NegativeLogLikelihoodLoss", INT32, INT64)
 
     def NegativeLogLikelihoodLoss(
         self,
-        input: T,
-        target: Tind,
-        weight: Optional[T] = None,
+        input: T_NegativeLogLikelihoodLoss,
+        target: Tind_NegativeLogLikelihoodLoss,
+        weight: Optional[T_NegativeLogLikelihoodLoss] = None,
+        *,
         ignore_index: Optional[int] = None,
         reduction: str = "mean",
-    ) -> T:
+    ) -> T_NegativeLogLikelihoodLoss:
         r"""[🌐 NegativeLogLikelihoodLoss(12)](https://onnx.ai/onnx/operators/onnx__NegativeLogLikelihoodLoss.html#negativeloglikelihoodloss-12 "Online Documentation")
 
 
@@ -793,13 +890,24 @@ class Opset12(Opset11):
             reduction=reduction,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64)
+    T_Pow = TypeVar("T_Pow", DOUBLE, FLOAT, FLOAT16, INT32, INT64)
 
-    T1 = TypeVar(
-        "T1", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T1_Pow = TypeVar(
+        "T1_Pow",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def Pow(self, X: T, Y: T1) -> T:
+    def Pow(self, X: T_Pow, Y: T1_Pow) -> T_Pow:
         r"""[🌐 Pow(12)](https://onnx.ai/onnx/operators/onnx__Pow.html#pow-12 "Online Documentation")
 
 
@@ -818,9 +926,13 @@ class Opset12(Opset11):
         op = Op(self, "Pow", schema)
         return op(*self._prepare_inputs(schema, X, Y))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, INT8, UINT32, UINT64, UINT8)
+    T_ReduceMax = TypeVar(
+        "T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, INT8, UINT32, UINT64, UINT8
+    )
 
-    def ReduceMax(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMax(
+        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(12)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-12 "Online Documentation")
 
 
@@ -846,9 +958,13 @@ class Opset12(Opset11):
         op = Op(self, "ReduceMax", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, INT8, UINT32, UINT64, UINT8)
+    T_ReduceMin = TypeVar(
+        "T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, INT8, UINT32, UINT64, UINT8
+    )
 
-    def ReduceMin(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMin(
+        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(12)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-12 "Online Documentation")
 
 
@@ -874,18 +990,19 @@ class Opset12(Opset11):
         op = Op(self, "ReduceMin", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_SoftmaxCrossEntropyLoss = TypeVar("T_SoftmaxCrossEntropyLoss", DOUBLE, FLOAT, FLOAT16)
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_SoftmaxCrossEntropyLoss = TypeVar("Tind_SoftmaxCrossEntropyLoss", INT32, INT64)
 
     def SoftmaxCrossEntropyLoss(
         self,
-        scores: T,
-        labels: Tind,
-        weights: Optional[T] = None,
+        scores: T_SoftmaxCrossEntropyLoss,
+        labels: Tind_SoftmaxCrossEntropyLoss,
+        weights: Optional[T_SoftmaxCrossEntropyLoss] = None,
+        *,
         ignore_index: Optional[int] = None,
         reduction: str = "mean",
-    ) -> Tuple[T, T]:
+    ) -> Tuple[T_SoftmaxCrossEntropyLoss, T_SoftmaxCrossEntropyLoss]:
         r"""[🌐 SoftmaxCrossEntropyLoss(12)](https://onnx.ai/onnx/operators/onnx__SoftmaxCrossEntropyLoss.html#softmaxcrossentropyloss-12 "Online Documentation")
 
         Loss function that measures the softmax cross entropy

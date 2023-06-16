@@ -6,16 +6,18 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, Tuple, TypeVar
+from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 from onnx import GraphProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset16 import Opset16
 from onnxscript.onnx_types import (
@@ -43,10 +45,9 @@ class Opset17(Opset16):
     def __new__(cls):
         return Opset.__new__(cls, "", 17)
 
-    T1 = TypeVar("T1", INT32, INT64)
+    T1_BlackmanWindow = TypeVar("T1_BlackmanWindow", INT32, INT64)
 
-    T2 = TypeVar(
-        "T2",
+    T2_BlackmanWindow: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -59,9 +60,11 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def BlackmanWindow(self, size: T1, output_datatype: int = 1, periodic: int = 1) -> T2:
+    def BlackmanWindow(
+        self, size: T1_BlackmanWindow, *, output_datatype: int = 1, periodic: int = 1
+    ) -> T2_BlackmanWindow:
         r"""[🌐 BlackmanWindow(17)](https://onnx.ai/onnx/operators/onnx__BlackmanWindow.html#blackmanwindow-17 "Online Documentation")
 
 
@@ -90,18 +93,19 @@ class Opset17(Opset16):
             periodic=periodic,
         )
 
-    T1 = TypeVar("T1", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T1_DFT = TypeVar("T1_DFT", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    T2 = TypeVar("T2", INT32, INT64)
+    T2_DFT = TypeVar("T2_DFT", INT32, INT64)
 
     def DFT(
         self,
-        input: T1,
-        dft_length: Optional[T2] = None,
+        input: T1_DFT,
+        dft_length: Optional[T2_DFT] = None,
+        *,
         axis: int = 1,
         inverse: int = 0,
         onesided: int = 0,
-    ) -> T1:
+    ) -> T1_DFT:
         r"""[🌐 DFT(17)](https://onnx.ai/onnx/operators/onnx__DFT.html#dft-17 "Online Documentation")
 
         Computes the discrete Fourier transform of input.
@@ -145,10 +149,9 @@ class Opset17(Opset16):
             onesided=onesided,
         )
 
-    T1 = TypeVar("T1", INT32, INT64)
+    T1_HammingWindow = TypeVar("T1_HammingWindow", INT32, INT64)
 
-    T2 = TypeVar(
-        "T2",
+    T2_HammingWindow: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -161,9 +164,11 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def HammingWindow(self, size: T1, output_datatype: int = 1, periodic: int = 1) -> T2:
+    def HammingWindow(
+        self, size: T1_HammingWindow, *, output_datatype: int = 1, periodic: int = 1
+    ) -> T2_HammingWindow:
         r"""[🌐 HammingWindow(17)](https://onnx.ai/onnx/operators/onnx__HammingWindow.html#hammingwindow-17 "Online Documentation")
 
 
@@ -192,10 +197,9 @@ class Opset17(Opset16):
             periodic=periodic,
         )
 
-    T1 = TypeVar("T1", INT32, INT64)
+    T1_HannWindow = TypeVar("T1_HannWindow", INT32, INT64)
 
-    T2 = TypeVar(
-        "T2",
+    T2_HannWindow: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -208,9 +212,11 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def HannWindow(self, size: T1, output_datatype: int = 1, periodic: int = 1) -> T2:
+    def HannWindow(
+        self, size: T1_HannWindow, *, output_datatype: int = 1, periodic: int = 1
+    ) -> T2_HannWindow:
         r"""[🌐 HannWindow(17)](https://onnx.ai/onnx/operators/onnx__HannWindow.html#hannwindow-17 "Online Documentation")
 
 
@@ -239,19 +245,20 @@ class Opset17(Opset16):
             periodic=periodic,
         )
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T_LayerNormalization = TypeVar("T_LayerNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    U = TypeVar("U", BFLOAT16, FLOAT)
+    U_LayerNormalization: TypeAlias = Union[BFLOAT16, FLOAT]
 
     def LayerNormalization(
         self,
-        X: T,
-        Scale: T,
-        B: Optional[T] = None,
+        X: T_LayerNormalization,
+        Scale: T_LayerNormalization,
+        B: Optional[T_LayerNormalization] = None,
+        *,
         axis: int = -1,
         epsilon: float = 9.999999747378752e-06,
         stash_type: int = 1,
-    ) -> Tuple[T, U, U]:
+    ) -> Tuple[T_LayerNormalization, U_LayerNormalization, U_LayerNormalization]:
         r"""[🌐 LayerNormalization(17)](https://onnx.ai/onnx/operators/onnx__LayerNormalization.html#layernormalization-17 "Online Documentation")
 
 
@@ -322,12 +329,11 @@ class Opset17(Opset16):
             stash_type=stash_type,
         )
 
-    T1 = TypeVar("T1", INT32, INT64)
+    T1_MelWeightMatrix = TypeVar("T1_MelWeightMatrix", INT32, INT64)
 
-    T2 = TypeVar("T2", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T2_MelWeightMatrix = TypeVar("T2_MelWeightMatrix", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    T3 = TypeVar(
-        "T3",
+    T3_MelWeightMatrix: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -340,17 +346,18 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
     def MelWeightMatrix(
         self,
-        num_mel_bins: T1,
-        dft_length: T1,
-        sample_rate: T1,
-        lower_edge_hertz: T2,
-        upper_edge_hertz: T2,
+        num_mel_bins: T1_MelWeightMatrix,
+        dft_length: T1_MelWeightMatrix,
+        sample_rate: T1_MelWeightMatrix,
+        lower_edge_hertz: T2_MelWeightMatrix,
+        upper_edge_hertz: T2_MelWeightMatrix,
+        *,
         output_datatype: int = 1,
-    ) -> T3:
+    ) -> T3_MelWeightMatrix:
         r"""[🌐 MelWeightMatrix(17)](https://onnx.ai/onnx/operators/onnx__MelWeightMatrix.html#melweightmatrix-17 "Online Documentation")
 
 
@@ -403,18 +410,19 @@ class Opset17(Opset16):
             output_datatype=output_datatype,
         )
 
-    T1 = TypeVar("T1", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T1_STFT = TypeVar("T1_STFT", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    T2 = TypeVar("T2", INT32, INT64)
+    T2_STFT = TypeVar("T2_STFT", INT32, INT64)
 
     def STFT(
         self,
-        signal: T1,
-        frame_step: T2,
-        window: Optional[T1] = None,
-        frame_length: Optional[T2] = None,
+        signal: T1_STFT,
+        frame_step: T2_STFT,
+        window: Optional[T1_STFT] = None,
+        frame_length: Optional[T2_STFT] = None,
+        *,
         onesided: int = 1,
-    ) -> T1:
+    ) -> T1_STFT:
         r"""[🌐 STFT(17)](https://onnx.ai/onnx/operators/onnx__STFT.html#stft-17 "Online Documentation")
 
         Computes the Short-time Fourier Transform of the signal.
@@ -455,8 +463,8 @@ class Opset17(Opset16):
             onesided=onesided,
         )
 
-    S = TypeVar(
-        "S",
+    S_SequenceMap = TypeVar(
+        "S_SequenceMap",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -474,8 +482,8 @@ class Opset17(Opset16):
         Sequence[UINT8],
     )
 
-    V = TypeVar(
-        "V",
+    V_SequenceMap = TypeVar(
+        "V_SequenceMap",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -509,8 +517,11 @@ class Opset17(Opset16):
     )
 
     def SequenceMap(
-        self, input_sequence: S, *additional_inputs: V, body: Optional[GraphProto] = None
-    ) -> S:
+        self,
+        input_sequence: S_SequenceMap,
+        *additional_inputs: V_SequenceMap,
+        body: GraphProto,
+    ) -> S_SequenceMap:
         r"""[🌐 SequenceMap(17)](https://onnx.ai/onnx/operators/onnx__SequenceMap.html#sequencemap-17 "Online Documentation")
 
 
