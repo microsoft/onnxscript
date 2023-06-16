@@ -141,9 +141,6 @@ ignore = [
 ]
 line-length = 120
 ignore-init-module-imports = true
-unfixable = [
-    "F401", # Unused imports
-]
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["TID252"] # Allow relative imports in init files
