@@ -77,6 +77,12 @@ def pytype_to_attrtype(
     return None
 
 
+def is_boolean_attribute(pytype: TypeAnnotationValue) -> bool:
+    """Returns True if pytype represents a boolean attribute, False otherwise."""
+    pytype = _remove_annotation(pytype)
+    return pytype is bool
+
+
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
     if isinstance(typeinfo, TensorType):
         return True
