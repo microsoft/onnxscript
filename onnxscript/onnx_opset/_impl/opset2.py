@@ -6,6 +6,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
@@ -41,9 +42,9 @@ class Opset2(Opset1):
     def __new__(cls):
         return Opset.__new__(cls, "", 2)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_GlobalLpPool = TypeVar("T_GlobalLpPool", DOUBLE, FLOAT, FLOAT16)
 
-    def GlobalLpPool(self, X: T, *, p: int = 2) -> T:
+    def GlobalLpPool(self, X: T_GlobalLpPool, *, p: int = 2) -> T_GlobalLpPool:
         r"""[🌐 GlobalLpPool(2)](https://onnx.ai/onnx/operators/onnx__GlobalLpPool.html#globallppool-2 "Online Documentation")
 
 
@@ -65,18 +66,18 @@ class Opset2(Opset1):
         op = Op(self, "GlobalLpPool", schema)
         return op(*self._prepare_inputs(schema, X), p=p)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_LpPool = TypeVar("T_LpPool", DOUBLE, FLOAT, FLOAT16)
 
     def LpPool(
         self,
-        X: T,
+        X: T_LpPool,
         *,
         auto_pad: str = "NOTSET",
         kernel_shape: Sequence[int],
         p: int = 2,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_LpPool:
         r"""[🌐 LpPool(2)](https://onnx.ai/onnx/operators/onnx__LpPool.html#lppool-2 "Online Documentation")
 
 
@@ -128,11 +129,11 @@ class Opset2(Opset1):
             strides=strides,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Pad = TypeVar("T_Pad", DOUBLE, FLOAT, FLOAT16)
 
     def Pad(
-        self, data: T, *, mode: str = "constant", pads: Sequence[int], value: float = 0.0
-    ) -> T:
+        self, data: T_Pad, *, mode: str = "constant", pads: Sequence[int], value: float = 0.0
+    ) -> T_Pad:
         r"""[🌐 Pad(2)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-2 "Online Documentation")
 
 
@@ -174,8 +175,8 @@ class Opset2(Opset1):
         op = Op(self, "Pad", schema)
         return op(*self._prepare_inputs(schema, data), mode=mode, pads=pads, value=value)
 
-    T = TypeVar(
-        "T",
+    T_Split = TypeVar(
+        "T_Split",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -193,7 +194,9 @@ class Opset2(Opset1):
         UINT8,
     )
 
-    def Split(self, input: T, *, axis: int = 0, split: Optional[Sequence[int]] = None) -> T:
+    def Split(
+        self, input: T_Split, *, axis: int = 0, split: Optional[Sequence[int]] = None
+    ) -> T_Split:
         r"""[🌐 Split(2)](https://onnx.ai/onnx/operators/onnx__Split.html#split-2 "Online Documentation")
 
         Split a tensor into a list of tensors, along the specified

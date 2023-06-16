@@ -6,6 +6,7 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
@@ -41,8 +42,8 @@ class Opset4(Opset3):
     def __new__(cls):
         return Opset.__new__(cls, "", 4)
 
-    T = TypeVar(
-        "T",
+    T_Concat = TypeVar(
+        "T_Concat",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -60,7 +61,7 @@ class Opset4(Opset3):
         UINT8,
     )
 
-    def Concat(self, *inputs: T, axis: int) -> T:
+    def Concat(self, *inputs: T_Concat, axis: int) -> T_Concat:
         r"""[🌐 Concat(4)](https://onnx.ai/onnx/operators/onnx__Concat.html#concat-4 "Online Documentation")
 
         Concatenate a list of tensors into a single tensor
