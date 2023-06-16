@@ -70,7 +70,7 @@ def torch_op(
     trace_only: bool = False,
     private: bool = False,
     complex: bool = False,
-) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
+) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
     Args:
