@@ -5,16 +5,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
+from __future__ import annotations
+
 from typing import Optional as _Optional
-from typing import Sequence, Tuple, TypeVar
+from typing import Sequence, Tuple, TypeVar, Union
 
 from onnx import TypeProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset14 import Opset14
 from onnxscript.onnx_types import (
@@ -42,26 +46,24 @@ class Opset15(Opset14):
     def __new__(cls):
         return Opset.__new__(cls, "", 15)
 
-    def __init__(self):
-        super().__init__()
+    T_BatchNormalization = TypeVar("T_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T1_BatchNormalization = TypeVar("T1_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
-    T1 = TypeVar("T1", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
-
-    T2 = TypeVar("T2", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+    T2_BatchNormalization = TypeVar("T2_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def BatchNormalization(
         self,
-        X: T,
-        scale: T1,
-        B: T1,
-        input_mean: T2,
-        input_var: T2,
+        X: T_BatchNormalization,
+        scale: T1_BatchNormalization,
+        B: T1_BatchNormalization,
+        input_mean: T2_BatchNormalization,
+        input_var: T2_BatchNormalization,
+        *,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
         training_mode: int = 0,
-    ) -> Tuple[T, T2, T2]:
+    ) -> Tuple[T_BatchNormalization, T2_BatchNormalization, T2_BatchNormalization]:
         r"""[🌐 BatchNormalization(15)](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html#batchnormalization-15 "Online Documentation")
 
 
@@ -148,10 +150,9 @@ class Opset15(Opset14):
             training_mode=training_mode,
         )
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, FLOAT16)
+    T1_Bernoulli = TypeVar("T1_Bernoulli", DOUBLE, FLOAT, FLOAT16)
 
-    T2 = TypeVar(
-        "T2",
+    T2_Bernoulli: TypeAlias = Union[
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -165,11 +166,15 @@ class Opset15(Opset14):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
     def Bernoulli(
-        self, input: T1, dtype: _Optional[int] = None, seed: _Optional[float] = None
-    ) -> T2:
+        self,
+        input: T1_Bernoulli,
+        *,
+        dtype: _Optional[int] = None,
+        seed: _Optional[float] = None,
+    ) -> T2_Bernoulli:
         r"""[🌐 Bernoulli(15)](https://onnx.ai/onnx/operators/onnx__Bernoulli.html#bernoulli-15 "Online Documentation")
 
 
@@ -195,8 +200,8 @@ class Opset15(Opset14):
         op = Op(self, "Bernoulli", schema)
         return op(*self._prepare_inputs(schema, input), dtype=dtype, seed=seed)
 
-    T1 = TypeVar(
-        "T1",
+    T1_CastLike = TypeVar(
+        "T1_CastLike",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -213,8 +218,8 @@ class Opset15(Opset14):
         UINT8,
     )
 
-    T2 = TypeVar(
-        "T2",
+    T2_CastLike = TypeVar(
+        "T2_CastLike",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -231,7 +236,7 @@ class Opset15(Opset14):
         UINT8,
     )
 
-    def CastLike(self, input: T1, target_type: T2) -> T2:
+    def CastLike(self, input: T1_CastLike, target_type: T2_CastLike) -> T2_CastLike:
         r"""[🌐 CastLike(15)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-15 "Online Documentation")
 
 
@@ -251,8 +256,8 @@ class Opset15(Opset14):
         op = Op(self, "CastLike", schema)
         return op(*self._prepare_inputs(schema, input, target_type))
 
-    V = TypeVar(
-        "V",
+    V_Optional = TypeVar(
+        "V_Optional",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -285,8 +290,7 @@ class Opset15(Opset14):
         UINT8,
     )
 
-    O = TypeVar(
-        "O",
+    O_Optional: TypeAlias = Union[
         _Optional[Sequence[BOOL]],
         _Optional[Sequence[COMPLEX128]],
         _Optional[Sequence[COMPLEX64]],
@@ -317,9 +321,11 @@ class Opset15(Opset14):
         _Optional[UINT32],
         _Optional[UINT64],
         _Optional[UINT8],
-    )
+    ]
 
-    def Optional(self, input: _Optional[V] = None, type: _Optional[TypeProto] = None) -> O:
+    def Optional(
+        self, input: _Optional[V_Optional] = None, *, type: _Optional[TypeProto] = None
+    ) -> O_Optional:
         r"""[🌐 Optional(15)](https://onnx.ai/onnx/operators/onnx__Optional.html#optional-15 "Online Documentation")
 
 
@@ -337,8 +343,8 @@ class Opset15(Opset14):
         op = Op(self, "Optional", schema)
         return op(*self._prepare_inputs(schema, input), type=type)
 
-    O = TypeVar(
-        "O",
+    O_OptionalGetElement = TypeVar(
+        "O_OptionalGetElement",
         _Optional[Sequence[BOOL]],
         _Optional[Sequence[COMPLEX128]],
         _Optional[Sequence[COMPLEX64]],
@@ -371,8 +377,7 @@ class Opset15(Opset14):
         _Optional[UINT8],
     )
 
-    V = TypeVar(
-        "V",
+    V_OptionalGetElement: TypeAlias = Union[
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -403,9 +408,9 @@ class Opset15(Opset14):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def OptionalGetElement(self, input: O) -> V:
+    def OptionalGetElement(self, input: O_OptionalGetElement) -> V_OptionalGetElement:
         r"""[🌐 OptionalGetElement(15)](https://onnx.ai/onnx/operators/onnx__OptionalGetElement.html#optionalgetelement-15 "Online Documentation")
 
 
@@ -421,8 +426,8 @@ class Opset15(Opset14):
         op = Op(self, "OptionalGetElement", schema)
         return op(*self._prepare_inputs(schema, input))
 
-    O = TypeVar(
-        "O",
+    O_OptionalHasElement = TypeVar(
+        "O_OptionalHasElement",
         _Optional[Sequence[BOOL]],
         _Optional[Sequence[COMPLEX128]],
         _Optional[Sequence[COMPLEX64]],
@@ -455,9 +460,9 @@ class Opset15(Opset14):
         _Optional[UINT8],
     )
 
-    B = TypeVar("B", bound=BOOL)
+    B_OptionalHasElement: TypeAlias = BOOL
 
-    def OptionalHasElement(self, input: O) -> B:
+    def OptionalHasElement(self, input: O_OptionalHasElement) -> B_OptionalHasElement:
         r"""[🌐 OptionalHasElement(15)](https://onnx.ai/onnx/operators/onnx__OptionalHasElement.html#optionalhaselement-15 "Online Documentation")
 
 
@@ -472,10 +477,10 @@ class Opset15(Opset14):
         op = Op(self, "OptionalHasElement", schema)
         return op(*self._prepare_inputs(schema, input))
 
-    T = TypeVar("T", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64)
+    T_Pow = TypeVar("T_Pow", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64)
 
-    T1 = TypeVar(
-        "T1",
+    T1_Pow = TypeVar(
+        "T1_Pow",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -490,7 +495,7 @@ class Opset15(Opset14):
         UINT8,
     )
 
-    def Pow(self, X: T, Y: T1) -> T:
+    def Pow(self, X: T_Pow, Y: T1_Pow) -> T_Pow:
         r"""[🌐 Pow(15)](https://onnx.ai/onnx/operators/onnx__Pow.html#pow-15 "Online Documentation")
 
 
@@ -509,8 +514,8 @@ class Opset15(Opset14):
         op = Op(self, "Pow", schema)
         return op(*self._prepare_inputs(schema, X, Y))
 
-    T = TypeVar(
-        "T",
+    T_Shape = TypeVar(
+        "T_Shape",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -529,9 +534,9 @@ class Opset15(Opset14):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=INT64)
+    T1_Shape: TypeAlias = INT64
 
-    def Shape(self, data: T, end: _Optional[int] = None, start: int = 0) -> T1:
+    def Shape(self, data: T_Shape, *, end: _Optional[int] = None, start: int = 0) -> T1_Shape:
         r"""[🌐 Shape(15)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-15 "Online Documentation")
 
 

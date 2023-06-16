@@ -20,6 +20,7 @@ from typing import Optional, Sequence, Tuple
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
+    IntType,
     TFloat,
     TFloatOrBFloat16,
     TFloatOrUInt8,
@@ -318,7 +319,7 @@ def aten_conv_depthwise3d(
 @torch_op("aten::cross_entropy_loss")
 def aten_cross_entropy_loss(
     self: TFloatOrBFloat16,
-    target: Sequence[int],
+    target: IntType,
     weight: Optional[TFloatOrBFloat16] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
@@ -669,7 +670,7 @@ def aten_max_pool1d_with_indices(
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> tuple[TFloatOrUInt8, INT64]:
+) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.

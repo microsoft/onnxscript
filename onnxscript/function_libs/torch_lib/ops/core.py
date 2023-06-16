@@ -666,8 +666,8 @@ def aten_atanh(self: TFloat) -> TFloat:
     return op.Atanh(self)
 
 
-@torch_op("aten::atleast_1d")
-def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
+@torch_op("aten::atleast_1d", private=True)
+def _aten_atleast_1d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
     @graph()
@@ -682,6 +682,11 @@ def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
 
 
 @torch_op("aten::atleast_1d")
+def aten_atleast_1d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_1d_onnx(self)
+
+
+@torch_op("aten::atleast_1d")
 def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
@@ -692,8 +697,8 @@ def aten_atleast_1d_single_tensor(self: TTensor) -> TTensor:
     return self
 
 
-@torch_op("aten::atleast_2d")
-def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
+@torch_op("aten::atleast_2d", private=True)
+def _aten_atleast_2d_onnx(self: Sequence[TTensor]) -> TTensor:
     """atleast_2d(Tensor self) -> Tensor"""
 
     @graph()
@@ -705,6 +710,11 @@ def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
         return tensor
 
     return op.SequenceMap(self, body=reshape_to_2d)
+
+
+@torch_op("aten::atleast_2d")
+def aten_atleast_2d(self: Sequence[TTensor]) -> TTensor:
+    return _aten_atleast_2d_onnx(self)
 
 
 @torch_op("aten::atleast_2d")
@@ -2610,8 +2620,8 @@ def aten_fused_moving_avg_obs_fake_quant(
 @torch_op("aten::gather")
 def aten_gather(
     self: TReal,
-    index: TInt,
     dim: int,
+    index: TInt,
     sparse_grad: bool = False,  # pylint: disable=unused-argument
 ) -> TReal:
     """gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor"""
@@ -2875,10 +2885,20 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_hstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::hstack", trace_only=True)
+def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    # Use another onnx function
+    tensors = _aten_atleast_1d_onnx(tensors)
+
+    # NOTE: The if/else graph has different shape/type which breaks the
+    #       graph matching. We need to use trace_only.
+    if len(tensors[0].shape) == 1:
+        result = op.ConcatFromSequence(tensors, axis=0, new_axis=0)
+    else:
+        result = op.ConcatFromSequence(tensors, axis=1, new_axis=0)
+    return result
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -3022,16 +3042,8 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-# FIXME(#277): Script when attributes can come before inputs
-@torch_op("aten::index_select", trace_only=True)
+@torch_op("aten::index_select")
 def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
-    """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
-
-    return _aten_index_select_onnx(self, index, dim=dim)
-
-
-@torch_op("aten::index_select", private=True)
-def _aten_index_select_onnx(self: TTensor, index: IntType, dim: int) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
     self_is_scalar = op.Size(op.Shape(self)) == 0
@@ -4421,8 +4433,8 @@ def _aten_native_batch_norm_inference_onnx(
         training_mode=training,
     )
     # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.Cast(op.Shape(input, 0, 0), to=FLOAT.dtype)
-    empty_var = op.Cast(op.Shape(input, 0, 0), to=FLOAT.dtype)
+    empty_mean = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
+    empty_var = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
     return norm, empty_mean, empty_var
 
 
@@ -4651,7 +4663,7 @@ def aten_new_empty_dtype(
 
     # using zero to simulate empty array
     result = op.ConstantOfShape(size)
-    return op.Cast(result, dtype)
+    return op.Cast(result, to=dtype)
 
 
 @torch_op("aten::new_empty_strided")
@@ -5498,7 +5510,7 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
-@torch_op("aten::scatter_add", trace_only=True)
+@torch_op("aten::scatter_add")
 def aten_scatter_add(
     self: TReal,
     dim: int,  # we have to use int here because ScatterElements() will use this attribute
@@ -6596,10 +6608,12 @@ def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_vstack(tensors: Sequence[TensorType]) -> TensorType:
+@torch_op("aten::vstack")
+def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    raise NotImplementedError()
+    tensors = _aten_atleast_2d_onnx(tensors)
+    return op.ConcatFromSequence(tensors, axis=0)
 
 
 @torch_op("aten::where")

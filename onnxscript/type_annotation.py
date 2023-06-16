@@ -140,7 +140,13 @@ def is_valid_type(typeinfo: TypeAnnotationValue):
 
 def is_optional(pytype) -> bool:
     """Returns whether a pytype is an Optional."""
-    return typing.get_origin(pytype) is typing.Union and type(None) in typing.get_args(pytype)
+    if typing.get_origin(pytype) is Union and type(None) in typing.get_args(pytype):
+        # Python < 3.10
+        return True
+    if typing.get_origin(pytype) is Optional:
+        # Python >= 3.10
+        return True
+    return False
 
 
 def get_return_types(typeinfo: type | Sequence[type]) -> Sequence[type]:
@@ -179,7 +185,9 @@ def pytype_to_type_strings(pytype: TypeAnnotationValue) -> list[str]:
     if isinstance(pytype, typing.TypeVar):
         constraints = pytype.__constraints__
         if constraints:
-            return pytype_to_type_strings(Union.__getitem__(constraints))
+            return pytype_to_type_strings(
+                Union.__getitem__(constraints)
+            )  # pylint: disable=unnecessary-dunder-call
         bound = pytype.__bound__
         if bound is None:
             return list(ALL_TENSOR_TYPE_STRINGS)

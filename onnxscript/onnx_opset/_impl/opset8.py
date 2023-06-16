@@ -5,15 +5,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
+
+from __future__ import annotations
 
 from typing import Optional, Sequence, Tuple, TypeVar
 
 from onnx import GraphProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset7 import Opset7
 from onnxscript.onnx_types import (
@@ -40,11 +44,8 @@ class Opset8(Opset7):
     def __new__(cls):
         return Opset.__new__(cls, "", 8)
 
-    def __init__(self):
-        super().__init__()
-
-    T = TypeVar(
-        "T",
+    T_Expand = TypeVar(
+        "T_Expand",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -62,7 +63,7 @@ class Opset8(Opset7):
         UINT8,
     )
 
-    def Expand(self, input: T, shape: INT64) -> T:
+    def Expand(self, input: T_Expand, shape: INT64) -> T_Expand:
         r"""[🌐 Expand(8)](https://onnx.ai/onnx/operators/onnx__Expand.html#expand-8 "Online Documentation")
 
 
@@ -87,9 +88,9 @@ class Opset8(Opset7):
         op = Op(self, "Expand", schema)
         return op(*self._prepare_inputs(schema, input, shape))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Max = TypeVar("T_Max", DOUBLE, FLOAT, FLOAT16)
 
-    def Max(self, *data_0: T) -> T:
+    def Max(self, *data_0: T_Max) -> T_Max:
         r"""[🌐 Max(8)](https://onnx.ai/onnx/operators/onnx__Max.html#max-8 "Online Documentation")
 
 
@@ -106,19 +107,20 @@ class Opset8(Opset7):
         op = Op(self, "Max", schema)
         return op(*self._prepare_inputs(schema, *data_0))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_MaxPool = TypeVar("T_MaxPool", DOUBLE, FLOAT, FLOAT16)
 
-    I = TypeVar("I", bound=INT64)
+    I_MaxPool: TypeAlias = INT64
 
     def MaxPool(
         self,
-        X: T,
+        X: T_MaxPool,
+        *,
         auto_pad: str = "NOTSET",
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
         strides: Optional[Sequence[int]] = None,
-    ) -> Tuple[T, I]:
+    ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(8)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-8 "Online Documentation")
 
 
@@ -191,9 +193,9 @@ class Opset8(Opset7):
             strides=strides,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Mean = TypeVar("T_Mean", DOUBLE, FLOAT, FLOAT16)
 
-    def Mean(self, *data_0: T) -> T:
+    def Mean(self, *data_0: T_Mean) -> T_Mean:
         r"""[🌐 Mean(8)](https://onnx.ai/onnx/operators/onnx__Mean.html#mean-8 "Online Documentation")
 
 
@@ -210,9 +212,9 @@ class Opset8(Opset7):
         op = Op(self, "Mean", schema)
         return op(*self._prepare_inputs(schema, *data_0))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Min = TypeVar("T_Min", DOUBLE, FLOAT, FLOAT16)
 
-    def Min(self, *data_0: T) -> T:
+    def Min(self, *data_0: T_Min) -> T_Min:
         r"""[🌐 Min(8)](https://onnx.ai/onnx/operators/onnx__Min.html#min-8 "Online Documentation")
 
 
@@ -229,10 +231,10 @@ class Opset8(Opset7):
         op = Op(self, "Min", schema)
         return op(*self._prepare_inputs(schema, *data_0))
 
-    I = TypeVar("I", bound=INT64)
+    I_Scan: TypeAlias = INT64
 
-    V = TypeVar(
-        "V",
+    V_Scan = TypeVar(
+        "V_Scan",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -252,12 +254,12 @@ class Opset8(Opset7):
 
     def Scan(
         self,
-        sequence_lens: Optional[I],
-        *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
+        sequence_lens: Optional[I_Scan],
+        *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
         directions: Optional[Sequence[int]] = None,
-        num_scan_inputs: Optional[int] = None,
-    ) -> V:
+        num_scan_inputs: int,
+    ) -> V_Scan:
         r"""[🌐 Scan(8)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-8 "Online Documentation")
 
 
@@ -422,9 +424,9 @@ class Opset8(Opset7):
             num_scan_inputs=num_scan_inputs,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Sum = TypeVar("T_Sum", DOUBLE, FLOAT, FLOAT16)
 
-    def Sum(self, *data_0: T) -> T:
+    def Sum(self, *data_0: T_Sum) -> T_Sum:
         r"""[🌐 Sum(8)](https://onnx.ai/onnx/operators/onnx__Sum.html#sum-8 "Online Documentation")
 
 
