@@ -5,12 +5,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
-from typing import Callable, Union
+from __future__ import annotations
+
+from typing import TypeVar
 
 from onnx.defs import get_schema
 
@@ -39,30 +42,8 @@ class Opset5(Opset4):
     def __new__(cls):
         return Opset.__new__(cls, "", 5)
 
-    def __init__(self):
-        super().__init__()
-
-    def Reshape(
-        self,
-        data: Union[
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        shape: INT64,
-    ) -> Union[
+    T_Reshape = TypeVar(
+        "T_Reshape",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -78,7 +59,9 @@ class Opset5(Opset4):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Reshape(self, data: T_Reshape, shape: INT64) -> T_Reshape:
         r"""[🌐 Reshape(5)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-5 "Online Documentation")
 
 
@@ -97,24 +80,5 @@ class Opset5(Opset4):
         """
 
         schema = get_schema("Reshape", 5, "")
-        op: Callable[
-            ...,
-            Union[
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Reshape", schema)
+        op = Op(self, "Reshape", schema)
         return op(*self._prepare_inputs(schema, data, shape))

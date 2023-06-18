@@ -5,14 +5,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Tuple, Union
+from __future__ import annotations
+
+from typing import Optional, Sequence, Tuple, TypeVar
 
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset13 import Opset13
 from onnxscript.onnx_types import (
@@ -40,40 +44,8 @@ class Opset14(Opset13):
     def __new__(cls):
         return Opset.__new__(cls, "", 14)
 
-    def __init__(self):
-        super().__init__()
-
-    def Add(
-        self,
-        A: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        B: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-    ) -> Union[
+    T_Add = TypeVar(
+        "T_Add",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -86,7 +58,9 @@ class Opset14(Opset13):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Add(self, A: T_Add, B: T_Add) -> T_Add:
         r"""[🌐 Add(14)](https://onnx.ai/onnx/operators/onnx__Add.html#add-14 "Online Documentation")
 
 
@@ -104,40 +78,25 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Add", 14, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Add", schema)
+        op = Op(self, "Add", schema)
         return op(*self._prepare_inputs(schema, A, B))
+
+    T_BatchNormalization = TypeVar("T_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    U_BatchNormalization = TypeVar("U_BatchNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
 
     def BatchNormalization(
         self,
-        X: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        scale: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        B: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        input_mean: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        input_var: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
+        X: T_BatchNormalization,
+        scale: T_BatchNormalization,
+        B: T_BatchNormalization,
+        input_mean: U_BatchNormalization,
+        input_var: U_BatchNormalization,
+        *,
         epsilon: float = 9.999999747378752e-06,
         momentum: float = 0.8999999761581421,
         training_mode: int = 0,
-    ) -> Tuple[
-        Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-    ]:
+    ) -> Tuple[T_BatchNormalization, U_BatchNormalization, U_BatchNormalization]:
         r"""[🌐 BatchNormalization(14)](https://onnx.ai/onnx/operators/onnx__BatchNormalization.html#batchnormalization-14 "Online Documentation")
 
 
@@ -214,14 +173,7 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("BatchNormalization", 14, "")
-        op: Callable[
-            ...,
-            Tuple[
-                Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-                Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-                Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-            ],
-        ] = Op(self, "BatchNormalization", schema)
+        op = Op(self, "BatchNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, scale, B, input_mean, input_var),
             epsilon=epsilon,
@@ -229,13 +181,15 @@ class Opset14(Opset13):
             training_mode=training_mode,
         )
 
+    T_CumSum = TypeVar(
+        "T_CumSum", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
+
+    T2_CumSum = TypeVar("T2_CumSum", INT32, INT64)
+
     def CumSum(
-        self,
-        x: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64],
-        axis: Union[INT32, INT64],
-        exclusive: int = 0,
-        reverse: int = 0,
-    ) -> Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64]:
+        self, x: T_CumSum, axis: T2_CumSum, *, exclusive: int = 0, reverse: int = 0
+    ) -> T_CumSum:
         r"""[🌐 CumSum(14)](https://onnx.ai/onnx/operators/onnx__CumSum.html#cumsum-14 "Online Documentation")
 
 
@@ -277,42 +231,11 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("CumSum", 14, "")
-        op: Callable[
-            ..., Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64]
-        ] = Op(self, "CumSum", schema)
+        op = Op(self, "CumSum", schema)
         return op(*self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse)
 
-    def Div(
-        self,
-        A: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        B: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-    ) -> Union[
+    T_Div = TypeVar(
+        "T_Div",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -325,7 +248,9 @@ class Opset14(Opset13):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Div(self, A: T_Div, B: T_Div) -> T_Div:
         r"""[🌐 Div(14)](https://onnx.ai/onnx/operators/onnx__Div.html#div-14 "Online Documentation")
 
 
@@ -343,33 +268,22 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Div", 14, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Div", schema)
+        op = Op(self, "Div", schema)
         return op(*self._prepare_inputs(schema, A, B))
+
+    T_GRU = TypeVar("T_GRU", DOUBLE, FLOAT, FLOAT16)
+
+    T1_GRU: TypeAlias = INT32
 
     def GRU(
         self,
-        X: Union[DOUBLE, FLOAT, FLOAT16],
-        W: Union[DOUBLE, FLOAT, FLOAT16],
-        R: Union[DOUBLE, FLOAT, FLOAT16],
-        B: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
-        sequence_lens: Optional[INT32] = None,
-        initial_h: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
+        X: T_GRU,
+        W: T_GRU,
+        R: T_GRU,
+        B: Optional[T_GRU] = None,
+        sequence_lens: Optional[T1_GRU] = None,
+        initial_h: Optional[T_GRU] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
@@ -378,7 +292,7 @@ class Opset14(Opset13):
         hidden_size: Optional[int] = None,
         layout: int = 0,
         linear_before_reset: int = 0,
-    ) -> Tuple[Union[DOUBLE, FLOAT, FLOAT16], Union[DOUBLE, FLOAT, FLOAT16]]:
+    ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(14)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-14 "Online Documentation")
 
 
@@ -497,9 +411,7 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("GRU", 14, "")
-        op: Callable[
-            ..., Tuple[Union[DOUBLE, FLOAT, FLOAT16], Union[DOUBLE, FLOAT, FLOAT16]]
-        ] = Op(self, "GRU", schema)
+        op = Op(self, "GRU", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
             activation_alpha=activation_alpha,
@@ -512,7 +424,9 @@ class Opset14(Opset13):
             linear_before_reset=linear_before_reset,
         )
 
-    def HardSwish(self, X: Union[DOUBLE, FLOAT, FLOAT16]) -> Union[DOUBLE, FLOAT, FLOAT16]:
+    T_HardSwish = TypeVar("T_HardSwish", DOUBLE, FLOAT, FLOAT16)
+
+    def HardSwish(self, X: T_HardSwish) -> T_HardSwish:
         r"""[🌐 HardSwish(14)](https://onnx.ai/onnx/operators/onnx__HardSwish.html#hardswish-14 "Online Documentation")
 
 
@@ -526,45 +440,11 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("HardSwish", 14, "")
-        op: Callable[..., Union[DOUBLE, FLOAT, FLOAT16]] = Op(self, "HardSwish", schema)
+        op = Op(self, "HardSwish", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    def Identity(
-        self,
-        input: Union[
-            Sequence[BOOL],
-            Sequence[COMPLEX128],
-            Sequence[COMPLEX64],
-            Sequence[DOUBLE],
-            Sequence[FLOAT],
-            Sequence[FLOAT16],
-            Sequence[INT16],
-            Sequence[INT32],
-            Sequence[INT64],
-            Sequence[INT8],
-            Sequence[STRING],
-            Sequence[UINT16],
-            Sequence[UINT32],
-            Sequence[UINT64],
-            Sequence[UINT8],
-            BFLOAT16,
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-    ) -> Union[
+    V_Identity = TypeVar(
+        "V_Identity",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -596,7 +476,9 @@ class Opset14(Opset13):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Identity(self, input: V_Identity) -> V_Identity:
         r"""[🌐 Identity(14)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-14 "Online Documentation")
 
         Identity operator
@@ -606,54 +488,24 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Identity", 14, "")
-        op: Callable[
-            ...,
-            Union[
-                Sequence[BOOL],
-                Sequence[COMPLEX128],
-                Sequence[COMPLEX64],
-                Sequence[DOUBLE],
-                Sequence[FLOAT],
-                Sequence[FLOAT16],
-                Sequence[INT16],
-                Sequence[INT32],
-                Sequence[INT64],
-                Sequence[INT8],
-                Sequence[STRING],
-                Sequence[UINT16],
-                Sequence[UINT32],
-                Sequence[UINT64],
-                Sequence[UINT8],
-                BFLOAT16,
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Identity", schema)
+        op = Op(self, "Identity", schema)
         return op(*self._prepare_inputs(schema, input))
+
+    T_LSTM = TypeVar("T_LSTM", DOUBLE, FLOAT, FLOAT16)
+
+    T1_LSTM: TypeAlias = INT32
 
     def LSTM(
         self,
-        X: Union[DOUBLE, FLOAT, FLOAT16],
-        W: Union[DOUBLE, FLOAT, FLOAT16],
-        R: Union[DOUBLE, FLOAT, FLOAT16],
-        B: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
-        sequence_lens: Optional[INT32] = None,
-        initial_h: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
-        initial_c: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
-        P: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
+        X: T_LSTM,
+        W: T_LSTM,
+        R: T_LSTM,
+        B: Optional[T_LSTM] = None,
+        sequence_lens: Optional[T1_LSTM] = None,
+        initial_h: Optional[T_LSTM] = None,
+        initial_c: Optional[T_LSTM] = None,
+        P: Optional[T_LSTM] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
@@ -662,11 +514,7 @@ class Opset14(Opset13):
         hidden_size: Optional[int] = None,
         input_forget: int = 0,
         layout: int = 0,
-    ) -> Tuple[
-        Union[DOUBLE, FLOAT, FLOAT16],
-        Union[DOUBLE, FLOAT, FLOAT16],
-        Union[DOUBLE, FLOAT, FLOAT16],
-    ]:
+    ) -> Tuple[T_LSTM, T_LSTM, T_LSTM]:
         r"""[🌐 LSTM(14)](https://onnx.ai/onnx/operators/onnx__LSTM.html#lstm-14 "Online Documentation")
 
 
@@ -797,14 +645,7 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("LSTM", 14, "")
-        op: Callable[
-            ...,
-            Tuple[
-                Union[DOUBLE, FLOAT, FLOAT16],
-                Union[DOUBLE, FLOAT, FLOAT16],
-                Union[DOUBLE, FLOAT, FLOAT16],
-            ],
-        ] = Op(self, "LSTM", schema)
+        op = Op(self, "LSTM", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h, initial_c, P),
             activation_alpha=activation_alpha,
@@ -817,37 +658,8 @@ class Opset14(Opset13):
             layout=layout,
         )
 
-    def Mul(
-        self,
-        A: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        B: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-    ) -> Union[
+    T_Mul = TypeVar(
+        "T_Mul",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -860,7 +672,9 @@ class Opset14(Opset13):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Mul(self, A: T_Mul, B: T_Mul) -> T_Mul:
         r"""[🌐 Mul(14)](https://onnx.ai/onnx/operators/onnx__Mul.html#mul-14 "Online Documentation")
 
 
@@ -878,33 +692,22 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Mul", 14, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Mul", schema)
+        op = Op(self, "Mul", schema)
         return op(*self._prepare_inputs(schema, A, B))
+
+    T_RNN = TypeVar("T_RNN", DOUBLE, FLOAT, FLOAT16)
+
+    T1_RNN: TypeAlias = INT32
 
     def RNN(
         self,
-        X: Union[DOUBLE, FLOAT, FLOAT16],
-        W: Union[DOUBLE, FLOAT, FLOAT16],
-        R: Union[DOUBLE, FLOAT, FLOAT16],
-        B: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
-        sequence_lens: Optional[INT32] = None,
-        initial_h: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
+        X: T_RNN,
+        W: T_RNN,
+        R: T_RNN,
+        B: Optional[T_RNN] = None,
+        sequence_lens: Optional[T1_RNN] = None,
+        initial_h: Optional[T_RNN] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Sequence[str] = ("Tanh", "Tanh"),
@@ -912,7 +715,7 @@ class Opset14(Opset13):
         direction: str = "forward",
         hidden_size: Optional[int] = None,
         layout: int = 0,
-    ) -> Tuple[Union[DOUBLE, FLOAT, FLOAT16], Union[DOUBLE, FLOAT, FLOAT16]]:
+    ) -> Tuple[T_RNN, T_RNN]:
         r"""[🌐 RNN(14)](https://onnx.ai/onnx/operators/onnx__RNN.html#rnn-14 "Online Documentation")
 
 
@@ -1019,9 +822,7 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("RNN", 14, "")
-        op: Callable[
-            ..., Tuple[Union[DOUBLE, FLOAT, FLOAT16], Union[DOUBLE, FLOAT, FLOAT16]]
-        ] = Op(self, "RNN", schema)
+        op = Op(self, "RNN", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
             activation_alpha=activation_alpha,
@@ -1033,9 +834,9 @@ class Opset14(Opset13):
             layout=layout,
         )
 
-    def Relu(
-        self, X: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8]
-    ) -> Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8]:
+    T_Relu = TypeVar("T_Relu", BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8)
+
+    def Relu(self, X: T_Relu) -> T_Relu:
         r"""[🌐 Relu(14)](https://onnx.ai/onnx/operators/onnx__Relu.html#relu-14 "Online Documentation")
 
 
@@ -1049,34 +850,11 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Relu", 14, "")
-        op: Callable[
-            ..., Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8]
-        ] = Op(self, "Relu", schema)
+        op = Op(self, "Relu", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    def Reshape(
-        self,
-        data: Union[
-            BFLOAT16,
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        shape: INT64,
-        allowzero: int = 0,
-    ) -> Union[
+    T_Reshape = TypeVar(
+        "T_Reshape",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1093,7 +871,9 @@ class Opset14(Opset13):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Reshape(self, data: T_Reshape, shape: INT64, *, allowzero: int = 0) -> T_Reshape:
         r"""[🌐 Reshape(14)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-14 "Online Documentation")
 
 
@@ -1125,60 +905,11 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Reshape", 14, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Reshape", schema)
+        op = Op(self, "Reshape", schema)
         return op(*self._prepare_inputs(schema, data, shape), allowzero=allowzero)
 
-    def Sub(
-        self,
-        A: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        B: Union[
-            BFLOAT16,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-    ) -> Union[
+    T_Sub = TypeVar(
+        "T_Sub",
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -1191,7 +922,9 @@ class Opset14(Opset13):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Sub(self, A: T_Sub, B: T_Sub) -> T_Sub:
         r"""[🌐 Sub(14)](https://onnx.ai/onnx/operators/onnx__Sub.html#sub-14 "Online Documentation")
 
 
@@ -1209,48 +942,11 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Sub", 14, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Sub", schema)
+        op = Op(self, "Sub", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    def Trilu(
-        self,
-        input: Union[
-            BFLOAT16,
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        k: Optional[INT64] = None,
-        upper: int = 1,
-    ) -> Union[
+    T_Trilu = TypeVar(
+        "T_Trilu",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1267,7 +963,9 @@ class Opset14(Opset13):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    )
+
+    def Trilu(self, input: T_Trilu, k: Optional[INT64] = None, *, upper: int = 1) -> T_Trilu:
         r"""[🌐 Trilu(14)](https://onnx.ai/onnx/operators/onnx__Trilu.html#trilu-14 "Online Documentation")
 
 
@@ -1297,25 +995,5 @@ class Opset14(Opset13):
         """
 
         schema = get_schema("Trilu", 14, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                BOOL,
-                COMPLEX128,
-                COMPLEX64,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                STRING,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "Trilu", schema)
+        op = Op(self, "Trilu", schema)
         return op(*self._prepare_inputs(schema, input, k), upper=upper)

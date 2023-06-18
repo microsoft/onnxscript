@@ -5,14 +5,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Union
+from __future__ import annotations
+
+from typing import Optional, Sequence, TypeVar, Union
 
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_types import (
     BOOL,
@@ -38,18 +42,21 @@ class Opset_ai_onnx_preview_training1(Opset):
     def __new__(cls):
         return Opset.__new__(cls, "ai.onnx.preview.training", 1)
 
-    def __init__(self):
-        super().__init__()
+    T1_Adagrad = TypeVar("T1_Adagrad", DOUBLE, FLOAT)
+
+    T2_Adagrad: TypeAlias = INT64
+
+    T3_Adagrad = TypeVar("T3_Adagrad", DOUBLE, FLOAT)
 
     def Adagrad(
         self,
-        R: Union[DOUBLE, FLOAT],
-        T: INT64,
-        *inputs: Union[DOUBLE, FLOAT],
+        R: T1_Adagrad,
+        T: T2_Adagrad,
+        *inputs: T3_Adagrad,
         decay_factor: float = 0.0,
         epsilon: float = 9.999999974752427e-07,
         norm_coefficient: float = 0.0,
-    ) -> Union[DOUBLE, FLOAT]:
+    ) -> T3_Adagrad:
         r"""[🌐 ai.onnx.preview.training::Adagrad(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Adagrad.html#adagrad-1 "Online Documentation")
 
 
@@ -129,7 +136,7 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Adagrad", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT]] = Op(self, "Adagrad", schema)
+        op = Op(self, "Adagrad", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
             decay_factor=decay_factor,
@@ -137,17 +144,23 @@ class Opset_ai_onnx_preview_training1(Opset):
             norm_coefficient=norm_coefficient,
         )
 
+    T1_Adam = TypeVar("T1_Adam", DOUBLE, FLOAT)
+
+    T2_Adam: TypeAlias = INT64
+
+    T3_Adam = TypeVar("T3_Adam", DOUBLE, FLOAT)
+
     def Adam(
         self,
-        R: Union[DOUBLE, FLOAT],
-        T: INT64,
-        *inputs: Union[DOUBLE, FLOAT],
+        R: T1_Adam,
+        T: T2_Adam,
+        *inputs: T3_Adam,
         alpha: float = 0.8999999761581421,
         beta: float = 0.9990000128746033,
         epsilon: float = 9.999999974752427e-07,
         norm_coefficient: float = 0.0,
         norm_coefficient_post: float = 0.0,
-    ) -> Union[DOUBLE, FLOAT]:
+    ) -> T3_Adam:
         r"""[🌐 ai.onnx.preview.training::Adam(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Adam.html#adam-1 "Online Documentation")
 
 
@@ -244,7 +257,7 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Adam", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT]] = Op(self, "Adam", schema)
+        op = Op(self, "Adam", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
             alpha=alpha,
@@ -254,29 +267,34 @@ class Opset_ai_onnx_preview_training1(Opset):
             norm_coefficient_post=norm_coefficient_post,
         )
 
+    T1_Gradient = TypeVar(
+        "T1_Gradient",
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    T2_Gradient: TypeAlias = Union[DOUBLE, FLOAT, FLOAT16]
+
     def Gradient(
         self,
-        *Inputs: Union[
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        xs: Optional[Sequence[str]] = None,
-        y: Optional[str] = None,
+        *Inputs: T1_Gradient,
+        xs: Sequence[str],
+        y: str,
         zs: Optional[Sequence[str]] = None,
-    ) -> Union[DOUBLE, FLOAT, FLOAT16]:
+    ) -> T2_Gradient:
         r"""[🌐 ai.onnx.preview.training::Gradient(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Gradient.html#gradient-1 "Online Documentation")
 
 
@@ -441,19 +459,25 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Gradient", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT, FLOAT16]] = Op(self, "Gradient", schema)
+        op = Op(self, "Gradient", schema)
         return op(*self._prepare_inputs(schema, *Inputs), xs=xs, y=y, zs=zs)
+
+    T1_Momentum = TypeVar("T1_Momentum", DOUBLE, FLOAT)
+
+    T2_Momentum: TypeAlias = INT64
+
+    T3_Momentum = TypeVar("T3_Momentum", DOUBLE, FLOAT)
 
     def Momentum(
         self,
-        R: Union[DOUBLE, FLOAT],
-        T: INT64,
-        *inputs: Union[DOUBLE, FLOAT],
-        alpha: Optional[float] = None,
-        beta: Optional[float] = None,
-        mode: Optional[str] = None,
-        norm_coefficient: Optional[float] = None,
-    ) -> Union[DOUBLE, FLOAT]:
+        R: T1_Momentum,
+        T: T2_Momentum,
+        *inputs: T3_Momentum,
+        alpha: float,
+        beta: float,
+        mode: str,
+        norm_coefficient: float,
+    ) -> T3_Momentum:
         r"""[🌐 ai.onnx.preview.training::Momentum(1)](https://onnx.ai/onnx/operators/onnx_aionnxpreviewtraining_Momentum.html#momentum-1 "Online Documentation")
 
 
@@ -543,7 +567,7 @@ class Opset_ai_onnx_preview_training1(Opset):
         """
 
         schema = get_schema("Momentum", 1, "ai.onnx.preview.training")
-        op: Callable[..., Union[DOUBLE, FLOAT]] = Op(self, "Momentum", schema)
+        op = Op(self, "Momentum", schema)
         return op(
             *self._prepare_inputs(schema, R, T, *inputs),
             alpha=alpha,

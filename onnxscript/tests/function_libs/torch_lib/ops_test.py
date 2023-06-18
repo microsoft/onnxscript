@@ -30,7 +30,6 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript._internal import version_utils
 from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
 
 # All dtypes will be tested on the generated symbolic functions.
@@ -139,10 +138,6 @@ class TestFunctionValidity(unittest.TestCase):
     @parameterized.parameterized.expand(
         list(ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.items())
     )
-    @unittest.skipIf(
-        version_utils.onnx_older_than("1.14"),
-        "Function checker is not available before ONNX 1.14",
-    )
     def test_script_function_passes_checker(self, _, func_with_wrangler):
         func, _ = _split_function_and_wrangler(func_with_wrangler)
         function_proto = func.to_function_proto()
@@ -150,10 +145,6 @@ class TestFunctionValidity(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         list(ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.items())
-    )
-    @unittest.skipIf(
-        version_utils.onnx_older_than("1.15"),
-        "OpSchema is not writable before ONNX 1.15",
     )
     def test_script_function_has_op_schema(self, _, func_with_wrangler):
         func, _ = _split_function_and_wrangler(func_with_wrangler)
@@ -163,10 +154,6 @@ class TestFunctionValidity(unittest.TestCase):
 
     @parameterized.parameterized.expand(
         list(ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY.items())
-    )
-    @unittest.skipIf(
-        version_utils.onnx_older_than("1.15"),
-        "OpSchema is not writable before ONNX 1.15",
     )
     def test_trace_only_function_has_op_schema(self, _, func_with_wrangler):
         func, _ = _split_function_and_wrangler(func_with_wrangler)
@@ -307,10 +294,6 @@ def run_test_output_match(
                         raise
 
 
-@unittest.skipIf(
-    version_utils.onnx_older_than("1.14"),
-    "OpSchema not available for functions before ONNX 1.14",
-)
 class TestOutputConsistencyEager(unittest.TestCase):
     """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.
 
@@ -376,10 +359,6 @@ class TestOutputConsistencyEager(unittest.TestCase):
         )
 
 
-@unittest.skipIf(
-    version_utils.onnx_older_than("1.14"),
-    "OpSchema not available for functions before ONNX 1.14",
-)
 class TestOutputConsistencyFullGraph(unittest.TestCase):
     """Test output consistency between exported ONNX op run as a graph and PyTorch eager mode.
 

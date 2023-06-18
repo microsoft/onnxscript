@@ -20,6 +20,7 @@ from typing import Optional, Sequence, Tuple
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
+    IntType,
     TFloat,
     TFloatOrBFloat16,
     TFloatOrUInt8,
@@ -318,7 +319,7 @@ def aten_conv_depthwise3d(
 @torch_op("aten::cross_entropy_loss")
 def aten_cross_entropy_loss(
     self: TFloatOrBFloat16,
-    target: Sequence[int],
+    target: IntType,
     weight: Optional[TFloatOrBFloat16] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
@@ -639,30 +640,59 @@ def aten_logit_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::max_pool1d", trace_only=True)
 def aten_max_pool1d(
-    self: TensorType,
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> TensorType:
+) -> TFloatOrUInt8:
     """max_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> Tensor"""
 
-    raise NotImplementedError()
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a tuple of three ints for all sides explicitly.
+    expand_size = 1
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_onnx(self, kernel_shape, strides, pads, dilations, ceil_mode, 2)
 
 
+@torch_op("aten::max_pool1d_with_indices", trace_only=True)
 def aten_max_pool1d_with_indices(
-    self: TensorType,
+    self: TFloatOrUInt8,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> tuple[TensorType, TensorType]:
+) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
-    raise NotImplementedError()
+    # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
+    # But ONNX needs to specify a tuple of three ints for all sides explicitly.
+    expand_size = 1
+
+    kernel_shape, strides, pads, dilations = _adjust_attributes_of_max_pool(
+        expand_size, kernel_size, stride, padding, dilation
+    )
+
+    return _aten_max_pool_with_indices_onnx(
+        self,
+        kernel_shape,
+        strides,
+        pads,
+        dilations,
+        ceil_mode,
+        2,
+        ([1] * expand_size),
+        ([0] * expand_size),
+        ([2 + i for i in range(expand_size)]),
+    )
 
 
 def _adjust_attributes_of_max_pool(
@@ -682,13 +712,25 @@ def _adjust_attributes_of_max_pool(
     else:
         kernel_shape = kernel_size
 
+    # NOTE: expand_size is the dimension of pooling kernel,
+    # ONNX needs begin and end padding so we need to double the padding
+
+    # NOTE: expand size prevents padding from being a single int in
+    # multiple dimension cases
     if isinstance(padding, int):
         pads = [padding] * expand_size * 2
     elif len(padding) == 1:
         pads = padding * expand_size * 2
     elif len(padding) == 2:
-        pads = padding * expand_size
+        # 2D padding
+        pads = padding * 2
+    elif len(padding) == 3:
+        # 3D padding
+        pads = padding * 2
     else:
+        # When padding is already done for all dimensions,
+        # we don't need to double it
+        # eg: (1, 1, 1, 1, 1, 1)
         pads = padding
 
     if isinstance(stride, int):
@@ -757,8 +799,8 @@ def aten_max_pool3d(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
     stride: Sequence[int] = (),
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0, 0),
+    dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
 ) -> TFloatOrUInt8:
     """max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor"""
@@ -827,8 +869,8 @@ def aten_max_pool3d_with_indices(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
     stride: Sequence[int] = (),
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0, 0),
+    dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
 ) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool3d_with_indices(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""

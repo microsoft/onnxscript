@@ -80,6 +80,12 @@ class TensorTypeRef(cg.TypeRef):
         super().__init__(MODULE_ONNX_SCRIPT_TYPES, "Tensor")
 
 
+class ConstraintTypeRef(cg.TypeRef):
+    def __init__(self, name: str, *typeargs: cg.TypeRef, is_output: bool):
+        super().__init__(None, name, *typeargs)
+        self.is_output = is_output
+
+
 class UnsupportedOpError(NotImplementedError):
     def __init__(self, op: QualOpName, message: str):
         super().__init__(self, message)
@@ -140,11 +146,13 @@ class OpsetsBuilder:
             writer.write("All rights reserved.\n")
             writer.write("# Licensed under the MIT License.\n")
             writer.write(dashline)
-            writer.write("# flake8: noqa\n")
+            writer.write("# pylint: disable=W0221,W0222,R0901,W0237\n")
             writer.write("# mypy: disable-error-code=override\n")
-            writer.write("# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611\n")
+            writer.write("# ruff: noqa: N801,E741\n")
+            writer.write("# ruff: noqa: D214,D402,D405,D411,D412,D416,D417\n")
             writer.write(dashline)
             writer.write("\n")
+            writer.write("from __future__ import annotations\n")
 
     def __init__(
         self,
@@ -192,15 +200,13 @@ class OpsetsBuilder:
             self.module_base_name,
             domain,
             version,
+            cg.ImportFrom("typing", cg.Alias("TypeVar")),
             cg.ClassDef(
                 _make_class_name(domain, version),
                 cg.FunctionDef(
                     "__new__",
                     cg.Arg("cls"),
                     body=cg.ThunkStmt(f"return Opset.__new__(cls, {domain!r}, {version!r})"),
-                ),
-                cg.FunctionDef(
-                    "__init__", cg.Arg("self"), body=cg.ThunkStmt("super().__init__()")
                 ),
                 bases=[base_type],
             ),
@@ -235,10 +241,10 @@ class OpsetsBuilder:
                     continue
 
             try:
-                function = self._make_function(qualname, schema)
                 opset_class = cg.first_or_none(opset.get_children_of_type(cg.ClassDef))
-                if opset_class:
-                    opset_class.append_body(function)
+                if opset_class is not None:
+                    for stmt in self._make_function(qualname, schema):
+                        opset_class.append_body(stmt)
                     self._result.all_ops_count += 1
             except NotImplementedError as error:
                 if not isinstance(error, UnsupportedOpError):
@@ -324,13 +330,107 @@ class OpsetsBuilder:
                 )
             module.accept(cg.ImportAdjuster())
 
-    def _make_function(self, qualname: QualOpName, schema: OpSchema) -> cg.FunctionDef:
+    def _make_function_type_constraints(
+        self, schema: OpSchema, typerefs: Iterable[cg.TypeRef]
+    ) -> Iterable[cg.Assign]:
+        input_constraints: dict[str, list[cg.TypeRef]] = {}
+        output_constraints: dict[str, list[cg.TypeRef]] = {}
+
+        def constraint_is_compatible(
+            constraint_name: str, constraint_types: list[cg.TypeRef]
+        ) -> bool:
+            """Ensure that if we have already recoreded ``constraint_name`` in either
+            ``input_constraints`` or ``output_constraints`` that the constrained types
+            match by comparing the generated code that results from the types.
+            """
+            for existing_constraints in input_constraints, output_constraints:
+                if (existing := existing_constraints.get(constraint_name, None)) is not None:
+                    if len(existing) != len(constraint_types):
+                        return False  #  differing number of constraints, can't be compatible
+                    for a, b in zip(existing, constraint_types):
+                        if str(a) != str(b):
+                            return False  # a constrained type does not match
+            return True
+
+        def collect_constraints(typerefs: Iterable[cg.TypeRef]):
+            """Collect and validate all ConstraintTypeRef types recursively. Once a
+            constraint has been identified, it becomes the 'canonical' definition of
+            all constraints that will be collected with the same name.
+            """
+            for typeref in typerefs:
+                if isinstance(typeref, ConstraintTypeRef):
+                    typeref.name = f"{typeref.name}_{schema.name}"
+                    constraint_types = [ta.remove() for ta in typeref.typeargs]
+
+                    assert constraint_is_compatible(typeref.name, constraint_types), (
+                        "This should not happen since constraints are "
+                        "expected to be correct at the OpSchema spec level"
+                    )
+
+                    (output_constraints if typeref.is_output else input_constraints)[
+                        typeref.name
+                    ] = constraint_types
+                else:
+                    collect_constraints(typeref.typeargs)
+
+        collect_constraints(typerefs)
+
+        def make_type_alias(name: str, aliased_type: cg.TypeRef):
+            return cg.Assign(
+                cg.Name(name),
+                aliased_type,
+                cg.TypeRef("typing_extensions", "TypeAlias"),
+            )
+
+        # Pass 1: process input constraints first; if a constraint is bound to
+        # a single type, generate a TypeAlias, otherwise a TypeVar.
+        for constraint_name, constraint_typerefs in input_constraints.items():
+            if len(constraint_typerefs) == 1:
+                yield make_type_alias(constraint_name, constraint_typerefs[0])
+            else:
+                yield cg.Assign(
+                    cg.Name(constraint_name),
+                    cg.Call(
+                        cg.Name("TypeVar"),
+                        cg.Constant(constraint_name),
+                        *constraint_typerefs,
+                    ),
+                )
+
+        # Pass 2: process output constraints, only yielding constraints as
+        # TypeAliases when an output constraint is not also used as an
+        # input constraint. See https://github.com/microsoft/onnxscript/pull/778
+        # for details. When we can rely on Python 3.12, we can have output-only
+        # constraints as TypeVars, e.g. when the following syntax is allowed:
+        #    def func[T]() -> T: ...
+        for constraint_name, constraint_typerefs in output_constraints.items():
+            if constraint_name not in input_constraints:
+                yield make_type_alias(
+                    constraint_name,
+                    cg.TypeRef.make_composite_if_multiple(
+                        cg.TypingRefs.Union,
+                        *constraint_typerefs,
+                    ),
+                )
+
+    def _make_function(self, qualname: QualOpName, schema: OpSchema) -> Iterable[cg.Stmt]:
+        attr_args = self._make_function_attr_args(schema)
+        input_args = self._make_function_input_args(schema)
+        args = [cg.Arg("self"), *input_args, *attr_args]
+        output_types = [
+            self._make_input_output_type(output, is_output=True) for output in schema.outputs
+        ]
+
+        yield from self._make_function_type_constraints(
+            schema,
+            [arg.type for arg in input_args] + output_types,
+        )
+
         op_inputs: list[cg.Expr] = []
         op_attrs: list[cg.Expr] = []
-        args = list(self._make_function_args(schema))
 
         for arg in args:
-            if arg.name == "self":
+            if arg.name in {"self", "*"}:
                 continue
             if arg.is_vararg:
                 op_inputs.append(cg.Starred(cg.Name(arg.name)))
@@ -352,16 +452,13 @@ class OpsetsBuilder:
 
         doc = f'[🌐 {qualname}]({qualname.docuri} "Online Documentation")\n\n{schema.doc}'
 
-        def return_type():
-            return cg.TypeRef.make_composite_if_multiple(
-                cg.TypingRefs.Tuple,
-                *[self._make_union_typeref(output.types) for output in schema.outputs],
-            )
-
-        func = cg.FunctionDef(
+        yield cg.FunctionDef(
             qualname.name,
             *args,
-            return_type=return_type(),
+            return_type=cg.TypeRef.make_composite_if_multiple(
+                cg.TypingRefs.Tuple,
+                *output_types,
+            ),
             doc=_process_documentation(doc),
             body=[
                 cg.Assign(
@@ -381,18 +478,10 @@ class OpsetsBuilder:
                         cg.Constant(qualname.name),
                         cg.Name("schema"),
                     ),
-                    cg.TypingRefs.Callable(cg.EllipsisTypeRef(), return_type()),
                 ),
                 cg.Return(op_call),
             ],
         )
-
-        return func
-
-    def _make_function_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
-        yield cg.Arg("self")
-        yield from self._make_function_input_args(schema)
-        yield from self._make_function_attr_args(schema)
 
     def _make_input_arg_name(self, input_name: str, schema: OpSchema):
         """ONNX allows for an op to have an input and an attribute with the same name.
@@ -409,13 +498,13 @@ class OpsetsBuilder:
         for input in schema.inputs:
             optional = input.option == OpSchema.FormalParameterOption.Optional
             variadic = input.option == OpSchema.FormalParameterOption.Variadic
-            heterogeneous = not input.isHomogeneous
+            heterogeneous = not input.is_homogeneous
             differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.Differentiable
             )
             non_differentiable = (
-                input.differentiationCategory
+                input.differentiation_category
                 == OpSchema.DifferentiationCategory.NonDifferentiable
             )
 
@@ -423,8 +512,23 @@ class OpsetsBuilder:
             if optional:
                 doctags.append("optional")
             elif variadic:
-                # if we encounter a variadic input, previous
-                # inputs cannot have default values
+                # If we encounter a variadic input, previous inputs cannot have default
+                # values as this allows for ambiguity at the call site.
+                #
+                # Specifically this avoids pylint W1113 (keyword-arg-before-vararg):
+                #   https://pylint.pycqa.org/en/latest/user_guide/messages/warning/keyword-arg-before-vararg.html
+                #
+                # As of 2023-06-08, only Loop(1, 11, 13, 16) and Scan(8) exhibit this issue.
+                # Ex:
+                #
+                #     def Loop(
+                #         self,
+                #         M: Optional[I] = None,        <- ambiguity with *v_initial
+                #         cond: Optional[B] = None,     <- ambiguity with *v_initial
+                #         *v_initial: V,
+                #         body: Optional[GraphProto] = None,
+                #     ) -> V: ...
+                #
                 for prev_arg in args:
                     prev_arg.default_value = None
                 doctags.append("variadic")
@@ -439,7 +543,7 @@ class OpsetsBuilder:
             if len(doctags) > 0:
                 doc = f"({', '.join(doctags)}) {doc}"
 
-            type = self._make_union_typeref(input.types)
+            type = self._make_input_output_type(input, is_output=False)
             if optional and not isinstance(type, cg.TypingRefs.Optional):
                 type = cg.TypingRefs.Optional(type)
 
@@ -456,14 +560,12 @@ class OpsetsBuilder:
         return args
 
     def _make_function_attr_args(self, schema: OpSchema) -> Iterable[cg.Arg]:
-        attr_args = []
+        generate_kwonly_sentinel = True
         for attr in schema.attributes.values():
             attr_type = parse_attr_type(attr.type)
             default_value = None
 
-            if attr.required:
-                pass
-            elif attr.default_value.name:
+            if attr.default_value.name:
                 default_value = get_attribute_value(attr.default_value)
 
                 def fmt(value: Any) -> str:
@@ -478,26 +580,37 @@ class OpsetsBuilder:
             else:
                 default_value = None
 
-            if default_value is None:
+            if not attr.required and default_value is None:
                 attr_type = cg.TypingRefs.Optional(attr_type)
 
-            attr_args.append(
-                cg.Arg(
-                    attr.name,
-                    type=attr_type,
-                    default_value=cg.Constant(default_value),
-                    doc=attr.description,
-                    is_kwarg=True,
-                )
+            if generate_kwonly_sentinel and not any(
+                i.option == OpSchema.FormalParameterOption.Variadic for i in schema.inputs
+            ):
+                generate_kwonly_sentinel = False
+                yield cg.Arg("*")
+
+            yield cg.Arg(
+                attr.name,
+                type=attr_type,
+                default_value=None if attr.required else cg.Constant(default_value),
+                doc=attr.description,
+                is_kwarg=True,
             )
 
-        yield from sorted(attr_args, key=lambda p: p.has_default_value)
-
-    def _make_union_typeref(self, onnx_types: list[str]) -> cg.TypingRefs.Union:
-        return cg.TypeRef.make_composite_if_multiple(
-            cg.TypingRefs.Union,
-            *[parse_input_output_type(type) for type in sorted(onnx_types)],
-        )
+    def _make_input_output_type(
+        self,
+        parameter: OpSchema.FormalParameter,
+        is_output: bool,
+    ) -> cg.TypeRef:
+        py_types = [parse_input_output_type(type) for type in sorted(parameter.types)]
+        try:
+            # input.type_str will either be a valid ONNX type (e.g. 'tensor(int)')
+            # or the name of a type constraint. If it parses as a type, it's not
+            # constrained; otherwise bind the underlying types to the constraint.
+            parse_input_output_type(parameter.type_str)
+            return cg.TypeRef.make_composite_if_multiple(cg.TypingRefs.Union, *py_types)
+        except NotImplementedError:
+            return ConstraintTypeRef(parameter.type_str, *py_types, is_output=is_output)
 
 
 def parse_input_output_type(onnx_type: str) -> cg.TypeRef:

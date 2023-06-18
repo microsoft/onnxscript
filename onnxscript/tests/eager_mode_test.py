@@ -45,7 +45,7 @@ class TestEagerModeArguments(unittest.TestCase):
     def test_op_attribute_by_positional_args(self):
         data = np.array([1, 2, 3, 4, 5, 6], dtype=np.int32)
         axes = np.array([0], dtype=np.int64)
-        self.assertEqual(op.ReduceSum(data, axes, True), 21)
+        self.assertEqual(op.ReduceSum(data, axes, keepdims=True), 21)
 
     def test_op_input_and_attribute_by_kwargs_out_of_order(self):
         data = np.array([1, 2, 3, 4, 5, 6], dtype=np.int32)
