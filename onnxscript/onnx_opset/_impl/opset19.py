@@ -6,16 +6,18 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, TypeVar
+from typing import Optional, Sequence, TypeVar, Union
 
 from onnx import GraphProto, SparseTensorProto, TensorProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset18 import Opset18
 from onnxscript.onnx_types import (
@@ -47,19 +49,20 @@ class Opset19(Opset18):
     def __new__(cls):
         return Opset.__new__(cls, "", 19)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_AveragePool = TypeVar("T_AveragePool", DOUBLE, FLOAT, FLOAT16)
 
     def AveragePool(
         self,
-        X: T,
+        X: T_AveragePool,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         count_include_pad: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_AveragePool:
         r"""[🌐 AveragePool(19)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-19 "Online Documentation")
 
 
@@ -146,8 +149,8 @@ class Opset19(Opset18):
             strides=strides,
         )
 
-    T1 = TypeVar(
-        "T1",
+    T1_Cast = TypeVar(
+        "T1_Cast",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -168,8 +171,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    T2 = TypeVar(
-        "T2",
+    T2_Cast: TypeAlias = Union[
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -188,9 +190,9 @@ class Opset19(Opset18):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def Cast(self, input: T1, saturate: int = 1, to: Optional[int] = None) -> T2:
+    def Cast(self, input: T1_Cast, *, saturate: int = 1, to: int) -> T2_Cast:
         r"""[🌐 Cast(19)](https://onnx.ai/onnx/operators/onnx__Cast.html#cast-19 "Online Documentation")
 
 
@@ -277,8 +279,8 @@ class Opset19(Opset18):
         op = Op(self, "Cast", schema)
         return op(*self._prepare_inputs(schema, input), saturate=saturate, to=to)
 
-    T1 = TypeVar(
-        "T1",
+    T1_CastLike = TypeVar(
+        "T1_CastLike",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -299,8 +301,8 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    T2 = TypeVar(
-        "T2",
+    T2_CastLike = TypeVar(
+        "T2_CastLike",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -321,7 +323,9 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def CastLike(self, input: T1, target_type: T2, saturate: int = 1) -> T2:
+    def CastLike(
+        self, input: T1_CastLike, target_type: T2_CastLike, *, saturate: int = 1
+    ) -> T2_CastLike:
         r"""[🌐 CastLike(19)](https://onnx.ai/onnx/operators/onnx__CastLike.html#castlike-19 "Online Documentation")
 
 
@@ -347,8 +351,7 @@ class Opset19(Opset18):
         op = Op(self, "CastLike", schema)
         return op(*self._prepare_inputs(schema, input, target_type), saturate=saturate)
 
-    T = TypeVar(
-        "T",
+    T_Constant: TypeAlias = Union[
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -369,10 +372,11 @@ class Opset19(Opset18):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
     def Constant(
         self,
+        *,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
         value_float: Optional[float] = None,
@@ -381,7 +385,7 @@ class Opset19(Opset18):
         value_ints: Optional[Sequence[int]] = None,
         value_string: Optional[str] = None,
         value_strings: Optional[Sequence[str]] = None,
-    ) -> T:
+    ) -> T_Constant:
         r"""[🌐 Constant(19)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-19 "Online Documentation")
 
 
@@ -426,22 +430,23 @@ class Opset19(Opset18):
             value_strings=value_strings,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_DeformConv = TypeVar("T_DeformConv", DOUBLE, FLOAT, FLOAT16)
 
     def DeformConv(
         self,
-        X: T,
-        W: T,
-        offset: T,
-        B: Optional[T] = None,
-        mask: Optional[T] = None,
+        X: T_DeformConv,
+        W: T_DeformConv,
+        offset: T_DeformConv,
+        B: Optional[T_DeformConv] = None,
+        mask: Optional[T_DeformConv] = None,
+        *,
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
         kernel_shape: Optional[Sequence[int]] = None,
         offset_group: int = 1,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_DeformConv:
         r"""[🌐 DeformConv(19)](https://onnx.ai/onnx/operators/onnx__DeformConv.html#deformconv-19 "Online Documentation")
 
 
@@ -510,15 +515,27 @@ class Opset19(Opset18):
             strides=strides,
         )
 
-    T1 = TypeVar(
-        "T1", FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ, INT32, INT8, UINT8
+    T1_DequantizeLinear = TypeVar(
+        "T1_DequantizeLinear",
+        FLOAT8E4M3FN,
+        FLOAT8E4M3FNUZ,
+        FLOAT8E5M2,
+        FLOAT8E5M2FNUZ,
+        INT32,
+        INT8,
+        UINT8,
     )
 
-    T2 = TypeVar("T2", BFLOAT16, FLOAT, FLOAT16)
+    T2_DequantizeLinear = TypeVar("T2_DequantizeLinear", BFLOAT16, FLOAT, FLOAT16)
 
     def DequantizeLinear(
-        self, x: T1, x_scale: T2, x_zero_point: Optional[T1] = None, axis: int = 1
-    ) -> T2:
+        self,
+        x: T1_DequantizeLinear,
+        x_scale: T2_DequantizeLinear,
+        x_zero_point: Optional[T1_DequantizeLinear] = None,
+        *,
+        axis: int = 1,
+    ) -> T2_DequantizeLinear:
         r"""[🌐 DequantizeLinear(19)](https://onnx.ai/onnx/operators/onnx__DequantizeLinear.html#dequantizelinear-19 "Online Documentation")
 
 
@@ -551,8 +568,8 @@ class Opset19(Opset18):
         op = Op(self, "DequantizeLinear", schema)
         return op(*self._prepare_inputs(schema, x, x_scale, x_zero_point), axis=axis)
 
-    T = TypeVar(
-        "T",
+    T_Equal = TypeVar(
+        "T_Equal",
         BFLOAT16,
         BOOL,
         DOUBLE,
@@ -569,9 +586,9 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_Equal: TypeAlias = BOOL
 
-    def Equal(self, A: T, B: T) -> T1:
+    def Equal(self, A: T_Equal, B: T_Equal) -> T1_Equal:
         r"""[🌐 Equal(19)](https://onnx.ai/onnx/operators/onnx__Equal.html#equal-19 "Online Documentation")
 
 
@@ -591,8 +608,8 @@ class Opset19(Opset18):
         op = Op(self, "Equal", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    V = TypeVar(
-        "V",
+    V_Identity = TypeVar(
+        "V_Identity",
         Optional[Sequence[BOOL]],
         Optional[Sequence[COMPLEX128]],
         Optional[Sequence[COMPLEX64]],
@@ -660,7 +677,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def Identity(self, input: V) -> V:
+    def Identity(self, input: V_Identity) -> V_Identity:
         r"""[🌐 Identity(19)](https://onnx.ai/onnx/operators/onnx__Identity.html#identity-19 "Online Documentation")
 
         Identity operator
@@ -673,10 +690,9 @@ class Opset19(Opset18):
         op = Op(self, "Identity", schema)
         return op(*self._prepare_inputs(schema, input))
 
-    B = TypeVar("B", bound=BOOL)
+    B_If: TypeAlias = BOOL
 
-    V = TypeVar(
-        "V",
+    V_If: TypeAlias = Union[
         Optional[Sequence[BFLOAT16]],
         Optional[Sequence[BOOL]],
         Optional[Sequence[COMPLEX128]],
@@ -753,14 +769,9 @@ class Opset19(Opset18):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def If(
-        self,
-        cond: B,
-        else_branch: Optional[GraphProto] = None,
-        then_branch: Optional[GraphProto] = None,
-    ) -> V:
+    def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(19)](https://onnx.ai/onnx/operators/onnx__If.html#if-19 "Online Documentation")
 
         If conditional
@@ -785,12 +796,12 @@ class Opset19(Opset18):
             then_branch=then_branch,
         )
 
-    I = TypeVar("I", bound=INT64)
+    I_Loop: TypeAlias = INT64
 
-    B = TypeVar("B", bound=BOOL)
+    B_Loop: TypeAlias = BOOL
 
-    V = TypeVar(
-        "V",
+    V_Loop = TypeVar(
+        "V_Loop",
         Optional[Sequence[BFLOAT16]],
         Optional[Sequence[BOOL]],
         Optional[Sequence[COMPLEX128]],
@@ -870,12 +881,8 @@ class Opset19(Opset18):
     )
 
     def Loop(
-        self,
-        M: Optional[I],
-        cond: Optional[B],
-        *v_initial: V,
-        body: Optional[GraphProto] = None,
-    ) -> V:
+        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
+    ) -> V_Loop:
         r"""[🌐 Loop(19)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-19 "Online Documentation")
 
 
@@ -1039,8 +1046,8 @@ class Opset19(Opset18):
         op = Op(self, "Loop", schema)
         return op(*self._prepare_inputs(schema, M, cond, *v_initial), body=body)
 
-    T = TypeVar(
-        "T",
+    T_Pad = TypeVar(
+        "T_Pad",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1059,16 +1066,17 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_Pad = TypeVar("Tind_Pad", INT32, INT64)
 
     def Pad(
         self,
-        data: T,
+        data: T_Pad,
         pads: INT64,
-        constant_value: Optional[T] = None,
-        axes: Optional[Tind] = None,
+        constant_value: Optional[T_Pad] = None,
+        axes: Optional[Tind_Pad] = None,
+        *,
         mode: str = "constant",
-    ) -> T:
+    ) -> T_Pad:
         r"""[🌐 Pad(19)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-19 "Online Documentation")
 
 
@@ -1212,18 +1220,27 @@ class Opset19(Opset18):
         op = Op(self, "Pad", schema)
         return op(*self._prepare_inputs(schema, data, pads, constant_value, axes), mode=mode)
 
-    T1 = TypeVar("T1", BFLOAT16, FLOAT, FLOAT16, INT32)
+    T1_QuantizeLinear = TypeVar("T1_QuantizeLinear", BFLOAT16, FLOAT, FLOAT16, INT32)
 
-    T2 = TypeVar("T2", FLOAT8E4M3FN, FLOAT8E4M3FNUZ, FLOAT8E5M2, FLOAT8E5M2FNUZ, INT8, UINT8)
+    T2_QuantizeLinear = TypeVar(
+        "T2_QuantizeLinear",
+        FLOAT8E4M3FN,
+        FLOAT8E4M3FNUZ,
+        FLOAT8E5M2,
+        FLOAT8E5M2FNUZ,
+        INT8,
+        UINT8,
+    )
 
     def QuantizeLinear(
         self,
-        x: T1,
-        y_scale: T1,
-        y_zero_point: Optional[T2] = None,
+        x: T1_QuantizeLinear,
+        y_scale: T1_QuantizeLinear,
+        y_zero_point: Optional[T2_QuantizeLinear] = None,
+        *,
         axis: int = 1,
         saturate: int = 1,
-    ) -> T2:
+    ) -> T2_QuantizeLinear:
         r"""[🌐 QuantizeLinear(19)](https://onnx.ai/onnx/operators/onnx__QuantizeLinear.html#quantizelinear-19 "Online Documentation")
 
 
@@ -1269,8 +1286,8 @@ class Opset19(Opset18):
             saturate=saturate,
         )
 
-    T = TypeVar(
-        "T",
+    T_Reshape = TypeVar(
+        "T_Reshape",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1293,7 +1310,7 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    def Reshape(self, data: T, shape: INT64, allowzero: int = 0) -> T:
+    def Reshape(self, data: T_Reshape, shape: INT64, *, allowzero: int = 0) -> T_Reshape:
         r"""[🌐 Reshape(19)](https://onnx.ai/onnx/operators/onnx__Reshape.html#reshape-19 "Online Documentation")
 
 
@@ -1328,8 +1345,8 @@ class Opset19(Opset18):
         op = Op(self, "Reshape", schema)
         return op(*self._prepare_inputs(schema, data, shape), allowzero=allowzero)
 
-    T1 = TypeVar(
-        "T1",
+    T1_Resize = TypeVar(
+        "T1_Resize",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1348,14 +1365,15 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    T2 = TypeVar("T2", DOUBLE, FLOAT, FLOAT16)
+    T2_Resize = TypeVar("T2_Resize", DOUBLE, FLOAT, FLOAT16)
 
     def Resize(
         self,
-        X: T1,
-        roi: Optional[T2] = None,
+        X: T1_Resize,
+        roi: Optional[T2_Resize] = None,
         scales: Optional[FLOAT] = None,
         sizes: Optional[INT64] = None,
+        *,
         antialias: int = 0,
         axes: Optional[Sequence[int]] = None,
         coordinate_transformation_mode: str = "half_pixel",
@@ -1365,7 +1383,7 @@ class Opset19(Opset18):
         keep_aspect_ratio_policy: str = "stretch",
         mode: str = "nearest",
         nearest_mode: str = "round_prefer_floor",
-    ) -> T1:
+    ) -> T1_Resize:
         r"""[🌐 Resize(19)](https://onnx.ai/onnx/operators/onnx__Resize.html#resize-19 "Online Documentation")
 
 
@@ -1570,8 +1588,8 @@ class Opset19(Opset18):
             nearest_mode=nearest_mode,
         )
 
-    V = TypeVar(
-        "V",
+    V_Scan = TypeVar(
+        "V_Scan",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1596,14 +1614,14 @@ class Opset19(Opset18):
 
     def Scan(
         self,
-        *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
-        num_scan_inputs: Optional[int] = None,
+        *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
         scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
-    ) -> V:
+    ) -> V_Scan:
         r"""[🌐 Scan(19)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-19 "Online Documentation")
 
 
@@ -1781,8 +1799,8 @@ class Opset19(Opset18):
             scan_output_directions=scan_output_directions,
         )
 
-    T = TypeVar(
-        "T",
+    T_Shape = TypeVar(
+        "T_Shape",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1805,9 +1823,9 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=INT64)
+    T1_Shape: TypeAlias = INT64
 
-    def Shape(self, data: T, end: Optional[int] = None, start: int = 0) -> T1:
+    def Shape(self, data: T_Shape, *, end: Optional[int] = None, start: int = 0) -> T1_Shape:
         r"""[🌐 Shape(19)](https://onnx.ai/onnx/operators/onnx__Shape.html#shape-19 "Online Documentation")
 
 
@@ -1874,8 +1892,8 @@ class Opset19(Opset18):
         op = Op(self, "Shape", schema)
         return op(*self._prepare_inputs(schema, data), end=end, start=start)
 
-    T = TypeVar(
-        "T",
+    T_Size = TypeVar(
+        "T_Size",
         BFLOAT16,
         BOOL,
         COMPLEX128,
@@ -1898,9 +1916,9 @@ class Opset19(Opset18):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=INT64)
+    T1_Size: TypeAlias = INT64
 
-    def Size(self, data: T) -> T1:
+    def Size(self, data: T_Size) -> T1_Size:
         r"""[🌐 Size(19)](https://onnx.ai/onnx/operators/onnx__Size.html#size-19 "Online Documentation")
 
 

@@ -2,9 +2,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
+# pylint: disable=W0613
 
 from __future__ import annotations
 
+import io
 from abc import ABC, abstractmethod
 from enum import Enum
 from textwrap import TextWrapper, dedent
@@ -270,6 +272,8 @@ class Node(ABC):
         self._prev_sibling = None
         self._next_sibling = None
 
+        return self
+
     def replace(self, new_node: Optional[Node]):
         if new_node is None:
             self.remove()
@@ -324,6 +328,11 @@ class Node(ABC):
         else:
             visitor.leave(self)
         visitor.finish(self)
+
+    def __str__(self):
+        buffer = io.StringIO()
+        self.accept(PythonWriter(buffer))
+        return buffer.getvalue()
 
 
 class Expr(Node, ABC):
@@ -556,7 +565,9 @@ class TypeRef(Expr):
         self._dispatch_visit(visitor.visit_typeref)
 
     @staticmethod
-    def make_composite_if_multiple(composite_type: TypeRef, *typeargs: TypeRef) -> TypeRef:
+    def make_composite_if_multiple(
+        composite_type: type[TypeRef], *typeargs: TypeRef
+    ) -> TypeRef:
         if len(typeargs) == 0:
             return NoneTypeRef
         elif len(typeargs) == 1:
@@ -984,8 +995,6 @@ class VisitKind(Enum):
 
 
 class Visitor:
-    # pylint: disable=W0613
-
     def __init__(self):
         self.visit_kind = VisitKind.NONE
         self.node_stack = []

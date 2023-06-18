@@ -4420,8 +4420,8 @@ def _aten_native_batch_norm_inference_onnx(
         training_mode=training,
     )
     # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.Cast(op.Shape(input, 0, 0), to=FLOAT.dtype)
-    empty_var = op.Cast(op.Shape(input, 0, 0), to=FLOAT.dtype)
+    empty_mean = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
+    empty_var = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
     return norm, empty_mean, empty_var
 
 
@@ -4650,7 +4650,7 @@ def aten_new_empty_dtype(
 
     # using zero to simulate empty array
     result = op.ConstantOfShape(size)
-    return op.Cast(result, dtype)
+    return op.Cast(result, to=dtype)
 
 
 @torch_op("aten::new_empty_strided")

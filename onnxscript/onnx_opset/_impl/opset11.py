@@ -6,16 +6,18 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 # pylint: disable=W0221,W0222,R0901,W0237
+# mypy: disable-error-code=override
 # ruff: noqa: N801,E741
 # ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, Tuple, TypeVar
+from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 from onnx import GraphProto, SparseTensorProto, TensorProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset10 import Opset10
 from onnxscript.onnx_types import (
@@ -42,11 +44,22 @@ class Opset11(Opset10):
     def __new__(cls):
         return Opset.__new__(cls, "", 11)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_ArgMax = TypeVar(
+        "T_ArgMax",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def ArgMax(self, data: T, axis: int = 0, keepdims: int = 1) -> INT64:
+    def ArgMax(self, data: T_ArgMax, *, axis: int = 0, keepdims: int = 1) -> INT64:
         r"""[🌐 ArgMax(11)](https://onnx.ai/onnx/operators/onnx__ArgMax.html#argmax-11 "Online Documentation")
 
 
@@ -69,11 +82,22 @@ class Opset11(Opset10):
         op = Op(self, "ArgMax", schema)
         return op(*self._prepare_inputs(schema, data), axis=axis, keepdims=keepdims)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_ArgMin = TypeVar(
+        "T_ArgMin",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    def ArgMin(self, data: T, axis: int = 0, keepdims: int = 1) -> INT64:
+    def ArgMin(self, data: T_ArgMin, *, axis: int = 0, keepdims: int = 1) -> INT64:
         r"""[🌐 ArgMin(11)](https://onnx.ai/onnx/operators/onnx__ArgMin.html#argmin-11 "Online Documentation")
 
 
@@ -96,18 +120,19 @@ class Opset11(Opset10):
         op = Op(self, "ArgMin", schema)
         return op(*self._prepare_inputs(schema, data), axis=axis, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_AveragePool = TypeVar("T_AveragePool", DOUBLE, FLOAT, FLOAT16)
 
     def AveragePool(
         self,
-        X: T,
+        X: T_AveragePool,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         count_include_pad: int = 0,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_AveragePool:
         r"""[🌐 AveragePool(11)](https://onnx.ai/onnx/operators/onnx__AveragePool.html#averagepool-11 "Online Documentation")
 
 
@@ -194,9 +219,9 @@ class Opset11(Opset10):
             strides=strides,
         )
 
-    T = TypeVar("T", UINT16, UINT32, UINT64, UINT8)
+    T_BitShift = TypeVar("T_BitShift", UINT16, UINT32, UINT64, UINT8)
 
-    def BitShift(self, X: T, Y: T, direction: Optional[str] = None) -> T:
+    def BitShift(self, X: T_BitShift, Y: T_BitShift, *, direction: str) -> T_BitShift:
         r"""[🌐 BitShift(11)](https://onnx.ai/onnx/operators/onnx__BitShift.html#bitshift-11 "Online Documentation")
 
 
@@ -226,9 +251,11 @@ class Opset11(Opset10):
         op = Op(self, "BitShift", schema)
         return op(*self._prepare_inputs(schema, X, Y), direction=direction)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Clip = TypeVar("T_Clip", DOUBLE, FLOAT, FLOAT16)
 
-    def Clip(self, input: T, min: Optional[T] = None, max: Optional[T] = None) -> T:
+    def Clip(
+        self, input: T_Clip, min: Optional[T_Clip] = None, max: Optional[T_Clip] = None
+    ) -> T_Clip:
         r"""[🌐 Clip(11)](https://onnx.ai/onnx/operators/onnx__Clip.html#clip-11 "Online Documentation")
 
 
@@ -251,8 +278,8 @@ class Opset11(Opset10):
         op = Op(self, "Clip", schema)
         return op(*self._prepare_inputs(schema, input, min, max))
 
-    T = TypeVar(
-        "T",
+    T_Compress = TypeVar(
+        "T_Compress",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -270,9 +297,11 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_Compress: TypeAlias = BOOL
 
-    def Compress(self, input: T, condition: T1, axis: Optional[int] = None) -> T:
+    def Compress(
+        self, input: T_Compress, condition: T1_Compress, *, axis: Optional[int] = None
+    ) -> T_Compress:
         r"""[🌐 Compress(11)](https://onnx.ai/onnx/operators/onnx__Compress.html#compress-11 "Online Documentation")
 
 
@@ -300,8 +329,8 @@ class Opset11(Opset10):
         op = Op(self, "Compress", schema)
         return op(*self._prepare_inputs(schema, input, condition), axis=axis)
 
-    T = TypeVar(
-        "T",
+    T_Concat = TypeVar(
+        "T_Concat",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -319,7 +348,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Concat(self, *inputs: T, axis: Optional[int] = None) -> T:
+    def Concat(self, *inputs: T_Concat, axis: int) -> T_Concat:
         r"""[🌐 Concat(11)](https://onnx.ai/onnx/operators/onnx__Concat.html#concat-11 "Online Documentation")
 
         Concatenate a list of tensors into a single tensor. All input tensors must have the same shape, except for the dimension size of the axis to concatenate on.
@@ -335,8 +364,8 @@ class Opset11(Opset10):
         op = Op(self, "Concat", schema)
         return op(*self._prepare_inputs(schema, *inputs), axis=axis)
 
-    S = TypeVar(
-        "S",
+    S_ConcatFromSequence = TypeVar(
+        "S_ConcatFromSequence",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -354,8 +383,7 @@ class Opset11(Opset10):
         Sequence[UINT8],
     )
 
-    T = TypeVar(
-        "T",
+    T_ConcatFromSequence: TypeAlias = Union[
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -371,11 +399,11 @@ class Opset11(Opset10):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
     def ConcatFromSequence(
-        self, input_sequence: S, axis: Optional[int] = None, new_axis: int = 0
-    ) -> T:
+        self, input_sequence: S_ConcatFromSequence, *, axis: int, new_axis: int = 0
+    ) -> T_ConcatFromSequence:
         r"""[🌐 ConcatFromSequence(11)](https://onnx.ai/onnx/operators/onnx__ConcatFromSequence.html#concatfromsequence-11 "Online Documentation")
 
 
@@ -400,8 +428,7 @@ class Opset11(Opset10):
         op = Op(self, "ConcatFromSequence", schema)
         return op(*self._prepare_inputs(schema, input_sequence), axis=axis, new_axis=new_axis)
 
-    T = TypeVar(
-        "T",
+    T_Constant: TypeAlias = Union[
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -417,13 +444,14 @@ class Opset11(Opset10):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
     def Constant(
         self,
+        *,
         sparse_value: Optional[SparseTensorProto] = None,
         value: Optional[TensorProto] = None,
-    ) -> T:
+    ) -> T_Constant:
         r"""[🌐 Constant(11)](https://onnx.ai/onnx/operators/onnx__Constant.html#constant-11 "Online Documentation")
 
 
@@ -442,20 +470,21 @@ class Opset11(Opset10):
         op = Op(self, "Constant", schema)
         return op(sparse_value=sparse_value, value=value)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Conv = TypeVar("T_Conv", DOUBLE, FLOAT, FLOAT16)
 
     def Conv(
         self,
-        X: T,
-        W: T,
-        B: Optional[T] = None,
+        X: T_Conv,
+        W: T_Conv,
+        B: Optional[T_Conv] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
         kernel_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_Conv:
         r"""[🌐 Conv(11)](https://onnx.ai/onnx/operators/onnx__Conv.html#conv-11 "Online Documentation")
 
 
@@ -531,13 +560,14 @@ class Opset11(Opset10):
             strides=strides,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_ConvTranspose = TypeVar("T_ConvTranspose", DOUBLE, FLOAT, FLOAT16)
 
     def ConvTranspose(
         self,
-        X: T,
-        W: T,
-        B: Optional[T] = None,
+        X: T_ConvTranspose,
+        W: T_ConvTranspose,
+        B: Optional[T_ConvTranspose] = None,
+        *,
         auto_pad: str = "NOTSET",
         dilations: Optional[Sequence[int]] = None,
         group: int = 1,
@@ -546,7 +576,7 @@ class Opset11(Opset10):
         output_shape: Optional[Sequence[int]] = None,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_ConvTranspose:
         r"""[🌐 ConvTranspose(11)](https://onnx.ai/onnx/operators/onnx__ConvTranspose.html#convtranspose-11 "Online Documentation")
 
 
@@ -642,11 +672,13 @@ class Opset11(Opset10):
             strides=strides,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT32, INT64, UINT32, UINT64)
+    T_CumSum = TypeVar("T_CumSum", DOUBLE, FLOAT, INT32, INT64, UINT32, UINT64)
 
-    T2 = TypeVar("T2", INT32, INT64)
+    T2_CumSum = TypeVar("T2_CumSum", INT32, INT64)
 
-    def CumSum(self, x: T, axis: T2, exclusive: int = 0, reverse: int = 0) -> T:
+    def CumSum(
+        self, x: T_CumSum, axis: T2_CumSum, *, exclusive: int = 0, reverse: int = 0
+    ) -> T_CumSum:
         r"""[🌐 CumSum(11)](https://onnx.ai/onnx/operators/onnx__CumSum.html#cumsum-11 "Online Documentation")
 
 
@@ -691,8 +723,8 @@ class Opset11(Opset10):
         op = Op(self, "CumSum", schema)
         return op(*self._prepare_inputs(schema, x, axis), exclusive=exclusive, reverse=reverse)
 
-    T = TypeVar(
-        "T",
+    T_DepthToSpace = TypeVar(
+        "T_DepthToSpace",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -710,7 +742,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def DepthToSpace(self, input: T, blocksize: Optional[int] = None, mode: str = "DCR") -> T:
+    def DepthToSpace(
+        self, input: T_DepthToSpace, *, blocksize: int, mode: str = "DCR"
+    ) -> T_DepthToSpace:
         r"""[🌐 DepthToSpace(11)](https://onnx.ai/onnx/operators/onnx__DepthToSpace.html#depthtospace-11 "Online Documentation")
 
         DepthToSpace rearranges (permutes) data from depth into blocks of spatial data.
@@ -756,9 +790,9 @@ class Opset11(Opset10):
         op = Op(self, "DepthToSpace", schema)
         return op(*self._prepare_inputs(schema, input), blocksize=blocksize, mode=mode)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Det = TypeVar("T_Det", DOUBLE, FLOAT, FLOAT16)
 
-    def Det(self, X: T) -> T:
+    def Det(self, X: T_Det) -> T_Det:
         r"""[🌐 Det(11)](https://onnx.ai/onnx/operators/onnx__Det.html#det-11 "Online Documentation")
 
 
@@ -777,11 +811,13 @@ class Opset11(Opset10):
         op = Op(self, "Det", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    T1 = TypeVar("T1", bound=FLOAT)
+    T1_DynamicQuantizeLinear: TypeAlias = FLOAT
 
-    T2 = TypeVar("T2", bound=UINT8)
+    T2_DynamicQuantizeLinear: TypeAlias = UINT8
 
-    def DynamicQuantizeLinear(self, x: T1) -> Tuple[T2, FLOAT, T2]:
+    def DynamicQuantizeLinear(
+        self, x: T1_DynamicQuantizeLinear
+    ) -> Tuple[T2_DynamicQuantizeLinear, FLOAT, T2_DynamicQuantizeLinear]:
         r"""[🌐 DynamicQuantizeLinear(11)](https://onnx.ai/onnx/operators/onnx__DynamicQuantizeLinear.html#dynamicquantizelinear-11 "Online Documentation")
 
 
@@ -828,8 +864,8 @@ class Opset11(Opset10):
         op = Op(self, "DynamicQuantizeLinear", schema)
         return op(*self._prepare_inputs(schema, x))
 
-    T = TypeVar(
-        "T",
+    T_Equal = TypeVar(
+        "T_Equal",
         BOOL,
         DOUBLE,
         FLOAT,
@@ -844,9 +880,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    T1 = TypeVar("T1", bound=BOOL)
+    T1_Equal: TypeAlias = BOOL
 
-    def Equal(self, A: T, B: T) -> T1:
+    def Equal(self, A: T_Equal, B: T_Equal) -> T1_Equal:
         r"""[🌐 Equal(11)](https://onnx.ai/onnx/operators/onnx__Equal.html#equal-11 "Online Documentation")
 
 
@@ -866,8 +902,8 @@ class Opset11(Opset10):
         op = Op(self, "Equal", schema)
         return op(*self._prepare_inputs(schema, A, B))
 
-    T = TypeVar(
-        "T",
+    T_Flatten = TypeVar(
+        "T_Flatten",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -885,7 +921,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Flatten(self, input: T, axis: int = 1) -> T:
+    def Flatten(self, input: T_Flatten, *, axis: int = 1) -> T_Flatten:
         r"""[🌐 Flatten(11)](https://onnx.ai/onnx/operators/onnx__Flatten.html#flatten-11 "Online Documentation")
 
 
@@ -909,8 +945,8 @@ class Opset11(Opset10):
         op = Op(self, "Flatten", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis)
 
-    T = TypeVar(
-        "T",
+    T_Gather = TypeVar(
+        "T_Gather",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -928,9 +964,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_Gather = TypeVar("Tind_Gather", INT32, INT64)
 
-    def Gather(self, data: T, indices: Tind, axis: int = 0) -> T:
+    def Gather(self, data: T_Gather, indices: Tind_Gather, *, axis: int = 0) -> T_Gather:
         r"""[🌐 Gather(11)](https://onnx.ai/onnx/operators/onnx__Gather.html#gather-11 "Online Documentation")
 
 
@@ -1010,8 +1046,8 @@ class Opset11(Opset10):
         op = Op(self, "Gather", schema)
         return op(*self._prepare_inputs(schema, data, indices), axis=axis)
 
-    T = TypeVar(
-        "T",
+    T_GatherElements = TypeVar(
+        "T_GatherElements",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -1029,9 +1065,11 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_GatherElements = TypeVar("Tind_GatherElements", INT32, INT64)
 
-    def GatherElements(self, data: T, indices: Tind, axis: int = 0) -> T:
+    def GatherElements(
+        self, data: T_GatherElements, indices: Tind_GatherElements, *, axis: int = 0
+    ) -> T_GatherElements:
         r"""[🌐 GatherElements(11)](https://onnx.ai/onnx/operators/onnx__GatherElements.html#gatherelements-11 "Online Documentation")
 
 
@@ -1114,8 +1152,8 @@ class Opset11(Opset10):
         op = Op(self, "GatherElements", schema)
         return op(*self._prepare_inputs(schema, data, indices), axis=axis)
 
-    T = TypeVar(
-        "T",
+    T_GatherND = TypeVar(
+        "T_GatherND",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -1133,7 +1171,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def GatherND(self, data: T, indices: INT64) -> T:
+    def GatherND(self, data: T_GatherND, indices: INT64) -> T_GatherND:
         r"""[🌐 GatherND(11)](https://onnx.ai/onnx/operators/onnx__GatherND.html#gathernd-11 "Online Documentation")
 
 
@@ -1216,18 +1254,19 @@ class Opset11(Opset10):
         op = Op(self, "GatherND", schema)
         return op(*self._prepare_inputs(schema, data, indices))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_Gemm = TypeVar("T_Gemm", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
     def Gemm(
         self,
-        A: T,
-        B: T,
-        C: Optional[T] = None,
+        A: T_Gemm,
+        B: T_Gemm,
+        C: Optional[T_Gemm] = None,
+        *,
         alpha: float = 1.0,
         beta: float = 1.0,
         transA: int = 0,
         transB: int = 0,
-    ) -> T:
+    ) -> T_Gemm:
         r"""[🌐 Gemm(11)](https://onnx.ai/onnx/operators/onnx__Gemm.html#gemm-11 "Online Documentation")
 
         General Matrix multiplication:
@@ -1275,9 +1314,9 @@ class Opset11(Opset10):
             transB=transB,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Hardmax = TypeVar("T_Hardmax", DOUBLE, FLOAT, FLOAT16)
 
-    def Hardmax(self, input: T, axis: int = 1) -> T:
+    def Hardmax(self, input: T_Hardmax, *, axis: int = 1) -> T_Hardmax:
         r"""[🌐 Hardmax(11)](https://onnx.ai/onnx/operators/onnx__Hardmax.html#hardmax-11 "Online Documentation")
 
 
@@ -1311,10 +1350,9 @@ class Opset11(Opset10):
         op = Op(self, "Hardmax", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis)
 
-    B = TypeVar("B", bound=BOOL)
+    B_If: TypeAlias = BOOL
 
-    V = TypeVar(
-        "V",
+    V_If: TypeAlias = Union[
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -1330,14 +1368,9 @@ class Opset11(Opset10):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def If(
-        self,
-        cond: B,
-        else_branch: Optional[GraphProto] = None,
-        then_branch: Optional[GraphProto] = None,
-    ) -> V:
+    def If(self, cond: B_If, *, else_branch: GraphProto, then_branch: GraphProto) -> V_If:
         r"""[🌐 If(11)](https://onnx.ai/onnx/operators/onnx__If.html#if-11 "Online Documentation")
 
         If conditional
@@ -1362,9 +1395,9 @@ class Opset11(Opset10):
             then_branch=then_branch,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_LogSoftmax = TypeVar("T_LogSoftmax", DOUBLE, FLOAT, FLOAT16)
 
-    def LogSoftmax(self, input: T, axis: int = 1) -> T:
+    def LogSoftmax(self, input: T_LogSoftmax, *, axis: int = 1) -> T_LogSoftmax:
         r"""[🌐 LogSoftmax(11)](https://onnx.ai/onnx/operators/onnx__LogSoftmax.html#logsoftmax-11 "Online Documentation")
 
 
@@ -1398,12 +1431,12 @@ class Opset11(Opset10):
         op = Op(self, "LogSoftmax", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis)
 
-    I = TypeVar("I", bound=INT64)
+    I_Loop: TypeAlias = INT64
 
-    B = TypeVar("B", bound=BOOL)
+    B_Loop: TypeAlias = BOOL
 
-    V = TypeVar(
-        "V",
+    V_Loop = TypeVar(
+        "V_Loop",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -1422,12 +1455,8 @@ class Opset11(Opset10):
     )
 
     def Loop(
-        self,
-        M: Optional[I],
-        cond: Optional[B],
-        *v_initial: V,
-        body: Optional[GraphProto] = None,
-    ) -> V:
+        self, M: Optional[I_Loop], cond: Optional[B_Loop], *v_initial: V_Loop, body: GraphProto
+    ) -> V_Loop:
         r"""[🌐 Loop(11)](https://onnx.ai/onnx/operators/onnx__Loop.html#loop-11 "Online Documentation")
 
 
@@ -1589,17 +1618,18 @@ class Opset11(Opset10):
         op = Op(self, "Loop", schema)
         return op(*self._prepare_inputs(schema, M, cond, *v_initial), body=body)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_LpPool = TypeVar("T_LpPool", DOUBLE, FLOAT, FLOAT16)
 
     def LpPool(
         self,
-        X: T,
+        X: T_LpPool,
+        *,
         auto_pad: str = "NOTSET",
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         p: int = 2,
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T:
+    ) -> T_LpPool:
         r"""[🌐 LpPool(11)](https://onnx.ai/onnx/operators/onnx__LpPool.html#lppool-11 "Online Documentation")
 
 
@@ -1654,21 +1684,22 @@ class Opset11(Opset10):
             strides=strides,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_MaxPool = TypeVar("T_MaxPool", DOUBLE, FLOAT, FLOAT16)
 
-    I = TypeVar("I", bound=INT64)
+    I_MaxPool: TypeAlias = INT64
 
     def MaxPool(
         self,
-        X: T,
+        X: T_MaxPool,
+        *,
         auto_pad: str = "NOTSET",
         ceil_mode: int = 0,
         dilations: Optional[Sequence[int]] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         storage_order: int = 0,
         strides: Optional[Sequence[int]] = None,
-    ) -> Tuple[T, I]:
+    ) -> Tuple[T_MaxPool, I_MaxPool]:
         r"""[🌐 MaxPool(11)](https://onnx.ai/onnx/operators/onnx__MaxPool.html#maxpool-11 "Online Documentation")
 
 
@@ -1757,19 +1788,20 @@ class Opset11(Opset10):
             strides=strides,
         )
 
-    T1 = TypeVar("T1", DOUBLE, FLOAT, FLOAT16)
+    T1_MaxUnpool = TypeVar("T1_MaxUnpool", DOUBLE, FLOAT, FLOAT16)
 
-    T2 = TypeVar("T2", bound=INT64)
+    T2_MaxUnpool: TypeAlias = INT64
 
     def MaxUnpool(
         self,
-        X: T1,
-        I: T2,
-        output_shape: Optional[T2] = None,
-        kernel_shape: Optional[Sequence[int]] = None,
+        X: T1_MaxUnpool,
+        I: T2_MaxUnpool,
+        output_shape: Optional[T2_MaxUnpool] = None,
+        *,
+        kernel_shape: Sequence[int],
         pads: Optional[Sequence[int]] = None,
         strides: Optional[Sequence[int]] = None,
-    ) -> T1:
+    ) -> T1_MaxUnpool:
         r"""[🌐 MaxUnpool(11)](https://onnx.ai/onnx/operators/onnx__MaxUnpool.html#maxunpool-11 "Online Documentation")
 
 
@@ -1848,6 +1880,7 @@ class Opset11(Opset10):
         max_output_boxes_per_class: Optional[INT64] = None,
         iou_threshold: Optional[FLOAT] = None,
         score_threshold: Optional[FLOAT] = None,
+        *,
         center_point_box: int = 0,
     ) -> INT64:
         r"""[🌐 NonMaxSuppression(11)](https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html#nonmaxsuppression-11 "Online Documentation")
@@ -1903,16 +1936,38 @@ class Opset11(Opset10):
             center_point_box=center_point_box,
         )
 
-    T1 = TypeVar(
-        "T1", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T1_OneHot = TypeVar(
+        "T1_OneHot",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    T2 = TypeVar(
-        "T2", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T2_OneHot = TypeVar(
+        "T2_OneHot",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    T3 = TypeVar(
-        "T3",
+    T3_OneHot = TypeVar(
+        "T3_OneHot",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -1930,7 +1985,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def OneHot(self, indices: T1, depth: T2, values: T3, axis: int = -1) -> T3:
+    def OneHot(
+        self, indices: T1_OneHot, depth: T2_OneHot, values: T3_OneHot, *, axis: int = -1
+    ) -> T3_OneHot:
         r"""[🌐 OneHot(11)](https://onnx.ai/onnx/operators/onnx__OneHot.html#onehot-11 "Online Documentation")
 
 
@@ -1962,12 +2019,12 @@ class Opset11(Opset10):
                 values in the output tensor.In case 'indices' is of non-integer type,
                 the values will be casted to int64 before use.
 
-            depth: (non-differentiable) Scalar specifying the number of classes in
-                one-hot tensor. This is also the size of the one-hot dimension
-                (specified by 'axis' attribute) added on in the output tensor. The
-                values in the 'indices' input tensor are expected to be in the range
-                [-depth, depth-1]. In case 'depth' is of non-integer type, it will be
-                casted to int64 before use.
+            depth: (non-differentiable) Scalar or Rank 1 tensor containing exactly one
+                element, specifying the number of classes in one-hot tensor. This is
+                also the size of the one-hot dimension (specified by 'axis' attribute)
+                added on in the output tensor. The values in the 'indices' input tensor
+                are expected to be in the range [-depth, depth-1]. In case 'depth' is of
+                non-integer type, it will be casted to int64 before use.
 
             values: (non-differentiable) Rank 1 tensor containing exactly two elements,
                 in the format [off_value, on_value], where 'on_value' is the value used
@@ -1986,13 +2043,29 @@ class Opset11(Opset10):
         op = Op(self, "OneHot", schema)
         return op(*self._prepare_inputs(schema, indices, depth, values), axis=axis)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_Pad = TypeVar(
+        "T_Pad",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
     def Pad(
-        self, data: T, pads: INT64, constant_value: Optional[T] = None, mode: str = "constant"
-    ) -> T:
+        self,
+        data: T_Pad,
+        pads: INT64,
+        constant_value: Optional[T_Pad] = None,
+        *,
+        mode: str = "constant",
+    ) -> T_Pad:
         r"""[🌐 Pad(11)](https://onnx.ai/onnx/operators/onnx__Pad.html#pad-11 "Online Documentation")
 
 
@@ -2094,9 +2167,9 @@ class Opset11(Opset10):
         op = Op(self, "Pad", schema)
         return op(*self._prepare_inputs(schema, data, pads, constant_value), mode=mode)
 
-    T = TypeVar("T", DOUBLE, FLOAT, INT16, INT32, INT64)
+    T_Range = TypeVar("T_Range", DOUBLE, FLOAT, INT16, INT32, INT64)
 
-    def Range(self, start: T, limit: T, delta: T) -> T:
+    def Range(self, start: T_Range, limit: T_Range, delta: T_Range) -> T_Range:
         r"""[🌐 Range(11)](https://onnx.ai/onnx/operators/onnx__Range.html#range-11 "Online Documentation")
 
 
@@ -2152,9 +2225,11 @@ class Opset11(Opset10):
         op = Op(self, "Range", schema)
         return op(*self._prepare_inputs(schema, start, limit, delta))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceL1 = TypeVar("T_ReduceL1", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceL1(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceL1(
+        self, data: T_ReduceL1, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceL1:
         r"""[🌐 ReduceL1(11)](https://onnx.ai/onnx/operators/onnx__ReduceL1.html#reducel1-11 "Online Documentation")
 
 
@@ -2180,9 +2255,11 @@ class Opset11(Opset10):
         op = Op(self, "ReduceL1", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceL2 = TypeVar("T_ReduceL2", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceL2(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceL2(
+        self, data: T_ReduceL2, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceL2:
         r"""[🌐 ReduceL2(11)](https://onnx.ai/onnx/operators/onnx__ReduceL2.html#reducel2-11 "Online Documentation")
 
 
@@ -2208,11 +2285,13 @@ class Opset11(Opset10):
         op = Op(self, "ReduceL2", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceLogSum = TypeVar(
+        "T_ReduceLogSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
 
     def ReduceLogSum(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
-    ) -> T:
+        self, data: T_ReduceLogSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceLogSum:
         r"""[🌐 ReduceLogSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceLogSum.html#reducelogsum-11 "Online Documentation")
 
 
@@ -2238,11 +2317,17 @@ class Opset11(Opset10):
         op = Op(self, "ReduceLogSum", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceLogSumExp = TypeVar(
+        "T_ReduceLogSumExp", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
 
     def ReduceLogSumExp(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
-    ) -> T:
+        self,
+        data: T_ReduceLogSumExp,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
+    ) -> T_ReduceLogSumExp:
         r"""[🌐 ReduceLogSumExp(11)](https://onnx.ai/onnx/operators/onnx__ReduceLogSumExp.html#reducelogsumexp-11 "Online Documentation")
 
 
@@ -2268,9 +2353,11 @@ class Opset11(Opset10):
         op = Op(self, "ReduceLogSumExp", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceMax = TypeVar("T_ReduceMax", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceMax(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMax(
+        self, data: T_ReduceMax, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceMax:
         r"""[🌐 ReduceMax(11)](https://onnx.ai/onnx/operators/onnx__ReduceMax.html#reducemax-11 "Online Documentation")
 
 
@@ -2296,11 +2383,13 @@ class Opset11(Opset10):
         op = Op(self, "ReduceMax", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceMean = TypeVar(
+        "T_ReduceMean", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
 
     def ReduceMean(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
-    ) -> T:
+        self, data: T_ReduceMean, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceMean:
         r"""[🌐 ReduceMean(11)](https://onnx.ai/onnx/operators/onnx__ReduceMean.html#reducemean-11 "Online Documentation")
 
 
@@ -2326,9 +2415,11 @@ class Opset11(Opset10):
         op = Op(self, "ReduceMean", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceMin = TypeVar("T_ReduceMin", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceMin(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceMin(
+        self, data: T_ReduceMin, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceMin:
         r"""[🌐 ReduceMin(11)](https://onnx.ai/onnx/operators/onnx__ReduceMin.html#reducemin-11 "Online Documentation")
 
 
@@ -2354,11 +2445,13 @@ class Opset11(Opset10):
         op = Op(self, "ReduceMin", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceProd = TypeVar(
+        "T_ReduceProd", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
 
     def ReduceProd(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
-    ) -> T:
+        self, data: T_ReduceProd, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceProd:
         r"""[🌐 ReduceProd(11)](https://onnx.ai/onnx/operators/onnx__ReduceProd.html#reduceprod-11 "Online Documentation")
 
 
@@ -2384,9 +2477,11 @@ class Opset11(Opset10):
         op = Op(self, "ReduceProd", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceSum = TypeVar("T_ReduceSum", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
 
-    def ReduceSum(self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1) -> T:
+    def ReduceSum(
+        self, data: T_ReduceSum, *, axes: Optional[Sequence[int]] = None, keepdims: int = 1
+    ) -> T_ReduceSum:
         r"""[🌐 ReduceSum(11)](https://onnx.ai/onnx/operators/onnx__ReduceSum.html#reducesum-11 "Online Documentation")
 
 
@@ -2412,11 +2507,17 @@ class Opset11(Opset10):
         op = Op(self, "ReduceSum", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64)
+    T_ReduceSumSquare = TypeVar(
+        "T_ReduceSumSquare", DOUBLE, FLOAT, FLOAT16, INT32, INT64, UINT32, UINT64
+    )
 
     def ReduceSumSquare(
-        self, data: T, axes: Optional[Sequence[int]] = None, keepdims: int = 1
-    ) -> T:
+        self,
+        data: T_ReduceSumSquare,
+        *,
+        axes: Optional[Sequence[int]] = None,
+        keepdims: int = 1,
+    ) -> T_ReduceSumSquare:
         r"""[🌐 ReduceSumSquare(11)](https://onnx.ai/onnx/operators/onnx__ReduceSumSquare.html#reducesumsquare-11 "Online Documentation")
 
 
@@ -2442,8 +2543,8 @@ class Opset11(Opset10):
         op = Op(self, "ReduceSumSquare", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes, keepdims=keepdims)
 
-    T1 = TypeVar(
-        "T1",
+    T1_Resize = TypeVar(
+        "T1_Resize",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -2461,21 +2562,22 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    T2 = TypeVar("T2", DOUBLE, FLOAT, FLOAT16)
+    T2_Resize = TypeVar("T2_Resize", DOUBLE, FLOAT, FLOAT16)
 
     def Resize(
         self,
-        X: T1,
-        roi: T2,
+        X: T1_Resize,
+        roi: T2_Resize,
         scales: FLOAT,
         sizes: Optional[INT64] = None,
+        *,
         coordinate_transformation_mode: str = "half_pixel",
         cubic_coeff_a: float = -0.75,
         exclude_outside: int = 0,
         extrapolation_value: float = 0.0,
         mode: str = "nearest",
         nearest_mode: str = "round_prefer_floor",
-    ) -> T1:
+    ) -> T1_Resize:
         r"""[🌐 Resize(11)](https://onnx.ai/onnx/operators/onnx__Resize.html#resize-11 "Online Documentation")
 
 
@@ -2583,9 +2685,9 @@ class Opset11(Opset10):
             nearest_mode=nearest_mode,
         )
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Round = TypeVar("T_Round", DOUBLE, FLOAT, FLOAT16)
 
-    def Round(self, X: T) -> T:
+    def Round(self, X: T_Round) -> T_Round:
         r"""[🌐 Round(11)](https://onnx.ai/onnx/operators/onnx__Round.html#round-11 "Online Documentation")
 
 
@@ -2615,8 +2717,8 @@ class Opset11(Opset10):
         op = Op(self, "Round", schema)
         return op(*self._prepare_inputs(schema, X))
 
-    V = TypeVar(
-        "V",
+    V_Scan = TypeVar(
+        "V_Scan",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -2636,14 +2738,14 @@ class Opset11(Opset10):
 
     def Scan(
         self,
-        *initial_state_and_scan_inputs: V,
-        body: Optional[GraphProto] = None,
-        num_scan_inputs: Optional[int] = None,
+        *initial_state_and_scan_inputs: V_Scan,
+        body: GraphProto,
+        num_scan_inputs: int,
         scan_input_axes: Optional[Sequence[int]] = None,
         scan_input_directions: Optional[Sequence[int]] = None,
         scan_output_axes: Optional[Sequence[int]] = None,
         scan_output_directions: Optional[Sequence[int]] = None,
-    ) -> V:
+    ) -> V_Scan:
         r"""[🌐 Scan(11)](https://onnx.ai/onnx/operators/onnx__Scan.html#scan-11 "Online Documentation")
 
 
@@ -2821,8 +2923,8 @@ class Opset11(Opset10):
             scan_output_directions=scan_output_directions,
         )
 
-    T = TypeVar(
-        "T",
+    T_ScatterElements = TypeVar(
+        "T_ScatterElements",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -2840,9 +2942,16 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_ScatterElements = TypeVar("Tind_ScatterElements", INT32, INT64)
 
-    def ScatterElements(self, data: T, indices: Tind, updates: T, axis: int = 0) -> T:
+    def ScatterElements(
+        self,
+        data: T_ScatterElements,
+        indices: Tind_ScatterElements,
+        updates: T_ScatterElements,
+        *,
+        axis: int = 0,
+    ) -> T_ScatterElements:
         r"""[🌐 ScatterElements(11)](https://onnx.ai/onnx/operators/onnx__ScatterElements.html#scatterelements-11 "Online Documentation")
 
 
@@ -2922,8 +3031,8 @@ class Opset11(Opset10):
         op = Op(self, "ScatterElements", schema)
         return op(*self._prepare_inputs(schema, data, indices, updates), axis=axis)
 
-    T = TypeVar(
-        "T",
+    T_ScatterND = TypeVar(
+        "T_ScatterND",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -2941,7 +3050,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def ScatterND(self, data: T, indices: INT64, updates: T) -> T:
+    def ScatterND(
+        self, data: T_ScatterND, indices: INT64, updates: T_ScatterND
+    ) -> T_ScatterND:
         r"""[🌐 ScatterND(11)](https://onnx.ai/onnx/operators/onnx__ScatterND.html#scatternd-11 "Online Documentation")
 
 
@@ -3020,8 +3131,8 @@ class Opset11(Opset10):
         op = Op(self, "ScatterND", schema)
         return op(*self._prepare_inputs(schema, data, indices, updates))
 
-    S = TypeVar(
-        "S",
+    S_SequenceAt = TypeVar(
+        "S_SequenceAt",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -3039,10 +3150,9 @@ class Opset11(Opset10):
         Sequence[UINT8],
     )
 
-    I = TypeVar("I", INT32, INT64)
+    I_SequenceAt = TypeVar("I_SequenceAt", INT32, INT64)
 
-    T = TypeVar(
-        "T",
+    T_SequenceAt: TypeAlias = Union[
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3058,9 +3168,9 @@ class Opset11(Opset10):
         UINT32,
         UINT64,
         UINT8,
-    )
+    ]
 
-    def SequenceAt(self, input_sequence: S, position: I) -> T:
+    def SequenceAt(self, input_sequence: S_SequenceAt, position: I_SequenceAt) -> T_SequenceAt:
         r"""[🌐 SequenceAt(11)](https://onnx.ai/onnx/operators/onnx__SequenceAt.html#sequenceat-11 "Online Documentation")
 
 
@@ -3083,8 +3193,8 @@ class Opset11(Opset10):
         op = Op(self, "SequenceAt", schema)
         return op(*self._prepare_inputs(schema, input_sequence, position))
 
-    T = TypeVar(
-        "T",
+    T_SequenceConstruct = TypeVar(
+        "T_SequenceConstruct",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3102,8 +3212,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    S = TypeVar(
-        "S",
+    S_SequenceConstruct: TypeAlias = Union[
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -3119,9 +3228,9 @@ class Opset11(Opset10):
         Sequence[UINT32],
         Sequence[UINT64],
         Sequence[UINT8],
-    )
+    ]
 
-    def SequenceConstruct(self, *inputs: T) -> S:
+    def SequenceConstruct(self, *inputs: T_SequenceConstruct) -> S_SequenceConstruct:
         r"""[🌐 SequenceConstruct(11)](https://onnx.ai/onnx/operators/onnx__SequenceConstruct.html#sequenceconstruct-11 "Online Documentation")
 
 
@@ -3137,8 +3246,7 @@ class Opset11(Opset10):
         op = Op(self, "SequenceConstruct", schema)
         return op(*self._prepare_inputs(schema, *inputs))
 
-    S = TypeVar(
-        "S",
+    S_SequenceEmpty: TypeAlias = Union[
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -3154,9 +3262,9 @@ class Opset11(Opset10):
         Sequence[UINT32],
         Sequence[UINT64],
         Sequence[UINT8],
-    )
+    ]
 
-    def SequenceEmpty(self, dtype: Optional[int] = None) -> S:
+    def SequenceEmpty(self, *, dtype: Optional[int] = None) -> S_SequenceEmpty:
         r"""[🌐 SequenceEmpty(11)](https://onnx.ai/onnx/operators/onnx__SequenceEmpty.html#sequenceempty-11 "Online Documentation")
 
 
@@ -3172,8 +3280,8 @@ class Opset11(Opset10):
         op = Op(self, "SequenceEmpty", schema)
         return op(dtype=dtype)
 
-    S = TypeVar(
-        "S",
+    S_SequenceErase = TypeVar(
+        "S_SequenceErase",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -3191,9 +3299,11 @@ class Opset11(Opset10):
         Sequence[UINT8],
     )
 
-    I = TypeVar("I", INT32, INT64)
+    I_SequenceErase = TypeVar("I_SequenceErase", INT32, INT64)
 
-    def SequenceErase(self, input_sequence: S, position: Optional[I] = None) -> S:
+    def SequenceErase(
+        self, input_sequence: S_SequenceErase, position: Optional[I_SequenceErase] = None
+    ) -> S_SequenceErase:
         r"""[🌐 SequenceErase(11)](https://onnx.ai/onnx/operators/onnx__SequenceErase.html#sequenceerase-11 "Online Documentation")
 
 
@@ -3217,8 +3327,8 @@ class Opset11(Opset10):
         op = Op(self, "SequenceErase", schema)
         return op(*self._prepare_inputs(schema, input_sequence, position))
 
-    S = TypeVar(
-        "S",
+    S_SequenceInsert = TypeVar(
+        "S_SequenceInsert",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -3236,8 +3346,8 @@ class Opset11(Opset10):
         Sequence[UINT8],
     )
 
-    T = TypeVar(
-        "T",
+    T_SequenceInsert = TypeVar(
+        "T_SequenceInsert",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3255,9 +3365,14 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    I = TypeVar("I", INT32, INT64)
+    I_SequenceInsert = TypeVar("I_SequenceInsert", INT32, INT64)
 
-    def SequenceInsert(self, input_sequence: S, tensor: T, position: Optional[I] = None) -> S:
+    def SequenceInsert(
+        self,
+        input_sequence: S_SequenceInsert,
+        tensor: T_SequenceInsert,
+        position: Optional[I_SequenceInsert] = None,
+    ) -> S_SequenceInsert:
         r"""[🌐 SequenceInsert(11)](https://onnx.ai/onnx/operators/onnx__SequenceInsert.html#sequenceinsert-11 "Online Documentation")
 
 
@@ -3285,8 +3400,8 @@ class Opset11(Opset10):
         op = Op(self, "SequenceInsert", schema)
         return op(*self._prepare_inputs(schema, input_sequence, tensor, position))
 
-    S = TypeVar(
-        "S",
+    S_SequenceLength = TypeVar(
+        "S_SequenceLength",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -3304,9 +3419,9 @@ class Opset11(Opset10):
         Sequence[UINT8],
     )
 
-    I = TypeVar("I", bound=INT64)
+    I_SequenceLength: TypeAlias = INT64
 
-    def SequenceLength(self, input_sequence: S) -> I:
+    def SequenceLength(self, input_sequence: S_SequenceLength) -> I_SequenceLength:
         r"""[🌐 SequenceLength(11)](https://onnx.ai/onnx/operators/onnx__SequenceLength.html#sequencelength-11 "Online Documentation")
 
 
@@ -3321,8 +3436,8 @@ class Opset11(Opset10):
         op = Op(self, "SequenceLength", schema)
         return op(*self._prepare_inputs(schema, input_sequence))
 
-    T = TypeVar(
-        "T",
+    T_Slice = TypeVar(
+        "T_Slice",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3340,16 +3455,16 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    Tind = TypeVar("Tind", INT32, INT64)
+    Tind_Slice = TypeVar("Tind_Slice", INT32, INT64)
 
     def Slice(
         self,
-        data: T,
-        starts: Tind,
-        ends: Tind,
-        axes: Optional[Tind] = None,
-        steps: Optional[Tind] = None,
-    ) -> T:
+        data: T_Slice,
+        starts: Tind_Slice,
+        ends: Tind_Slice,
+        axes: Optional[Tind_Slice] = None,
+        steps: Optional[Tind_Slice] = None,
+    ) -> T_Slice:
         r"""[🌐 Slice(11)](https://onnx.ai/onnx/operators/onnx__Slice.html#slice-11 "Online Documentation")
 
 
@@ -3412,9 +3527,9 @@ class Opset11(Opset10):
         op = Op(self, "Slice", schema)
         return op(*self._prepare_inputs(schema, data, starts, ends, axes, steps))
 
-    T = TypeVar("T", DOUBLE, FLOAT, FLOAT16)
+    T_Softmax = TypeVar("T_Softmax", DOUBLE, FLOAT, FLOAT16)
 
-    def Softmax(self, input: T, axis: int = 1) -> T:
+    def Softmax(self, input: T_Softmax, *, axis: int = 1) -> T_Softmax:
         r"""[🌐 Softmax(11)](https://onnx.ai/onnx/operators/onnx__Softmax.html#softmax-11 "Online Documentation")
 
 
@@ -3448,8 +3563,8 @@ class Opset11(Opset10):
         op = Op(self, "Softmax", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis)
 
-    T = TypeVar(
-        "T",
+    T_Split = TypeVar(
+        "T_Split",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3467,7 +3582,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Split(self, input: T, axis: int = 0, split: Optional[Sequence[int]] = None) -> T:
+    def Split(
+        self, input: T_Split, *, axis: int = 0, split: Optional[Sequence[int]] = None
+    ) -> T_Split:
         r"""[🌐 Split(11)](https://onnx.ai/onnx/operators/onnx__Split.html#split-11 "Online Documentation")
 
         Split a tensor into a list of tensors, along the specified
@@ -3488,8 +3605,8 @@ class Opset11(Opset10):
         op = Op(self, "Split", schema)
         return op(*self._prepare_inputs(schema, input), axis=axis, split=split)
 
-    T = TypeVar(
-        "T",
+    T_SplitToSequence = TypeVar(
+        "T_SplitToSequence",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3507,10 +3624,9 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    I = TypeVar("I", INT32, INT64)
+    I_SplitToSequence = TypeVar("I_SplitToSequence", INT32, INT64)
 
-    S = TypeVar(
-        "S",
+    S_SplitToSequence: TypeAlias = Union[
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -3526,11 +3642,16 @@ class Opset11(Opset10):
         Sequence[UINT32],
         Sequence[UINT64],
         Sequence[UINT8],
-    )
+    ]
 
     def SplitToSequence(
-        self, input: T, split: Optional[I] = None, axis: int = 0, keepdims: int = 1
-    ) -> S:
+        self,
+        input: T_SplitToSequence,
+        split: Optional[I_SplitToSequence] = None,
+        *,
+        axis: int = 0,
+        keepdims: int = 1,
+    ) -> S_SplitToSequence:
         r"""[🌐 SplitToSequence(11)](https://onnx.ai/onnx/operators/onnx__SplitToSequence.html#splittosequence-11 "Online Documentation")
 
 
@@ -3566,8 +3687,8 @@ class Opset11(Opset10):
         op = Op(self, "SplitToSequence", schema)
         return op(*self._prepare_inputs(schema, input, split), axis=axis, keepdims=keepdims)
 
-    T = TypeVar(
-        "T",
+    T_Squeeze = TypeVar(
+        "T_Squeeze",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3585,7 +3706,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Squeeze(self, data: T, axes: Optional[Sequence[int]] = None) -> T:
+    def Squeeze(self, data: T_Squeeze, *, axes: Optional[Sequence[int]] = None) -> T_Squeeze:
         r"""[🌐 Squeeze(11)](https://onnx.ai/onnx/operators/onnx__Squeeze.html#squeeze-11 "Online Documentation")
 
 
@@ -3607,15 +3728,26 @@ class Opset11(Opset10):
         op = Op(self, "Squeeze", schema)
         return op(*self._prepare_inputs(schema, data), axes=axes)
 
-    T = TypeVar(
-        "T", DOUBLE, FLOAT, FLOAT16, INT16, INT32, INT64, INT8, UINT16, UINT32, UINT64, UINT8
+    T_TopK = TypeVar(
+        "T_TopK",
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
     )
 
-    I = TypeVar("I", bound=INT64)
+    I_TopK: TypeAlias = INT64
 
     def TopK(
-        self, X: T, K: INT64, axis: int = -1, largest: int = 1, sorted: int = 1
-    ) -> Tuple[T, I]:
+        self, X: T_TopK, K: INT64, *, axis: int = -1, largest: int = 1, sorted: int = 1
+    ) -> Tuple[T_TopK, I_TopK]:
         r"""[🌐 TopK(11)](https://onnx.ai/onnx/operators/onnx__TopK.html#topk-11 "Online Documentation")
 
 
@@ -3657,8 +3789,8 @@ class Opset11(Opset10):
             *self._prepare_inputs(schema, X, K), axis=axis, largest=largest, sorted=sorted
         )
 
-    T = TypeVar(
-        "T",
+    T_Unique = TypeVar(
+        "T_Unique",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3677,8 +3809,8 @@ class Opset11(Opset10):
     )
 
     def Unique(
-        self, X: T, axis: Optional[int] = None, sorted: int = 1
-    ) -> Tuple[T, INT64, INT64, INT64]:
+        self, X: T_Unique, *, axis: Optional[int] = None, sorted: int = 1
+    ) -> Tuple[T_Unique, INT64, INT64, INT64]:
         r"""[🌐 Unique(11)](https://onnx.ai/onnx/operators/onnx__Unique.html#unique-11 "Online Documentation")
 
 
@@ -3819,8 +3951,8 @@ class Opset11(Opset10):
         op = Op(self, "Unique", schema)
         return op(*self._prepare_inputs(schema, X), axis=axis, sorted=sorted)
 
-    T = TypeVar(
-        "T",
+    T_Unsqueeze = TypeVar(
+        "T_Unsqueeze",
         BOOL,
         COMPLEX128,
         COMPLEX64,
@@ -3838,7 +3970,7 @@ class Opset11(Opset10):
         UINT8,
     )
 
-    def Unsqueeze(self, data: T, axes: Optional[Sequence[int]] = None) -> T:
+    def Unsqueeze(self, data: T_Unsqueeze, *, axes: Sequence[int]) -> T_Unsqueeze:
         r"""[🌐 Unsqueeze(11)](https://onnx.ai/onnx/operators/onnx__Unsqueeze.html#unsqueeze-11 "Online Documentation")
 
 
