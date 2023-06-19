@@ -556,6 +556,8 @@ OP_DB: List[opinfo_core.OpInfo] = [
         skips=(),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
     ),
+    # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
+    # This custom OpInfo uses aten::stft directly.
     opinfo_core.OpInfo(
         "aten_stft",
         aten_name="stft",
