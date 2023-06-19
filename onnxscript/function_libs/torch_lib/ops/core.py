@@ -152,12 +152,21 @@ def aten_addmv(
     return op.Add(op.Mul(self, beta), op.Mul(op.MatMul(mat, vec), alpha))
 
 
+@torch_op("aten::addr")
 def aten_addr(
-    self: TensorType, vec1: TensorType, vec2: TensorType, beta: float = 1.0, alpha: float = 1.0
-) -> TensorType:
-    """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+    self: TReal, vec1: TReal, vec2: TReal, beta: float = 1.0, alpha: float = 1.0
+) -> TReal:
+    """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs the outer-product of vectors vec1 and vec2 and adds it to the matrix input.
+    """
+    vec1_shape = op.Constant(value_ints=[-1, 1])
+    vec2_shape = op.Constant(value_ints=[1, -1])
+    vec1_reshaped = op.Reshape(vec1, vec1_shape)
+    vec2_reshaped = op.Reshape(vec2, vec2_shape)
+    outer = op.MatMul(vec1_reshaped, vec2_reshaped)
+
+    return op.Add(op.Mul(self, beta), op.Mul(outer, alpha))
 
 
 def aten_adjoint(self: TensorType) -> TensorType:

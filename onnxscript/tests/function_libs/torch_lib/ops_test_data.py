@@ -329,6 +329,7 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "addcmul": core_ops.aten_addcmul,
     "addmm": core_ops.aten_addmm,
     "addmv": core_ops.aten_addmv,
+    "addr": core_ops.aten_addr,
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
     "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
     "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
@@ -1411,6 +1412,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float16,
     ),
     "addmv": (
+        torch.float32,
+        torch.float16,
+    ),
+    "addr": (
         torch.float32,
         torch.float16,
     ),
