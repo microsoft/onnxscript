@@ -24,12 +24,12 @@ try:
     )
 except ImportError:
 
-    def checked(func):
+    def checked(func):  # type: ignore[no-redef]
         return func
 
 except Exception as e:  # pylint: disable=broad-exception-caught
     # Warn errors that are not import errors (unexpected).
     warnings.warn(f"{e}", stacklevel=2)
 
-    def checked(func):
+    def checked(func):  # type: ignore[no-redef]
         return func
