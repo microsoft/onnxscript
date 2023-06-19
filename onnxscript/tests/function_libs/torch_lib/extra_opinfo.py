@@ -556,7 +556,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
     # This custom OpInfo uses aten::stft directly.
     opinfo_core.OpInfo(
-        "aten_stft",
+        "aten.stft",
         aten_name="stft",
         op=torch.ops.aten.stft,
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
