@@ -4,7 +4,6 @@ Decorate the function with `@runtime_typing.checked` to enable runtime
 type checking. The decorator is a no-op when the `beartype` library is not
 installed.
 """
-import typing
 import warnings
 
 __all__ = [
@@ -32,11 +31,5 @@ except Exception as e:  # pylint: disable=broad-exception-caught
     # Warn errors that are not import errors (unexpected).
     warnings.warn(f"{e}", stacklevel=2)
 
-    def checked(func):
-        return func
-
-
-if typing.TYPE_CHECKING:
-    # This is a hack to make mypy play nicely with the beartype decorator.
     def checked(func):
         return func
