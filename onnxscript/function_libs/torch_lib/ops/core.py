@@ -106,9 +106,7 @@ def aten_addbmm(
 
 
 @torch_op("aten::addcdiv")
-def aten_addcdiv(
-    self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 1.0
-) -> TFloat:
+def aten_addcdiv(self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 1.0) -> TFloat:
     """addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
     Performs the element-wise division of tensor1 by tensor2, multiplies the result
@@ -119,9 +117,7 @@ def aten_addcdiv(
 
 
 @torch_op("aten::addcmul")
-def aten_addcmul(
-    self: TReal, tensor1: TReal, tensor2: TReal, value: float = 1.0
-) -> TReal:
+def aten_addcmul(self: TReal, tensor1: TReal, tensor2: TReal, value: float = 1.0) -> TReal:
     """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
     Performs the element-wise multiplication of tensor1 by tensor2, multiplies the

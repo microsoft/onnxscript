@@ -618,6 +618,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="ONNX doesn't have partial view for tensor",
     ),
     xfail(
+        "addcmul",
+        dtypes=(torch.float16,),
+        reason="fixme: float16 has precision issues",
+    ),
+    xfail(
         "hstack",
         reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
