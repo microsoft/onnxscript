@@ -81,38 +81,60 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Add(self, other)
 
 
+@torch_op("aten::addbmm")
 def aten_addbmm(
-    self: TensorType,
-    batch1: TensorType,
-    batch2: TensorType,
+    self: TReal,
+    batch1: TReal,
+    batch2: TReal,
     beta: float = 1.0,
     alpha: float = 1.0,
-) -> TensorType:
-    """addbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+) -> TReal:
+    """addbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs a batch matrix-matrix product of matrices stored in `batch1` and `batch2`,
+    with a reduced add step (all matrix multiplications get accumulated along the first
+    dimension). `self` is added to the final result.
+
+    `batch1` and `batch2` must be 3-D tensors each containing the same number of matrices.
+    """
+
+    scaled_self = op.Mul(self, beta)
+    axes = op.Constant(value_ints=[0])
+    reduced_batches = op.ReduceSum(op.MatMul(batch1, batch2), axes=axes, keepdims=False)
+
+    return op.Add(scaled_self, op.Mul(reduced_batches, alpha))
 
 
+@torch_op("aten::addcdiv")
 def aten_addcdiv(
-    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0
-) -> TensorType:
-    """addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor"""
+    self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 1.0
+) -> TFloat:
+    """addcdiv(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs the element-wise division of tensor1 by tensor2, multiplies the result
+    by the scalar value and adds it to self.
+    """
+
+    return op.Add(self, op.Mul(op.Div(tensor1, tensor2), value))
 
 
+@torch_op("aten::addcmul")
 def aten_addcmul(
-    self: TensorType, tensor1: TensorType, tensor2: TensorType, value: float = 1.0
-) -> TensorType:
-    """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor"""
+    self: TReal, tensor1: TReal, tensor2: TReal, value: float = 1.0
+) -> TReal:
+    """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
+    result by the scalar value and adds it to self.
+    """
+
+    return op.Add(self, op.Mul(op.Mul(tensor1, tensor2), value))
 
 
 @torch_op("aten::addmm")
 def aten_addmm(
-    self: TFloat, mat1: TFloat, mat2: TFloat, beta: float = 1.0, alpha: float = 1.0
-) -> TFloat:
+    self: TReal, mat1: TReal, mat2: TReal, beta: float = 1.0, alpha: float = 1.0
+) -> TReal:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     mat1_mat2 = op.MatMul(mat1, mat2)
@@ -121,12 +143,13 @@ def aten_addmm(
     return op.Add(scaled_self, scaled_mat1_mat2)
 
 
+@torch_op("aten::addmv")
 def aten_addmv(
-    self: TensorType, mat: TensorType, vec: TensorType, beta: float = 1.0, alpha: float = 1.0
-) -> TensorType:
+    self: TReal, mat: TReal, vec: TReal, beta: float = 1.0, alpha: float = 1.0
+) -> TReal:
     """addmv(Tensor self, Tensor mat, Tensor vec, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Add(op.Mul(self, beta), op.Mul(op.MatMul(mat, vec), alpha))
 
 
 def aten_addr(

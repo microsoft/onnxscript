@@ -324,7 +324,11 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     "acos": core_ops.aten_acos,
     "acosh": core_ops.aten_acosh,
     "add": core_ops.aten_add,
+    "addbmm": core_ops.aten_addbmm,
+    "addcdiv": core_ops.aten_addcdiv,
+    "addcmul": core_ops.aten_addcmul,
     "addmm": core_ops.aten_addmm,
+    "addmv": core_ops.aten_addmv,
     # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
     "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
     "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
@@ -1390,7 +1394,23 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
         # using https://github.com/microsoft/onnxruntime/issues/15977 to track
     ),
+    "addbmm": (
+        torch.float32,
+        torch.float16,
+    ),
+    "addcdiv": (
+        torch.float32,
+        torch.float16,
+    ),
+    "addcmul": (
+        torch.float32,
+        torch.float16,
+    ),
     "addmm": (
+        torch.float32,
+        torch.float16,
+    ),
+    "addmv": (
         torch.float32,
         torch.float16,
     ),
