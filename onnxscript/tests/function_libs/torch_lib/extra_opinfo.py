@@ -419,6 +419,39 @@ def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
 
 
+def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    def mt(shape, **kwargs):
+        return torch_testing.make_tensor(
+            shape, device=device, dtype=dtype, requires_grad=requires_grad, **kwargs
+        )
+
+    yield opinfo_core.SampleInput(mt(100), n_fft=10, return_complex=True)
+    yield opinfo_core.SampleInput(mt(100), n_fft=10, return_complex=False)
+    if dtype.is_complex:
+        yield opinfo_core.SampleInput(mt(100), n_fft=10)
+
+    for _center in [False, True]:
+        yield opinfo_core.SampleInput(mt(10), n_fft=7, return_complex=True)
+        yield opinfo_core.SampleInput(
+            mt((10, 100)), n_fft=16, hop_length=4, return_complex=True
+        )
+
+    window = mt(16, low=0.5, high=2.0)
+    yield opinfo_core.SampleInput(
+        mt((2, 100)), kwargs=dict(n_fft=16, window=window, return_complex=True)
+    )
+    yield opinfo_core.SampleInput(
+        mt((3, 100)), kwargs=dict(n_fft=16, window=window, return_complex=True)
+    )
+    if not dtype.is_complex:
+        yield opinfo_core.SampleInput(
+            mt((10, 100)), n_fft=16, window=window, onesided=False, return_complex=True
+        )
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "col2im",
@@ -522,5 +555,21 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         skips=(),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
+    ),
+    opinfo_core.OpInfo(
+        "aten_stft",
+        aten_name="stft",
+        op=torch.ops.aten.stft,
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_stft,
+        # Runs very slowly on slow gradcheck - alternatively reduce input sizes
+        gradcheck_fast_mode=True,
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
+        check_batched_grad=False,
+        check_batched_gradgrad=False,
+        supports_out=False,
+        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
     ),
 ]

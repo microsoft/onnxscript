@@ -573,7 +573,7 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
     "slice_scatter": core_ops.aten_slice_scatter,
     "slice": core_ops.aten_slice,
-    "stft": core_ops.aten_stft,
+    "aten_stft": core_ops.aten_stft,
     "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
     "transpose": core_ops.aten_transpose,
     "var_mean": core_ops.aten_var_mean,
@@ -2158,7 +2158,10 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         torch.float16,
     ),
-    "stft": (torch.float32,),
+    "aten_stft": (
+        torch.float32,
+        # torch.float16,  RuntimeError: MKL FFT doesn't support tensors of type: Half
+    ),
     "sub": (
         torch.float32,
         torch.float16,
