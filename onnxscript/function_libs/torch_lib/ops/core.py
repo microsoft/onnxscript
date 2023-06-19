@@ -5908,7 +5908,7 @@ def aten_std_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, 
 
 
 @torch_op("aten::stft", private=True)
-def _add_batch_dimension(self: TensorType):
+def _add_batch_dimension(self: TFloatOrBFloat16) -> tuple[TFloatOrBFloat16, INT64]:
     signal_shape = op.Shape(self)
     signal_rank = op.Size(signal_shape)
     if signal_rank == 1:
@@ -5918,7 +5918,9 @@ def _add_batch_dimension(self: TensorType):
 
 
 @torch_op("aten::stft", private=True)
-def _center_window_around_zeros_if_needed(window: TensorType, n_fft: int):
+def _center_window_around_zeros_if_needed(
+    window: TFloatOrBFloat16, n_fft: int
+) -> TFloatOrBFloat16:
     # first dimension
     n_win = op.Gather(op.Shape(window), 0)
     # Center window around zeros if needed (required by ONNX's STFT)
@@ -5934,12 +5936,11 @@ def _center_window_around_zeros_if_needed(window: TensorType, n_fft: int):
         right_win = op.CastLike(right_win, window)
         left_win = op.CastLike(left_win, window)
         window = op.Concat(left_win, window, right_win, axis=0)
-
     return window
 
 
 @torch_op("aten::stft", private=True)
-def _create_window_from_win_length(win_length: int, n_fft: int):
+def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloatOrBFloat16:
     left = (n_fft - win_length) / 2
 
     right = n_fft - left - win_length
@@ -5954,14 +5955,16 @@ def _create_window_from_win_length(win_length: int, n_fft: int):
 
 
 @torch_op("aten::stft", private=True)
-def _create_window_from_n_fft(n_fft: int):
+def _create_window_from_n_fft(n_fft: int) -> TFloatOrBFloat16:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
     return window
 
 
 @torch_op("aten::stft", private=True)
-def _normalization(signal: TensorType, result: TensorType, n_fft: int):
+def _normalization(
+    signal: TFloatOrBFloat16, result: TFloatOrBFloat16, n_fft: int
+) -> TFloatOrBFloat16:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
     sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
     result = result / sqrt_nfft
@@ -5970,13 +5973,13 @@ def _normalization(signal: TensorType, result: TensorType, n_fft: int):
 
 @torch_op("aten::stft", private=True)
 def _aten_stft_onnx(
-    signal: TensorType,
-    frame_step_const: TensorType,
-    window: TensorType,
-    frame_length_const: TensorType,
-    signal_rank: TensorType,
+    signal: TFloatOrBFloat16,
+    frame_step_const: INT64,
+    window: Union[TFloatOrBFloat16, INT64],
+    frame_length_const: INT64,
+    signal_rank: INT64,
     onesided: int,
-):
+) -> TFloatOrBFloat16:
     window = op.CastLike(window, signal)
     result = op.STFT(signal, frame_step_const, window, frame_length_const, onesided=onesided)
     result = op.Transpose(result, perm=[0, 2, 1, 3])
@@ -5988,15 +5991,15 @@ def _aten_stft_onnx(
 
 @torch_op("aten::stft", trace_only=True)
 def aten_stft(
-    self: TensorType,
+    self: TFloatOrBFloat16,
     n_fft: int,
     hop_length: Optional[int] = None,
     win_length: Optional[int] = None,
-    window: Optional[TensorType] = None,
+    window: Optional[TFloatOrBFloat16] = None,
     normalized: bool = False,
     onesided: Optional[bool] = None,
     return_complex: Optional[bool] = None,  # pylint: disable=unused-argument
-) -> TensorType:
+) -> TFloatOrBFloat16:
     """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
 
     # NOTE: regarless of the value of return_complex, we always return a real representation.
@@ -6013,13 +6016,13 @@ def aten_stft(
     self, signal_rank = _add_batch_dimension(self)
 
     # Get window and make sure it's the same size as `win_length` or `n_fft`
-    if window is None:
+    if window is not None and window.shape[0] is not None:
+        window = _center_window_around_zeros_if_needed(window, n_fft)
+    elif window is None:
         if win_length is not None:
             window = _create_window_from_win_length(win_length, n_fft)
         else:
             window = _create_window_from_n_fft(n_fft)
-    elif window.shape[0] is not None:
-        window = _center_window_around_zeros_if_needed(window, n_fft)
 
     if onesided is None or onesided:
         onesided = 1

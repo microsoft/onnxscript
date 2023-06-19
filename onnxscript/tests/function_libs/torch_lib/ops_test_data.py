@@ -1091,11 +1091,6 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
     skip(
-        "stft",
-        matcher=lambda sample: sample.kwargs.get("center") is not None,
-        reason="This overloads doesn't support center padding.",
-    ),
-    skip(
         "tile",
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
         or not sample.input.shape,
