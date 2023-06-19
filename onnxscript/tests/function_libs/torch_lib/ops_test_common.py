@@ -76,6 +76,10 @@ class DecorateMeta:
     # The test_class_name to apply the decorator to. If None, the decorator is
     # applied to all test classes.
     test_class_name: Optional[str] = None
+    # Expected error if the test_behavior is "xfail"
+    expected_error: Optional[type[Exception]] = None
+    # Expected regex that will match the error message if the test_behavior is "xfail"
+    expected_error_regex: Optional[str] = None
 
 
 def xfail(
@@ -87,6 +91,8 @@ def xfail(
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
+    expected_error: Optional[type[Exception]] = None,
+    expected_error_regex: Optional[str] = None,
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
@@ -100,6 +106,8 @@ def xfail(
         enabled_if: Whether the xfail is enabled.
         test_class_name: The test class name to apply the xfail to. If None, the
             xfail is applied to all test classes.
+        expected_error: The expected error type.
+        expected_error_regex: The expected regex that will match the error message.
     """
     return DecorateMeta(
         op_name=op_name,
@@ -111,6 +119,8 @@ def xfail(
         enabled_if=enabled_if,
         test_class_name=test_class_name,
         test_behavior="xfail",
+        expected_error=expected_error,
+        expected_error_regex=expected_error_regex,
     )
 
 
@@ -561,13 +571,17 @@ def eager_executor(
 
 @contextlib.contextmanager
 def normal_xfail_skip_test_behaviors(
-    test_behavior: Optional[str] = None, reason: Optional[str] = None
+    test_behavior: Optional[str] = None, reason: str = "",
+    expected_error: Optional[type[Exception]] = None,
+    expected_error_regex: Optional[str] = None,
 ):
     """This context manager is used to handle the different behaviors of xfail and skip.
 
     Args:
-        test_behavior (optional[str]): From DecorateMeta name, can be 'skip', 'xfail', or None.
-        reason (optional[str]): The reason for the failure or skip.
+        test_behavior: From DecorateMeta name, can be 'skip', 'xfail', or None.
+        reason: The reason for the failure or skip.
+        expected_error: The expected error type.
+        expected_error_regex: The expected regex that will match the error.
 
     Raises:
         e: Any exception raised by the test case if it's not an expected failure.
@@ -581,11 +595,19 @@ def normal_xfail_skip_test_behaviors(
         yield
     # We could use `except (AssertionError, RuntimeError, ...) as e:`, but it needs
     # to go over all test cases to find the right exception type.
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception:  # pylint: disable=broad-exception-caught
         if test_behavior is None:
-            raise e
+            raise
         if test_behavior == "xfail":
-            pytest.xfail(reason=reason)
+            if expected_error is not None:
+                if expected_error_regex is not None:
+                    with pytest.raises(expected_error, match=expected_error_regex):
+                        raise
+                else:
+                    with pytest.raises(expected_error):
+                        raise
+            else:
+                pytest.xfail(reason=reason)
     else:
         if test_behavior == "xfail":
             pytest.fail("Test unexpectedly passed")
