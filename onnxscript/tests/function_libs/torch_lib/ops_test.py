@@ -64,17 +64,21 @@ def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
 
 def _should_skip_xfail_test_sample(
     op_name: str, sample
-) -> Tuple[Optional[str], Optional[str]]:
+) -> Tuple[Optional[str], Optional[str], Optional[type[Exception]]]:
     """Returns a reason if a test sample should be skipped."""
     if op_name not in ops_test_data.OP_WITH_SKIPPED_XFAIL_SUBTESTS:
-        return None, None
+        return None, None, None
     for decorator_meta in ops_test_data.SKIP_XFAIL_SUBTESTS:
         # Linear search on ops_test_data.SKIP_XFAIL_SUBTESTS. That's fine because the list is small.
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
             if decorator_meta.matcher(sample):
-                return decorator_meta.test_behavior, decorator_meta.reason
-    return None, None
+                return (
+                    decorator_meta.test_behavior,
+                    decorator_meta.reason,
+                    decorator_meta.expected_error,
+                )
+    return None, None, None
 
 
 def _split_function_and_wrangler(
@@ -225,9 +229,13 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample)
+            test_behavior, reason, expected_error = _should_skip_xfail_test_sample(
+                op.name, cpu_sample
+            )
 
-            with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):
+            with ops_test_common.normal_xfail_skip_test_behaviors(
+                test_behavior, reason, expected_error
+            ):
                 input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = ops_test_common.convert_kwargs_for_onnx(cpu_sample.kwargs)
                 if input_wrangler:
