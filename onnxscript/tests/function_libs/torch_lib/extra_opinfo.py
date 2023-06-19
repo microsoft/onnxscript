@@ -433,11 +433,8 @@ def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
     if dtype.is_complex:
         yield opinfo_core.SampleInput(mt(100), n_fft=10)
 
-    for _center in [False, True]:
-        yield opinfo_core.SampleInput(mt(10), n_fft=7, return_complex=True)
-        yield opinfo_core.SampleInput(
-            mt((10, 100)), n_fft=16, hop_length=4, return_complex=True
-        )
+    yield opinfo_core.SampleInput(mt(10), n_fft=7, return_complex=True)
+    yield opinfo_core.SampleInput(mt((10, 100)), n_fft=16, hop_length=4, return_complex=True)
 
     window = mt(16, low=0.5, high=2.0)
     yield opinfo_core.SampleInput(
