@@ -24,11 +24,14 @@ try:
         category=_roar.BeartypeDecorHintPep585DeprecationWarning,
     )
 except ImportError:
+
     def checked(func):
         return func
+
 except Exception as e:  # pylint: disable=broad-exception-caught
     # Warn errors that are not import errors (unexpected).
     warnings.warn(f"{e}", stacklevel=2)
+
     def checked(func):
         return func
 
