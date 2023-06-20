@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import functools
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -923,8 +924,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (nn_ops.aten_mse_loss),
         input_wrangler=_mse_loss_input_wrangler,
     ),
-    TorchLibOpInfo("nonzero", core_ops.aten_nonzero, skips_or_fails=()),
-    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True, skips_or_fails=()),
+    TorchLibOpInfo(
+        "nonzero",
+        core_ops.aten_nonzero,
+        skips_or_fails=(
+            xfail(
+                "nonzero",
+                matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
+                reason="as_tuple=True is not supported",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "normal",
+        core_ops.aten_normal,
+        nondeterministic=True,
+        skips_or_fails=(
+            skip(
+                "normal",
+                matcher=lambda sample: len(sample.args) > 0
+                and not isinstance(sample.args[0], float),
+                reason="ORT only accept float type for args[0] 'mean'",
+            ),
+        ),
+    ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
         "permute",
@@ -1193,7 +1216,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (core_ops.aten_grid_sampler),
         input_wrangler=_grid_sample_input_wrangler,
         trace_only=True,
-        skips_or_fails=(),
+        skips_or_fails=(
+            skip(
+                "nn.functional.grid_sample",
+                # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+                matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
+                or len(sample.args[0].shape) != 4,
+                reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+            ),
+        ),
     ),
     TorchLibOpInfo("layer_norm", core_ops.aten_layer_norm, trace_only=True),
     TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
@@ -1282,35 +1313,71 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (nn_ops.aten_max_pool1d),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
-        skips_or_fails=(),
+        skips_or_fails=(
+            skip(
+                "nn.functional.max_pool1d",
+                matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+                reason="this aten overload assume return_indices=False",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool1d_with_indices",
         (nn_ops.aten_max_pool1d_with_indices),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
-        skips_or_fails=(),
+        skips_or_fails=(
+            skip(
+                "nn.functional.max_pool1d_with_indices",
+                matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+                reason="this aten overload assume return_indices=True",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool2d",
         (nn_ops.aten_max_pool2d),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
-        skips_or_fails=(),
+        skips_or_fails=(
+            skip(
+                "nn.functional.max_pool2d",
+                matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+                reason="this aten overload assume return_indices=False",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool2d_with_indices",
         (nn_ops.aten_max_pool2d_with_indices),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
-        skips_or_fails=(),
+        skips_or_fails=(
+            skip(
+                "nn.functional.max_pool2d_with_indices",
+                matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+                reason="this aten overload assume return_indices=True",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool3d",
         (nn_ops.aten_max_pool3d),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
-        skips_or_fails=(),
+        skips_or_fails=(
+            skip(
+                "nn.functional.max_pool3d",
+                matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+                and sample.kwargs.get("padding") == 1,
+                reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+            ),
+            skip(
+                "nn.functional.max_pool3d",
+                matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+                reason="this aten overload assume return_indices=False",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool3d_with_indices",
@@ -1537,12 +1604,27 @@ OPINFO_FUNCTION_MAPPING: dict[
 
 TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
 
-# TODO: Flatten this list
-EXPECTED_SKIPS_OR_FAILS = tuple[ops_test_common.DecorateMeta, ...] = (
-    info.skips_or_fails for info in TESTED_TORCHLIB_OPS
+EXPECTED_SKIPS_OR_FAILS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
 )
 
-SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = ()
+SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is not None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
+)
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 
@@ -1782,357 +1864,30 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     str,
     tuple[Any, ...],
 ] = {
-    "all_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "allclose": (
-        torch.float32,
-        torch.float16,
-    ),
-    "all": (
-        torch.float32,
-        torch.float16,
-    ),
-    "abs": (
-        torch.float32,
-        torch.float16,
-    ),
-    "acos": (
-        torch.float32,
-        torch.float16,
-    ),
-    "acosh": (
-        torch.float32,
-        torch.float16,
-    ),
     "add": (
         torch.float32,
         # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
         # using https://github.com/microsoft/onnxruntime/issues/15977 to track
     ),
-    "addmm": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
-    "amax": (
-        torch.float32,
-        torch.float16,
-    ),
-    "amin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "any": (
-        torch.float32,
-        torch.float16,
-    ),
-    "any_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "arange_start_step": (
-        torch.float32,
-        torch.float16,
-    ),
-    "arange_start": (
-        torch.float32,
-        torch.float16,
-    ),
-    "arange": (
-        torch.float32,
-        torch.float16,
-    ),
-    "argmax": (
-        torch.float32,
-        torch.float16,
-    ),
-    "argmin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "as_strided": (
-        torch.float32,
-        torch.float16,
-    ),
-    "asin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "asinh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atan": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atan2": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atanh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_1d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_1d_single_tensor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_2d_single_tensor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_3d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_3d_single_tensor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "baddbmm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "bmm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "broadcast_to": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cat": (
-        torch.float32,
-        torch.float16,
-    ),
-    "ceil": (
-        torch.float32,
-        torch.float16,
-    ),
+
     "chunk": (
         torch.float32,
         # torch.float16,  # FIXME: SplitToSequence op inference failed
         # using https://github.com/microsoft/onnxruntime/issues/16006 to track
     ),
-    "clamp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "clamp_max": (
-        torch.float32,
-        torch.float16,
-    ),
-    "clamp_min": (
-        torch.float32,
-        torch.float16,
-    ),
-    "clone": (
-        torch.float32,
-        torch.float16,
-    ),
+
     "col2im": (
         torch.float32,
         # torch.float16,  # FIXME: Tensor-likes are not close
         # using https://github.com/microsoft/onnxruntime/issues/16007 to track
     ),
-    "constant_pad_nd": (
-        torch.float32,
-        torch.float16,
-    ),
-    "contiguous": (
-        torch.float32,
-        torch.float16,
-    ),
-    "convolution": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
-    "cos": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cosh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cross": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cumsum": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
-    "div": (
-        torch.float32,
-        torch.float16,
-    ),
-    "dot": (
-        torch.float32,
-        torch.float16,
-    ),
-    "empty": (
-        torch.float32,
-        torch.float16,
-    ),
-    "empty_like": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
-    "eq": (
-        torch.float32,
-        torch.float16,
-    ),
-    "equal": (
-        torch.float32,
-        torch.float16,
-    ),
-    "exp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "exp2": (
-        torch.float32,
-        torch.float16,
-    ),
-    "expand": (
-        torch.float32,
-        torch.float16,
-    ),
-    "expand_as": (
-        torch.float32,
-        torch.float16,
-    ),
-    "erf": (
-        torch.float32,
-        torch.float16,
-    ),
-    "fill": (
-        torch.float32,
-        torch.float16,
-    ),
-    "flip": (
-        torch.float32,
-        torch.float16,
-    ),
-    "floor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "fmod": (
-        torch.float32,
-        torch.float16,
-    ),
-    "full": (
-        torch.float32,
-        torch.float16,
-    ),
-    "full_like": (
-        torch.float32,
-        torch.float16,
-    ),
-    "full_like_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "gather": (
-        torch.float32,
-        torch.float16,
-    ),
-    "ge": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
-    # "greater": core_ops.aten_greater,  # no test case in OPS_DB
-    "grid_sampler_2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "gt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "hstack": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
-    # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
-    "index_put_bool": (
-        torch.float32,
-        torch.float16,
-    ),
-    "index_put": (
-        torch.float32,
-        torch.float16,
-    ),
-    "index_select": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isclose": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isfinite": (
-        torch.float32,
-        # Added Cast inside the function so it can support all real dtypes naturally
-        torch.float16,
-    ),
-    "isinf": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isnan": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isneginf": (
-        torch.float32,
-        # Added Cast inside the function so it can support all real dtypes naturally
-        torch.float16,
-    ),
-    "isposinf": (
-        torch.float32,
-        # Added Cast inside the function so it can support all real dtypes naturally
-        torch.float16,
-    ),
-    "layer_norm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "log": (
-        torch.float32,
-        torch.float16,
-    ),
-    "le": (
-        torch.float32,
-        torch.float16,
-    ),
+
     "log10": (
         torch.float32,
         # py310-torch-nightly,Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float)
         # torch.float16,
     ),
-    "log1p": (
-        torch.float32,
-        torch.float16,
-    ),
+
     "log_softmax": (
         torch.float32,
         # torch.float16,  # FIXME: ORT failed.
@@ -2142,267 +1897,21 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         # windows-latest, py310-torch-nightly, RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
         # torch.float16,
     ),
-    "logaddexp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logaddexp2": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logcumsumexp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logdet": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logit": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logsumexp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "lt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "masked_fill": (
-        torch.float32,
-        torch.float16,
-    ),
-    "matmul": (
-        torch.float32,
-        torch.float16,
-    ),
-    "maximum": (
-        torch.float32,
-        torch.float16,
-    ),
-    "max": (
-        torch.float32,
-        torch.float16,
-    ),
-    "max_pool1d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "max_pool2d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "max_pool3d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "mean": (
-        torch.float32,
-        torch.float16,
-    ),
-    "mean_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "min_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "min_other": (
-        torch.float32,
-        torch.float16,
-    ),
-    "min": (
-        torch.float32,
-        torch.float16,
-    ),
-    "minimum": (
-        torch.float32,
-        torch.float16,
-    ),
-    "mm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "mul": (
-        torch.float32,
-        torch.float16,
-    ),
-    "narrow": (
-        torch.float32,
-        torch.float16,
-    ),
-    "native_batch_norm": (
-        torch.float32,
-        torch.float16,
-    ),
     "native_group_norm": (
         torch.float32,
         # torch.float16,  # "GroupNormKernelImpl" not implemented for 'Half' in nightly and weekly
-    ),
-    "native_layer_norm": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
-    "ne": (
-        torch.float32,
-        torch.float16,
-    ),
-    "neg": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty_strided_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty_strided": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_full_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_full": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_ones_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_ones": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_zeros_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_zeros": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.adaptive_avg_pool1d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.adaptive_avg_pool2d": (
-        torch.float32,
-        torch.float16,
     ),
     "nn.functional.adaptive_avg_pool3d": (
         torch.float32,
         # torch.float16,  # FIXME: ORT inference error GlobalAveragePool
     ),
-    "nn.functional.avg_pool2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.celu": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.conv1d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.conv2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.conv3d": (
-        torch.float32,
-        torch.float16,
-    ),
-    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
-    "nn.functional.cross_entropy": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.dropout": (
-        torch.float32,
-        torch.float16,
-    ),
     "nn.functional.elu": (
         torch.float32,
         # torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
     ),
-    "nn.functional.embedding": (
-        torch.float32,
-        torch.float16,
-    ),
     "nn.functional.gelu": (
         torch.float32,
         # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
-    ),
-    "nn.functional.grid_sample": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.hardtanh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.leaky_relu": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.linear": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.logsigmoid": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.max_pool1d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool1d_with_indices": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool2d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool2d_with_indices": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool3d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool3d_with_indices": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.nll_loss_weight": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.nll_loss": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.reflection_pad2d": (
-        torch.float32,
-        torch.float16,
     ),
     "nn.functional.relu": (
         torch.float32,
@@ -2416,139 +1925,25 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         # file issue: https://github.com/microsoft/onnxruntime/issues/16069
         # torch.float16,
     ),
-    "nn.functional.replication_pad2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.replication_pad3d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.scaled_dot_product_attention": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.scaled_dot_product_attention_bool_mask": (
-        torch.float32,
-        torch.float16,
-    ),
     "nn.functional.selu": (
         torch.float32,
         # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
-    ),
-    "nn.functional.mse_loss": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.upsample_bilinear2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.upsample_nearest2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nonzero": (
-        torch.float32,
-        torch.float16,
     ),
     "normal": (
         torch.float32,
         # torch.float16,  # FIXME: RandomNormal in ORT failed
     ),
-    "ones": (
-        torch.float32,
-        torch.float16,
-    ),
-    "ones_like": (
-        torch.float32,
-        torch.float16,
-    ),
-    "permute": (
-        torch.float32,
-        torch.float16,
-    ),
-    "pow": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "rand": core_ops.aten_rand,  # no test case in OPS_DB
     "randn": (
         torch.float32,
         # torch.float16,  # FIXME: shape inference error
-    ),
-    "reciprocal": (
-        torch.float32,
-        torch.float16,
-    ),
-    "remainder": (
-        torch.float32,
-        torch.float16,
-    ),
-    "repeat": (
-        torch.float32,
-        torch.float16,
-    ),
-    "reshape": (
-        torch.float32,
-        torch.float16,
-    ),
-    "resolve_conj": (
-        torch.float32,
-        torch.float16,
-    ),
-    "resolve_neg": (
-        torch.float32,
-        torch.float16,
-    ),
-    "round": (
-        torch.float32,
-        torch.float16,
-    ),
-    "rsqrt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "rsub": (
-        torch.float32,
-        torch.float16,
     ),
     "scatter_reduce": (
         torch.float32,
         # torch.float16,  # FIXME: ORT failed
     ),
-    "select": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
     "scatter_add": (
         torch.float32,
         # torch.float16,  # FIXME" ORT failed
-    ),
-    "sigmoid": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sign": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sinh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "slice_scatter": (
-        torch.float32,
-        torch.float16,
-    ),
-    "slice": (
-        torch.float32,
-        torch.float16,
     ),
     "softmax": (
         torch.float32,
@@ -2561,79 +1956,6 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     "split": (
         torch.float32,
         # torch.float16,  # ORT failed
-    ),
-    "sqrt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "squeeze_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "squeeze": (
-        torch.float32,
-        torch.float16,
-    ),
-    "stack": (
-        torch.float32,
-        torch.float16,
-    ),
-    "aten.stft": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sub": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sum": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "sym_size": core_ops.aten_sym_size,  # no test case in OPS_DB
-    "t": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tan": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tanh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tile": (
-        torch.float32,
-        torch.float16,
-    ),
-    "topk": (
-        torch.float32,
-        torch.float16,
-    ),
-    "transpose": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tril": (
-        torch.float32,
-        torch.float16,
-    ),
-    "triu": (
-        torch.float32,
-        torch.float16,
-    ),
-    "trunc": (
-        torch.float32,
-        torch.float16,
-    ),
-    "unflatten": (
-        torch.float32,
-        torch.float16,
-    ),
-    "unsqueeze": (
-        torch.float32,
-        torch.float16,
     ),
     "var_mean": (
         torch.float32,
@@ -2649,29 +1971,5 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         torch.float32,
         # py310-onnx-weekly, FullGraph, AssertionError in ORT
         # torch.float16,
-    ),
-    "view": (
-        torch.float32,
-        torch.float16,
-    ),
-    "vstack": (
-        torch.float32,
-        torch.float16,
-    ),
-    "where": (
-        torch.float32,
-        torch.float16,
-    ),
-    "xlogy": (
-        torch.float32,
-        torch.float16,
-    ),
-    "zeros": (
-        torch.float32,
-        torch.float16,
-    ),
-    "zeros_like": (
-        torch.float32,
-        torch.float16,
     ),
 }
