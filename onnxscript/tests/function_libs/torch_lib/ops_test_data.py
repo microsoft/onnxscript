@@ -29,7 +29,8 @@ wrangler function. See `_cat_input_wrangler` for an example.
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable
+import dataclasses
+from typing import Any, Callable, Optional
 
 import numpy as np
 import torch
@@ -53,6 +54,26 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 OPS_DB.extend(opinfo_definitions.signal.op_db)
 OPS_DB.extend(opinfo_definitions.special.op_db)
 OPS_DB.extend(extra_opinfo.OP_DB)
+
+
+@dataclasses.dataclass
+class OpTestInfo:
+    """A dataclass to store the information to test an torchlib op."""
+
+    # The name of the op_info, e.g. "add"
+    op_info_name: str
+    # The torchlib ONNX Function to test
+    op: Callable[..., Any]
+    # Explicitly specify when the op is trace_only
+    trace_only: bool = False
+    # The input wrangler function to adjust the input to fit the aten signature
+    input_wrangler: Optional[
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]]
+    ] = None
+    # Whether the op is non-deterministic
+    non_deterministic: bool = False
+    # Expected skips or fails for the test and/or subtests
+    expected_skips_or_fails: tuple[ops_test_common.DecorateMeta, ...] = ()
 
 
 # Modify this section ##########################################################
@@ -305,6 +326,20 @@ def _where_input_wrangler(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
+TESTED_TORCHLIB_OPS: tuple[OpTestInfo, ...] = (
+    OpTestInfo(
+        "all_dim",
+        core_ops.aten_all_dim,
+        expected_skips_or_fails=(
+            xfail(
+                "all_dim",
+                matcher=lambda sample: not (len(sample.kwargs) > 0),
+                reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+            ),
+        ),
+    ),
+)
+
 
 # Split the scripted and traced ops to make sure we don't forget to script an op
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
