@@ -612,6 +612,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         "as_strided",
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
+        raises=(AssertionError, RuntimeError),
     ),
     xfail(
         "hstack",
@@ -659,6 +660,7 @@ EXPECTED_SKIPS_OR_FAILS = (
         "nn.functional.upsample_nearest2d",
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
+        raises=RuntimeError,
     ),
     xfail(
         "remainder",
@@ -952,7 +954,7 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
         or len(sample.args[0].shape) != 4,
-        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor; ORT segfaults",
     ),
     skip(
         "nn.functional.max_pool1d_with_indices",
@@ -1057,6 +1059,7 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         "nn.functional.upsample_nearest2d",
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+        raises=(TypeError, AssertionError),
     ),
     xfail(
         "permute",

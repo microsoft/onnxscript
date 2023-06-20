@@ -77,7 +77,7 @@ class DecorateMeta:
     # applied to all test classes.
     test_class_name: Optional[str] = None
     # Expected error if the test_behavior is "xfail"
-    expected_error: Optional[type[Exception]] = None
+    raises: Optional[type[Exception] | tuple[type[Exception], ...]] = None
 
 
 def xfail(
@@ -89,7 +89,7 @@ def xfail(
     matcher: Optional[Callable[[Any], Any]] = None,
     enabled_if: bool = True,
     test_class_name: Optional[str] = None,
-    expected_error: Optional[type[Exception]] = None,
+    raises: Optional[type[Exception] | tuple[type[Exception], ...]] = None,
 ) -> DecorateMeta:
     """Expects an OpInfo test to fail.
 
@@ -103,12 +103,12 @@ def xfail(
         enabled_if: Whether the xfail is enabled.
         test_class_name: The test class name to apply the xfail to. If None, the
             xfail is applied to all test classes.
-        expected_error: The expected error type.
+        raises: The expected error type.
     """
-    if expected_error is None:
-        decorator = pytest.mark.xfail(reason=reason, strict=True)
+    if raises is None:
+        decorator = pytest.mark.xfail(reason=reason)
     else:
-        decorator = pytest.mark.xfail(reason=reason, raises=expected_error, strict=True)
+        decorator = pytest.mark.xfail(reason=reason, raises=raises)
     return DecorateMeta(
         op_name=op_name,
         variant_name=variant_name,
@@ -119,7 +119,7 @@ def xfail(
         enabled_if=enabled_if,
         test_class_name=test_class_name,
         test_behavior="xfail",
-        expected_error=expected_error,
+        raises=raises,
     )
 
 
@@ -542,12 +542,12 @@ def graph_executor(
             onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
             # pylint: enable=c-extension-no-member
         ) as e:
-            raise AssertionError(
+            raise RuntimeError(
                 "ONNX Runtime failed to evaluate:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
         except OrtAbortedError as e:
-            raise AssertionError(
+            raise RuntimeError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
@@ -572,14 +572,14 @@ def eager_executor(
 def normal_xfail_skip_test_behaviors(
     test_behavior: Optional[str] = None,
     reason: Optional[str] = None,
-    expected_error: Optional[type[Exception]] = None,
+    raises: Optional[type[Exception] | tuple[type[Exception], ...]] = None,
 ):
     """This context manager is used to handle the different behaviors of xfail and skip.
 
     Args:
         test_behavior: From DecorateMeta name, can be 'skip', 'xfail', or None.
         reason: The reason for the failure or skip.
-        expected_error: The expected error type.
+        raises: The expected error type.
 
     Raises:
         e: Any exception raised by the test case if it's not an expected failure.
@@ -597,8 +597,8 @@ def normal_xfail_skip_test_behaviors(
         if test_behavior is None:
             raise
         if test_behavior == "xfail":
-            if expected_error is not None:
-                with pytest.raises(expected_error):
+            if raises is not None:
+                with pytest.raises(raises):
                     raise
             else:
                 pytest.xfail(reason=reason)

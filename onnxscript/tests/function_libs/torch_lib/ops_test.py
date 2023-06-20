@@ -76,7 +76,7 @@ def _should_skip_xfail_test_sample(
                 return (
                     decorator_meta.test_behavior,
                     decorator_meta.reason,
-                    decorator_meta.expected_error,
+                    decorator_meta.raises,
                 )
     return None, None, None
 
