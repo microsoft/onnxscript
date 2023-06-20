@@ -5962,7 +5962,7 @@ def _create_window_from_n_fft(n_fft: int) -> TFloatOrBFloat16:
 
 
 @torch_op("aten::stft", private=True)
-def _normalization(
+def _normalize_fft_result(
     signal: TFloatOrBFloat16, result: TFloatOrBFloat16, n_fft: int
 ) -> TFloatOrBFloat16:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
@@ -6036,7 +6036,7 @@ def aten_stft(
 
     # Normalize, if needed
     if normalized:
-        result = _normalization(self, result, n_fft)
+        result = _normalize_fft_result(self, result, n_fft)
 
     return result
 
