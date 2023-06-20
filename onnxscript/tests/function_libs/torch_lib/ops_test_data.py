@@ -673,31 +673,159 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),
     TorchLibOpInfo(
-        "new_empty_strided_dtype", core_ops.aten_new_empty_strided_dtype, nondeterministic=True
+        "new_empty_strided_dtype",
+        core_ops.aten_new_empty_strided_dtype,
+        nondeterministic=True,
+        skips_or_fails=(
+            skip(
+                "new_empty_strided_dtype",
+                matcher=lambda sample: sample.kwargs.get("dtype") is None,
+                reason="this Aten overload must have 4 inputs:(self, size, stride, dtype)",
+            ),
+        ),
     ),
     TorchLibOpInfo(
-        "new_empty_strided", core_ops.aten_new_empty_strided, nondeterministic=True
+        "new_empty_strided",
+        core_ops.aten_new_empty_strided,
+        nondeterministic=True,
+        skips_or_fails=(
+            skip(
+                "new_empty_strided",
+                matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+                reason="this Aten overload only accept 3 inputs:(self, size, stride)",
+            ),
+        ),
     ),
-    TorchLibOpInfo("new_full_dtype", core_ops.aten_new_full_dtype),
-    TorchLibOpInfo("new_full", core_ops.aten_new_full),
-    TorchLibOpInfo("new_ones_dtype", core_ops.aten_new_ones_dtype),
-    TorchLibOpInfo("new_ones", core_ops.aten_new_ones),
-    TorchLibOpInfo("new_zeros_dtype", core_ops.aten_new_zeros_dtype),
-    TorchLibOpInfo("new_zeros", core_ops.aten_new_zeros),
-    TorchLibOpInfo("nn.functional.adaptive_avg_pool1d", nn_ops.aten_adaptive_avg_pool1d),
-    TorchLibOpInfo("nn.functional.adaptive_avg_pool2d", nn_ops.aten_adaptive_avg_pool2d),
-    TorchLibOpInfo("nn.functional.adaptive_avg_pool3d", nn_ops.aten_adaptive_avg_pool3d),
+    TorchLibOpInfo(
+        "new_full_dtype",
+        core_ops.aten_new_full_dtype,
+        skips_or_fails=(
+            skip(
+                "new_full_dtype",
+                matcher=lambda sample: sample.kwargs.get("dtype") is None,
+                reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "new_full",
+        core_ops.aten_new_full,
+        skips_or_fails=(
+            skip(
+                "new_full",
+                matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+                reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "new_ones_dtype",
+        core_ops.aten_new_ones_dtype,
+        skips_or_fails=(
+            skip(
+                "new_ones_dtype",
+                matcher=lambda sample: sample.kwargs.get("dtype") is None,
+                reason="",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "new_ones",
+        core_ops.aten_new_ones,
+        skips_or_fails=(
+            skip(
+                "new_ones",
+                matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+                reason="",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "new_zeros_dtype",
+        core_ops.aten_new_zeros_dtype,
+        skips_or_fails=(
+            skip(
+                "new_zeros_dtype",
+                matcher=lambda sample: sample.kwargs.get("dtype") is None,
+                reason="",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "new_zeros",
+        core_ops.aten_new_zeros,
+        skips_or_fails=(
+            skip(
+                "new_zeros",
+                matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+                reason="",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "nn.functional.adaptive_avg_pool1d",
+        nn_ops.aten_adaptive_avg_pool1d,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.adaptive_avg_pool1d",
+                # Shape should be [N, C, D1]
+                matcher=lambda sample: sample.args[0] not in {1, (1,)},
+                reason="only global pooling is supported; only batched inputs are supported",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "nn.functional.adaptive_avg_pool2d",
+        nn_ops.aten_adaptive_avg_pool2d,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.adaptive_avg_pool2d",
+                matcher=lambda sample: sample.args[0] != (1, 1),
+                reason="only global pooling is supported; only batched inputs are supported",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "nn.functional.adaptive_avg_pool3d",
+        nn_ops.aten_adaptive_avg_pool3d,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.adaptive_avg_pool3d",
+                matcher=lambda sample: sample.args[0] != (1, 1, 1),
+                reason="only global pooling is supported; only batched inputs are supported",
+            ),
+        ),
+    ),
     TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
     TorchLibOpInfo(
         "nn.functional.cross_entropy",
         # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
         (nn_ops.aten_cross_entropy_loss),
         input_wrangler=_cross_entropy_input_wrangler,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.cross_entropy",
+                matcher=lambda sample: len(sample.args) < 1
+                or (
+                    isinstance(sample.args[0], torch.Tensor)
+                    and sample.args[0].dtype != torch.int64
+                ),
+                reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[target] as int type",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.dropout",
         (core_ops.aten_dropout),
         input_wrangler=_dropout_input_wrangler,
+        skips_or_fails=(
+            skip(
+                "nn.functional.dropout",
+                matcher=lambda sample: len(sample.kwargs) == 0
+                or sample.kwargs.get("p", 0.0) > 0.0,
+                reason="dropout is random so the result not match",
+            ),
+        ),
     ),
     TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
     TorchLibOpInfo(
@@ -723,16 +851,39 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.nll_loss_weight",
         (nn_ops.aten_nll_loss_weight),
         input_wrangler=_nll_loss_input_wrangler,
+        skips_or_fails=(
+            skip(
+                "nn.functional.nll_loss_weight",
+                matcher=lambda sample: "weight" not in sample.kwargs,
+                reason="this Aten overload need weight as kwargs",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.nll_loss",
         (nn_ops.aten_nll_loss),
         input_wrangler=_nll_loss_input_wrangler,
+        skips_or_fails=(
+            skip(
+                "nn.functional.nll_loss",
+                matcher=lambda sample: "weight" in sample.kwargs,
+                reason="this Aten overload doesn't accept weight as kwargs",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.reflection_pad2d",
         (nn_ops.aten_reflection_pad2d),
         input_wrangler=_reflection_pad2d_input_wrangler,
+        skips_or_fails=(
+            skip(
+                "nn.functional.reflection_pad2d",
+                matcher=lambda sample: not (
+                    len(sample.args) > 1 and sample.args[1] == "reflect"
+                ),
+                reason="this Aten overload need args[1] == 'reflect' for pad mode",
+            ),
+        ),
     ),
     TorchLibOpInfo("nn.functional.relu", nn_ops.aten_relu),
     TorchLibOpInfo("nn.functional.relu6", nn_ops.aten_relu6),
@@ -740,11 +891,31 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.replication_pad2d",
         (nn_ops.aten_replication_pad2d),
         input_wrangler=_replication_pad2d_input_wrangler,
+        skips_or_fails=(
+            skip(
+                "nn.functional.replication_pad2d",
+                matcher=lambda sample: not (
+                    len(sample.args) > 1 and sample.args[1] == "replicate"
+                ),
+                reason="this Aten overload need args[1] == 'replicate' for pad mode",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad3d",
         (nn_ops.aten_replication_pad3d),
         input_wrangler=_replication_pad3d_input_wrangler,
+        skips_or_fails=(
+            skip(
+                "nn.functional.replication_pad3d",
+                matcher=lambda sample: not (
+                    len(sample.args) > 1
+                    and sample.args[1] == "replicate"
+                    and len(sample.input.shape) == 5
+                ),
+                reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
+            ),
+        ),
     ),
     TorchLibOpInfo("nn.functional.selu", core_ops.aten_selu),
     TorchLibOpInfo(
@@ -752,10 +923,26 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (nn_ops.aten_mse_loss),
         input_wrangler=_mse_loss_input_wrangler,
     ),
-    TorchLibOpInfo("nonzero", core_ops.aten_nonzero),
-    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True),
+    TorchLibOpInfo("nonzero", core_ops.aten_nonzero, skips_or_fails=()),
+    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True, skips_or_fails=()),
     TorchLibOpInfo("ones", core_ops.aten_ones),
-    TorchLibOpInfo("permute", (core_ops.aten_permute), input_wrangler=_permute_input_wrangler),
+    TorchLibOpInfo(
+        "permute",
+        (core_ops.aten_permute),
+        input_wrangler=_permute_input_wrangler,
+        skips_or_fails=(
+            xfail(
+                "permute",
+                matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
+                reason="Negative value in perm is not supported",
+            ),
+            xfail(
+                "permute",
+                matcher=lambda sample: len(sample.args[0]) == 0,
+                reason="Empty perm is not supported",
+            ),
+        ),
+    ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
     TorchLibOpInfo(
@@ -806,7 +993,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
     # TorchLibOpInfo("scalar_tensor", core_ops.aten_scalar_tensor),  # no test case in OPS_DB
-    TorchLibOpInfo("scatter_add", core_ops.aten_scatter_add),
+    TorchLibOpInfo(
+        "scatter_add",
+        core_ops.aten_scatter_add,
+        skips_or_fails=(
+            xfail(
+                "scatter_add",
+                matcher=lambda sample: len(sample.input.shape) == 0,
+                reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+            ),
+        ),
+    ),
     TorchLibOpInfo("select", core_ops.aten_select),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
@@ -816,8 +1013,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("split_with_sizes", core_ops.aten_split_with_sizes),
     TorchLibOpInfo("split", core_ops.aten_split),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
-    TorchLibOpInfo("squeeze_dim", core_ops.aten_squeeze_dim),
-    TorchLibOpInfo("squeeze", core_ops.aten_squeeze),
+    TorchLibOpInfo(
+        "squeeze_dim",
+        core_ops.aten_squeeze_dim,
+        skips_or_fails=(
+            skip(
+                "squeeze_dim",
+                matcher=lambda sample: not (
+                    len(sample.args) > 0 and isinstance(sample.args[0], int)
+                ),
+                reason="this Aten overload only support one tensor as input and one int as args by design",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "squeeze",
+        core_ops.aten_squeeze,
+        skips_or_fails=(
+            skip(
+                "squeeze",
+                matcher=lambda sample: not (len(sample.args) == 0),
+                reason="this Aten overload only support one tensor as input by design",
+            ),
+        ),
+    ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("sub", core_ops.aten_sub),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
@@ -834,7 +1053,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("tan", core_ops.aten_tan),
     TorchLibOpInfo("tanh", core_ops.aten_tanh),
-    TorchLibOpInfo("tile", core_ops.aten_tile),
+    TorchLibOpInfo(
+        "tile",
+        core_ops.aten_tile,
+        skips_or_fails=(
+            skip(
+                "tile",
+                matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
+                or not sample.input.shape,
+                reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
+            ),
+        ),
+    ),
     TorchLibOpInfo("topk", core_ops.aten_topk),
     TorchLibOpInfo("tril", core_ops.aten_tril),
     TorchLibOpInfo("triu", core_ops.aten_triu),
@@ -848,6 +1078,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 "unflatten",
                 reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
                 test_class_name="TestOutputConsistencyFullGraph",
+            ),
+            xfail(
+                "unflatten",
+                matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
+                reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
             ),
         ),
     ),
@@ -958,6 +1193,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (core_ops.aten_grid_sampler),
         input_wrangler=_grid_sample_input_wrangler,
         trace_only=True,
+        skips_or_fails=(),
     ),
     TorchLibOpInfo("layer_norm", core_ops.aten_layer_norm, trace_only=True),
     TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
@@ -1006,9 +1242,38 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (nn_ops.aten_avg_pool2d),
         input_wrangler=_avg_pool2d_input_wrangler,
         trace_only=True,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.avg_pool2d",
+                matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
+                reason="ONNX doesn't support divisor_override argument",
+            ),
+        ),
     ),
-    TorchLibOpInfo("nn.functional.conv1d", core_ops.aten_conv1d, trace_only=True),
-    TorchLibOpInfo("nn.functional.conv2d", core_ops.aten_conv2d, trace_only=True),
+    TorchLibOpInfo(
+        "nn.functional.conv1d",
+        core_ops.aten_conv1d,
+        trace_only=True,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.conv1d",
+                matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+                reason="String padding is not accepted by aten::conv1d",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "nn.functional.conv2d",
+        core_ops.aten_conv2d,
+        trace_only=True,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.conv2d",
+                matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+                reason="String padding is not accepted by aten::conv2d",
+            ),
+        ),
+    ),
     TorchLibOpInfo("nn.functional.conv3d", core_ops.aten_conv3d, trace_only=True),
     TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu, trace_only=True),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
@@ -1017,36 +1282,54 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (nn_ops.aten_max_pool1d),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
+        skips_or_fails=(),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool1d_with_indices",
         (nn_ops.aten_max_pool1d_with_indices),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
+        skips_or_fails=(),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool2d",
         (nn_ops.aten_max_pool2d),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
+        skips_or_fails=(),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool2d_with_indices",
         (nn_ops.aten_max_pool2d_with_indices),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
+        skips_or_fails=(),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool3d",
         (nn_ops.aten_max_pool3d),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
+        skips_or_fails=(),
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool3d_with_indices",
         (nn_ops.aten_max_pool3d_with_indices),
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
+        skips_or_fails=(
+            skip(
+                "nn.functional.max_pool3d_with_indices",
+                matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+                and sample.kwargs.get("padding") == 1,
+                reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+            ),
+            skip(
+                "nn.functional.max_pool3d_with_indices",
+                matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+                reason="this aten overload assume return_indices=True",
+            ),
+        ),
     ),
     TorchLibOpInfo(
         "nn.functional.scaled_dot_product_attention",
@@ -1056,6 +1339,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             skip(
                 "nn.functional.scaled_dot_product_attention",
                 reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
+            ),
+            skip(
+                "nn.functional.scaled_dot_product_attention",
+                matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask"))
+                is not None
+                and attn_mask.dtype == torch.bool,
+                reason="this overload takes a non-boolean mask",
+            ),
+            skip(
+                "nn.functional.scaled_dot_product_attention",
+                matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+                reason="dropout is random so the results do not match",
             ),
         ),
     ),
@@ -1067,6 +1362,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             skip(
                 "nn.functional.scaled_dot_product_attention_bool_mask",
                 reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
+            ),
+            skip(
+                "nn.functional.scaled_dot_product_attention_bool_mask",
+                matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask"))
+                is not None
+                and attn_mask.dtype != torch.bool,
+                reason="this overload takes a boolean mask",
+            ),
+            skip(
+                "nn.functional.scaled_dot_product_attention_bool_mask",
+                matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+                reason="dropout is random so the results do not match",
             ),
         ),
     ),
@@ -1087,6 +1394,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
                 test_class_name="TestOutputConsistencyFullGraph",
             ),
+            skip(
+                "nn.functional.upsample_nearest2d",
+                # Shape should be [N, C, H, W]
+                matcher=lambda sample: len(sample.input.shape) != 2 + 2,
+                reason="only test on 2d inputs",
+            ),
+            xfail(
+                "nn.functional.upsample_nearest2d",
+                matcher=lambda sample: "scale_factor" in sample.kwargs,
+                reason="fixme: the scale_factor tests",
+            ),
         ),
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
@@ -1100,6 +1418,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 "scatter_reduce",
                 variant_name="mean",
                 reason="ONNX doesn't support reduce='mean' option",
+            ),
+            skip(
+                "scatter_reduce",
+                # ONNX has not include_self parameter and default is include_self=True mode
+                matcher=lambda sample: sample.kwargs.get("include_self") is False,
+                reason="ONNX does't support include_self=False option",
             ),
         ),
     ),
@@ -1138,9 +1462,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 variant_name="unbiased",
                 reason="fixme: Inferred shape and existing shape differ in rank",
             ),
+            xfail(
+                "var_mean",
+                # kwargs is empty
+                matcher=lambda sample: len(sample.kwargs) > 0,
+                reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
+            ),
         ),
     ),
-    TorchLibOpInfo("var_mean_dim", core_ops.aten_var_mean_dim, trace_only=True),
+    TorchLibOpInfo(
+        "var_mean_dim",
+        core_ops.aten_var_mean_dim,
+        trace_only=True,
+        skips_or_fails=(
+            xfail(
+                "var_mean_dim",
+                # kwargs["dim"] must exist, kwargs["correction"] must not exist
+                matcher=lambda sample: not (
+                    sample.kwargs.get("dim", None) is not None
+                    and sample.kwargs.get("correction", None) is None
+                ),
+                reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
+            ),
+        ),
+    ),
     TorchLibOpInfo(
         "var_mean_correction",
         core_ops.aten_var_mean_correction,
@@ -1149,6 +1494,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             xfail(
                 "var_mean_correction",
                 reason="fixme: Inferred shape and existing shape differ in rank",
+            ),
+            skip(
+                "var_mean_correction",
+                # Don't accept input[1]=bool and 'correction' must be in kwargs
+                matcher=lambda sample: len(sample.args) > 0
+                or "correction" not in sample.kwargs,
+                reason="this Aten overload only support when correction attribute exists",
             ),
         ),
     ),
