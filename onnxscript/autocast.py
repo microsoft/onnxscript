@@ -20,7 +20,7 @@ def get_dtype(pyvalue):
     elif isinstance(pyvalue, float):
         return np.float32
     elif isinstance(pyvalue, list):
-        if list:
+        if pyvalue:
             # TODO: What to do about lists with mixed value types, like [1, 2.0]?
             # Should at least produce an error/warning message.
             return get_dtype(pyvalue[0])
