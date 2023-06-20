@@ -119,6 +119,9 @@ def xfail(
         enabled_if=enabled_if,
         test_class_name=test_class_name,
         test_behavior="xfail",
+        # We still do need to provide the expected errors and not just the decorator
+        # because the subtests cannot use the decorator and are handled separately
+        # by `:func:normal_xfail_skip_test_behaviors`.
         raises=raises,
     )
 
