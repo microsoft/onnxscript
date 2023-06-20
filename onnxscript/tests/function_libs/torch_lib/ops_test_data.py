@@ -1744,66 +1744,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
-
-# Split the scripted and traced ops to make sure we don't forget to script an op
-OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
-    str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {
-    info.op_info_name: info.op
-    for info in TESTED_TORCHLIB_OPS
-    if not info.trace_only and not info.complex
-}
-
-
-OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
-    str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {
-    info.op_info_name: info.op
-    for info in TESTED_TORCHLIB_OPS
-    if info.trace_only and not info.complex
-}
-
-# These ops are not deterministic, so we check shape and dtype only
-NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
-    info.op_info_name for info in TESTED_TORCHLIB_OPS if info.nondeterministic
-)
-
-OPINFO_FUNCTION_MAPPING: dict[
-    str,
-    onnxscript.OnnxFunction
-    | Callable[..., Any]
-    | tuple[
-        onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    ],
-] = {**OPINFO_FUNCTION_MAPPING_SCRIPTED, **OPINFO_FUNCTION_MAPPING_TRACE_ONLY}
-
-TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
-
-EXPECTED_SKIPS_OR_FAILS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
-    functools.reduce(
-        # Flatten the list
-        lambda a, b: [*a, *b],
-        [
-            [meta for meta in info.skips_or_fails if meta.matcher is None]
-            for info in TESTED_TORCHLIB_OPS
-        ],
-    )
-)
-
-SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
-    functools.reduce(
-        # Flatten the list
-        lambda a, b: [*a, *b],
-        [
-            [meta for meta in info.skips_or_fails if meta.matcher is not None]
-            for info in TESTED_TORCHLIB_OPS
-        ],
-    )
-)
-
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
@@ -1892,6 +1832,67 @@ ops_test_common.duplicate_opinfo(
         "var_mean_dim",
         "var_mean_correction",
     ),
+)
+
+# MARK: End edits here
+
+# Split the scripted and traced ops to make sure we don't forget to script an op
+OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
+    str,
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+] = {
+    info.op_info_name: (info.op, info.input_wrangler) if info.input_wrangler is not None else info.op
+    for info in TESTED_TORCHLIB_OPS
+    if not info.trace_only and not info.complex
+}
+
+
+OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
+    str,
+    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
+] = {
+    info.op_info_name: (info.op, info.input_wrangler) if info.input_wrangler is not None else info.op
+    for info in TESTED_TORCHLIB_OPS
+    if info.trace_only and not info.complex
+}
+
+# These ops are not deterministic, so we check shape and dtype only
+NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
+    info.op_info_name for info in TESTED_TORCHLIB_OPS if info.nondeterministic
+)
+
+OPINFO_FUNCTION_MAPPING: dict[
+    str,
+    onnxscript.OnnxFunction
+    | Callable[..., Any]
+    | tuple[
+        onnxscript.OnnxFunction | Callable[..., Any],
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
+    ],
+] = {**OPINFO_FUNCTION_MAPPING_SCRIPTED, **OPINFO_FUNCTION_MAPPING_TRACE_ONLY}
+
+TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
+
+EXPECTED_SKIPS_OR_FAILS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
+)
+
+SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is not None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
 )
 
 # MARK: Complex supported functions
