@@ -229,12 +229,8 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            test_behavior, reason, expected_error = _should_skip_xfail_test_sample(
-                op.name, cpu_sample
-            )
-
             with ops_test_common.normal_xfail_skip_test_behaviors(
-                test_behavior, reason, expected_error
+                *_should_skip_xfail_test_sample(op.name, cpu_sample)
             ):
                 input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
                 kwargs_onnx = ops_test_common.convert_kwargs_for_onnx(cpu_sample.kwargs)
