@@ -550,7 +550,7 @@ def graph_executor(
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
         except OrtAbortedError as e:
-            raise RuntimeError(
+            raise OrtAbortedError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
