@@ -83,14 +83,14 @@ the one above.
 The direct usage of literals can be used to create scalars or one-dimensional tensors
 of type `FLOAT` or `INT64` or `STRING`, as shown in the table below.
 
-| Python source  | Generated ONNX constant               |
-| -------------- | ------------------------------------- |
-| `0`              | Scalar value `0` of type `INT64`          |
-| 0.0            | Scalar value 0.0 of type FLOAT        |
-| "x"            | Scalar value "x" of type STRING       |
-| [0, 1]         | One dimensional tensor of type INT64  |
-| [0.0, 1.0]     | One dimensional tensor of type FLOAT  |
-| ["x", "y"]     | One dimensional tensor of type STRING |
+| Python source  | Generated ONNX constant                  |
+| -------------- | ---------------------------------------- |
+| `0`            | Scalar value `0` of type `INT64`         |
+| `0.0`          | Scalar value `0.0` of type `FLOAT`       |
+| `"x"`          | Scalar value `"x"` of type `STRING`      |
+| `[0, 1]`       | One dimensional tensor of type `INT64`   |
+| `[0.0, 1.0]`   | One dimensional tensor of type `FLOAT`   |
+| `["x", "y"]`   | One dimensional tensor of type `STRING`  |
 
 However, if the user wants to use tensor constants of other types or other rank,
 they need to do so more explicitly (as in the previous example).
