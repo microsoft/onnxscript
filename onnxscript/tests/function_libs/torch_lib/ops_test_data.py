@@ -73,6 +73,8 @@ class TorchLibOpInfo:
     ] = None
     # Whether the op is non-deterministic
     nondeterministic: bool = False
+    # Whether the function is designed for complex inputs
+    complex: bool = False
     # Expected skips or fails for the test and/or subtests
     skips_or_fails: tuple[ops_test_common.DecorateMeta, ...] = ()
 
@@ -352,6 +354,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),
     TorchLibOpInfo("abs", core_ops.aten_abs),
+    TorchLibOpInfo("abs", core_ops.aten_abs_complex, complex=True),
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
     TorchLibOpInfo("add", core_ops.aten_add),
@@ -359,6 +362,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "amax",
         core_ops.aten_amax,
+        input_wrangler=_amin_amax_input_wrangler,
         skips_or_fails=(
             skip(
                 "amax",
@@ -370,6 +374,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "amin",
         core_ops.aten_amin,
+        input_wrangler=_amin_amax_input_wrangler,
         skips_or_fails=(
             skip(
                 "amin",
@@ -1579,13 +1584,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {info.op_info_name: info.op for info in TESTED_TORCHLIB_OPS if not info.trace_only}
+] = {
+    info.op_info_name: info.op
+    for info in TESTED_TORCHLIB_OPS
+    if not info.trace_only and not info.complex
+}
 
 
 OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {info.op_info_name: info.op for info in TESTED_TORCHLIB_OPS if info.trace_only}
+] = {
+    info.op_info_name: info.op
+    for info in TESTED_TORCHLIB_OPS
+    if info.trace_only and not info.complex
+}
 
 # These ops are not deterministic, so we check shape and dtype only
 NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
@@ -1716,24 +1729,12 @@ ops_test_common.duplicate_opinfo(
     ),
 )
 
-# NOTE: Complex supported functions
-# TODO: Expand this list with trace_only_ops when it is needed
-# Ops to be tested for numerical consistency between onnx and pytorch
-# Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-COMPLEX_FUNCTION_MAPPING_SCRIPTED: dict[
+# MARK: Complex supported functions
+COMPLEX_FUNCTION_MAPPING: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-    # onnxscript.OnnxFunction
-    # | Callable[..., Any]
-    # | tuple[
-    #     onnxscript.OnnxFunction | Callable[..., Any],
-    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    # ],
-] = {
-    "abs": core_ops.aten_abs_complex,
-}
+] = {info.op_info_name: info.op for info in TESTED_TORCHLIB_OPS if info.complex}
 
-COMPLEX_TESTED_OPS = frozenset(COMPLEX_FUNCTION_MAPPING_SCRIPTED)
 
 # Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
 PRIMS_OPS_WITH_OP_INFO = (
@@ -1869,25 +1870,21 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
         # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
         # using https://github.com/microsoft/onnxruntime/issues/15977 to track
     ),
-
     "chunk": (
         torch.float32,
         # torch.float16,  # FIXME: SplitToSequence op inference failed
         # using https://github.com/microsoft/onnxruntime/issues/16006 to track
     ),
-
     "col2im": (
         torch.float32,
         # torch.float16,  # FIXME: Tensor-likes are not close
         # using https://github.com/microsoft/onnxruntime/issues/16007 to track
     ),
-
     "log10": (
         torch.float32,
         # py310-torch-nightly,Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float)
         # torch.float16,
     ),
-
     "log_softmax": (
         torch.float32,
         # torch.float16,  # FIXME: ORT failed.

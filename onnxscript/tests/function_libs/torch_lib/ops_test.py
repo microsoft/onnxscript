@@ -22,7 +22,6 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import parameterized
-import pytest
 import torch
 from torch.testing._internal import common_device_type
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -330,7 +329,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
         [
             info
             for info in ops_test_data.OPS_DB
-            if info.name in ops_test_data.COMPLEX_TESTED_OPS
+            if info.name in ops_test_data.COMPLEX_FUNCTION_MAPPING
         ],
         allowed_dtypes=COMPLEX_TYPES,
     )
@@ -344,7 +343,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
             dtype,
             op,
             ops_test_common.eager_executor,
-            ops_test_data.COMPLEX_FUNCTION_MAPPING_SCRIPTED,
+            ops_test_data.COMPLEX_FUNCTION_MAPPING,
         )
 
 
@@ -392,7 +391,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
         [
             info
             for info in ops_test_data.OPS_DB
-            if info.name in ops_test_data.COMPLEX_TESTED_OPS
+            if info.name in ops_test_data.COMPLEX_FUNCTION_MAPPING
         ],
         allowed_dtypes=COMPLEX_TYPES,
     )
@@ -406,7 +405,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
             dtype,
             op,
             ops_test_common.graph_executor,
-            ops_test_data.COMPLEX_FUNCTION_MAPPING_SCRIPTED,
+            ops_test_data.COMPLEX_FUNCTION_MAPPING,
         )
 
 
