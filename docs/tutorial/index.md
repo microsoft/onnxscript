@@ -85,7 +85,7 @@ of type `FLOAT` or `INT64` or `STRING`, as shown in the table below.
 
 | Python source  | Generated ONNX constant               |
 | -------------- | ------------------------------------- |
-| 0              | Scalar value 0 of type INT64          |
+| `0`              | Scalar value `0` of type `INT64`          |
 | 0.0            | Scalar value 0.0 of type FLOAT        |
 | "x"            | Scalar value "x" of type STRING       |
 | [0, 1]         | One dimensional tensor of type INT64  |
