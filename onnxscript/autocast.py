@@ -9,7 +9,10 @@ from onnxscript import tensor, values
 
 
 def get_dtype(pyvalue):
-    """Return np.dtype to use when converting a python value to an onnxscript tensor."""
+    """Return np.dtype to use when converting a python value to an onnxscript tensor.
+    Note that int constants are treated as int64, as that is the common type in ONNX
+    for shape/index values.
+    """
     if isinstance(pyvalue, bool):
         return np.bool_
     elif isinstance(pyvalue, int):
@@ -18,7 +21,8 @@ def get_dtype(pyvalue):
         return np.float32
     elif isinstance(pyvalue, list):
         if list:
-            # TODO: Ensure all values are of same type
+            # TODO: What to do about lists with mixed value types, like [1, 2.0]?
+            # Should at least produce an error/warning message.
             return get_dtype(pyvalue[0])
         raise ValueError("Cannot determine target type for empty list")
     raise TypeError(f"Value of unexpected type {type(pyvalue)}")
