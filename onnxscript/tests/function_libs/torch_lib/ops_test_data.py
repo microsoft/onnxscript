@@ -683,6 +683,11 @@ EXPECTED_SKIPS_OR_FAILS = (
         reason="ONNX doesn't support reduce='mean' option",
     ),
     xfail(
+        "aten.stft",
+        dtypes=[torch.float16],
+        reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
+    ),
+    xfail(
         "t",
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
@@ -2160,7 +2165,7 @@ OPINFO_FUNCTION_TARGET_DTYPE: dict[
     ),
     "aten.stft": (
         torch.float32,
-        # torch.float16,  RuntimeError: MKL FFT doesn't support tensors of type: Half
+        torch.float16,
     ),
     "sub": (
         torch.float32,

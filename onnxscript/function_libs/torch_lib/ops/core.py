@@ -5908,7 +5908,7 @@ def aten_std_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, 
 
 
 @torch_op("aten::stft", private=True)
-def _add_batch_dimension(self: TFloatOrBFloat16) -> tuple[TFloatOrBFloat16, INT64]:
+def _add_batch_dimension(self: TFloatOrBFloat16) -> Tuple[TFloatOrBFloat16, INT64]:
     signal_shape = op.Shape(self)
     signal_rank = op.Size(signal_shape)
     if signal_rank == 1:
@@ -5998,11 +5998,12 @@ def aten_stft(
     window: Optional[TFloatOrBFloat16] = None,
     normalized: bool = False,
     onesided: Optional[bool] = None,
-    return_complex: Optional[bool] = None,  # pylint: disable=unused-argument
+    return_complex: Optional[bool] = None,
 ) -> TFloatOrBFloat16:
     """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
 
     # NOTE: regarless of the value of return_complex, we always return a real representation.
+    del return_complex
 
     # Get STFT sizes
     if hop_length is None:
