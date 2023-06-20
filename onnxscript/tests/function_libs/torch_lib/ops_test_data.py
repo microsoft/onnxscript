@@ -451,7 +451,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo(
         "cat",
-        (core_ops.aten_cat),
+        core_ops.aten_cat,
         input_wrangler=_cat_input_wrangler,
         skips_or_fails=(
             skip(
@@ -496,7 +496,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
         "empty",
-        (core_ops.aten_empty),
+        core_ops.aten_empty,
         input_wrangler=_empty_input_wrangler,
         nondeterministic=True,
     ),
@@ -509,7 +509,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
     TorchLibOpInfo("erf", core_ops.aten_erf),
     TorchLibOpInfo("fill", core_ops.aten_fill),
-    TorchLibOpInfo("flip", (core_ops.aten_flip), input_wrangler=_flip_input_wrangler),
+    TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("full", core_ops.aten_full),
@@ -624,7 +624,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("maximum", core_ops.aten_maximum),
     TorchLibOpInfo(
         "mean",
-        (core_ops.aten_mean),
+        core_ops.aten_mean,
         input_wrangler=_mean_input_wrangler,
         skips_or_fails=(
             skip(
@@ -636,7 +636,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "mean_dim",
-        (core_ops.aten_mean_dim),
+        core_ops.aten_mean_dim,
         input_wrangler=_mean_input_wrangler,
         skips_or_fails=(
             skip(
@@ -851,7 +851,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.cross_entropy",
         # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
-        (nn_ops.aten_cross_entropy_loss),
+        nn_ops.aten_cross_entropy_loss,
         input_wrangler=_cross_entropy_input_wrangler,
         skips_or_fails=(
             xfail(
@@ -867,7 +867,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.dropout",
-        (core_ops.aten_dropout),
+        core_ops.aten_dropout,
         input_wrangler=_dropout_input_wrangler,
         skips_or_fails=(
             skip(
@@ -891,7 +891,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",
-        (core_ops.aten_embedding),
+        core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
     ),
     TorchLibOpInfo("nn.functional.hardtanh", nn_ops.aten_hardtanh),
@@ -910,7 +910,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.nll_loss_weight",
-        (nn_ops.aten_nll_loss_weight),
+        nn_ops.aten_nll_loss_weight,
         input_wrangler=_nll_loss_input_wrangler,
         skips_or_fails=(
             skip(
@@ -922,7 +922,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.nll_loss",
-        (nn_ops.aten_nll_loss),
+        nn_ops.aten_nll_loss,
         input_wrangler=_nll_loss_input_wrangler,
         skips_or_fails=(
             skip(
@@ -934,7 +934,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.reflection_pad2d",
-        (nn_ops.aten_reflection_pad2d),
+        nn_ops.aten_reflection_pad2d,
         input_wrangler=_reflection_pad2d_input_wrangler,
         skips_or_fails=(
             skip(
@@ -970,7 +970,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad2d",
-        (nn_ops.aten_replication_pad2d),
+        nn_ops.aten_replication_pad2d,
         input_wrangler=_replication_pad2d_input_wrangler,
         skips_or_fails=(
             skip(
@@ -984,7 +984,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad3d",
-        (nn_ops.aten_replication_pad3d),
+        nn_ops.aten_replication_pad3d,
         input_wrangler=_replication_pad3d_input_wrangler,
         skips_or_fails=(
             skip(
@@ -1011,7 +1011,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.mse_loss",
-        (nn_ops.aten_mse_loss),
+        nn_ops.aten_mse_loss,
         input_wrangler=_mse_loss_input_wrangler,
     ),
     TorchLibOpInfo(
@@ -1046,7 +1046,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
         "permute",
-        (core_ops.aten_permute),
+        core_ops.aten_permute,
         input_wrangler=_permute_input_wrangler,
         skips_or_fails=(
             xfail(
@@ -1065,7 +1065,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
     TorchLibOpInfo(
         "randn",
-        (core_ops.aten_randn),
+        core_ops.aten_randn,
         input_wrangler=_randn_input_wrangler,
         nondeterministic=True,
         skips_or_fails=(
@@ -1128,7 +1128,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
             ),
             xfail(
-                "scatter_reduce",
+                "scatter_add",
                 dtypes=[torch.float16],
                 reason="fixme: ORT failed",
             ),
@@ -1231,7 +1231,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
     TorchLibOpInfo(
         "unflatten",
-        (core_ops.aten_unflatten),
+        core_ops.aten_unflatten,
         input_wrangler=_unflatten_input_wrangler,
         skips_or_fails=(
             xfail(
@@ -1258,7 +1258,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             ),
         ),
     ),
-    TorchLibOpInfo("where", (core_ops.aten_where), input_wrangler=_where_input_wrangler),
+    TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler),
     TorchLibOpInfo("xlogy", special_ops.aten_special_xlogy),
     TorchLibOpInfo("zeros", core_ops.aten_zeros),
     TorchLibOpInfo(
@@ -1361,7 +1361,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.grid_sample",
-        (core_ops.aten_grid_sampler),
+        core_ops.aten_grid_sampler,
         input_wrangler=_grid_sample_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1429,7 +1429,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("native_layer_norm", core_ops.aten_native_layer_norm, trace_only=True),
     TorchLibOpInfo(
         "nn.functional.avg_pool2d",
-        (nn_ops.aten_avg_pool2d),
+        nn_ops.aten_avg_pool2d,
         input_wrangler=_avg_pool2d_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1480,7 +1480,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
     TorchLibOpInfo(
         "nn.functional.max_pool1d",
-        (nn_ops.aten_max_pool1d),
+        nn_ops.aten_max_pool1d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1493,7 +1493,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool1d_with_indices",
-        (nn_ops.aten_max_pool1d_with_indices),
+        nn_ops.aten_max_pool1d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1506,7 +1506,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool2d",
-        (nn_ops.aten_max_pool2d),
+        nn_ops.aten_max_pool2d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1519,7 +1519,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool2d_with_indices",
-        (nn_ops.aten_max_pool2d_with_indices),
+        nn_ops.aten_max_pool2d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1532,7 +1532,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool3d",
-        (nn_ops.aten_max_pool3d),
+        nn_ops.aten_max_pool3d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1551,7 +1551,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.max_pool3d_with_indices",
-        (nn_ops.aten_max_pool3d_with_indices),
+        nn_ops.aten_max_pool3d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1616,13 +1616,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_bilinear2d",
-        (nn_ops.aten_upsample_bilinear2d),
+        nn_ops.aten_upsample_bilinear2d,
         input_wrangler=_upsample_bilinear2d_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_nearest2d",
-        (nn_ops.aten_upsample_nearest2d),
+        nn_ops.aten_upsample_nearest2d,
         input_wrangler=_upsample_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1647,7 +1647,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo(
         "scatter_reduce",
-        (core_ops.aten_scatter_reduce),
+        core_ops.aten_scatter_reduce,
         input_wrangler=_scatter_reduce_input_wrangler,
         trace_only=True,
         skips_or_fails=(
@@ -1661,11 +1661,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 # ONNX has not include_self parameter and default is include_self=True mode
                 matcher=lambda sample: sample.kwargs.get("include_self") is False,
                 reason="ONNX does't support include_self=False option",
-            ),
-            xfail(
-                "scatter_reduce",
-                dtypes=[torch.float16],
-                reason="fixme: ORT failed",
             ),
         ),
     ),
@@ -1685,7 +1680,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "sum",
-        (core_ops.aten_sum_dim_IntList),
+        core_ops.aten_sum_dim_IntList,
         input_wrangler=_sum_input_wrangler,
         trace_only=True,
     ),
