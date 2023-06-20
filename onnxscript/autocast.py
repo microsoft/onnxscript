@@ -26,7 +26,8 @@ def get_dtype(pyvalue):
             return get_dtype(pyvalue[0])
         raise ValueError("Cannot determine target type for empty list")
     raise TypeError(f"Value of unexpected type {type(pyvalue)}")
-    
+
+
 def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
     """Promotes python values into onnxscript tensors.
     The optional argument dtype specifies the desired np.dtype of the tensor,
