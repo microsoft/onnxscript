@@ -8,23 +8,37 @@ from onnx.defs import OpSchema
 from onnxscript import tensor, values
 
 
-def cast_scalar_to_tensor(x, dtype=None):
-    """Promotes scalar values (bool, int, float) into tensors of rank zero.
-    The optional argument dtype specifies the desired np.dtype of the tensor.
-    Other types of inputs are returned as is.
+def get_dtype(pyvalue):
+    """Return np.dtype to use when converting a python value to an onnxscript tensor."""
+    if isinstance(pyvalue, bool):
+        return np.bool_
+    elif isinstance(pyvalue, int):
+        return np.int64
+    elif isinstance(pyvalue, float):
+        return np.float32
+    elif isinstance(pyvalue, list):
+        if list:
+            # TODO: Ensure all values are of same type
+            return get_dtype(pyvalue[0])
+        raise ValueError("Cannot determine target type for empty list")
+    raise TypeError(f"Value of unexpected type {type(pyvalue)}")
+    
+def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
+    """Promotes python values into onnxscript tensors.
+    The optional argument dtype specifies the desired np.dtype of the tensor,
+    used only when a non-onnxscript-tensor is promoted into one.
     """
-    if isinstance(x, (bool, int, float)):
-        # Scalar values are promoted to tensors of a type chosen as below:
-        if dtype is None:
-            if isinstance(x, bool):
-                dtype = np.bool_
-            elif isinstance(x, int):
-                dtype = np.int64
-            else:
-                assert isinstance(x, float)
-                dtype = np.float32
-        return tensor.Tensor(np.array(x, dtype=dtype))
-    return x
+    if isinstance(pyvalue, tensor.Tensor):
+        return pyvalue
+    if isinstance(pyvalue, np.ndarray):
+        if dtype is not None and pyvalue.dtype != dtype:
+            pyvalue = pyvalue.astype(dtype)
+        return tensor.Tensor(pyvalue)
+    if dtype is None:
+        dtype = get_dtype(pyvalue)
+    if isinstance(pyvalue, (bool, int, float, list)):
+        return tensor.Tensor(np.array(pyvalue, dtype=dtype))
+    return pyvalue
 
 
 def cast_inputs(
@@ -87,7 +101,7 @@ def dynamic_cast_inputs(op_schema: OpSchema, args):
     def get_type_info(x):
         return x.dtype if isinstance(x, tensor.Tensor) else None
 
-    return cast_inputs(get_type_info, cast_scalar_to_tensor, op_schema, args)
+    return cast_inputs(get_type_info, cast_pyvalue_to_os_tensor, op_schema, args)
 
 
 def static_cast_inputs(converter, op_schema: Optional[OpSchema], args) -> tuple[str, ...]:

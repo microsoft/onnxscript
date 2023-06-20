@@ -72,8 +72,8 @@ def py_type_to_onnx_type(pytype: type, info: sourceinfo.SourceInfo):
     fail(info.msg(f"Tensor conversion of element of type {pytype} is not implemented"))
 
 
-def pyvalue_to_tensor(
-    tensor_name: str, pyvalue, converter, info: sourceinfo.SourceInfo
+def pyvalue_to_onnx_tensor(
+    tensor_name: str, pyvalue, info: sourceinfo.SourceInfo
 ):  # pylint: disable=unused-argument
     if isinstance(pyvalue, numpy.ndarray):
         return numpy_helper.from_array(pyvalue, tensor_name)
@@ -364,7 +364,7 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
+        tensor = pyvalue_to_onnx_tensor(ovar, pyvalue, info)
         attr = self.ir_builder.make_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
