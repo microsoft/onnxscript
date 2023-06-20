@@ -357,7 +357,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("abs", core_ops.aten_abs_complex, complex=True),
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
-    TorchLibOpInfo("add", core_ops.aten_add),
+    TorchLibOpInfo(
+        "add",
+        core_ops.aten_add,
+        skips_or_fails=(
+            xfail(
+                "add",
+                dtypes=[torch.float16],
+                reason="fixme: float16 failed, tensor-likes are not close for FullGraph mode. https://github.com/microsoft/onnxruntime/issues/15977",
+            ),
+        ),
+    ),
     TorchLibOpInfo("addmm", core_ops.aten_addmm),
     TorchLibOpInfo(
         "amax",
@@ -452,7 +462,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
-    TorchLibOpInfo("chunk", core_ops.aten_chunk),
+    TorchLibOpInfo(
+        "chunk",
+        core_ops.aten_chunk,
+        skips_or_fails=(
+            xfail(
+                "chunk",
+                dtypes=[torch.float16],
+                reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+            ),
+        ),
+    ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
     TorchLibOpInfo("clone", core_ops.aten_clone),
@@ -553,10 +573,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
-    TorchLibOpInfo("log10", core_ops.aten_log10),
+    TorchLibOpInfo(
+        "log10",
+        core_ops.aten_log10,
+        skips_or_fails=(
+            xfail(
+                "log10",
+                dtypes=[torch.float16],
+                reason="fixme: Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float).",
+            ),
+        ),
+    ),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
     TorchLibOpInfo("log_softmax", special_ops.aten_special_log_softmax),
-    TorchLibOpInfo("log2", core_ops.aten_log2),
+    TorchLibOpInfo(
+        "log2",
+        core_ops.aten_log2,
+        skips_or_fails=(
+            xfail(
+                "log2",
+                dtypes=[torch.float16],
+                reason="fixme: RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model",
+            ),
+        ),
+    ),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
     TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
@@ -800,6 +840,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 matcher=lambda sample: sample.args[0] != (1, 1, 1),
                 reason="only global pooling is supported; only batched inputs are supported",
             ),
+            xfail(
+                "nn.functional.adaptive_avg_pool3d",
+                dtypes=[torch.float16],
+                reason="fixme: RuntimeError: ORT inference error GlobalAveragePool",
+            ),
         ),
     ),
     TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
@@ -833,7 +878,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             ),
         ),
     ),
-    TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
+    TorchLibOpInfo(
+        "nn.functional.elu",
+        nn_ops.aten_elu,
+        skips_or_fails=(
+            skip(
+                "nn.functional.elu",
+                dtypes=[torch.float16],
+                reason="fixme: ONNX Runtime aborted",
+            ),
+        ),
+    ),
     TorchLibOpInfo(
         "nn.functional.embedding",
         (core_ops.aten_embedding),
@@ -891,8 +946,28 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             ),
         ),
     ),
-    TorchLibOpInfo("nn.functional.relu", nn_ops.aten_relu),
-    TorchLibOpInfo("nn.functional.relu6", nn_ops.aten_relu6),
+    TorchLibOpInfo(
+        "nn.functional.relu",
+        nn_ops.aten_relu,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.relu",
+                dtypes=[torch.float16],
+                reason="fixme: ORT cannot support relu in float16. https://github.com/microsoft/onnxruntime/issues/16069",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "nn.functional.relu6",
+        nn_ops.aten_relu6,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.relu6",
+                dtypes=[torch.float16],
+                reason="fixme: ORT cannot support relu in float16. https://github.com/microsoft/onnxruntime/issues/16069",
+            ),
+        ),
+    ),
     TorchLibOpInfo(
         "nn.functional.replication_pad2d",
         (nn_ops.aten_replication_pad2d),
@@ -923,7 +998,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             ),
         ),
     ),
-    TorchLibOpInfo("nn.functional.selu", core_ops.aten_selu),
+    TorchLibOpInfo(
+        "nn.functional.selu",
+        core_ops.aten_selu,
+        skips_or_fails=(
+            skip(
+                "nn.functional.selu",
+                dtypes=[torch.float16],
+                reason="fixme: ONNX Runtime aborted",
+            ),
+        ),
+    ),
     TorchLibOpInfo(
         "nn.functional.mse_loss",
         (nn_ops.aten_mse_loss),
@@ -950,6 +1035,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 matcher=lambda sample: len(sample.args) > 0
                 and not isinstance(sample.args[0], float),
                 reason="ORT only accept float type for args[0] 'mean'",
+            ),
+            xfail(
+                "normal",
+                dtypes=[torch.float16],
+                reason="fixme: RandomNormal in ORT failed",
             ),
         ),
     ),
@@ -978,6 +1068,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         (core_ops.aten_randn),
         input_wrangler=_randn_input_wrangler,
         nondeterministic=True,
+        skips_or_fails=(
+            xfail(
+                "randn",
+                dtypes=[torch.float16],
+                reason="fixme: Shape inference error",
+            ),
+        ),
     ),
     TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
     TorchLibOpInfo(
@@ -1030,6 +1127,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 matcher=lambda sample: len(sample.input.shape) == 0,
                 reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
             ),
+            xfail(
+                "scatter_reduce",
+                dtypes=[torch.float16],
+                reason="fixme: ORT failed",
+            ),
         ),
     ),
     TorchLibOpInfo("select", core_ops.aten_select),
@@ -1037,9 +1139,39 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("sign", core_ops.aten_sign),
     TorchLibOpInfo("sin", core_ops.aten_sin),
     TorchLibOpInfo("sinh", core_ops.aten_sinh),
-    TorchLibOpInfo("softmax", special_ops.aten_special_softmax),
-    TorchLibOpInfo("split_with_sizes", core_ops.aten_split_with_sizes),
-    TorchLibOpInfo("split", core_ops.aten_split),
+    TorchLibOpInfo(
+        "softmax",
+        special_ops.aten_special_softmax,
+        skips_or_fails=(
+            xfail(
+                "softmax",
+                dtypes=[torch.float16],
+                reason="fixme: ORT failed",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "split_with_sizes",
+        core_ops.aten_split_with_sizes,
+        skips_or_fails=(
+            xfail(
+                "split_with_sizes",
+                dtypes=[torch.float16],
+                reason="fixme: ORT failed",
+            ),
+        ),
+    ),
+    TorchLibOpInfo(
+        "split",
+        core_ops.aten_split,
+        skips_or_fails=(
+            xfail(
+                "split",
+                dtypes=[torch.float16],
+                reason="fixme: ORT failed",
+            ),
+        ),
+    ),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
     TorchLibOpInfo(
         "squeeze_dim",
@@ -1185,7 +1317,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True),
-    TorchLibOpInfo("col2im", nn_ops.aten_col2im, trace_only=True),
+    TorchLibOpInfo(
+        "col2im",
+        nn_ops.aten_col2im,
+        trace_only=True,
+        skips_or_fails=(
+            xfail(
+                "col2im",
+                dtypes=[torch.float16],
+                reason="fixme: Tensor-likes are not close. https://github.com/microsoft/onnxruntime/issues/16007",
+            ),
+        ),
+    ),
     TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
     TorchLibOpInfo("contiguous", core_ops.aten_contiguous, trace_only=True),
     TorchLibOpInfo("convolution", core_ops.aten_convolution, trace_only=True),
@@ -1271,7 +1414,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
-    TorchLibOpInfo("native_group_norm", core_ops.aten_native_group_norm, trace_only=True),
+    TorchLibOpInfo(
+        "native_group_norm",
+        core_ops.aten_native_group_norm,
+        trace_only=True,
+        skips_or_fails=(
+            xfail(
+                "native_group_norm",
+                dtypes=[torch.float16],
+                reason="fixme: 'GroupNormKernelImpl' not implemented for 'Half' in nightly and weekly",
+            ),
+        ),
+    ),
     TorchLibOpInfo("native_layer_norm", core_ops.aten_native_layer_norm, trace_only=True),
     TorchLibOpInfo(
         "nn.functional.avg_pool2d",
@@ -1311,7 +1465,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),
     TorchLibOpInfo("nn.functional.conv3d", core_ops.aten_conv3d, trace_only=True),
-    TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu, trace_only=True),
+    TorchLibOpInfo(
+        "nn.functional.gelu",
+        nn_ops.aten_gelu,
+        trace_only=True,
+        skips_or_fails=(
+            xfail(
+                "nn.functional.gelu",
+                dtypes=[torch.float16],
+                reason="fixme: ONNX Runtime aborted",
+            ),
+        ),
+    ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
     TorchLibOpInfo(
         "nn.functional.max_pool1d",
@@ -1497,12 +1662,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 matcher=lambda sample: sample.kwargs.get("include_self") is False,
                 reason="ONNX does't support include_self=False option",
             ),
+            xfail(
+                "scatter_reduce",
+                dtypes=[torch.float16],
+                reason="fixme: ORT failed",
+            ),
         ),
     ),
     TorchLibOpInfo("slice_scatter", core_ops.aten_slice_scatter, trace_only=True),
     TorchLibOpInfo("slice", core_ops.aten_slice, trace_only=True),
     TorchLibOpInfo(
-        "aten.stft",
+        "aten.stft",  # Custom from extra_opinfo
         core_ops.aten_stft,
         trace_only=True,
         skips_or_fails=(
@@ -1512,7 +1682,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
             ),
         ),
-    ),  # Custom from extra_opinfo
+    ),
     TorchLibOpInfo(
         "sum",
         (core_ops.aten_sum_dim_IntList),
@@ -1853,120 +2023,3 @@ assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in
 assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
-
-# List for different input dtype testing flag
-# Added Cast inside below functions so they can support all real dtypes naturally
-# -- isfinite, isinf, isneginf, isposinf
-# Note:
-# Converter fp32 to fp16 model is a significant feature for end users,
-# another approach is to add cast before/after the function call,
-# that way we also need a list to remember which function need cast
-OPINFO_FUNCTION_TARGET_DTYPE: dict[
-    str,
-    tuple[Any, ...],
-] = {
-    "add": (
-        torch.float32,
-        # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
-        # using https://github.com/microsoft/onnxruntime/issues/15977 to track
-    ),
-    "chunk": (
-        torch.float32,
-        # torch.float16,  # FIXME: SplitToSequence op inference failed
-        # using https://github.com/microsoft/onnxruntime/issues/16006 to track
-    ),
-    "col2im": (
-        torch.float32,
-        # torch.float16,  # FIXME: Tensor-likes are not close
-        # using https://github.com/microsoft/onnxruntime/issues/16007 to track
-    ),
-    "log10": (
-        torch.float32,
-        # py310-torch-nightly,Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float)
-        # torch.float16,
-    ),
-    "log_softmax": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
-    ),
-    "log2": (
-        torch.float32,
-        # windows-latest, py310-torch-nightly, RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
-        # torch.float16,
-    ),
-    "native_group_norm": (
-        torch.float32,
-        # torch.float16,  # "GroupNormKernelImpl" not implemented for 'Half' in nightly and weekly
-    ),
-    "nn.functional.adaptive_avg_pool3d": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT inference error GlobalAveragePool
-    ),
-    "nn.functional.elu": (
-        torch.float32,
-        # torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
-    ),
-    "nn.functional.gelu": (
-        torch.float32,
-        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
-    ),
-    "nn.functional.relu": (
-        torch.float32,
-        # ORT cannot support relu in float16
-        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
-        # torch.float16,
-    ),
-    "nn.functional.relu6": (
-        torch.float32,
-        # ORT cannot support relu in float16
-        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
-        # torch.float16,
-    ),
-    "nn.functional.selu": (
-        torch.float32,
-        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
-    ),
-    "normal": (
-        torch.float32,
-        # torch.float16,  # FIXME: RandomNormal in ORT failed
-    ),
-    "randn": (
-        torch.float32,
-        # torch.float16,  # FIXME: shape inference error
-    ),
-    "scatter_reduce": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed
-    ),
-    "scatter_add": (
-        torch.float32,
-        # torch.float16,  # FIXME" ORT failed
-    ),
-    "softmax": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed
-    ),
-    "split_with_sizes": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed
-    ),
-    "split": (
-        torch.float32,
-        # torch.float16,  # ORT failed
-    ),
-    "var_mean": (
-        torch.float32,
-        # py31--torch-nightly, Unable to create onnxruntime InferenceSession for executing .Mul op with onnx model
-        # torch.float16,
-    ),
-    "var_mean_dim": (
-        torch.float32,
-        # py310-torch-nightly, FullGraph, AssertionError in ORT
-        # torch.float16,
-    ),
-    "var_mean_correction": (
-        torch.float32,
-        # py310-onnx-weekly, FullGraph, AssertionError in ORT
-        # torch.float16,
-    ),
-}

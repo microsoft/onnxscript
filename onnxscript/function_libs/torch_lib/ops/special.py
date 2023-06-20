@@ -208,8 +208,8 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
 
 @torch_op("aten::log_softmax")
 def aten_special_log_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
-) -> TFloatOrBFloat16:
+    self: FLOAT, dim: int, dtype: int = FLOAT.dtype
+) -> FLOAT:
     """special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"""
 
     self_is_scalar = op.Size(op.Shape(self)) == 0
