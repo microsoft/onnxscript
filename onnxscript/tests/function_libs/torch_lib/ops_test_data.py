@@ -57,7 +57,7 @@ OPS_DB.extend(extra_opinfo.OP_DB)
 
 
 @dataclasses.dataclass
-class OpTestInfo:
+class TorchLibOpInfo:
     """A dataclass to store the information to test an torchlib op."""
 
     # The name of the op_info, e.g. "add"
@@ -71,9 +71,9 @@ class OpTestInfo:
         Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]]
     ] = None
     # Whether the op is non-deterministic
-    non_deterministic: bool = False
+    nondeterministic: bool = False
     # Expected skips or fails for the test and/or subtests
-    expected_skips_or_fails: tuple[ops_test_common.DecorateMeta, ...] = ()
+    skips_or_fails: tuple[ops_test_common.DecorateMeta, ...] = ()
 
 
 # Modify this section ##########################################################
@@ -326,11 +326,11 @@ def _where_input_wrangler(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-TESTED_TORCHLIB_OPS: tuple[OpTestInfo, ...] = (
-    OpTestInfo(
+TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
+    TorchLibOpInfo(
         "all_dim",
         core_ops.aten_all_dim,
-        expected_skips_or_fails=(
+        skips_or_fails=(
             xfail(
                 "all_dim",
                 matcher=lambda sample: not (len(sample.kwargs) > 0),
@@ -338,6 +338,321 @@ TESTED_TORCHLIB_OPS: tuple[OpTestInfo, ...] = (
             ),
         ),
     ),
+    TorchLibOpInfo("allclose", core_ops.aten_allclose),
+    TorchLibOpInfo("all", core_ops.aten_all),
+    TorchLibOpInfo("abs", core_ops.aten_abs),
+    TorchLibOpInfo("acos", core_ops.aten_acos),
+    TorchLibOpInfo("acosh", core_ops.aten_acosh),
+    TorchLibOpInfo("add", core_ops.aten_add),
+    TorchLibOpInfo("addmm", core_ops.aten_addmm),
+    TorchLibOpInfo("amax", core_ops.aten_amax),
+    TorchLibOpInfo("amin", core_ops.aten_amin),
+    TorchLibOpInfo("any", core_ops.aten_any),
+    TorchLibOpInfo("any_dim", core_ops.aten_any_dim),
+    TorchLibOpInfo("asin", core_ops.aten_asin),
+    TorchLibOpInfo("asinh", core_ops.aten_asinh),
+    TorchLibOpInfo("atan", core_ops.aten_atan),
+    TorchLibOpInfo("atan2", core_ops.aten_atan2),
+    TorchLibOpInfo("atanh", core_ops.aten_atanh),
+    TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d),
+    TorchLibOpInfo("atleast_1d_single_tensor", core_ops.aten_atleast_1d_single_tensor),
+    TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d),
+    TorchLibOpInfo("atleast_2d_single_tensor", core_ops.aten_atleast_2d_single_tensor),
+    TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d),
+    TorchLibOpInfo("atleast_3d_single_tensor", core_ops.aten_atleast_3d_single_tensor),
+    TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
+    TorchLibOpInfo("bmm", core_ops.aten_bmm),
+    TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
+    TorchLibOpInfo("cat", (core_ops.aten_cat), input_wrangler=_cat_input_wrangler),
+    TorchLibOpInfo("ceil", core_ops.aten_ceil),
+    TorchLibOpInfo("chunk", core_ops.aten_chunk),
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
+    TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
+    # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
+    TorchLibOpInfo("cos", core_ops.aten_cos),
+    TorchLibOpInfo("cosh", core_ops.aten_cosh),
+    TorchLibOpInfo("cross", core_ops.aten_cross),
+    # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
+    TorchLibOpInfo("div", core_ops.aten_div),
+    TorchLibOpInfo("dot", core_ops.aten_dot),
+    TorchLibOpInfo("empty", (core_ops.aten_empty), input_wrangler=_empty_input_wrangler, nondeterministic=True),
+    # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
+    TorchLibOpInfo("eq", core_ops.aten_eq),
+    TorchLibOpInfo("equal", core_ops.aten_equal),
+    TorchLibOpInfo("exp", core_ops.aten_exp),
+    TorchLibOpInfo("exp2", core_ops.aten_exp2),
+    TorchLibOpInfo("expand", core_ops.aten_expand),
+    TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
+    TorchLibOpInfo("erf", core_ops.aten_erf),
+    TorchLibOpInfo("fill", core_ops.aten_fill),
+    TorchLibOpInfo("flip", (core_ops.aten_flip), input_wrangler=_flip_input_wrangler),
+    TorchLibOpInfo("floor", core_ops.aten_floor),
+    TorchLibOpInfo("fmod", core_ops.aten_fmod),
+    TorchLibOpInfo("full", core_ops.aten_full),
+    TorchLibOpInfo("full_like_dtype", core_ops.aten_full_like_dtype),
+    TorchLibOpInfo("full_like", core_ops.aten_full_like),
+    TorchLibOpInfo("gather", core_ops.aten_gather),
+    TorchLibOpInfo("ge", core_ops.aten_ge),
+    # TorchLibOpInfo("greater_equal", core_ops.aten_greater_equal),  # no test case in OPS_DB
+    # TorchLibOpInfo("greater", core_ops.aten_greater),  # no test case in OPS_DB
+    TorchLibOpInfo("gt", core_ops.aten_gt),
+    # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
+    # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
+    TorchLibOpInfo("index_put_bool", core_ops.aten_index_put_bool),
+    TorchLibOpInfo("index_put", core_ops.aten_index_put),
+    TorchLibOpInfo("index_select", core_ops.aten_index_select),
+    TorchLibOpInfo("isclose", core_ops.aten_isclose),
+    TorchLibOpInfo("isfinite", core_ops.aten_isfinite),
+    TorchLibOpInfo("isinf", core_ops.aten_isinf),
+    TorchLibOpInfo("isnan", core_ops.aten_isnan),
+    TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
+    TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo("log", core_ops.aten_log),
+    TorchLibOpInfo("le", core_ops.aten_le),
+    TorchLibOpInfo("log10", core_ops.aten_log10),
+    TorchLibOpInfo("log1p", core_ops.aten_log1p),
+    TorchLibOpInfo("log_softmax", special_ops.aten_special_log_softmax),
+    TorchLibOpInfo("log2", core_ops.aten_log2),
+    TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
+    TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
+    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
+    TorchLibOpInfo("logdet", core_ops.aten_logdet),
+    TorchLibOpInfo("logsumexp", core_ops.aten_logsumexp),
+    TorchLibOpInfo("lt", core_ops.aten_lt),
+    TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill),
+    TorchLibOpInfo("matmul", core_ops.aten_matmul),
+    TorchLibOpInfo("maximum", core_ops.aten_maximum),
+    TorchLibOpInfo("mean", (core_ops.aten_mean), input_wrangler=_mean_input_wrangler),
+    TorchLibOpInfo("mean_dim", (core_ops.aten_mean_dim), input_wrangler=_mean_input_wrangler),
+    TorchLibOpInfo("min_dim", core_ops.aten_min_dim),
+    TorchLibOpInfo("min_other", core_ops.aten_min_other),
+    TorchLibOpInfo("min", core_ops.aten_min),
+    TorchLibOpInfo("minimum", core_ops.aten_minimum),
+    TorchLibOpInfo("mm", core_ops.aten_mm),
+    TorchLibOpInfo("mul", core_ops.aten_mul),
+    TorchLibOpInfo("narrow", core_ops.aten_narrow),
+    # TorchLibOpInfo("native_dropout", core_ops.aten_native_dropout),  # native_dropout is not in OPS_DB
+    TorchLibOpInfo("ne", core_ops.aten_ne),
+    TorchLibOpInfo("neg", core_ops.aten_neg),
+    TorchLibOpInfo("new_empty_dtype", core_ops.aten_new_empty_dtype, nondeterministic=True),
+    TorchLibOpInfo("new_empty", core_ops.aten_new_empty, nondeterministic=True),
+    TorchLibOpInfo("new_empty_strided_dtype", core_ops.aten_new_empty_strided_dtype, nondeterministic=True),
+    TorchLibOpInfo("new_empty_strided", core_ops.aten_new_empty_strided, nondeterministic=True),
+    TorchLibOpInfo("new_full_dtype", core_ops.aten_new_full_dtype),
+    TorchLibOpInfo("new_full", core_ops.aten_new_full),
+    TorchLibOpInfo("new_ones_dtype", core_ops.aten_new_ones_dtype),
+    TorchLibOpInfo("new_ones", core_ops.aten_new_ones),
+    TorchLibOpInfo("new_zeros_dtype", core_ops.aten_new_zeros_dtype),
+    TorchLibOpInfo("new_zeros", core_ops.aten_new_zeros),
+    TorchLibOpInfo("nn.functional.adaptive_avg_pool1d", nn_ops.aten_adaptive_avg_pool1d),
+    TorchLibOpInfo("nn.functional.adaptive_avg_pool2d", nn_ops.aten_adaptive_avg_pool2d),
+    TorchLibOpInfo("nn.functional.adaptive_avg_pool3d", nn_ops.aten_adaptive_avg_pool3d),
+    TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
+    TorchLibOpInfo(
+        "nn.functional.cross_entropy",
+        # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
+        (nn_ops.aten_cross_entropy_loss),
+        input_wrangler=_cross_entropy_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "nn.functional.dropout",
+        (core_ops.aten_dropout),
+        input_wrangler=_dropout_input_wrangler,
+    ),
+    TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
+    TorchLibOpInfo(
+        "nn.functional.embedding",
+        (core_ops.aten_embedding),
+        input_wrangler=_embedding_input_wrangler,
+    ),
+    TorchLibOpInfo("nn.functional.hardtanh", nn_ops.aten_hardtanh),
+    TorchLibOpInfo("nn.functional.leaky_relu", nn_ops.aten_leaky_relu),
+    TorchLibOpInfo("nn.functional.logsigmoid", nn_ops.aten_log_sigmoid),
+    TorchLibOpInfo(
+        "nn.functional.nll_loss_weight",
+        (nn_ops.aten_nll_loss_weight),
+        input_wrangler=_nll_loss_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "nn.functional.nll_loss",
+        (nn_ops.aten_nll_loss),
+        input_wrangler=_nll_loss_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "nn.functional.reflection_pad2d",
+        (nn_ops.aten_reflection_pad2d),
+        input_wrangler=_reflection_pad2d_input_wrangler,
+    ),
+    TorchLibOpInfo("nn.functional.relu", nn_ops.aten_relu),
+    TorchLibOpInfo("nn.functional.relu6", nn_ops.aten_relu6),
+    TorchLibOpInfo(
+        "nn.functional.replication_pad2d",
+        (nn_ops.aten_replication_pad2d),
+        input_wrangler=_replication_pad2d_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "nn.functional.replication_pad3d",
+        (nn_ops.aten_replication_pad3d),
+        input_wrangler=_replication_pad3d_input_wrangler,
+    ),
+    TorchLibOpInfo("nn.functional.selu", core_ops.aten_selu),
+    TorchLibOpInfo(
+        "nn.functional.mse_loss",
+        (nn_ops.aten_mse_loss),
+        input_wrangler=_mse_loss_input_wrangler,
+    ),
+    TorchLibOpInfo("nonzero", core_ops.aten_nonzero),
+    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True),
+    TorchLibOpInfo("ones", core_ops.aten_ones),
+    TorchLibOpInfo("permute", (core_ops.aten_permute), input_wrangler=_permute_input_wrangler),
+    TorchLibOpInfo("pow", core_ops.aten_pow),
+    # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
+    TorchLibOpInfo("randn", (core_ops.aten_randn), input_wrangler=_randn_input_wrangler, nondeterministic=True),
+    TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
+    TorchLibOpInfo("remainder", core_ops.aten_remainder),
+    TorchLibOpInfo("repeat", core_ops.aten_repeat),
+    TorchLibOpInfo("reshape", core_ops.aten_reshape),
+    TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
+    TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
+    TorchLibOpInfo("round", core_ops.aten_round),
+    TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
+    TorchLibOpInfo("rsub", core_ops.aten_rsub),
+    # TorchLibOpInfo("scalar_tensor", core_ops.aten_scalar_tensor),  # no test case in OPS_DB
+    TorchLibOpInfo("scatter_add", core_ops.aten_scatter_add),
+    TorchLibOpInfo("select", core_ops.aten_select),
+    TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
+    TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("sin", core_ops.aten_sin),
+    TorchLibOpInfo("sinh", core_ops.aten_sinh),
+    TorchLibOpInfo("softmax", special_ops.aten_special_softmax),
+    TorchLibOpInfo("split_with_sizes", core_ops.aten_split_with_sizes),
+    TorchLibOpInfo("split", core_ops.aten_split),
+    TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
+    TorchLibOpInfo("squeeze_dim", core_ops.aten_squeeze_dim),
+    TorchLibOpInfo("squeeze", core_ops.aten_squeeze),
+    TorchLibOpInfo("stack", core_ops.aten_stack),
+    TorchLibOpInfo("sub", core_ops.aten_sub),
+    # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
+    TorchLibOpInfo("t", core_ops.aten_t),
+    TorchLibOpInfo("tan", core_ops.aten_tan),
+    TorchLibOpInfo("tanh", core_ops.aten_tanh),
+    TorchLibOpInfo("tile", core_ops.aten_tile),
+    TorchLibOpInfo("topk", core_ops.aten_topk),
+    TorchLibOpInfo("tril", core_ops.aten_tril),
+    TorchLibOpInfo("triu", core_ops.aten_triu),
+    TorchLibOpInfo("trunc", core_ops.aten_trunc),
+    TorchLibOpInfo(
+        "unflatten", (core_ops.aten_unflatten), input_wrangler=_unflatten_input_wrangler
+    ),
+    TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
+    TorchLibOpInfo("view", core_ops.aten_view),
+    TorchLibOpInfo("vstack", core_ops.aten_vstack),
+    TorchLibOpInfo("where", (core_ops.aten_where), input_wrangler=_where_input_wrangler),
+    TorchLibOpInfo("xlogy", special_ops.aten_special_xlogy),
+    TorchLibOpInfo("zeros", core_ops.aten_zeros),
+    TorchLibOpInfo("arange_start_step", core_ops.aten_arange_start_step, trace_only=True),
+    TorchLibOpInfo("arange_start", core_ops.aten_arange_start, trace_only=True),
+    TorchLibOpInfo("arange", core_ops.aten_arange, trace_only=True),
+    TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True),
+    TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True),
+    TorchLibOpInfo("as_strided", core_ops.aten_as_strided, trace_only=True),
+    TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True),
+    TorchLibOpInfo("col2im", nn_ops.aten_col2im, trace_only=True),
+    TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
+    TorchLibOpInfo("contiguous", core_ops.aten_contiguous, trace_only=True),
+    TorchLibOpInfo("convolution", core_ops.aten_convolution, trace_only=True),
+    TorchLibOpInfo("empty_like", core_ops.aten_empty_like, nondeterministic=True, trace_only=True),
+    TorchLibOpInfo("grid_sampler_2d", core_ops.aten_grid_sampler_2d, trace_only=True),
+    TorchLibOpInfo("hstack", core_ops.aten_hstack, trace_only=True),
+    TorchLibOpInfo(
+        "nn.functional.grid_sample",
+        (core_ops.aten_grid_sampler),
+        input_wrangler=_grid_sample_input_wrangler, trace_only=True
+
+    ),
+    TorchLibOpInfo("layer_norm", core_ops.aten_layer_norm, trace_only=True),
+    TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
+    TorchLibOpInfo("max", core_ops.aten_max, trace_only=True),
+    TorchLibOpInfo("max_pool1d", nn_ops.aten_max_pool1d, trace_only=True),  # Custom from extra_opinfo
+    TorchLibOpInfo("max_pool2d", nn_ops.aten_max_pool2d, trace_only=True),  # Custom from extra_opinfo
+    TorchLibOpInfo("max_pool3d", nn_ops.aten_max_pool3d, trace_only=True),  # Custom from extra_opinfo
+    TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
+    TorchLibOpInfo("native_group_norm", core_ops.aten_native_group_norm, trace_only=True),
+    TorchLibOpInfo("native_layer_norm", core_ops.aten_native_layer_norm, trace_only=True),
+    TorchLibOpInfo(
+        "nn.functional.avg_pool2d",
+        (nn_ops.aten_avg_pool2d),
+        input_wrangler=_avg_pool2d_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo("nn.functional.conv1d", core_ops.aten_conv1d, trace_only=True),
+    TorchLibOpInfo("nn.functional.conv2d", core_ops.aten_conv2d, trace_only=True),
+    TorchLibOpInfo("nn.functional.conv3d", core_ops.aten_conv3d, trace_only=True),
+    TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu, trace_only=True),
+    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
+    TorchLibOpInfo(
+        "nn.functional.max_pool1d",
+        (nn_ops.aten_max_pool1d),
+        input_wrangler=_max_pool_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool1d_with_indices",
+        (nn_ops.aten_max_pool1d_with_indices),
+        input_wrangler=_max_pool_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool2d",
+        (nn_ops.aten_max_pool2d),
+        input_wrangler=_max_pool_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool2d_with_indices",
+        (nn_ops.aten_max_pool2d_with_indices),
+        input_wrangler=_max_pool_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool3d",
+        (nn_ops.aten_max_pool3d),
+        input_wrangler=_max_pool_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool3d_with_indices",
+        (nn_ops.aten_max_pool3d_with_indices),
+        input_wrangler=_max_pool_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.scaled_dot_product_attention", nn_ops.aten_scaled_dot_product_attention, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        nn_ops.aten_scaled_dot_product_attention_bool_mask, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.upsample_bilinear2d",
+        (nn_ops.aten_upsample_bilinear2d),
+        input_wrangler=_upsample_bilinear2d_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "nn.functional.upsample_nearest2d",
+        (nn_ops.aten_upsample_nearest2d),
+        input_wrangler=_upsample_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
+    TorchLibOpInfo(
+        "scatter_reduce",
+        (core_ops.aten_scatter_reduce),
+        input_wrangler=_scatter_reduce_input_wrangler, trace_only=True
+    ),
+    TorchLibOpInfo("slice_scatter", core_ops.aten_slice_scatter, trace_only=True),
+    TorchLibOpInfo("slice", core_ops.aten_slice, trace_only=True),
+    TorchLibOpInfo("aten.stft", core_ops.aten_stft, trace_only=True),  # Custom from extra_opinfo
+    TorchLibOpInfo("sum", (core_ops.aten_sum_dim_IntList), input_wrangler=_sum_input_wrangler, trace_only=True),
+    TorchLibOpInfo("transpose", core_ops.aten_transpose, trace_only=True),
+    TorchLibOpInfo("var_mean", core_ops.aten_var_mean, trace_only=True),
+    TorchLibOpInfo("var_mean_dim", core_ops.aten_var_mean_dim, trace_only=True),
+    TorchLibOpInfo("var_mean_correction", core_ops.aten_var_mean_correction, trace_only=True),
+    TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
 
@@ -345,290 +660,17 @@ TESTED_TORCHLIB_OPS: tuple[OpTestInfo, ...] = (
 OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-    # onnxscript.OnnxFunction
-    # | Callable[..., Any]
-    # | tuple[
-    #     onnxscript.OnnxFunction | Callable[..., Any],
-    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    # ],
-] = {
-    "all_dim": core_ops.aten_all_dim,
-    "allclose": core_ops.aten_allclose,
-    "all": core_ops.aten_all,
-    "abs": core_ops.aten_abs,
-    "acos": core_ops.aten_acos,
-    "acosh": core_ops.aten_acosh,
-    "add": core_ops.aten_add,
-    "addmm": core_ops.aten_addmm,
-    # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
-    "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
-    "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
-    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
-    "any_dim": core_ops.aten_any_dim,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
-    "asin": core_ops.aten_asin,
-    "asinh": core_ops.aten_asinh,
-    "atan": core_ops.aten_atan,
-    "atan2": core_ops.aten_atan2,
-    "atanh": core_ops.aten_atanh,
-    "atleast_1d": core_ops.aten_atleast_1d,
-    "atleast_1d_single_tensor": core_ops.aten_atleast_1d_single_tensor,
-    "atleast_2d": core_ops.aten_atleast_2d,
-    "atleast_2d_single_tensor": core_ops.aten_atleast_2d_single_tensor,
-    "atleast_3d": core_ops.aten_atleast_3d,
-    "atleast_3d_single_tensor": core_ops.aten_atleast_3d_single_tensor,
-    "baddbmm": core_ops.aten_baddbmm,
-    "bmm": core_ops.aten_bmm,
-    "broadcast_to": core_ops.aten_broadcast_to,
-    "cat": (core_ops.aten_cat, _cat_input_wrangler),
-    "ceil": core_ops.aten_ceil,
-    "chunk": core_ops.aten_chunk,
-    "clamp_max": core_ops.aten_clamp_max,
-    "clamp_min": core_ops.aten_clamp_min,
-    "clone": core_ops.aten_clone,
-    "constant_pad_nd": core_ops.aten_constant_pad_nd,
-    # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
-    "cos": core_ops.aten_cos,
-    "cosh": core_ops.aten_cosh,
-    "cross": core_ops.aten_cross,
-    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
-    "div": core_ops.aten_div,
-    "dot": core_ops.aten_dot,
-    "empty": (core_ops.aten_empty, _empty_input_wrangler),
-    # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
-    "eq": core_ops.aten_eq,
-    "equal": core_ops.aten_equal,
-    "exp": core_ops.aten_exp,
-    "exp2": core_ops.aten_exp2,
-    "expand": core_ops.aten_expand,
-    "expand_as": core_ops.aten_expand_as,
-    "erf": core_ops.aten_erf,
-    "fill": core_ops.aten_fill,
-    "flip": (core_ops.aten_flip, _flip_input_wrangler),
-    "floor": core_ops.aten_floor,
-    "fmod": core_ops.aten_fmod,
-    "full": core_ops.aten_full,
-    "full_like_dtype": core_ops.aten_full_like_dtype,
-    "full_like": core_ops.aten_full_like,
-    "gather": core_ops.aten_gather,
-    "ge": core_ops.aten_ge,
-    # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
-    # "greater": core_ops.aten_greater,  # no test case in OPS_DB
-    "gt": core_ops.aten_gt,
-    # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
-    # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
-    "index_put_bool": core_ops.aten_index_put_bool,
-    "index_put": core_ops.aten_index_put,
-    "index_select": core_ops.aten_index_select,
-    "isclose": core_ops.aten_isclose,
-    "isfinite": core_ops.aten_isfinite,
-    "isinf": core_ops.aten_isinf,
-    "isnan": core_ops.aten_isnan,
-    "isneginf": core_ops.aten_isneginf,
-    "isposinf": core_ops.aten_isposinf,
-    "log": core_ops.aten_log,
-    "le": core_ops.aten_le,
-    "log10": core_ops.aten_log10,
-    "log1p": core_ops.aten_log1p,
-    "log_softmax": special_ops.aten_special_log_softmax,
-    "log2": core_ops.aten_log2,
-    "logaddexp": core_ops.aten_logaddexp,
-    "logaddexp2": core_ops.aten_logaddexp2,
-    "logcumsumexp": core_ops.aten_logcumsumexp,
-    "logdet": core_ops.aten_logdet,
-    "logsumexp": core_ops.aten_logsumexp,
-    "lt": core_ops.aten_lt,
-    "masked_fill": core_ops.aten_masked_fill,
-    "matmul": core_ops.aten_matmul,
-    "maximum": core_ops.aten_maximum,
-    "mean": (core_ops.aten_mean, _mean_input_wrangler),
-    "mean_dim": (core_ops.aten_mean_dim, _mean_input_wrangler),
-    "min_dim": core_ops.aten_min_dim,
-    "min_other": core_ops.aten_min_other,
-    "min": core_ops.aten_min,
-    "minimum": core_ops.aten_minimum,
-    "mm": core_ops.aten_mm,
-    "mul": core_ops.aten_mul,
-    "narrow": core_ops.aten_narrow,
-    # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
-    "ne": core_ops.aten_ne,
-    "neg": core_ops.aten_neg,
-    "new_empty_dtype": core_ops.aten_new_empty_dtype,
-    "new_empty": core_ops.aten_new_empty,
-    "new_empty_strided_dtype": core_ops.aten_new_empty_strided_dtype,
-    "new_empty_strided": core_ops.aten_new_empty_strided,
-    "new_full_dtype": core_ops.aten_new_full_dtype,
-    "new_full": core_ops.aten_new_full,
-    "new_ones_dtype": core_ops.aten_new_ones_dtype,
-    "new_ones": core_ops.aten_new_ones,
-    "new_zeros_dtype": core_ops.aten_new_zeros_dtype,
-    "new_zeros": core_ops.aten_new_zeros,
-    "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
-    "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
-    "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
-    "nn.functional.celu": nn_ops.aten_celu,
-    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
-    "nn.functional.cross_entropy": (
-        nn_ops.aten_cross_entropy_loss,
-        _cross_entropy_input_wrangler,
-    ),
-    "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
-    "nn.functional.elu": nn_ops.aten_elu,
-    "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
-    "nn.functional.hardtanh": nn_ops.aten_hardtanh,
-    "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
-    "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
-    "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
-    "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
-    "nn.functional.reflection_pad2d": (
-        nn_ops.aten_reflection_pad2d,
-        _reflection_pad2d_input_wrangler,
-    ),
-    "nn.functional.relu": nn_ops.aten_relu,
-    "nn.functional.relu6": nn_ops.aten_relu6,
-    "nn.functional.replication_pad2d": (
-        nn_ops.aten_replication_pad2d,
-        _replication_pad2d_input_wrangler,
-    ),
-    "nn.functional.replication_pad3d": (
-        nn_ops.aten_replication_pad3d,
-        _replication_pad3d_input_wrangler,
-    ),
-    "nn.functional.selu": core_ops.aten_selu,
-    "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
-    "nonzero": core_ops.aten_nonzero,
-    "normal": core_ops.aten_normal,
-    "ones": core_ops.aten_ones,
-    "permute": (core_ops.aten_permute, _permute_input_wrangler),
-    "pow": core_ops.aten_pow,
-    # "rand": core_ops.aten_rand,  # no test case in OPS_DB
-    "randn": (core_ops.aten_randn, _randn_input_wrangler),
-    "reciprocal": core_ops.aten_reciprocal,
-    "remainder": core_ops.aten_remainder,
-    "repeat": core_ops.aten_repeat,
-    "reshape": core_ops.aten_reshape,
-    "resolve_conj": core_ops.aten_resolve_conj,
-    "resolve_neg": core_ops.aten_resolve_neg,
-    "round": core_ops.aten_round,
-    "rsqrt": core_ops.aten_rsqrt,
-    "rsub": core_ops.aten_rsub,
-    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
-    "scatter_add": core_ops.aten_scatter_add,
-    "select": core_ops.aten_select,
-    "sigmoid": core_ops.aten_sigmoid,
-    "sign": core_ops.aten_sign,
-    "sin": core_ops.aten_sin,
-    "sinh": core_ops.aten_sinh,
-    "softmax": special_ops.aten_special_softmax,
-    "split_with_sizes": core_ops.aten_split_with_sizes,
-    "split": core_ops.aten_split,
-    "sqrt": core_ops.aten_sqrt,
-    "squeeze_dim": core_ops.aten_squeeze_dim,
-    "squeeze": core_ops.aten_squeeze,
-    "stack": core_ops.aten_stack,
-    "sub": core_ops.aten_sub,
-    # "sym_size": core_ops.aten_sym_size,  # no test case in OPS_DB
-    "t": core_ops.aten_t,
-    "tan": core_ops.aten_tan,
-    "tanh": core_ops.aten_tanh,
-    "tile": core_ops.aten_tile,
-    "topk": core_ops.aten_topk,
-    "tril": core_ops.aten_tril,
-    "triu": core_ops.aten_triu,
-    "trunc": core_ops.aten_trunc,
-    "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
-    "unsqueeze": core_ops.aten_unsqueeze,
-    "view": core_ops.aten_view,
-    "vstack": core_ops.aten_vstack,
-    "where": (core_ops.aten_where, _where_input_wrangler),
-    "xlogy": special_ops.aten_special_xlogy,
-    "zeros": core_ops.aten_zeros,
-}
+] = {info.op_info_name: info.op for info in TESTED_TORCHLIB_OPS if not info.trace_only}
 
 
 OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
-    "argmax": core_ops.aten_argmax,
-    "argmin": core_ops.aten_argmin,
-    "as_strided": core_ops.aten_as_strided,
-    "clamp": core_ops.aten_clamp,
-    "col2im": nn_ops.aten_col2im,
-    "cumsum": core_ops.aten_cumsum,
-    "contiguous": core_ops.aten_contiguous,
-    "convolution": core_ops.aten_convolution,
-    "empty_like": core_ops.aten_empty_like,
-    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
-    "hstack": core_ops.aten_hstack,
-    "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
-    "layer_norm": core_ops.aten_layer_norm,
-    "logit": core_ops.aten_logit,
-    "max": core_ops.aten_max,
-    "max_pool1d": nn_ops.aten_max_pool1d,  # Custom from extra_opinfo
-    "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
-    "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
-    "native_batch_norm": core_ops.aten_native_batch_norm,
-    "native_group_norm": core_ops.aten_native_group_norm,
-    "native_layer_norm": core_ops.aten_native_layer_norm,
-    "nn.functional.avg_pool2d": (nn_ops.aten_avg_pool2d, _avg_pool2d_input_wrangler),
-    "nn.functional.conv1d": core_ops.aten_conv1d,
-    "nn.functional.conv2d": core_ops.aten_conv2d,
-    "nn.functional.conv3d": core_ops.aten_conv3d,
-    "nn.functional.gelu": nn_ops.aten_gelu,
-    "nn.functional.linear": nn_ops.aten_linear,
-    "nn.functional.max_pool1d": (nn_ops.aten_max_pool1d, _max_pool_input_wrangler),
-    "nn.functional.max_pool1d_with_indices": (
-        nn_ops.aten_max_pool1d_with_indices,
-        _max_pool_input_wrangler,
-    ),
-    "nn.functional.max_pool2d": (nn_ops.aten_max_pool2d, _max_pool_input_wrangler),
-    "nn.functional.max_pool2d_with_indices": (
-        nn_ops.aten_max_pool2d_with_indices,
-        _max_pool_input_wrangler,
-    ),
-    "nn.functional.max_pool3d": (nn_ops.aten_max_pool3d, _max_pool_input_wrangler),
-    "nn.functional.max_pool3d_with_indices": (
-        nn_ops.aten_max_pool3d_with_indices,
-        _max_pool_input_wrangler,
-    ),
-    "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
-    "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
-    "nn.functional.upsample_bilinear2d": (
-        nn_ops.aten_upsample_bilinear2d,
-        _upsample_bilinear2d_input_wrangler,
-    ),
-    "nn.functional.upsample_nearest2d": (
-        nn_ops.aten_upsample_nearest2d,
-        _upsample_input_wrangler,
-    ),
-    "ones_like": core_ops.aten_ones_like,
-    "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
-    "slice_scatter": core_ops.aten_slice_scatter,
-    "slice": core_ops.aten_slice,
-    "aten.stft": core_ops.aten_stft,  # Custom from extra_opinfo
-    "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
-    "transpose": core_ops.aten_transpose,
-    "var_mean": core_ops.aten_var_mean,
-    "var_mean_dim": core_ops.aten_var_mean_dim,
-    "var_mean_correction": core_ops.aten_var_mean_correction,
-    "zeros_like": core_ops.aten_zeros_like,
-}
+] = {info.op_info_name: info.op for info in TESTED_TORCHLIB_OPS if info.trace_only}
 
 # These ops are not deterministic, so we check shape and dtype only
 NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
-    (
-        "empty_like",
-        "empty",
-        "new_empty_strided_dtype",
-        "new_empty_strided",
-        "new_empty_dtype",
-        "new_empty",
-        "normal",
-        "randn",
-    )
+    info.op_info_name for info in TESTED_TORCHLIB_OPS if info.nondeterministic
 )
 
 OPINFO_FUNCTION_MAPPING: dict[
