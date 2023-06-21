@@ -1,11 +1,77 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
+
 from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
 import numpy as np
+import onnx
+from onnx import helper, numpy_helper
 from onnx.defs import OpSchema
 
-from onnxscript import tensor, values
+from onnxscript import sourceinfo, tensor, values
+
+# Conversions from python values to ONNX are used by both the script converter as well
+# as the eager-mode runtime and both need to be consistent. The script converter converts
+# python values into ONNX TensorProto, while the runtime converts python values into
+# ONNXScript runtime's value-representation (based on Tensor).
+
+
+# Utilities to convert a python value to TensorProto (for use by the script converter)
+
+
+def py_type_to_onnx_type(pytype: type):
+    if pytype is bool:
+        return onnx.TensorProto.BOOL
+    if pytype is int:
+        return onnx.TensorProto.INT64
+    if pytype is float:
+        return onnx.TensorProto.FLOAT
+    if pytype is str:
+        return onnx.TensorProto.STRING
+    raise ValueError(f"Tensor element of type {pytype} not supported")
+
+
+def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
+    if isinstance(pyvalue, np.ndarray):
+        return numpy_helper.from_array(pyvalue, tensor_name)
+    if isinstance(pyvalue, list):
+        if len(pyvalue) == 0:
+            raise ValueError("Cannot convert an empty list to tensor")
+        pytype = type(pyvalue[0])
+        if not all(isinstance(e, pytype) for e in pyvalue):
+            raise ValueError("Cannot convert an list with elements of different types to tensor"))
+        return helper.make_tensor(
+            tensor_name,
+            py_type_to_onnx_type(pytype),
+            [len(pyvalue)],
+            pyvalue,
+        )
+    onnx_type = py_type_to_onnx_type(type(pyvalue))
+    if onnx_type is onnx.TensorProto.BOOL:
+        return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
+    if onnx_type is onnx.TensorProto.STRING:
+        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
+
+    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
+
+
+# Utilities to convert python values into onnxscript tensors.
+
+
+def is_valid_onnxscript_value(x):
+    """Checks if the value is a standard onnxscript runtime value"""
+    if x is None:
+        return True
+    if isinstance(x, tensor.Tensor):
+        return True
+    if isinstance(x, list):
+        # Note: optimizations possible here
+        return all(is_valid_onnxscript_value(y) for y in x)
+    return False
 
 
 def get_dtype(pyvalue):
@@ -31,14 +97,10 @@ def get_dtype(pyvalue):
 def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
     """Promotes python values into onnxscript tensors.
     The optional argument dtype specifies the desired np.dtype of the tensor,
-    used only when a non-onnxscript-tensor is promoted into one.
+    used only when a non-standard onnxscript-value is promoted into one.
     """
-    if isinstance(pyvalue, tensor.Tensor):
+    if is_valid_onnxscript_value(pyvalue):
         return pyvalue
-    if isinstance(pyvalue, np.ndarray):
-        if dtype is not None and pyvalue.dtype != dtype:
-            pyvalue = pyvalue.astype(dtype)
-        return tensor.Tensor(pyvalue)
     if dtype is None:
         dtype = get_dtype(pyvalue)
     if isinstance(pyvalue, (bool, int, float, list)):
