@@ -43,7 +43,7 @@ def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
             raise ValueError("Cannot convert an empty list to tensor")
         pytype = type(pyvalue[0])
         if not all(isinstance(e, pytype) for e in pyvalue):
-            raise ValueError("Cannot convert an list with elements of different types to tensor"))
+            raise ValueError("Cannot convert an list with elements of different types to tensor")
         return helper.make_tensor(
             tensor_name,
             py_type_to_onnx_type(pytype),
