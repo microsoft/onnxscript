@@ -851,16 +851,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu",
         nn_ops.aten_relu,
-    ).xfail(
-        dtypes=[torch.float16],
-        reason="fixme: ORT cannot support relu in float16. https://github.com/microsoft/onnxruntime/issues/16069",
     ),
     TorchLibOpInfo(
         "nn.functional.relu6",
         nn_ops.aten_relu6,
-    ).xfail(
-        dtypes=[torch.float16],
-        reason="fixme: ORT cannot support relu in float16. https://github.com/microsoft/onnxruntime/issues/16069",
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad2d",
