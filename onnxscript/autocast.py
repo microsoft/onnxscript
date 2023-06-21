@@ -64,15 +64,17 @@ def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
 # Utilities to convert python values into onnxscript tensors.
 
 
-def is_valid_onnxscript_value(x):
-    """Checks if the value is a standard onnxscript runtime value"""
-    if x is None:
+def promotable(x):
+    """Checks if a runtime parameter value needs to be promoted into an onnxscript value.
+    This is the runtime-equivalent of the promotion of literal constants into ONNX values
+    in the static converter.
+    """
+    if isinstance(x, (bool, int, float)):
         return True
-    if isinstance(x, tensor.Tensor):
-        return True
-    if isinstance(x, list):
-        # Note: optimizations possible here
-        return all(is_valid_onnxscript_value(y) for y in x)
+    if isinstance(x, list) and x:
+        # Note: This is meant to handle valid scenarios correctly. No attempt is
+        # made yet to capture all invalid usages in runtime mode.
+        return promotable(x[0])
     return False
 
 
@@ -101,11 +103,9 @@ def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
     The optional argument dtype specifies the desired np.dtype of the tensor,
     used only when a non-standard onnxscript-value is promoted into one.
     """
-    if is_valid_onnxscript_value(pyvalue):
-        return pyvalue
-    if dtype is None:
-        dtype = get_dtype(pyvalue)
-    if isinstance(pyvalue, (bool, int, float, list)):
+    if promotable(pyvalue):
+        if dtype is None:
+            dtype = get_dtype(pyvalue)
         return tensor.Tensor(np.array(pyvalue, dtype=dtype))
     return pyvalue
 
