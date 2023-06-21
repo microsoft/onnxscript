@@ -507,7 +507,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
     TorchLibOpInfo("clone", core_ops.aten_clone),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
-    TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
+    # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross),
