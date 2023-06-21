@@ -23,7 +23,7 @@ from onnxscript import tensor, values
 # Utilities to convert a python value to TensorProto (for use by the script converter)
 
 
-def py_type_to_onnx_type(pytype: type):
+def _py_type_to_onnx_type(pytype: type):
     if pytype is bool:
         return onnx.TensorProto.BOOL
     if pytype is int:
@@ -48,11 +48,11 @@ def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
             )
         return helper.make_tensor(
             tensor_name,
-            py_type_to_onnx_type(pytype),
+            _py_type_to_onnx_type(pytype),
             [len(pyvalue)],
             pyvalue,
         )
-    onnx_type = py_type_to_onnx_type(type(pyvalue))
+    onnx_type = _py_type_to_onnx_type(type(pyvalue))
     if onnx_type is onnx.TensorProto.BOOL:
         return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
     if onnx_type is onnx.TensorProto.STRING:
@@ -64,7 +64,7 @@ def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
 # Utilities to convert python values into onnxscript tensors.
 
 
-def promotable(x):
+def _promotable(x) -> bool:
     """Checks if a runtime parameter value needs to be promoted into an onnxscript value.
     This is the runtime-equivalent of the promotion of literal constants into ONNX values
     in the static converter.
@@ -74,11 +74,11 @@ def promotable(x):
     if isinstance(x, list) and x:
         # Note: This is meant to handle valid scenarios correctly. No attempt is
         # made yet to capture all invalid usages in runtime mode.
-        return promotable(x[0])
+        return _promotable(x[0])
     return False
 
 
-def get_dtype(pyvalue):
+def _get_dtype(pyvalue):
     """Return np.dtype to use when converting a python value to an onnxscript tensor.
     Note that int constants are treated as int64, as that is the common type in ONNX
     for shape/index values.
@@ -93,7 +93,7 @@ def get_dtype(pyvalue):
         if pyvalue:
             # TODO: What to do about lists with mixed value types, like [1, 2.0]?
             # Should at least produce an error/warning message.
-            return get_dtype(pyvalue[0])
+            return _get_dtype(pyvalue[0])
         raise ValueError("Cannot determine target type for empty list")
     raise TypeError(f"Value of unexpected type {type(pyvalue)}")
 
@@ -103,9 +103,9 @@ def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
     The optional argument dtype specifies the desired np.dtype of the tensor,
     used only when a non-standard onnxscript-value is promoted into one.
     """
-    if promotable(pyvalue):
+    if _promotable(pyvalue):
         if dtype is None:
-            dtype = get_dtype(pyvalue)
+            dtype = _get_dtype(pyvalue)
         return tensor.Tensor(np.array(pyvalue, dtype=dtype))
     return pyvalue
 
