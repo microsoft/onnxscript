@@ -596,7 +596,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
-    TorchLibOpInfo("log_softmax", special_ops.aten_special_log_softmax),
+    TorchLibOpInfo("log_softmax", special_ops.aten_special_log_softmax,
+        skips_or_fails=(
+            xfail(
+                "log_softmax",
+                variant_name="with_dtype",
+                dtypes=[torch.float16],
+                reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+                test_class_name="TestOutputConsistencyFullGraph",
+            ),
+        ),),
     TorchLibOpInfo(
         "log2",
         core_ops.aten_log2,
@@ -1047,11 +1056,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 and not isinstance(sample.args[0], float),
                 reason="ORT only accept float type for args[0] 'mean'",
             ),
-            xfail(
-                "normal",
-                dtypes=[torch.float16],
-                reason="fixme: RandomNormal in ORT failed",
-            ),
+            # xfail(
+            #     "normal",
+            #     dtypes=[torch.float16],
+            #     reason="fixme: RandomNormal in ORT failed",
+            # ),
         ),
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
