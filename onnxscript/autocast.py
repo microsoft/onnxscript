@@ -12,7 +12,7 @@ import onnx
 from onnx import helper, numpy_helper
 from onnx.defs import OpSchema
 
-from onnxscript import sourceinfo, tensor, values
+from onnxscript import tensor, values
 
 # Conversions from python values to ONNX are used by both the script converter as well
 # as the eager-mode runtime and both need to be consistent. The script converter converts
@@ -43,7 +43,9 @@ def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
             raise ValueError("Cannot convert an empty list to tensor")
         pytype = type(pyvalue[0])
         if not all(isinstance(e, pytype) for e in pyvalue):
-            raise ValueError("Cannot convert an list with elements of different types to tensor")
+            raise ValueError(
+                "Cannot convert an list with elements of different types to tensor"
+            )
         return helper.make_tensor(
             tensor_name,
             py_type_to_onnx_type(pytype),
