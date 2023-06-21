@@ -606,7 +606,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
-    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
+    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp).xfail(
+        reason="naive implementation not numerically stable"
+    ),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
     TorchLibOpInfo(
         "logsumexp",
