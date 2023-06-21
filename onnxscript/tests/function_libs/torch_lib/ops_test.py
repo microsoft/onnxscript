@@ -112,8 +112,8 @@ class TestFunctionValidity(unittest.TestCase):
             if not isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
                     f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
-                    "If the function is trace_only, please move it to the "
-                    "'ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
+                    "If the function is trace_only, please specify trace_only=True "
+                    "in the TorchLibOpInfo entry."
                 )
 
     def test_all_trace_only_functions_are_not_onnx_functions(self):
@@ -122,8 +122,8 @@ class TestFunctionValidity(unittest.TestCase):
             if isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
                     f"'{func.name}' is an OnnxFunction. "
-                    "If the function is not trace_only, please move it to the "
-                    "'ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
+                    "If the function is not trace_only, please remove trace_only=True "
+                    "in the TorchLibOpInfo entry."
                 )
 
     @parameterized.parameterized.expand(

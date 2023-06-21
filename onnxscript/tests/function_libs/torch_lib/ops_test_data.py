@@ -10,18 +10,24 @@ This test use PyTorch's OpInfo mechanism to generate test cases for each operato
 You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fdd2c9b978dc6aa4923144684a3f51/torch/testing/_internal/common_methods_invocations.py#L8804
 
 1. To enable test cases for an operator
-    1a. If the op is not `trace_only`, add an entry to the
-    `OPINFO_FUNCTION_MAPPING_SCRIPTED` map.
-    1b. If the op is `trace_only`, add an entry to the
-    `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
+    Add a `TorchLibOpInfo` entry to `TORCH_LIB_OPINFO` in `ops_test_data.py`.
+    Explicitly specify `trace_only` if the op is trace_only. Specify `complex`
+    if the function is designed for complex inputs.
 
-    The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_XFAIL_SUBTESTS` to skip or xfail tests.
-Prefer xfail over skip when possible.
+    The `op_info_name` in `TorchLibOpInfo` needs to be unique in the TORCH_LIB_OPINFO
+    list, but complex=True ops can share the same name with non-complex ops
+    because they are tested separately.
+
+2. Add `.skip` and/or `.xfail` to skip or xfail tests.
+    Prefer xfail over skip when possible because that allows us to monitor the behavior
+    and update the test will it passes.
+
     2a. If a test is now failing because of xpass, because some previous errors
     are now fixed, removed the corresponding xfail.
+
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
 wrangler function. See `_cat_input_wrangler` for an example.
+
 4. To test different ONNX functions that are registered as overloads of the same
     op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
