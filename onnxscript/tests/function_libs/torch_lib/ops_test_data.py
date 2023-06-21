@@ -405,11 +405,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             ),
         ),
     ),
-    TorchLibOpInfo("any_dim", core_ops.aten_any_dim, skips_or_fails=(    skip(
+    TorchLibOpInfo(
         "any_dim",
-        matcher=lambda sample: not (len(sample.kwargs) > 0),
-        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
-    ),)),
+        core_ops.aten_any_dim,
+        skips_or_fails=(
+            skip(
+                "any_dim",
+                matcher=lambda sample: not (len(sample.kwargs) > 0),
+                reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+            ),
+        ),
+    ),
     TorchLibOpInfo("asin", core_ops.aten_asin),
     TorchLibOpInfo("asinh", core_ops.aten_asinh),
     TorchLibOpInfo("atan", core_ops.aten_atan),
@@ -1157,8 +1163,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 "softmax",
                 variant_name="with_dtype",
                 dtypes=[torch.float16],
-                reason="fixme: ORT failed",
-                test_class_name="TestOutputConsistencyGraph",
+                reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+                test_class_name="TestOutputConsistencyFullGraph",
             ),
         ),
     ),
@@ -1879,7 +1885,9 @@ OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    info.op_info_name: (info.op, info.input_wrangler) if info.input_wrangler is not None else info.op
+    info.op_info_name: (info.op, info.input_wrangler)
+    if info.input_wrangler is not None
+    else info.op
     for info in TESTED_TORCHLIB_OPS
     if not info.trace_only and not info.complex
 }
@@ -1889,7 +1897,9 @@ OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
     str,
     Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
 ] = {
-    info.op_info_name: (info.op, info.input_wrangler) if info.input_wrangler is not None else info.op
+    info.op_info_name: (info.op, info.input_wrangler)
+    if info.input_wrangler is not None
+    else info.op
     for info in TESTED_TORCHLIB_OPS
     if info.trace_only and not info.complex
 }
