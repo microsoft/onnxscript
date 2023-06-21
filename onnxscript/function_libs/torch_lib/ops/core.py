@@ -6669,7 +6669,7 @@ def _aten_var_mean_dim_onnx(
     if correction > 0.0:
         self_shape = op.Shape(self)
         dim_size = op.Gather(self_shape, dim, axis=0)
-        numel_float = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
+        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=0), self)
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, correction)
         var = op.Div(mul, sub)

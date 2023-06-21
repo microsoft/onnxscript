@@ -1148,6 +1148,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 dtypes=[torch.float16],
                 reason="fixme: ORT failed",
             ),
+            xfail(
+                "softmax",
+                variant_name="with_dtype",
+                dtypes=[torch.float16],
+                reason="fixme: ORT failed",
+            ),
         ),
     ),
     TorchLibOpInfo(
@@ -1169,6 +1175,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 "split",
                 dtypes=[torch.float16],
                 reason="fixme: ORT failed",
+            ),
+            xfail(
+                "split",
+                variant_name="list_args",
+                dtypes=[torch.float16],
+                reason="fixme: ORT: Type (seq(tensor(float16))) of output arg (output0) of node () does not match expected type (seq(tensor(float)))",
             ),
         ),
     ),
@@ -1661,6 +1673,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
                 # ONNX has not include_self parameter and default is include_self=True mode
                 matcher=lambda sample: sample.kwargs.get("include_self") is False,
                 reason="ONNX does't support include_self=False option",
+            ),
+            xfail(
+                "scatter_reduce",
+                variant_name="amax",
+                reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'max'",
+            ),
+            xfail(
+                "scatter_reduce",
+                variant_name="amin",
+                reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'max'",
+            ),
+            xfail(
+                "scatter_reduce",
+                variant_name="prod",
+                reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'max'",
             ),
         ),
     ),
