@@ -232,8 +232,6 @@ class BaseEvaluator(Evaluator, abc.ABC):
                     f"Error: function-valued attribute {v.__name__} has no graph_proto"
                     "attribute. Did you forget to decorate it with @graph?"
                 )
-            # TODO(justinchuby): Check if a float attribute is provided as an
-            # integer. If so we should cast it to a float.
             else:
                 adapted_attributes[k] = v
         return adapted_attributes, closure
