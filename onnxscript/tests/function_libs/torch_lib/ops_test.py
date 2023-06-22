@@ -22,7 +22,6 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import parameterized
-import pytest
 import torch
 from torch.testing._internal import common_device_type
 from torch.testing._internal.opinfo import core as opinfo_core
@@ -33,8 +32,7 @@ import onnxscript.evaluator
 from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
 
 # All dtypes will be tested on the generated symbolic functions.
-# complex64 would be flattened to float32.
-# add new dtype in the tuple, and also add the new typpe in OPINFO_FUNCTION_TARGET_DTYPE right after the aten function you are testing
+# complex64 will be flattened to float32.
 TESTED_DTYPES = (
     torch.float16,
     torch.float32,
@@ -90,7 +88,7 @@ def _split_function_and_wrangler(
 
 
 # according to https://pytorch.org/docs/stable/testing.html
-OPINFO_PRECISION_TABLE = {
+OPINFO_PRECISION_TABLE: dict[torch.dtype, tuple[float, float]] = {
     # Tolerance value (rtol, atol)
     # The current most relaxed values are for aten::matmul
     torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
@@ -98,15 +96,8 @@ OPINFO_PRECISION_TABLE = {
 }
 
 
-def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple(Any, Any):
-    if dtype in OPINFO_PRECISION_TABLE:
-        return OPINFO_PRECISION_TABLE[dtype]
-    return (None, None)
-
-
-def _dtype_is_supported_by_op(op_name: str, dtype: torch.dtype) -> bool:
-    dtype_list = ops_test_data.OPINFO_FUNCTION_TARGET_DTYPE.get(op_name)
-    return dtype in dtype_list
+def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple[Any, Any]:
+    return OPINFO_PRECISION_TABLE.get(dtype, (None, None))
 
 
 class TestFunctionValidity(unittest.TestCase):
@@ -121,8 +112,8 @@ class TestFunctionValidity(unittest.TestCase):
             if not isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
                     f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
-                    "If the function is trace_only, please move it to the "
-                    "'ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY' dict."
+                    "If the function is trace_only, please specify trace_only=True "
+                    "in the TorchLibOpInfo entry."
                 )
 
     def test_all_trace_only_functions_are_not_onnx_functions(self):
@@ -131,8 +122,8 @@ class TestFunctionValidity(unittest.TestCase):
             if isinstance(func, onnxscript.OnnxFunction):
                 raise AssertionError(
                     f"'{func.name}' is an OnnxFunction. "
-                    "If the function is not trace_only, please move it to the "
-                    "'ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED' dict."
+                    "If the function is not trace_only, please remove trace_only=True "
+                    "in the TorchLibOpInfo entry."
                 )
 
     @parameterized.parameterized.expand(
@@ -318,9 +309,6 @@ class TestOutputConsistencyEager(unittest.TestCase):
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
-        if not _dtype_is_supported_by_op(op.name, dtype):
-            pytest.skip(reason=f"{op.name} cannot support {dtype}")
-
         # Base test method for testing each op with the eager executor, used by instantiate_device_type_tests.
         run_test_output_match(
             self,
@@ -341,7 +329,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
         [
             info
             for info in ops_test_data.OPS_DB
-            if info.name in ops_test_data.COMPLEX_TESTED_OPS
+            if info.name in ops_test_data.COMPLEX_FUNCTION_MAPPING
         ],
         allowed_dtypes=COMPLEX_TYPES,
     )
@@ -355,7 +343,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
             dtype,
             op,
             ops_test_common.eager_executor,
-            ops_test_data.COMPLEX_FUNCTION_MAPPING_SCRIPTED,
+            ops_test_data.COMPLEX_FUNCTION_MAPPING,
         )
 
 
@@ -383,9 +371,6 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
     def test_output_match_opinfo_(
         self, device: str, dtype: torch.dtype, op: opinfo_core.OpInfo
     ):
-        if not _dtype_is_supported_by_op(op.name, dtype):
-            pytest.skip(reason=f"{op.name} cannot support {dtype}")
-
         # Base test method for testing each op by running the full ONNX graph.
         run_test_output_match(
             self,
@@ -406,7 +391,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
         [
             info
             for info in ops_test_data.OPS_DB
-            if info.name in ops_test_data.COMPLEX_TESTED_OPS
+            if info.name in ops_test_data.COMPLEX_FUNCTION_MAPPING
         ],
         allowed_dtypes=COMPLEX_TYPES,
     )
@@ -420,7 +405,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
             dtype,
             op,
             ops_test_common.graph_executor,
-            ops_test_data.COMPLEX_FUNCTION_MAPPING_SCRIPTED,
+            ops_test_data.COMPLEX_FUNCTION_MAPPING,
         )
 
 
