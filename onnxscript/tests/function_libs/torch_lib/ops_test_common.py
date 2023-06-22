@@ -103,7 +103,7 @@ def xfail(
         enabled_if: Whether the xfail is enabled.
         test_class_name: The test class name to apply the xfail to. If None, the
             xfail is applied to all test classes.
-        raises: The expected error type.
+        raises: The expected error type(s).
     """
     if raises is None:
         decorator = pytest.mark.xfail(reason=reason)

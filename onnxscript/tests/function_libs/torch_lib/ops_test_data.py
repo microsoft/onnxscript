@@ -128,6 +128,7 @@ class TorchLibOpInfo:
         matcher: Optional[Callable[[Any], Any]] = None,
         enabled_if: bool = True,
         test_class_name: Optional[str] = None,
+        raises: Optional[type[Exception] | tuple[type[Exception], ...]] = None,
     ) -> Self:
         """Expects an OpInfo test to fail.
 
@@ -140,6 +141,7 @@ class TorchLibOpInfo:
             enabled_if: Whether the xfail is enabled.
             test_class_name: The test class name to apply the xfail to. If None, the
                 xfail is applied to all test classes.
+            raises: The expected error type(s).
         """
         self.skips_or_fails.append(
             ops_test_common.xfail(
@@ -150,6 +152,10 @@ class TorchLibOpInfo:
                 matcher=matcher,
                 enabled_if=enabled_if,
                 test_class_name=test_class_name,
+                # We still do need to provide the expected errors and not just the decorator
+                # because the subtests cannot use the decorator and are handled separately
+                # by `:func:normal_xfail_skip_test_behaviors`.
+                raises=raises,
             )
         )
         return self
