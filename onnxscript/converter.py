@@ -10,9 +10,7 @@ import sys
 from enum import IntEnum
 from typing import Any, Dict, List, NoReturn, Optional, Union
 
-import numpy
 import onnx
-from onnx import helper, numpy_helper
 
 import onnxscript
 from onnxscript import analysis, autocast, irbuilder, onnx_types, sourceinfo
@@ -57,45 +55,6 @@ def fail_if(cond, msg):
 def ignore(cond, msg):
     if cond:
         warn(msg)
-
-
-# Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, info: sourceinfo.SourceInfo):
-    if pytype is bool:
-        return onnx.TensorProto.BOOL
-    if pytype is int:
-        return onnx.TensorProto.INT64
-    if pytype is float:
-        return onnx.TensorProto.FLOAT
-    if pytype is str:
-        return onnx.TensorProto.STRING
-    fail(info.msg(f"Tensor conversion of element of type {pytype} is not implemented"))
-
-
-def pyvalue_to_tensor(
-    tensor_name: str, pyvalue, converter, info: sourceinfo.SourceInfo
-):  # pylint: disable=unused-argument
-    if isinstance(pyvalue, numpy.ndarray):
-        return numpy_helper.from_array(pyvalue, tensor_name)
-    if isinstance(pyvalue, list):
-        if len(pyvalue) == 0:
-            fail(info.msg("Cannot convert an empty list to tensor"))
-        pytype = type(pyvalue[0])
-        if not all(isinstance(e, pytype) for e in pyvalue):
-            fail(info.msg("Cannot convert an list with elements of different types to tensor"))
-        return helper.make_tensor(
-            tensor_name,
-            py_type_to_onnx_type(pytype, info),
-            [len(pyvalue)],
-            pyvalue,
-        )
-    onnx_type = py_type_to_onnx_type(type(pyvalue), info)
-    if onnx_type is onnx.TensorProto.BOOL:
-        return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
-    if onnx_type is onnx.TensorProto.STRING:
-        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
-
-    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
 
 # map from python operators to ONNX ops
@@ -364,7 +323,10 @@ class Converter:
 
     def emit_const(self, pyvalue, suggested_name, info):
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
+        try:
+            tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
+        except ValueError as e:
+            fail(info.msg(str(e)))
         attr = self.ir_builder.make_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
