@@ -100,7 +100,7 @@ def aten_addbmm(
 
     scaled_self = op.Mul(self, beta)
     axes = op.Constant(value_ints=[0])
-    reduced_batches = op.ReduceSum(op.MatMul(batch1, batch2), axes=axes, keepdims=False)
+    reduced_batches = op.ReduceSum(op.MatMul(batch1, batch2), axes, keepdims=False)
 
     return op.Add(scaled_self, op.Mul(reduced_batches, alpha))
 
