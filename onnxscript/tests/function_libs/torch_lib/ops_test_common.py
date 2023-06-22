@@ -436,7 +436,9 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
     first_input_type_name = schema.inputs[0].type_str
     # Find the type constraint for the first input by matching the parameter name
     first_input_type_constraint = next(
-        (x for x in schema.type_constraints if x.type_param_str == first_input_type_name), None
+        # Here we consider seq(tensor(float)) compatible with tensor(float) as well
+        (x for x in schema.type_constraints if first_input_type_name in x.type_param_str),
+        None,
     )
     assert first_input_type_constraint is not None
     allowed_type_strs = first_input_type_constraint.allowed_type_strs

@@ -5907,19 +5907,138 @@ def aten_std_mean(self: TensorType, unbiased: bool = True) -> tuple[TensorType, 
     raise NotImplementedError()
 
 
+@torch_op("aten::stft", private=True)
+def _add_batch_dimension(self: TFloatOrBFloat16) -> Tuple[TFloatOrBFloat16, INT64]:
+    signal_shape = op.Shape(self)
+    signal_rank = op.Size(signal_shape)
+    if signal_rank == 1:
+        # Add a batch dimension
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    return self, signal_rank
+
+
+@torch_op("aten::stft", private=True)
+def _center_window_around_zeros_if_needed(
+    window: TFloatOrBFloat16, n_fft: int
+) -> TFloatOrBFloat16:
+    # first dimension
+    n_win = op.Gather(op.Shape(window), 0)
+    # Center window around zeros if needed (required by ONNX's STFT)
+    if n_win < n_fft:
+        left = (n_fft - n_win) / 2
+
+        right = n_fft - left - n_win
+        left = op.Reshape(left, op.Constant(value_ints=[1]))
+        right = op.Reshape(right, op.Constant(value_ints=[1]))
+
+        left_win = op.Expand(op.Constant(value_ints=[0]), left)
+        right_win = op.Expand(op.Constant(value_ints=[0]), right)
+        right_win = op.CastLike(right_win, window)
+        left_win = op.CastLike(left_win, window)
+        window = op.Concat(left_win, window, right_win, axis=0)
+    return window
+
+
+@torch_op("aten::stft", private=True)
+def _create_window_from_win_length(win_length: int, n_fft: int) -> TFloatOrBFloat16:
+    left = (n_fft - win_length) / 2
+
+    right = n_fft - left - win_length
+    left = op.Reshape(left, op.Constant(value_ints=[1]))
+    right = op.Reshape(right, op.Constant(value_ints=[1]))
+    win_length = op.Reshape(win_length, op.Constant(value_ints=[1]))
+
+    left_win = op.Expand(op.Constant(value_ints=[0]), left)
+    right_win = op.Expand(op.Constant(value_ints=[0]), right)
+    window_list = op.Expand(op.Constant(value_ints=[1]), win_length)
+    return op.Concat(left_win, window_list, right_win, axis=0)
+
+
+@torch_op("aten::stft", private=True)
+def _create_window_from_n_fft(n_fft: int) -> TFloatOrBFloat16:
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    window = op.Expand(op.Constant(value_ints=[1]), n_fft_tensor)
+    return window
+
+
+@torch_op("aten::stft", private=True)
+def _normalize_fft_result(
+    signal: TFloatOrBFloat16, result: TFloatOrBFloat16, n_fft: int
+) -> TFloatOrBFloat16:
+    n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+    sqrt_nfft = op.Sqrt(op.CastLike(n_fft_tensor, signal))
+    result = result / sqrt_nfft
+    return result
+
+
+@torch_op("aten::stft", private=True)
+def _aten_stft_onnx(
+    signal: TFloatOrBFloat16,
+    frame_step_const: INT64,
+    window: Union[TFloatOrBFloat16, INT64],
+    frame_length_const: INT64,
+    signal_rank: INT64,
+    onesided: int,
+) -> TFloatOrBFloat16:
+    window = op.CastLike(window, signal)
+    result = op.STFT(signal, frame_step_const, window, frame_length_const, onesided=onesided)
+    result = op.Transpose(result, perm=[0, 2, 1, 3])
+    # Remove batch dimension, if needed
+    if signal_rank == 1:
+        result = op.Squeeze(result, op.Constant(value_ints=[0]))
+    return result
+
+
+@torch_op("aten::stft", trace_only=True)
 def aten_stft(
-    self: TensorType,
+    self: TFloatOrBFloat16,
     n_fft: int,
     hop_length: Optional[int] = None,
     win_length: Optional[int] = None,
-    window: Optional[TensorType] = None,
+    window: Optional[TFloatOrBFloat16] = None,
     normalized: bool = False,
     onesided: Optional[bool] = None,
     return_complex: Optional[bool] = None,
-) -> TensorType:
+) -> TFloatOrBFloat16:
     """stft(Tensor self, int n_fft, int? hop_length=None, int? win_length=None, Tensor? window=None, bool normalized=False, bool? onesided=None, bool? return_complex=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # NOTE: regarless of the value of return_complex, we always return a real representation.
+    del return_complex
+
+    # Get STFT sizes
+    if hop_length is None:
+        # core dump
+        # hop_leagth = op.Div(op.Constant(value_ints=n_fft), op.Constant(value_ints=[4]))
+        hop_length = n_fft // 4
+    frame_step_const = op.Reshape(hop_length, op.Constant(value_ints=[1]))
+    frame_length_const = op.Reshape(n_fft, op.Constant(value_ints=[1]))
+
+    # Pre-process input if needed
+    self, signal_rank = _add_batch_dimension(self)
+
+    # Get window and make sure it's the same size as `win_length` or `n_fft`
+    if window is not None and window.shape[0] is not None:
+        window = _center_window_around_zeros_if_needed(window, n_fft)
+    elif window is None:
+        if win_length is not None:
+            window = _create_window_from_win_length(win_length, n_fft)
+        else:
+            window = _create_window_from_n_fft(n_fft)
+
+    if onesided is None or onesided:
+        onesided = 1
+    else:
+        onesided = 0
+    # remove batch dimension included
+    result = _aten_stft_onnx(
+        self, frame_step_const, window, frame_length_const, signal_rank, onesided
+    )
+
+    # Normalize, if needed
+    if normalized:
+        result = _normalize_fft_result(self, result, n_fft)
+
+    return result
 
 
 @torch_op("aten::sub")
@@ -6550,7 +6669,7 @@ def _aten_var_mean_dim_onnx(
     if correction > 0.0:
         self_shape = op.Shape(self)
         dim_size = op.Gather(self_shape, dim, axis=0)
-        numel_float = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
+        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=0), self)
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, correction)
         var = op.Div(mul, sub)
