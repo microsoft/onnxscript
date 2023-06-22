@@ -5981,7 +5981,7 @@ def _create_window_from_n_fft(n_fft: int) -> TFloatOrBFloat16:
 
 
 @torch_op("aten::stft", private=True)
-def _normalization(
+def _normalize_fft_result(
     signal: TFloatOrBFloat16, result: TFloatOrBFloat16, n_fft: int
 ) -> TFloatOrBFloat16:
     n_fft_tensor = op.Reshape(n_fft, op.Constant(value_ints=[1]))
@@ -6055,7 +6055,7 @@ def aten_stft(
 
     # Normalize, if needed
     if normalized:
-        result = _normalization(self, result, n_fft)
+        result = _normalize_fft_result(self, result, n_fft)
 
     return result
 
@@ -6688,7 +6688,7 @@ def _aten_var_mean_dim_onnx(
     if correction > 0.0:
         self_shape = op.Shape(self)
         dim_size = op.Gather(self_shape, dim, axis=0)
-        numel_float = op.Cast(op.ReduceProd(dim_size, keepdims=0), to=FLOAT.dtype)
+        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=0), self)
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, correction)
         var = op.Div(mul, sub)
