@@ -5332,6 +5332,9 @@ def aten_refine_names(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_remainder(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """remainder.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    # TODO(justinchuby): Improve fp16 precision by following the logic in
+    # https://github.com/pytorch/pytorch/blob/3a823e46170778cc32783f27596c77d0103084a9/aten/src/ATen/native/cpu/BinaryOpsKernel.cpp#L264-L277
+
     # a - a.div(b, rounding_mode="floor") * b
     rounded_quotient = op.Floor(op.Div(self, other))
 
