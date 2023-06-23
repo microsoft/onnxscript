@@ -128,8 +128,6 @@ def aten_addcmul(
 
     Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
     result by the scalar value and adds it to self.
-
-    f16 and lower will need to be casted to f32 or higher to preserve precision.
     """
 
     return op.Add(self, op.Mul(op.Mul(tensor1, tensor2), value))
