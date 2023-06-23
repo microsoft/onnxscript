@@ -23,9 +23,10 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TFloatOrBFloat16,
     TInt,
     TReal,
-    TrealOrUInt8,
+    TRealOrUInt8,
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
+    TRealUnlessLowPrecisionFloat,
     TTensor,
     TTensorOrString,
 )
@@ -38,14 +39,14 @@ _MATH_PI = math.pi
 
 
 @torch_op("aten::abs")
-def aten_abs(self: TrealOrUInt8) -> TrealOrUInt8:
+def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
 
     return op.Abs(self)
 
 
 @torch_op("aten::abs", complex=True)
-def aten_abs_complex(self: TrealOrUInt8) -> TrealOrUInt8:
+def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
     self_real = op.Gather(self, 0, axis=-1)
@@ -117,11 +118,18 @@ def aten_addcdiv(self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 
 
 
 @torch_op("aten::addcmul")
-def aten_addcmul(self: TReal, tensor1: TReal, tensor2: TReal, value: float = 1.0) -> TReal:
+def aten_addcmul(
+    self: TRealUnlessLowPrecisionFloat,
+    tensor1: TRealUnlessLowPrecisionFloat,
+    tensor2: TRealUnlessLowPrecisionFloat,
+    value: float = 1.0,
+) -> TRealUnlessLowPrecisionFloat:
     """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
     Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
     result by the scalar value and adds it to self.
+
+    f16 and lower will need to be casted to f32 or higher to preserve precision.
     """
 
     return op.Add(self, op.Mul(op.Mul(tensor1, tensor2), value))
@@ -278,7 +286,7 @@ def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
 
 
 @torch_op("aten::amax")
-def aten_amax(self: TrealOrUInt8, dim: INT64, keepdim: bool = False) -> TrealOrUInt8:
+def aten_amax(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrUInt8:
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMax reduces all dimensions when dim is empty
@@ -286,7 +294,7 @@ def aten_amax(self: TrealOrUInt8, dim: INT64, keepdim: bool = False) -> TrealOrU
 
 
 @torch_op("aten::amin")
-def aten_amin(self: TrealOrUInt8, dim: INT64, keepdim: bool = False) -> TrealOrUInt8:
+def aten_amin(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrUInt8:
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMin reduces all dimensions when dim is empty
@@ -498,8 +506,8 @@ def aten_arctanh(self: TensorType) -> TensorType:
 
 @torch_op("aten::argmax", trace_only=True)
 def aten_argmax(
-    self: TrealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TrealOrUInt8:
+    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
+) -> TRealOrUInt8:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     if dim is None:  # TODO: use OptionalHasElement(dim)
@@ -509,7 +517,7 @@ def aten_argmax(
 
 
 @torch_op("aten::argmax", private=True)
-def _aten_argmax_dim(self: TrealOrUInt8, dim: int, keepdim: bool = False) -> TrealOrUInt8:
+def _aten_argmax_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -525,8 +533,8 @@ def _aten_argmax_dim(self: TrealOrUInt8, dim: int, keepdim: bool = False) -> Tre
 
 @torch_op("aten::argmin", trace_only=True)
 def aten_argmin(
-    self: TrealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TrealOrUInt8:
+    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
+) -> TRealOrUInt8:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     if dim is None:  # TODO: use OptionalHasElement(dim)
@@ -536,7 +544,7 @@ def aten_argmin(
 
 
 @torch_op("aten::argmin", private=True)
-def _aten_argmin_dim(self: TrealOrUInt8, dim: int, keepdim: bool = False) -> TrealOrUInt8:
+def _aten_argmin_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -801,7 +809,7 @@ def aten_avg_pool1d(
 
 @torch_op("aten::baddbmm")
 def aten_baddbmm(
-    self: TrealOrUInt8,
+    self: TRealOrUInt8,
     batch1: TRealUnlessInt16OrInt8,
     batch2: TRealUnlessInt16OrInt8,
     beta: float = 1.0,
@@ -2564,7 +2572,7 @@ def aten_fmin(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::fmod")
-def aten_fmod(self: TrealOrUInt8, other: TrealOrUInt8) -> TrealOrUInt8:
+def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     """fmod.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Mod(self, other, fmod=1)
