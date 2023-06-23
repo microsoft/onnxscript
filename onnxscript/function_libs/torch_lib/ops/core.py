@@ -26,7 +26,6 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TRealOrUInt8,
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
-    TRealUnlessLowPrecisionFloat,
     TTensor,
     TTensorOrString,
 )
@@ -119,11 +118,11 @@ def aten_addcdiv(self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 
 
 @torch_op("aten::addcmul")
 def aten_addcmul(
-    self: TRealUnlessLowPrecisionFloat,
-    tensor1: TRealUnlessLowPrecisionFloat,
-    tensor2: TRealUnlessLowPrecisionFloat,
+    self: TReal,
+    tensor1: TReal,
+    tensor2: TReal,
     value: float = 1.0,
-) -> TRealUnlessLowPrecisionFloat:
+) -> TReal:
     """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
     Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
@@ -168,9 +167,17 @@ def aten_addr(
     vec2_shape = op.Constant(value_ints=[1, -1])
     vec1_reshaped = op.Reshape(vec1, vec1_shape)
     vec2_reshaped = op.Reshape(vec2, vec2_shape)
-    outer = op.MatMul(vec1_reshaped, vec2_reshaped)
 
-    return op.Add(op.Mul(self, beta), op.Mul(outer, alpha))
+    outer = op.MatMul(vec1_reshaped, vec2_reshaped)
+    # https://github.com/pytorch/pytorch/blob/51664489ba6f6b2343bbec9af9ca99185e2a5dbc/aten/src/ATen/native/cpu/LinearAlgebraKernel.cpp#L53-L54
+    # When beta == 0, values in self should be ignored,
+    # nans and infs in self should not propagate.
+    if beta == 0.0:
+        result = op.Mul(alpha, outer)
+    else:
+        result = op.Add(op.Mul(beta, self), op.Mul(alpha, outer))
+
+    return result
 
 
 def aten_adjoint(self: TensorType) -> TensorType:

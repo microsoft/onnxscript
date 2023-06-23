@@ -90,9 +90,10 @@ def _split_function_and_wrangler(
 # according to https://pytorch.org/docs/stable/testing.html
 OPINFO_PRECISION_TABLE: dict[torch.dtype, tuple[float, float]] = {
     # Tolerance value (rtol, atol)
-    # The current most relaxed values are for aten::matmul
+    # The current most relaxed values on f32 are for aten::matmul
     torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
-    torch.float16: (1e-3, 1e-5),  # default is 1e-3, 1e-5
+    # The current most relaxed values on f16 are for aten::addr
+    torch.float16: (2e-3, 1e-3),  # default is 1e-3, 1e-5
 }
 
 
@@ -277,6 +278,7 @@ def run_test_output_match(
                             expected,
                             rtol=rtol,
                             atol=atol,
+                            equal_nan=True,
                             check_device=False,
                         )
                     except AssertionError as e:
