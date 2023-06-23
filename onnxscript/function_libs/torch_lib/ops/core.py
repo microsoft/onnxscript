@@ -20,6 +20,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
     RealType,
     TFloat,
+    TFloatHighPrecision,
     TFloatOrBFloat16,
     TInt,
     TReal,
@@ -3280,12 +3281,11 @@ def aten_isclose(
 
 
 @torch_op("aten::isfinite")
-def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
+def aten_isfinite(self: TFloatHighPrecision) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
-    # Added Cast inside the function so it can support all real dtypes naturally
-    self = op.Cast(self, to=FLOAT.dtype)
-    not_inf = op.Not(op.IsInf(self))  # op.IsInf() only support FLOAT and DOUBLE
+    # IsInf only support FLOAT and DOUBLE
+    not_inf = op.Not(op.IsInf(self))
     not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
     return op.And(not_inf, not_nan)
 
