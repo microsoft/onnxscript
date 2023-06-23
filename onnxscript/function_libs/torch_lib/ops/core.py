@@ -130,7 +130,8 @@ def aten_addcmul(
     result by the scalar value and adds it to self.
     """
 
-    return op.Add(self, op.Mul(op.Mul(tensor1, tensor2), value))
+    # Follow the order in https://github.com/pytorch/pytorch/blob/29e3fddb082b5a14262a7246bc62381a55199d45/aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp#L47
+    return op.Add(self, op.Mul(op.Mul(value, tensor1), tensor2))
 
 
 @torch_op("aten::addmm")
