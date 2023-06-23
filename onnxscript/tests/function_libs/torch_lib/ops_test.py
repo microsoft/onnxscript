@@ -92,8 +92,8 @@ OPINFO_PRECISION_TABLE: dict[torch.dtype, tuple[float, float]] = {
     # Tolerance value (rtol, atol)
     # The current most relaxed values on f32 are for aten::matmul
     torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
-    # The current most relaxed values on f16 are for aten::addr
-    torch.float16: (2e-3, 1e-3),  # default is 1e-3, 1e-5
+    # The current most relaxed values on f16 are for aten::addcmul
+    torch.float16: (2.5e-3, 4e-4),  # default is 1e-3, 1e-5
 }
 
 
