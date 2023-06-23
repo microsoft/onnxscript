@@ -422,14 +422,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("abs", core_ops.aten_abs_complex, complex=True),
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
-    TorchLibOpInfo(
-        "add",
-        core_ops.aten_add,
-    ).xfail(
-        dtypes=[torch.float16],
-        reason="fixme: float16 failed, tensor-likes are not close for FullGraph mode. https://github.com/microsoft/onnxruntime/issues/15977",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
+    TorchLibOpInfo("add", core_ops.aten_add),
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul),
