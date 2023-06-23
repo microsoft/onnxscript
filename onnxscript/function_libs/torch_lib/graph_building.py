@@ -649,7 +649,9 @@ class TorchScriptGraph:
         return onnx_function
 
     @beartype
-    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
+    def to_model_proto(
+        self, opset_version: int, include_initializers: bool = True
+    ) -> onnx.ModelProto:
         function_proto_dict: Mapping[
             Tuple[str, str], onnx.FunctionProto
         ] = self.fetch_function_proto_dict(opset_version)
@@ -665,7 +667,7 @@ class TorchScriptGraph:
             _,
             _,
         ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
-            initializers=self.initializers,
+            initializers=self.initializers if include_initializers else {},
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
