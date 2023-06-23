@@ -3283,7 +3283,7 @@ def aten_isclose(
 def aten_isfinite(self: TFloatHighPrecision) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
-    # IsInf only support FLOAT and DOUBLE
+    # IsInf only supports FLOAT and DOUBLE
     not_inf = op.Not(op.IsInf(self))
     not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
     return op.And(not_inf, not_nan)
