@@ -58,8 +58,10 @@
   margin-top: 1.5em;
 }
 
-.longcode > .highlight {
-  max-height: 25em;
+@media screen {
+  .longcode > .highlight {
+    max-height: 25em;
+  }
 }
 
 figure.math {
