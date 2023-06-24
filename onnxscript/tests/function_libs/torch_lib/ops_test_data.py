@@ -84,6 +84,15 @@ class TorchLibOpInfo:
         default_factory=list
     )
 
+    def get_tolerance(self, dtype: torch.dtype) -> tuple[float | None, float | None]:
+        """Returns the (rtol, atol) tolerance for the given dtype."""
+        if (tolerance := self.tolerance.get(dtype)) is not None:
+            return tolerance
+
+        # Use the PyTorch default if not specified
+        # https://pytorch.org/docs/stable/testing.html
+        return (None, None)
+
     def skip(
         self,
         variant_name: str = "",
@@ -428,7 +437,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul),
     TorchLibOpInfo("addmm", core_ops.aten_addmm),
     TorchLibOpInfo("addmv", core_ops.aten_addmv),
-    TorchLibOpInfo("addr", core_ops.aten_addr),
+    TorchLibOpInfo(
+        "addr",
+        core_ops.aten_addr,
+        tolerance={torch.float16: (1e-3, 3e-3)},
+    ),
     TorchLibOpInfo(
         "amax",
         core_ops.aten_amax,
@@ -627,6 +640,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
+        tolerance={torch.float32: (2e-5, 2e-5)},  # Windows requires a more relaxed tolerance
     ).skip(
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
@@ -1251,6 +1265,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.conv2d",
         core_ops.aten_conv2d,
         trace_only=True,
+        tolerance={torch.float32: (2e-5, 3e-5)},
     ).xfail(
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
