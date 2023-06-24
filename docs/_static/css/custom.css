@@ -69,4 +69,5 @@ figure.math {
 
 figure.math svg {
   fill: currentColor;
+  max-width: max(60%, 400px);
 }
