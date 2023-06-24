@@ -181,12 +181,8 @@ def run_test_output_match(
             f"Type constraints: {onnx_function.op_schema.type_constraints}"
         )
 
-    # Obtain the tolerance for the op if specified
-    if (tolerance := torchlib_op_info.tolerance.get(dtype)) is not None:
-        rtol, atol = tolerance
-    else:
-        rtol = None
-        atol = None
+    # Obtain the tolerance for the op
+    rtol, atol = torchlib_op_info.get_tolerance(dtype)
 
     for i, cpu_sample in enumerate(samples):
         inputs = (cpu_sample.input, *cpu_sample.args)
