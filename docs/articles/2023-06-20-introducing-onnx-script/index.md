@@ -303,8 +303,7 @@ Going forward, we envision ONNX Script as a means for defining and extending ONN
 
 Over the coming months, we will also support converting ONNX into ONNX Script to enable seamless editing of existing models, which can play a key role for optimization passes, but also allow for maintaining and evolving ONNX models more naturally. We also intend to propose ONNX Script for inclusion directly within the ONNX GitHub organization soon, under the Linux Foundation umbrella.
 
-Check out ONNX Script today [on GitHub][onnxscript-github] or install with `pip install git+https://github.com/microsoft/
-onnxscript`. We look forward to your feedback!
+Check out ONNX Script today [on GitHub][onnxscript-github] or install with `pip install git+https://github.com/microsoft/onnxscript`. We look forward to your feedback!
 
 Finally, a _huge thank you_ to the wonderful engineering team at Microsoft that has brought us to this point so far: _Bowen Bao, Aaron Bockover, Shubham Bhokare, Jacky Chen, Wei-Sheng Chin, Justin Chu, Thiago Crepaldi, Xavier Dupre, Liqun Fu, Xaiowu Hu, Ganesan Ramalingam, Ti-Tai Wang, Jay Zhang_.
 
