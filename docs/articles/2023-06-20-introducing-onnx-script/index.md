@@ -27,7 +27,7 @@ Typically, machine learning models are developed using higher level frameworks s
 Beyond its graph format, canonically represented using [Protobuf][protobuf], ONNX consists of a standard set of primitive operators which are implemented by runtimes and hardware vendors alike. With this broad ecosystem in mind, ONNX aims to keep the number of these operators low, encouraging composability through ONNX functions. This is important to reduce the overhead of supporting ONNX.
 
 ## Announcing ONNX Script
-ONNX Script is a new open-source library for directly authoring ONNX models in Python with a focus on _clean, idiomatic Python_ syntax and composability through ONNX-native functions. Critically, it is also the foundation upon which we are building the new PyTorch ONNX exporter to support [TorchDynamo][torch-dynamo] – the future of PyTorch.
+[ONNX Script][onnxscript-github] is a new open-source library for directly authoring ONNX models in Python with a focus on _clean, idiomatic Python_ syntax and composability through ONNX-native functions. Critically, it is also the foundation upon which we are building the new PyTorch ONNX exporter to support [TorchDynamo][torch-dynamo] – the future of PyTorch.
 
 Prior to ONNX Script, authoring ONNX models required deep knowledge of the specification and serialization format itself. While eventually a more convenient [helper API][onnx-helper-api] was introduced that largely abstracted the serialization format, it still required deep familiarity with ONNX constructs.
 
@@ -303,7 +303,7 @@ Going forward, we envision ONNX Script as a means for defining and extending ONN
 
 Over the coming months, we will also support converting ONNX into ONNX Script to enable seamless editing of existing models, which can play a key role for optimization passes, but also allow for maintaining and evolving ONNX models more naturally. We also intend to propose ONNX Script for inclusion directly within the ONNX GitHub organization soon, under the Linux Foundation umbrella.
 
-Check out ONNX Script today on GitHub or [install the preview from PyPI][onnxscript-pypi] with a simple `pip install onnxscript`. We look forward to your feedback!
+Check out ONNX Script today [on GitHub][onnxscript-github] or [install the preview from PyPI][onnxscript-pypi] with a simple `pip install onnxscript`. We look forward to your feedback!
 
 Finally, a _huge thank you_ to the wonderful engineering team at Microsoft that has brought us to this point so far: _Bowen Bao, Aaron Bockover, Shubham Bhokare, Jacky Chen, Wei-Sheng Chin, Justin Chu, Thiago Crepaldi, Xavier Dupre, Liqun Fu, Xaiowu Hu, Ganesan Ramalingam, Ti-Tai Wang, Jay Zhang_.
 
