@@ -102,52 +102,49 @@ def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple[Any, Any]:
 
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
-        functions = set()
-        for func_with_wrangler in ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.values():
-            func, _ = _split_function_and_wrangler(func_with_wrangler)
-            functions.add(func)
-
-        # TODO(justinchuby): Add from the registry
-        for func in functions:
-            if not isinstance(func, onnxscript.OnnxFunction):
-                raise AssertionError(
-                    f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
-                    "If the function is trace_only, please specify trace_only=True "
-                    "in the TorchLibOpInfo entry."
-                )
+        for info in ops_test_data.TESTED_TORCHLIB_OPS:
+            if info.trace_only:
+                continue
+            with self.subTest(name=info.op_info_name):
+                func = info.op
+                if not isinstance(func, onnxscript.OnnxFunction):
+                    raise AssertionError(
+                        f"'{func}' is not an OnnxFunction. Was it decorated with '@torch_op'? "
+                        "If the function is trace_only, please specify trace_only=True "
+                        "in the TorchLibOpInfo entry."
+                    )
 
     def test_all_trace_only_functions_are_not_onnx_functions(self):
-        for func_with_wrangler in ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY.values():
-            func, _ = _split_function_and_wrangler(func_with_wrangler)
-            if isinstance(func, onnxscript.OnnxFunction):
-                raise AssertionError(
-                    f"'{func.name}' is an OnnxFunction. "
-                    "If the function is not trace_only, please remove trace_only=True "
-                    "in the TorchLibOpInfo entry."
-                )
+        for info in ops_test_data.TESTED_TORCHLIB_OPS:
+            if not info.trace_only:
+                continue
+            with self.subTest(name=info.op_info_name):
+                func = info.op
+                if not isinstance(func, onnxscript.TracedOnnxFunction):
+                    raise AssertionError(
+                        f"'{func.name}' is not a TracedOnnxFunction. "
+                        "If the function is not trace_only, please remove trace_only=True "
+                        "in the TorchLibOpInfo entry."
+                    )
 
     @parameterized.parameterized.expand(
-        list(ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.items())
+        [
+            (info.op.name, info)
+            for info in ops_test_data.TESTED_TORCHLIB_OPS
+            if not info.trace_only
+        ]
     )
-    def test_script_function_passes_checker(self, _, func_with_wrangler):
-        func, _ = _split_function_and_wrangler(func_with_wrangler)
-        function_proto = func.to_function_proto()
+    def test_script_function_passes_checker(
+        self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo
+    ):
+        function_proto = torchlib_op_info.op.to_function_proto()
         onnx.checker.check_function(function_proto)  # type: ignore[attr-defined]
 
     @parameterized.parameterized.expand(
-        list(ops_test_data.OPINFO_FUNCTION_MAPPING_SCRIPTED.items())
+        [(info.op.name, info) for info in ops_test_data.TESTED_TORCHLIB_OPS]
     )
-    def test_script_function_has_op_schema(self, _, func_with_wrangler):
-        func, _ = _split_function_and_wrangler(func_with_wrangler)
-        schema = func.op_schema
-        self.assertIsNotNone(schema)
-        self.assertEqual(schema.name, func.name)
-
-    @parameterized.parameterized.expand(
-        list(ops_test_data.OPINFO_FUNCTION_MAPPING_TRACE_ONLY.items())
-    )
-    def test_trace_only_function_has_op_schema(self, _, func_with_wrangler):
-        func, _ = _split_function_and_wrangler(func_with_wrangler)
+    def test_function_has_op_schema(self, _, torchlib_op_info: ops_test_data.TorchLibOpInfo):
+        func = torchlib_op_info.op
         schema = func.op_schema
         self.assertIsNotNone(schema)
         self.assertEqual(schema.name, func.name)
@@ -161,12 +158,7 @@ def run_test_output_match(
     function_executor: Callable,
     tested_op_mapping: dict[
         str,
-        onnxscript.OnnxFunction
-        | Callable[..., Any]
-        | tuple[
-            onnxscript.OnnxFunction | Callable[..., Any],
-            Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-        ],
+        ops_test_data.TorchLibOpInfo,
     ],
 ):
     """Base test method for testing each opset, used by instantiate_device_type_tests.
@@ -186,12 +178,13 @@ def run_test_output_match(
         requires_grad=False,
     )
 
-    onnx_function_and_wrangler = tested_op_mapping[op.name]
+    torchlib_op_info = tested_op_mapping[op.name]
     # Obtain the input_wrangler that manipulates the OpInfo inputs
     # to match the aten operator signature
     # An example is nn.functional.upsample_nearest2d, which has a different signature
     # than the aten operator upsample_nearest2d
-    onnx_function, input_wrangler = _split_function_and_wrangler(onnx_function_and_wrangler)
+    onnx_function = torchlib_op_info.op
+    input_wrangler = torchlib_op_info.input_wrangler
     if (
         not ops_test_common.dtype_op_schema_compatible(dtype, onnx_function.op_schema)
         and dtype not in COMPLEX_TYPES
@@ -316,7 +309,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
             dtype,
             op,
             ops_test_common.eager_executor,
-            ops_test_data.OPINFO_FUNCTION_MAPPING,
+            ops_test_data.TORCHLIB_OPINFO_MAPPING,
         )
 
     @ops_test_common.add_decorate_info(
@@ -378,7 +371,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
             dtype,
             op,
             ops_test_common.graph_executor,
-            ops_test_data.OPINFO_FUNCTION_MAPPING,
+            ops_test_data.TORCHLIB_OPINFO_MAPPING,
         )
 
     @ops_test_common.add_decorate_info(

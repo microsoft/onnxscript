@@ -45,8 +45,6 @@ from torch.testing._internal import common_methods_invocations
 from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
-import onnxscript
-import onnxscript.evaluator
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
@@ -1574,46 +1572,18 @@ ops_test_common.duplicate_opinfo(
 
 # MARK: End edits here
 
-# Split the scripted and traced ops to make sure we don't forget to script an op
-OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
-    str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {
-    info.op_info_name: (info.op, info.input_wrangler)
-    if info.input_wrangler is not None
-    else info.op
-    for info in TESTED_TORCHLIB_OPS
-    if not info.trace_only and not info.complex
-}
-
-
-OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
-    str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {
-    info.op_info_name: (info.op, info.input_wrangler)
-    if info.input_wrangler is not None
-    else info.op
-    for info in TESTED_TORCHLIB_OPS
-    if info.trace_only and not info.complex
-}
 
 # These ops are not deterministic, so we check shape and dtype only
 NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
     info.op_info_name for info in TESTED_TORCHLIB_OPS if info.nondeterministic
 )
 
-OPINFO_FUNCTION_MAPPING: dict[
+TORCHLIB_OPINFO_MAPPING: dict[
     str,
-    onnxscript.OnnxFunction
-    | Callable[..., Any]
-    | tuple[
-        onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    ],
-] = {**OPINFO_FUNCTION_MAPPING_SCRIPTED, **OPINFO_FUNCTION_MAPPING_TRACE_ONLY}
+    TorchLibOpInfo,
+] = {info.op_info_name: info for info in TESTED_TORCHLIB_OPS if not info.complex}
 
-TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
+TESTED_OPS = frozenset(TORCHLIB_OPINFO_MAPPING)
 
 EXPECTED_SKIPS_OR_FAILS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
     functools.reduce(
@@ -1640,8 +1610,8 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
 # MARK: Complex supported functions
 COMPLEX_FUNCTION_MAPPING: dict[
     str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {info.op_info_name: info.op for info in TESTED_TORCHLIB_OPS if info.complex}
+    TorchLibOpInfo,
+] = {info.op_info_name: info for info in TESTED_TORCHLIB_OPS if info.complex}
 
 
 # Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
