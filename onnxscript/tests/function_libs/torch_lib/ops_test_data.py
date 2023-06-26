@@ -77,7 +77,9 @@ class TorchLibOpInfo:
     nondeterministic: bool = False
     # Whether the function is designed for complex inputs
     complex: bool = False
-    # The tolerance for the test {dtype: (rtol, atol)}.
+    # The acceptable tolerance of the inference result difference between PyTorch and ORT.
+    # Format: {dtype: (rtol, atol)}.
+    # For example: {torch.float16: (1e-3, 1e-3)}
     tolerance: dict[torch.dtype, tuple[float, float]] = dataclasses.field(default_factory=dict)
     # Expected skips or fails for the test and/or subtests
     skips_or_fails: list[ops_test_common.DecorateMeta] = dataclasses.field(
