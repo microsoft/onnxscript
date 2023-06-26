@@ -77,10 +77,23 @@ class TorchLibOpInfo:
     nondeterministic: bool = False
     # Whether the function is designed for complex inputs
     complex: bool = False
+    # The acceptable tolerance of the inference result difference between PyTorch and ORT.
+    # Format: {dtype: (rtol, atol)}.
+    # For example: {torch.float16: (1e-3, 1e-3)}
+    tolerance: dict[torch.dtype, tuple[float, float]] = dataclasses.field(default_factory=dict)
     # Expected skips or fails for the test and/or subtests
     skips_or_fails: list[ops_test_common.DecorateMeta] = dataclasses.field(
         default_factory=list
     )
+
+    def get_tolerance(self, dtype: torch.dtype) -> tuple[float | None, float | None]:
+        """Returns the (rtol, atol) tolerance for the given dtype."""
+        if (tolerance := self.tolerance.get(dtype)) is not None:
+            return tolerance
+
+        # Use the PyTorch default if not specified
+        # https://pytorch.org/docs/stable/testing.html
+        return (None, None)
 
     def skip(
         self,
@@ -420,14 +433,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("abs", core_ops.aten_abs_complex, complex=True),
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
-    TorchLibOpInfo(
-        "add",
-        core_ops.aten_add,
-    ).xfail(
-        dtypes=[torch.float16],
-        reason="fixme: float16 failed, tensor-likes are not close for FullGraph mode. https://github.com/microsoft/onnxruntime/issues/15977",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
+    TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul),
@@ -599,7 +605,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float).",
     ),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
-    TorchLibOpInfo("log_softmax", special_ops.aten_special_log_softmax).xfail(
+    TorchLibOpInfo(
+        "log_softmax",
+        special_ops.aten_special_log_softmax,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (4e-4, 6e-3)},
+    ).xfail(
         variant_name="with_dtype",
         dtypes=[torch.float16],
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
@@ -627,6 +637,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
+        tolerance={torch.float32: (2e-5, 2e-5)},  # Windows requires a more relaxed tolerance
     ).skip(
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
@@ -821,10 +832,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.logsigmoid",
         nn_ops.aten_log_sigmoid,
-    ).xfail(
-        dtypes=[torch.float16],
-        reason="Eager mode failed on case(0,2) at location(0,6) due to precision loss",
-        test_class_name="TestOutputConsistencyEager",
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (8e-2, 4e-4)},
     ),
     TorchLibOpInfo(
         "nn.functional.nll_loss_weight",
@@ -995,6 +1003,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "softmax",
         special_ops.aten_special_softmax,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
     )
     .xfail(
         dtypes=[torch.float16],
@@ -1139,7 +1148,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
     TorchLibOpInfo("contiguous", core_ops.aten_contiguous, trace_only=True),
-    TorchLibOpInfo("convolution", core_ops.aten_convolution, trace_only=True),
+    TorchLibOpInfo(
+        "convolution",
+        core_ops.aten_convolution,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ),
     TorchLibOpInfo(
         "empty_like", core_ops.aten_empty_like, nondeterministic=True, trace_only=True
     ),
@@ -1170,7 +1184,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         or len(sample.args[0].shape) != 4,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
-    TorchLibOpInfo("layer_norm", core_ops.aten_layer_norm, trace_only=True),
+    TorchLibOpInfo(
+        "layer_norm",
+        core_ops.aten_layer_norm,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ),
     TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
     TorchLibOpInfo(
         "max",
@@ -1216,7 +1235,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=[torch.float16],
         reason="fixme: 'GroupNormKernelImpl' not implemented for 'Half' in nightly and weekly",
     ),
-    TorchLibOpInfo("native_layer_norm", core_ops.aten_native_layer_norm, trace_only=True),
+    TorchLibOpInfo(
+        "native_layer_norm",
+        core_ops.aten_native_layer_norm,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ),
     TorchLibOpInfo(
         "nn.functional.avg_pool2d",
         nn_ops.aten_avg_pool2d,
@@ -1238,11 +1262,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.conv2d",
         core_ops.aten_conv2d,
         trace_only=True,
+        tolerance={torch.float32: (2e-5, 3e-5)},
     ).xfail(
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv2d",
     ),
-    TorchLibOpInfo("nn.functional.conv3d", core_ops.aten_conv3d, trace_only=True),
+    TorchLibOpInfo(
+        "nn.functional.conv3d",
+        core_ops.aten_conv3d,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ),
     TorchLibOpInfo(
         "nn.functional.gelu",
         nn_ops.aten_gelu,
@@ -1423,6 +1453,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "aten.stft",  # Custom from extra_opinfo
         core_ops.aten_stft,
         trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ).xfail(
         dtypes=[torch.float16],
         reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",

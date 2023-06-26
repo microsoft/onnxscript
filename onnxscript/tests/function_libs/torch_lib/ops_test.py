@@ -87,19 +87,6 @@ def _split_function_and_wrangler(
     return onnx_function_and_wrangler, None
 
 
-# according to https://pytorch.org/docs/stable/testing.html
-OPINFO_PRECISION_TABLE: dict[torch.dtype, tuple[float, float]] = {
-    # Tolerance value (rtol, atol)
-    # The current most relaxed values are for aten::matmul
-    torch.float32: (3.7e-5, 1.8e-4),  # default is 1.3e-6, 1e-5
-    torch.float16: (1e-3, 1e-5),  # default is 1e-3, 1e-5
-}
-
-
-def _get_rtol_atol_by_dtype(dtype: torch.dtype) -> tuple[Any, Any]:
-    return OPINFO_PRECISION_TABLE.get(dtype, (None, None))
-
-
 class TestFunctionValidity(unittest.TestCase):
     def test_all_script_functions_are_onnx_functions(self):
         for info in ops_test_data.TESTED_TORCHLIB_OPS:
@@ -194,6 +181,9 @@ def run_test_output_match(
             f"Type constraints: {onnx_function.op_schema.type_constraints}"
         )
 
+    # Obtain the tolerance for the op
+    rtol, atol = torchlib_op_info.get_tolerance(dtype)
+
     for i, cpu_sample in enumerate(samples):
         inputs = (cpu_sample.input, *cpu_sample.args)
         # Provide the repr to subtest because tensors are not serializable in parallel test runs
@@ -243,8 +233,6 @@ def run_test_output_match(
                 for j, (torch_output, function_output) in enumerate(
                     zip(flattened_torch_outputs, flattened_function_outputs)
                 ):
-                    rtol, atol = _get_rtol_atol_by_dtype(dtype)
-
                     if not isinstance(function_output, np.ndarray):
                         # An onnxscript tensor
                         function_output = function_output.value
