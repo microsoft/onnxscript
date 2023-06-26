@@ -53,6 +53,8 @@ M_SQRT1_2 = math.sqrt(0.5)
 def gelu(X: FLOAT[...]):
     phiX = 0.5 * (op.Erf(M_SQRT1_2 * X) + 1.0)
     return X * phiX
+
+gelu_model = gelu.to_model_proto()
 ```
 
 <h4 class="code-title">GELU with the ONNX Helper API</h4>
@@ -66,7 +68,7 @@ import math
 import onnx
 import onnx.helper
 
-gelu = onnx.helper.make_model(
+gelu_model = onnx.helper.make_model(
     ir_version=8,
     opset_imports=[onnx.helper.make_operatorsetid("", 18)],
     graph=onnx.helper.make_graph(
