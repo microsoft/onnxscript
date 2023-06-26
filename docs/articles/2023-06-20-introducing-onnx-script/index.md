@@ -22,9 +22,9 @@
 ## An ONNX Refresher
 ONNX models are flexible, standardized representations of machine learning that allow them to be executed across a gamut of hardware platforms and runtime environments from large scale cloud-based super computers to resource-constrained edge devices such as your web browser and phone.
 
-Beyond its graph format, canonically represented using [Protobuf][protobuf], ONNX consists of a standard set of primitive operators which are implemented by runtimes and hardware vendors alike. With this broad ecosystem in mind, ONNX aims to keep the number of these operators low, encouraging composability through ONNX functions. This is important to reduce the overhead of supporting ONNX.
-
 Typically, machine learning models are developed using higher level frameworks such as [PyTorch][torch-onnx] and [TensorFlow][tensorflow-onnx]. While these frameworks tend to be productive for iterating on the development of models, the models are not typically deployed to production in this fashion. Instead, they are exported to ONNX by facilities provided by the frameworks, and then optimized for a particular target by tools such as [Olive][olive].
+
+Beyond its graph format, canonically represented using [Protobuf][protobuf], ONNX consists of a standard set of primitive operators which are implemented by runtimes and hardware vendors alike. With this broad ecosystem in mind, ONNX aims to keep the number of these operators low, encouraging composability through ONNX functions. This is important to reduce the overhead of supporting ONNX.
 
 ## Announcing ONNX Script
 ONNX Script is a new open-source library for directly authoring ONNX models in Python with a focus on _clean, idiomatic Python_ syntax and composability through ONNX-native functions. Critically, it is also the foundation upon which we are building the new PyTorch ONNX exporter to support [TorchDynamo][torch-dynamo] – the future of PyTorch.
