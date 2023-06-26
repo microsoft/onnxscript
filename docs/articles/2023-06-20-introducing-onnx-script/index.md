@@ -323,6 +323,7 @@ Finally, a _huge thank you_ to the wonderful engineering team at Microsoft that 
 [onnx-refeval]: https://onnx.ai/onnx/api/reference.html
 [onnx-expand-operator]: https://onnx.ai/onnx/operators/onnx__Expand.html#expand-13
 [onnxscript-pypi]: https://pypi.org/project/onnxscript
+[onnxscript-github]: https://github.com/microsoft/onnxscript
 [torch-onnx]: https://pytorch.org/docs/stable/onnx.html
 [torch-ir]: https://pytorch.org/docs/stable/ir.html
 [torch-dynamo]: https://pytorch.org/docs/stable/dynamo/index.html
