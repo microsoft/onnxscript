@@ -12,7 +12,7 @@ import onnxscript
 # -- Project information -----------------------------------------------------
 
 project = "onnxscript"
-copyright = "2023, Microsoft"
+copyright = "Microsoft. All rights reserved."
 author = "onnx"
 version = onnxscript.__version__
 release = version
@@ -38,6 +38,7 @@ extensions = [
 myst_enable_extensions = [
     "amsmath",
     "attrs_inline",
+    "attrs_block",
     "colon_fence",
     "deflist",
     "dollarmath",

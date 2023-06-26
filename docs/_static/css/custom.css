@@ -1,3 +1,75 @@
 .navbar-brand {
   padding: 4px 0 2px 0;
 }
+
+.bi {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: -0.125em;
+  fill: currentcolor;
+  flex-shrink: 0;
+}
+
+.article-meta {
+  display: flex;
+  align-items: first baseline;
+  opacity: 80%;
+}
+
+.article-meta:not(:last-child) {
+  margin-bottom: 0.5rem;
+}
+
+.article-meta .bi:first-child {
+  margin-right: 0.5em;
+}
+
+.article-authors > ul {
+  display: inline;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.article-authors > ul > li {
+  display: inline;
+}
+
+.article-authors > ul > li:not(:last-child)::after {
+  content: " • ";
+}
+
+.article-date > span {
+  font-style: italic;
+  font-size: 0.875rem;
+  opacity: 80%;
+}
+
+.highlight {
+  overflow-x: auto;
+  overflow-y: scroll;
+}
+
+.code-title {
+  text-align: center;
+  font-weight: normal;
+  font-style: italic;
+  margin-top: 1.5em;
+}
+
+@media screen {
+  .longcode > .highlight {
+    max-height: 25em;
+  }
+}
+
+figure.math {
+  text-align: center;
+  margin: 1em 0;
+}
+
+figure.math svg {
+  fill: currentColor;
+  max-width: max(60%, 400px);
+}
