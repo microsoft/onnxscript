@@ -6767,31 +6767,36 @@ def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
 def aten_view_as_complex(self: TensorType) -> TensorType:
     """view_as_complex(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    return self
 
 
 def aten_view_as_complex_copy(self: TensorType) -> TensorType:
     """view_as_complex_copy(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    return self
 
 
 def aten_view_as_real(self: TensorType) -> TensorType:
     """view_as_real(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    return self
 
 
 def aten_view_as_real_copy(self: TensorType) -> TensorType:
     """view_as_real_copy(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    return self
 
 
-def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
+def aten_view_copy(self: TensorType, size: IntType) -> TensorType:
     """view_copy(Tensor self, SymInt[] size) -> Tensor"""
 
-    raise NotImplementedError()
+    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    return op.Reshape(self, size)
 
 
 @torch_op("aten::vstack")
