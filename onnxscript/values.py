@@ -11,7 +11,7 @@ import types
 import typing
 from enum import IntFlag
 from typing import _GenericAlias  # type: ignore[attr-defined]
-from typing import Any, Optional, Protocol, Sequence
+from typing import Any, ClassVar, Optional, Protocol, Sequence
 
 import onnx
 import onnx.defs
@@ -54,7 +54,7 @@ class Opset:
 
     domain: str
     version: int
-    cache: dict[tuple[type, str, int], Opset] = {}
+    cache: ClassVar[dict[tuple[type, str, int], Opset]] = {}
 
     def __new__(cls, domain: str, version: int):
         key = (cls, domain, version)
