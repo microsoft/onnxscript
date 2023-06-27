@@ -1094,6 +1094,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
     TorchLibOpInfo("view", core_ops.aten_view),
+    TorchLibOpInfo("view_as", core_ops.aten_view_as),
+    TorchLibOpInfo("view_as_complex", core_ops.aten_view_as_complex),
+    TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real),
+    TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
     TorchLibOpInfo(
         "vstack",
         core_ops.aten_vstack,

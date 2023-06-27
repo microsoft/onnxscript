@@ -6758,10 +6758,12 @@ def aten_view(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
+@torch_op("aten::view_as")
 def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
     """view_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    size = op.Shape(other)
+    return op.Reshape(self, size)
 
 
 @torch_op("aten::view_as_complex")
@@ -6770,7 +6772,7 @@ def aten_view_as_complex(self: TensorType) -> TensorType:
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return self
+    return op.Identity(self)
 
 
 @torch_op("aten::view_as_complex_copy")
@@ -6779,7 +6781,7 @@ def aten_view_as_complex_copy(self: TensorType) -> TensorType:
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return self
+    return op.Identity(self)
 
 
 @torch_op("aten::view_as_real")
@@ -6788,7 +6790,7 @@ def aten_view_as_real(self: TensorType) -> TensorType:
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return self
+    return op.Identity(self)
 
 
 @torch_op("aten::view_as_real_copy")
@@ -6797,7 +6799,7 @@ def aten_view_as_real_copy(self: TensorType) -> TensorType:
 
     # We always operate on the real representation of a complex number in torchlib
     # So this is a no-op
-    return self
+    return op.Identity(self)
 
 
 @torch_op("aten::view_copy")
