@@ -6768,6 +6768,7 @@ def aten_view_as_complex(self: TensorType) -> TensorType:
     """view_as_complex(Tensor(a) self) -> Tensor(a)"""
 
     # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
     return self
 
 
@@ -6775,6 +6776,7 @@ def aten_view_as_complex_copy(self: TensorType) -> TensorType:
     """view_as_complex_copy(Tensor self) -> Tensor"""
 
     # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
     return self
 
 
@@ -6782,6 +6784,7 @@ def aten_view_as_real(self: TensorType) -> TensorType:
     """view_as_real(Tensor(a) self) -> Tensor(a)"""
 
     # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
     return self
 
 
@@ -6789,6 +6792,7 @@ def aten_view_as_real_copy(self: TensorType) -> TensorType:
     """view_as_real_copy(Tensor self) -> Tensor"""
 
     # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
     return self
 
 
