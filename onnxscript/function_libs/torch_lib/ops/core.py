@@ -6238,6 +6238,24 @@ def aten_tanh(self: TFloat) -> TFloat:
     return op.Tanh(self)
 
 
+@torch_op("aten::tensor.int")
+def aten_tensor_int(self: int, dtype: int) -> TensorType:
+    tensor = op.Constant(value_int=self)
+    return op.Cast(tensor, to=dtype)
+
+
+@torch_op("aten::tensor.float")
+def aten_tensor_float(self: float, dtype: int) -> TensorType:
+    tensor = op.Constant(value_float=self)
+    return op.Cast(tensor, to=dtype)
+
+
+@torch_op("aten::tensor.bool")
+def aten_tensor_bool(self: bool, dtype: int) -> TensorType:
+    tensor = op.Constant(value_int=self)
+    return op.Cast(tensor, to=dtype)
+
+
 def aten_tensordot(
     self: TensorType, other: TensorType, dims_self: Sequence[int], dims_other: Sequence[int]
 ) -> TensorType:

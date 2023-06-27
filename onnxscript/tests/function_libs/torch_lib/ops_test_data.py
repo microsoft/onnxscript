@@ -1464,6 +1464,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_sum_input_wrangler,
         trace_only=True,
     ),
+    TorchLibOpInfo("aten.tensor.int", core_ops.aten_tensor_int),  # Custom from extra_opinfo
+    TorchLibOpInfo(
+        "aten.tensor.float", core_ops.aten_tensor_float  # Custom from extra_opinfo
+    ),
+    TorchLibOpInfo("aten.tensor.bool", core_ops.aten_tensor_bool),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose, trace_only=True),
     TorchLibOpInfo(
         "var_mean",
