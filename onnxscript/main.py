@@ -91,9 +91,7 @@ def script(
         closure = inspect.getclosurevars(f)
         env = module.__dict__.copy()
         env.update(closure.nonlocals)
-        result = script_check(
-            f_ast, opset, env, src, default_opset=default_opset
-        )
+        result = script_check(f_ast, opset, env, src, default_opset=default_opset)
         # TODO: add transformations.
         return onnxscript.OnnxFunction(opset, f, result, src, kwargs)
 
