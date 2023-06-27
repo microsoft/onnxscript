@@ -6764,6 +6764,7 @@ def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::view_as_complex")
 def aten_view_as_complex(self: TensorType) -> TensorType:
     """view_as_complex(Tensor(a) self) -> Tensor(a)"""
 
@@ -6772,6 +6773,7 @@ def aten_view_as_complex(self: TensorType) -> TensorType:
     return self
 
 
+@torch_op("aten::view_as_complex_copy")
 def aten_view_as_complex_copy(self: TensorType) -> TensorType:
     """view_as_complex_copy(Tensor self) -> Tensor"""
 
@@ -6780,6 +6782,7 @@ def aten_view_as_complex_copy(self: TensorType) -> TensorType:
     return self
 
 
+@torch_op("aten::view_as_real")
 def aten_view_as_real(self: TensorType) -> TensorType:
     """view_as_real(Tensor(a) self) -> Tensor(a)"""
 
@@ -6788,6 +6791,7 @@ def aten_view_as_real(self: TensorType) -> TensorType:
     return self
 
 
+@torch_op("aten::view_as_real_copy")
 def aten_view_as_real_copy(self: TensorType) -> TensorType:
     """view_as_real_copy(Tensor self) -> Tensor"""
 
@@ -6796,6 +6800,7 @@ def aten_view_as_real_copy(self: TensorType) -> TensorType:
     return self
 
 
+@torch_op("aten::view_copy")
 def aten_view_copy(self: TensorType, size: IntType) -> TensorType:
     """view_copy(Tensor self, SymInt[] size) -> Tensor"""
 
