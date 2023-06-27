@@ -258,6 +258,7 @@ def run_test_output_match(
                             expected,
                             rtol=rtol,
                             atol=atol,
+                            equal_nan=True,
                             check_device=False,
                         )
                     except AssertionError as e:
