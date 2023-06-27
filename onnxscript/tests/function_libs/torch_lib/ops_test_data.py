@@ -1096,7 +1096,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("view", core_ops.aten_view),
     TorchLibOpInfo("view_as", core_ops.aten_view_as),
     TorchLibOpInfo("view_as_complex", core_ops.aten_view_as_complex),
+    TorchLibOpInfo("view_as_complex_copy", core_ops.aten_view_as_complex_copy),
     TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real),
+    TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy),
     TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
     TorchLibOpInfo(
         "vstack",
@@ -1526,43 +1528,22 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
-
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "arange",
-    (
-        "arange_start",
-        "arange_start_step",
-    ),
-)
-
+ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
-
-
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
-
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
@@ -1572,13 +1553,11 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.replication_pad3d",
     ),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "min",
@@ -1587,13 +1566,11 @@ ops_test_common.duplicate_opinfo(
         "min_dim",
     ),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
     ("nn.functional.upsample_bilinear2d",),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
@@ -1603,17 +1580,10 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
-
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
-
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "var_mean",
-    (
-        "var_mean_dim",
-        "var_mean_correction",
-    ),
-)
+ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 
 # MARK: End edits here
 
