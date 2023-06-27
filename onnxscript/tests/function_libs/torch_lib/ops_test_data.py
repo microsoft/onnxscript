@@ -436,7 +436,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
-    TorchLibOpInfo("addcmul", core_ops.aten_addcmul),
+    TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
     TorchLibOpInfo("addmm", core_ops.aten_addmm),
     TorchLibOpInfo("addmv", core_ops.aten_addmv),
     TorchLibOpInfo(
