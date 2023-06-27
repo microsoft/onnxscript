@@ -9,7 +9,7 @@ import ast
 import inspect
 import sys
 import types
-from typing import Any, Callable, Optional, Sequence, cast
+from typing import Any, Callable, Optional, Sequence
 
 import onnx.helper
 
@@ -91,11 +91,9 @@ def script(
         closure = inspect.getclosurevars(f)
         env = module.__dict__.copy()
         env.update(closure.nonlocals)
-        result = script_check(
-            f_ast, cast(values.Opset, opset), env, src, default_opset=default_opset
-        )
+        result = script_check(f_ast, opset, env, src, default_opset=default_opset)
         # TODO: add transformations.
-        return onnxscript.OnnxFunction(cast(values.Opset, opset), f, result, src, kwargs)
+        return onnxscript.OnnxFunction(opset, f, result, src, kwargs)
 
     return transform
 

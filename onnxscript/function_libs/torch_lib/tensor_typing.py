@@ -68,4 +68,5 @@ TRealUnlessInt16OrInt8 = TypeVar(
 TRealUnlessFloat16OrInt8 = TypeVar(
     "TRealUnlessFloat16OrInt8", bound=Union[DOUBLE, FLOAT, INT16, INT32, INT64]
 )
-TrealOrUInt8 = TypeVar("TrealOrUInt8", bound=Union[RealType, UINT8])
+TRealOrUInt8 = TypeVar("TRealOrUInt8", bound=Union[RealType, UINT8])
+TFloatHighPrecision = TypeVar("TFloatHighPrecision", bound=Union[FLOAT, DOUBLE])

@@ -87,7 +87,7 @@ class Tensor:
             )
 
         # Promote integer indices to tensors of rank 0
-        index = [autocast.cast_scalar_to_tensor(x) for x in index]
+        index = [autocast.cast_pyvalue_to_os_tensor(x) for x in index]
         # Process all elements in index
         shape = self.shape
         sliced_indices = []
