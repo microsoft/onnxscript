@@ -449,6 +449,33 @@ def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
+def sample_inputs_tensor_bool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del device
+    del requires_grad
+    del kwargs
+    yield opinfo_core.SampleInput(True, dtype=dtype)
+    yield opinfo_core.SampleInput(False, dtype=dtype)
+
+
+def sample_inputs_tensor_float(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del device
+    del requires_grad
+    del kwargs
+    yield opinfo_core.SampleInput(3.0, dtype=dtype)
+    yield opinfo_core.SampleInput(-1.0, dtype=dtype)
+
+
+def sample_inputs_tensor_int(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del device
+    del requires_grad
+    del kwargs
+    yield opinfo_core.SampleInput(2, dtype=dtype)
+    yield opinfo_core.SampleInput(-5, dtype=dtype)
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "col2im",
@@ -570,5 +597,26 @@ OP_DB: List[opinfo_core.OpInfo] = [
         check_batched_gradgrad=False,
         supports_out=False,
         gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
+    ),
+    opinfo_core.OpInfo(
+        "aten.tensor.bool",
+        aten_name="tensor.bool",
+        op=torch.ops.aten.tensor.bool,
+        dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_tensor_bool,
+    ),
+    opinfo_core.OpInfo(
+        "aten.tensor.float",
+        aten_name="tensor.float",
+        op=torch.ops.aten.tensor.float,
+        dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_tensor_float,
+    ),
+    opinfo_core.OpInfo(
+        "aten.tensor.int",
+        aten_name="tensor.int",
+        op=torch.ops.aten.tensor.int,
+        dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_tensor_int,
     ),
 ]
