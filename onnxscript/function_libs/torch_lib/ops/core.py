@@ -20,13 +20,13 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
     RealType,
     TFloat,
+    TFloatHighPrecision,
     TFloatOrBFloat16,
     TInt,
     TReal,
     TRealOrUInt8,
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
-    TRealUnlessLowPrecisionFloat,
     TTensor,
     TTensorOrString,
 )
@@ -76,6 +76,7 @@ def aten_acosh(self: TFloat) -> TFloat:
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # FIXME(titaiwang): get rid of this when we have type_promotion
+    # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
     other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
@@ -119,20 +120,20 @@ def aten_addcdiv(self: TFloat, tensor1: TFloat, tensor2: TFloat, value: float = 
 
 @torch_op("aten::addcmul")
 def aten_addcmul(
-    self: TRealUnlessLowPrecisionFloat,
-    tensor1: TRealUnlessLowPrecisionFloat,
-    tensor2: TRealUnlessLowPrecisionFloat,
+    self: TReal,
+    tensor1: TReal,
+    tensor2: TReal,
     value: float = 1.0,
-) -> TRealUnlessLowPrecisionFloat:
+) -> TReal:
     """addcmul(Tensor self, Tensor tensor1, Tensor tensor2, *, Scalar value=1) -> Tensor
 
     Performs the element-wise multiplication of tensor1 by tensor2, multiplies the
     result by the scalar value and adds it to self.
-
-    f16 and lower will need to be casted to f32 or higher to preserve precision.
     """
 
-    return op.Add(self, op.Mul(op.Mul(tensor1, tensor2), value))
+    # Follow the order in https://github.com/pytorch/pytorch/blob/29e3fddb082b5a14262a7246bc62381a55199d45/aten/src/ATen/native/cpu/PointwiseOpsKernel.cpp#L47
+    # TODO(#811): Understand fp16 accuracy issue
+    return op.Add(self, op.Mul(op.Mul(value, tensor1), tensor2))
 
 
 @torch_op("aten::addmm")
@@ -156,12 +157,29 @@ def aten_addmv(
     return op.Add(op.Mul(self, beta), op.Mul(op.MatMul(mat, vec), alpha))
 
 
+@torch_op("aten::addr")
 def aten_addr(
-    self: TensorType, vec1: TensorType, vec2: TensorType, beta: float = 1.0, alpha: float = 1.0
-) -> TensorType:
-    """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+    self: TReal, vec1: TReal, vec2: TReal, beta: float = 1.0, alpha: float = 1.0
+) -> TReal:
+    """addr(Tensor self, Tensor vec1, Tensor vec2, *, Scalar beta=1, Scalar alpha=1) -> Tensor
 
-    raise NotImplementedError()
+    Performs the outer-product of vectors vec1 and vec2 and adds it to the matrix input.
+    """
+    vec1_shape = op.Constant(value_ints=[-1, 1])
+    vec2_shape = op.Constant(value_ints=[1, -1])
+    vec1_reshaped = op.Reshape(vec1, vec1_shape)
+    vec2_reshaped = op.Reshape(vec2, vec2_shape)
+
+    outer = op.MatMul(vec1_reshaped, vec2_reshaped)
+    # https://github.com/pytorch/pytorch/blob/51664489ba6f6b2343bbec9af9ca99185e2a5dbc/aten/src/ATen/native/cpu/LinearAlgebraKernel.cpp#L53-L54
+    # When beta == 0, values in self should be ignored,
+    # nans and infs in self should not propagate.
+    if beta == 0.0:
+        result = op.Mul(alpha, outer)
+    else:
+        result = op.Add(op.Mul(beta, self), op.Mul(alpha, outer))
+
+    return result
 
 
 def aten_adjoint(self: TensorType) -> TensorType:
@@ -3264,12 +3282,11 @@ def aten_isclose(
 
 
 @torch_op("aten::isfinite")
-def aten_isfinite(self: TFloatOrBFloat16) -> BOOL:
+def aten_isfinite(self: TFloatHighPrecision) -> BOOL:
     """isfinite(Tensor self) -> Tensor"""
 
-    # Added Cast inside the function so it can support all real dtypes naturally
-    self = op.Cast(self, to=FLOAT.dtype)
-    not_inf = op.Not(op.IsInf(self))  # op.IsInf() only support FLOAT and DOUBLE
+    # IsInf only supports FLOAT and DOUBLE
+    not_inf = op.Not(op.IsInf(self))
     not_nan = op.Not(op.IsNaN(self))  # TODO: The test case doesnt cover this condition
     return op.And(not_inf, not_nan)
 
