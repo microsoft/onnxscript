@@ -56,7 +56,7 @@ RealType = Union[
 ]
 
 TTensor = TypeVar("TTensor", bound=_TensorType)
-TTensor2 = TypeVar("TTensor", bound=_TensorType)
+TTensor2 = TypeVar("TTensor2", bound=_TensorType)
 TTensorOrString = TypeVar("TTensorOrString", bound=Union[_TensorType, STRING])
 TFloat = TypeVar("TFloat", bound=_FloatType)
 TFloatOrBFloat16 = TypeVar("TFloatOrBFloat16", bound=Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16])
