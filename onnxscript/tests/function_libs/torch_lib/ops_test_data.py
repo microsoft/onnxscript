@@ -1097,8 +1097,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("view_as", core_ops.aten_view_as),
     TorchLibOpInfo("view_as_complex", core_ops.aten_view_as_complex),
     TorchLibOpInfo("view_as_complex_copy", core_ops.aten_view_as_complex_copy),
-    TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real),
-    TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy),
+    TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
+    TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
     TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
     TorchLibOpInfo(
         "vstack",
