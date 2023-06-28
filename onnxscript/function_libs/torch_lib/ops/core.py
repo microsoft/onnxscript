@@ -28,6 +28,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
+    TTensor2,
     TTensorOrString,
 )
 from onnxscript.onnx_opset import opset18 as op
@@ -6758,40 +6759,56 @@ def aten_view(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
-def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::view_as")
+def aten_view_as(self: TTensor, other: TTensor2) -> TTensor:
     """view_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    size = op.Shape(other)
+    return op.Reshape(self, size)
 
 
-def aten_view_as_complex(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_complex")
+def aten_view_as_complex(self: TTensor) -> TTensor:
     """view_as_complex(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_as_complex_copy(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_complex_copy")
+def aten_view_as_complex_copy(self: TTensor) -> TTensor:
     """view_as_complex_copy(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_as_real(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_real")
+def aten_view_as_real(self: TTensor) -> TTensor:
     """view_as_real(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_as_real_copy(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_real_copy")
+def aten_view_as_real_copy(self: TTensor) -> TTensor:
     """view_as_real_copy(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::view_copy")
+def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
     """view_copy(Tensor self, SymInt[] size) -> Tensor"""
 
-    raise NotImplementedError()
+    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    return op.Reshape(self, size)
 
 
 @torch_op("aten::vstack")
