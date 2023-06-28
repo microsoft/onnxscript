@@ -56,6 +56,8 @@ RealType = Union[
 ]
 
 TTensor = TypeVar("TTensor", bound=_TensorType)
+# Duplicate TTensor for inputs/outputs that accept the same set of types as TTensor
+# but do not constrain the type to be the same as the other inputs/outputs
 TTensor2 = TypeVar("TTensor2", bound=_TensorType)
 TTensorOrString = TypeVar("TTensorOrString", bound=Union[_TensorType, STRING])
 TFloat = TypeVar("TFloat", bound=_FloatType)
