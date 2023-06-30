@@ -326,14 +326,16 @@ class Converter:
         op: values.Op | str,
         inputs: Sequence[Optional[str]],
         attrs: Sequence[irbuilder.IRAttributeValue] = [],
+        target : str = "tmp"
     ) -> ConverterExpression:
-        onnxvar = self.generate_unique_name("tmp")
+        onnxvar = self.generate_unique_name(target)
         if not isinstance(op, values.Op):
             op = values.Op(self.default_opset, op)
             self.emit([onnxvar], op, inputs, attrs)
-        return ConverterExpression(onnxvar)
+        return ConverterExpression(onnxvar, ConverterExpressionKind.ANY)
 
     def emit_const(self, pyvalue, suggested_name, info):
+        suggested_name = "c" if suggested_name is None else suggested_name
         ovar = self.generate_unique_name(suggested_name)
         try:
             tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
@@ -387,7 +389,7 @@ class Converter:
         # TODO: assert (self.is_constant_expr(expr))
         # TODO: Refine types
         locals: dict[Any, Any] = {}
-        expr = ast.Expression(expr)
+        expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
             return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
@@ -447,7 +449,7 @@ class Converter:
             f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
         )
 
-    def translate_expr(self, node, target="tmp") -> ConverterExpression:
+    def translate_expr(self, node, target: str | Sequence[str] | None = None) -> ConverterExpression:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -465,7 +467,7 @@ class Converter:
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
         elif isinstance(node, _ast_Subscript):
-            r = self.translate_subscript_expr(node)
+            r = self.translate_subscript_expr(node, target)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, self.source_of(node))
         else:
@@ -476,6 +478,7 @@ class Converter:
             return r
         if isinstance(r, tuple):
             callee, args, attrs = r
+            target = "tmp" if target is None else target
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
                 self.emit([result], callee, args, attrs)
@@ -495,7 +498,7 @@ class Converter:
             return ConverterExpression(None, ConverterExpressionKind.ANY)
         return self.translate_expr(node, target)
 
-    def translate_subscript_expr(self, node):
+    def translate_subscript_expr(self, node, target):
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -537,7 +540,22 @@ class Converter:
         indices = ast_utils.normalize_subscript_expr(node)
         info = self.source_of(node.slice if py_version_ge_39 else node)
 
-        def _get_arg(node_arg, axis, zero, one, default_value=None):
+        # Create constants 0 and 1 on demand:
+        one_cached = None
+        def one():
+            nonlocal one_cached
+            if one_cached is None:
+                one_cached = self.emit_const([1], "one", info)
+            return one_cached
+
+        zero_cached = None
+        def zero():
+            nonlocal zero_cached
+            if zero_cached is None:
+                zero_cached = self.emit_const([1], "zero", info)
+            return zero_cached
+
+        def _get_arg(node_arg, axis, default_value=None):
             if node_arg is None:
                 if default_value is None:
                     return "", None
@@ -545,7 +563,7 @@ class Converter:
                 # This one is usually positive unless it is a constant,
                 # otherwise it is unknown.
                 if default_value == "begin":
-                    return zero.name, None
+                    return zero().name, None
                 if default_value == "begin_":
                     self.fail(
                         node,
@@ -570,36 +588,39 @@ class Converter:
                     return dim_name, None
                 raise RuntimeError(f"Unexpected default value {default_value!r}.")
 
-            name = self.translate_expr(node_arg).name
-            reshaped = self.generate_unique_name(f"{name}_reshaped")
-            self.emit(
-                [reshaped],
-                values.Op(self.default_opset, "Reshape"),
-                [name, one.name],
-                [],
-            )
+
             if self.is_constant_expr(node_arg):
                 cst = self.eval_constant_expr(node_arg)
+                if isinstance(cst, int):
+                    return self.emit_const([cst], "cc", self.source_of(node_arg)), cst    
+                else:
+                    raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
             else:
                 cst = None
-            return reshaped, cst
+                name = self.translate_expr(node_arg).name
+                reshaped = self.generate_unique_name(f"{name}_reshaped")
+                self.emit(
+                    [reshaped],
+                    values.Op(self.default_opset, "Reshape"),
+                    [name, one().name],
+                    [],
+                )
+                return reshaped, cst
 
-        def _get_slice_input(node_slice, axis, zero, one):
-            step_name, cst = _get_arg(node_slice.step, axis, zero, one)
+        def _get_slice_input(node_slice, axis):
+            step_name, cst = _get_arg(node_slice.step, axis)
             if cst is not None and cst < 0:
                 # handling [::-1]
                 def_a, def_b = "end", "begin_"
             else:
                 def_a, def_b = "begin", "end"
-            lower_name, _ = _get_arg(node_slice.lower, axis, zero, one, default_value=def_a)
-            upper_name, _ = _get_arg(node_slice.upper, axis, zero, one, default_value=def_b)
-            inputs = [var_name, lower_name, upper_name, axis.name]
-            if step_name != "":
-                inputs.append(step_name)
-            return inputs
+            lower_name, _ = _get_arg(node_slice.lower, axis, default_value=def_a)
+            upper_name, _ = _get_arg(node_slice.upper, axis, default_value=def_b)
+            inputs = [lower_name, upper_name]
+            if step_name == "":
+                step_name = one().name
+            return (lower_name, upper_name, step_name)
 
-        one = self.emit_const([1], "one", info)
-        zero = None
         starts = []
         ends = []
         axes = []
@@ -631,12 +652,12 @@ class Converter:
                 non_scalar_indices.append((axis, elt))
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
-            return self.emit_expr("Identity", [var_name])
+            return self.emit_expr("Identity", [var_name], [], target | f"{var_name}_copy")
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
             squeezed_axes = []
-            for axis, expr in enumerate(scalar_indices):
+            for axis, expr in scalar_indices:
                 # Treat a scalar index i as slice "i:i+1:1", but squeeze the axis finally.
                 # TODO: handle negative i
                 index = self.eval_constant_expr(expr)
@@ -650,39 +671,48 @@ class Converter:
                     ast.Constant(index + 1, **kwargs),
                     ast.Constant(1, **kwargs),
                 )
-                sliced_indices.append(element)
+                sliced_indices.append((axis,element))
             scalar_indices = []
-            for axis, element in enumerate(sliced_indices):
-                var_axis = self.emit_const([axis], f"ax{axis}", info)
+            for axis, element in sliced_indices:
                 if axis == 0:
-                    zero = var_axis
-                inputs = _get_slice_input(element, var_axis, zero, one)
-                starts.append(inputs[1])
-                ends.append(inputs[2])
+                    var_axis = zero()
+                elif axis == 1:
+                    var_axis = one()
+                else:
+                    var_axis = self.emit_const([axis], f"axis_{axis}", info)
+                inputs = _get_slice_input(element, var_axis)
+                starts.append(inputs[0])
+                ends.append(inputs[1])
                 axes.append(var_axis.name)
-                steps.append(inputs[4] if len(inputs) > 4 else one.name)
+                steps.append(inputs[2])
 
-            axis_0_attr = self.ir_builder.make_attr("axis", 0)
-            start_name = self.generate_unique_name(f"{var_name}_start")
-            self.emit(
-                [start_name], values.Op(self.default_opset, "Concat"), starts, [axis_0_attr]
-            )
+            if len(starts) > 1:
+                axis_0_attr = self.ir_builder.make_attr("axis", 0)
+                start_name = self.generate_unique_name(f"{var_name}_start")
+                self.emit(
+                    [start_name], values.Op(self.default_opset, "Concat"), starts, [axis_0_attr]
+                )
 
-            end_name = self.generate_unique_name(f"{var_name}_end")
-            self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [axis_0_attr])
+                end_name = self.generate_unique_name(f"{var_name}_end")
+                self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [axis_0_attr])
 
-            axes_name = self.generate_unique_name(f"{var_name}_axis")
-            self.emit(
-                [axes_name], values.Op(self.default_opset, "Concat"), axes, [axis_0_attr]
-            )
+                axes_name = self.generate_unique_name(f"{var_name}_axis")
+                self.emit(
+                    [axes_name], values.Op(self.default_opset, "Concat"), axes, [axis_0_attr]
+                )
 
-            steps_name = self.generate_unique_name(f"{var_name}_step")
-            self.emit(
-                [steps_name], values.Op(self.default_opset, "Concat"), steps, [axis_0_attr]
-            )
+                steps_name = self.generate_unique_name(f"{var_name}_step")
+                self.emit(
+                    [steps_name], values.Op(self.default_opset, "Concat"), steps, [axis_0_attr]
+                )
+            else:
+                start_name = starts[0]
+                end_name = ends[0]
+                axes_name = axes[0]
+                steps_name = steps[0]
 
             if squeezed_axes:
-                sliced_name = self.generate_unique_name(f"{var_name}sliced")
+                sliced_name = self.generate_unique_name(f"{var_name}_sliced")
                 self.emit(
                     [sliced_name],
                     values.Op(self.default_opset, "Slice"),
@@ -690,19 +720,27 @@ class Converter:
                     [],
                 )
                 squeezed_axes = self.emit_const(squeezed_axes, "squeezed_axes", info)
-                result = self.emit_expr("Squeeze", [sliced_name, squeezed_axes])
+                # Assign squeezed value to either temporary or final target
+                squeezed_name = self.generate_unique_name(f"{var_name}_squeezed") if non_scalar_indices else target
+                result = self.emit_expr("Squeeze", [sliced_name, squeezed_axes], [], squeezed_name)
             else:
+                # Assign sliced value to either temporary or final target
+                sliced_name = self.generate_unique_name(f"{var_name}_sliced") if non_scalar_indices else target
                 result = self.emit_expr(
-                    "Slice", [var_name, start_name, end_name, axes_name, steps_name]
+                    "Slice", [var_name, start_name, end_name, axes_name, steps_name], [], sliced_name
                 )
         else:
             result = var_name
         non_scalar_indices.extend(scalar_indices)
+        if non_scalar_indices:
+            last_axis, _ = non_scalar_indices[-1]
         for axis, index_expr in non_scalar_indices:
             index_value = self.translate_expr(index_expr)
             axis_attr = self.ir_builder.make_attr("axis", axis)
             # use Gather to perform indexing
-            result = self.emit_expr("Gather", [str(result), index_value], [axis_attr])
+            # Assign gathered value to either temporary or final target
+            name = self.generate_unique_name(f"{var_name}_axis_{axis}") if (axis != last_axis) else target
+            result = self.emit_expr("Gather", [str(result), index_value], [axis_attr], name)
 
         return result
 
