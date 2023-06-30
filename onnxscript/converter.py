@@ -335,7 +335,19 @@ class Converter:
         return ConverterExpression(onnxvar, ConverterExpressionKind.ANY)
 
     def emit_const(self, pyvalue, suggested_name, info):
-        suggested_name = "c" if suggested_name is None else suggested_name
+        if suggested_name is None:
+            if isinstance(pyvalue, int):
+                if pyvalue >= 0:
+                    suggested_name = f"int64_{pyvalue}"
+                else:
+                    suggested_name = f"int64_m{abs(pyvalue)}"
+            elif isinstance(pyvalue, list) and len(pyvalue) == 1 and isinstance(pyvalue[0], int):
+                if pyvalue[0] >= 0:
+                    suggested_name = f"int64_{pyvalue[0]}_1d"
+                else:
+                    suggested_name = f"int64_m{abs(pyvalue[0])}_1d"
+            else:
+                suggested_name = "const"
         ovar = self.generate_unique_name(suggested_name)
         try:
             tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
@@ -537,25 +549,24 @@ class Converter:
         """
         var = self.translate_expr(node.value)
         var_name = var.name
+        if target is None:
+            target =  self.generate_unique_name(f"{var_name}_subscripted")
         indices = ast_utils.normalize_subscript_expr(node)
         info = self.source_of(node.slice if py_version_ge_39 else node)
 
-        # Create constants 0 and 1 on demand:
-        one_cached = None
-        def one():
-            nonlocal one_cached
-            if one_cached is None:
-                one_cached = self.emit_const([1], "one", info)
-            return one_cached
+        # Create cached int constants:
+        # TODO: Do this at a graph-scope level.
+        cached_int_consts = {}
+        def const_1d(value):
+            nonlocal cached_int_consts
+            if value not in cached_int_consts:
+                cached_int_consts[value] = self.emit_const([value], None, info)
+            return cached_int_consts[value]
+        
+        def one_1d(): return const_1d(1)
+        def zero_1d(): return const_1d(0)
 
-        zero_cached = None
-        def zero():
-            nonlocal zero_cached
-            if zero_cached is None:
-                zero_cached = self.emit_const([1], "zero", info)
-            return zero_cached
-
-        def _get_arg(node_arg, axis, default_value=None):
+        def _get_arg(node_arg, axis_var, axis_value, default_value=None):
             if node_arg is None:
                 if default_value is None:
                     return "", None
@@ -563,7 +574,7 @@ class Converter:
                 # This one is usually positive unless it is a constant,
                 # otherwise it is unknown.
                 if default_value == "begin":
-                    return zero().name, None
+                    return zero_1d().name, None
                 if default_value == "begin_":
                     self.fail(
                         node,
@@ -578,11 +589,11 @@ class Converter:
                         [var_name],
                         [],
                     )
-                    dim_name = self.generate_unique_name(f"{shape_name}_dim")
+                    dim_name = self.generate_unique_name(f"{var_name}_dim_{axis_value}")
                     self.emit(
                         [dim_name],
                         values.Op(self.default_opset, "Gather"),
-                        [shape_name, axis.name],
+                        [shape_name, axis_var.name],
                         [],
                     )
                     return dim_name, None
@@ -592,7 +603,7 @@ class Converter:
             if self.is_constant_expr(node_arg):
                 cst = self.eval_constant_expr(node_arg)
                 if isinstance(cst, int):
-                    return self.emit_const([cst], "cc", self.source_of(node_arg)), cst    
+                    return const_1d(cst), cst    
                 else:
                     raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
             else:
@@ -602,23 +613,23 @@ class Converter:
                 self.emit(
                     [reshaped],
                     values.Op(self.default_opset, "Reshape"),
-                    [name, one().name],
+                    [name, one_1d().name],
                     [],
                 )
                 return reshaped, cst
 
-        def _get_slice_input(node_slice, axis):
-            step_name, cst = _get_arg(node_slice.step, axis)
+        def _get_slice_input(node_slice, axis_var, axis_value):
+            step_name, cst = _get_arg(node_slice.step, axis_var, axis_value)
             if cst is not None and cst < 0:
                 # handling [::-1]
                 def_a, def_b = "end", "begin_"
             else:
                 def_a, def_b = "begin", "end"
-            lower_name, _ = _get_arg(node_slice.lower, axis, default_value=def_a)
-            upper_name, _ = _get_arg(node_slice.upper, axis, default_value=def_b)
+            lower_name, _ = _get_arg(node_slice.lower, axis_var, axis_value, default_value=def_a)
+            upper_name, _ = _get_arg(node_slice.upper, axis_var, axis_value, default_value=def_b)
             inputs = [lower_name, upper_name]
             if step_name == "":
-                step_name = one().name
+                step_name = one_1d().name
             return (lower_name, upper_name, step_name)
 
         starts = []
@@ -652,7 +663,7 @@ class Converter:
                 non_scalar_indices.append((axis, elt))
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
-            return self.emit_expr("Identity", [var_name], [], target | f"{var_name}_copy")
+            return self.emit_expr("Identity", [var_name], [], target)
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
@@ -674,16 +685,11 @@ class Converter:
                 sliced_indices.append((axis,element))
             scalar_indices = []
             for axis, element in sliced_indices:
-                if axis == 0:
-                    var_axis = zero()
-                elif axis == 1:
-                    var_axis = one()
-                else:
-                    var_axis = self.emit_const([axis], f"axis_{axis}", info)
-                inputs = _get_slice_input(element, var_axis)
+                axis_var = const_1d(axis)
+                inputs = _get_slice_input(element, axis_var, axis)
                 starts.append(inputs[0])
                 ends.append(inputs[1])
-                axes.append(var_axis.name)
+                axes.append(axis_var.name)
                 steps.append(inputs[2])
 
             if len(starts) > 1:
