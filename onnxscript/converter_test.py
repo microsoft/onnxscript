@@ -406,14 +406,15 @@ class TestConverter(testutils.TestBase):
 
         # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
         # expression.
-        A = np.array([0, 1, 2])
-        i = np.array([0])
-        try:
-            A[i : i + 1]
-            eager = True
-        except Exception:
-            # TypeError: only integer scalar arrays can be converted to a scalar index
-            eager = False
+        # A = np.array([0, 1, 2])
+        # i = np.array([0])
+        # try:
+        #     A[i : i + 1]
+        #     eager = True
+        # except Exception:
+        #     # TypeError: only integer scalar arrays can be converted to a scalar index
+        #     eager = False
+        eager = True
 
         def check_function(x, name, expected, eager=True):
             with self.subTest(name=name):

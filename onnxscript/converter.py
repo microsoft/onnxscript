@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import ast
 import logging
-import sys
 from enum import IntEnum
 from typing import Any, Dict, List, NoReturn, Optional, Sequence, Tuple, Union
 
@@ -19,10 +18,7 @@ from onnxscript import values
 from onnxscript._internal import ast_utils, param_manipulation
 
 py_version_ge_39 = ast_utils.py_version_ge_39
-if py_version_ge_39:
-    _ast_Subscript = ast.Subscript  # noqa: N816
-else:
-    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]  # noqa: N816
+
 
 logger = logging.getLogger("onnxscript")
 
@@ -478,7 +474,7 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
-        elif isinstance(node, _ast_Subscript):
+        elif isinstance(node, ast.Subscript):
             r = self.translate_subscript_expr(node, target)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, self.source_of(node))

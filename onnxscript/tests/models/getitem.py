@@ -75,22 +75,6 @@ def getitem_i_var(A: FLOAT[...]) -> FLOAT[...]:
     scalar_zero = op.Constant(value=make_tensor("scalar_zero", TensorProto.INT64, [], [0]))
     return A[scalar_zero + 1 : scalar_zero + 2]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @script(default_opset=op)
 def getitem_i_expr(A: FLOAT[...]) -> FLOAT[...]:
     r = (A + 1)[0]
