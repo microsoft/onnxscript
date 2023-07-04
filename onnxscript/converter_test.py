@@ -403,53 +403,16 @@ class TestConverter(testutils.TestBase):
         from onnxscript.tests.models import getitem
 
         test_functions = self.validate_save(getitem, check_ort=True, skip_check_ort=None)
+        self.validate_run(getitem)
 
-        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
-        # expression.
-        # A = np.array([0, 1, 2])
-        # i = np.array([0])
-        # try:
-        #     A[i : i + 1]
-        #     eager = True
-        # except Exception:
-        #     # TypeError: only integer scalar arrays can be converted to a scalar index
-        #     eager = False
-        eager = True
+        # check_function(x, "getitem_i_slice_step", [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
+        # check_function(x, "getitem_i_var", [[3.0, 4.0, 5.0]])
+        # check_function(x, "getitem_i_tuple", [[0], [3]])
+        # check_function(x, "getitem_i_mixed_tuple", [0, 3])
+        # check_function(x, "getitem_column", [1.0, 4.0, 7.0, 10.0])
+        # check_function(x, "getitem_index_int0_1", [3, 4, 5])
+        # check_function(x, "getitem_index_int0", [0, 1, 2])
 
-        def check_function(x, name, expected, eager=True):
-            with self.subTest(name=name):
-                onx = test_functions[name]
-                session = ort.InferenceSession(onx.SerializeToString())
-                try:
-                    y = session.run(None, {"A": x})[0]
-                except Exception as e:
-                    raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
-                    ) from e
-                self.assertEqual(y.tolist(), expected)
-                f = getattr(getitem, name)
-                if eager:
-                    self.assertEqual(f(x).tolist(), expected)
-
-        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
-
-        check_function(x, "getitem_i", [0.0, 1.0, 2.0])
-        check_function(x, "getitem_i_last", [9.0, 10.0, 11.0])
-        check_function(x, "getitem_i_expr", [1.0, 2.0, 3.0])
-        check_function(x, "getitem_i_slice", [[3.0, 4.0, 5.0]])
-        check_function(x, "getitem_i_slice_left", [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
-        check_function(x, "getitem_i_slice_right", [[0, 1, 2], [3, 4, 5]])
-        check_function(x, "getitem_i_slice_neg", [[3, 4, 5], [6, 7, 8]])
-        check_function(x, "getitem_i_slice_step", [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
-        # TODO: force eager to True when the following issue is resolved.
-        check_function(x, "getitem_i_var", [[3.0, 4.0, 5.0]], eager=eager)
-        check_function(x, "getitem_i_tuple", [[0], [3]])
-        check_function(x, "getitem_i_mixed_tuple", [0, 3])
-        check_function(x, "getitem_column", [1.0, 4.0, 7.0, 10.0])
-        check_function(x, "getitem_index_int0_1", [3, 4, 5], eager=eager)
-        check_function(x, "getitem_index_int0", [0, 1, 2], eager=eager)
-        check_function(x, "getitem_rev", x[:0:-1].tolist())
-        check_function(x, "getitem_rev0", x[0, :0:-1].tolist())
 
     @unittest.skipIf(
         sys.version_info[:2] < (3, 9), reason="Notation [...] not supported in python 3.8."

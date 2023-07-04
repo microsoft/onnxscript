@@ -322,7 +322,7 @@ class Converter:
         op: values.Op | str,
         inputs: Sequence[Optional[str]],
         attrs: Sequence[irbuilder.IRAttributeValue] = [],
-        target : str = "tmp"
+        target: str = "tmp",
     ) -> ConverterExpression:
         onnxvar = self.generate_unique_name(target)
         if not isinstance(op, values.Op):
@@ -337,7 +337,9 @@ class Converter:
                     suggested_name = f"int64_{pyvalue}"
                 else:
                     suggested_name = f"int64_m{abs(pyvalue)}"
-            elif isinstance(pyvalue, list) and len(pyvalue) == 1 and isinstance(pyvalue[0], int):
+            elif (
+                isinstance(pyvalue, list) and len(pyvalue) == 1 and isinstance(pyvalue[0], int)
+            ):
                 if pyvalue[0] >= 0:
                     suggested_name = f"int64_{pyvalue[0]}_1d"
                 else:
@@ -457,7 +459,9 @@ class Converter:
             f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
         )
 
-    def translate_expr(self, node, target: str | Sequence[str] | None = None) -> ConverterExpression:
+    def translate_expr(
+        self, node, target: str | Sequence[str] | None = None
+    ) -> ConverterExpression:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -546,21 +550,25 @@ class Converter:
         var = self.translate_expr(node.value)
         var_name = var.name
         if target is None:
-            target =  self.generate_unique_name(f"{var_name}_subscripted")
+            target = self.generate_unique_name(f"{var_name}_subscripted")
         indices = ast_utils.normalize_subscript_expr(node)
         info = self.source_of(node.slice if py_version_ge_39 else node)
 
         # Create cached int constants:
         # TODO: Do this at a graph-scope level.
         cached_int_consts = {}
+
         def const_1d(value):
             nonlocal cached_int_consts
             if value not in cached_int_consts:
                 cached_int_consts[value] = self.emit_const([value], None, info)
             return cached_int_consts[value]
-        
-        def one_1d(): return const_1d(1)
-        def zero_1d(): return const_1d(0)
+
+        def one_1d():
+            return const_1d(1)
+
+        def zero_1d():
+            return const_1d(0)
 
         def _get_arg(node_arg, axis_var, axis_value, default_value=None):
             if node_arg is None:
@@ -595,11 +603,10 @@ class Converter:
                     return dim_name, None
                 raise RuntimeError(f"Unexpected default value {default_value!r}.")
 
-
             if self.is_constant_expr(node_arg):
                 cst = self.eval_constant_expr(node_arg)
                 if isinstance(cst, int):
-                    return const_1d(cst), cst    
+                    return const_1d(cst), cst
                 else:
                     raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
             else:
@@ -621,8 +628,12 @@ class Converter:
                 def_a, def_b = "end", "begin_"
             else:
                 def_a, def_b = "begin", "end"
-            lower_name, _ = _get_arg(node_slice.lower, axis_var, axis_value, default_value=def_a)
-            upper_name, _ = _get_arg(node_slice.upper, axis_var, axis_value, default_value=def_b)
+            lower_name, _ = _get_arg(
+                node_slice.lower, axis_var, axis_value, default_value=def_a
+            )
+            upper_name, _ = _get_arg(
+                node_slice.upper, axis_var, axis_value, default_value=def_b
+            )
             inputs = [lower_name, upper_name]
             if step_name == "":
                 step_name = one_1d().name
@@ -678,7 +689,7 @@ class Converter:
                     ast.Constant(index + 1, **kwargs),
                     ast.Constant(1, **kwargs),
                 )
-                sliced_indices.append((axis,element))
+                sliced_indices.append((axis, element))
             scalar_indices = []
             for axis, element in sliced_indices:
                 axis_var = const_1d(axis)
@@ -692,11 +703,16 @@ class Converter:
                 axis_0_attr = self.ir_builder.make_attr("axis", 0)
                 start_name = self.generate_unique_name(f"{var_name}_start")
                 self.emit(
-                    [start_name], values.Op(self.default_opset, "Concat"), starts, [axis_0_attr]
+                    [start_name],
+                    values.Op(self.default_opset, "Concat"),
+                    starts,
+                    [axis_0_attr],
                 )
 
                 end_name = self.generate_unique_name(f"{var_name}_end")
-                self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [axis_0_attr])
+                self.emit(
+                    [end_name], values.Op(self.default_opset, "Concat"), ends, [axis_0_attr]
+                )
 
                 axes_name = self.generate_unique_name(f"{var_name}_axis")
                 self.emit(
@@ -723,13 +739,26 @@ class Converter:
                 )
                 squeezed_axes = self.emit_const(squeezed_axes, "squeezed_axes", info)
                 # Assign squeezed value to either temporary or final target
-                squeezed_name = self.generate_unique_name(f"{var_name}_squeezed") if non_scalar_indices else target
-                result = self.emit_expr("Squeeze", [sliced_name, squeezed_axes], [], squeezed_name)
+                squeezed_name = (
+                    self.generate_unique_name(f"{var_name}_squeezed")
+                    if non_scalar_indices
+                    else target
+                )
+                result = self.emit_expr(
+                    "Squeeze", [sliced_name, squeezed_axes], [], squeezed_name
+                )
             else:
                 # Assign sliced value to either temporary or final target
-                sliced_name = self.generate_unique_name(f"{var_name}_sliced") if non_scalar_indices else target
+                sliced_name = (
+                    self.generate_unique_name(f"{var_name}_sliced")
+                    if non_scalar_indices
+                    else target
+                )
                 result = self.emit_expr(
-                    "Slice", [var_name, start_name, end_name, axes_name, steps_name], [], sliced_name
+                    "Slice",
+                    [var_name, start_name, end_name, axes_name, steps_name],
+                    [],
+                    sliced_name,
                 )
         else:
             result = var_name
@@ -741,7 +770,11 @@ class Converter:
             axis_attr = self.ir_builder.make_attr("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
-            name = self.generate_unique_name(f"{var_name}_axis_{axis}") if (axis != last_axis) else target
+            name = (
+                self.generate_unique_name(f"{var_name}_axis_{axis}")
+                if (axis != last_axis)
+                else target
+            )
             result = self.emit_expr("Gather", [str(result), index_value], [axis_attr], name)
 
         return result
