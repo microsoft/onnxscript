@@ -104,6 +104,16 @@ slice_to = test(slice_to_2, input=x, output=[[0, 1, 2], [3, 4, 5]])
 
 
 @script(default_opset=op)
+def slice_step_minus1(A: INT32[...]) -> INT32[...]:
+    return A[::-1]
+
+
+slice_neg_step = test(
+    slice_step_minus1, input=x, output=[[9, 10, 11], [6, 7, 8], [3, 4, 5], [0, 1, 2]]
+)
+
+
+@script(default_opset=op)
 def slice_from_1_to_minus1(A: INT32[...]) -> INT32[...]:
     return A[1:-1]
 

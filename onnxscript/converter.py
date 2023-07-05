@@ -558,50 +558,29 @@ class Converter:
         # TODO: Do this at a graph-scope level.
         cached_int_consts = {}
 
-        def const_1d(value):
+        def const_1d(value, name: Optional[str] = None):
             nonlocal cached_int_consts
             if value not in cached_int_consts:
-                cached_int_consts[value] = self.emit_const([value], None, info)
+                cached_int_consts[value] = self.emit_const([value], name, info)
             return cached_int_consts[value]
 
         def one_1d():
             return const_1d(1)
 
-        def zero_1d():
-            return const_1d(0)
+        # Max and min 64-bit int values used to represent default values for start/stop in Slice.
+        maxint = 2**63 - 1
+        minint = -(2**63)
 
-        def _get_arg(node_arg, axis_var, axis_value, default_value=None):
+        def translate_slice_component(
+            node_arg, default_value: Optional[int] = None
+        ) -> tuple[str, Optional[int]]:
+            """Translate optional start/stop/step component of a Slice expression."""
             if node_arg is None:
                 if default_value is None:
-                    return "", None
-                # The default value for the extremities depends on the step.
-                # This one is usually positive unless it is a constant,
-                # otherwise it is unknown.
-                if default_value == "begin":
-                    return zero_1d().name, None
-                if default_value == "begin_":
-                    self.fail(
-                        node,
-                        "`?::-1` cannot be expressed with ONNX, `?:0:-1` misses "
-                        "the first line, `:-1:-1` returns an empty tensor.",
+                    raise RuntimeError(
+                        f"Default start/stop not supported when step direction is unknown."
                     )
-                if default_value == "end":
-                    shape_name = self.generate_unique_name(f"{var_name}_shape")
-                    self.emit(
-                        [shape_name],
-                        values.Op(self.default_opset, "Shape"),
-                        [var_name],
-                        [],
-                    )
-                    dim_name = self.generate_unique_name(f"{var_name}_dim_{axis_value}")
-                    self.emit(
-                        [dim_name],
-                        values.Op(self.default_opset, "Gather"),
-                        [shape_name, axis_var.name],
-                        [],
-                    )
-                    return dim_name, None
-                raise RuntimeError(f"Unexpected default value {default_value!r}.")
+                return const_1d(default_value), default_value
 
             if self.is_constant_expr(node_arg):
                 cst = self.eval_constant_expr(node_arg)
@@ -610,7 +589,6 @@ class Converter:
                 else:
                     raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
             else:
-                cst = None
                 name = self.translate_expr(node_arg).name
                 reshaped = self.generate_unique_name(f"{name}_reshaped")
                 self.emit(
@@ -619,23 +597,20 @@ class Converter:
                     [name, one_1d().name],
                     [],
                 )
-                return reshaped, cst
+                return reshaped, None
 
-        def _get_slice_input(node_slice, axis_var, axis_value):
-            step_name, cst = _get_arg(node_slice.step, axis_var, axis_value)
-            if cst is not None and cst < 0:
-                # handling [::-1]
-                def_a, def_b = "end", "begin_"
+        def translate_slice(slice_expr: ast.Slice) -> tuple[str, str, str]:
+            """Translate slice-expression of the form from:to:step."""
+            step_name, step = translate_slice_component(slice_expr.step, 1)
+            if step is None:
+                lower_name, _ = translate_slice_component(slice_expr.lower, None)
+                upper_name, _ = translate_slice_component(slice_expr.upper, None)
+            elif step > 0:
+                lower_name, _ = translate_slice_component(slice_expr.lower, 0)
+                upper_name, _ = translate_slice_component(slice_expr.upper, maxint)
             else:
-                def_a, def_b = "begin", "end"
-            lower_name, _ = _get_arg(
-                node_slice.lower, axis_var, axis_value, default_value=def_a
-            )
-            upper_name, _ = _get_arg(
-                node_slice.upper, axis_var, axis_value, default_value=def_b
-            )
-            if step_name == "":
-                step_name = one_1d().name
+                lower_name, _ = translate_slice_component(slice_expr.lower, maxint)
+                upper_name, _ = translate_slice_component(slice_expr.upper, minint)
             return (lower_name, upper_name, step_name)
 
         starts = []
@@ -692,7 +667,7 @@ class Converter:
             scalar_indices = []
             for axis, element in sliced_indices:
                 axis_var = const_1d(axis)
-                inputs = _get_slice_input(element, axis_var, axis)
+                inputs = translate_slice(element)
                 starts.append(inputs[0])
                 ends.append(inputs[1])
                 axes.append(axis_var.name)
