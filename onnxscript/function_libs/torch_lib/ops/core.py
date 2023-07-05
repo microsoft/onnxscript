@@ -2308,19 +2308,6 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     return op.Equal(sum_of_abs, 0)
 
 
-@torch_op("aten::erf")
-def aten_erf(self: TReal) -> TReal:
-    """erf(Tensor self) -> Tensor"""
-
-    return op.Erf(self)
-
-
-def aten_erfc(self: TensorType) -> TensorType:
-    """erfc(Tensor self) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 def aten_erfinv(self: TensorType) -> TensorType:
     """erfinv(Tensor self) -> Tensor"""
 
