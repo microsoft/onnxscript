@@ -9,6 +9,7 @@ import types
 
 py_version_ge_39 = sys.version_info[:2] >= (3, 9)
 
+
 def get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
     try:
         src = inspect.getsource(f)
@@ -25,7 +26,8 @@ def get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
     assert isinstance(f_ast, ast.FunctionDef)
     return src, f_ast
 
-def normalize_subscript_expr (expr: ast.Subscript):
+
+def normalize_subscript_expr(expr: ast.Subscript):
     # Normalizes the representation of a subscripted expression, handling python version
     # differences as well as variations between A[x] (single-index) and A[x, y] (multiple indices)
     # Returns a list of expressions, denoting the indices, after stripping the extraneous "Index"
@@ -33,12 +35,12 @@ def normalize_subscript_expr (expr: ast.Subscript):
     index_expr = expr.slice
     if py_version_ge_39:
         if isinstance(index_expr, ast.Tuple):
-            return index_expr.elts # multiple indices
+            return index_expr.elts  # multiple indices
         else:
-            return [index_expr] # single index
+            return [index_expr]  # single index
     else:
         if isinstance(index_expr, ast.ExtSlice):
-            indices = index_expr.dims # multiple indices
+            indices = index_expr.dims  # multiple indices
         else:
-            indices = [index_expr] # single slice-index
+            indices = [index_expr]  # single slice-index
         return [x.value if isinstance(x, ast.Index) else x for x in indices]

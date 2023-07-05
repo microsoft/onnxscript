@@ -634,7 +634,6 @@ class Converter:
             upper_name, _ = _get_arg(
                 node_slice.upper, axis_var, axis_value, default_value=def_b
             )
-            inputs = [lower_name, upper_name]
             if step_name == "":
                 step_name = one_1d().name
             return (lower_name, upper_name, step_name)

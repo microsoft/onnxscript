@@ -402,7 +402,7 @@ class TestConverter(testutils.TestBase):
     def test_getitem(self):
         from onnxscript.tests.models import getitem
 
-        test_functions = self.validate_save(getitem, check_ort=True, skip_check_ort=None)
+        self.validate_save(getitem, check_ort=True, skip_check_ort=None)
         self.validate_run(getitem)
 
         # check_function(x, "getitem_i_slice_step", [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
@@ -412,7 +412,6 @@ class TestConverter(testutils.TestBase):
         # check_function(x, "getitem_column", [1.0, 4.0, 7.0, 10.0])
         # check_function(x, "getitem_index_int0_1", [3, 4, 5])
         # check_function(x, "getitem_index_int0", [0, 1, 2])
-
 
     @unittest.skipIf(
         sys.version_info[:2] < (3, 9), reason="Notation [...] not supported in python 3.8."
