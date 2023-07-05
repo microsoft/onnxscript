@@ -6499,7 +6499,7 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
 
 
 @torch_op("aten::unbind")
-def aten_unbind(self: TTensor, dim: int = 0) -> TTensor:
+def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
     split_sizes = op.Constant(value_int=1)
