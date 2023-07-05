@@ -1311,14 +1311,14 @@ def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
 def aten_concat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concat(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    return op.Concat(tensors, axis=dim)
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
 @torch_op("aten::concatenate")
-def aten_concatenate(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+def aten_concatenate(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concatenate(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    return op.Concat(tensors, axis=dim)
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
 @torch_op("aten::conj")
@@ -1343,7 +1343,7 @@ def _complex_conjugate(self: TTensor) -> TTensor:
     return conjugated
 
 
-@torch_op("aten::conj", complex=True)
+@torch_op("aten::conj", complex=True, trace_only=True)
 def aten_conj_complex(self: TTensor) -> TTensor:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
@@ -3714,7 +3714,7 @@ def aten_mH(self: TReal) -> TReal:
     return op.Einsum(self, equation="...ij->...ji")
 
 
-@torch_op("aten::mH", complex=True)
+@torch_op("aten::mH", complex=True, trace_only=True)
 def aten_mH_complex(self: TReal) -> TReal:
     """mH(Tensor(a) self) -> Tensor(a)"""
 

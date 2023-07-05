@@ -518,8 +518,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
     TorchLibOpInfo("clone", core_ops.aten_clone),
-    TorchLibOpInfo("concat", core_ops.aten_concat),
-    TorchLibOpInfo("concatenate", core_ops.aten_concatenate),
+    TorchLibOpInfo("concat", core_ops.aten_concat).skip(reason="fixme: ORT aborts"),
+    TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(reason="fixme: ORT aborts"),
     TorchLibOpInfo("conj", core_ops.aten_conj),
     TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
@@ -528,10 +528,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
-    TorchLibOpInfo(
-        "div",
-        core_ops.aten_div
-    ).skip(
+    TorchLibOpInfo("div", core_ops.aten_div).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
     ),
@@ -666,7 +663,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
     TorchLibOpInfo("mH", core_ops.aten_mH),
-    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True),
+    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True, trace_only=True),
     TorchLibOpInfo("mT", core_ops.aten_mT),
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
@@ -1368,6 +1365,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_star
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))

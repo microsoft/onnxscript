@@ -209,7 +209,7 @@ def run_test_output_match(
                 torch_output = op(*inputs, **cpu_sample.kwargs)
 
                 if isinstance(torch_output, torch.Tensor) and torch.is_complex(torch_output):
-                    torch_output = torch.view_as_real(torch_output)
+                    torch_output = torch.view_as_real(torch_output.resolve_conj())
 
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
                 if (
