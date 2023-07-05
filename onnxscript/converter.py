@@ -292,6 +292,8 @@ class Converter:
         self.ir_builder.add_docstring(self._current_fn, docstring)
 
     def emit(self, outputs, callee, inputs, attrs, sub_functions=None):
+        if not isinstance(callee, values.Op):
+            callee = values.Op(self.default_opset, callee)
         self.ir_builder.add_stmt(
             self._current_fn,
             outputs,
@@ -325,9 +327,7 @@ class Converter:
         target: str = "tmp",
     ) -> ConverterExpression:
         onnxvar = self.generate_unique_name(target)
-        if not isinstance(op, values.Op):
-            op = values.Op(self.default_opset, op)
-            self.emit([onnxvar], op, inputs, attrs)
+        self.emit([onnxvar], op, inputs, attrs)
         return ConverterExpression(onnxvar, ConverterExpressionKind.ANY)
 
     def emit_const(self, pyvalue, suggested_name, info):
@@ -578,7 +578,7 @@ class Converter:
             if node_arg is None:
                 if default_value is None:
                     raise RuntimeError(
-                        f"Default start/stop not supported when step direction is unknown."
+                        "Default start/stop not supported when step direction is unknown."
                     )
                 return const_1d(default_value), default_value
 
@@ -603,6 +603,8 @@ class Converter:
             """Translate slice-expression of the form from:to:step."""
             step_name, step = translate_slice_component(slice_expr.step, 1)
             if step is None:
+                # Step direction unknown.
+                # TODO: Handle default-values using runtime check on sign of step.
                 lower_name, _ = translate_slice_component(slice_expr.lower, None)
                 upper_name, _ = translate_slice_component(slice_expr.upper, None)
             elif step > 0:
@@ -612,11 +614,6 @@ class Converter:
                 lower_name, _ = translate_slice_component(slice_expr.lower, maxint)
                 upper_name, _ = translate_slice_component(slice_expr.upper, minint)
             return (lower_name, upper_name, step_name)
-
-        starts = []
-        ends = []
-        axes = []
-        steps = []
 
         # An input like X[2] is translated into a Gather op.
         # An input like X[1:5:2] is translated into a Slice op.
@@ -648,6 +645,10 @@ class Converter:
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
+            starts = []
+            ends = []
+            axes = []
+            steps = []
             squeezed_axes = []
             for axis, expr in scalar_indices:
                 # Treat a scalar index i as slice "i:i+1:1", but squeeze the axis finally.
@@ -676,27 +677,16 @@ class Converter:
             if len(starts) > 1:
                 axis_0_attr = self.ir_builder.make_attr("axis", 0)
                 start_name = self.generate_unique_name(f"{var_name}_start")
-                self.emit(
-                    [start_name],
-                    values.Op(self.default_opset, "Concat"),
-                    starts,
-                    [axis_0_attr],
-                )
+                self.emit([start_name], "Concat", starts, [axis_0_attr])
 
                 end_name = self.generate_unique_name(f"{var_name}_end")
-                self.emit(
-                    [end_name], values.Op(self.default_opset, "Concat"), ends, [axis_0_attr]
-                )
+                self.emit([end_name], "Concat", ends, [axis_0_attr])
 
                 axes_name = self.generate_unique_name(f"{var_name}_axis")
-                self.emit(
-                    [axes_name], values.Op(self.default_opset, "Concat"), axes, [axis_0_attr]
-                )
+                self.emit([axes_name], "Concat", axes, [axis_0_attr])
 
                 steps_name = self.generate_unique_name(f"{var_name}_step")
-                self.emit(
-                    [steps_name], values.Op(self.default_opset, "Concat"), steps, [axis_0_attr]
-                )
+                self.emit([steps_name], "Concat", steps, [axis_0_attr])
             else:
                 start_name = starts[0]
                 end_name = ends[0]
@@ -707,7 +697,7 @@ class Converter:
                 sliced_name = self.generate_unique_name(f"{var_name}_sliced")
                 self.emit(
                     [sliced_name],
-                    values.Op(self.default_opset, "Slice"),
+                    "Slice",
                     [var_name, start_name, end_name, axes_name, steps_name],
                     [],
                 )
