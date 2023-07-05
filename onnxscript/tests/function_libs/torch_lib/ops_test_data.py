@@ -1084,6 +1084,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("triu", core_ops.aten_triu),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
     TorchLibOpInfo(
+        "unbind",
+        core_ops.aten_unbind,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+    ),
+    TorchLibOpInfo(
         "unflatten",
         core_ops.aten_unflatten,
         input_wrangler=_unflatten_input_wrangler,
