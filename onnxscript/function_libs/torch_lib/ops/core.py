@@ -6498,6 +6498,14 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::unbind")
+def aten_unbind(self: TTensor, dim: int = 0) -> TTensor:
+    """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
+
+    split_sizes = op.Constant(value_int=1)
+    return op.SplitToSequence(self, split_sizes, axis=dim, keepdims=0)
+
+
 @torch_op("aten::unflatten")
 def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
     """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
