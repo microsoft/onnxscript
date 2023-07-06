@@ -3722,6 +3722,8 @@ def aten_mH_complex(self: TReal) -> TReal:
 
     # TODO(#834): Allow calling scripted functions from other
     # scripted functions and remove trace only.
+
+    # c is the complex dimension (last dimension being the real and imaginary parts)
     trasposed = op.Einsum(self, equation="...ijc->...jic")
     return _complex_conjugate(trasposed)
 
@@ -3737,7 +3739,7 @@ def aten_mT(self: TReal) -> TReal:
 def aten_mT_complex(self: TReal) -> TReal:
     """mT(Tensor(a) self) -> Tensor(a)"""
 
-    # c is the complex dimension
+    # c is the complex dimension (last dimension being the real and imaginary parts)
     return op.Einsum(self, equation="...ijc->...jic")
 
 
