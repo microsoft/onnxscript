@@ -1373,7 +1373,7 @@ def aten_contiguous(
 ) -> TTensor:
     """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
-    # ONNX does not have the notion of memory_format. It is always an no-op.
+    # ONNX does not have the notion of memory_format. It is always treated as a no-op.
     return op.Identity(self)
 
 
