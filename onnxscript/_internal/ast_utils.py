@@ -7,7 +7,7 @@ import sys
 import textwrap
 import types
 
-py_version_ge_39 = sys.version_info[:2] >= (3, 9)
+PY_VERSION_GE_39 = sys.version_info >= (3, 9)
 
 
 def get_src_and_ast(f: types.FunctionType) -> tuple[str, ast.FunctionDef]:
