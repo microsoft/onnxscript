@@ -1329,7 +1329,7 @@ def aten_conj(self: TTensor) -> TTensor:
 
 
 @torch_op("aten::conj", complex=True, private=True)
-def _complex_conjugate(self: TTensor) -> TTensor:
+def _complex_conjugate(self: TFloat) -> TFloat:
     zero = op.Constant(value_ints=[0])
     one = op.Constant(value_ints=[1])
     two = op.Constant(value_ints=[2])
@@ -1344,7 +1344,7 @@ def _complex_conjugate(self: TTensor) -> TTensor:
 
 
 @torch_op("aten::conj", complex=True, trace_only=True)
-def aten_conj_complex(self: TTensor) -> TTensor:
+def aten_conj_complex(self: TFloat) -> TFloat:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
     # TODO(#834): Allow calling scripted functions from other
@@ -3709,7 +3709,7 @@ def aten_lu_unpack(
 
 
 @torch_op("aten::mH")
-def aten_mH(self: TReal) -> TReal:
+def aten_mH(self: TRealOrUInt8) -> TRealOrUInt8:
     """mH(Tensor(a) self) -> Tensor(a)"""
 
     # Taking the conjugate transpose of a real matrix is the same as the transpose
@@ -3717,7 +3717,7 @@ def aten_mH(self: TReal) -> TReal:
 
 
 @torch_op("aten::mH", complex=True, trace_only=True)
-def aten_mH_complex(self: TReal) -> TReal:
+def aten_mH_complex(self: TFloat) -> TFloat:
     """mH(Tensor(a) self) -> Tensor(a)"""
 
     # TODO(#834): Allow calling scripted functions from other
@@ -3729,14 +3729,14 @@ def aten_mH_complex(self: TReal) -> TReal:
 
 
 @torch_op("aten::mT")
-def aten_mT(self: TReal) -> TReal:
+def aten_mT(self: TRealOrUInt8) -> TRealOrUInt8:
     """mT(Tensor(a) self) -> Tensor(a)"""
 
     return op.Einsum(self, equation="...ij->...ji")
 
 
 @torch_op("aten::mT", complex=True)
-def aten_mT_complex(self: TReal) -> TReal:
+def aten_mT_complex(self: TFloat) -> TFloat:
     """mT(Tensor(a) self) -> Tensor(a)"""
 
     # c is the last dimension being the real and imaginary parts
