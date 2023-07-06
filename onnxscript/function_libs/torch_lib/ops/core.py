@@ -1347,7 +1347,7 @@ def _complex_conjugate(self: TTensor) -> TTensor:
 def aten_conj_complex(self: TTensor) -> TTensor:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
-    # TODO(justinchuby): Allow calling scripted functions from other
+    # TODO(#834): Allow calling scripted functions from other
     # scripted functions and remove trace only.
     return _complex_conjugate(self)
 
@@ -3720,7 +3720,7 @@ def aten_mH(self: TReal) -> TReal:
 def aten_mH_complex(self: TReal) -> TReal:
     """mH(Tensor(a) self) -> Tensor(a)"""
 
-    # TODO(justinchuby): Allow calling scripted functions from other
+    # TODO(#834): Allow calling scripted functions from other
     # scripted functions and remove trace only.
     trasposed = op.Einsum(self, equation="...ijc->...jic")
     return _complex_conjugate(trasposed)
