@@ -291,7 +291,14 @@ class Converter:
     def emit_docstring(self, docstring):
         self.ir_builder.add_docstring(self._current_fn, docstring)
 
-    def emit(self, outputs, callee, inputs, attrs, sub_functions=None):
+    def emit(
+        self,
+        outputs: Sequence[str],
+        callee: values.Op | str,
+        inputs: Sequence[Optional[str]],
+        attrs: Sequence[irbuilder.IRAttributeValue] = [],
+        sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
+    ):
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
         self.ir_builder.add_stmt(
@@ -318,17 +325,6 @@ class Converter:
             attrs,
             sub_functions=sub_functions,
         )
-
-    def emit_expr(
-        self,
-        op: values.Op | str,
-        inputs: Sequence[Optional[str]],
-        attrs: Sequence[irbuilder.IRAttributeValue] = [],
-        target: str = "tmp",
-    ) -> ConverterExpression:
-        onnxvar = self.generate_unique_name(target)
-        self.emit([onnxvar], op, inputs, attrs)
-        return ConverterExpression(onnxvar, ConverterExpressionKind.ANY)
 
     def emit_const(self, pyvalue, suggested_name, info):
         if suggested_name is None:
@@ -631,9 +627,8 @@ class Converter:
         non_scalar_indices: List[Tuple[int, ast.expr]] = []
         for axis, elt in enumerate(indices):
             if isinstance(elt, ast.Slice):
-                if elt.lower is None and elt.upper is None and elt.step is None:
-                    continue
-                else:
+                # Add to sliced_indices, unless it is "::", which is a no-op.
+                if not (elt.lower is None and elt.upper is None and elt.step is None):
                     sliced_indices.append((axis, elt))
             elif self.is_constant_expr(elt) and isinstance(self.eval_constant_expr(elt), int):
                 scalar_indices.append((axis, elt))
@@ -641,7 +636,8 @@ class Converter:
                 non_scalar_indices.append((axis, elt))
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
-            return self.emit_expr("Identity", [var_name], [], target)
+            self.emit([target], "Identity", [var_name])
+            return target
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
@@ -699,31 +695,22 @@ class Converter:
                     [sliced_name],
                     "Slice",
                     [var_name, start_name, end_name, axes_name, steps_name],
-                    [],
                 )
                 squeezed_axes = self.emit_const(squeezed_axes, "squeezed_axes", info)
-                # Assign squeezed value to either temporary or final target
-                squeezed_name = (
-                    self.generate_unique_name(f"{var_name}_squeezed")
-                    if non_scalar_indices
-                    else target
-                )
-                result = self.emit_expr(
-                    "Squeeze", [sliced_name, squeezed_axes], [], squeezed_name
-                )
+
+                if non_scalar_indices:  # use temporary to store result of squeeze
+                    result = self.generate_unique_name(f"{var_name}_squeezed")
+                else:  # store squeezed result in final target
+                    result = target
+
+                self.emit([result], "Squeeze", [sliced_name, squeezed_axes])
             else:
-                # Assign sliced value to either temporary or final target
-                sliced_name = (
-                    self.generate_unique_name(f"{var_name}_sliced")
-                    if non_scalar_indices
-                    else target
-                )
-                result = self.emit_expr(
-                    "Slice",
-                    [var_name, start_name, end_name, axes_name, steps_name],
-                    [],
-                    sliced_name,
-                )
+                if non_scalar_indices:  # use temporary to store result of Slice
+                    result = self.generate_unique_name(f"{var_name}_sliced")
+                else:  # store result of Slice in final target
+                    result = target
+                slice_inputs = [var_name, start_name, end_name, axes_name, steps_name]
+                self.emit([result], "Slice", slice_inputs)
         else:
             result = var_name
         non_scalar_indices.extend(scalar_indices)
@@ -734,12 +721,12 @@ class Converter:
             axis_attr = self.ir_builder.make_attr("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
-            name = (
-                self.generate_unique_name(f"{var_name}_axis_{axis}")
-                if (axis != last_axis)
-                else target
-            )
-            result = self.emit_expr("Gather", [str(result), index_value], [axis_attr], name)
+            if (axis != last_axis): # use temporary to store result of Gather
+                gathered = self.generate_unique_name(f"{var_name}_axis_{axis}")
+            else: # store result of Gather in final target
+                gathered = target
+            self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
+            result = gathered
 
         return result
 
