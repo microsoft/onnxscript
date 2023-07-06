@@ -521,7 +521,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(reason="fixme: ORT aborts"),
     TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(reason="fixme: ORT aborts"),
     TorchLibOpInfo("conj", core_ops.aten_conj),
-    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True),
+    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
