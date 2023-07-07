@@ -508,7 +508,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo("cat", core_ops.aten_cat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
-        reason="cat does not support zero-dim tensors yet",
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
     TorchLibOpInfo(
@@ -523,11 +523,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("clone", core_ops.aten_clone),
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
-        reason="cat does not support zero-dim tensors yet",
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
-        reason="cat does not support zero-dim tensors yet",
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("conj", core_ops.aten_conj),
     TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
