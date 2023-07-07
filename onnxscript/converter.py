@@ -17,7 +17,7 @@ from onnxscript import type_annotation as ta
 from onnxscript import values
 from onnxscript._internal import ast_utils, param_manipulation
 
-py_version_ge_39 = ast_utils.py_version_ge_39
+PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
 
 
 logger = logging.getLogger("onnxscript")
@@ -548,7 +548,7 @@ class Converter:
         if target is None:
             target = self.generate_unique_name(f"{var_name}_subscripted")
         indices = ast_utils.normalize_subscript_expr(node)
-        info = self.source_of(node.slice if py_version_ge_39 else node)
+        info = self.source_of(node.slice if PY_VERSION_GE_39 else node)
 
         # Create cached int constants:
         # TODO: Do this at a graph-scope level.

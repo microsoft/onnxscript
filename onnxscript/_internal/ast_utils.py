@@ -33,7 +33,7 @@ def normalize_subscript_expr(expr: ast.Subscript):
     # Returns a list of expressions, denoting the indices, after stripping the extraneous "Index"
     # wrapper present in python versions before 3.9
     index_expr = expr.slice
-    if py_version_ge_39:
+    if PY_VERSION_GE_39:
         if isinstance(index_expr, ast.Tuple):
             return index_expr.elts  # multiple indices
         else:
