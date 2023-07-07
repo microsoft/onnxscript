@@ -604,6 +604,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isnan", core_ops.aten_isnan),
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo(
+        "linspace",
+        core_ops.aten_linspace,
+        trace_only=True,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="op 'Range' doesn't support float16.",
+    ).skip(
+        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
+        reason="aten::linspace with steps=1 is not supported by its definition.",
+    ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
     TorchLibOpInfo(
