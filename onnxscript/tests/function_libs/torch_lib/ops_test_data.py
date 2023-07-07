@@ -26,7 +26,7 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     are now fixed, removed the corresponding xfail.
 
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
-wrangler function. See `_cat_input_wrangler` for an example.
+wrangler function. See `_mean_input_wrangler` for an example.
 
 4. To test different ONNX functions that are registered as overloads of the same
     op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
@@ -205,15 +205,6 @@ def _avg_pool2d_input_wrangler(
         if isinstance(kernel_size, np.ndarray):
             kernel_size = kernel_size.tolist()
         kwargs["kernel_size"] = kernel_size
-    return args, kwargs
-
-
-def _cat_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Remove the self argument
-    if len(args) == 2:
-        kwargs["dim"] = args.pop()
     return args, kwargs
 
 
