@@ -296,11 +296,15 @@ class Converter:
         outputs: Sequence[str],
         callee: values.Op | str,
         inputs: Sequence[Optional[str]],
-        attrs: Sequence[irbuilder.IRAttributeValue] = [],
+        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
         sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
     ):
         if not isinstance(callee, values.Op):
             callee = values.Op(self.default_opset, callee)
+        if attrs is None:
+            attrs = []
+        if sub_functions is None:
+            sub_functions = {}
         self.ir_builder.add_stmt(
             self._current_fn,
             outputs,
@@ -563,9 +567,9 @@ class Converter:
         def one_1d():
             return const_1d(1)
 
-        # Max and min 64-bit int values used to represent default values for start/stop in Slice.
-        maxint = 2**63 - 1
-        minint = -(2**63)
+        # Max/min 64-bit int values are used to represent default values for start/stop in Slice.
+        maxint = (1 << 63) - 1
+        minint = -(1 << 63)
 
         def translate_slice_component(
             node_arg, default_value: Optional[int] = None
@@ -573,6 +577,7 @@ class Converter:
             """Translate optional start/stop/step component of a Slice expression."""
             if node_arg is None:
                 if default_value is None:
+                    # TODO: Emit "Where(step > 0, pos_default, neg_default)"
                     raise RuntimeError(
                         "Default start/stop not supported when step direction is unknown."
                     )
@@ -721,9 +726,9 @@ class Converter:
             axis_attr = self.ir_builder.make_attr("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
-            if (axis != last_axis): # use temporary to store result of Gather
+            if axis != last_axis:  # use temporary to store result of Gather
                 gathered = self.generate_unique_name(f"{var_name}_axis_{axis}")
-            else: # store result of Gather in final target
+            else:  # store result of Gather in final target
                 gathered = target
             self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
             result = gathered

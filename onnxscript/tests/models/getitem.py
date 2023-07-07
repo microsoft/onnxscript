@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Union
+from typing import Tuple, Union
 
 import numpy as np
 from onnx import TensorProto
@@ -22,7 +22,7 @@ zero = np.array(0, dtype=np.int64)
 # Inputs/Outputs of test-cases are specified as numpy arrays, or tuples of numpy arrays,
 # or as a list of values, e.g. [0, 1, 2], converted to an int32 numpy array.
 
-IOType = Union[np.ndarray, tuple[np.ndarray, ...], list]
+IOType = Union[np.ndarray, Tuple[np.ndarray, ...], list]
 
 
 def wrap_input_output(x: IOType) -> list(np.ndarray):
