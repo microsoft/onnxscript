@@ -1307,22 +1307,51 @@ def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_concat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::concat")
+def aten_concat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concat(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Combine the implementation with cat
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
-def aten_concatenate(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::concatenate")
+def aten_concatenate(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concatenate(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Combine the implementation with cat
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
-def aten_conj(self: TensorType) -> TensorType:
+@torch_op("aten::conj")
+def aten_conj(self: TTensor) -> TTensor:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
+
+
+@torch_op("aten::conj", complex=True, private=True)
+def _complex_conjugate(self: TFloat) -> TFloat:
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    two = op.Constant(value_ints=[2])
+    neg_1 = op.Constant(value_ints=[-1])
+    # The last dimension is the real and imaginary parts
+
+    real = op.Slice(self, zero, one, neg_1)
+    imag = op.Slice(self, one, two, neg_1)
+    conjugated = op.Concat(real, op.Neg(imag), axis=-1)
+
+    return conjugated
+
+
+@torch_op("aten::conj", complex=True, trace_only=True)
+def aten_conj_complex(self: TFloat) -> TFloat:
+    """conj(Tensor(a) self) -> Tensor(a)"""
+
+    # TODO(#834): Allow calling scripted functions from other
+    # scripted functions and remove trace only.
+    return _complex_conjugate(self)
 
 
 def aten_conj_physical(self: TensorType) -> TensorType:
@@ -3681,16 +3710,39 @@ def aten_lu_unpack(
     raise NotImplementedError()
 
 
-def aten_mH(self: TensorType) -> TensorType:
+@torch_op("aten::mH")
+def aten_mH(self: TRealOrUInt8) -> TRealOrUInt8:
     """mH(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # Taking the conjugate transpose of a real matrix is the same as the transpose
+    return op.Einsum(self, equation="...ij->...ji")
 
 
-def aten_mT(self: TensorType) -> TensorType:
+@torch_op("aten::mH", complex=True, trace_only=True)
+def aten_mH_complex(self: TFloat) -> TFloat:
+    """mH(Tensor(a) self) -> Tensor(a)"""
+
+    # TODO(#834): Allow calling scripted functions from other
+    # scripted functions and remove trace only.
+
+    # c is the last dimension being the real and imaginary parts
+    trasposed = op.Einsum(self, equation="...ijc->...jic")
+    return _complex_conjugate(trasposed)
+
+
+@torch_op("aten::mT")
+def aten_mT(self: TRealOrUInt8) -> TRealOrUInt8:
     """mT(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Einsum(self, equation="...ij->...ji")
+
+
+@torch_op("aten::mT", complex=True)
+def aten_mT_complex(self: TFloat) -> TFloat:
+    """mT(Tensor(a) self) -> Tensor(a)"""
+
+    # c is the last dimension being the real and imaginary parts
+    return op.Einsum(self, equation="...ijc->...jic")
 
 
 def aten_margin_ranking_loss(
