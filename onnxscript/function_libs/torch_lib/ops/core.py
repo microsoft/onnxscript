@@ -3508,7 +3508,9 @@ def aten_linear_backward(
 
 
 @torch_op("aten::linspace", trace_only=True)
-def aten_linspace(start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, steps: int, dtype: int = -1) -> TensorType:
+def aten_linspace(
+    start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, steps: int, dtype: int = -1
+) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     if dtype == -1:
