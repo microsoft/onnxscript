@@ -1311,6 +1311,7 @@ def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
 def aten_concat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concat(Tensor[] tensors, int dim=0) -> Tensor"""
 
+    # TODO(justinchuby): Combine the implementation with cat
     return op.ConcatFromSequence(tensors, axis=dim)
 
 
@@ -1318,6 +1319,7 @@ def aten_concat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
 def aten_concatenate(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concatenate(Tensor[] tensors, int dim=0) -> Tensor"""
 
+    # TODO(justinchuby): Combine the implementation with cat
     return op.ConcatFromSequence(tensors, axis=dim)
 
 

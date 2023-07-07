@@ -506,20 +506,29 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
-    TorchLibOpInfo("cat", core_ops.aten_cat, input_wrangler=_cat_input_wrangler).skip(
+    TorchLibOpInfo("cat", core_ops.aten_cat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="cat does not support zero-dim tensors yet",
     ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
-    TorchLibOpInfo("chunk", core_ops.aten_chunk).xfail(
+    TorchLibOpInfo(
+        "chunk",
+        core_ops.aten_chunk,
+    ).xfail(
         dtypes=[torch.float16],
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
     TorchLibOpInfo("clone", core_ops.aten_clone),
-    TorchLibOpInfo("concat", core_ops.aten_concat).skip(reason="fixme: ORT aborts"),
-    TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(reason="fixme: ORT aborts"),
+    TorchLibOpInfo("concat", core_ops.aten_concat).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="cat does not support zero-dim tensors yet",
+    ),
+    TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="cat does not support zero-dim tensors yet",
+    ),
     TorchLibOpInfo("conj", core_ops.aten_conj),
     TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
@@ -528,7 +537,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
-    TorchLibOpInfo("div", core_ops.aten_div).skip(
+    TorchLibOpInfo(
+        "div",
+        core_ops.aten_div,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
     ),
@@ -677,12 +689,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
-    TorchLibOpInfo("min_other", core_ops.aten_min_other).xfail(
+    TorchLibOpInfo(
+        "min_other",
+        core_ops.aten_min_other,
+    ).xfail(
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
-    TorchLibOpInfo("min", core_ops.aten_min).skip(
+    TorchLibOpInfo(
+        "min",
+        core_ops.aten_min,
+    ).skip(
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
@@ -694,60 +712,98 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ne", core_ops.aten_ne),
     TorchLibOpInfo("neg", core_ops.aten_neg),
     TorchLibOpInfo(
-        "new_empty_dtype", core_ops.aten_new_empty_dtype, nondeterministic=True
+        "new_empty_dtype",
+        core_ops.aten_new_empty_dtype,
+        nondeterministic=True,
     ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 3 inputs:(self, size, dtype)",
     ),
-    TorchLibOpInfo("new_empty", core_ops.aten_new_empty, nondeterministic=True).skip(
+    TorchLibOpInfo(
+        "new_empty",
+        core_ops.aten_new_empty,
+        nondeterministic=True,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="this Aten overload only accept 2 inputs:(self, size)",
     ),
     TorchLibOpInfo(
-        "new_empty_strided_dtype", core_ops.aten_new_empty_strided_dtype, nondeterministic=True
+        "new_empty_strided_dtype",
+        core_ops.aten_new_empty_strided_dtype,
+        nondeterministic=True,
     ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 4 inputs:(self, size, stride, dtype)",
     ),
     TorchLibOpInfo(
-        "new_empty_strided", core_ops.aten_new_empty_strided, nondeterministic=True
+        "new_empty_strided",
+        core_ops.aten_new_empty_strided,
+        nondeterministic=True,
     ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="this Aten overload only accept 3 inputs:(self, size, stride)",
     ),
-    TorchLibOpInfo("new_full_dtype", core_ops.aten_new_full_dtype).skip(
+    TorchLibOpInfo(
+        "new_full_dtype",
+        core_ops.aten_new_full_dtype,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
     ),
-    TorchLibOpInfo("new_full", core_ops.aten_new_full).skip(
+    TorchLibOpInfo(
+        "new_full",
+        core_ops.aten_new_full,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
     ),
-    TorchLibOpInfo("new_ones_dtype", core_ops.aten_new_ones_dtype).skip(
+    TorchLibOpInfo(
+        "new_ones_dtype",
+        core_ops.aten_new_ones_dtype,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    TorchLibOpInfo("new_ones", core_ops.aten_new_ones).skip(
+    TorchLibOpInfo(
+        "new_ones",
+        core_ops.aten_new_ones,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",
     ),
-    TorchLibOpInfo("new_zeros_dtype", core_ops.aten_new_zeros_dtype).skip(
+    TorchLibOpInfo(
+        "new_zeros_dtype",
+        core_ops.aten_new_zeros_dtype,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    TorchLibOpInfo("new_zeros", core_ops.aten_new_zeros).skip(
-        matcher=lambda sample: sample.kwargs.get("dtype") is not None, reason=""
+    TorchLibOpInfo(
+        "new_zeros",
+        core_ops.aten_new_zeros,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="",
     ),
-    TorchLibOpInfo("nn.functional.adaptive_avg_pool1d", nn_ops.aten_adaptive_avg_pool1d).xfail(
+    TorchLibOpInfo(
+        "nn.functional.adaptive_avg_pool1d",
+        nn_ops.aten_adaptive_avg_pool1d,
+    ).xfail(
         # Shape should be [N, C, D1]
         matcher=lambda sample: sample.args[0] not in {1, (1,)},
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    TorchLibOpInfo("nn.functional.adaptive_avg_pool2d", nn_ops.aten_adaptive_avg_pool2d).xfail(
+    TorchLibOpInfo(
+        "nn.functional.adaptive_avg_pool2d",
+        nn_ops.aten_adaptive_avg_pool2d,
+    ).xfail(
         matcher=lambda sample: sample.args[0] != (1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    TorchLibOpInfo("nn.functional.adaptive_avg_pool3d", nn_ops.aten_adaptive_avg_pool3d)
+    TorchLibOpInfo(
+        "nn.functional.adaptive_avg_pool3d",
+        nn_ops.aten_adaptive_avg_pool3d,
+    )
     .xfail(
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
@@ -768,13 +824,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[target] as int type",
     ),
     TorchLibOpInfo(
-        "nn.functional.dropout", core_ops.aten_dropout, input_wrangler=_dropout_input_wrangler
+        "nn.functional.dropout",
+        core_ops.aten_dropout,
+        input_wrangler=_dropout_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
     ),
-    TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu).skip(
-        dtypes=[torch.float16], reason="fixme: ONNX Runtime aborted"
+    TorchLibOpInfo(
+        "nn.functional.elu",
+        nn_ops.aten_elu,
+    ).skip(
+        dtypes=[torch.float16],
+        reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",
@@ -797,7 +859,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload need weight as kwargs",
     ),
     TorchLibOpInfo(
-        "nn.functional.nll_loss", nn_ops.aten_nll_loss, input_wrangler=_nll_loss_input_wrangler
+        "nn.functional.nll_loss",
+        nn_ops.aten_nll_loss,
+        input_wrangler=_nll_loss_input_wrangler,
     ).skip(
         matcher=lambda sample: "weight" in sample.kwargs,
         reason="this Aten overload doesn't accept weight as kwargs",
@@ -810,8 +874,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "reflect"),
         reason="this Aten overload need args[1] == 'reflect' for pad mode",
     ),
-    TorchLibOpInfo("nn.functional.relu", nn_ops.aten_relu),
-    TorchLibOpInfo("nn.functional.relu6", nn_ops.aten_relu6),
+    TorchLibOpInfo(
+        "nn.functional.relu",
+        nn_ops.aten_relu,
+    ),
+    TorchLibOpInfo(
+        "nn.functional.relu6",
+        nn_ops.aten_relu6,
+    ),
     TorchLibOpInfo(
         "nn.functional.replication_pad2d",
         nn_ops.aten_replication_pad2d,
@@ -832,17 +902,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
     ),
-    TorchLibOpInfo("nn.functional.selu", core_ops.aten_selu).skip(
-        dtypes=[torch.float16], reason="fixme: ONNX Runtime aborted"
+    TorchLibOpInfo(
+        "nn.functional.selu",
+        core_ops.aten_selu,
+    ).skip(
+        dtypes=[torch.float16],
+        reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo(
-        "nn.functional.mse_loss", nn_ops.aten_mse_loss, input_wrangler=_mse_loss_input_wrangler
+        "nn.functional.mse_loss",
+        nn_ops.aten_mse_loss,
+        input_wrangler=_mse_loss_input_wrangler,
     ),
-    TorchLibOpInfo("nonzero", core_ops.aten_nonzero).xfail(
+    TorchLibOpInfo(
+        "nonzero",
+        core_ops.aten_nonzero,
+    ).xfail(
         matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
         reason="as_tuple=True is not supported",
     ),
-    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True)
+    TorchLibOpInfo(
+        "normal",
+        core_ops.aten_normal,
+        nondeterministic=True,
+    )
     .skip(
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
@@ -859,13 +942,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
-    TorchLibOpInfo("permute", core_ops.aten_permute, input_wrangler=_permute_input_wrangler)
+    TorchLibOpInfo(
+        "permute",
+        core_ops.aten_permute,
+        input_wrangler=_permute_input_wrangler,
+    )
     .xfail(
         matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
         reason="Negative value in perm is not supported",
     )
     .xfail(
-        matcher=lambda sample: len(sample.args[0]) == 0, reason="Empty perm is not supported"
+        matcher=lambda sample: len(sample.args[0]) == 0,
+        reason="Empty perm is not supported",
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
@@ -874,9 +962,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_randn,
         input_wrangler=_randn_input_wrangler,
         nondeterministic=True,
-    ).xfail(dtypes=[torch.float16], reason="fixme: Shape inference error"),
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: Shape inference error",
+    ),
     TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
-    TorchLibOpInfo("remainder", core_ops.aten_remainder).xfail(
+    TorchLibOpInfo(
+        "remainder",
+        core_ops.aten_remainder,
+    ).xfail(
         dtypes=[torch.float16],
         reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
         test_class_name="TestOutputConsistencyEager",
@@ -885,23 +979,38 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
     TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
     TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
-    TorchLibOpInfo("round", core_ops.aten_round)
+    TorchLibOpInfo(
+        "round",
+        core_ops.aten_round,
+    )
     .xfail(
         variant_name="decimals_0",
         reason="The op does not support decimals yet",
         test_class_name="TestOutputConsistencyEager",
     )
-    .xfail(variant_name="decimals_3", reason="The op does not support decimals yet")
-    .xfail(variant_name="decimals_neg_3", reason="The op does not support decimals yet"),
+    .xfail(
+        variant_name="decimals_3",
+        reason="The op does not support decimals yet",
+    )
+    .xfail(
+        variant_name="decimals_neg_3",
+        reason="The op does not support decimals yet",
+    ),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
     # TorchLibOpInfo("scalar_tensor", core_ops.aten_scalar_tensor),  # no test case in OPS_DB
-    TorchLibOpInfo("scatter_add", core_ops.aten_scatter_add)
+    TorchLibOpInfo(
+        "scatter_add",
+        core_ops.aten_scatter_add,
+    )
     .xfail(
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     )
-    .xfail(dtypes=[torch.float16], reason="fixme: ORT failed"),
+    .xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
+    ),
     TorchLibOpInfo("select", core_ops.aten_select),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
@@ -912,42 +1021,67 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         special_ops.aten_special_softmax,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
     )
-    .xfail(dtypes=[torch.float16], reason="fixme: ORT failed")
+    .xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
+    )
     .xfail(
         variant_name="with_dtype",
         dtypes=[torch.float16],
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    TorchLibOpInfo("split_with_sizes", core_ops.aten_split_with_sizes).xfail(
-        dtypes=[torch.float16], reason="fixme: ORT failed"
+    TorchLibOpInfo(
+        "split_with_sizes",
+        core_ops.aten_split_with_sizes,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
     ),
-    TorchLibOpInfo("split", core_ops.aten_split)
-    .xfail(dtypes=[torch.float16], reason="fixme: ORT failed")
+    TorchLibOpInfo(
+        "split",
+        core_ops.aten_split,
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
+    )
     .xfail(
         variant_name="list_args",
         dtypes=[torch.float16],
         reason="fixme: ORT: Type (seq(tensor(float16))) of output arg (output0) of node () does not match expected type (seq(tensor(float)))",
     ),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
-    TorchLibOpInfo("squeeze_dim", core_ops.aten_squeeze_dim).skip(
+    TorchLibOpInfo(
+        "squeeze_dim",
+        core_ops.aten_squeeze_dim,
+    ).skip(
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
-    TorchLibOpInfo("squeeze", core_ops.aten_squeeze).skip(
+    TorchLibOpInfo(
+        "squeeze",
+        core_ops.aten_squeeze,
+    ).skip(
         matcher=lambda sample: not (len(sample.args) == 0),
         reason="this Aten overload only support one tensor as input by design",
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("sub", core_ops.aten_sub),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
-    TorchLibOpInfo("t", core_ops.aten_t).xfail(
+    TorchLibOpInfo(
+        "t",
+        core_ops.aten_t,
+    ).xfail(
         reason="ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("tan", core_ops.aten_tan),
     TorchLibOpInfo("tanh", core_ops.aten_tanh),
-    TorchLibOpInfo("tile", core_ops.aten_tile).skip(
+    TorchLibOpInfo(
+        "tile",
+        core_ops.aten_tile,
+    ).skip(
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
@@ -956,12 +1090,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("tril", core_ops.aten_tril),
     TorchLibOpInfo("triu", core_ops.aten_triu),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
-    TorchLibOpInfo("unbind", core_ops.aten_unbind).xfail(
+    TorchLibOpInfo(
+        "unbind",
+        core_ops.aten_unbind,
+    ).xfail(
         dtypes=[torch.float16],
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     ),
     TorchLibOpInfo(
-        "unflatten", core_ops.aten_unflatten, input_wrangler=_unflatten_input_wrangler
+        "unflatten",
+        core_ops.aten_unflatten,
+        input_wrangler=_unflatten_input_wrangler,
     )
     .xfail(
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
@@ -979,23 +1118,36 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
     TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
     TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
-    TorchLibOpInfo("vstack", core_ops.aten_vstack).xfail(
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options"
+    TorchLibOpInfo(
+        "vstack",
+        core_ops.aten_vstack,
+    ).xfail(
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler),
     TorchLibOpInfo("xlogy", special_ops.aten_special_xlogy),
     TorchLibOpInfo("zeros", core_ops.aten_zeros),
     TorchLibOpInfo(
-        "arange_start_step", core_ops.aten_arange_start_step, trace_only=True
+        "arange_start_step",
+        core_ops.aten_arange_start_step,
+        trace_only=True,
     ).xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
-    TorchLibOpInfo("arange_start", core_ops.aten_arange_start, trace_only=True).skip(
+    TorchLibOpInfo(
+        "arange_start",
+        core_ops.aten_arange_start,
+        trace_only=True,
+    ).skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
-    TorchLibOpInfo("arange", core_ops.aten_arange, trace_only=True)
+    TorchLibOpInfo(
+        "arange",
+        core_ops.aten_arange,
+        trace_only=True,
+    )
     .xfail(
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
@@ -1006,11 +1158,20 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True),
     TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True),
-    TorchLibOpInfo("as_strided", core_ops.aten_as_strided, trace_only=True).xfail(
-        variant_name="partial_views", reason="ONNX doesn't have partial view for tensor"
+    TorchLibOpInfo(
+        "as_strided",
+        core_ops.aten_as_strided,
+        trace_only=True,
+    ).xfail(
+        variant_name="partial_views",
+        reason="ONNX doesn't have partial view for tensor",
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True),
-    TorchLibOpInfo("col2im", nn_ops.aten_col2im, trace_only=True).xfail(
+    TorchLibOpInfo(
+        "col2im",
+        nn_ops.aten_col2im,
+        trace_only=True,
+    ).xfail(
         dtypes=[torch.float16],
         reason="fixme: Tensor-likes are not close. https://github.com/microsoft/onnxruntime/issues/16007",
     ),
@@ -1025,13 +1186,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "empty_like", core_ops.aten_empty_like, nondeterministic=True, trace_only=True
     ),
-    TorchLibOpInfo("grid_sampler_2d", core_ops.aten_grid_sampler_2d, trace_only=True).skip(
+    TorchLibOpInfo(
+        "grid_sampler_2d",
+        core_ops.aten_grid_sampler_2d,
+        trace_only=True,
+    ).skip(
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.args[1] == 2,
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
     ),
-    TorchLibOpInfo("hstack", core_ops.aten_hstack, trace_only=True).xfail(
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options"
+    TorchLibOpInfo(
+        "hstack",
+        core_ops.aten_hstack,
+        trace_only=True,
+    ).xfail(
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
     TorchLibOpInfo(
         "nn.functional.grid_sample",
@@ -1051,7 +1220,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
-    TorchLibOpInfo("max", core_ops.aten_max, trace_only=True)
+    TorchLibOpInfo(
+        "max",
+        core_ops.aten_max,
+        trace_only=True,
+    )
     .xfail(
         variant_name="binary",
         reason="fixme: current implementation gets shape inference error",
@@ -1075,14 +1248,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "max_pool3d", nn_ops.aten_max_pool3d, trace_only=True  # Custom from extra_opinfo
+        "max_pool3d",  # Custom from extra_opinfo
+        nn_ops.aten_max_pool3d,
+        trace_only=True,
     ).xfail(
         variant_name="empty_strides",
         reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
     ),
     TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
     TorchLibOpInfo(
-        "native_group_norm", core_ops.aten_native_group_norm, trace_only=True
+        "native_group_norm",
+        core_ops.aten_native_group_norm,
+        trace_only=True,
     ).xfail(
         dtypes=[torch.float16],
         reason="fixme: 'GroupNormKernelImpl' not implemented for 'Half' in nightly and weekly",
@@ -1102,7 +1279,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
         reason="ONNX doesn't support divisor_override argument",
     ),
-    TorchLibOpInfo("nn.functional.conv1d", core_ops.aten_conv1d, trace_only=True).xfail(
+    TorchLibOpInfo(
+        "nn.functional.conv1d",
+        core_ops.aten_conv1d,
+        trace_only=True,
+    ).xfail(
         matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
         reason="String padding is not accepted by aten::conv1d",
     ),
@@ -1121,8 +1302,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ),
-    TorchLibOpInfo("nn.functional.gelu", nn_ops.aten_gelu, trace_only=True).xfail(
-        dtypes=[torch.float16], reason="fixme: ONNX Runtime aborted"
+    TorchLibOpInfo(
+        "nn.functional.gelu",
+        nn_ops.aten_gelu,
+        trace_only=True,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
     TorchLibOpInfo(
