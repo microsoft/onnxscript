@@ -947,7 +947,7 @@ def aten_batch_norm_update_stats(
 
 
 @torch_op("aten::bernoulli.default")
-def aten_bernoulli_default(self: TFloat) -> TensorType:
+def aten_bernoulli_default(self: TTensor) -> TTensor:
     """Proximal implementation of aten::bernoulli.default
 
     Other overloads under aten::bernoulli are
@@ -965,7 +965,7 @@ def aten_bernoulli_default(self: TFloat) -> TensorType:
 
 
 @torch_op("aten::bernoulli.p")
-def aten_bernoulli_p(self: TensorType, p: float) -> TensorType:
+def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
     """Proximal implementation of aten::bernoulli.p(Tensor self, float p, *, Generator? generator=None)
 
     Ignore `generator` due to the limit on ONNX expressiveness.
