@@ -946,22 +946,36 @@ def aten_batch_norm_update_stats(
     raise NotImplementedError()
 
 
-def aten_bernoulli(self: TensorType) -> TensorType:
-    """bernoulli(Tensor self, *, Generator? generator=None) -> Tensor"""
+@torch_op("aten::bernoulli.default")
+def aten_bernoulli_default(self: TFloat) -> TensorType:
+    """Proximal implementation of aten::bernoulli.default
 
-    raise NotImplementedError()
+    Other overloads under aten::bernoulli are
+      ['default', 'out', 'p', 'Tensor', 'Tensor_out', 'float_out'].
+    Note that due to the limitation of ONNX, we ignore the `generator` argument in
+      aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
+    """
+    rands = op.RandomUniformLike(
+        self,
+        high=1.0,
+        low=0.0,
+    )
+    output = op.Less(rands, self)
+    return op.CastLike(output, self)
 
 
 @torch_op("aten::bernoulli.p")
 def aten_bernoulli_p(self: TensorType, p: float) -> TensorType:
-    """aten::bernoulli.p(Tensor self, float p, *, Generator? generator=None) -> Tensor"""
+    """Proximal implementation of aten::bernoulli.p(Tensor self, float p, *, Generator? generator=None)
+
+    Ignore `generator` due to the limit on ONNX expressiveness.
+    """
     rands = op.RandomUniformLike(
         self,
         high=1.0,
         low=0.0,
     )
     output = op.Less(rands, p)
-
     return op.CastLike(output, self)
 
 
