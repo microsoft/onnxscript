@@ -946,10 +946,23 @@ def aten_batch_norm_update_stats(
     raise NotImplementedError()
 
 
-def aten_bernoulli(self: TensorType, generator: Optional[str] = None) -> TensorType:
+def aten_bernoulli(self: TensorType) -> TensorType:
     """bernoulli(Tensor self, *, Generator? generator=None) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op("aten::bernoulli.p")
+def aten_bernoulli_p(self: TensorType, p: float) -> TensorType:
+    """aten::bernoulli.p(Tensor self, float p, *, Generator? generator=None) -> Tensor"""
+    rands = op.RandomUniformLike(
+        self,
+        high=1.0,
+        low=0.0,
+    )
+    output = op.Less(rands, p)
+
+    return op.CastLike(output, self)
 
 
 def aten_bilinear(
