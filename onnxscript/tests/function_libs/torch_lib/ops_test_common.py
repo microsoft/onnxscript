@@ -304,7 +304,9 @@ def _ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
     session_options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
-    session = ort.InferenceSession(serialized_model, session_options)
+    session = ort.InferenceSession(
+        serialized_model, session_options, providers=("CPUExecutionProvider",)
+    )
     return session.run(None, ort_inputs)
 
 
