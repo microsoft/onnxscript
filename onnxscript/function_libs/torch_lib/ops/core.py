@@ -3507,10 +3507,41 @@ def aten_linear_backward(
     raise NotImplementedError()
 
 
-def aten_linspace(start: float, end: float, steps: int) -> TensorType:
+@torch_op("aten::linspace", trace_only=True)
+def aten_linspace(
+    start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, steps: int, dtype: int = -1
+) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if dtype == -1:
+        zero = op.CastLike(0.0, steps)
+        one = op.CastLike(1.0, steps)
+    elif _range_supported(dtype):
+        zero = op.Cast(0, to=dtype)
+        one = op.Cast(1, to=dtype)
+        start = op.Cast(start, to=dtype)
+        end = op.Cast(end, to=dtype)
+        steps = op.Cast(steps, to=dtype)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        zero = op.Cast(0.0, to=FLOAT.dtype)
+        one = op.Cast(1.0, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        end = op.Cast(end, to=FLOAT.dtype)
+        steps = op.Cast(steps, to=FLOAT.dtype)
+
+    range_tensor = op.Range(zero, steps, one)
+
+    start = op.CastLike(start, end)
+    step = op.Div(
+        op.Sub(end, start),
+        op.Sub(steps, one),
+    )
+
+    return op.Add(op.Mul(range_tensor, step), start)
 
 
 @torch_op("aten::log")
