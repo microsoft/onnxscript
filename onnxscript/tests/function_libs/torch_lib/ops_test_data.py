@@ -521,7 +521,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("conj", core_ops.aten_conj),
-    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
+    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
@@ -679,7 +679,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
     TorchLibOpInfo("mH", core_ops.aten_mH),
-    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True, trace_only=True),
+    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True),
     TorchLibOpInfo("mT", core_ops.aten_mT),
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)

@@ -1345,7 +1345,7 @@ def _complex_conjugate(self: TFloat) -> TFloat:
     return conjugated
 
 
-@torch_op("aten::conj", complex=True, trace_only=True)
+@torch_op("aten::conj", complex=True)
 def aten_conj_complex(self: TFloat) -> TFloat:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
@@ -3749,7 +3749,7 @@ def aten_mH(self: TRealOrUInt8) -> TRealOrUInt8:
     return op.Einsum(self, equation="...ij->...ji")
 
 
-@torch_op("aten::mH", complex=True, trace_only=True)
+@torch_op("aten::mH", complex=True)
 def aten_mH_complex(self: TFloat) -> TFloat:
     """mH(Tensor(a) self) -> Tensor(a)"""
 
