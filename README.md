@@ -1,16 +1,3 @@
-<table>
-<tr>
-<td>⚠️</td>
-<td>
-<strong>NOTE:</strong> ONNX Script is in <strong><em>very early
-and active development</em></strong> and the team anticipates
-<strong><em>breaking changes</em></strong> as the project evolves.
-ONNX Script is <strong><ins>not ready for production</ins></strong>,
-but early feedback is welcome.
-</td>
-<td>⚠️</td>
-</tr>
-</table>
 
 ----
 
