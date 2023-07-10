@@ -946,8 +946,8 @@ def aten_batch_norm_update_stats(
     raise NotImplementedError()
 
 
-@torch_op("aten::bernoulli.default")
-def aten_bernoulli_default(self: TTensor) -> TTensor:
+@torch_op("aten::bernoulli")
+def aten_bernoulli(self: TTensor) -> TTensor:
     """Proximal implementation of aten::bernoulli.default
 
     Other overloads under aten::bernoulli are

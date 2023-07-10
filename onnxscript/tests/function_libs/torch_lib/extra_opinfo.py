@@ -680,7 +680,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs_bernoulli_p,
     ),
     opinfo_core.OpInfo(
-        "aten.bernoulli.default",
+        "aten.bernoulli",
         aten_name="bernoulli",
         op=torch.ops.aten.bernoulli.default,
         dtypes=common_dtype.floating_types(),

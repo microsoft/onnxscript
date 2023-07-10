@@ -499,11 +499,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # This string is a unique ID. In extra_opinfo.py, we
         # also define test data for this ID with
         # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
-        "aten.bernoulli.default",
-        core_ops.aten_bernoulli_default,
-        # core_ops.aten_bernoulli is defined with `torch_op(..., trace_only=False, ...)`
-        # so trace_only is set to False.
-        trace_only=False,
+        "aten.bernoulli",
+        core_ops.aten_bernoulli,
         # Skip comparison for the output of this op because it is a random tensor.
         nondeterministic=True,
     ),
@@ -513,9 +510,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
         "aten.bernoulli.p",
         core_ops.aten_bernoulli_p,
-        # core_ops.aten_bernoulli_p is defined with `torch_op(..., trace_only=False, ...)`
-        # so trace_only is set to False.
-        trace_only=False,
         # Skip comparison for the output of this op because it is a random tensor.
         nondeterministic=True,
     ),
