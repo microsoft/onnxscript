@@ -40,7 +40,7 @@ def normalize_subscript_expr(expr: ast.Subscript):
             return [index_expr]  # single index
     else:
         if isinstance(index_expr, ast.ExtSlice):
-            indices = index_expr.dims  # multiple indices
+            indices = index_expr.dims  # type: ignore[attr-defined]
         else:
             indices = [index_expr]  # single slice-index
-        return [x.value if isinstance(x, ast.Index) else x for x in indices]
+        return [x.value if isinstance(x, ast.Index) else x for x in indices]  # type: ignore[attr-defined]
