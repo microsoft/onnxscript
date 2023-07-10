@@ -28,6 +28,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TRealUnlessFloat16OrInt8,
     TRealUnlessInt16OrInt8,
     TTensor,
+    TTensor2,
     TTensorOrString,
 )
 from onnxscript.onnx_opset import opset18 as op
@@ -1306,22 +1307,51 @@ def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_concat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::concat")
+def aten_concat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concat(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Combine the implementation with cat
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
-def aten_concatenate(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::concatenate")
+def aten_concatenate(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concatenate(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Combine the implementation with cat
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
-def aten_conj(self: TensorType) -> TensorType:
+@torch_op("aten::conj")
+def aten_conj(self: TTensor) -> TTensor:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
+
+
+@torch_op("aten::conj", complex=True, private=True)
+def _complex_conjugate(self: TFloat) -> TFloat:
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    two = op.Constant(value_ints=[2])
+    neg_1 = op.Constant(value_ints=[-1])
+    # The last dimension is the real and imaginary parts
+
+    real = op.Slice(self, zero, one, neg_1)
+    imag = op.Slice(self, one, two, neg_1)
+    conjugated = op.Concat(real, op.Neg(imag), axis=-1)
+
+    return conjugated
+
+
+@torch_op("aten::conj", complex=True, trace_only=True)
+def aten_conj_complex(self: TFloat) -> TFloat:
+    """conj(Tensor(a) self) -> Tensor(a)"""
+
+    # TODO(#834): Allow calling scripted functions from other
+    # scripted functions and remove trace only.
+    return _complex_conjugate(self)
 
 
 def aten_conj_physical(self: TensorType) -> TensorType:
@@ -2305,19 +2335,6 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     abs_sub = op.Abs(sub_self_other)
     sum_of_abs = op.ReduceSum(abs_sub, keepdims=0)
     return op.Equal(sum_of_abs, 0)
-
-
-@torch_op("aten::erf")
-def aten_erf(self: TReal) -> TReal:
-    """erf(Tensor self) -> Tensor"""
-
-    return op.Erf(self)
-
-
-def aten_erfc(self: TensorType) -> TensorType:
-    """erfc(Tensor self) -> Tensor"""
-
-    raise NotImplementedError()
 
 
 def aten_erfinv(self: TensorType) -> TensorType:
@@ -3490,10 +3507,41 @@ def aten_linear_backward(
     raise NotImplementedError()
 
 
-def aten_linspace(start: float, end: float, steps: int) -> TensorType:
+@torch_op("aten::linspace", trace_only=True)
+def aten_linspace(
+    start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, steps: int, dtype: int = -1
+) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if dtype == -1:
+        zero = op.CastLike(0.0, steps)
+        one = op.CastLike(1.0, steps)
+    elif _range_supported(dtype):
+        zero = op.Cast(0, to=dtype)
+        one = op.Cast(1, to=dtype)
+        start = op.Cast(start, to=dtype)
+        end = op.Cast(end, to=dtype)
+        steps = op.Cast(steps, to=dtype)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        zero = op.Cast(0.0, to=FLOAT.dtype)
+        one = op.Cast(1.0, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        end = op.Cast(end, to=FLOAT.dtype)
+        steps = op.Cast(steps, to=FLOAT.dtype)
+
+    range_tensor = op.Range(zero, steps, one)
+
+    start = op.CastLike(start, end)
+    step = op.Div(
+        op.Sub(end, start),
+        op.Sub(steps, one),
+    )
+
+    return op.Add(op.Mul(range_tensor, step), start)
 
 
 @torch_op("aten::log")
@@ -3693,16 +3741,39 @@ def aten_lu_unpack(
     raise NotImplementedError()
 
 
-def aten_mH(self: TensorType) -> TensorType:
+@torch_op("aten::mH")
+def aten_mH(self: TRealOrUInt8) -> TRealOrUInt8:
     """mH(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # Taking the conjugate transpose of a real matrix is the same as the transpose
+    return op.Einsum(self, equation="...ij->...ji")
 
 
-def aten_mT(self: TensorType) -> TensorType:
+@torch_op("aten::mH", complex=True, trace_only=True)
+def aten_mH_complex(self: TFloat) -> TFloat:
+    """mH(Tensor(a) self) -> Tensor(a)"""
+
+    # TODO(#834): Allow calling scripted functions from other
+    # scripted functions and remove trace only.
+
+    # c is the last dimension being the real and imaginary parts
+    trasposed = op.Einsum(self, equation="...ijc->...jic")
+    return _complex_conjugate(trasposed)
+
+
+@torch_op("aten::mT")
+def aten_mT(self: TRealOrUInt8) -> TRealOrUInt8:
     """mT(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Einsum(self, equation="...ij->...ji")
+
+
+@torch_op("aten::mT", complex=True)
+def aten_mT_complex(self: TFloat) -> TFloat:
+    """mT(Tensor(a) self) -> Tensor(a)"""
+
+    # c is the last dimension being the real and imaginary parts
+    return op.Einsum(self, equation="...ijc->...jic")
 
 
 def aten_margin_ranking_loss(
@@ -6510,6 +6581,14 @@ def aten_type_as(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::unbind")
+def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
+    """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
+
+    split_sizes = op.Constant(value_int=1)
+    return op.SplitToSequence(self, split_sizes, axis=dim, keepdims=0)
+
+
 @torch_op("aten::unflatten")
 def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
     """unflatten(Tensor(a) self, int dim, SymInt[] sizes) -> Tensor(a)"""
@@ -6758,40 +6837,56 @@ def aten_view(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
-def aten_view_as(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::view_as")
+def aten_view_as(self: TTensor, other: TTensor2) -> TTensor:
     """view_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    size = op.Shape(other)
+    return op.Reshape(self, size)
 
 
-def aten_view_as_complex(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_complex")
+def aten_view_as_complex(self: TTensor) -> TTensor:
     """view_as_complex(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_as_complex_copy(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_complex_copy")
+def aten_view_as_complex_copy(self: TTensor) -> TTensor:
     """view_as_complex_copy(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_as_real(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_real")
+def aten_view_as_real(self: TTensor) -> TTensor:
     """view_as_real(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_as_real_copy(self: TensorType) -> TensorType:
+@torch_op("aten::view_as_real_copy")
+def aten_view_as_real_copy(self: TTensor) -> TTensor:
     """view_as_real_copy(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    # We always operate on the real representation of a complex number in torchlib
+    # So this is a no-op
+    return op.Identity(self)
 
 
-def aten_view_copy(self: TensorType, size: INT64) -> TensorType:
+@torch_op("aten::view_copy")
+def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
     """view_copy(Tensor self, SymInt[] size) -> Tensor"""
 
-    raise NotImplementedError()
+    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    return op.Reshape(self, size)
 
 
 @torch_op("aten::vstack")

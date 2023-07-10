@@ -209,11 +209,15 @@ def run_test_output_match(
                 torch_output = op(*inputs, **cpu_sample.kwargs)
 
                 if isinstance(torch_output, torch.Tensor) and torch.is_complex(torch_output):
-                    torch_output = torch.view_as_real(torch_output)
+                    torch_output = torch.view_as_real(torch_output.resolve_conj())
 
                 reference_torch_outputs, _ = pytree.tree_flatten(torch_output)
-                if op.name.startswith("split") or op.name.startswith("chunk"):
-                    # Hack for handling split and chunk
+                if (
+                    op.name.startswith("split")
+                    or op.name.startswith("chunk")
+                    or op.name.startswith("unbind")
+                ):
+                    # Hack for handling split, chunk and unbind which relies on SplitToSequence op.
                     # Split returns a Sequence that should be treats as a single
                     # value. So we wrap it into a tuple.
                     # TODO(justinchuby): Find a more general solution

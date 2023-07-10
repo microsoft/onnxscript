@@ -26,7 +26,7 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     are now fixed, removed the corresponding xfail.
 
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
-wrangler function. See `_cat_input_wrangler` for an example.
+wrangler function. See `_mean_input_wrangler` for an example.
 
 4. To test different ONNX functions that are registered as overloads of the same
     op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
@@ -205,15 +205,6 @@ def _avg_pool2d_input_wrangler(
         if isinstance(kernel_size, np.ndarray):
             kernel_size = kernel_size.tolist()
         kwargs["kernel_size"] = kernel_size
-    return args, kwargs
-
-
-def _cat_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Remove the self argument
-    if len(args) == 2:
-        kwargs["dim"] = args.pop()
     return args, kwargs
 
 
@@ -506,13 +497,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
-    TorchLibOpInfo(
-        "cat",
-        core_ops.aten_cat,
-        input_wrangler=_cat_input_wrangler,
-    ).skip(
+    TorchLibOpInfo("cat", core_ops.aten_cat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
-        reason="cat does not support zero-dim tensors yet",
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
     TorchLibOpInfo(
@@ -525,6 +512,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
     TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("concat", core_ops.aten_concat).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
+    TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
+    TorchLibOpInfo("conj", core_ops.aten_conj),
+    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
@@ -552,7 +549,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("exp2", core_ops.aten_exp2),
     TorchLibOpInfo("expand", core_ops.aten_expand),
     TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
-    TorchLibOpInfo("erf", core_ops.aten_erf),
+    TorchLibOpInfo("erf", special_ops.aten_special_erf),
+    TorchLibOpInfo(
+        "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
+    ),
+    # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
@@ -600,6 +601,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isnan", core_ops.aten_isnan),
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo(
+        "linspace",
+        core_ops.aten_linspace,
+        trace_only=True,
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="op 'Range' doesn't support float16.",
+    )
+    .skip(
+        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
+        reason="aten::linspace with steps=1 is not supported by its definition.",
+    ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
     TorchLibOpInfo(
@@ -664,10 +678,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("dim") is None,
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
-    TorchLibOpInfo(
-        "min_dim",
-        core_ops.aten_min_dim,
-    )
+    TorchLibOpInfo("mH", core_ops.aten_mH),
+    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True, trace_only=True),
+    TorchLibOpInfo("mT", core_ops.aten_mT),
+    TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
+    TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
     .xfail(
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
@@ -1080,6 +1095,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("triu", core_ops.aten_triu),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
     TorchLibOpInfo(
+        "unbind",
+        core_ops.aten_unbind,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+    ),
+    TorchLibOpInfo(
         "unflatten",
         core_ops.aten_unflatten,
         input_wrangler=_unflatten_input_wrangler,
@@ -1094,6 +1116,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
     TorchLibOpInfo("view", core_ops.aten_view),
+    TorchLibOpInfo("view_as", core_ops.aten_view_as),
+    TorchLibOpInfo("view_as_complex", core_ops.aten_view_as_complex),
+    TorchLibOpInfo("view_as_complex_copy", core_ops.aten_view_as_complex_copy),
+    TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
+    TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
+    TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
     TorchLibOpInfo(
         "vstack",
         core_ops.aten_vstack,
@@ -1522,43 +1550,23 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
-
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "arange",
-    (
-        "arange_start",
-        "arange_start_step",
-    ),
-)
-
+ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
-
-
+ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
-
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
@@ -1568,13 +1576,11 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.replication_pad3d",
     ),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "min",
@@ -1583,13 +1589,11 @@ ops_test_common.duplicate_opinfo(
         "min_dim",
     ),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
     ("nn.functional.upsample_bilinear2d",),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
@@ -1599,17 +1603,10 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
-
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
-
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "var_mean",
-    (
-        "var_mean_dim",
-        "var_mean_correction",
-    ),
-)
+ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 
 # MARK: End edits here
 
