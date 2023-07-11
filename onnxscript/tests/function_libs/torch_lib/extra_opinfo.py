@@ -17,6 +17,33 @@ from torch.testing._internal import (
 from torch.testing._internal.opinfo import core as opinfo_core
 
 
+def sample_inputs__local_scalar_dense(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = (
+        (),
+        (1,),
+        (3,),
+        (1, 1),
+        (1, 2),
+        (2, 1),
+        (1, 1, 1),
+        (2, 2, 2),
+    )
+
+    for shape in shapes:
+        t = torch_testing.make_tensor(
+            shape,
+            low=0,
+            high=1,
+            device=device,
+            dtype=dtype,
+            requires_grad=requires_grad,
+            **kwargs,
+        )
+        yield opinfo_core.SampleInput(t)
+
+
 def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -476,7 +503,64 @@ def sample_inputs_tensor_int(op_info, device, dtype, requires_grad, **kwargs):
     yield opinfo_core.SampleInput(-5, dtype=dtype)
 
 
+def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = [
+        [3],
+        [],
+        [3, 2],
+        [2, 3, 2],
+    ]
+
+    for shape in shapes:
+        for p in (0, 0.5, 1):
+            t = torch_testing.make_tensor(
+                shape,
+                low=0,
+                high=1,
+                device=device,
+                dtype=dtype,
+                requires_grad=requires_grad,
+                **kwargs,
+            )
+            yield opinfo_core.SampleInput(t, args=(p,))
+            yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
+def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = [
+        [3],
+        [],
+        [3, 2],
+        [2, 3, 2],
+    ]
+
+    for shape in shapes:
+        for p in (0, 1):
+            t = torch_testing.make_tensor(
+                shape,
+                low=0,
+                high=1,
+                device=device,
+                dtype=dtype,
+                requires_grad=requires_grad,
+                **kwargs,
+            )
+            yield opinfo_core.SampleInput(t, args=(p,))
+            yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
+    opinfo_core.OpInfo(
+        "aten._local_scalar_dense",
+        op=torch.ops.aten._local_scalar_dense,  # pylint: disable=protected-access
+        aten_name="_local_scalar_dense",
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs__local_scalar_dense,
+    ),
     opinfo_core.OpInfo(
         "col2im",
         op=torch.ops.aten.col2im,
@@ -618,5 +702,25 @@ OP_DB: List[opinfo_core.OpInfo] = [
         op=torch.ops.aten.tensor.int,
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_int,
+    ),
+    opinfo_core.OpInfo(
+        # Unique ID used to connect
+        #  TorchLibOpInfo("aten.bernoulli.p", ...)
+        # and
+        #  opinfo_core.OpInfo("aten.bernoulli.p", ...)
+        "aten.bernoulli.p",
+        aten_name="bernoulli.p",
+        op=torch.ops.aten.bernoulli.p,
+        # dtypes can be a tuple of (torch.float, torch.double).
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_bernoulli_p,
+    ),
+    opinfo_core.OpInfo(
+        # Deterministic bernoulli sampling where p is either 0 or 1
+        "aten.bernoulli.p_deterministic",
+        aten_name="bernoulli.p",
+        op=torch.ops.aten.bernoulli.p,
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
     ),
 ]

@@ -39,6 +39,14 @@ _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
 
 
+@torch_op("aten::_local_scalar_dense")
+def aten__local_scalar_dense(self: TTensor) -> TTensor:
+    """_local_scalar_dense(Tensor self) -> Scalar"""
+
+    # Return the first element in tensor as a scalar.
+    return op.Gather(op.Reshape(self, [-1]), 0)
+
+
 @torch_op("aten::abs")
 def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
@@ -946,10 +954,37 @@ def aten_batch_norm_update_stats(
     raise NotImplementedError()
 
 
-def aten_bernoulli(self: TensorType, generator: Optional[str] = None) -> TensorType:
-    """bernoulli(Tensor self, *, Generator? generator=None) -> Tensor"""
+@torch_op("aten::bernoulli")
+def aten_bernoulli(self: TTensor) -> TTensor:
+    """Proximal implementation of aten::bernoulli.default
 
-    raise NotImplementedError()
+    Other overloads under aten::bernoulli are
+      ['default', 'out', 'p', 'Tensor', 'Tensor_out', 'float_out'].
+    Note that due to the limitation of ONNX, we ignore the `generator` argument in
+      aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
+    """
+    rands = op.RandomUniformLike(
+        self,
+        high=1.0,
+        low=0.0,
+    )
+    output = op.Less(rands, self)
+    return op.CastLike(output, self)
+
+
+@torch_op("aten::bernoulli.p")
+def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
+    """Proximal implementation of aten::bernoulli.p(Tensor self, float p, *, Generator? generator=None)
+
+    Ignore `generator` due to the limit on ONNX expressiveness.
+    """
+    rands = op.RandomUniformLike(
+        self,
+        high=1.0,
+        low=0.0,
+    )
+    output = op.Less(rands, p)
+    return op.CastLike(output, self)
 
 
 def aten_bilinear(
@@ -1307,22 +1342,51 @@ def aten_complex(real: TensorType, imag: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_concat(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::concat")
+def aten_concat(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concat(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Combine the implementation with cat
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
-def aten_concatenate(tensors: Sequence[TensorType], dim: int = 0) -> TensorType:
+@torch_op("aten::concatenate")
+def aten_concatenate(tensors: Sequence[TTensor], dim: int = 0) -> TTensor:
     """concatenate(Tensor[] tensors, int dim=0) -> Tensor"""
 
-    raise NotImplementedError()
+    # TODO(justinchuby): Combine the implementation with cat
+    return op.ConcatFromSequence(tensors, axis=dim)
 
 
-def aten_conj(self: TensorType) -> TensorType:
+@torch_op("aten::conj")
+def aten_conj(self: TTensor) -> TTensor:
     """conj(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
+
+
+@torch_op("aten::conj", complex=True, private=True)
+def _complex_conjugate(self: TFloat) -> TFloat:
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    two = op.Constant(value_ints=[2])
+    neg_1 = op.Constant(value_ints=[-1])
+    # The last dimension is the real and imaginary parts
+
+    real = op.Slice(self, zero, one, neg_1)
+    imag = op.Slice(self, one, two, neg_1)
+    conjugated = op.Concat(real, op.Neg(imag), axis=-1)
+
+    return conjugated
+
+
+@torch_op("aten::conj", complex=True, trace_only=True)
+def aten_conj_complex(self: TFloat) -> TFloat:
+    """conj(Tensor(a) self) -> Tensor(a)"""
+
+    # TODO(#834): Allow calling scripted functions from other
+    # scripted functions and remove trace only.
+    return _complex_conjugate(self)
 
 
 def aten_conj_physical(self: TensorType) -> TensorType:
@@ -3475,10 +3539,41 @@ def aten_linear_backward(
     raise NotImplementedError()
 
 
-def aten_linspace(start: float, end: float, steps: int) -> TensorType:
+@torch_op("aten::linspace", trace_only=True)
+def aten_linspace(
+    start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, steps: int, dtype: int = -1
+) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if dtype == -1:
+        zero = op.CastLike(0.0, steps)
+        one = op.CastLike(1.0, steps)
+    elif _range_supported(dtype):
+        zero = op.Cast(0, to=dtype)
+        one = op.Cast(1, to=dtype)
+        start = op.Cast(start, to=dtype)
+        end = op.Cast(end, to=dtype)
+        steps = op.Cast(steps, to=dtype)
+    else:
+        # Cast input to float if dtype is not supported by Range,
+        # because the input dtype may be e.g. bfloat16 / int8 etc.
+        # which Range does not support. The output type is ensured because the output
+        # is casted to the specified dtype.
+        zero = op.Cast(0.0, to=FLOAT.dtype)
+        one = op.Cast(1.0, to=FLOAT.dtype)
+        start = op.Cast(start, to=FLOAT.dtype)
+        end = op.Cast(end, to=FLOAT.dtype)
+        steps = op.Cast(steps, to=FLOAT.dtype)
+
+    range_tensor = op.Range(zero, steps, one)
+
+    start = op.CastLike(start, end)
+    step = op.Div(
+        op.Sub(end, start),
+        op.Sub(steps, one),
+    )
+
+    return op.Add(op.Mul(range_tensor, step), start)
 
 
 @torch_op("aten::log")
@@ -3678,16 +3773,39 @@ def aten_lu_unpack(
     raise NotImplementedError()
 
 
-def aten_mH(self: TensorType) -> TensorType:
+@torch_op("aten::mH")
+def aten_mH(self: TRealOrUInt8) -> TRealOrUInt8:
     """mH(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # Taking the conjugate transpose of a real matrix is the same as the transpose
+    return op.Einsum(self, equation="...ij->...ji")
 
 
-def aten_mT(self: TensorType) -> TensorType:
+@torch_op("aten::mH", complex=True, trace_only=True)
+def aten_mH_complex(self: TFloat) -> TFloat:
+    """mH(Tensor(a) self) -> Tensor(a)"""
+
+    # TODO(#834): Allow calling scripted functions from other
+    # scripted functions and remove trace only.
+
+    # c is the last dimension being the real and imaginary parts
+    trasposed = op.Einsum(self, equation="...ijc->...jic")
+    return _complex_conjugate(trasposed)
+
+
+@torch_op("aten::mT")
+def aten_mT(self: TRealOrUInt8) -> TRealOrUInt8:
     """mT(Tensor(a) self) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    return op.Einsum(self, equation="...ij->...ji")
+
+
+@torch_op("aten::mT", complex=True)
+def aten_mT_complex(self: TFloat) -> TFloat:
+    """mT(Tensor(a) self) -> Tensor(a)"""
+
+    # c is the last dimension being the real and imaginary parts
+    return op.Einsum(self, equation="...ijc->...jic")
 
 
 def aten_margin_ranking_loss(

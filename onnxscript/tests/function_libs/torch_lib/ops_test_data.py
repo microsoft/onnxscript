@@ -26,7 +26,7 @@ You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fd
     are now fixed, removed the corresponding xfail.
 
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
-wrangler function. See `_cat_input_wrangler` for an example.
+wrangler function. See `_mean_input_wrangler` for an example.
 
 4. To test different ONNX functions that are registered as overloads of the same
     op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
@@ -205,15 +205,6 @@ def _avg_pool2d_input_wrangler(
         if isinstance(kernel_size, np.ndarray):
             kernel_size = kernel_size.tolist()
         kwargs["kernel_size"] = kernel_size
-    return args, kwargs
-
-
-def _cat_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Remove the self argument
-    if len(args) == 2:
-        kwargs["dim"] = args.pop()
     return args, kwargs
 
 
@@ -417,6 +408,10 @@ def _where_input_wrangler(
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
+    TorchLibOpInfo(
+        "aten._local_scalar_dense",
+        core_ops.aten__local_scalar_dense,
+    ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
@@ -504,15 +499,22 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="atleast_3d_single_tensor overload takes single tensor as input",
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
+    TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
+    TorchLibOpInfo(
+        # This string is a unique ID. In extra_opinfo.py, we
+        # also define test data for this ID with
+        # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
+        "aten.bernoulli.p",
+        core_ops.aten_bernoulli_p,
+        # Skip comparison for the output of this op because it is a random tensor.
+        nondeterministic=True,
+    ),
+    TorchLibOpInfo("aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
-    TorchLibOpInfo(
-        "cat",
-        core_ops.aten_cat,
-        input_wrangler=_cat_input_wrangler,
-    ).skip(
+    TorchLibOpInfo("cat", core_ops.aten_cat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
-        reason="cat does not support zero-dim tensors yet",
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
     TorchLibOpInfo(
@@ -525,6 +527,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
     TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("concat", core_ops.aten_concat).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
+    TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
+    TorchLibOpInfo("conj", core_ops.aten_conj),
+    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
@@ -604,6 +616,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isnan", core_ops.aten_isnan),
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo(
+        "linspace",
+        core_ops.aten_linspace,
+        trace_only=True,
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="op 'Range' doesn't support float16.",
+    )
+    .skip(
+        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
+        reason="aten::linspace with steps=1 is not supported by its definition.",
+    ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
     TorchLibOpInfo(
@@ -668,10 +693,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("dim") is None,
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
-    TorchLibOpInfo(
-        "min_dim",
-        core_ops.aten_min_dim,
-    )
+    TorchLibOpInfo("mH", core_ops.aten_mH),
+    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True, trace_only=True),
+    TorchLibOpInfo("mT", core_ops.aten_mT),
+    TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
+    TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
     .xfail(
         variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
@@ -1544,6 +1570,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_star
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
