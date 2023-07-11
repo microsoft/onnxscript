@@ -501,7 +501,7 @@ def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
-def sample_inputs_bernoulli_default(op_info, device, dtype, requires_grad, **kwargs):
+def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
 
     shapes = [
@@ -512,16 +512,18 @@ def sample_inputs_bernoulli_default(op_info, device, dtype, requires_grad, **kwa
     ]
 
     for shape in shapes:
-        t = torch_testing.make_tensor(
-            shape,
-            low=0,
-            high=1,
-            device=device,
-            dtype=dtype,
-            requires_grad=requires_grad,
-            **kwargs,
-        )
-        yield opinfo_core.SampleInput(t)
+        for p in (0, 1):
+            t = torch_testing.make_tensor(
+                shape,
+                low=0,
+                high=1,
+                device=device,
+                dtype=dtype,
+                requires_grad=requires_grad,
+                **kwargs,
+            )
+            yield opinfo_core.SampleInput(t, args=(p,))
+            yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
 OP_DB: List[opinfo_core.OpInfo] = [
@@ -680,10 +682,11 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs_bernoulli_p,
     ),
     opinfo_core.OpInfo(
-        "aten.bernoulli",
-        aten_name="bernoulli",
-        op=torch.ops.aten.bernoulli.default,
-        dtypes=common_dtype.floating_types(),
-        sample_inputs_func=sample_inputs_bernoulli_default,
+        # Deterministic bernoulli sampling where p is either 0 or 1
+        "aten.bernoulli.p_deterministic",
+        aten_name="bernoulli.p",
+        op=torch.ops.aten.bernoulli.p,
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
     ),
 ]
