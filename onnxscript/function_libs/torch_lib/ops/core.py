@@ -41,7 +41,7 @@ _MATH_PI = math.pi
 
 @torch_op("aten::_local_scalar_dense")
 def aten__local_scalar_dense(self: TTensor) -> TTensor:
-    """aten::_local_scalar_dense(Tensor self) -> Scalar"""
+    """_local_scalar_dense(Tensor self) -> Scalar"""
 
     # Return the first element in tensor as a scalar.
     return op.Gather(op.Reshape(self, [-1]), 0)
