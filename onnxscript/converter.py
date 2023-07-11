@@ -500,7 +500,7 @@ class Converter:
             return ConverterExpression(results, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
-    def translate_opt_expr(self, node, target="tmp"):
+    def translate_opt_expr(self, node):
         """Translation of an expression where "None" is permitted.
 
         (eg., for an optional argument)
@@ -508,7 +508,7 @@ class Converter:
         """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
             return ConverterExpression(None, ConverterExpressionKind.ANY)
-        return self.translate_expr(node, target)
+        return self.translate_expr(node)
 
     def translate_subscript_expr(self, node, target):
         """List of supported syntaxes is below.
@@ -550,7 +550,8 @@ class Converter:
         var = self.translate_expr(node.value)
         var_name = var.name
         if target is None:
-            target = self.generate_unique_name(f"{var_name}_subscripted")
+            target = f"{var_name}_subscripted"
+        target = self.generate_unique_name(target)
         indices = ast_utils.normalize_subscript_expr(node)
         info = self.source_of(node.slice if PY_VERSION_GE_39 else node)
 

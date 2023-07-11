@@ -559,6 +559,15 @@ class TestConverter(testutils.TestBase):
         node = none_as_input.to_function_proto().node[0]
         self.assertEqual(node.input[1], "")
 
+    def test_unique_names_in_subscript_expr(self):
+        @script()
+        def nested_index_expr(X):
+            return op.Add(op.Shape(X)[-1], 1)
+
+        nodes = nested_index_expr.to_function_proto().node
+        assigned_names = [n.output[0] for n in nodes]
+        self.assertEqual(len(assigned_names), len(set(assigned_names)))
+
     def test_no_duplicate_output_name(self):
         """Test that the converter does not generate duplicate output names."""
 
