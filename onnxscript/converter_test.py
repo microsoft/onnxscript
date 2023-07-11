@@ -568,6 +568,18 @@ class TestConverter(testutils.TestBase):
         assigned_names = [n.output[0] for n in nodes]
         self.assertEqual(len(assigned_names), len(set(assigned_names)))
 
+    def test_no_duplicate_output_name(self):
+        """Test that the converter does not generate duplicate output names."""
+
+        @script()
+        def duplicate_output(X):
+            Y = op.Neg(X)
+            return Y, Y
+
+        # The converter should generate distinct names for the two outputs
+        outputs = duplicate_output.to_function_proto().output
+        self.assertNotEqual(outputs[0], outputs[1])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
