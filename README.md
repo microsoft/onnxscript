@@ -43,30 +43,6 @@ cd onnxscript
 pip install -e .
 ```
 
-### Using Experimental ONNX and ONNX Runtime Packages
-
-Some ONNX Script features depend on changes to ONNX that are not yet
-available in a released ONNX package.
-
-To enable support for these features, experimental dependency packages
-must be installed:
-
-```bash
-pip uninstall onnx onnxruntime
-
-pip install --pre -f https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html ort-function-experiment-nightly
-
-pip install onnx-weekly
-```
-
-With experimental ONNX, one can write a script function with optional
-attributes. Examples are in [onnxfns1A.py][onnxfns1A.py]. To validate
-that experimental features are enabled:
-
-```bash
-pytest onnxscript/tests/functions/onnxfns1A_test.py
-```
-
 ### Run Unit Tests
 
 ```bash

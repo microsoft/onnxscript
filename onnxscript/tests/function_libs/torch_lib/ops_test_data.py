@@ -564,9 +564,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("exp2", core_ops.aten_exp2),
     TorchLibOpInfo("expand", core_ops.aten_expand),
     TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
-    TorchLibOpInfo("erf", special_ops.aten_special_erf),
+    TorchLibOpInfo("erf", special_ops.aten_special_erf).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Erf for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
     TorchLibOpInfo(
         "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Erf for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
     TorchLibOpInfo("fill", core_ops.aten_fill),
@@ -620,6 +626,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linspace",
         core_ops.aten_linspace,
         trace_only=True,
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
     )
     .xfail(
         dtypes=[torch.float16],
@@ -700,6 +710,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
     .xfail(
         variant_name="reduction_with_dim",
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Min for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
         reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
     )
@@ -711,7 +726,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "min_other",
         core_ops.aten_min_other,
-    ).xfail(
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Min for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another tensor as args",
@@ -896,10 +917,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu",
         nn_ops.aten_relu,
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     TorchLibOpInfo(
         "nn.functional.relu6",
         nn_ops.aten_relu6,
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad2d",
@@ -1105,7 +1132,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    TorchLibOpInfo("topk", core_ops.aten_topk),
+    TorchLibOpInfo("topk", core_ops.aten_topk).xfail(
+        dtypes=(torch.int64,),
+        enabled_if=not ops_test_common.IS_WINDOWS,
+        reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
+    ),
     TorchLibOpInfo("tril", core_ops.aten_tril),
     TorchLibOpInfo("triu", core_ops.aten_triu),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
@@ -1175,8 +1206,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
     ),
-    TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True),
-    TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True),
+    TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMin for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
     TorchLibOpInfo(
         "as_strided",
         core_ops.aten_as_strided,
@@ -1237,6 +1274,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_layer_norm,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
     TorchLibOpInfo(
@@ -1253,6 +1293,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="reduction_with_dim",
         reason="fixme: current implementation gets shape inference error",
         test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ReduceMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     TorchLibOpInfo(
         # Custom from extra_opinfo
