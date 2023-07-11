@@ -2729,8 +2729,8 @@ def aten_gather(
         if op.Size(index) == 0:  # Return empty array
             result = op.CastLike(index, self)
         else:
-            index_int32 = op.Cast(index, to=INT32.dtype)
-            result = op.GatherElements(self, index_int32, axis=dim)
+            index = op.Cast(index, to=INT64.dtype)
+            result = op.GatherElements(self, index, axis=dim)
     return result
 
 
