@@ -15,6 +15,7 @@ from typing import Optional, Sequence
 
 from onnxscript import INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import TTensor
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -246,10 +247,12 @@ def prims_cosh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def prims_device_put(a: TensorType, device: str) -> TensorType:
+@torch_op("prims::device_put")
+def prims_device_put(a: TTensor, device: str) -> TTensor:  # pylint: disable=unused-argument
     """device_put(Tensor a, Device device) -> Tensor"""
 
-    raise NotImplementedError()
+    # ONNX does not have the notion of a "device", so we just return the input
+    return op.Identity(a)
 
 
 def prims_digamma(self: TensorType) -> TensorType:
