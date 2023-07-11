@@ -1134,6 +1134,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("topk", core_ops.aten_topk).xfail(
         dtypes=(torch.int64,),
+        enabled_if=not ops_test_common.IS_WINDOWS,
         reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
     ),
     TorchLibOpInfo("tril", core_ops.aten_tril),
