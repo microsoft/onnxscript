@@ -3664,7 +3664,7 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
 
 
 @torch_op("aten::logsumexp")
-def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
+def aten_logsumexp(self: TFloat, dim: INT64, keepdim: int = False) -> TFloat:
     """logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:
