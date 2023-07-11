@@ -970,6 +970,7 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
 
     Ignore `generator` due to the limit on ONNX expressiveness.
     """
+    # NOTE: We will lose some precision when input is float64 but that's considered insignificant
     self_float = op.Cast(self, to=FLOAT.dtype)
     rands = op.RandomUniformLike(
         self_float,
