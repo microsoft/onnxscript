@@ -556,8 +556,7 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "aten._local_scalar_dense",
-        # pylint: disable=protected-access
-        op=torch.ops.aten._local_scalar_dense,
+        op=torch.ops.aten._local_scalar_dense,  # pylint: disable=protected-access
         aten_name="_local_scalar_dense",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs__local_scalar_dense,
