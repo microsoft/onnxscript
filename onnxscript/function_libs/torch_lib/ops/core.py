@@ -958,18 +958,13 @@ def aten_batch_norm_update_stats(
 def aten_bernoulli(self: TTensor) -> TTensor:
     """Proximal implementation of aten::bernoulli.default
 
-    Other overloads under aten::bernoulli are
-      ['default', 'out', 'p', 'Tensor', 'Tensor_out', 'float_out'].
     Note that due to the limitation of ONNX, we ignore the `generator` argument in
       aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
     """
-    rands = op.RandomUniformLike(
-        self,
-        high=1.0,
-        low=0.0,
-    )
-    output = op.Less(rands, self)
-    return op.CastLike(output, self)
+    # NOTE: We will lose some precision when input is float64 but that's considered insignificant
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    sampled = op.Bernoulli(self_float)
+    return op.CastLike(sampled, self)
 
 
 @torch_op("aten::bernoulli.p")
@@ -978,13 +973,15 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
 
     Ignore `generator` due to the limit on ONNX expressiveness.
     """
+    # NOTE: We will lose some precision when input is float64 but that's considered insignificant
+    self_float = op.Cast(self, to=FLOAT.dtype)
     rands = op.RandomUniformLike(
-        self,
+        self_float,
         high=1.0,
         low=0.0,
     )
-    output = op.Less(rands, p)
-    return op.CastLike(output, self)
+    sampled = op.Less(rands, p)
+    return op.CastLike(sampled, self)
 
 
 def aten_bilinear(
@@ -2188,9 +2185,10 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
 
 
 @torch_op("aten::div")
-def aten_div(self: TReal, other: TReal) -> TReal:
+def aten_div(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
 
 
@@ -2731,8 +2729,8 @@ def aten_gather(
         if op.Size(index) == 0:  # Return empty array
             result = op.CastLike(index, self)
         else:
-            index_int32 = op.Cast(index, to=INT32.dtype)
-            result = op.GatherElements(self, index_int32, axis=dim)
+            index = op.Cast(index, to=INT64.dtype)
+            result = op.GatherElements(self, index, axis=dim)
     return result
 
 
@@ -3699,7 +3697,7 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
 
 
 @torch_op("aten::logsumexp")
-def aten_logsumexp(self: TReal, dim: INT64, keepdim: int = False) -> TReal:
+def aten_logsumexp(self: TFloat, dim: INT64, keepdim: int = False) -> TFloat:
     """logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:

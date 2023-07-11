@@ -43,11 +43,8 @@ TESTED_DTYPES = (
     # torch.int8,
     # torch.int16,
     # torch.int32,
-    # torch.int64,
+    torch.int64,
     # torch.uint8,
-    # torch.uint16,
-    # torch.uint32,
-    # torch.uint64,
     # torch.complex64,
     # ......
 )
