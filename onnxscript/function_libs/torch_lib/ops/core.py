@@ -39,6 +39,14 @@ _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
 
 
+@torch_op("aten::_local_scalar_dense")
+def aten__local_scalar_dense(self: TTensor) -> TTensor:
+    """_local_scalar_dense(Tensor self) -> Scalar"""
+
+    # Return the first element in tensor as a scalar.
+    return op.Gather(op.Reshape(self, [-1]), 0)
+
+
 @torch_op("aten::abs")
 def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
@@ -946,10 +954,37 @@ def aten_batch_norm_update_stats(
     raise NotImplementedError()
 
 
-def aten_bernoulli(self: TensorType, generator: Optional[str] = None) -> TensorType:
-    """bernoulli(Tensor self, *, Generator? generator=None) -> Tensor"""
+@torch_op("aten::bernoulli")
+def aten_bernoulli(self: TTensor) -> TTensor:
+    """Proximal implementation of aten::bernoulli.default
 
-    raise NotImplementedError()
+    Other overloads under aten::bernoulli are
+      ['default', 'out', 'p', 'Tensor', 'Tensor_out', 'float_out'].
+    Note that due to the limitation of ONNX, we ignore the `generator` argument in
+      aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
+    """
+    rands = op.RandomUniformLike(
+        self,
+        high=1.0,
+        low=0.0,
+    )
+    output = op.Less(rands, self)
+    return op.CastLike(output, self)
+
+
+@torch_op("aten::bernoulli.p")
+def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
+    """Proximal implementation of aten::bernoulli.p(Tensor self, float p, *, Generator? generator=None)
+
+    Ignore `generator` due to the limit on ONNX expressiveness.
+    """
+    rands = op.RandomUniformLike(
+        self,
+        high=1.0,
+        low=0.0,
+    )
+    output = op.Less(rands, p)
+    return op.CastLike(output, self)
 
 
 def aten_bilinear(
