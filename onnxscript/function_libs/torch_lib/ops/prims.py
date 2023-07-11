@@ -248,7 +248,10 @@ def prims_cosh(self: TensorType) -> TensorType:
 
 
 @torch_op("prims::device_put")
-def prims_device_put(a: TTensor, device: str) -> TTensor:  # pylint: disable=unused-argument
+def prims_device_put(
+    a: TTensor,
+    device: str = "unspecified",  # pylint: disable=unused-argument
+) -> TTensor:
     """device_put(Tensor a, Device device) -> Tensor"""
 
     # ONNX does not have the notion of a "device". So we just return the input
