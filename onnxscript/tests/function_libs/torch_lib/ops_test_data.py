@@ -505,6 +505,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Skip comparison for the output of this op because it is a random tensor.
         nondeterministic=True,
     ),
+    TorchLibOpInfo("aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo("cat", core_ops.aten_cat).skip(
