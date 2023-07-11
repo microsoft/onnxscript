@@ -499,15 +499,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="atleast_3d_single_tensor overload takes single tensor as input",
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
-    TorchLibOpInfo(
-        # This string is a unique ID. In extra_opinfo.py, we
-        # also define test data for this ID with
-        # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
-        "aten.bernoulli",
-        core_ops.aten_bernoulli,
-        # Skip comparison for the output of this op because it is a random tensor.
-        nondeterministic=True,
-    ),
+    TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
     TorchLibOpInfo(
         # This string is a unique ID. In extra_opinfo.py, we
         # also define test data for this ID with
@@ -517,6 +509,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Skip comparison for the output of this op because it is a random tensor.
         nondeterministic=True,
     ),
+    TorchLibOpInfo("aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo("cat", core_ops.aten_cat).skip(
