@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 import logging
 from typing import Dict, Mapping, Optional, Sequence, Set
@@ -285,9 +286,11 @@ class TypeConstraintDeducer:
                     name=f"{schema.name}_{name}",
                     type_strs=new_type_constraint.type_strs,
                 )
-            prev_constraint_size = len(new_type_constraint.type_strs)
+            prev_value_constraint = copy.deepcopy(value.type_constraint)
             new_type_constraint.bind_value(value)
-            if len(new_type_constraint.type_strs) < prev_constraint_size:
+            if prev_value_constraint is not None and len(
+                prev_value_constraint.type_strs
+            ) > len(new_type_constraint.type_strs):
                 logger.info(
                     "Type constraint is tightened due to binding %s with parameter %s in node %s(%s)",
                     value.name,
@@ -295,6 +298,9 @@ class TypeConstraintDeducer:
                     node.op_type,
                     node.name,
                 )
+                logger.info("  %s", prev_value_constraint.type_strs)
+                logger.info("->")
+                logger.info("  %s", new_type_constraint.type_strs)
 
     def _perform_extra_type_constraint_tightening(self, node: onnx.NodeProto):
         if node.op_type == "If":

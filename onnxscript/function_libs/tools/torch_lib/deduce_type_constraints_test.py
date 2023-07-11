@@ -42,6 +42,10 @@ class TestDeduceTypeConstraints(unittest.TestCase):
             self.skipTest("Unimplemented: function contains loop or scan node.")
         if onnx_function.name in self._SKIP_FUNCTIONS_WITH_NESTED_FUNCTION:
             self.skipTest("Unimplemented: function contains nested function.")
+        if onnx_function.name == "_attention_scale":
+            self.skipTest(
+                "Bug: generated function_proto is non-SSA. https://github.com/microsoft/onnxscript/issues/848"
+            )
         signature_type_constraint = deduce_type_constraints.deduce_type_constraints(
             onnx_function
         )
