@@ -251,7 +251,7 @@ def prims_cosh(self: TensorType) -> TensorType:
 def prims_device_put(a: TTensor, device: str) -> TTensor:  # pylint: disable=unused-argument
     """device_put(Tensor a, Device device) -> Tensor"""
 
-    # ONNX does not have the notion of a "device", so we just return the input
+    # ONNX does not have the notion of a "device". So we just return the input
     return op.Identity(a)
 
 
