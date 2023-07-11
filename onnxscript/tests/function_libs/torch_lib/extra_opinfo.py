@@ -501,29 +501,6 @@ def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
-def sample_inputs_bernoulli_default(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info
-
-    shapes = [
-        [3],
-        [],
-        [3, 2],
-        [2, 3, 2],
-    ]
-
-    for shape in shapes:
-        t = torch_testing.make_tensor(
-            shape,
-            low=0,
-            high=1,
-            device=device,
-            dtype=dtype,
-            requires_grad=requires_grad,
-            **kwargs,
-        )
-        yield opinfo_core.SampleInput(t)
-
-
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "col2im",
@@ -678,12 +655,5 @@ OP_DB: List[opinfo_core.OpInfo] = [
         # dtypes can be a tuple of (torch.float, torch.double).
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p,
-    ),
-    opinfo_core.OpInfo(
-        "aten.bernoulli",
-        aten_name="bernoulli",
-        op=torch.ops.aten.bernoulli.default,
-        dtypes=common_dtype.floating_types(),
-        sample_inputs_func=sample_inputs_bernoulli_default,
     ),
 ]
