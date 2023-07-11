@@ -955,16 +955,13 @@ def aten_batch_norm_update_stats(
 
 
 @torch_op("aten::bernoulli")
-def aten_bernoulli(self: TTensor) -> TTensor:
+def aten_bernoulli(self: TFloat) -> TFloat:
     """Proximal implementation of aten::bernoulli.default
 
     Note that due to the limitation of ONNX, we ignore the `generator` argument in
       aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
     """
-    # NOTE: We will lose some precision when input is float64 but that's considered insignificant
-    self_float = op.Cast(self, to=FLOAT.dtype)
-    sampled = op.Bernoulli(self_float)
-    return op.CastLike(sampled, self)
+    return op.Bernoulli(self)
 
 
 @torch_op("aten::bernoulli.p")
