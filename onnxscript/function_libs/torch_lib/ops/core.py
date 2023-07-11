@@ -2153,9 +2153,10 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
 
 
 @torch_op("aten::div")
-def aten_div(self: TReal, other: TReal) -> TReal:
+def aten_div(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
+    # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
 
 
