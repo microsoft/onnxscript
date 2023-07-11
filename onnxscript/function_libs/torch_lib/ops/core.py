@@ -963,13 +963,14 @@ def aten_bernoulli(self: TTensor) -> TTensor:
     Note that due to the limitation of ONNX, we ignore the `generator` argument in
       aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
     """
+    self_float = op.Cast(self, to=FLOAT.dtype)
     rands = op.RandomUniformLike(
-        self,
+        self_float,
         high=1.0,
         low=0.0,
     )
-    output = op.Less(rands, self)
-    return op.CastLike(output, self)
+    sampled = op.Less(rands, self_float)
+    return op.CastLike(sampled, self)
 
 
 @torch_op("aten::bernoulli.p")
@@ -978,8 +979,9 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
 
     Ignore `generator` due to the limit on ONNX expressiveness.
     """
+    self_float = op.Cast(self, to=FLOAT.dtype)
     rands = op.RandomUniformLike(
-        self,
+        self_float,
         high=1.0,
         low=0.0,
     )
