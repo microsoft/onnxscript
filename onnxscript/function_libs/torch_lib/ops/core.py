@@ -958,19 +958,12 @@ def aten_batch_norm_update_stats(
 def aten_bernoulli(self: TTensor) -> TTensor:
     """Proximal implementation of aten::bernoulli.default
 
-    Other overloads under aten::bernoulli are
-      ['default', 'out', 'p', 'Tensor', 'Tensor_out', 'float_out'].
     Note that due to the limitation of ONNX, we ignore the `generator` argument in
       aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
     """
     # NOTE: We will lose some precision when input is float64 but that's considered insignificant
     self_float = op.Cast(self, to=FLOAT.dtype)
-    rands = op.RandomUniformLike(
-        self_float,
-        high=1.0,
-        low=0.0,
-    )
-    sampled = op.Less(rands, self_float)
+    sampled = op.Bernoulli(self_float)
     return op.CastLike(sampled, self)
 
 
