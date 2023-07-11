@@ -3026,10 +3026,10 @@ def aten_imag(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_index(self: TensorType, indices: Optional[Sequence[TensorType]]) -> TensorType:
+def aten_index(self: TTensor, indices: Sequence[INT64]) -> TTensor:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Gather(self, indices)
 
 
 def aten_index_add(
