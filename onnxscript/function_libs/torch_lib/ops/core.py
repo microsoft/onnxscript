@@ -987,8 +987,8 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
         high=1.0,
         low=0.0,
     )
-    output = op.Less(rands, p)
-    return op.CastLike(output, self)
+    sampled = op.Less(rands, p)
+    return op.CastLike(sampled, self)
 
 
 def aten_bilinear(
