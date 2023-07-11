@@ -408,6 +408,10 @@ def _where_input_wrangler(
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
+    TorchLibOpInfo(
+        "aten._local_scalar_dense",
+        core_ops.aten__local_scalar_dense,
+    ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
