@@ -963,7 +963,7 @@ def aten_bernoulli(self: TTensor) -> TTensor:
     Note that due to the limitation of ONNX, we ignore the `generator` argument in
       aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
     """
-    # NOTE: We will lose some precision when input is int64 but that's considered insignificant
+    # NOTE: We will lose some precision when input is float64 but that's considered insignificant
     self_float = op.Cast(self, to=FLOAT.dtype)
     rands = op.RandomUniformLike(
         self_float,
@@ -980,7 +980,7 @@ def aten_bernoulli_p(self: TTensor, p: float) -> TTensor:
 
     Ignore `generator` due to the limit on ONNX expressiveness.
     """
-    # NOTE: We will lose some precision when input is int64 but that's considered insignificant
+    # NOTE: We will lose some precision when input is float64 but that's considered insignificant
     self_float = op.Cast(self, to=FLOAT.dtype)
     rands = op.RandomUniformLike(
         self_float,
