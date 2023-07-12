@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from types import FunctionType
 from typing import Any, Callable, Generator, Optional
 
 import onnxscript
+
+# Regex that will match "<namespace>::<op_name>[.<overload>]"
+_QUALIFIED_OPERATOR_NAME_REGEX = re.compile(
+    r"^(?P<namespace>[a-zA-Z0-9_]+)::(?P<name>[a-zA-Z0-9_]+)(?P<overload>\.[a-zA-Z0-9._]+)?$"
+)
 
 
 class OverloadedFunction:
@@ -63,8 +69,27 @@ class Registry:
 default_registry = Registry()
 
 
+def _check_and_normalize_names(name: str | tuple[str, ...]) -> tuple[str, ...]:
+    names: tuple[str, ...]
+
+    if isinstance(name, str):
+        names = (name,)
+    else:
+        names = name
+    if not isinstance(names, tuple):
+        raise TypeError(f"Name must be a string or a tuple of strings, got {name}")
+    for name_ in names:
+        if name_.endswith(".default") or not _QUALIFIED_OPERATOR_NAME_REGEX.fullmatch(name_):
+            raise ValueError(
+                f"Invalid name '{name_}'. Must be in the form 'namespace::name.overload' "
+                "or 'namespace::name' for default overloads."
+            )
+
+    return names
+
+
 def torch_op(
-    name,
+    name: str | tuple[str, ...],
     *,
     registry: Optional[Registry] = None,
     trace_only: bool = False,
@@ -74,7 +99,10 @@ def torch_op(
     """Register a torch op.
 
     Args:
-        name: ATen name of the function. E.g. "aten::add".
+        name: Qualified ATen name of the function. E.g. "aten::relu", "aten::add.Tensor".
+            Or a tuple of names e.g. ("aten::add.Scalar", "aten::add.Tensor").
+            Default overloads should be specified by omitting the overload part,
+            i.e. ""aten::relu" instead of "aten::relu.default".
         registry: Registry to register the function to. If None, the default registry is used.
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
@@ -98,7 +126,8 @@ def torch_op(
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        registry.register(processed_func, name, private=private, complex=complex)
+        for name_ in _check_and_normalize_names(name):
+            registry.register(processed_func, name_, private=private, complex=complex)
         return processed_func
 
     return wrapper
