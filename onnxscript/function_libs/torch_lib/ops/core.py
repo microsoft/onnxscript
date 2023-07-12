@@ -33,6 +33,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+import numpy as np
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
@@ -3025,16 +3026,44 @@ def aten_imag(self: TensorType) -> TensorType:
 
     raise NotImplementedError()
 
+def are_consecutive(lst):
+    if len(lst) == 0:
+        return True
+    else:
+        return sorted(lst) == list(range(min(lst), max(lst)+1))
 
-@torch_op("aten::index.Tensor")
-def aten_index(self: TTensor, indices: Sequence[INT64]) -> TTensor:
+def _is_none_in_middle(indices):
+    not_none_indices = [i for i, idx in enumerate(indices) if idx is not None]
+    return not are_consecutive(not_none_indices)
+
+@torch_op("aten::index", trace_only=True)
+def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
 
-    result = self
-    for i in range(op.SequenceLength(indices)):
-        result = op.Gather(result, op.SequenceAt(indices, i))
+    ordered_indices = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+    ordered_indices += [i for i in range(len(ordered_indices), len(self.shape))]
 
-    return result
+    self = op.Transpose(self, perm=ordered_indices)
+
+    # Need broadcast concat lol.
+    not_none_indices = [idx for idx in indices if idx is not None]
+    broadcast_shape = np.broadcast_shapes(*[idx.shape for idx in not_none_indices])
+    final_index = op.Concat(*(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices), axis=-1)
+
+    self = op.GatherND(self, final_index, batch_dims=0)
+    if _is_none_in_middle(indices):
+        return self
+
+    # Need to transpose back.
+    adv_res_rank = len(broadcast_shape)
+    # [adv1, adv2, ..., adv_res_rank, x1, x2, ..., xk, ..., xn] -> [x1, x2, ..., xk, adv1, ..., adv_res_rank, ..., xn]
+    perm = (
+        list(range(adv_res_rank, adv_res_rank + ordered_indices[0])) +
+        list(range(0, adv_res_rank)) +
+        list(range(adv_res_rank + ordered_indices[0], len(ordered_indices) + adv_res_rank - len(not_none_indices)))
+    )
+
+    return op.Transpose(self, perm=perm)
 
 
 def aten_index_add(
