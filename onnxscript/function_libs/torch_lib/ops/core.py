@@ -3046,12 +3046,23 @@ def _has_none_in_middle(indices) -> bool:
 def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
 
-    # Move the None indices to the end
-    ordered_indices = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+    # NOTE: Understanding aten::index
+    # The indexing operation x[0, :, 1:2, tensor([[4,5]])] will be translated to
+    # A bunch of Slice operations, followed by aten::index with
+    # self = rank ? tensor
+    # indices = [None, None, None, tensor([[4,5]])]
+    # TODO(justinchuby): Clarify what happens with 0
+
+    # reordered_positions is the permutation of the index positions where
+    # positions with None are move to the end
+    # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
+    reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
     # Fill the list with the remaining indices up to the rank of the tensor
-    ordered_indices = [*ordered_indices, *range(len(ordered_indices), len(self.shape))]
-    # Transpose the tensor to the axis in the order of [provided, None, not provided]
-    self = op.Transpose(self, perm=ordered_indices)
+    # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
+    # then reordered_positions = [1, 3, 0, 2, 4, 5]
+    reordered_positions = [*reordered_positions, *range(len(reordered_positions), len(self.shape))]
+    # Transpose self according to the reordered positions
+    self = op.Transpose(self, perm=reordered_positions)
 
     # Broadcast the indices to the same shape then concatenate
     not_none_indices = [idx for idx in indices if idx is not None]
@@ -3064,18 +3075,40 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     )
 
     self = op.GatherND(self, final_index, batch_dims=0)
+
     if _has_none_in_middle(indices):
+        # If there is None in the middle, Advanced Indexing cannot decide where to put
+        # the new dimensions. So it places them in the front, like GatherND does.
         return self
 
-    # Need to transpose back.
-    adv_res_rank = len(not_none_indices)
-    # [adv1, adv2, ..., adv_res_rank, x1, x2, ..., xk, ..., xn] -> [x1, x2, ..., xk, adv1, ..., adv_res_rank, ..., xn]
+    # When the indices are consecutive, Advanced Indexing will place the new dimensions
+    # (aka. the broadcasted shape) in the middle, replacing the original [x1, ..., xk] axes.
+    #
+    # Input index axes (three parts):
+    #   [
+    #      x_None_front_1, ... x_None_front_m,
+    #      x1, ..., xk,
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    # GatherND result axes:
+    #   [
+    #      *broadcasted_shape(x1, x2, ..., xk),
+    #      x_None_front_1, ... x_None_front_m,
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    # (Transpose here)
+    # Advanced indexing result axes: [x_None_front_1, ... x_None_front_m, *brocasted_shape(x1, x2, ..., xk), x_None_back_1, ..., x_None_back_m]
+    #
+    # Need to transpose the result of GatherND to match this axes ordering.
+    advanced_indexing_rank = len(not_none_indices)
+    first_not_none_index = reordered_positions[0]  # x_None_front_m + 1
+    x_none_back_1_position = advanced_indexing_rank + first_not_none_index
     perm = [
-        *range(adv_res_rank, adv_res_rank + ordered_indices[0]),
-        *range(0, adv_res_rank),
+        *range(advanced_indexing_rank, x_none_back_1_position),
+        *range(0, advanced_indexing_rank),
         *range(
-            adv_res_rank + ordered_indices[0],
-            len(ordered_indices) + adv_res_rank - len(not_none_indices),
+            x_none_back_1_position,
+            len(reordered_positions) + advanced_indexing_rank - len(not_none_indices),
         ),
     ]
 
