@@ -1425,17 +1425,14 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     return op.Pad(self, onnx_padding, value)
 
 
-@torch_op("aten::contiguous", trace_only=True)
-def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> TTensor:
+@torch_op("aten::contiguous")
+def aten_contiguous(
+    self: TTensor, memory_format: str = "contiguous_format"  # pylint: disable=unused-argument
+) -> TTensor:
     """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
-    if memory_format in ["contiguous_format", "preserve_format"]:
-        return op.Identity(self)
-    else:
-        # TODO: Find out a way to annotate constraints for argument, as part of the function meta data structure.
-        raise NotImplementedError(
-            "memory_format value supports 'contiguous_format' or 'preserve_format' only."
-        )
+    # ONNX does not have the notion of memory_format. It is always treated as a no-op.
+    return op.Identity(self)
 
 
 @torch_op("aten::conv1d", trace_only=True)

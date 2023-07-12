@@ -1232,7 +1232,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Tensor-likes are not close. https://github.com/microsoft/onnxruntime/issues/16007",
     ),
     TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
-    TorchLibOpInfo("contiguous", core_ops.aten_contiguous, trace_only=True),
+    TorchLibOpInfo("contiguous", core_ops.aten_contiguous),
     TorchLibOpInfo(
         "convolution",
         core_ops.aten_convolution,
