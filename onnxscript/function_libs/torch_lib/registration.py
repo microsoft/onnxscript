@@ -81,8 +81,8 @@ def _check_and_normalize_names(name: str | tuple[str, ...]) -> tuple[str, ...]:
     for name_ in names:
         if name_.endswith(".default") or not _QUALIFIED_OPERATOR_NAME_REGEX.fullmatch(name_):
             raise ValueError(
-                f"Invalid name '{name_}'. Must be in the form 'namespace::name.overload' "
-                "or 'namespace::name' for default overloads."
+                f"Invalid name '{name_}'. Must be in the form 'namespace::name' for default overloads "
+                "or 'namespace::name.overload' for other overloads."
             )
 
     return names
@@ -102,7 +102,7 @@ def torch_op(
         name: Qualified ATen name of the function. E.g. "aten::relu", "aten::add.Tensor".
             Or a tuple of names e.g. ("aten::add.Scalar", "aten::add.Tensor").
             Default overloads should be specified by omitting the overload part,
-            i.e. ""aten::relu" instead of "aten::relu.default".
+            i.e. "aten::relu" instead of "aten::relu.default".
         registry: Registry to register the function to. If None, the default registry is used.
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
