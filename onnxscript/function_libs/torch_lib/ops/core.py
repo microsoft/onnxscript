@@ -3026,10 +3026,15 @@ def aten_imag(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::index.Tensor")
 def aten_index(self: TTensor, indices: Sequence[INT64]) -> TTensor:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
 
-    return op.Gather(self, indices)
+    result = self
+    for i in range(op.SequenceLength(indices)):
+        result = op.Gather(result, op.SequenceAt(indices, i))
+
+    return result
 
 
 def aten_index_add(

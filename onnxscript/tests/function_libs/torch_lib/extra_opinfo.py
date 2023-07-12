@@ -446,6 +446,22 @@ def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
 
 
+def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+    s = 5
+    test_args = [
+        ([common_methods_invocations.index_variable(2, s, device=device)],),
+        # ([torch.tensor()],)
+    ]
+
+    for args in test_args:
+        yield opinfo_core.SampleInput(make_arg((s, s, s)), args=args)
+
+
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -582,8 +598,16 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "aten.index.Tensor",
+        dtypes=common_dtype.all_types_and_complex_and(
+            torch.bool, torch.float16, torch.bfloat16, torch.chalf
+        ),
+        aten_name="index",
+        op=torch.ops.aten.index.Tensor,
+        sample_inputs_func=sample_inputs_index,
+    ),
+    opinfo_core.OpInfo(
         "layer_norm",
-        aliases=("layer_norm",),
         aten_name="layer_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_layer_norm,
