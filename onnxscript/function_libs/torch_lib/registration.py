@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from types import FunctionType
 from typing import Any, Callable, Generator, Optional
 
 import onnxscript
+
+# Regex that will match "aten::add" and "aten::add.Tensor"
+_QUALIFIED_OPERATOR_NAME_REGEX = re.compile(
+    r"^(?P<namespace>[a-zA-Z0-9_]+)::(?P<name>[a-zA-Z0-9_]+)(?P<overload>\.[a-zA-Z0-9._]+)?$"
+)
 
 
 class OverloadedFunction:
@@ -63,6 +69,25 @@ class Registry:
 default_registry = Registry()
 
 
+def _check_and_normalized_names(name: str | tuple[str, ...]) -> tuple[str, ...]:
+    names: tuple[str, ...]
+
+    if isinstance(name, str):
+        names = (name,)
+    else:
+        names = name
+    if not isinstance(names, tuple):
+        raise TypeError(f"Name must be a string or a tuple of strings, got {name}")
+    for name_ in names:
+        if name_.endswith(".default") or not _QUALIFIED_OPERATOR_NAME_REGEX.fullmatch(name_):
+            raise ValueError(
+                f"Invalid name '{name_}'. Must be in the form 'namespace::name.overload' "
+                "or 'namespace::name' for default overloads."
+            )
+
+    return names
+
+
 def torch_op(
     name: str | tuple[str, ...],
     *,
@@ -99,13 +124,7 @@ def torch_op(
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        if isinstance(name, str):
-            names = (name,)
-        else:
-            names = name
-        if not isinstance(names, tuple):
-            raise TypeError(f"Name must be a string or a tuple of strings, got {names}")
-        for name_ in names:
+        for name_ in _check_and_normalized_names(name):
             registry.register(processed_func, name_, private=private, complex=complex)
         return processed_func
 
