@@ -64,7 +64,7 @@ default_registry = Registry()
 
 
 def torch_op(
-    name,
+    name: str | tuple[str, ...],
     *,
     registry: Optional[Registry] = None,
     trace_only: bool = False,
