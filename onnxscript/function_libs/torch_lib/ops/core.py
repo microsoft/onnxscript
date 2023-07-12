@@ -3028,52 +3028,56 @@ def aten_imag(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def are_consecutive(lst):
-    if len(lst) == 0:
+def _are_consecutive(sorted_list: Sequence[int]) -> bool:
+    """Returns True if a sorted list contains consecutive numbers."""
+    if not sorted_list:
         return True
-    else:
-        return sorted(lst) == list(range(min(lst), max(lst) + 1))
+
+    return sorted_list == list(range(min(sorted_list), max(sorted_list) + 1))
 
 
-def _is_none_in_middle(indices):
+def _has_none_in_middle(indices) -> bool:
+    """Returns True if there is a None in the middle of the list."""
     not_none_indices = [i for i, idx in enumerate(indices) if idx is not None]
-    return not are_consecutive(not_none_indices)
+    return not _are_consecutive(not_none_indices)
 
 
 @torch_op("aten::index", trace_only=True)
 def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
 
+    # Move the None indices to the end
     ordered_indices = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
-    ordered_indices += list(range(len(ordered_indices), len(self.shape)))
-
+    # Fill the list with the remaining indices up to the rank of the tensor
+    ordered_indices = [*ordered_indices, *range(len(ordered_indices), len(self.shape))]
+    # Transpose the tensor to the axis in the order of [provided, None, not provided]
     self = op.Transpose(self, perm=ordered_indices)
 
-    # Need broadcast concat lol.
+    # Broadcast the indices to the same shape then concatenate
     not_none_indices = [idx for idx in indices if idx is not None]
-    broadcast_shape = np.broadcast_shapes(*[idx.shape for idx in not_none_indices])
+    broadcast_shape = list(np.broadcast_shapes(*[idx.shape for idx in not_none_indices]))
+    broadcast_shape = op.Constant(value_ints=broadcast_shape)
+    print(type(broadcast_shape), broadcast_shape)
     final_index = op.Concat(
         *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
         axis=-1,
     )
 
     self = op.GatherND(self, final_index, batch_dims=0)
-    if _is_none_in_middle(indices):
+    if _has_none_in_middle(indices):
         return self
 
     # Need to transpose back.
-    adv_res_rank = len(broadcast_shape)
+    adv_res_rank = len(not_none_indices)
     # [adv1, adv2, ..., adv_res_rank, x1, x2, ..., xk, ..., xn] -> [x1, x2, ..., xk, adv1, ..., adv_res_rank, ..., xn]
-    perm = (
-        list(range(adv_res_rank, adv_res_rank + ordered_indices[0]))
-        + list(range(0, adv_res_rank))
-        + list(
-            range(
-                adv_res_rank + ordered_indices[0],
-                len(ordered_indices) + adv_res_rank - len(not_none_indices),
-            )
-        )
-    )
+    perm = [
+        *range(adv_res_rank, adv_res_rank + ordered_indices[0]),
+        *range(0, adv_res_rank),
+        *range(
+            adv_res_rank + ordered_indices[0],
+            len(ordered_indices) + adv_res_rank - len(not_none_indices),
+        ),
+    ]
 
     return op.Transpose(self, perm=perm)
 
