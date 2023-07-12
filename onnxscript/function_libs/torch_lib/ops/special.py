@@ -86,21 +86,21 @@ def aten_special_entr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::erf")
+@torch_op(("aten::erf", "aten::special_erf"))
 def aten_special_erf(self: TReal) -> TReal:
     """erf(Tensor self) -> Tensor"""
 
     return op.Erf(self)
 
 
-@torch_op("aten::erfc")
+@torch_op(("aten::erfc", "aten::special_erfc"))
 def aten_special_erfc(self: TReal) -> TReal:
     """erfc(Tensor self) -> Tensor"""
 
     return op.Sub(1, op.Erf(self))
 
 
-@torch_op("aten::erfcx")
+@torch_op("aten::special_erfcx")
 def aten_special_erfcx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """special_erfcx(Tensor self) -> Tensor"""
 
