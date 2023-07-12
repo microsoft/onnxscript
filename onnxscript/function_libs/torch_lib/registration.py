@@ -8,7 +8,7 @@ from typing import Any, Callable, Generator, Optional
 
 import onnxscript
 
-# Regex that will match "aten::add" and "aten::add.Tensor"
+# Regex that will match "<namespace>::<op_name>[.<overload>]"
 _QUALIFIED_OPERATOR_NAME_REGEX = re.compile(
     r"^(?P<namespace>[a-zA-Z0-9_]+)::(?P<name>[a-zA-Z0-9_]+)(?P<overload>\.[a-zA-Z0-9._]+)?$"
 )
@@ -100,7 +100,9 @@ def torch_op(
 
     Args:
         name: Qualified ATen name of the function. E.g. "aten::relu", "aten::add.Tensor".
-            Or a tuple of names ("aten::add.Scalar", "aten::add.Tensor").
+            Or a tuple of names e.g. ("aten::add.Scalar", "aten::add.Tensor").
+            Default overloads should be specified by omitting the overload part,
+            i.e. ""aten::relu" instead of "aten::relu.default".
         registry: Registry to register the function to. If None, the default registry is used.
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
