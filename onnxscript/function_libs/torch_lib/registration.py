@@ -69,7 +69,7 @@ class Registry:
 default_registry = Registry()
 
 
-def _check_and_normalized_names(name: str | tuple[str, ...]) -> tuple[str, ...]:
+def _check_and_normalize_names(name: str | tuple[str, ...]) -> tuple[str, ...]:
     names: tuple[str, ...]
 
     if isinstance(name, str):
@@ -124,7 +124,7 @@ def torch_op(
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        for name_ in _check_and_normalized_names(name):
+        for name_ in _check_and_normalize_names(name):
             registry.register(processed_func, name_, private=private, complex=complex)
         return processed_func
 
