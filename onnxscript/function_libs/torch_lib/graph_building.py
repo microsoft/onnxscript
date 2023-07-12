@@ -404,7 +404,7 @@ class TorchScriptGraph:
             # NOTE: Previously it raises when `name` is already set. This is relaxed
             # because this will be invoked multiple times when submodule is called
             # multiple times.
-            if name in self._initializers and self._initializers[name] != value:
+            if name in self._initializers and self._initializers[name] is not value:
                 raise ValueError(
                     f"Initializer '{name}' exists already with a different value."
                 )
