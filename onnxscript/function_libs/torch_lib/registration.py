@@ -81,8 +81,8 @@ def _check_and_normalize_names(name: str | tuple[str, ...]) -> tuple[str, ...]:
     for name_ in names:
         if name_.endswith(".default") or not _QUALIFIED_OPERATOR_NAME_REGEX.fullmatch(name_):
             raise ValueError(
-                f"Invalid name '{name_}'. Must be in the form 'namespace::name.overload' "
-                "or 'namespace::name' for default overloads."
+                f"Invalid name '{name_}'. Must be in the form 'namespace::name' for default overloads "
+                "or 'namespace::name.overload' for other overloads."
             )
 
     return names
