@@ -74,7 +74,8 @@ def torch_op(
     """Register a torch op.
 
     Args:
-        name: ATen name of the function. E.g. "aten::add".
+        name: Qualified ATen name of the function. E.g. "aten::relu", "aten::add.Tensor".
+            Or a tuple of names ("aten::add.Scalar", "aten::add.Tensor").
         registry: Registry to register the function to. If None, the default registry is used.
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
@@ -98,7 +99,14 @@ def torch_op(
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        registry.register(processed_func, name, private=private, complex=complex)
+        if isinstance(name, str):
+            names = (name,)
+        else:
+            names = name
+        if not isinstance(names, tuple):
+            raise TypeError(f"Name must be a string or a tuple of strings, got {names}")
+        for name_ in names:
+            registry.register(processed_func, name_, private=private, complex=complex)
         return processed_func
 
     return wrapper
