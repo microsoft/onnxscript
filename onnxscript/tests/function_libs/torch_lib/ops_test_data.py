@@ -10,18 +10,24 @@ This test use PyTorch's OpInfo mechanism to generate test cases for each operato
 You may find all OpInfos in https://github.com/pytorch/pytorch/blob/7ec0d6f006fdd2c9b978dc6aa4923144684a3f51/torch/testing/_internal/common_methods_invocations.py#L8804
 
 1. To enable test cases for an operator
-    1a. If the op is not `trace_only`, add an entry to the
-    `OPINFO_FUNCTION_MAPPING_SCRIPTED` map.
-    1b. If the op is `trace_only`, add an entry to the
-    `OPINFO_FUNCTION_MAPPING_TRACE_ONLY` map.
+    Add a `TorchLibOpInfo` entry to `TORCH_LIB_OPINFO` in `ops_test_data.py`.
+    Explicitly specify `trace_only` if the op is trace_only. Specify `complex`
+    if the function is designed for complex inputs.
 
-    The entries are <op_info_name: function> pairs.
-2. Edit `EXPECTED_SKIPS_OR_FAILS` and/or `SKIP_XFAIL_SUBTESTS` to skip or xfail tests.
-Prefer xfail over skip when possible.
+    The `op_info_name` in `TorchLibOpInfo` needs to be unique in the TORCH_LIB_OPINFO
+    list, but complex=True ops can share the same name with non-complex ops
+    because they are tested separately.
+
+2. Add `.skip` and/or `.xfail` to skip or xfail tests.
+    Prefer xfail over skip when possible because that allows us to monitor the behavior
+    and update the test will it passes.
+
     2a. If a test is now failing because of xpass, because some previous errors
     are now fixed, removed the corresponding xfail.
+
 3. If sample inputs of the OpInfo needs to be adjusted to fit the aten signature, create an input
-wrangler function. See `_cat_input_wrangler` for an example.
+wrangler function. See `_mean_input_wrangler` for an example.
+
 4. To test different ONNX functions that are registered as overloads of the same
     op, use `ops_test_common.duplicate_opinfo` to create new OpInfo with new names and map each
     to one overload.
@@ -29,22 +35,20 @@ wrangler function. See `_cat_input_wrangler` for an example.
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable
+import dataclasses
+import functools
+from typing import Any, Callable, Collection, Optional
 
 import numpy as np
 import torch
 from torch.testing._internal import common_methods_invocations
 from torch.testing._internal.opinfo import definitions as opinfo_definitions
+from typing_extensions import Self
 
-import onnxscript
-import onnxscript.evaluator
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
-
-# For readability, these two are allowed to be imported given the high usage
-from onnxscript.tests.function_libs.torch_lib.ops_test_common import skip, xfail
 
 # Create a copy of the op_db to modify
 OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
@@ -53,6 +57,113 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 OPS_DB.extend(opinfo_definitions.signal.op_db)
 OPS_DB.extend(opinfo_definitions.special.op_db)
 OPS_DB.extend(extra_opinfo.OP_DB)
+
+
+@dataclasses.dataclass
+class TorchLibOpInfo:
+    """A dataclass to store the information to test an torchlib op."""
+
+    # The name of the op_info, e.g. "add"
+    op_info_name: str
+    # The torchlib ONNX Function to test
+    op: Callable[..., Any]
+    # Explicitly specify when the op is trace_only
+    trace_only: bool = False
+    # The input wrangler function to adjust the input to fit the aten signature
+    input_wrangler: Optional[
+        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]]
+    ] = None
+    # Whether the op is non-deterministic
+    nondeterministic: bool = False
+    # Whether the function is designed for complex inputs
+    complex: bool = False
+    # The acceptable tolerance of the inference result difference between PyTorch and ORT.
+    # Format: {dtype: (rtol, atol)}.
+    # For example: {torch.float16: (1e-3, 1e-3)}
+    tolerance: dict[torch.dtype, tuple[float, float]] = dataclasses.field(default_factory=dict)
+    # Expected skips or fails for the test and/or subtests
+    skips_or_fails: list[ops_test_common.DecorateMeta] = dataclasses.field(
+        default_factory=list
+    )
+
+    def get_tolerance(self, dtype: torch.dtype) -> tuple[float | None, float | None]:
+        """Returns the (rtol, atol) tolerance for the given dtype."""
+        if (tolerance := self.tolerance.get(dtype)) is not None:
+            return tolerance
+
+        # Use the PyTorch default if not specified
+        # https://pytorch.org/docs/stable/testing.html
+        return (None, None)
+
+    def skip(
+        self,
+        variant_name: str = "",
+        *,
+        reason: str,
+        dtypes: Optional[Collection[torch.dtype]] = None,
+        matcher: Optional[Callable[[Any], Any]] = None,
+        enabled_if: bool = True,
+        test_class_name: Optional[str] = None,
+    ) -> Self:
+        """Skips an OpInfo test.
+
+        Args:
+            variant_name: Optional OpInfo variant_test_name.
+            reason: The reason for skipping.
+            dtypes: The dtypes to skip.
+            matcher: A function that matches the test sample input. It is used only when
+                the skip is in the SKIP_XFAIL_SUBTESTS list.
+            enabled_if: Whether the skip is enabled.
+            test_class_name: The test class name to apply the skip to. If None, the skip
+                is applied to all test classes.
+        """
+        self.skips_or_fails.append(
+            ops_test_common.skip(
+                self.op_info_name,
+                variant_name,
+                reason=reason,
+                dtypes=dtypes,
+                matcher=matcher,
+                enabled_if=enabled_if,
+                test_class_name=test_class_name,
+            )
+        )
+        return self
+
+    def xfail(
+        self,
+        variant_name: str = "",
+        *,
+        reason: str,
+        dtypes: Optional[Collection[torch.dtype]] = None,
+        matcher: Optional[Callable[[Any], Any]] = None,
+        enabled_if: bool = True,
+        test_class_name: Optional[str] = None,
+    ) -> Self:
+        """Expects an OpInfo test to fail.
+
+        Args:
+            variant_name: Optional OpInfo variant_test_name.
+            reason: The reason for the failure.
+            dtypes: The dtypes to expect the failure.
+            matcher: A function that matches the test sample input. It is used only when
+                the xfail is in the SKIP_XFAIL_SUBTESTS list.
+            enabled_if: Whether the xfail is enabled.
+            test_class_name: The test class name to apply the xfail to. If None, the
+                xfail is applied to all test classes.
+        """
+        self.skips_or_fails.append(
+            ops_test_common.xfail(
+                self.op_info_name,
+                variant_name,
+                reason=reason,
+                dtypes=dtypes,
+                matcher=matcher,
+                enabled_if=enabled_if,
+                test_class_name=test_class_name,
+            )
+        )
+        return self
 
 
 # Modify this section ##########################################################
@@ -95,15 +206,6 @@ def _avg_pool_input_wrangler(
         if isinstance(kernel_size, np.ndarray):
             kernel_size = kernel_size.tolist()
         kwargs["kernel_size"] = kernel_size
-    return args, kwargs
-
-
-def _cat_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Remove the self argument
-    if len(args) == 2:
-        kwargs["dim"] = args.pop()
     return args, kwargs
 
 
@@ -306,733 +408,540 @@ def _where_input_wrangler(
 
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-
-# Split the scripted and traced ops to make sure we don't forget to script an op
-OPINFO_FUNCTION_MAPPING_SCRIPTED: dict[
-    str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-    # onnxscript.OnnxFunction
-    # | Callable[..., Any]
-    # | tuple[
-    #     onnxscript.OnnxFunction | Callable[..., Any],
-    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    # ],
-] = {
-    "all_dim": core_ops.aten_all_dim,
-    "allclose": core_ops.aten_allclose,
-    "all": core_ops.aten_all,
-    "abs": core_ops.aten_abs,
-    "acos": core_ops.aten_acos,
-    "acosh": core_ops.aten_acosh,
-    "add": core_ops.aten_add,
-    "addmm": core_ops.aten_addmm,
-    # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
-    "amax": (core_ops.aten_amax, _amin_amax_input_wrangler),
-    "amin": (core_ops.aten_amin, _amin_amax_input_wrangler),
-    "any": core_ops.aten_any,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
-    "any_dim": core_ops.aten_any_dim,  # TODO: add more testcase which element is [0.0, 0.1, -0.1, 0.0] etc.
-    "asin": core_ops.aten_asin,
-    "asinh": core_ops.aten_asinh,
-    "atan": core_ops.aten_atan,
-    "atan2": core_ops.aten_atan2,
-    "atanh": core_ops.aten_atanh,
-    "atleast_1d": core_ops.aten_atleast_1d,
-    "atleast_1d_single_tensor": core_ops.aten_atleast_1d_single_tensor,
-    "atleast_2d": core_ops.aten_atleast_2d,
-    "atleast_2d_single_tensor": core_ops.aten_atleast_2d_single_tensor,
-    "atleast_3d": core_ops.aten_atleast_3d,
-    "atleast_3d_single_tensor": core_ops.aten_atleast_3d_single_tensor,
-    "baddbmm": core_ops.aten_baddbmm,
-    "bmm": core_ops.aten_bmm,
-    "broadcast_to": core_ops.aten_broadcast_to,
-    "cat": (core_ops.aten_cat, _cat_input_wrangler),
-    "ceil": core_ops.aten_ceil,
-    "chunk": core_ops.aten_chunk,
-    "clamp_max": core_ops.aten_clamp_max,
-    "clamp_min": core_ops.aten_clamp_min,
-    "clone": core_ops.aten_clone,
-    "constant_pad_nd": core_ops.aten_constant_pad_nd,
-    # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
-    "cos": core_ops.aten_cos,
-    "cosh": core_ops.aten_cosh,
-    "cross": core_ops.aten_cross,
-    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
-    "div": core_ops.aten_div,
-    "dot": core_ops.aten_dot,
-    "empty": (core_ops.aten_empty, _empty_input_wrangler),
-    # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
-    "eq": core_ops.aten_eq,
-    "equal": core_ops.aten_equal,
-    "exp": core_ops.aten_exp,
-    "exp2": core_ops.aten_exp2,
-    "expand": core_ops.aten_expand,
-    "expand_as": core_ops.aten_expand_as,
-    "erf": core_ops.aten_erf,
-    "fill": core_ops.aten_fill,
-    "flip": (core_ops.aten_flip, _flip_input_wrangler),
-    "floor": core_ops.aten_floor,
-    "fmod": core_ops.aten_fmod,
-    "full": core_ops.aten_full,
-    "full_like_dtype": core_ops.aten_full_like_dtype,
-    "full_like": core_ops.aten_full_like,
-    "gather": core_ops.aten_gather,
-    "ge": core_ops.aten_ge,
-    # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
-    # "greater": core_ops.aten_greater,  # no test case in OPS_DB
-    "gt": core_ops.aten_gt,
-    # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
-    # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
-    "index_put_bool": core_ops.aten_index_put_bool,
-    "index_put": core_ops.aten_index_put,
-    "index_select": core_ops.aten_index_select,
-    "isclose": core_ops.aten_isclose,
-    "isfinite": core_ops.aten_isfinite,
-    "isinf": core_ops.aten_isinf,
-    "isnan": core_ops.aten_isnan,
-    "isneginf": core_ops.aten_isneginf,
-    "isposinf": core_ops.aten_isposinf,
-    "log": core_ops.aten_log,
-    "le": core_ops.aten_le,
-    "log10": core_ops.aten_log10,
-    "log1p": core_ops.aten_log1p,
-    "log_softmax": special_ops.aten_special_log_softmax,
-    "log2": core_ops.aten_log2,
-    "logaddexp": core_ops.aten_logaddexp,
-    "logaddexp2": core_ops.aten_logaddexp2,
-    "logcumsumexp": core_ops.aten_logcumsumexp,
-    "logdet": core_ops.aten_logdet,
-    "logsumexp": core_ops.aten_logsumexp,
-    "lt": core_ops.aten_lt,
-    "masked_fill": core_ops.aten_masked_fill,
-    "matmul": core_ops.aten_matmul,
-    "maximum": core_ops.aten_maximum,
-    "mean": (core_ops.aten_mean, _mean_input_wrangler),
-    "mean_dim": (core_ops.aten_mean_dim, _mean_input_wrangler),
-    "min_dim": core_ops.aten_min_dim,
-    "min_other": core_ops.aten_min_other,
-    "min": core_ops.aten_min,
-    "minimum": core_ops.aten_minimum,
-    "mm": core_ops.aten_mm,
-    "mul": core_ops.aten_mul,
-    "narrow": core_ops.aten_narrow,
-    # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
-    "ne": core_ops.aten_ne,
-    "neg": core_ops.aten_neg,
-    "new_empty_dtype": core_ops.aten_new_empty_dtype,
-    "new_empty": core_ops.aten_new_empty,
-    "new_empty_strided_dtype": core_ops.aten_new_empty_strided_dtype,
-    "new_empty_strided": core_ops.aten_new_empty_strided,
-    "new_full_dtype": core_ops.aten_new_full_dtype,
-    "new_full": core_ops.aten_new_full,
-    "new_ones_dtype": core_ops.aten_new_ones_dtype,
-    "new_ones": core_ops.aten_new_ones,
-    "new_zeros_dtype": core_ops.aten_new_zeros_dtype,
-    "new_zeros": core_ops.aten_new_zeros,
-    "nn.functional.adaptive_avg_pool1d": nn_ops.aten_adaptive_avg_pool1d,
-    "nn.functional.adaptive_avg_pool2d": nn_ops.aten_adaptive_avg_pool2d,
-    "nn.functional.adaptive_avg_pool3d": nn_ops.aten_adaptive_avg_pool3d,
-    "nn.functional.celu": nn_ops.aten_celu,
-    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
-    "nn.functional.cross_entropy": (
-        nn_ops.aten_cross_entropy_loss,
-        _cross_entropy_input_wrangler,
+TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
+    TorchLibOpInfo(
+        "aten._local_scalar_dense",
+        core_ops.aten__local_scalar_dense,
     ),
-    "nn.functional.dropout": (core_ops.aten_dropout, _dropout_input_wrangler),
-    "nn.functional.elu": nn_ops.aten_elu,
-    "nn.functional.embedding": (core_ops.aten_embedding, _embedding_input_wrangler),
-    "nn.functional.hardtanh": nn_ops.aten_hardtanh,
-    "nn.functional.leaky_relu": nn_ops.aten_leaky_relu,
-    "nn.functional.logsigmoid": nn_ops.aten_log_sigmoid,
-    "nn.functional.nll_loss_weight": (nn_ops.aten_nll_loss_weight, _nll_loss_input_wrangler),
-    "nn.functional.nll_loss": (nn_ops.aten_nll_loss, _nll_loss_input_wrangler),
-    "nn.functional.reflection_pad2d": (
-        nn_ops.aten_reflection_pad2d,
-        _reflection_pad2d_input_wrangler,
+    TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    "nn.functional.relu": nn_ops.aten_relu,
-    "nn.functional.relu6": nn_ops.aten_relu6,
-    "nn.functional.replication_pad2d": (
-        nn_ops.aten_replication_pad2d,
-        _replication_pad2d_input_wrangler,
-    ),
-    "nn.functional.replication_pad3d": (
-        nn_ops.aten_replication_pad3d,
-        _replication_pad3d_input_wrangler,
-    ),
-    "nn.functional.selu": core_ops.aten_selu,
-    "nn.functional.mse_loss": (nn_ops.aten_mse_loss, _mse_loss_input_wrangler),
-    "nonzero": core_ops.aten_nonzero,
-    "normal": core_ops.aten_normal,
-    "ones": core_ops.aten_ones,
-    "permute": (core_ops.aten_permute, _permute_input_wrangler),
-    "pow": core_ops.aten_pow,
-    # "rand": core_ops.aten_rand,  # no test case in OPS_DB
-    "randn": (core_ops.aten_randn, _randn_input_wrangler),
-    "reciprocal": core_ops.aten_reciprocal,
-    "remainder": core_ops.aten_remainder,
-    "repeat": core_ops.aten_repeat,
-    "reshape": core_ops.aten_reshape,
-    "resolve_conj": core_ops.aten_resolve_conj,
-    "resolve_neg": core_ops.aten_resolve_neg,
-    "round": core_ops.aten_round,
-    "rsqrt": core_ops.aten_rsqrt,
-    "rsub": core_ops.aten_rsub,
-    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
-    "scatter_add": core_ops.aten_scatter_add,
-    "select": core_ops.aten_select,
-    "sigmoid": core_ops.aten_sigmoid,
-    "sign": core_ops.aten_sign,
-    "sin": core_ops.aten_sin,
-    "sinh": core_ops.aten_sinh,
-    "softmax": special_ops.aten_special_softmax,
-    "split_with_sizes": core_ops.aten_split_with_sizes,
-    "split": core_ops.aten_split,
-    "sqrt": core_ops.aten_sqrt,
-    "squeeze_dim": core_ops.aten_squeeze_dim,
-    "squeeze": core_ops.aten_squeeze,
-    "stack": core_ops.aten_stack,
-    "sub": core_ops.aten_sub,
-    # "sym_size": core_ops.aten_sym_size,  # no test case in OPS_DB
-    "t": core_ops.aten_t,
-    "tan": core_ops.aten_tan,
-    "tanh": core_ops.aten_tanh,
-    "tile": core_ops.aten_tile,
-    "topk": core_ops.aten_topk,
-    "tril": core_ops.aten_tril,
-    "triu": core_ops.aten_triu,
-    "trunc": core_ops.aten_trunc,
-    "unflatten": (core_ops.aten_unflatten, _unflatten_input_wrangler),
-    "unsqueeze": core_ops.aten_unsqueeze,
-    "view": core_ops.aten_view,
-    "vstack": core_ops.aten_vstack,
-    "where": (core_ops.aten_where, _where_input_wrangler),
-    "xlogy": special_ops.aten_special_xlogy,
-    "zeros": core_ops.aten_zeros,
-}
-
-
-OPINFO_FUNCTION_MAPPING_TRACE_ONLY: dict[
-    str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-] = {
-    "arange_start_step": core_ops.aten_arange_start_step,
-    "arange_start": core_ops.aten_arange_start,
-    "arange": core_ops.aten_arange,
-    "argmax": core_ops.aten_argmax,
-    "argmin": core_ops.aten_argmin,
-    "as_strided": core_ops.aten_as_strided,
-    "clamp": core_ops.aten_clamp,
-    "col2im": nn_ops.aten_col2im,
-    "cumsum": core_ops.aten_cumsum,
-    "contiguous": core_ops.aten_contiguous,
-    "convolution": core_ops.aten_convolution,
-    "empty_like": core_ops.aten_empty_like,
-    "grid_sampler_2d": core_ops.aten_grid_sampler_2d,
-    "hstack": core_ops.aten_hstack,
-    "nn.functional.grid_sample": (core_ops.aten_grid_sampler, _grid_sample_input_wrangler),
-    "layer_norm": core_ops.aten_layer_norm,
-    "logit": core_ops.aten_logit,
-    "max": core_ops.aten_max,
-    "max_pool1d": nn_ops.aten_max_pool1d,  # Custom from extra_opinfo
-    "max_pool2d": nn_ops.aten_max_pool2d,  # Custom from extra_opinfo
-    "max_pool3d": nn_ops.aten_max_pool3d,  # Custom from extra_opinfo
-    "native_batch_norm": core_ops.aten_native_batch_norm,
-    "native_group_norm": core_ops.aten_native_group_norm,
-    "native_layer_norm": core_ops.aten_native_layer_norm,
-    "nn.functional.avg_pool1d": (nn_ops.aten_avg_pool1d, _avg_pool_input_wrangler),
-    "nn.functional.avg_pool2d": (nn_ops.aten_avg_pool2d, _avg_pool_input_wrangler),
-    "nn.functional.avg_pool3d": (nn_ops.aten_avg_pool3d, _avg_pool_input_wrangler),
-    "nn.functional.conv1d": core_ops.aten_conv1d,
-    "nn.functional.conv2d": core_ops.aten_conv2d,
-    "nn.functional.conv3d": core_ops.aten_conv3d,
-    "nn.functional.gelu": nn_ops.aten_gelu,
-    "nn.functional.linear": nn_ops.aten_linear,
-    "nn.functional.max_pool1d": (nn_ops.aten_max_pool1d, _max_pool_input_wrangler),
-    "nn.functional.max_pool1d_with_indices": (
-        nn_ops.aten_max_pool1d_with_indices,
-        _max_pool_input_wrangler,
-    ),
-    "nn.functional.max_pool2d": (nn_ops.aten_max_pool2d, _max_pool_input_wrangler),
-    "nn.functional.max_pool2d_with_indices": (
-        nn_ops.aten_max_pool2d_with_indices,
-        _max_pool_input_wrangler,
-    ),
-    "nn.functional.max_pool3d": (nn_ops.aten_max_pool3d, _max_pool_input_wrangler),
-    "nn.functional.max_pool3d_with_indices": (
-        nn_ops.aten_max_pool3d_with_indices,
-        _max_pool_input_wrangler,
-    ),
-    "nn.functional.scaled_dot_product_attention": nn_ops.aten_scaled_dot_product_attention,
-    "nn.functional.scaled_dot_product_attention_bool_mask": nn_ops.aten_scaled_dot_product_attention_bool_mask,
-    "nn.functional.upsample_bilinear2d": (
-        nn_ops.aten_upsample_bilinear2d,
-        _upsample_bilinear2d_input_wrangler,
-    ),
-    "nn.functional.upsample_nearest2d": (
-        nn_ops.aten_upsample_nearest2d,
-        _upsample_input_wrangler,
-    ),
-    "ones_like": core_ops.aten_ones_like,
-    "scatter_reduce": (core_ops.aten_scatter_reduce, _scatter_reduce_input_wrangler),
-    "slice_scatter": core_ops.aten_slice_scatter,
-    "slice": core_ops.aten_slice,
-    "sum": (core_ops.aten_sum_dim_IntList, _sum_input_wrangler),
-    "transpose": core_ops.aten_transpose,
-    "var_mean": core_ops.aten_var_mean,
-    "var_mean_dim": core_ops.aten_var_mean_dim,
-    "var_mean_correction": core_ops.aten_var_mean_correction,
-    "zeros_like": core_ops.aten_zeros_like,
-}
-
-# These ops are not deterministic, so we check shape and dtype only
-NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
-    (
-        "empty_like",
-        "empty",
-        "new_empty_strided_dtype",
-        "new_empty_strided",
-        "new_empty_dtype",
-        "new_empty",
-        "normal",
-        "randn",
-    )
-)
-
-OPINFO_FUNCTION_MAPPING: dict[
-    str,
-    onnxscript.OnnxFunction
-    | Callable[..., Any]
-    | tuple[
-        onnxscript.OnnxFunction | Callable[..., Any],
-        Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    ],
-] = {**OPINFO_FUNCTION_MAPPING_SCRIPTED, **OPINFO_FUNCTION_MAPPING_TRACE_ONLY}
-
-TESTED_OPS = frozenset(OPINFO_FUNCTION_MAPPING)
-
-EXPECTED_SKIPS_OR_FAILS = (
-    xfail(
-        "as_strided",
-        variant_name="partial_views",
-        reason="ONNX doesn't have partial view for tensor",
-    ),
-    xfail(
-        "hstack",
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
-    ),
-    xfail("logcumsumexp", reason="naive implementation not numerically stable"),
-    xfail(
-        "max",
-        variant_name="binary",
-        reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "max",
-        variant_name="reduction_with_dim",
-        reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "max_pool3d",
-        variant_name="empty_strides",
-        reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
-    ),
-    xfail(
-        "min_dim",
-        variant_name="reduction_with_dim",
-        reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "nn.functional.logsigmoid",
-        dtypes=[torch.float16],
-        reason="Eager mode failed on case(0,2) at location(0,6) due to precision loss",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    skip(
-        "nn.functional.scaled_dot_product_attention",
-        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
-    ),
-    skip(
-        "nn.functional.scaled_dot_product_attention_bool_mask",
-        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
-    ),
-    xfail(
-        "nn.functional.upsample_nearest2d",
-        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "remainder",
-        dtypes=[torch.float16],
-        reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail(
-        "round",
-        variant_name="decimals_0",
-        reason="The op does not support decimals yet",
-        test_class_name="TestOutputConsistencyEager",
-    ),
-    xfail("round", variant_name="decimals_3", reason="The op does not support decimals yet"),
-    xfail(
-        "round", variant_name="decimals_neg_3", reason="The op does not support decimals yet"
-    ),
-    xfail(
-        "scatter_reduce",
-        variant_name="mean",
-        reason="ONNX doesn't support reduce='mean' option",
-    ),
-    xfail(
-        "t",
-        reason="ORT Graph attribute inferencing failed on rank-1 input",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "unflatten",
-        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
-        test_class_name="TestOutputConsistencyFullGraph",
-    ),
-    xfail(
-        "var_mean",
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    ),
-    skip(
-        "var_mean",
-        variant_name="unbiased",
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    ),
-    xfail(
-        "var_mean_correction",
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    ),
-    xfail(
-        "vstack",
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
-    ),
-)
-
-
-SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
-    skip(
+    TorchLibOpInfo("allclose", core_ops.aten_allclose),
+    TorchLibOpInfo(
         "all",
+        core_ops.aten_all,
+    ).skip(
         matcher=lambda sample: not (len(sample.kwargs) == 0),
         reason="this Aten overload only support one tensor as input by design",
     ),
-    xfail(
-        "all_dim",
-        matcher=lambda sample: not (len(sample.kwargs) > 0),
-        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    TorchLibOpInfo("abs", core_ops.aten_abs),
+    TorchLibOpInfo("abs", core_ops.aten_abs_complex, complex=True),
+    TorchLibOpInfo("acos", core_ops.aten_acos),
+    TorchLibOpInfo("acosh", core_ops.aten_acosh),
+    TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
+    TorchLibOpInfo("addbmm", core_ops.aten_addbmm),
+    TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
+    TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
+    TorchLibOpInfo("addmm", core_ops.aten_addmm),
+    TorchLibOpInfo("addmv", core_ops.aten_addmv),
+    TorchLibOpInfo(
+        "addr",
+        core_ops.aten_addr,
+        tolerance={torch.float16: (1e-3, 3e-3)},
     ),
-    skip(
-        "any",
-        matcher=lambda sample: not (len(sample.kwargs) == 0),
-        reason="this Aten overload only support one tensor as input by design",
-    ),
-    skip(
-        "any_dim",
-        matcher=lambda sample: not (len(sample.kwargs) > 0),
-        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
-    ),
-    skip(
+    TorchLibOpInfo(
         "amax",
+        core_ops.aten_amax,
+        input_wrangler=_amin_amax_input_wrangler,
+    ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18",
     ),
-    skip(
+    TorchLibOpInfo(
         "amin",
+        core_ops.aten_amin,
+        input_wrangler=_amin_amax_input_wrangler,
+    ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18",
     ),
-    xfail(
-        "arange",
-        matcher=lambda sample: len(sample.args) != 0,
-        reason="arange overload takes single argument",
+    TorchLibOpInfo(
+        "any",
+        core_ops.aten_any,
+    ).skip(
+        matcher=lambda sample: not (len(sample.kwargs) == 0),
+        reason="this Aten overload only support one tensor as input by design",
     ),
-    xfail(
-        "arange",
-        matcher=lambda sample: sample.kwargs.get("end") is not None,
-        reason="arange overload does not support positional 'end' argument",
+    TorchLibOpInfo(
+        "any_dim",
+        core_ops.aten_any_dim,
+    ).skip(
+        matcher=lambda sample: not (len(sample.kwargs) > 0),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
     ),
-    skip(
-        "arange_start",
-        matcher=lambda sample: len(sample.args) != 1,
-        reason="arange_start overload takes two arguments (input, start)",
-    ),
-    xfail(
-        "arange_start_step",
-        matcher=lambda sample: len(sample.args) != 2,
-        reason="arange_start_step overload takes three arguments (input, start, step)",
-    ),
-    skip(
+    TorchLibOpInfo("asin", core_ops.aten_asin),
+    TorchLibOpInfo("asinh", core_ops.aten_asinh),
+    TorchLibOpInfo("atan", core_ops.aten_atan),
+    TorchLibOpInfo("atan2", core_ops.aten_atan2),
+    TorchLibOpInfo("atanh", core_ops.aten_atanh),
+    TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d),
+    TorchLibOpInfo(
         "atleast_1d_single_tensor",
+        core_ops.aten_atleast_1d_single_tensor,
+    ).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
         reason="atleast_1d_single_tensor overload takes single tensor as input",
     ),
-    skip(
+    TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d),
+    TorchLibOpInfo(
         "atleast_2d_single_tensor",
+        core_ops.aten_atleast_2d_single_tensor,
+    ).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
         reason="atleast_2d_single_tensor overload takes single tensor as input",
     ),
-    skip(
+    TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d),
+    TorchLibOpInfo(
         "atleast_3d_single_tensor",
+        core_ops.aten_atleast_3d_single_tensor,
+    ).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
         reason="atleast_3d_single_tensor overload takes single tensor as input",
     ),
-    skip(
-        "cat",
-        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
-        reason="cat does not support zero-dim tensors yet",
+    TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
+    TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
+    TorchLibOpInfo(
+        # This string is a unique ID. In extra_opinfo.py, we
+        # also define test data for this ID with
+        # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
+        "aten.bernoulli.p",
+        core_ops.aten_bernoulli_p,
+        # Skip comparison for the output of this op because it is a random tensor.
+        nondeterministic=True,
     ),
-    skip(
+    TorchLibOpInfo("aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
+    TorchLibOpInfo("bmm", core_ops.aten_bmm),
+    TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
+    TorchLibOpInfo("cat", core_ops.aten_cat).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
+    TorchLibOpInfo("ceil", core_ops.aten_ceil),
+    TorchLibOpInfo(
+        "chunk",
+        core_ops.aten_chunk,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+    ),
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
+    TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("concat", core_ops.aten_concat).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
+    TorchLibOpInfo("concatenate", core_ops.aten_concatenate).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
+    TorchLibOpInfo("conj", core_ops.aten_conj),
+    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
+    TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
+    # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
+    TorchLibOpInfo("cos", core_ops.aten_cos),
+    TorchLibOpInfo("cosh", core_ops.aten_cosh),
+    TorchLibOpInfo("cross", core_ops.aten_cross),
+    # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
+    TorchLibOpInfo(
         "div",
+        core_ops.aten_div,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="rounding_mode is not yet supported",
     ),
-    skip(
-        "full_like",
-        matcher=lambda sample: ("dtype" in sample.kwargs),
-        reason="this Aten overload only support dtype not in kwargs",
+    TorchLibOpInfo("dot", core_ops.aten_dot),
+    TorchLibOpInfo(
+        "empty",
+        core_ops.aten_empty,
+        input_wrangler=_empty_input_wrangler,
+        nondeterministic=True,
     ),
-    skip(
+    # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
+    TorchLibOpInfo("eq", core_ops.aten_eq),
+    TorchLibOpInfo("equal", core_ops.aten_equal),
+    TorchLibOpInfo("exp", core_ops.aten_exp),
+    TorchLibOpInfo("exp2", core_ops.aten_exp2),
+    TorchLibOpInfo("expand", core_ops.aten_expand),
+    TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
+    TorchLibOpInfo("erf", special_ops.aten_special_erf).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Erf for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo(
+        "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Erf for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
+    TorchLibOpInfo("fill", core_ops.aten_fill),
+    TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
+    TorchLibOpInfo("floor", core_ops.aten_floor),
+    TorchLibOpInfo("fmod", core_ops.aten_fmod),
+    TorchLibOpInfo("full", core_ops.aten_full),
+    TorchLibOpInfo(
         "full_like_dtype",
+        core_ops.aten_full_like_dtype,
+    ).skip(
         matcher=lambda sample: "dtype" not in sample.kwargs,
         reason="this Aten overload only support dtype in kwargs",
     ),
-    skip(
-        "grid_sampler_2d",
-        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
-        matcher=lambda sample: sample.args[1] == 2,
-        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
+    TorchLibOpInfo(
+        "full_like",
+        core_ops.aten_full_like,
+    ).skip(
+        matcher=lambda sample: ("dtype" in sample.kwargs),
+        reason="this Aten overload only support dtype not in kwargs",
     ),
-    skip(
-        "index_put",
-        matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
-        reason="this Aten overload only support tensor(int) as args",
-    ),
-    skip(
+    TorchLibOpInfo("gather", core_ops.aten_gather),
+    TorchLibOpInfo("ge", core_ops.aten_ge),
+    # TorchLibOpInfo("greater_equal", core_ops.aten_greater_equal),  # no test case in OPS_DB
+    # TorchLibOpInfo("greater", core_ops.aten_greater),  # no test case in OPS_DB
+    TorchLibOpInfo("gt", core_ops.aten_gt),
+    # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
+    # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
+    TorchLibOpInfo(
         "index_put_bool",
+        core_ops.aten_index_put_bool,
+    ).skip(
         matcher=lambda sample: not (sample.args[0][0].dtype == torch.bool),
         reason="this Aten overload only support tensor(bool) as args",
     ),
-    skip(
+    TorchLibOpInfo(
+        "index_put",
+        core_ops.aten_index_put,
+    ).skip(
+        matcher=lambda sample: not (sample.args[0][0].dtype == torch.int64),
+        reason="this Aten overload only support tensor(int) as args",
+    ),
+    TorchLibOpInfo("index_select", core_ops.aten_index_select),
+    TorchLibOpInfo("isclose", core_ops.aten_isclose),
+    TorchLibOpInfo("isfinite", core_ops.aten_isfinite),
+    TorchLibOpInfo("isinf", core_ops.aten_isinf),
+    TorchLibOpInfo("isnan", core_ops.aten_isnan),
+    TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
+    TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo(
+        "linspace",
+        core_ops.aten_linspace,
+        trace_only=True,
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="op 'Range' doesn't support float16.",
+    )
+    .skip(
+        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
+        reason="aten::linspace with steps=1 is not supported by its definition.",
+    ),
+    TorchLibOpInfo("log", core_ops.aten_log),
+    TorchLibOpInfo("le", core_ops.aten_le),
+    TorchLibOpInfo(
+        "log10",
+        core_ops.aten_log10,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float).",
+    ),
+    TorchLibOpInfo("log1p", core_ops.aten_log1p),
+    TorchLibOpInfo(
+        "log_softmax",
+        special_ops.aten_special_log_softmax,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (4e-4, 6e-3)},
+    ).xfail(
+        variant_name="with_dtype",
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    TorchLibOpInfo(
+        "log2",
+        core_ops.aten_log2,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model",
+    ),
+    TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
+    TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
+    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp).xfail(
+        reason="naive implementation not numerically stable"
+    ),
+    TorchLibOpInfo("logdet", core_ops.aten_logdet),
+    TorchLibOpInfo(
+        "logsumexp",
+        core_ops.aten_logsumexp,
+    ),
+    TorchLibOpInfo("lt", core_ops.aten_lt),
+    TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill),
+    TorchLibOpInfo(
         "matmul",
+        core_ops.aten_matmul,
+        tolerance={torch.float32: (2e-5, 2e-5)},  # Windows requires a more relaxed tolerance
+    ).skip(
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
-    skip(
+    TorchLibOpInfo("maximum", core_ops.aten_maximum),
+    TorchLibOpInfo(
         "mean",
+        core_ops.aten_mean,
+        input_wrangler=_mean_input_wrangler,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dim") is not None,
         reason="this Aten overload only accept 1 inputs: self",
     ),
-    skip(
+    TorchLibOpInfo(
         "mean_dim",
+        core_ops.aten_mean_dim,
+        input_wrangler=_mean_input_wrangler,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dim") is None,
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
-    skip(
-        "min",  # aten_min
-        matcher=lambda sample: len(sample.args) > 0,
-        reason="this ATen overload only supports one tensor as input by design",
-    ),
-    xfail(
-        "min_other",  # aten_min_other(self, other)
-        matcher=lambda sample: len(sample.args) == 0
-        or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
-        reason="this ATen overload only support one tensor as input and another tensor as args",
-    ),
-    xfail(
-        "min_dim",  # aten_min_dim(self, dim)
+    TorchLibOpInfo("mH", core_ops.aten_mH),
+    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True, trace_only=True),
+    TorchLibOpInfo("mT", core_ops.aten_mT),
+    TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
+    TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
+    .xfail(
+        variant_name="reduction_with_dim",
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Min for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
+        reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another int as args",
     ),
-    skip(
-        "new_empty",
-        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="this Aten overload only accept 2 inputs:(self, size)",
+    TorchLibOpInfo(
+        "min_other",
+        core_ops.aten_min_other,
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Min for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
-    skip(
+    TorchLibOpInfo(
+        "min",
+        core_ops.aten_min,
+    ).skip(
+        matcher=lambda sample: len(sample.args) > 0,
+        reason="this ATen overload only supports one tensor as input by design",
+    ),
+    TorchLibOpInfo("minimum", core_ops.aten_minimum),
+    TorchLibOpInfo("mm", core_ops.aten_mm),
+    TorchLibOpInfo("mul", core_ops.aten_mul),
+    TorchLibOpInfo("narrow", core_ops.aten_narrow),
+    # TorchLibOpInfo("native_dropout", core_ops.aten_native_dropout),  # native_dropout is not in OPS_DB
+    TorchLibOpInfo("ne", core_ops.aten_ne),
+    TorchLibOpInfo("neg", core_ops.aten_neg),
+    TorchLibOpInfo(
         "new_empty_dtype",
+        core_ops.aten_new_empty_dtype,
+        nondeterministic=True,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 3 inputs:(self, size, dtype)",
     ),
-    skip(
-        "new_empty_strided",
+    TorchLibOpInfo(
+        "new_empty",
+        core_ops.aten_new_empty,
+        nondeterministic=True,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="this Aten overload only accept 3 inputs:(self, size, stride)",
+        reason="this Aten overload only accept 2 inputs:(self, size)",
     ),
-    skip(
+    TorchLibOpInfo(
         "new_empty_strided_dtype",
+        core_ops.aten_new_empty_strided_dtype,
+        nondeterministic=True,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 4 inputs:(self, size, stride, dtype)",
     ),
-    skip(
-        "new_full",
+    TorchLibOpInfo(
+        "new_empty_strided",
+        core_ops.aten_new_empty_strided,
+        nondeterministic=True,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
+        reason="this Aten overload only accept 3 inputs:(self, size, stride)",
     ),
-    skip(
+    TorchLibOpInfo(
         "new_full_dtype",
+        core_ops.aten_new_full_dtype,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="this Aten overload must have 4 inputs:(self, size, fill_value, dtype)",
     ),
-    skip(
-        "new_ones",
+    TorchLibOpInfo(
+        "new_full",
+        core_ops.aten_new_full,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
-        reason="",
+        reason="this Aten overload only accept 3 inputs:(self, size, fill_value)",
     ),
-    skip(
+    TorchLibOpInfo(
         "new_ones_dtype",
+        core_ops.aten_new_ones_dtype,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    skip(
-        "new_zeros",
+    TorchLibOpInfo(
+        "new_ones",
+        core_ops.aten_new_ones,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
         reason="",
     ),
-    skip(
+    TorchLibOpInfo(
         "new_zeros_dtype",
+        core_ops.aten_new_zeros_dtype,
+    ).skip(
         matcher=lambda sample: sample.kwargs.get("dtype") is None,
         reason="",
     ),
-    xfail(
-        "nonzero",
-        matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
-        reason="as_tuple=True is not supported",
+    TorchLibOpInfo(
+        "new_zeros",
+        core_ops.aten_new_zeros,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
+        reason="",
     ),
-    skip(
-        "normal",
-        matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
-        reason="ORT only accept float type for args[0] 'mean'",
-    ),
-    xfail(
+    TorchLibOpInfo(
         "nn.functional.adaptive_avg_pool1d",
+        nn_ops.aten_adaptive_avg_pool1d,
+    ).xfail(
         # Shape should be [N, C, D1]
         matcher=lambda sample: sample.args[0] not in {1, (1,)},
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    xfail(
+    TorchLibOpInfo(
         "nn.functional.adaptive_avg_pool2d",
+        nn_ops.aten_adaptive_avg_pool2d,
+    ).xfail(
         matcher=lambda sample: sample.args[0] != (1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
     ),
-    xfail(
+    TorchLibOpInfo(
         "nn.functional.adaptive_avg_pool3d",
+        nn_ops.aten_adaptive_avg_pool3d,
+    )
+    .xfail(
         matcher=lambda sample: sample.args[0] != (1, 1, 1),
         reason="only global pooling is supported; only batched inputs are supported",
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="fixme: RuntimeError: ORT inference error GlobalAveragePool",
     ),
-    # xfail(
-    #     "nn.functional.avg_pool1d",
-    #     matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
-    #     reason="ONNX has different ceil mode strategy to PyTorch",
-    # ),
-    xfail(
-        "nn.functional.avg_pool2d",
-        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
-        or sample.kwargs.get("divisor_override") is not None,
-        reason="ONNX doesn't support divisor_override argument",
-    ),
-    xfail(
-        "nn.functional.avg_pool3d",
-        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
-        or sample.kwargs.get("divisor_override") is not None,
-        reason="ONNX doesn't support divisor_override argument",
-    ),
-    xfail(
-        "nn.functional.conv1d",
-        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
-        reason="String padding is not accepted by aten::conv1d",
-    ),
-    xfail(
-        "nn.functional.conv2d",
-        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
-        reason="String padding is not accepted by aten::conv2d",
-    ),
-    xfail(
+    TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
+    TorchLibOpInfo(
         "nn.functional.cross_entropy",
+        # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
+        nn_ops.aten_cross_entropy_loss,
+        input_wrangler=_cross_entropy_input_wrangler,
+    ).xfail(
         matcher=lambda sample: len(sample.args) < 1
         or (isinstance(sample.args[0], torch.Tensor) and sample.args[0].dtype != torch.int64),
         reason="ONNX SoftmaxCrossEntropyLoss op only accept argument[target] as int type",
     ),
-    skip(
+    TorchLibOpInfo(
         "nn.functional.dropout",
+        core_ops.aten_dropout,
+        input_wrangler=_dropout_input_wrangler,
+    ).skip(
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
     ),
-    skip(
-        "nn.functional.grid_sample",
-        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
-        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
-        or len(sample.args[0].shape) != 4,
-        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+    TorchLibOpInfo(
+        "nn.functional.elu",
+        nn_ops.aten_elu,
+    ).skip(
+        dtypes=[torch.float16],
+        reason="fixme: ONNX Runtime aborted",
     ),
-    skip(
-        "nn.functional.max_pool1d_with_indices",
-        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
-        reason="this aten overload assume return_indices=True",
+    TorchLibOpInfo(
+        "nn.functional.embedding",
+        core_ops.aten_embedding,
+        input_wrangler=_embedding_input_wrangler,
     ),
-    skip(
-        "nn.functional.max_pool1d",
-        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
-        reason="this aten overload assume return_indices=False",
+    TorchLibOpInfo("nn.functional.hardtanh", nn_ops.aten_hardtanh),
+    TorchLibOpInfo("nn.functional.leaky_relu", nn_ops.aten_leaky_relu),
+    TorchLibOpInfo(
+        "nn.functional.logsigmoid",
+        nn_ops.aten_log_sigmoid,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (8e-2, 4e-4)},
     ),
-    skip(
-        "nn.functional.max_pool2d_with_indices",
-        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
-        reason="this aten overload assume return_indices=True",
-    ),
-    skip(
-        "nn.functional.max_pool2d",
-        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
-        reason="this aten overload assume return_indices=False",
-    ),
-    skip(
-        "nn.functional.max_pool3d",
-        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
-        and sample.kwargs.get("padding") == 1,
-        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
-    ),
-    skip(
-        "nn.functional.max_pool3d",
-        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
-        reason="this aten overload assume return_indices=False",
-    ),
-    skip(
-        "nn.functional.max_pool3d_with_indices",
-        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
-        and sample.kwargs.get("padding") == 1,
-        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
-    ),
-    skip(
-        "nn.functional.max_pool3d_with_indices",
-        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
-        reason="this aten overload assume return_indices=True",
-    ),
-    skip(
-        "nn.functional.nll_loss",
-        matcher=lambda sample: "weight" in sample.kwargs,
-        reason="this Aten overload doesn't accept weight as kwargs",
-    ),
-    skip(
+    TorchLibOpInfo(
         "nn.functional.nll_loss_weight",
+        nn_ops.aten_nll_loss_weight,
+        input_wrangler=_nll_loss_input_wrangler,
+    ).skip(
         matcher=lambda sample: "weight" not in sample.kwargs,
         reason="this Aten overload need weight as kwargs",
     ),
-    skip(
+    TorchLibOpInfo(
+        "nn.functional.nll_loss",
+        nn_ops.aten_nll_loss,
+        input_wrangler=_nll_loss_input_wrangler,
+    ).skip(
+        matcher=lambda sample: "weight" in sample.kwargs,
+        reason="this Aten overload doesn't accept weight as kwargs",
+    ),
+    TorchLibOpInfo(
         "nn.functional.reflection_pad2d",
+        nn_ops.aten_reflection_pad2d,
+        input_wrangler=_reflection_pad2d_input_wrangler,
+    ).skip(
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "reflect"),
         reason="this Aten overload need args[1] == 'reflect' for pad mode",
     ),
-    skip(
+    TorchLibOpInfo(
+        "nn.functional.relu",
+        nn_ops.aten_relu,
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.relu6",
+        nn_ops.aten_relu6,
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo(
         "nn.functional.replication_pad2d",
+        nn_ops.aten_replication_pad2d,
+        input_wrangler=_replication_pad2d_input_wrangler,
+    ).skip(
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
         reason="this Aten overload need args[1] == 'replicate' for pad mode",
     ),
-    skip(
+    TorchLibOpInfo(
         "nn.functional.replication_pad3d",
+        nn_ops.aten_replication_pad3d,
+        input_wrangler=_replication_pad3d_input_wrangler,
+    ).skip(
         matcher=lambda sample: not (
             len(sample.args) > 1
             and sample.args[1] == "replicate"
@@ -1040,89 +949,643 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         ),
         reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
     ),
-    skip(
-        "nn.functional.scaled_dot_product_attention",
-        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
-        and attn_mask.dtype == torch.bool,
-        reason="this overload takes a non-boolean mask",
+    TorchLibOpInfo(
+        "nn.functional.selu",
+        core_ops.aten_selu,
+    ).skip(
+        dtypes=[torch.float16],
+        reason="fixme: ONNX Runtime aborted",
     ),
-    skip(
-        "nn.functional.scaled_dot_product_attention",
-        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
-        reason="dropout is random so the results do not match",
+    TorchLibOpInfo(
+        "nn.functional.mse_loss",
+        nn_ops.aten_mse_loss,
+        input_wrangler=_mse_loss_input_wrangler,
     ),
-    skip(
-        "nn.functional.scaled_dot_product_attention_bool_mask",
-        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
-        and attn_mask.dtype != torch.bool,
-        reason="this overload takes a boolean mask",
+    TorchLibOpInfo(
+        "nonzero",
+        core_ops.aten_nonzero,
+    ).xfail(
+        matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
+        reason="as_tuple=True is not supported",
     ),
-    skip(
-        "nn.functional.scaled_dot_product_attention_bool_mask",
-        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
-        reason="dropout is random so the results do not match",
+    TorchLibOpInfo(
+        "normal",
+        core_ops.aten_normal,
+        nondeterministic=True,
+    )
+    .skip(
+        matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
+        reason="ORT only accept float type for args[0] 'mean'",
+    )
+    .xfail(
+        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
+        dtypes=[torch.float16],
+        test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        variant_name="number_mean",
+        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
+        dtypes=[torch.float16],
+        test_class_name="TestOutputConsistencyEager",
     ),
-    skip(
-        "nn.functional.upsample_nearest2d",
-        # Shape should be [N, C, H, W]
-        matcher=lambda sample: len(sample.input.shape) != 2 + 2,
-        reason="only test on 2d inputs",
-    ),
-    xfail(
-        "nn.functional.upsample_nearest2d",
-        matcher=lambda sample: "scale_factor" in sample.kwargs,
-        reason="fixme: the scale_factor tests",
-    ),
-    xfail(
+    TorchLibOpInfo("ones", core_ops.aten_ones),
+    TorchLibOpInfo(
         "permute",
+        core_ops.aten_permute,
+        input_wrangler=_permute_input_wrangler,
+    )
+    .xfail(
         matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
         reason="Negative value in perm is not supported",
-    ),
-    xfail(
-        "permute",
+    )
+    .xfail(
         matcher=lambda sample: len(sample.args[0]) == 0,
         reason="Empty perm is not supported",
     ),
-    xfail(
+    TorchLibOpInfo("pow", core_ops.aten_pow),
+    # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
+    TorchLibOpInfo(
+        "randn",
+        core_ops.aten_randn,
+        input_wrangler=_randn_input_wrangler,
+        nondeterministic=True,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: Shape inference error",
+    ),
+    TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
+    TorchLibOpInfo(
+        "remainder",
+        core_ops.aten_remainder,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    TorchLibOpInfo("repeat", core_ops.aten_repeat),
+    TorchLibOpInfo("reshape", core_ops.aten_reshape),
+    TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
+    TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
+    TorchLibOpInfo(
+        "round",
+        core_ops.aten_round,
+    )
+    .xfail(
+        variant_name="decimals_0",
+        reason="The op does not support decimals yet",
+        test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        variant_name="decimals_3",
+        reason="The op does not support decimals yet",
+    )
+    .xfail(
+        variant_name="decimals_neg_3",
+        reason="The op does not support decimals yet",
+    ),
+    TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
+    TorchLibOpInfo("rsub", core_ops.aten_rsub),
+    # TorchLibOpInfo("scalar_tensor", core_ops.aten_scalar_tensor),  # no test case in OPS_DB
+    TorchLibOpInfo(
         "scatter_add",
+        core_ops.aten_scatter_add,
+    )
+    .xfail(
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
     ),
-    skip(
-        "scatter_reduce",
-        # ONNX has not include_self parameter and default is include_self=True mode
-        matcher=lambda sample: sample.kwargs.get("include_self") is False,
-        reason="ONNX does't support include_self=False option",
+    TorchLibOpInfo("select", core_ops.aten_select),
+    TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
+    TorchLibOpInfo("sign", core_ops.aten_sign),
+    TorchLibOpInfo("sin", core_ops.aten_sin),
+    TorchLibOpInfo("sinh", core_ops.aten_sinh),
+    TorchLibOpInfo(
+        "softmax",
+        special_ops.aten_special_softmax,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
+    )
+    .xfail(
+        variant_name="with_dtype",
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
-    skip(
-        "squeeze",
-        matcher=lambda sample: not (len(sample.args) == 0),
-        reason="this Aten overload only support one tensor as input by design",
+    TorchLibOpInfo(
+        "split_with_sizes",
+        core_ops.aten_split_with_sizes,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
     ),
-    skip(
+    TorchLibOpInfo(
+        "split",
+        core_ops.aten_split,
+    )
+    .xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ORT failed",
+    )
+    .xfail(
+        variant_name="list_args",
+        dtypes=[torch.float16],
+        reason="fixme: ORT: Type (seq(tensor(float16))) of output arg (output0) of node () does not match expected type (seq(tensor(float)))",
+    ),
+    TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
+    TorchLibOpInfo(
         "squeeze_dim",
+        core_ops.aten_squeeze_dim,
+    ).skip(
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
-    skip(
+    TorchLibOpInfo(
+        "squeeze",
+        core_ops.aten_squeeze,
+    ).skip(
+        matcher=lambda sample: not (len(sample.args) == 0),
+        reason="this Aten overload only support one tensor as input by design",
+    ),
+    TorchLibOpInfo("stack", core_ops.aten_stack),
+    TorchLibOpInfo("sub", core_ops.aten_sub),
+    # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
+    TorchLibOpInfo(
+        "t",
+        core_ops.aten_t,
+    ).xfail(
+        reason="ORT Graph attribute inferencing failed on rank-1 input",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    TorchLibOpInfo("tan", core_ops.aten_tan),
+    TorchLibOpInfo("tanh", core_ops.aten_tanh),
+    TorchLibOpInfo(
         "tile",
+        core_ops.aten_tile,
+    ).skip(
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape)
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    xfail(
+    TorchLibOpInfo("topk", core_ops.aten_topk).xfail(
+        dtypes=(torch.int64,),
+        enabled_if=not ops_test_common.IS_WINDOWS,
+        reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
+    ),
+    TorchLibOpInfo("tril", core_ops.aten_tril),
+    TorchLibOpInfo("triu", core_ops.aten_triu),
+    TorchLibOpInfo("trunc", core_ops.aten_trunc),
+    TorchLibOpInfo(
+        "unbind",
+        core_ops.aten_unbind,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+    ),
+    TorchLibOpInfo(
         "unflatten",
+        core_ops.aten_unflatten,
+        input_wrangler=_unflatten_input_wrangler,
+    )
+    .xfail(
+        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    xfail(
+    TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
+    TorchLibOpInfo("view", core_ops.aten_view),
+    TorchLibOpInfo("view_as", core_ops.aten_view_as),
+    TorchLibOpInfo("view_as_complex", core_ops.aten_view_as_complex),
+    TorchLibOpInfo("view_as_complex_copy", core_ops.aten_view_as_complex_copy),
+    TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
+    TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
+    TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
+    TorchLibOpInfo(
+        "vstack",
+        core_ops.aten_vstack,
+    ).xfail(
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+    ),
+    TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler),
+    TorchLibOpInfo("xlogy", special_ops.aten_special_xlogy),
+    TorchLibOpInfo("zeros", core_ops.aten_zeros),
+    TorchLibOpInfo(
+        "arange_start_step",
+        core_ops.aten_arange_start_step,
+        trace_only=True,
+    ).xfail(
+        matcher=lambda sample: len(sample.args) != 2,
+        reason="arange_start_step overload takes three arguments (input, start, step)",
+    ),
+    TorchLibOpInfo(
+        "arange_start",
+        core_ops.aten_arange_start,
+        trace_only=True,
+    ).skip(
+        matcher=lambda sample: len(sample.args) != 1,
+        reason="arange_start overload takes two arguments (input, start)",
+    ),
+    TorchLibOpInfo(
+        "arange",
+        core_ops.aten_arange,
+        trace_only=True,
+    )
+    .xfail(
+        matcher=lambda sample: len(sample.args) != 0,
+        reason="arange overload takes single argument",
+    )
+    .xfail(
+        matcher=lambda sample: sample.kwargs.get("end") is not None,
+        reason="arange overload does not support positional 'end' argument",
+    ),
+    TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMin for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo(
+        "as_strided",
+        core_ops.aten_as_strided,
+        trace_only=True,
+    ).xfail(
+        variant_name="partial_views",
+        reason="ONNX doesn't have partial view for tensor",
+    ),
+    TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True),
+    TorchLibOpInfo(
+        "col2im",
+        nn_ops.aten_col2im,
+        trace_only=True,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: Tensor-likes are not close. https://github.com/microsoft/onnxruntime/issues/16007",
+    ),
+    TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
+    TorchLibOpInfo("contiguous", core_ops.aten_contiguous),
+    TorchLibOpInfo(
+        "convolution",
+        core_ops.aten_convolution,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ),
+    TorchLibOpInfo(
+        "empty_like", core_ops.aten_empty_like, nondeterministic=True, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "grid_sampler_2d",
+        core_ops.aten_grid_sampler_2d,
+        trace_only=True,
+    ).skip(
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.args[1] == 2,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch",
+    ),
+    TorchLibOpInfo(
+        "hstack",
+        core_ops.aten_hstack,
+        trace_only=True,
+    ).xfail(
+        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.grid_sample",
+        core_ops.aten_grid_sampler,
+        input_wrangler=_grid_sample_input_wrangler,
+        trace_only=True,
+    ).skip(
+        # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
+        matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
+        or len(sample.args[0].shape) != 4,
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+    ),
+    TorchLibOpInfo(
+        "layer_norm",
+        core_ops.aten_layer_norm,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
+    ),
+    TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
+    TorchLibOpInfo(
+        "max",
+        core_ops.aten_max,
+        trace_only=True,
+    )
+    .xfail(
+        variant_name="binary",
+        reason="fixme: current implementation gets shape inference error",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
+        reason="fixme: current implementation gets shape inference error",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ReduceMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo(
+        # Custom from extra_opinfo
+        "max_pool1d",
+        nn_ops.aten_max_pool1d,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        # Custom from extra_opinfo
+        "max_pool2d",
+        nn_ops.aten_max_pool2d,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "max_pool3d",  # Custom from extra_opinfo
+        nn_ops.aten_max_pool3d,
+        trace_only=True,
+    ).xfail(
+        variant_name="empty_strides",
+        reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
+    ),
+    TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
+    TorchLibOpInfo(
+        "native_group_norm",
+        core_ops.aten_native_group_norm,
+        trace_only=True,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: 'GroupNormKernelImpl' not implemented for 'Half' in nightly and weekly",
+    ),
+    TorchLibOpInfo(
+        "native_layer_norm",
+        core_ops.aten_native_layer_norm,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ),
+    TorchLibOpInfo(
+        "nn.functional.avg_pool2d",
+        nn_ops.aten_avg_pool2d,
+        input_wrangler=_avg_pool2d_input_wrangler,
+        trace_only=True,
+    ).xfail(
+        matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
+        reason="ONNX doesn't support divisor_override argument",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.conv1d",
+        core_ops.aten_conv1d,
+        trace_only=True,
+    ).xfail(
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+        reason="String padding is not accepted by aten::conv1d",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.conv2d",
+        core_ops.aten_conv2d,
+        trace_only=True,
+        tolerance={torch.float32: (2e-5, 3e-5)},
+    ).xfail(
+        matcher=lambda sample: isinstance(sample.kwargs.get("padding"), str),
+        reason="String padding is not accepted by aten::conv2d",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.conv3d",
+        core_ops.aten_conv3d,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ),
+    TorchLibOpInfo(
+        "nn.functional.gelu",
+        nn_ops.aten_gelu,
+        trace_only=True,
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="fixme: ONNX Runtime aborted",
+    ),
+    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
+    TorchLibOpInfo(
+        "nn.functional.max_pool1d",
+        nn_ops.aten_max_pool1d,
+        input_wrangler=_max_pool_input_wrangler,
+        trace_only=True,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool1d_with_indices",
+        nn_ops.aten_max_pool1d_with_indices,
+        input_wrangler=_max_pool_input_wrangler,
+        trace_only=True,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool2d",
+        nn_ops.aten_max_pool2d,
+        input_wrangler=_max_pool_input_wrangler,
+        trace_only=True,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool2d_with_indices",
+        nn_ops.aten_max_pool2d_with_indices,
+        input_wrangler=_max_pool_input_wrangler,
+        trace_only=True,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool3d",
+        nn_ops.aten_max_pool3d,
+        input_wrangler=_max_pool_input_wrangler,
+        trace_only=True,
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+        and sample.kwargs.get("padding") == 1,
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+    )
+    .skip(
+        "nn.functional.max_pool3d",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is True,
+        reason="this aten overload assume return_indices=False",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.max_pool3d_with_indices",
+        nn_ops.aten_max_pool3d_with_indices,
+        input_wrangler=_max_pool_input_wrangler,
+        trace_only=True,
+    )
+    .skip(
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True
+        and sample.kwargs.get("padding") == 1,
+        reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
+    )
+    .skip(
+        "nn.functional.max_pool3d_with_indices",
+        matcher=lambda sample: sample.kwargs.get("return_indices") is False,
+        reason="this aten overload assume return_indices=True",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.scaled_dot_product_attention",
+        nn_ops.aten_scaled_dot_product_attention,
+        trace_only=True,
+    )
+    .skip(
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
+    )
+    .skip(
+        "nn.functional.scaled_dot_product_attention",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype == torch.bool,
+        reason="this overload takes a non-boolean mask",
+    )
+    .skip(
+        "nn.functional.scaled_dot_product_attention",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        nn_ops.aten_scaled_dot_product_attention_bool_mask,
+        trace_only=True,
+    )
+    .skip(
+        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
+    )
+    .skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
+        and attn_mask.dtype != torch.bool,
+        reason="this overload takes a boolean mask",
+    )
+    .skip(
+        "nn.functional.scaled_dot_product_attention_bool_mask",
+        matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
+        reason="dropout is random so the results do not match",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.upsample_bilinear2d",
+        nn_ops.aten_upsample_bilinear2d,
+        input_wrangler=_upsample_bilinear2d_input_wrangler,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "nn.functional.upsample_nearest2d",
+        nn_ops.aten_upsample_nearest2d,
+        input_wrangler=_upsample_input_wrangler,
+        trace_only=True,
+    )
+    .xfail(
+        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .skip(
+        "nn.functional.upsample_nearest2d",
+        # Shape should be [N, C, H, W]
+        matcher=lambda sample: len(sample.input.shape) != 2 + 2,
+        reason="only test on 2d inputs",
+    )
+    .xfail(
+        matcher=lambda sample: "scale_factor" in sample.kwargs,
+        reason="fixme: the scale_factor tests",
+    ),
+    TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
+    TorchLibOpInfo(
+        "scatter_reduce",
+        core_ops.aten_scatter_reduce,
+        input_wrangler=_scatter_reduce_input_wrangler,
+        trace_only=True,
+    )
+    .xfail(
+        variant_name="mean",
+        reason="ONNX doesn't support reduce='mean' option",
+    )
+    .skip(
+        "scatter_reduce",
+        # ONNX has not include_self parameter and default is include_self=True mode
+        matcher=lambda sample: sample.kwargs.get("include_self") is False,
+        reason="ONNX does't support include_self=False option",
+    )
+    .xfail(
+        variant_name="amax",
+        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'max'",
+    )
+    .xfail(
+        variant_name="amin",
+        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'min'",
+    )
+    .xfail(
+        variant_name="prod",
+        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'prod'",
+    )
+    .xfail(
+        variant_name="sum",
+        reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
+    ),
+    TorchLibOpInfo("slice_scatter", core_ops.aten_slice_scatter, trace_only=True),
+    TorchLibOpInfo("slice", core_ops.aten_slice, trace_only=True),
+    TorchLibOpInfo(
+        "aten.stft",  # Custom from extra_opinfo
+        core_ops.aten_stft,
+        trace_only=True,
+        tolerance={torch.float32: (3.7e-5, 1.8e-4)},
+    ).xfail(
+        dtypes=[torch.float16],
+        reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
+    ),
+    TorchLibOpInfo(
+        "sum",
+        core_ops.aten_sum_dim_IntList,
+        input_wrangler=_sum_input_wrangler,
+        trace_only=True,
+    ),
+    TorchLibOpInfo("aten.tensor.bool", core_ops.aten_tensor_bool),  # Custom from extra_opinfo
+    TorchLibOpInfo(
+        "aten.tensor.float", core_ops.aten_tensor_float  # Custom from extra_opinfo
+    ),
+    TorchLibOpInfo("aten.tensor.int", core_ops.aten_tensor_int),  # Custom from extra_opinfo
+    TorchLibOpInfo("transpose", core_ops.aten_transpose, trace_only=True),
+    TorchLibOpInfo(
         "var_mean",
+        core_ops.aten_var_mean,
+        trace_only=True,
+    )
+    .xfail(
+        reason="fixme: Inferred shape and existing shape differ in rank",
+    )
+    .skip(
+        variant_name="unbiased",
+        reason="fixme: Inferred shape and existing shape differ in rank",
+    )
+    .xfail(
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
         reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
     ),
-    xfail(
+    TorchLibOpInfo(
         "var_mean_dim",
+        core_ops.aten_var_mean_dim,
+        trace_only=True,
+    ).xfail(
         # kwargs["dim"] must exist, kwargs["correction"] must not exist
         matcher=lambda sample: not (
             sample.kwargs.get("dim", None) is not None
@@ -1130,52 +1593,41 @@ SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = (
         ),
         reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
     ),
-    skip(
+    TorchLibOpInfo(
+        "var_mean_correction",
+        core_ops.aten_var_mean_correction,
+        trace_only=True,
+    )
+    .xfail(
+        reason="fixme: Inferred shape and existing shape differ in rank",
+    )
+    .skip(
         "var_mean_correction",
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
     ),
+    TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
-
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "arange",
-    (
-        "arange_start",
-        "arange_start_step",
-    ),
-)
-
+ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
-
-
+ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
-
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
-
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.pad",
@@ -1185,13 +1637,11 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.replication_pad3d",
     ),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "min",
@@ -1200,13 +1650,11 @@ ops_test_common.duplicate_opinfo(
         "min_dim",
     ),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_bilinear",
     ("nn.functional.upsample_bilinear2d",),
 )
-
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.upsample_nearest",
@@ -1216,36 +1664,54 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
-
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "var_mean",
-    (
-        "var_mean_dim",
-        "var_mean_correction",
-    ),
+# MARK: End edits here
+
+
+# These ops are not deterministic, so we check shape and dtype only
+NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
+    info.op_info_name for info in TESTED_TORCHLIB_OPS if info.nondeterministic
 )
 
-# NOTE: Complex supported functions
-# TODO: Expand this list with trace_only_ops when it is needed
-# Ops to be tested for numerical consistency between onnx and pytorch
-# Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
-COMPLEX_FUNCTION_MAPPING_SCRIPTED: dict[
+TORCHLIB_OPINFO_MAPPING: dict[
     str,
-    Callable[..., Any] | tuple[Callable[..., Any], Callable[..., Any]],
-    # onnxscript.OnnxFunction
-    # | Callable[..., Any]
-    # | tuple[
-    #     onnxscript.OnnxFunction | Callable[..., Any],
-    #     Callable[[list[Any], dict[str, Any]], tuple[list[Any], dict[str, Any]]],
-    # ],
-] = {
-    "abs": core_ops.aten_abs_complex,
-}
+    TorchLibOpInfo,
+] = {info.op_info_name: info for info in TESTED_TORCHLIB_OPS if not info.complex}
 
-COMPLEX_TESTED_OPS = frozenset(COMPLEX_FUNCTION_MAPPING_SCRIPTED)
+TESTED_OPS = frozenset(TORCHLIB_OPINFO_MAPPING)
+
+EXPECTED_SKIPS_OR_FAILS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
+)
+
+SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is not None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
+)
+
+# MARK: Complex supported functions
+COMPLEX_FUNCTION_MAPPING: dict[
+    str,
+    TorchLibOpInfo,
+] = {info.op_info_name: info for info in TESTED_TORCHLIB_OPS if info.complex}
+
 
 # Call dir(torch.ops.prims) and compare with entries in OPS_DB to create OpInfo for newly added prims ops
 PRIMS_OPS_WITH_OP_INFO = (
@@ -1364,912 +1830,3 @@ assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in
 assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
-
-# List for different input dtype testing flag
-# Added Cast inside below functions so they can support all real dtypes naturally
-# -- isfinite, isinf, isneginf, isposinf
-# Note:
-# Converter fp32 to fp16 model is a significant feature for end users,
-# another approach is to add cast before/after the function call,
-# that way we also need a list to remember which function need cast
-OPINFO_FUNCTION_TARGET_DTYPE: dict[
-    str,
-    tuple[Any, ...],
-] = {
-    "all_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "allclose": (
-        torch.float32,
-        torch.float16,
-    ),
-    "all": (
-        torch.float32,
-        torch.float16,
-    ),
-    "abs": (
-        torch.float32,
-        torch.float16,
-    ),
-    "acos": (
-        torch.float32,
-        torch.float16,
-    ),
-    "acosh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "add": (
-        torch.float32,
-        # torch.float16,  # FIXME: float16 failed, tensor-likes are not close for FullGraph mode
-        # using https://github.com/microsoft/onnxruntime/issues/15977 to track
-    ),
-    "addmm": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "alias": core_ops.aten_alias,  # alias is not in OP-TEST-DB
-    "amax": (
-        torch.float32,
-        torch.float16,
-    ),
-    "amin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "any": (
-        torch.float32,
-        torch.float16,
-    ),
-    "any_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "arange_start_step": (
-        torch.float32,
-        torch.float16,
-    ),
-    "arange_start": (
-        torch.float32,
-        torch.float16,
-    ),
-    "arange": (
-        torch.float32,
-        torch.float16,
-    ),
-    "argmax": (
-        torch.float32,
-        torch.float16,
-    ),
-    "argmin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "as_strided": (
-        torch.float32,
-        torch.float16,
-    ),
-    "asin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "asinh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atan": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atan2": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atanh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_1d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_1d_single_tensor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_2d_single_tensor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_3d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "atleast_3d_single_tensor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "baddbmm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "bmm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "broadcast_to": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cat": (
-        torch.float32,
-        torch.float16,
-    ),
-    "ceil": (
-        torch.float32,
-        torch.float16,
-    ),
-    "chunk": (
-        torch.float32,
-        # torch.float16,  # FIXME: SplitToSequence op inference failed
-        # using https://github.com/microsoft/onnxruntime/issues/16006 to track
-    ),
-    "clamp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "clamp_max": (
-        torch.float32,
-        torch.float16,
-    ),
-    "clamp_min": (
-        torch.float32,
-        torch.float16,
-    ),
-    "clone": (
-        torch.float32,
-        torch.float16,
-    ),
-    "col2im": (
-        torch.float32,
-        # torch.float16,  # FIXME: Tensor-likes are not close
-        # using https://github.com/microsoft/onnxruntime/issues/16007 to track
-    ),
-    "constant_pad_nd": (
-        torch.float32,
-        torch.float16,
-    ),
-    "contiguous": (
-        torch.float32,
-        torch.float16,
-    ),
-    "convolution": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "copy": core_ops.aten_copy,  # copy is not in OPS_DB
-    "cos": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cosh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cross": (
-        torch.float32,
-        torch.float16,
-    ),
-    "cumsum": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "detach": core_ops.aten_detach,  # detach is not in OP-TEST-DB
-    "div": (
-        torch.float32,
-        torch.float16,
-    ),
-    "dot": (
-        torch.float32,
-        torch.float16,
-    ),
-    "empty": (
-        torch.float32,
-        torch.float16,
-    ),
-    "empty_like": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "empty_strided": core_ops.aten_empty_strided,  # empty_strided is not in OPS_DB
-    "eq": (
-        torch.float32,
-        torch.float16,
-    ),
-    "equal": (
-        torch.float32,
-        torch.float16,
-    ),
-    "exp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "exp2": (
-        torch.float32,
-        torch.float16,
-    ),
-    "expand": (
-        torch.float32,
-        torch.float16,
-    ),
-    "expand_as": (
-        torch.float32,
-        torch.float16,
-    ),
-    "erf": (
-        torch.float32,
-        torch.float16,
-    ),
-    "fill": (
-        torch.float32,
-        torch.float16,
-    ),
-    "flip": (
-        torch.float32,
-        torch.float16,
-    ),
-    "floor": (
-        torch.float32,
-        torch.float16,
-    ),
-    "fmod": (
-        torch.float32,
-        torch.float16,
-    ),
-    "full": (
-        torch.float32,
-        torch.float16,
-    ),
-    "full_like": (
-        torch.float32,
-        torch.float16,
-    ),
-    "full_like_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "gather": (
-        torch.float32,
-        torch.float16,
-    ),
-    "ge": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "greater_equal": core_ops.aten_greater_equal,  # no test case in OPS_DB
-    # "greater": core_ops.aten_greater,  # no test case in OPS_DB
-    "grid_sampler_2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "gt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "hstack": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "is_same_size": core_ops.aten_is_same_size,  # no test case in OPS_DB
-    # "is_nonzero": core_ops.aten_is_nonzero,  # no test case in OPS_DB
-    "index_put_bool": (
-        torch.float32,
-        torch.float16,
-    ),
-    "index_put": (
-        torch.float32,
-        torch.float16,
-    ),
-    "index_select": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isclose": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isfinite": (
-        torch.float32,
-        # Added Cast inside the function so it can support all real dtypes naturally
-        torch.float16,
-    ),
-    "isinf": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isnan": (
-        torch.float32,
-        torch.float16,
-    ),
-    "isneginf": (
-        torch.float32,
-        # Added Cast inside the function so it can support all real dtypes naturally
-        torch.float16,
-    ),
-    "isposinf": (
-        torch.float32,
-        # Added Cast inside the function so it can support all real dtypes naturally
-        torch.float16,
-    ),
-    "layer_norm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "log": (
-        torch.float32,
-        torch.float16,
-    ),
-    "le": (
-        torch.float32,
-        torch.float16,
-    ),
-    "log10": (
-        torch.float32,
-        # py310-torch-nightly,Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float)
-        # torch.float16,
-    ),
-    "log1p": (
-        torch.float32,
-        torch.float16,
-    ),
-    "log_softmax": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed.
-    ),
-    "log2": (
-        torch.float32,
-        # windows-latest, py310-torch-nightly, RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model
-        # torch.float16,
-    ),
-    "logaddexp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logaddexp2": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logcumsumexp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logdet": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logit": (
-        torch.float32,
-        torch.float16,
-    ),
-    "logsumexp": (
-        torch.float32,
-        torch.float16,
-    ),
-    "lt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "masked_fill": (
-        torch.float32,
-        torch.float16,
-    ),
-    "matmul": (
-        torch.float32,
-        torch.float16,
-    ),
-    "maximum": (
-        torch.float32,
-        torch.float16,
-    ),
-    "max": (
-        torch.float32,
-        torch.float16,
-    ),
-    "max_pool1d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "max_pool2d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "max_pool3d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "mean": (
-        torch.float32,
-        torch.float16,
-    ),
-    "mean_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "min_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "min_other": (
-        torch.float32,
-        torch.float16,
-    ),
-    "min": (
-        torch.float32,
-        torch.float16,
-    ),
-    "minimum": (
-        torch.float32,
-        torch.float16,
-    ),
-    "mm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "mul": (
-        torch.float32,
-        torch.float16,
-    ),
-    "narrow": (
-        torch.float32,
-        torch.float16,
-    ),
-    "native_batch_norm": (
-        torch.float32,
-        torch.float16,
-    ),
-    "native_group_norm": (
-        torch.float32,
-        # torch.float16,  # "GroupNormKernelImpl" not implemented for 'Half' in nightly and weekly
-    ),
-    "native_layer_norm": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "native_dropout": core_ops.aten_native_dropout,  # native_dropout is not in OPS_DB
-    "ne": (
-        torch.float32,
-        torch.float16,
-    ),
-    "neg": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty_strided_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_empty_strided": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_full_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_full": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_ones_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_ones": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_zeros_dtype": (
-        torch.float32,
-        torch.float16,
-    ),
-    "new_zeros": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.adaptive_avg_pool1d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.adaptive_avg_pool2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.adaptive_avg_pool3d": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT inference error GlobalAveragePool
-    ),
-    "nn.functional.avg_pool1d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.avg_pool2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.avg_pool3d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.celu": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.conv1d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.conv2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.conv3d": (
-        torch.float32,
-        torch.float16,
-    ),
-    # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
-    "nn.functional.cross_entropy": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.dropout": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.elu": (
-        torch.float32,
-        # torch.float16,  # ONNX Runtime aborted, ubuntu, py310 torch-nightly
-    ),
-    "nn.functional.embedding": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.gelu": (
-        torch.float32,
-        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
-    ),
-    "nn.functional.grid_sample": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.hardtanh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.leaky_relu": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.linear": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.logsigmoid": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.max_pool1d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool1d_with_indices": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool2d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool2d_with_indices": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool3d": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.max_pool3d_with_indices": (
-        torch.float32,
-        torch.float16,  # There is no float16 tests in OPS_DB for this op
-    ),
-    "nn.functional.nll_loss_weight": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.nll_loss": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.reflection_pad2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.relu": (
-        torch.float32,
-        # ORT cannot support relu in float16
-        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
-        # torch.float16,
-    ),
-    "nn.functional.relu6": (
-        torch.float32,
-        # ORT cannot support relu in float16
-        # file issue: https://github.com/microsoft/onnxruntime/issues/16069
-        # torch.float16,
-    ),
-    "nn.functional.replication_pad2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.replication_pad3d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.scaled_dot_product_attention": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.scaled_dot_product_attention_bool_mask": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.selu": (
-        torch.float32,
-        # torch.float16,  # ubuntu py310 torch-nightly failed, ONNX Runtime aborted
-    ),
-    "nn.functional.mse_loss": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.upsample_bilinear2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nn.functional.upsample_nearest2d": (
-        torch.float32,
-        torch.float16,
-    ),
-    "nonzero": (
-        torch.float32,
-        torch.float16,
-    ),
-    "normal": (
-        torch.float32,
-        # torch.float16,  # FIXME: RandomNormal in ORT failed
-    ),
-    "ones": (
-        torch.float32,
-        torch.float16,
-    ),
-    "ones_like": (
-        torch.float32,
-        torch.float16,
-    ),
-    "permute": (
-        torch.float32,
-        torch.float16,
-    ),
-    "pow": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "rand": core_ops.aten_rand,  # no test case in OPS_DB
-    "randn": (
-        torch.float32,
-        # torch.float16,  # FIXME: shape inference error
-    ),
-    "reciprocal": (
-        torch.float32,
-        torch.float16,
-    ),
-    "remainder": (
-        torch.float32,
-        torch.float16,
-    ),
-    "repeat": (
-        torch.float32,
-        torch.float16,
-    ),
-    "reshape": (
-        torch.float32,
-        torch.float16,
-    ),
-    "resolve_conj": (
-        torch.float32,
-        torch.float16,
-    ),
-    "resolve_neg": (
-        torch.float32,
-        torch.float16,
-    ),
-    "round": (
-        torch.float32,
-        torch.float16,
-    ),
-    "rsqrt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "rsub": (
-        torch.float32,
-        torch.float16,
-    ),
-    "scatter_reduce": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed
-    ),
-    "select": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "scalar_tensor": core_ops.aten_scalar_tensor,  # no test case in OPS_DB
-    "scatter_add": (
-        torch.float32,
-        # torch.float16,  # FIXME" ORT failed
-    ),
-    "sigmoid": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sign": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sin": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sinh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "slice_scatter": (
-        torch.float32,
-        torch.float16,
-    ),
-    "slice": (
-        torch.float32,
-        torch.float16,
-    ),
-    "softmax": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed
-    ),
-    "split_with_sizes": (
-        torch.float32,
-        # torch.float16,  # FIXME: ORT failed
-    ),
-    "split": (
-        torch.float32,
-        # torch.float16,  # ORT failed
-    ),
-    "sqrt": (
-        torch.float32,
-        torch.float16,
-    ),
-    "squeeze_dim": (
-        torch.float32,
-        torch.float16,
-    ),
-    "squeeze": (
-        torch.float32,
-        torch.float16,
-    ),
-    "stack": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sub": (
-        torch.float32,
-        torch.float16,
-    ),
-    "sum": (
-        torch.float32,
-        torch.float16,
-    ),
-    # "sym_size": core_ops.aten_sym_size,  # no test case in OPS_DB
-    "t": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tan": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tanh": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tile": (
-        torch.float32,
-        torch.float16,
-    ),
-    "topk": (
-        torch.float32,
-        torch.float16,
-    ),
-    "transpose": (
-        torch.float32,
-        torch.float16,
-    ),
-    "tril": (
-        torch.float32,
-        torch.float16,
-    ),
-    "triu": (
-        torch.float32,
-        torch.float16,
-    ),
-    "trunc": (
-        torch.float32,
-        torch.float16,
-    ),
-    "unflatten": (
-        torch.float32,
-        torch.float16,
-    ),
-    "unsqueeze": (
-        torch.float32,
-        torch.float16,
-    ),
-    "var_mean": (
-        torch.float32,
-        # py31--torch-nightly, Unable to create onnxruntime InferenceSession for executing .Mul op with onnx model
-        # torch.float16,
-    ),
-    "var_mean_dim": (
-        torch.float32,
-        # py310-torch-nightly, FullGraph, AssertionError in ORT
-        # torch.float16,
-    ),
-    "var_mean_correction": (
-        torch.float32,
-        # py310-onnx-weekly, FullGraph, AssertionError in ORT
-        # torch.float16,
-    ),
-    "view": (
-        torch.float32,
-        torch.float16,
-    ),
-    "vstack": (
-        torch.float32,
-        torch.float16,
-    ),
-    "where": (
-        torch.float32,
-        torch.float16,
-    ),
-    "xlogy": (
-        torch.float32,
-        torch.float16,
-    ),
-    "zeros": (
-        torch.float32,
-        torch.float16,
-    ),
-    "zeros_like": (
-        torch.float32,
-        torch.float16,
-    ),
-}

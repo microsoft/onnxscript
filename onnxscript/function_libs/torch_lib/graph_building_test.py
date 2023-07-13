@@ -119,5 +119,19 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         onnxscript.testing.assert_isomorphic(traced, expected)
 
 
+class TestTorchScriptGraph(unittest.TestCase):
+    def test_add_initializer_raises_when_the_same_name_used_for_different_tensors(self):
+        graph = graph_building.TorchScriptGraph()
+        graph.add_initializer("x", torch.ones((1, 2, 3), dtype=torch.float32))
+        with self.assertRaises(ValueError):
+            graph.add_initializer("x", torch.ones((1, 2, 3), dtype=torch.float32))
+
+    def test_add_initializer_allows_adding_the_same_tensor_twice_using_same_name(self):
+        graph = graph_building.TorchScriptGraph()
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        graph.add_initializer("x", x_tensor)
+        graph.add_initializer("x", x_tensor)
+
+
 if __name__ == "__main__":
     unittest.main()

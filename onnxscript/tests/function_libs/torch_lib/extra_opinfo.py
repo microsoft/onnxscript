@@ -17,6 +17,33 @@ from torch.testing._internal import (
 from torch.testing._internal.opinfo import core as opinfo_core
 
 
+def sample_inputs__local_scalar_dense(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = (
+        (),
+        (1,),
+        (3,),
+        (1, 1),
+        (1, 2),
+        (2, 1),
+        (1, 1, 1),
+        (2, 2, 2),
+    )
+
+    for shape in shapes:
+        t = torch_testing.make_tensor(
+            shape,
+            low=0,
+            high=1,
+            device=device,
+            dtype=dtype,
+            requires_grad=requires_grad,
+            **kwargs,
+        )
+        yield opinfo_core.SampleInput(t)
+
+
 def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     make_arg = functools.partial(
@@ -419,7 +446,121 @@ def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
 
 
+def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    def mt(shape, **kwargs):
+        return torch_testing.make_tensor(
+            shape, device=device, dtype=dtype, requires_grad=requires_grad, **kwargs
+        )
+
+    yield opinfo_core.SampleInput(mt(100), n_fft=10, return_complex=True)
+    yield opinfo_core.SampleInput(mt(100), n_fft=10, return_complex=False)
+    if dtype.is_complex:
+        yield opinfo_core.SampleInput(mt(100), n_fft=10)
+
+    yield opinfo_core.SampleInput(mt(10), n_fft=7, return_complex=True)
+    yield opinfo_core.SampleInput(mt((10, 100)), n_fft=16, hop_length=4, return_complex=True)
+
+    window = mt(16, low=0.5, high=2.0)
+    yield opinfo_core.SampleInput(
+        mt((2, 100)), kwargs=dict(n_fft=16, window=window, return_complex=True)
+    )
+    yield opinfo_core.SampleInput(
+        mt((3, 100)), kwargs=dict(n_fft=16, window=window, return_complex=True)
+    )
+    if not dtype.is_complex:
+        yield opinfo_core.SampleInput(
+            mt((10, 100)), n_fft=16, window=window, onesided=False, return_complex=True
+        )
+
+
+def sample_inputs_tensor_bool(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del device
+    del requires_grad
+    del kwargs
+    yield opinfo_core.SampleInput(True, dtype=dtype)
+    yield opinfo_core.SampleInput(False, dtype=dtype)
+
+
+def sample_inputs_tensor_float(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del device
+    del requires_grad
+    del kwargs
+    yield opinfo_core.SampleInput(3.0, dtype=dtype)
+    yield opinfo_core.SampleInput(-1.0, dtype=dtype)
+
+
+def sample_inputs_tensor_int(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del device
+    del requires_grad
+    del kwargs
+    yield opinfo_core.SampleInput(2, dtype=dtype)
+    yield opinfo_core.SampleInput(-5, dtype=dtype)
+
+
+def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = [
+        [3],
+        [],
+        [3, 2],
+        [2, 3, 2],
+    ]
+
+    for shape in shapes:
+        for p in (0, 0.5, 1):
+            t = torch_testing.make_tensor(
+                shape,
+                low=0,
+                high=1,
+                device=device,
+                dtype=dtype,
+                requires_grad=requires_grad,
+                **kwargs,
+            )
+            yield opinfo_core.SampleInput(t, args=(p,))
+            yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
+def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = [
+        [3],
+        [],
+        [3, 2],
+        [2, 3, 2],
+    ]
+
+    for shape in shapes:
+        for p in (0, 1):
+            t = torch_testing.make_tensor(
+                shape,
+                low=0,
+                high=1,
+                device=device,
+                dtype=dtype,
+                requires_grad=requires_grad,
+                **kwargs,
+            )
+            yield opinfo_core.SampleInput(t, args=(p,))
+            yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
 OP_DB: List[opinfo_core.OpInfo] = [
+    opinfo_core.OpInfo(
+        "aten._local_scalar_dense",
+        op=torch.ops.aten._local_scalar_dense,  # pylint: disable=protected-access
+        aten_name="_local_scalar_dense",
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs__local_scalar_dense,
+    ),
     opinfo_core.OpInfo(
         "col2im",
         op=torch.ops.aten.col2im,
@@ -522,5 +663,64 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         skips=(),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
+    ),
+    # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
+    # This custom OpInfo uses aten::stft directly.
+    opinfo_core.OpInfo(
+        "aten.stft",
+        aten_name="stft",
+        op=torch.ops.aten.stft,
+        dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_stft,
+        # Runs very slowly on slow gradcheck - alternatively reduce input sizes
+        gradcheck_fast_mode=True,
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
+        check_batched_grad=False,
+        check_batched_gradgrad=False,
+        supports_out=False,
+        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
+    ),
+    opinfo_core.OpInfo(
+        "aten.tensor.bool",
+        aten_name="tensor.bool",
+        op=torch.ops.aten.tensor.bool,
+        dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_tensor_bool,
+    ),
+    opinfo_core.OpInfo(
+        "aten.tensor.float",
+        aten_name="tensor.float",
+        op=torch.ops.aten.tensor.float,
+        dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_tensor_float,
+    ),
+    opinfo_core.OpInfo(
+        "aten.tensor.int",
+        aten_name="tensor.int",
+        op=torch.ops.aten.tensor.int,
+        dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
+        sample_inputs_func=sample_inputs_tensor_int,
+    ),
+    opinfo_core.OpInfo(
+        # Unique ID used to connect
+        #  TorchLibOpInfo("aten.bernoulli.p", ...)
+        # and
+        #  opinfo_core.OpInfo("aten.bernoulli.p", ...)
+        "aten.bernoulli.p",
+        aten_name="bernoulli.p",
+        op=torch.ops.aten.bernoulli.p,
+        # dtypes can be a tuple of (torch.float, torch.double).
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_bernoulli_p,
+    ),
+    opinfo_core.OpInfo(
+        # Deterministic bernoulli sampling where p is either 0 or 1
+        "aten.bernoulli.p_deterministic",
+        aten_name="bernoulli.p",
+        op=torch.ops.aten.bernoulli.p,
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
     ),
 ]

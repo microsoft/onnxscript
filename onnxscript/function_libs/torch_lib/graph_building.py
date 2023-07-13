@@ -24,14 +24,13 @@ import onnx.defs
 import onnx.helper
 import onnx.shape_inference
 import torch
-from beartype import beartype
 from torch.onnx import _type_utils
 from typing_extensions import TypeAlias
 
 import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
-from onnxscript._internal import param_manipulation
+from onnxscript._internal import param_manipulation, runtime_typing
 
 __all__ = [
     "TorchScriptTensor",
@@ -100,14 +99,14 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._concrete_value = value
 
     @property
-    @beartype
+    @runtime_typing.checked
     def name(self) -> str:
         if self._name is not None:
             return self._name
         return self._torch_value.debugName()
 
     @name.setter
-    @beartype
+    @runtime_typing.checked
     def name(self, name: str):
         self._name = name
         self._torch_value.setDebugName(name)
@@ -172,7 +171,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return self._torch_value
 
 
-@beartype
+@runtime_typing.checked
 def _unwrap_tensor_to_torch_value(
     value: Union[
         ValidArgumentType, Mapping[str, ValidArgumentType], Sequence[ValidArgumentType]
@@ -197,7 +196,7 @@ def _unwrap_tensor_to_torch_value(
     return value  # type: ignore[return-value]
 
 
-@beartype
+@runtime_typing.checked
 def _wrap_torch_value_to_tensor(
     value: Union[torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]]
 ) -> Union[
@@ -239,7 +238,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def eval(self, schema, inputs, attributes):
         return self._graph.add_op_call(schema, inputs, attributes)
 
-    @beartype
+    @runtime_typing.checked
     def eval_function(  # type: ignore[override]
         self,
         function: onnxscript.OnnxFunction,
@@ -264,7 +263,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph.add_function_call(function, inputs, attributes)
 
 
-@beartype
+@runtime_typing.checked
 def _add_attribute_to_torchscript_node(
     node: torch.Node,
     key: str,
@@ -292,7 +291,7 @@ def _add_attribute_to_torchscript_node(
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
 
-@beartype
+@runtime_typing.checked
 def _create_op_call_in_torch_graph(
     graph: torch.Graph,
     opname: str,
@@ -371,7 +370,7 @@ class TorchScriptGraph:
     def num_outputs(self) -> int:
         return len(list(self._torch_graph.outputs()))
 
-    @beartype
+    @runtime_typing.checked
     def add_input(
         self,
         input_name: Optional[str],
@@ -399,13 +398,13 @@ class TorchScriptGraph:
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
-    @beartype
+    @runtime_typing.checked
     def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
         if name in self._initializers_inputs:
             # NOTE: Previously it raises when `name` is already set. This is relaxed
             # because this will be invoked multiple times when submodule is called
             # multiple times.
-            if name in self._initializers and self._initializers[name] != value:
+            if name in self._initializers and self._initializers[name] is not value:
                 raise ValueError(
                     f"Initializer '{name}' exists already with a different value."
                 )
@@ -433,7 +432,7 @@ class TorchScriptGraph:
         self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
         return tensor_value  # type: ignore[return-value]
 
-    @beartype
+    @runtime_typing.checked
     def register_outputs(
         self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]
     ):
@@ -483,7 +482,7 @@ class TorchScriptGraph:
             attributes=dict(value=constant_tensor),
         )[0]
 
-    @beartype
+    @runtime_typing.checked
     def _add_torchscript_op_call(
         self,
         name: str,
@@ -529,7 +528,7 @@ class TorchScriptGraph:
             return TorchScriptTensor(result[0])
         return tuple(TorchScriptTensor(v) for v in result)
 
-    @beartype
+    @runtime_typing.checked
     def fetch_function_proto_dict(
         self, opset_version: int
     ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
@@ -555,7 +554,7 @@ class TorchScriptGraph:
             function_proto_dict[name_domain] = function.to_function_proto()
         return function_proto_dict
 
-    @beartype
+    @runtime_typing.checked
     def add_op_call(
         self,
         onnx_op_schema: onnx.defs.OpSchema,
@@ -573,7 +572,7 @@ class TorchScriptGraph:
 
         return result
 
-    @beartype
+    @runtime_typing.checked
     def add_function_call(
         self,
         onnx_function: onnxscript.OnnxFunction,
@@ -593,7 +592,7 @@ class TorchScriptGraph:
 
         return result
 
-    @beartype
+    @runtime_typing.checked
     def add_module_call(
         self,
         name: str,
@@ -611,7 +610,7 @@ class TorchScriptGraph:
             n_outputs=sub_torch_script_graph.num_outputs,
         )
 
-    @beartype
+    @runtime_typing.checked
     def to_function_proto(self, opset_version: int, function_name: str) -> onnx.FunctionProto:
         assert len(self.initializers) == 0, "Model local functions cannot have initializers."
         (
@@ -648,8 +647,10 @@ class TorchScriptGraph:
         # TODO: onnx.checker.check_function(onnx_function)?
         return onnx_function
 
-    @beartype
-    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
+    @runtime_typing.checked
+    def to_model_proto(
+        self, opset_version: int, include_initializers: bool = True
+    ) -> onnx.ModelProto:
         function_proto_dict: Mapping[
             Tuple[str, str], onnx.FunctionProto
         ] = self.fetch_function_proto_dict(opset_version)
@@ -665,7 +666,7 @@ class TorchScriptGraph:
             _,
             _,
         ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
-            initializers=self.initializers,
+            initializers=self.initializers if include_initializers else {},
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},

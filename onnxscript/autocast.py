@@ -1,30 +1,113 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License.
+# --------------------------------------------------------------------------
+
 from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
 import numpy as np
+import onnx
+from onnx import helper, numpy_helper
 from onnx.defs import OpSchema
 
 from onnxscript import tensor, values
 
+# Conversions from python values to ONNX are used by both the script converter as well
+# as the eager-mode runtime and both need to be consistent. The script converter converts
+# python values into ONNX TensorProto, while the runtime converts python values into
+# ONNXScript runtime's value-representation (based on Tensor).
 
-def cast_scalar_to_tensor(x, dtype=None):
-    """Promotes scalar values (bool, int, float) into tensors of rank zero.
-    The optional argument dtype specifies the desired np.dtype of the tensor.
-    Other types of inputs are returned as is.
+
+# Utilities to convert a python value to TensorProto (for use by the script converter)
+
+
+def _py_type_to_onnx_type(pytype: type):
+    if pytype is bool:
+        return onnx.TensorProto.BOOL
+    if pytype is int:
+        return onnx.TensorProto.INT64
+    if pytype is float:
+        return onnx.TensorProto.FLOAT
+    if pytype is str:
+        return onnx.TensorProto.STRING
+    raise ValueError(f"Tensor element of type {pytype} not supported")
+
+
+def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
+    if isinstance(pyvalue, np.ndarray):
+        return numpy_helper.from_array(pyvalue, tensor_name)
+    if isinstance(pyvalue, list):
+        if len(pyvalue) == 0:
+            raise ValueError("Cannot convert an empty list to tensor")
+        pytype = type(pyvalue[0])
+        if not all(isinstance(e, pytype) for e in pyvalue):
+            raise ValueError(
+                "Cannot convert an list with elements of different types to tensor"
+            )
+        return helper.make_tensor(
+            tensor_name,
+            _py_type_to_onnx_type(pytype),
+            [len(pyvalue)],
+            pyvalue,
+        )
+    onnx_type = _py_type_to_onnx_type(type(pyvalue))
+    if onnx_type is onnx.TensorProto.BOOL:
+        return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
+    if onnx_type is onnx.TensorProto.STRING:
+        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
+
+    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
+
+
+# Utilities to convert python values into onnxscript tensors.
+
+
+def _promotable(x) -> bool:
+    """Checks if a runtime parameter value needs to be promoted into an onnxscript value.
+    This is the runtime-equivalent of the promotion of literal constants into ONNX values
+    in the static converter.
     """
     if isinstance(x, (bool, int, float)):
-        # Scalar values are promoted to tensors of a type chosen as below:
+        return True
+    if isinstance(x, list) and x:
+        # Note: This is meant to handle valid scenarios correctly. No attempt is
+        # made yet to capture all invalid usages in runtime mode.
+        return _promotable(x[0])
+    return False
+
+
+def _get_dtype(pyvalue):
+    """Return np.dtype to use when converting a python value to an onnxscript tensor.
+    Note that int constants are treated as int64, as that is the common type in ONNX
+    for shape/index values.
+    """
+    if isinstance(pyvalue, bool):
+        return np.bool_
+    elif isinstance(pyvalue, int):
+        return np.int64
+    elif isinstance(pyvalue, float):
+        return np.float32
+    elif isinstance(pyvalue, list):
+        if pyvalue:
+            # TODO: What to do about lists with mixed value types, like [1, 2.0]?
+            # Should at least produce an error/warning message.
+            return _get_dtype(pyvalue[0])
+        raise ValueError("Cannot determine target type for empty list")
+    raise TypeError(f"Value of unexpected type {type(pyvalue)}")
+
+
+def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
+    """Promotes python values into onnxscript tensors.
+    The optional argument dtype specifies the desired np.dtype of the tensor,
+    used only when a non-standard onnxscript-value is promoted into one.
+    """
+    if _promotable(pyvalue):
         if dtype is None:
-            if isinstance(x, bool):
-                dtype = np.bool_
-            elif isinstance(x, int):
-                dtype = np.int64
-            else:
-                assert isinstance(x, float)
-                dtype = np.float32
-        return tensor.Tensor(np.array(x, dtype=dtype))
-    return x
+            dtype = _get_dtype(pyvalue)
+        return tensor.Tensor(np.array(pyvalue, dtype=dtype))
+    return pyvalue
 
 
 def cast_inputs(
@@ -87,7 +170,7 @@ def dynamic_cast_inputs(op_schema: OpSchema, args):
     def get_type_info(x):
         return x.dtype if isinstance(x, tensor.Tensor) else None
 
-    return cast_inputs(get_type_info, cast_scalar_to_tensor, op_schema, args)
+    return cast_inputs(get_type_info, cast_pyvalue_to_os_tensor, op_schema, args)
 
 
 def static_cast_inputs(converter, op_schema: Optional[OpSchema], args) -> tuple[str, ...]:
