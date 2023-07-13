@@ -4609,6 +4609,10 @@ def aten_native_dropout(
 ) -> Tuple[TFloatOrBFloat16, BOOL]:
     """native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)"""
 
+    # Python bool attributes need to be explicitly converted to BOOL
+    # because the underlying attribute type is int
+    # TODO(justinchuby): Allow ONNX Script to handle this conversion
+    train = op.Cast(train, to=BOOL.dtype)
     result, mask = op.Dropout(input, p, train)
     return result, mask
 

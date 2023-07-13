@@ -748,7 +748,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mm", core_ops.aten_mm),
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
-    # TorchLibOpInfo("native_dropout", core_ops.aten_native_dropout),  # native_dropout is not in OPS_DB
+    TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
     TorchLibOpInfo("ne", core_ops.aten_ne),
     TorchLibOpInfo("neg", core_ops.aten_neg),
     TorchLibOpInfo(

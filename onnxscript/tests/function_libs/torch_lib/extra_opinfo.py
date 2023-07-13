@@ -16,6 +16,8 @@ from torch.testing._internal import (
 )
 from torch.testing._internal.opinfo import core as opinfo_core
 
+S = 5
+
 
 def sample_inputs__local_scalar_dense(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
@@ -446,6 +448,28 @@ def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
 
 
+def sample_inputs_native_dropout(
+    op_info, device, dtype, requires_grad, *, valid_input_dim=None, **kwargs
+):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    if valid_input_dim:
+        cases = ((S,) * i for i in valid_input_dim)
+    else:
+        cases = ((S, S), (S,), ())
+    # ONNX requires 0 <= p < 1
+    p_vals = [0.0]
+
+    training_vals = [True, False]
+
+    for case, p, training in itertools.product(cases, p_vals, training_vals):
+        yield opinfo_core.SampleInput(make_arg(case), p=p, train=training)
+
+
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -561,6 +585,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs__local_scalar_dense,
     ),
+    opinfo_core.OpInfo(
+        "ops.aten.native_dropout",
+        aten_name="native_dropout",
+        dtypes=common_dtype.all_types_and_half(),
+        sample_inputs_func=sample_inputs_native_dropout,
+        supports_out=False,
+    ),
+    # TODO(justinchuby): Rename all with the aten. prefix
     opinfo_core.OpInfo(
         "col2im",
         op=torch.ops.aten.col2im,
