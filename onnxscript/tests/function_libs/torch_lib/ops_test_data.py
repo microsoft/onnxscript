@@ -524,8 +524,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=[torch.float16],
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     ),
-    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
-    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    ),
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
@@ -1248,7 +1254,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
     ),
-    TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True),
+    TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True).skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    ),
     TorchLibOpInfo(
         "ops.aten.col2im",
         nn_ops.aten_col2im,
