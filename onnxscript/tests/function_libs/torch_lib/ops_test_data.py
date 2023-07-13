@@ -139,6 +139,7 @@ class TorchLibOpInfo:
         matcher: Optional[Callable[[Any], Any]] = None,
         enabled_if: bool = True,
         test_class_name: Optional[str] = None,
+        raises: Optional[type[Exception] | tuple[type[Exception], ...]] = None,
     ) -> Self:
         """Expects an OpInfo test to fail.
 
@@ -151,6 +152,7 @@ class TorchLibOpInfo:
             enabled_if: Whether the xfail is enabled.
             test_class_name: The test class name to apply the xfail to. If None, the
                 xfail is applied to all test classes.
+            raises: The expected error type(s).
         """
         self.skips_or_fails.append(
             ops_test_common.xfail(
@@ -161,6 +163,10 @@ class TorchLibOpInfo:
                 matcher=matcher,
                 enabled_if=enabled_if,
                 test_class_name=test_class_name,
+                # We still do need to provide the expected errors and not just the decorator
+                # because the subtests cannot use the decorator and are handled separately
+                # by `:func:normal_xfail_skip_test_behaviors`.
+                raises=raises,
             )
         )
         return self
@@ -1221,6 +1227,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).xfail(
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
+        raises=(RuntimeError, AssertionError),
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True),
     TorchLibOpInfo(
@@ -1267,7 +1274,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Torch implemented this using the cubic convolution algorithm with alhpa=-0.75, might be different than ORT
         matcher=lambda sample: sample.kwargs.get("mode") == "bicubic"
         or len(sample.args[0].shape) != 4,
-        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
+        reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor; ORT segfaults",
     ),
     TorchLibOpInfo(
         "ops.aten.layer_norm",
@@ -1490,6 +1497,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .xfail(
         reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
         test_class_name="TestOutputConsistencyFullGraph",
+        raises=RuntimeError,
     )
     .skip(
         # Shape should be [N, C, H, W]
@@ -1499,6 +1507,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .xfail(
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
+        raises=(TypeError, AssertionError),
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo(
