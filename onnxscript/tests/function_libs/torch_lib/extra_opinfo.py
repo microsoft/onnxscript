@@ -592,7 +592,8 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs_native_dropout,
         supports_out=False,
     ),
-    # TODO(justinchuby): Rename all with the aten. prefix
+    # TODO(justinchuby): Rename all with the op.aten. prefix so OpInfo will find
+    # the op automatically.
     opinfo_core.OpInfo(
         "col2im",
         op=torch.ops.aten.col2im,
