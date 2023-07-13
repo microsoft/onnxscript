@@ -9,10 +9,7 @@ from typing import Any, List
 
 import torch
 from torch import testing as torch_testing
-from torch.testing._internal import (
-    common_dtype,
-    common_methods_invocations,
-)
+from torch.testing._internal import common_dtype, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
 
 
@@ -572,30 +569,35 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="_local_scalar_dense",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs__local_scalar_dense,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.col2im",
         aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_col2im,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.convolution",
         aten_name="convolution",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_convolution,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.layer_norm",
         aten_name="layer_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_layer_norm,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.native_group_norm",
         aten_name="native_group_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_native_group_norm,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.max_pool1d",
@@ -603,6 +605,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool1d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.max_pool2d",
@@ -610,6 +613,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool2d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.max_pool3d",
@@ -617,30 +621,35 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool3d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.conv3d",
         aten_name="conv3d",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_conv3d,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.max_pool1d_with_indices",
         aten_name="max_pool1d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool1d_with_indices,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.max_pool2d_with_indices",
         aten_name="max_pool2d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool2d_with_indices,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.max_pool3d_with_indices",
         aten_name="max_pool3d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
+        supports_out=False,
     ),
     # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
     # This custom OpInfo uses aten::stft directly.
@@ -649,24 +658,28 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="stft",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_stft,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.tensor.bool",
         aten_name="tensor.bool",
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_bool,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.tensor.float",
         aten_name="tensor.float",
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_float,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.tensor.int",
         aten_name="tensor.int",
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_int,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "ops.aten.bernoulli.p",
@@ -674,6 +687,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         # dtypes can be a tuple of (torch.float, torch.double).
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         # Deterministic bernoulli sampling where p is either 0 or 1
@@ -682,5 +696,6 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="bernoulli.p",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
+        supports_out=False,
     ),
 ]
