@@ -3089,19 +3089,6 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
 
     # Broadcast the indices to the same shape then concatenate
     not_none_indices = [idx for idx in indices if idx is not None]
-
-
-    # --- DEBUG
-    broadcast_shape_comp = list(np.broadcast_shapes(*[idx.shape for idx in not_none_indices]))
-    advanced_indexing_rank_comp = len(broadcast_shape_comp)
-
-    print("broadcast_shape_comp", broadcast_shape_comp)
-    print("advanced_indexing_rank", advanced_indexing_rank)
-    print("advanced_indexing_rank_comp", advanced_indexing_rank_comp)
-    assert advanced_indexing_rank == advanced_indexing_rank_comp
-    # --- DEBUG
-
-
     broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
     final_index = op.Concat(
         *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
