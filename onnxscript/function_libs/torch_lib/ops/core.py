@@ -3044,23 +3044,35 @@ def _has_none_in_middle(indices) -> bool:
 
 @torch_op("aten::index", trace_only=True)
 def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
-    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
+    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
 
-    # NOTE: Understanding aten::index
-    # The indexing operation x[0, :, 1:2, tensor([[4,5]])] will be translated to
-    # A bunch of Slice operations, followed by aten::index with
-    # self = rank ? tensor
-    # indices = [None, None, None, tensor([[4,5]])]
-    # TODO(justinchuby): Clarify what happens with 0
+    NOTE: Understanding `aten::index`
+    For `arg0` with shape `[7, 3, 4, 5, 6]`
+    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
+
+    ```
+    +> select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
+    +> slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
+    +> slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
+    +> index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
+    ```
+
+    Here,
+    - `indices = [None, None, arg1]` is equivalent to `[None, None, arg1, None]`
+    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
+    """
 
     # reordered_positions is the permutation of the index positions where
-    # positions with None are move to the end
+    # positions with None are move to the end of the list
     # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
     reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
-    # Fill the list with the remaining indices up to the rank of the tensor
+    # Fill the list with the remaining indices up to the rank of the tensor self.
     # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
     # then reordered_positions = [1, 3, 0, 2, 4, 5]
-    reordered_positions = [*reordered_positions, *range(len(reordered_positions), len(self.shape))]
+    reordered_positions = [
+        *reordered_positions,
+        *range(len(reordered_positions), len(self.shape)),
+    ]
     # Transpose self according to the reordered positions
     self = op.Transpose(self, perm=reordered_positions)
 
