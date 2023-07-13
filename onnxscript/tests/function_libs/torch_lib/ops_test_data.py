@@ -1338,7 +1338,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.avg_pool2d",
         nn_ops.aten_avg_pool2d,
-        input_wrangler=_avg_pool2d_input_wrangler,
+        input_wrangler=_avg_pool_input_wrangler,
         trace_only=True,
     ).xfail(
         matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
