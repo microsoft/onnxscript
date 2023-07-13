@@ -1361,7 +1361,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="String padding is not accepted by aten::conv2d",
     ),
     TorchLibOpInfo(
-        "ops.aten.conv3d",
+        "nn.functional.conv3d",
         core_ops.aten_conv3d,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
@@ -1385,7 +1385,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=False",
     ),
     TorchLibOpInfo(
-        "ops.aten.max_pool1d_with_indices",
+        "nn.functional.max_pool1d_with_indices",
         nn_ops.aten_max_pool1d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1403,7 +1403,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=False",
     ),
     TorchLibOpInfo(
-        "ops.aten.max_pool2d_with_indices",
+        "nn.functional.max_pool2d_with_indices",
         nn_ops.aten_max_pool2d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1428,7 +1428,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=False",
     ),
     TorchLibOpInfo(
-        "ops.aten.max_pool3d_with_indices",
+        "nn.functional.max_pool3d_with_indices",
         nn_ops.aten_max_pool3d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1439,7 +1439,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     )
     .skip(
-        "ops.aten.max_pool3d_with_indices",
+        "nn.functional.max_pool3d_with_indices",
         matcher=lambda sample: sample.kwargs.get("return_indices") is False,
         reason="this aten overload assume return_indices=True",
     ),

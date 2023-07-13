@@ -603,7 +603,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.conv3d",
+        "nn.functional.conv3d",
         aten_name="conv3d",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_conv3d,
@@ -662,21 +662,21 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.max_pool1d_with_indices",
+        "nn.functional.max_pool1d_with_indices",
         aten_name="max_pool1d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool1d_with_indices,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.max_pool2d_with_indices",
+        "nn.functional.max_pool2d_with_indices",
         aten_name="max_pool2d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool2d_with_indices,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.max_pool3d_with_indices",
+        "nn.functional.max_pool3d_with_indices",
         aten_name="max_pool3d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
