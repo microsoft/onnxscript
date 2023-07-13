@@ -3051,16 +3051,20 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
 
     ```
-    +> select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
-    +> slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
-    +> slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
-    +> index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
+    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
+    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
+    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
+    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
     ```
 
     Here,
-    - `indices = [None, None, arg1]` is equivalent to `[None, None, arg1, None]`
+    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
     - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
+
+    None in `indices` are like fillers for dimensions that cannot be removed in the process.
     """
+
+    self_rank = len(self.shape)
 
     # reordered_positions is the permutation of the index positions where
     # positions with None are move to the end of the list
@@ -3071,7 +3075,7 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     # then reordered_positions = [1, 3, 0, 2, 4, 5]
     reordered_positions = [
         *reordered_positions,
-        *range(len(reordered_positions), len(self.shape)),
+        *range(len(reordered_positions), self_rank),
     ]
     # Transpose self according to the reordered positions
     self = op.Transpose(self, perm=reordered_positions)
@@ -3079,8 +3083,8 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     # Broadcast the indices to the same shape then concatenate
     not_none_indices = [idx for idx in indices if idx is not None]
     broadcast_shape = list(np.broadcast_shapes(*[idx.shape for idx in not_none_indices]))
+    advanced_indexing_rank = len(broadcast_shape)
     broadcast_shape = op.Constant(value_ints=broadcast_shape)
-    print(type(broadcast_shape), broadcast_shape)
     final_index = op.Concat(
         *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
         axis=-1,
@@ -3109,19 +3113,28 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     #      x_None_back_1, ..., x_None_back_m
     #   ]
     # (Transpose here)
-    # Advanced indexing result axes: [x_None_front_1, ... x_None_front_m, *brocasted_shape(x1, x2, ..., xk), x_None_back_1, ..., x_None_back_m]
+    # Advanced indexing result axes:
+    #   [
+    #      x_None_front_1, ... x_None_front_m,
+    #      *brocasted_shape(x1, x2, ..., xk),
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
     #
     # Need to transpose the result of GatherND to match this axes ordering.
-    advanced_indexing_rank = len(not_none_indices)
-    first_not_none_index = reordered_positions[0]  # x_None_front_m + 1
-    x_none_back_1_position = advanced_indexing_rank + first_not_none_index
+    first_not_none_position = reordered_positions[0]  # x_None_front_m + 1
+    starting_position_of_none_in_back = (
+        advanced_indexing_rank + first_not_none_position
+    )  # x_None_back_1
+    result_rank = self_rank - len(not_none_indices) + advanced_indexing_rank
     perm = [
-        *range(advanced_indexing_rank, x_none_back_1_position),
-        *range(0, advanced_indexing_rank),
         *range(
-            x_none_back_1_position,
-            len(reordered_positions) + advanced_indexing_rank - len(not_none_indices),
-        ),
+            advanced_indexing_rank, starting_position_of_none_in_back
+        ),  # None_front_1...x_None_back_1
+        *range(0, advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(
+            starting_position_of_none_in_back,
+            result_rank,
+        ),  # None_back_1...None_back_m
     ]
 
     return op.Transpose(self, perm=perm)
