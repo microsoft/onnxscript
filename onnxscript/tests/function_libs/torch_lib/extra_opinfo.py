@@ -12,7 +12,6 @@ from torch import testing as torch_testing
 from torch.testing._internal import (
     common_dtype,
     common_methods_invocations,
-    common_utils,
 )
 from torch.testing._internal.opinfo import core as opinfo_core
 
@@ -679,6 +678,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         # Deterministic bernoulli sampling where p is either 0 or 1
         "ops.aten.bernoulli.p_deterministic",
+        op=torch.ops.aten.bernoulli.p,
         aten_name="bernoulli.p",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p_deterministic,

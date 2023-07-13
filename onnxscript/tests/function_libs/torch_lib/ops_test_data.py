@@ -409,7 +409,7 @@ def _where_input_wrangler(
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
-        "aten._local_scalar_dense",
+        "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
@@ -504,12 +504,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # This string is a unique ID. In extra_opinfo.py, we
         # also define test data for this ID with
         # `opinfo_core.OpInfo("aten.bernoulli.p", ...)`.
-        "aten.bernoulli.p",
+        "ops.aten.bernoulli.p",
         core_ops.aten_bernoulli_p,
         # Skip comparison for the output of this op because it is a random tensor.
         nondeterministic=True,
     ),
-    TorchLibOpInfo("aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
+    TorchLibOpInfo("ops.aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo("cat", core_ops.aten_cat).skip(
@@ -1224,7 +1224,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True),
     TorchLibOpInfo(
-        "col2im",
+        "ops.aten.col2im",
         nn_ops.aten_col2im,
         trace_only=True,
     ).xfail(
@@ -1234,7 +1234,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
     TorchLibOpInfo("contiguous", core_ops.aten_contiguous),
     TorchLibOpInfo(
-        "convolution",
+        "ops.aten.convolution",
         core_ops.aten_convolution,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
@@ -1270,7 +1270,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: 'bicubic' mode in ORT implemented differently with Torch and only support 4D-tensor",
     ),
     TorchLibOpInfo(
-        "layer_norm",
+        "ops.aten.layer_norm",
         core_ops.aten_layer_norm,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
@@ -1301,18 +1301,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         # Custom from extra_opinfo
-        "max_pool1d",
+        "ops.aten.max_pool1d",
         nn_ops.aten_max_pool1d,
         trace_only=True,
     ),
     TorchLibOpInfo(
         # Custom from extra_opinfo
-        "max_pool2d",
+        "ops.aten.max_pool2d",
         nn_ops.aten_max_pool2d,
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "max_pool3d",  # Custom from extra_opinfo
+        "ops.aten.max_pool3d",  # Custom from extra_opinfo
         nn_ops.aten_max_pool3d,
         trace_only=True,
     ).xfail(
@@ -1321,7 +1321,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
     TorchLibOpInfo(
-        "native_group_norm",
+        "ops.aten.native_group_norm",
         core_ops.aten_native_group_norm,
         trace_only=True,
     ).xfail(
@@ -1361,7 +1361,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="String padding is not accepted by aten::conv2d",
     ),
     TorchLibOpInfo(
-        "nn.functional.conv3d",
+        "ops.aten.conv3d",
         core_ops.aten_conv3d,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
@@ -1376,7 +1376,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
     TorchLibOpInfo(
-        "nn.functional.max_pool1d",
+        "ops.aten.max_pool1d",
         nn_ops.aten_max_pool1d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1385,7 +1385,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=False",
     ),
     TorchLibOpInfo(
-        "nn.functional.max_pool1d_with_indices",
+        "ops.aten.max_pool1d_with_indices",
         nn_ops.aten_max_pool1d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1394,7 +1394,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=True",
     ),
     TorchLibOpInfo(
-        "nn.functional.max_pool2d",
+        "ops.aten.max_pool2d",
         nn_ops.aten_max_pool2d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1403,7 +1403,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=False",
     ),
     TorchLibOpInfo(
-        "nn.functional.max_pool2d_with_indices",
+        "ops.aten.max_pool2d_with_indices",
         nn_ops.aten_max_pool2d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1412,7 +1412,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=True",
     ),
     TorchLibOpInfo(
-        "nn.functional.max_pool3d",
+        "ops.aten.max_pool3d",
         nn_ops.aten_max_pool3d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1423,12 +1423,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     )
     .skip(
-        "nn.functional.max_pool3d",
+        "ops.aten.max_pool3d",
         matcher=lambda sample: sample.kwargs.get("return_indices") is True,
         reason="this aten overload assume return_indices=False",
     ),
     TorchLibOpInfo(
-        "nn.functional.max_pool3d_with_indices",
+        "ops.aten.max_pool3d_with_indices",
         nn_ops.aten_max_pool3d_with_indices,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1439,7 +1439,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     )
     .skip(
-        "nn.functional.max_pool3d_with_indices",
+        "ops.aten.max_pool3d_with_indices",
         matcher=lambda sample: sample.kwargs.get("return_indices") is False,
         reason="this aten overload assume return_indices=True",
     ),
@@ -1543,7 +1543,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("slice_scatter", core_ops.aten_slice_scatter, trace_only=True),
     TorchLibOpInfo("slice", core_ops.aten_slice, trace_only=True),
     TorchLibOpInfo(
-        "aten.stft",  # Custom from extra_opinfo
+        "ops.aten.stft",  # Custom from extra_opinfo
         core_ops.aten_stft,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
@@ -1557,11 +1557,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_sum_input_wrangler,
         trace_only=True,
     ),
-    TorchLibOpInfo("aten.tensor.bool", core_ops.aten_tensor_bool),  # Custom from extra_opinfo
     TorchLibOpInfo(
-        "aten.tensor.float", core_ops.aten_tensor_float  # Custom from extra_opinfo
+        "ops.aten.tensor.bool", core_ops.aten_tensor_bool
+    ),  # Custom from extra_opinfo
+    TorchLibOpInfo(
+        "ops.aten.tensor.float", core_ops.aten_tensor_float  # Custom from extra_opinfo
     ),
-    TorchLibOpInfo("aten.tensor.int", core_ops.aten_tensor_int),  # Custom from extra_opinfo
+    TorchLibOpInfo(
+        "ops.aten.tensor.int", core_ops.aten_tensor_int
+    ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose, trace_only=True),
     TorchLibOpInfo(
         "var_mean",
