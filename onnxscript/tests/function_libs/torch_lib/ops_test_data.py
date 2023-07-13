@@ -686,7 +686,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
-    TorchLibOpInfo("maximum", core_ops.aten_maximum),
+    TorchLibOpInfo("maximum", core_ops.aten_maximum).skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    ),
     TorchLibOpInfo(
         "mean",
         core_ops.aten_mean,
@@ -708,6 +711,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mT", core_ops.aten_mT),
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
+    .skip(
+        variant_name="reduction_with_dim",
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
     .xfail(
         variant_name="reduction_with_dim",
         dtypes=(torch.int64,),
@@ -727,6 +735,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "min_other",
         core_ops.aten_min_other,
     )
+    .skip(
+        variant_name="reduction_with_dim",
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
     .xfail(
         variant_name="reduction_with_dim",
         dtypes=(torch.int64,),
@@ -744,7 +757,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
-    TorchLibOpInfo("minimum", core_ops.aten_minimum),
+    TorchLibOpInfo("minimum", core_ops.aten_minimum).skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    ),
     TorchLibOpInfo("mm", core_ops.aten_mm),
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
@@ -1206,11 +1222,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
     ),
-    TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True).xfail(
+    TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True)
+    .skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
+    .xfail(
         dtypes=(torch.int64,),
         reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
-    TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True).xfail(
+    TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True)
+    .skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
+    .xfail(
         dtypes=(torch.int64,),
         reason="fixme: ORT did not implement ArgMin for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
