@@ -305,9 +305,9 @@ def sample_inputs_max_pool_empty_strides(op_info, device, dtype, requires_grad, 
     # FIXME: (RuntimeError: non-empty 3D or 4D (batch mode) tensor expected for input)
 
     params_generator_type_dict = {
-        "max_pool1d": _TestParamsMaxPool1dEmptyStride,
-        "max_pool2d": _TestParamsMaxPool2dEmptyStride,
-        "max_pool3d": _TestParamsMaxPool3dEmptyStride,
+        "ops.aten.max_pool1d": _TestParamsMaxPool1dEmptyStride,
+        "ops.aten.max_pool2d": _TestParamsMaxPool2dEmptyStride,
+        "ops.aten.max_pool3d": _TestParamsMaxPool3dEmptyStride,
     }
 
     params_generator = params_generator_type_dict[op_info.name]()

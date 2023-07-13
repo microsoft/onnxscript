@@ -1376,7 +1376,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
     TorchLibOpInfo(
-        "ops.aten.max_pool1d",
+        "nn.functional.max_pool1d",
         nn_ops.aten_max_pool1d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1394,7 +1394,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=True",
     ),
     TorchLibOpInfo(
-        "ops.aten.max_pool2d",
+        "nn.functional.max_pool2d",
         nn_ops.aten_max_pool2d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1412,7 +1412,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this aten overload assume return_indices=True",
     ),
     TorchLibOpInfo(
-        "ops.aten.max_pool3d",
+        "nn.functional.max_pool3d",
         nn_ops.aten_max_pool3d,
         input_wrangler=_max_pool_input_wrangler,
         trace_only=True,
@@ -1423,7 +1423,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     )
     .skip(
-        "ops.aten.max_pool3d",
         matcher=lambda sample: sample.kwargs.get("return_indices") is True,
         reason="this aten overload assume return_indices=False",
     ),
@@ -1439,7 +1438,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="FIXME: After https://github.com/microsoft/onnxruntime/issues/15446 is fixed",
     )
     .skip(
-        "nn.functional.max_pool3d_with_indices",
         matcher=lambda sample: sample.kwargs.get("return_indices") is False,
         reason="this aten overload assume return_indices=True",
     ),
@@ -1452,13 +1450,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     )
     .skip(
-        "nn.functional.scaled_dot_product_attention",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype == torch.bool,
         reason="this overload takes a non-boolean mask",
     )
     .skip(
-        "nn.functional.scaled_dot_product_attention",
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
@@ -1471,13 +1467,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     )
     .skip(
-        "nn.functional.scaled_dot_product_attention_bool_mask",
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype != torch.bool,
         reason="this overload takes a boolean mask",
     )
     .skip(
-        "nn.functional.scaled_dot_product_attention_bool_mask",
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
     ),
@@ -1498,7 +1492,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyFullGraph",
     )
     .skip(
-        "nn.functional.upsample_nearest2d",
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
         reason="only test on 2d inputs",
@@ -1519,7 +1512,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="ONNX doesn't support reduce='mean' option",
     )
     .skip(
-        "scatter_reduce",
         # ONNX has not include_self parameter and default is include_self=True mode
         matcher=lambda sample: sample.kwargs.get("include_self") is False,
         reason="ONNX does't support include_self=False option",
@@ -1605,7 +1597,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Inferred shape and existing shape differ in rank",
     )
     .skip(
-        "var_mean_correction",
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
