@@ -453,13 +453,22 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
     )
     s = 5
+    index_1d = common_methods_invocations.index_variable(2, s, device=device)
+    index_2d = common_methods_invocations.index_variable((2, s+1), s, device=device)
+    index_3d = common_methods_invocations.index_variable((2, s+1, s+2), s, device=device)
     test_args = [
-        ([common_methods_invocations.index_variable(2, 4, device=device)],),
-        # ([torch.tensor()],)
+        ([index_1d],),
+        ([None, index_1d],),
+        ([None, None, None, index_1d],),
+        ([index_1d, None],),
+        ([index_1d, None, None],),
+        ([None, index_1d, None, index_1d],),
+        ([index_1d, None, index_1d, None],),
+        ([None, index_1d, index_1d, None],),
     ]
 
     for args in test_args:
-        yield opinfo_core.SampleInput(make_arg((s, s, s)), args=args)
+        yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
 
 
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
