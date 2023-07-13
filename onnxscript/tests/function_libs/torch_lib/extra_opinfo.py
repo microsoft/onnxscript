@@ -454,7 +454,7 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     )
     s = 5
     test_args = [
-        ([common_methods_invocations.index_variable(2, s, device=device)],),
+        ([common_methods_invocations.index_variable(2, 4, device=device)],),
         # ([torch.tensor()],)
     ]
 

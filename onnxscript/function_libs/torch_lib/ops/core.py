@@ -3042,6 +3042,12 @@ def _has_none_in_middle(indices) -> bool:
     return not _are_consecutive(not_none_indices)
 
 
+def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
+    """Returns the broadcasted shape of the given tensors."""
+    broadcasted = op.Max(*args)
+    return op.Shape(broadcasted)
+
+
 @torch_op("aten::index", trace_only=True)
 def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
@@ -3065,6 +3071,7 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
     """
 
     self_rank = len(self.shape)
+    advanced_indexing_rank = max(len(index.shape) for index in indices if index is not None)
 
     # reordered_positions is the permutation of the index positions where
     # positions with None are move to the end of the list
@@ -3082,9 +3089,20 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
 
     # Broadcast the indices to the same shape then concatenate
     not_none_indices = [idx for idx in indices if idx is not None]
-    broadcast_shape = list(np.broadcast_shapes(*[idx.shape for idx in not_none_indices]))
-    advanced_indexing_rank = len(broadcast_shape)
-    broadcast_shape = op.Constant(value_ints=broadcast_shape)
+
+
+    # --- DEBUG
+    broadcast_shape_comp = list(np.broadcast_shapes(*[idx.shape for idx in not_none_indices]))
+    advanced_indexing_rank_comp = len(broadcast_shape_comp)
+
+    print("broadcast_shape_comp", broadcast_shape_comp)
+    print("advanced_indexing_rank", advanced_indexing_rank)
+    print("advanced_indexing_rank_comp", advanced_indexing_rank_comp)
+    assert advanced_indexing_rank == advanced_indexing_rank_comp
+    # --- DEBUG
+
+
+    broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
     final_index = op.Concat(
         *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
         axis=-1,
