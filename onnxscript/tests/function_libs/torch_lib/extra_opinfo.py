@@ -553,173 +553,133 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
+# NOTE: How to create an OpInfo:
+# 1. Create a function that generates sample inputs for the op.
+#    This function should yield SampleInputs.
+#    Use `sample_inputs_col2im` as an example.
+# 2. Specify dtypes that the op supports.
+# 3. Use how you would call the op in PyTorch as the name of the OpInfo.
+#    For example, `torch.ops.aten.col2im` should be named "ops.aten.col2im".
+#    This way OpInfo knows to use `torch.ops.aten.col2im` as the op.
+#    See the docstring of OpInfo for more details.
+#
+#    This name is used as the unique ID to connect `TorchLibOpInfo("unique_name", ...)``
+#    in ops_test_data.py and opinfo_core.OpInfo("unique_name", ...)
+#    To avoid name duplication, it is possible to rename the OpInfo and specify
+#    the `op` field explicitly.
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
-        "aten._local_scalar_dense",
-        op=torch.ops.aten._local_scalar_dense,  # pylint: disable=protected-access
+        "ops.aten._local_scalar_dense",
         aten_name="_local_scalar_dense",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs__local_scalar_dense,
     ),
     opinfo_core.OpInfo(
-        "col2im",
-        op=torch.ops.aten.col2im,
+        "ops.aten.col2im",
         aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_col2im,
-        supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "convolution",
-        aliases=("convolution",),
+        "ops.aten.convolution",
         aten_name="convolution",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_convolution,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
-        skips=(),
-        supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "layer_norm",
-        aliases=("layer_norm",),
+        "ops.aten.layer_norm",
         aten_name="layer_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_layer_norm,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
-        skips=(),
-        supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "native_group_norm",
-        op=torch.ops.aten.native_group_norm,
+        "ops.aten.native_group_norm",
         aten_name="native_group_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_native_group_norm,
-        supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "max_pool1d",
+        "ops.aten.max_pool1d",
         variant_test_name="empty_strides",
-        op=torch.ops.aten.max_pool1d,
         aten_name="max_pool1d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
     ),
     opinfo_core.OpInfo(
-        "max_pool2d",
+        "ops.aten.max_pool2d",
         variant_test_name="empty_strides",
-        op=torch.ops.aten.max_pool2d,
         aten_name="max_pool2d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
     ),
     opinfo_core.OpInfo(
-        "max_pool3d",
+        "ops.aten.max_pool3d",
         variant_test_name="empty_strides",
-        op=torch.ops.aten.max_pool3d,
         aten_name="max_pool3d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool_empty_strides,
     ),
     opinfo_core.OpInfo(
-        "nn.functional.conv3d",
-        aliases=("conv3d",),
+        "ops.aten.conv3d",
         aten_name="conv3d",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_conv3d,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
-        skips=(),
-        supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "nn.functional.max_pool1d_with_indices",
+        "ops.aten.max_pool1d_with_indices",
         aten_name="max_pool1d_with_indices",
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        skips=(),
         sample_inputs_func=sample_inputs_max_pool1d_with_indices,
     ),
     opinfo_core.OpInfo(
-        "nn.functional.max_pool2d_with_indices",
+        "ops.aten.max_pool2d_with_indices",
         aten_name="max_pool2d_with_indices",
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        skips=(),
         sample_inputs_func=sample_inputs_max_pool2d_with_indices,
     ),
     opinfo_core.OpInfo(
-        "nn.functional.max_pool3d_with_indices",
+        "ops.aten.max_pool3d_with_indices",
         aten_name="max_pool3d_with_indices",
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        skips=(),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
     ),
     # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
     # This custom OpInfo uses aten::stft directly.
     opinfo_core.OpInfo(
-        "aten.stft",
+        "ops.aten.stft",
         aten_name="stft",
-        op=torch.ops.aten.stft,
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_stft,
-        # Runs very slowly on slow gradcheck - alternatively reduce input sizes
-        gradcheck_fast_mode=True,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        check_batched_forward_grad=False,
-        check_batched_grad=False,
-        check_batched_gradgrad=False,
-        supports_out=False,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
     ),
     opinfo_core.OpInfo(
-        "aten.tensor.bool",
+        "ops.aten.tensor.bool",
         aten_name="tensor.bool",
-        op=torch.ops.aten.tensor.bool,
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_bool,
     ),
     opinfo_core.OpInfo(
-        "aten.tensor.float",
+        "ops.aten.tensor.float",
         aten_name="tensor.float",
-        op=torch.ops.aten.tensor.float,
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_float,
     ),
     opinfo_core.OpInfo(
-        "aten.tensor.int",
+        "ops.aten.tensor.int",
         aten_name="tensor.int",
-        op=torch.ops.aten.tensor.int,
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_int,
     ),
     opinfo_core.OpInfo(
-        # Unique ID used to connect
-        #  TorchLibOpInfo("aten.bernoulli.p", ...)
-        # and
-        #  opinfo_core.OpInfo("aten.bernoulli.p", ...)
-        "aten.bernoulli.p",
+        "ops.aten.bernoulli.p",
         aten_name="bernoulli.p",
-        op=torch.ops.aten.bernoulli.p,
         # dtypes can be a tuple of (torch.float, torch.double).
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p,
     ),
     opinfo_core.OpInfo(
         # Deterministic bernoulli sampling where p is either 0 or 1
-        "aten.bernoulli.p_deterministic",
+        "ops.aten.bernoulli.p_deterministic",
         aten_name="bernoulli.p",
-        op=torch.ops.aten.bernoulli.p,
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
     ),
