@@ -5363,19 +5363,21 @@ def aten_randint(high: float, size: INT64, dtype: int = INT64.dtype) -> TensorTy
 
 
 @torch_op("aten::randint.low")
-def aten_randint_low(low: float, high: float, size: INT64, dtype: int = INT64.dtype) -> TensorType:
+def aten_randint_low(
+    low: float, high: float, size: INT64, dtype: int = INT64.dtype
+) -> TensorType:
     """randint.low(SymInt low, SymInt high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    `high` is set to float to match the requirement of `RandomUniformLike`.
+    `high` and `low` are set to float to match the requirement of `RandomUniformLike`.
     """
 
     shaper = op.ConstantOfShape(size)
-    return op.RandomUniformLike(shaper, high=high, dtype=dtype)
+    return op.RandomUniformLike(shaper, high=high, low=low, dtype=dtype)
 
 
 @torch_op("aten::randint_like")
 def aten_randint_like(self: TensorType, high: float) -> IntType:
-    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+    """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     `high` is set to float to match the requirement of `RandomUniformLike`.
     """
@@ -5387,7 +5389,7 @@ def aten_randint_like(self: TensorType, high: float) -> IntType:
 
 @torch_op("aten::randint_like")
 def aten_randint_like_dtype(self: TensorType, high: float, dtype: int) -> TensorType:
-    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+    """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     `high` is set to float to match the requirement of `RandomUniformLike`.
     """
@@ -5397,9 +5399,11 @@ def aten_randint_like_dtype(self: TensorType, high: float, dtype: int) -> Tensor
     return op.Cast(rand, to=dtype)
 
 
-@torch_op("aten::randint_like.low")
-def aten_randint_like_low(self: TensorType, high: float, low: float) -> IntType:
-    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+@torch_op("aten::randint_like.low_dtype")
+def aten_randint_like_low_dtype(self: TensorType, low: float, high: float) -> IntType:
+    """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    This is the TorchLib overload for aten::randint_like.low_dtype when dtype is None.
 
     `high`, `low` is set to float to match the requirement of `RandomUniformLike`.
     """
@@ -5409,9 +5413,11 @@ def aten_randint_like_low(self: TensorType, high: float, low: float) -> IntType:
     return op.CastLike(rand, self)
 
 
-@torch_op("aten::randint_like")
-def aten_randint_like_low_dtype(self: TensorType, high: float, low: float, dtype: int) -> TensorType:
-    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+@torch_op("aten::randint_like.low_dtype")
+def aten_randint_like_low_dtype_dtype(
+    self: TensorType, low: float, high: float, dtype: int
+) -> TensorType:
+    """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
 
     `high`, `low` is set to float to match the requirement of `RandomUniformLike`.
     """
@@ -5420,12 +5426,9 @@ def aten_randint_like_low_dtype(self: TensorType, high: float, low: float, dtype
     rand = op.RandomUniformLike(self_float, high=high, low=low)
     return op.Cast(rand, to=dtype)
 
+
 @torch_op("aten::randn")
-def aten_randn(
-    size: INT64,
-    dtype: int = 1,
-    requires_grad: bool = False,  # pylint: disable=unused-argument
-) -> TReal:
+def aten_randn(size: INT64, dtype: int = FLOAT.dtype) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     shaper = op.ConstantOfShape(size)
@@ -5440,7 +5443,7 @@ def aten_randn_like(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::randn_like")
-def aten_randn_like(self: TensorType, dtype: int) -> TensorType:
+def aten_randn_like_dtype(self: TensorType, dtype: int) -> TensorType:
     """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     return op.RandomNormalLike(self, dtype=dtype)
