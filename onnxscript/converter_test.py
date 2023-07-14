@@ -25,7 +25,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.tests.common import onnx_script_test_case, testutils
