@@ -94,6 +94,11 @@ class ConverterExpression:
         assert isinstance(self.name, str), "`name` is not a string. This is likely a bug."
         return self.name
 
+# SymValue represents the types of values that local names in a script-function may
+# be bound to during translation.
+# TODO(rama): Rationalize this and values.SymbolValue
+
+SymValue = Union(values.SymbolValue, irbuilder.IRFunction)
 
 class Converter:
     """Main class to translate python code into ONNX operators.
@@ -141,7 +146,7 @@ class Converter:
         self._current_fn = None
         self._nextvar = 0
         self._used_vars = set()
-        self._locals: List[Dict[Any, Any]] = [{}]
+        self._locals: List[Dict[str, SymValue]] = [{}]
 
     @property
     def default_opset(self):
@@ -186,10 +191,10 @@ class Converter:
     def init_function_translation(self):
         """Initialize self for translating a new (top-level) function."""
         self._outer = []
-        self._current_fn = None
+        self._current_fn : Optional[irbuilder.IRFunction] = None
         self._nextvar = 0
         self._used_vars = set()
-        self._locals: List[Dict[Any, Any]] = [{}]
+        self._locals: List[Dict[str, SymValue]] = [{}]
 
     def source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
         return sourceinfo.SourceInfo(node, self.source, self._current_fn.name)
@@ -211,7 +216,7 @@ class Converter:
     #     name-scope (as a sub-graph) in ONNX.
     # * Script-time name-value tracking: Name lookup during script-time returns
     #   statically-known information about the value the name will have at runtime.
-    def enter_scope(self, name, parent_node):
+    def enter_scope(self, name: str, parent_node: ast.AST):
         """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
         """
@@ -220,7 +225,7 @@ class Converter:
         self._locals.insert(0, {})
         logger.debug("Converter:enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
-    def exit_scope(self):
+    def exit_scope(self) -> irbuilder.IRFunction:
         """Exit from a control-flow block (a loop body or if-then-else branch)."""
         logger.debug("Converter:exit_scope:%d", len(self._locals))
         graph = self._current_fn
@@ -228,14 +233,14 @@ class Converter:
         self._locals.pop(0)
         return graph
 
-    def current_scope(self):
+    def current_scope(self) -> Dict[str, SymValue]:
         return self._locals[0]
 
-    def bind(self, name, val):
+    def bind(self, name: str, val: SymValue) -> None:
         logger.debug("Converter:bind:%s", name)
         self._locals[0][name] = val
 
-    def lookup(self, name, info, raise_exception=True):
+    def lookup(self, name: str, info: sourceinfo.SourceInfo, raise_exception: bool =True):
         for scope in self._locals:
             if name in scope:
                 return scope[name]
@@ -254,7 +259,7 @@ class Converter:
         self._used_vars.add(r)
         return r
 
-    def to_onnx_attr_ref(self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]):
+    def to_onnx_attr_ref(self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]) -> irbuilder.IRAttributeValue:
         pytype = val.typeinfo
         attrtype = ta.pytype_to_attrtype(pytype)
         attrname = None
