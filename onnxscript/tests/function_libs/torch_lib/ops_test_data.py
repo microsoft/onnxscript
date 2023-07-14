@@ -309,14 +309,6 @@ def _nll_loss_input_wrangler(
     return args, kwargs
 
 
-def _randn_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the size argument as attribute list[int]
-    kwargs["size"] = args.pop(0).tolist()
-    return args, kwargs
-
-
 def _permute_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1005,13 +997,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="Empty perm is not supported",
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
-    # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
-    TorchLibOpInfo(
-        "randn",
-        core_ops.aten_randn,
-        input_wrangler=_randn_input_wrangler,
-        nondeterministic=True,
-    ).xfail(
+    TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand),
+    TorchLibOpInfo("randn", core_ops.aten_randn, nondeterministic=True).xfail(
         dtypes=[torch.float16],
         reason="fixme: Shape inference error",
     ),
