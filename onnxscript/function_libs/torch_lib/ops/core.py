@@ -5353,7 +5353,7 @@ def aten_rand_like_dtype(self: TensorType, dtype: int) -> TensorType:
 
 @torch_op("aten::randint")
 def aten_randint(high: float, size: INT64, dtype: int = INT64.dtype) -> TensorType:
-    """randint(int high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+    """randint(SymInt high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
     `high` is set to float to match the requirement of `RandomUniformLike`.
     """
