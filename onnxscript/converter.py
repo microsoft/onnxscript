@@ -94,11 +94,25 @@ class ConverterExpression:
         assert isinstance(self.name, str), "`name` is not a string. This is likely a bug."
         return self.name
 
-# SymValue represents the types of values that local names in a script-function may
+# LocalSymValue represents the types of values that local names in a script-function may
 # be bound to during translation.
 # TODO(rama): Rationalize this and values.SymbolValue
 
-SymValue = Union(values.SymbolValue, irbuilder.IRFunction)
+LocalSymValue = Union[values.SymbolValue, irbuilder.IRFunction]
+
+# OuterScopeValue represents the types of values that outer-scope names in a script-function may
+# have. Typically, these are constant-values defined in the outer-scope.
+# TODO(rama): Flesh out the set of valid types here.
+OuterScopeValue = Any
+
+SymValue = Union[LocalSymValue, OuterScopeValue]
+
+# PreferredName is a type used to represent the preferred name(s) used in the
+# generated ONNX for the (one or more) values returned by an expression.
+# If none specified, the names are generated automatically. Even if names
+# are specified, the converter will modify them (with a suffix) to ensure
+# they are unique (to ensure ONNX's SSA requirement).
+PreferredName = Optional[Union[str, List[str]]]
 
 class Converter:
     """Main class to translate python code into ONNX operators.
@@ -146,7 +160,7 @@ class Converter:
         self._current_fn = None
         self._nextvar = 0
         self._used_vars = set()
-        self._locals: List[Dict[str, SymValue]] = [{}]
+        self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     @property
     def default_opset(self):
@@ -194,7 +208,7 @@ class Converter:
         self._current_fn : Optional[irbuilder.IRFunction] = None
         self._nextvar = 0
         self._used_vars = set()
-        self._locals: List[Dict[str, SymValue]] = [{}]
+        self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     def source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
         return sourceinfo.SourceInfo(node, self.source, self._current_fn.name)
@@ -233,14 +247,14 @@ class Converter:
         self._locals.pop(0)
         return graph
 
-    def current_scope(self) -> Dict[str, SymValue]:
+    def current_scope(self) -> Dict[str, LocalSymValue]:
         return self._locals[0]
 
-    def bind(self, name: str, val: SymValue) -> None:
+    def bind(self, name: str, val: LocalSymValue) -> None:
         logger.debug("Converter:bind:%s", name)
         self._locals[0][name] = val
 
-    def lookup(self, name: str, info: sourceinfo.SourceInfo, raise_exception: bool =True):
+    def lookup(self, name: str, info: sourceinfo.SourceInfo, raise_exception: bool =True) -> SymValue:
         for scope in self._locals:
             if name in scope:
                 return scope[name]
@@ -276,7 +290,7 @@ class Converter:
             fail(info.msg(msg) if info else msg)
         return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
 
-    def to_onnx_var(self, val, target=None, info: Optional[sourceinfo.SourceInfo] = None):
+    def to_onnx_var(self, val: values.SymbolValue | OuterScopeValue, target: PreferredName=None, info: Optional[sourceinfo.SourceInfo] = None):
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target or "tmp")
@@ -290,10 +304,10 @@ class Converter:
         # produce a better error message otherwise
         return self.emit_const(val, target or "tmp", info)
 
-    def py_var_to_onnx_var(self, py_var, info: sourceinfo.SourceInfo):
+    def py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo):
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
-    def emit_docstring(self, docstring):
+    def emit_docstring(self, docstring: str) -> None:
         self.ir_builder.add_docstring(self._current_fn, docstring)
 
     def emit(
@@ -366,7 +380,7 @@ class Converter:
         self.emit([new_var], values.Op(self.default_opset, "Identity"), [original_var], [])
         return new_var
 
-    def is_constant_expr(self, node):
+    def is_constant_expr(self, node: ast.AST) -> None:
         if isinstance(node, ast.UnaryOp):
             if self.is_constant_expr(node.operand):
                 return True
@@ -391,7 +405,7 @@ class Converter:
             return all(self.is_constant_expr(c) for c in ast.iter_child_nodes(node))
         return False
 
-    def eval_constant_expr(self, expr):
+    def eval_constant_expr(self, expr: ast.AST) -> OuterScopeValue:
         """Evaluates a sub-expression that is assumed to represent a constant value.
         The expression can refer only to global names (inherited from the scope
         where the script is evaluated) and cannot refer to local names defined
@@ -417,7 +431,7 @@ class Converter:
                 )
             ) from e
 
-    def translate_attr(self, attr_name, expr):
+    def translate_attr(self, attr_name: str, expr: ast.AST) -> Optional[irbuilder.IRAttributeValue]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
         * Expr evaluates to a script-time constant (a python-value) that can be mapped
@@ -456,7 +470,7 @@ class Converter:
             return None
         return self.ir_builder.make_attr(attr_name, val)
 
-    def translate_docstring(self, node):
+    def translate_docstring(self, node: ast.Expr) -> None:
         if hasattr(node.value, "value"):
             # python 3.8+
             return self.emit_docstring(node.value.value)
@@ -464,9 +478,7 @@ class Converter:
             f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
         )
 
-    def translate_expr(
-        self, node, target: str | Sequence[str] | None = None
-    ) -> ConverterExpression:
+    def translate_expr(self, node: ast.AST, target: PreferredName = None) -> ConverterExpression:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -515,7 +527,7 @@ class Converter:
             return ConverterExpression(None, ConverterExpressionKind.ANY)
         return self.translate_expr(node)
 
-    def translate_subscript_expr(self, node, target):
+    def translate_subscript_expr(self, node: ast.Subscript, target: PreferredName):
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -1262,13 +1274,8 @@ class Converter:
                         f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
-                ovar = self.generate_unique_name(pvar)
-                self.emit(
-                    [ovar],
-                    values.Op(self.default_opset, "Identity"),
-                    [self.to_onnx_var(pv_val, pvar)],
-                    [],
-                )
+                ovar = self.emit_copy(self.to_onnx_var(pv_val, pvar), pvar)
+
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
                 self.ir_builder.add_output(
