@@ -277,6 +277,14 @@ class Converter:
             result = self.generate_unique_name(target or "tmp")
             attr = self.to_onnx_attr_ref(val, info)
             self.emit([result], values.Op(self.default_opset, "Constant"), [], [attr])
+            if ta.is_boolean_attribute(val.typeinfo):
+                # ONNX attributes use an int-encoding for bools, but ONNX tensor types
+                # distinguish between int and bool. So we cast the int tensor to a bool tensor,
+                # to promote a (python) bool attribute to a ONNX bool tensor.
+                result_as_bool = self.generate_unique_name(result + "_as_bool")
+                cast_attr = self.ir_builder.make_attr("to", 9)
+                self.emit([result_as_bool], values.Op(self.default_opset, "Cast"), [result], [cast_attr])
+                return ConverterExpression(result_as_bool, ConverterExpressionKind.CONST)
             return ConverterExpression(result, ConverterExpressionKind.CONST)
         if isinstance(val, values.Dynamic):
             return val.value
