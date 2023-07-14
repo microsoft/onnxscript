@@ -3900,7 +3900,7 @@ def aten_max(self: TReal) -> TReal:
 
 
 @torch_op("aten::max.dim")
-def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> tuple[TReal, INT64]:
+def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, INT64]:
     """max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
     if op.Size(op.Shape(self)) == 0:
