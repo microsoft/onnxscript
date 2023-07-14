@@ -3903,9 +3903,13 @@ def aten_max(self: TReal) -> TReal:
 def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> tuple[TReal, INT64]:
     """max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
-    dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
-    result = op.ReduceMax(self, dims, keepdims=keepdim)
-    indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+        indices = op.Constant(value_int=0)
+    else:
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMax(self, dims, keepdims=keepdim)
+        indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
     return result, indices
 
 
@@ -3970,13 +3974,7 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op("aten::min.other")
-def aten_min_other(self: TReal, other: TReal) -> TReal:
-    """min.other(Tensor self, Tensor other) -> Tensor"""
-    return op.Min(self, other)
-
-
-@torch_op("aten::minimum")
+@torch_op(("aten::minimum", "aten::min.other"))
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 

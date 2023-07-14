@@ -729,32 +729,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         variant_name="reduction_with_dim",
-        reason="ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
+        reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
     )
     .xfail(
         matcher=lambda sample: len(sample.args) == 0
         or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
         reason="this ATen overload only support one tensor as input and another int as args",
-    ),
-    TorchLibOpInfo(
-        "min_other",
-        core_ops.aten_min_other,
-    )
-    .skip(
-        variant_name="reduction_with_dim",
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
-    )
-    .xfail(
-        variant_name="reduction_with_dim",
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement Min for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    )
-    .xfail(
-        matcher=lambda sample: len(sample.args) == 0
-        or (len(sample.args) > 0 and isinstance(sample.args[0], int)),
-        reason="this ATen overload only support one tensor as input and another tensor as args",
     ),
     TorchLibOpInfo(
         "min",
@@ -1141,7 +1122,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "t",
         core_ops.aten_t,
     ).xfail(
-        reason="ORT Graph attribute inferencing failed on rank-1 input",
+        reason="fixme: ORT Graph attribute inferencing failed on rank-1 input",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("tan", core_ops.aten_tan),
@@ -1314,25 +1295,33 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
-    TorchLibOpInfo(
-        "max",
-        core_ops.aten_max,
-        trace_only=True,
-    )
-    .xfail(
-        variant_name="binary",
-        reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistencyFullGraph",
-    )
-    .xfail(
+    TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
+    .skip(
         variant_name="reduction_with_dim",
-        reason="fixme: current implementation gets shape inference error",
-        test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
         variant_name="reduction_with_dim",
         dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement ReduceMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+        reason="fixme: ORT did not implement Max for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        variant_name="reduction_with_dim",
+        reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
+        matcher=lambda sample: len(sample.args) == 0
+        or (len(sample.args) > 0 and not isinstance(sample.args[0], int)),
+        reason="this ATen overload only support one tensor as input and another int as args",
+    ),
+    TorchLibOpInfo(
+        "max",
+        core_ops.aten_max,
+    ).skip(
+        matcher=lambda sample: len(sample.args) > 0,
+        reason="this ATen overload only supports one tensor as input by design",
     ),
     TorchLibOpInfo(
         # Custom from extra_opinfo
@@ -1648,7 +1637,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tenso
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
@@ -1670,14 +1661,6 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
-)
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "min",
-    (
-        "min_other",
-        "min_dim",
-    ),
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB,
