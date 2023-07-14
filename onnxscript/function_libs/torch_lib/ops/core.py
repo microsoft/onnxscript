@@ -5330,47 +5330,120 @@ def aten_rad2deg(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::rand")
-def aten_rand(size: Sequence[int], dtype: int = 1) -> TReal:
+def aten_rand(size: INT64, dtype: int = FLOAT.dtype) -> TReal:
     """rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.RandomUniform(shape=size, dtype=dtype)
+    shaper = op.ConstantOfShape(size)
+    return op.RandomUniformLike(shaper, dtype=dtype)
 
 
-def aten_rand_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::rand_like")
+def aten_rand_like(self: TFloat) -> TFloat:
     """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomUniformLike(self)
 
 
-def aten_randint(high: int, size: INT64) -> TensorType:
-    """randint(int high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+@torch_op("aten::rand_like")
+def aten_rand_like_dtype(self: TensorType, dtype: int) -> TensorType:
+    """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomUniformLike(self, dtype=dtype)
 
 
-def aten_randint_like(
-    self: TensorType, high: int, memory_format: Optional[str] = None
-) -> TensorType:
-    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+@torch_op("aten::randint")
+def aten_randint(high: float, size: INT64, dtype: int = INT64.dtype) -> TensorType:
+    """randint(int high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
-    raise NotImplementedError()
+    `high` is set to float to match the requirement of `RandomUniformLike`.
+    """
 
+    shaper = op.ConstantOfShape(size)
+    return op.RandomUniformLike(shaper, high=high, dtype=dtype)
+
+
+@torch_op("aten::randint.low")
+def aten_randint_low(low: float, high: float, size: INT64, dtype: int = INT64.dtype) -> TensorType:
+    """randint.low(SymInt low, SymInt high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+
+    `high` is set to float to match the requirement of `RandomUniformLike`.
+    """
+
+    shaper = op.ConstantOfShape(size)
+    return op.RandomUniformLike(shaper, high=high, dtype=dtype)
+
+
+@torch_op("aten::randint_like")
+def aten_randint_like(self: TensorType, high: float) -> IntType:
+    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    `high` is set to float to match the requirement of `RandomUniformLike`.
+    """
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float, high=high)
+    return op.CastLike(rand, self)
+
+
+@torch_op("aten::randint_like")
+def aten_randint_like_dtype(self: TensorType, high: float, dtype: int) -> TensorType:
+    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    `high` is set to float to match the requirement of `RandomUniformLike`.
+    """
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float, high=high)
+    return op.Cast(rand, to=dtype)
+
+
+@torch_op("aten::randint_like.low")
+def aten_randint_like_low(self: TensorType, high: float, low: float) -> IntType:
+    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    `high`, `low` is set to float to match the requirement of `RandomUniformLike`.
+    """
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float, high=high, low=low)
+    return op.CastLike(rand, self)
+
+
+@torch_op("aten::randint_like")
+def aten_randint_like_low_dtype(self: TensorType, high: float, low: float, dtype: int) -> TensorType:
+    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    `high`, `low` is set to float to match the requirement of `RandomUniformLike`.
+    """
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float, high=high, low=low)
+    return op.Cast(rand, to=dtype)
 
 @torch_op("aten::randn")
 def aten_randn(
-    size: Sequence[int],
+    size: INT64,
     dtype: int = 1,
     requires_grad: bool = False,  # pylint: disable=unused-argument
 ) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.RandomNormal(dtype=dtype, shape=size)
+    shaper = op.ConstantOfShape(size)
+    return op.RandomNormalLike(shaper, dtype=dtype)
 
 
-def aten_randn_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::randn_like")
+def aten_randn_like(self: TFloat) -> TFloat:
     """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomNormalLike(self)
+
+
+@torch_op("aten::randn_like")
+def aten_randn_like(self: TensorType, dtype: int) -> TensorType:
+    """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+
+    return op.RandomNormalLike(self, dtype=dtype)
 
 
 def aten_randperm(n: int) -> TensorType:
