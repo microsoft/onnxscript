@@ -163,7 +163,8 @@ def aten_avg_pool2d(
     # The strides should be [x, y]
     if isinstance(stride, int):  # x -> [x, x]
         strides = [stride] * expand_size
-    elif stride is None:
+    elif not stride:
+        # stride is None or empty
         strides = kernel_shape
     else:
         strides = stride
