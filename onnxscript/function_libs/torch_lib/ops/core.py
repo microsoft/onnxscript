@@ -5399,7 +5399,7 @@ def aten_randint_like_dtype(self: TensorType, high: INT64, dtype: int) -> Tensor
     """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     self_float = op.Cast(self, to=FLOAT.dtype)
-    rand = op.RandomUniformLike(self_float, high=high)
+    rand = op.RandomUniformLike(self_float)
     # Scale to [0, high] first
     rand_scaled = op.Mul(rand, op.CastLike(high, rand))
     # Round to ints
@@ -5415,7 +5415,7 @@ def aten_randint_like_low_dtype(self: TensorType, low: INT64, high: INT64) -> In
     """
 
     self_float = op.Cast(self, to=FLOAT.dtype)
-    rand = op.RandomUniformLike(self_float, high=high, low=low)
+    rand = op.RandomUniformLike(self_float)
     # Translate to [low, high] first
     high = op.Cast(high, to=FLOAT.dtype)
     low = op.Cast(low, to=FLOAT.dtype)
@@ -5432,7 +5432,7 @@ def aten_randint_like_low_dtype_dtype(
     """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
     self_float = op.Cast(self, to=FLOAT.dtype)
-    rand = op.RandomUniformLike(self_float, high=high, low=low)
+    rand = op.RandomUniformLike(self_float)
     # Translate to [low, high] first
     high = op.Cast(high, to=FLOAT.dtype)
     low = op.Cast(low, to=FLOAT.dtype)
