@@ -5357,11 +5357,11 @@ def aten_randint(high: INT64, size: INT64, dtype: int = INT64.dtype) -> TensorTy
 
     shaper = op.ConstantOfShape(size)
     rand = op.RandomUniformLike(shaper)
-    # Round to ints first
-    rand = op.Cast(rand, to=INT64.dtype)
-    # Scale to [0, high]
-    rand = rand * high
-    return op.CastLike(rand, to=dtype)
+    # Scale to [0, high] first
+    rand_scaled = op.Mul(rand, op.CastLike(high, rand))
+    # Round to ints
+    rand_int = op.Floor(rand_scaled)
+    return op.Cast(rand_int, to=dtype)
 
 
 @torch_op("aten::randint.low")
@@ -5372,11 +5372,13 @@ def aten_randint_low(
 
     shaper = op.ConstantOfShape(size)
     rand = op.RandomUniformLike(shaper)
-    # Round to ints first
-    rand = op.Cast(rand, to=INT64.dtype)
-    # Scale to [low, high]
-    rand = rand * (high - low) + low
-    return op.CastLike(rand, to=dtype)
+    # Translate to [low, high] first
+    high = op.Cast(high, to=FLOAT.dtype)
+    low = op.Cast(low, to=FLOAT.dtype)
+    rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
+    # Round to ints
+    rand_int = op.Floor(rand_translated)
+    return op.Cast(rand_int, to=dtype)
 
 
 @torch_op("aten::randint_like")
@@ -5385,11 +5387,11 @@ def aten_randint_like(self: TensorType, high: INT64) -> IntType:
 
     self_float = op.Cast(self, to=FLOAT.dtype)
     rand = op.RandomUniformLike(self_float)
-    # Round to ints first
-    rand = op.Cast(rand, to=INT64.dtype)
-    # Scale to [0, high]
-    rand = rand * high
-    return op.CastLike(rand, self)
+    # Scale to [0, high] first
+    rand_scaled = op.Mul(rand, op.CastLike(high, rand))
+    # Round to ints
+    rand_int = op.Floor(rand_scaled)
+    return op.CastLike(rand_int, self)
 
 
 @torch_op("aten::randint_like")
@@ -5398,11 +5400,11 @@ def aten_randint_like_dtype(self: TensorType, high: INT64, dtype: int) -> Tensor
 
     self_float = op.Cast(self, to=FLOAT.dtype)
     rand = op.RandomUniformLike(self_float, high=high)
-    # Round to ints first
-    rand = op.Cast(rand, to=INT64.dtype)
-    # Scale to [0, high]
-    rand = rand * high
-    return op.Cast(rand, to=dtype)
+    # Scale to [0, high] first
+    rand_scaled = op.Mul(rand, op.CastLike(high, rand))
+    # Round to ints
+    rand_int = op.Floor(rand_scaled)
+    return op.Cast(rand_int, to=dtype)
 
 
 @torch_op("aten::randint_like.low_dtype")
@@ -5414,11 +5416,13 @@ def aten_randint_like_low_dtype(self: TensorType, low: INT64, high: INT64) -> In
 
     self_float = op.Cast(self, to=FLOAT.dtype)
     rand = op.RandomUniformLike(self_float, high=high, low=low)
-    # Round to ints first
-    rand = op.Cast(rand, to=INT64.dtype)
-    # Scale to [low, high]
-    rand = rand * (high - low) + low
-    return op.CastLike(rand, self)
+    # Translate to [low, high] first
+    high = op.Cast(high, to=FLOAT.dtype)
+    low = op.Cast(low, to=FLOAT.dtype)
+    rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
+    # Round to ints
+    rand_int = op.Floor(rand_translated)
+    return op.CastLike(rand_int, self)
 
 
 @torch_op("aten::randint_like.low_dtype")
@@ -5429,11 +5433,13 @@ def aten_randint_like_low_dtype_dtype(
 
     self_float = op.Cast(self, to=FLOAT.dtype)
     rand = op.RandomUniformLike(self_float, high=high, low=low)
-    # Round to ints first
-    rand = op.Cast(rand, to=INT64.dtype)
-    # Scale to [low, high]
-    rand = rand * (high - low) + low
-    return op.Cast(rand, to=dtype)
+    # Translate to [low, high] first
+    high = op.Cast(high, to=FLOAT.dtype)
+    low = op.Cast(low, to=FLOAT.dtype)
+    rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
+    # Round to ints
+    rand_int = op.Floor(rand_translated)
+    return op.Cast(rand_int, to=dtype)
 
 
 @torch_op("aten::randn")
