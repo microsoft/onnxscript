@@ -460,6 +460,7 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         ([None, None, None, index_1d],),
         ([index_1d, None],),
         ([index_1d, None, None],),
+        # Extra index
         ([None, index_1d, None, index_1d],),
         ([index_1d, None, index_1d, None],),
         ([None, index_1d, index_1d, None],),
@@ -468,6 +469,7 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         ([None, None, None, index_2d],),
         ([index_2d, None],),
         ([index_2d, None, None],),
+        # Extra index
         ([None, index_2d, None, index_2d],),
         ([index_2d, None, index_2d, None],),
         ([None, index_2d, index_2d, None],),
@@ -476,11 +478,15 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         ([None, None, None, index_3d],),
         ([index_3d, None],),
         ([index_3d, None, None],),
+        # Extra index
         ([None, index_3d, None, index_3d],),
         ([index_3d, None, index_3d, None],),
         ([None, index_3d, index_3d, None],),
         # Mixed indices
         ([None, index_3d, index_1d, index_2d],),
+        # All indices are not None
+        ([index_2d, index_3d, index_1d],),
+        ([index_2d, index_3d, index_1d, index_2d],),
     ]
 
     for args in test_args:
