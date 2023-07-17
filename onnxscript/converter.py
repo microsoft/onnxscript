@@ -311,7 +311,7 @@ class Converter:
     def to_onnx_var(
         self,
         val: values.SymbolValue | PyValue,
-        target: PreferredName = None,
+        target: Optional[PreferredName] = None,
         info: Optional[sourceinfo.SourceInfo] = None,
     ) -> ConverterExpression | OnnxVarName:
         if isinstance(val, values.AttrRef):
@@ -492,7 +492,7 @@ class Converter:
         )
 
     def translate_expr(
-        self, node: ast.AST, target: PreferredName = None
+        self, node: ast.AST, target: Optional[PreferredName] = None
     ) -> ConverterExpression:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
