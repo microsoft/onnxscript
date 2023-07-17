@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, graph
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, UINT8, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -520,20 +520,21 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::argmax", trace_only=True)
-def aten_argmax(
-    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TRealOrUInt8:
+@torch_op("aten::argmax")
+def aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMax(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return _aten_argmax_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
-@torch_op("aten::argmax", private=True)
-def _aten_argmax_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::argmax")
+def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -547,20 +548,21 @@ def _aten_argmax_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRe
     return result
 
 
-@torch_op("aten::argmin", trace_only=True)
-def aten_argmin(
-    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TRealOrUInt8:
+@torch_op("aten::argmin")
+def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMin(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return _aten_argmin_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
-@torch_op("aten::argmin", private=True)
-def _aten_argmin_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::argmin")
+def aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -3018,10 +3020,122 @@ def aten_imag(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_index(self: TensorType, indices: Optional[Sequence[TensorType]]) -> TensorType:
-    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor"""
+def _are_consecutive(sorted_list: Sequence[int]) -> bool:
+    """Returns True if a sorted list contains consecutive numbers."""
+    if not sorted_list:
+        return True
 
-    raise NotImplementedError()
+    return sorted_list == list(range(min(sorted_list), max(sorted_list) + 1))
+
+
+def _has_none_in_middle(indices) -> bool:
+    """Returns True if there is a None in the middle of the list."""
+    not_none_indices = [i for i, idx in enumerate(indices) if idx is not None]
+    return not _are_consecutive(not_none_indices)
+
+
+def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
+    """Returns the broadcasted shape of the given tensors."""
+    broadcasted = op.Max(*args)
+    return op.Shape(broadcasted)
+
+
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
+def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
+    """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
+
+    NOTE: Understanding `aten::index`
+    For `arg0` with shape `[7, 3, 4, 5, 6]`
+    The indexing operation `arg0[0, :, 1:2, tensor([[4,5]])]` will be translated to
+
+    ```
+    +>  select: i64[3, 4, 5, 6] = torch.ops.aten.select.int(arg0, 0, 0);
+    +>  slice_1: i64[3, 4, 5, 6] = torch.ops.aten.slice.Tensor(select, 0, 0, 9223372036854775807);
+    +>  slice_2: i64[3, 1, 5, 6] = torch.ops.aten.slice.Tensor(slice_1, 1, 1, 2);
+    +>  index: i64[3, 1, 1, 2, 6] = torch.ops.aten.index.Tensor(slice_2, [None, None, arg1]);
+    ```
+
+    Here,
+    - `indices = [None, None, arg1]` is equivalent to `indices = [None, None, arg1, None]`
+    - The operation `arg0[0, :, 1:2, tensor([[4,5]])]` is equivalent to `arg0[0, :, 1:2, tensor([[4,5]]), :]`
+
+    None in `indices` are like fillers for dimensions that cannot be removed in the process.
+    """
+
+    self_rank = len(self.shape)
+    index_ranks = [len(index.shape) for index in indices if index is not None]
+    advanced_indexing_rank = max(index_ranks)
+
+    # reordered_positions is the permutation of the index positions where
+    # positions with None are move to the end of the list
+    # For example, if indices = [None, 1, None, 2], then reordered_positions = [1, 3, 0, 2]
+    reordered_positions = sorted(range(len(indices)), key=lambda i: (indices[i] is None, i))
+    # Fill the list with the remaining indices up to the rank of the tensor self.
+    # For example, if indices = [None, 1, None, 2], and the rank of self is 6,
+    # then reordered_positions = [1, 3, 0, 2, 4, 5]
+    reordered_positions = [
+        *reordered_positions,
+        *range(len(reordered_positions), self_rank),
+    ]
+    # Transpose self according to the reordered positions
+    self = op.Transpose(self, perm=reordered_positions)
+
+    # Broadcast the indices to the same shape then concatenate
+    not_none_indices = [idx for idx in indices if idx is not None]
+    broadcast_shape = _shape_of_broadcast_tensors(*not_none_indices)
+    final_index = op.Concat(
+        *(op.Unsqueeze(op.Expand(idx, broadcast_shape), -1) for idx in not_none_indices),
+        axis=-1,
+    )
+
+    self = op.GatherND(self, final_index, batch_dims=0)
+
+    if _has_none_in_middle(indices):
+        # If there is None in the middle, Advanced Indexing cannot decide where to put
+        # the new dimensions. So it places them in the front, like GatherND does.
+        return self
+
+    # When the indices are consecutive, Advanced Indexing will place the new dimensions
+    # (aka. the broadcasted shape) in the middle, replacing the original [x1, ..., xk] axes.
+    #
+    # Input index axes (three parts):
+    #   [
+    #      x_None_front_1, ... x_None_front_m,
+    #      x1, ..., xk,
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    # GatherND result axes:
+    #   [
+    #      *broadcasted_shape(x1, x2, ..., xk),
+    #      x_None_front_1, ... x_None_front_m,
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    # (Transpose here)
+    # Advanced indexing result axes:
+    #   [
+    #      x_None_front_1, ... x_None_front_m,
+    #      *brocasted_shape(x1, x2, ..., xk),
+    #      x_None_back_1, ..., x_None_back_m
+    #   ]
+    #
+    # Need to transpose the result of GatherND to match this axes ordering.
+    first_not_none_position = reordered_positions[0]  # x_None_front_m + 1
+    starting_position_of_none_in_back = (
+        advanced_indexing_rank + first_not_none_position
+    )  # x_None_back_1
+    result_rank = self_rank - len(not_none_indices) + advanced_indexing_rank
+    perm = [
+        *range(
+            advanced_indexing_rank, starting_position_of_none_in_back
+        ),  # None_front_1...x_None_back_1
+        *range(0, advanced_indexing_rank),  # 0...len(broadcasted_shape)
+        *range(
+            starting_position_of_none_in_back,
+            result_rank,
+        ),  # None_back_1...None_back_m
+    ]
+
+    return op.Transpose(self, perm=perm)
 
 
 def aten_index_add(
@@ -3883,62 +3997,37 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::max", trace_only=True)
-def aten_max(
-    self: TReal,
-    dim_or_other: Optional[Union[TReal, INT64]] = None,
-    keepdim: Optional[BOOL] = None,
-) -> TReal:
+@torch_op("aten::max")
+def aten_max(self: TReal) -> TReal:
     """max(Tensor self) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_int=[-1]))
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    output = 1
-
-    if op.OptionalHasElement(dim_or_other):
-        if isinstance(dim_or_other, int):
-            if not op.OptionalHasElement(keepdim):
-                keepdim = False
-            result, indices = _aten_max_with_dim(self, dim_or_other, keepdim)
-            output = 2
-        else:  # dim_or_other is tensor
-            result = _aten_max_with_other(self, dim_or_other)
-    else:
-        result = _aten_max_with_no_dim(self)
+    result = op.ReduceMax(self, keepdims=0)
 
     if self_rank == 0:
         result = op.Squeeze(result)
 
-    if output == 2:
-        if self_rank == 0:
-            indices = op.Squeeze(indices)  # type: ignore[has-type]
-        return result, indices
     return result
 
 
-@torch_op("aten::max", private=True)
-def _aten_max_with_no_dim(self: TReal) -> TReal:
-    result = op.ReduceMax(self, keepdims=0)
-    return result
+@torch_op("aten::max.dim")
+def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, INT64]:
+    """max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
-
-@torch_op("aten::max", private=True)
-def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
-    result = op.Max(self, other)
-    return result
-
-
-@torch_op("aten::max", private=True)
-def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
-    dims = op.Reshape(dim, op.Constant(value_int=[-1]))
-    result = op.ReduceMax(self, dims, keepdims=keepdim)
-    indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+        indices = op.Constant(value_int=0)
+    else:
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMax(self, dims, keepdims=keepdim)
+        indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
     return result, indices
 
 
-@torch_op("aten::maximum")
+@torch_op(("aten::maximum", "aten::max.other"))
 def aten_maximum(self: TReal, other: TReal) -> TReal:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
@@ -3955,7 +4044,7 @@ def aten_mean(self: TReal) -> TReal:
 
 @torch_op("aten::mean.dim")
 def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
-    """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+    """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:
         result = self
@@ -3999,13 +4088,7 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op("aten::min.other")
-def aten_min_other(self: TReal, other: TReal) -> TReal:
-    """min.other(Tensor self, Tensor other) -> Tensor"""
-    return op.Min(self, other)
-
-
-@torch_op("aten::minimum")
+@torch_op(("aten::minimum", "aten::min.other"))
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
