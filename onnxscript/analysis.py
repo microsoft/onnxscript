@@ -7,8 +7,8 @@ from __future__ import annotations
 import ast
 from typing import Any, Optional, Sequence, Set
 
-import onnxscript._internal.ast_utils as ast_utils
 from onnxscript import sourceinfo
+from onnxscript._internal import ast_utils
 
 
 def get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
