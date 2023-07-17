@@ -8,15 +8,7 @@ import ast
 from typing import Any, Optional, Sequence, Set
 
 from onnxscript import sourceinfo
-
-
-def is_print_call(stmt: ast.stmt) -> bool:
-    """Return True if the statement is a call to the print function."""
-    if isinstance(stmt, ast.Expr):
-        if isinstance(stmt.value, ast.Call):
-            if isinstance(stmt.value.func, ast.Name):
-                return stmt.value.func.id == "print"
-    return False
+from onnxscript._internal.ast_utils import is_print_call
 
 
 def get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
