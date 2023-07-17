@@ -4,17 +4,7 @@ from __future__ import annotations
 import logging
 import typing
 import warnings
-from typing import (
-    Any,
-    Dict,
-    Final,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
