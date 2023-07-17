@@ -886,9 +886,8 @@ class Converter:
     def translate_name_expr(self, node: ast.Name) -> ConverterExpression | OnnxVarName:
         return self.py_var_to_onnx_var(node.id, self.source_of(node))
 
-    def translate_opset_expr(
-        self, node: ast.Attribute
-    ) -> values.Opset:  # pylint: disable=R1710
+    # pylint: disable=inconsistent-return-statements
+    def translate_opset_expr(self, node: ast.Attribute) -> values.Opset:
         """Return an Opset"""
         if isinstance(node, ast.Name):
             val = self.lookup(node.id, self.source_of(node), raise_exception=False)
