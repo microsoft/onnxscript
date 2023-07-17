@@ -731,7 +731,3 @@ class TorchScriptGraph:
                 self.torch_graph,
             )
         return onnx_model
-
-    def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
-        """Apply a graph pass to the graph."""
-        graph_pass(self._torch_graph, *args, **kwargs)
