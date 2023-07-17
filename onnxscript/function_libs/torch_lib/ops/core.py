@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, graph
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, UINT8, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -84,9 +84,7 @@ def aten_acosh(self: TFloat) -> TFloat:
 @torch_op("aten::add")
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    # FIXME(titaiwang): get rid of this when we have type_promotion
     # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
-    other = op.CastLike(other, self)
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
     return op.Add(self, other)
@@ -522,20 +520,21 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::argmax", trace_only=True)
-def aten_argmax(
-    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TRealOrUInt8:
+@torch_op("aten::argmax")
+def aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMax(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return _aten_argmax_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
-@torch_op("aten::argmax", private=True)
-def _aten_argmax_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::argmax")
+def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -549,20 +548,21 @@ def _aten_argmax_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRe
     return result
 
 
-@torch_op("aten::argmin", trace_only=True)
-def aten_argmin(
-    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TRealOrUInt8:
+@torch_op("aten::argmin")
+def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMin(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return _aten_argmin_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
-@torch_op("aten::argmin", private=True)
-def _aten_argmin_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::argmin")
+def aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -955,16 +955,13 @@ def aten_batch_norm_update_stats(
 
 
 @torch_op("aten::bernoulli")
-def aten_bernoulli(self: TTensor) -> TTensor:
+def aten_bernoulli(self: TFloat) -> TFloat:
     """Proximal implementation of aten::bernoulli.default
 
     Note that due to the limitation of ONNX, we ignore the `generator` argument in
       aten::bernoulli.default(Tensor self, *, Generator? generator=None) -> Tensor
     """
-    # NOTE: We will lose some precision when input is float64 but that's considered insignificant
-    self_float = op.Cast(self, to=FLOAT.dtype)
-    sampled = op.Bernoulli(self_float)
-    return op.CastLike(sampled, self)
+    return op.Bernoulli(self)
 
 
 @torch_op("aten::bernoulli.p")
@@ -1428,17 +1425,14 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
     return op.Pad(self, onnx_padding, value)
 
 
-@torch_op("aten::contiguous", trace_only=True)
-def aten_contiguous(self: TTensor, memory_format: str = "contiguous_format") -> TTensor:
+@torch_op("aten::contiguous")
+def aten_contiguous(
+    self: TTensor, memory_format: str = "contiguous_format"  # pylint: disable=unused-argument
+) -> TTensor:
     """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
-    if memory_format in ["contiguous_format", "preserve_format"]:
-        return op.Identity(self)
-    else:
-        # TODO: Find out a way to annotate constraints for argument, as part of the function meta data structure.
-        raise NotImplementedError(
-            "memory_format value supports 'contiguous_format' or 'preserve_format' only."
-        )
+    # ONNX does not have the notion of memory_format. It is always treated as a no-op.
+    return op.Identity(self)
 
 
 @torch_op("aten::conv1d", trace_only=True)
@@ -4005,62 +3999,37 @@ def aten_matrix_power(self: TensorType, n: int) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::max", trace_only=True)
-def aten_max(
-    self: TReal,
-    dim_or_other: Optional[Union[TReal, INT64]] = None,
-    keepdim: Optional[BOOL] = None,
-) -> TReal:
+@torch_op("aten::max")
+def aten_max(self: TReal) -> TReal:
     """max(Tensor self) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        self = op.Reshape(self, op.Constant(value_int=[-1]))
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    output = 1
-
-    if op.OptionalHasElement(dim_or_other):
-        if isinstance(dim_or_other, int):
-            if not op.OptionalHasElement(keepdim):
-                keepdim = False
-            result, indices = _aten_max_with_dim(self, dim_or_other, keepdim)
-            output = 2
-        else:  # dim_or_other is tensor
-            result = _aten_max_with_other(self, dim_or_other)
-    else:
-        result = _aten_max_with_no_dim(self)
+    result = op.ReduceMax(self, keepdims=0)
 
     if self_rank == 0:
         result = op.Squeeze(result)
 
-    if output == 2:
-        if self_rank == 0:
-            indices = op.Squeeze(indices)  # type: ignore[has-type]
-        return result, indices
     return result
 
 
-@torch_op("aten::max", private=True)
-def _aten_max_with_no_dim(self: TReal) -> TReal:
-    result = op.ReduceMax(self, keepdims=0)
-    return result
+@torch_op("aten::max.dim")
+def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, INT64]:
+    """max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
-
-@torch_op("aten::max", private=True)
-def _aten_max_with_other(self: TReal, other: TReal) -> TReal:
-    result = op.Max(self, other)
-    return result
-
-
-@torch_op("aten::max", private=True)
-def _aten_max_with_dim(self: TReal, dim: int, keepdim: bool):
-    dims = op.Reshape(dim, op.Constant(value_int=[-1]))
-    result = op.ReduceMax(self, dims, keepdims=keepdim)
-    indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+        indices = op.Constant(value_int=0)
+    else:
+        dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
+        result = op.ReduceMax(self, dims, keepdims=keepdim)
+        indices = op.ArgMax(self, axis=dim, keepdims=keepdim)
     return result, indices
 
 
-@torch_op("aten::maximum")
+@torch_op(("aten::maximum", "aten::max.other"))
 def aten_maximum(self: TReal, other: TReal) -> TReal:
     """maximum(Tensor self, Tensor other) -> Tensor"""
 
@@ -4077,7 +4046,7 @@ def aten_mean(self: TReal) -> TReal:
 
 @torch_op("aten::mean.dim")
 def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
-    """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
+    """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
     if op.Size(op.Shape(self)) == 0:
         result = self
@@ -4121,13 +4090,7 @@ def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, T
     return result, indices
 
 
-@torch_op("aten::min.other")
-def aten_min_other(self: TReal, other: TReal) -> TReal:
-    """min.other(Tensor self, Tensor other) -> Tensor"""
-    return op.Min(self, other)
-
-
-@torch_op("aten::minimum")
+@torch_op(("aten::minimum", "aten::min.other"))
 def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
@@ -4731,6 +4694,10 @@ def aten_native_dropout(
 ) -> Tuple[TFloatOrBFloat16, BOOL]:
     """native_dropout(Tensor input, float p, bool? train) -> (Tensor, Tensor)"""
 
+    # Python bool attributes need to be explicitly converted to BOOL
+    # because the underlying attribute type is int
+    # TODO(#872): Allow ONNX Script to handle this conversion
+    train = op.Cast(train, to=BOOL.dtype)
     result, mask = op.Dropout(input, p, train)
     return result, mask
 
