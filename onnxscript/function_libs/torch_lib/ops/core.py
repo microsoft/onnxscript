@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, graph
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, UINT8, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -520,20 +520,21 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::argmax", trace_only=True)
-def aten_argmax(
-    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TRealOrUInt8:
+@torch_op("aten::argmax")
+def aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMax(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return _aten_argmax_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
-@torch_op("aten::argmax", private=True)
-def _aten_argmax_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::argmax")
+def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0
@@ -547,20 +548,21 @@ def _aten_argmax_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRe
     return result
 
 
-@torch_op("aten::argmin", trace_only=True)
-def aten_argmin(
-    self: TRealOrUInt8, dim: Optional[int] = None, keepdim: bool = False
-) -> TRealOrUInt8:
+@torch_op("aten::argmin")
+def aten_argmin(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
-    if dim is None:  # TODO: use OptionalHasElement(dim)
-        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    self_is_scaler = op.Size(op.Shape(self)) == 0
+    self = op.Reshape(self, op.Constant(value_ints=[-1]))
+    result = op.ArgMin(self, keepdims=keepdim)
+    if self_is_scaler:
+        result = op.Squeeze(result)
 
-    return _aten_argmin_dim(self, dim=dim, keepdim=keepdim)
+    return result
 
 
-@torch_op("aten::argmin", private=True)
-def _aten_argmin_dim(self: TRealOrUInt8, dim: int, keepdim: bool = False) -> TRealOrUInt8:
+@torch_op("aten::argmin")
+def aten_argmin_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
     self_is_scaler = op.Size(op.Shape(self)) == 0

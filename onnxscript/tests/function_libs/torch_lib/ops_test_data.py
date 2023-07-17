@@ -1209,7 +1209,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("end") is not None,
         reason="arange overload does not support positional 'end' argument",
     ),
-    TorchLibOpInfo("argmax", core_ops.aten_argmax, trace_only=True)
+    TorchLibOpInfo("argmax", core_ops.aten_argmax)
+    .skip(
+        matcher=lambda sample: "dim" in sample.kwargs,
+        reason="this overload does not support the 'dim' attribute by design",
+    )
     .skip(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
@@ -1218,7 +1222,37 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int64,),
         reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
-    TorchLibOpInfo("argmin", core_ops.aten_argmin, trace_only=True)
+    TorchLibOpInfo("argmax_dim", core_ops.aten_argmax_dim)
+    .xfail(
+        matcher=lambda sample: "dim" not in sample.kwargs,
+        reason="this overload requires the 'dim' attribute by design",
+    )
+    .skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo("argmin", core_ops.aten_argmin)
+    .skip(
+        matcher=lambda sample: "dim" in sample.kwargs,
+        reason="this overload does not support the 'dim' attribute by design",
+    )
+    .skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMin for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo("argmin_dim", core_ops.aten_argmin_dim)
+    .xfail(
+        matcher=lambda sample: "dim" not in sample.kwargs,
+        reason="this overload requires the 'dim' attribute by design",
+    )
     .skip(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
@@ -1631,6 +1665,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
+ops_test_common.duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
