@@ -452,8 +452,8 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
     )
     s = 5
     index_1d = common_methods_invocations.index_variable(2, s, device=device)
-    index_2d = common_methods_invocations.index_variable((2, s+1), s, device=device)
-    index_3d = common_methods_invocations.index_variable((2, s+1, s+2), s, device=device)
+    index_2d = common_methods_invocations.index_variable((s + 1, 2), s, device=device)
+    index_3d = common_methods_invocations.index_variable((s + 2, s + 1, 2), s, device=device)
     test_args = [
         ([index_1d],),
         ([None, index_1d],),
@@ -463,6 +463,24 @@ def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
         ([None, index_1d, None, index_1d],),
         ([index_1d, None, index_1d, None],),
         ([None, index_1d, index_1d, None],),
+        ([index_2d],),
+        ([None, index_2d],),
+        ([None, None, None, index_2d],),
+        ([index_2d, None],),
+        ([index_2d, None, None],),
+        ([None, index_2d, None, index_2d],),
+        ([index_2d, None, index_2d, None],),
+        ([None, index_2d, index_2d, None],),
+        ([index_3d],),
+        ([None, index_3d],),
+        ([None, None, None, index_3d],),
+        ([index_3d, None],),
+        ([index_3d, None, None],),
+        ([None, index_3d, None, index_3d],),
+        ([index_3d, None, index_3d, None],),
+        ([None, index_3d, index_3d, None],),
+        # Mixed indices
+        ([None, index_3d, index_1d, index_2d],),
     ]
 
     for args in test_args:
