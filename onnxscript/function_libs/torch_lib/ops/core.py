@@ -3064,8 +3064,6 @@ def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorTy
 
     self_rank = len(self.shape)
     index_ranks = [len(index.shape) for index in indices if index is not None]
-    print("index_ranks: ", index_ranks)
-    print("indices: ", indices)
     advanced_indexing_rank = max(index_ranks)
 
     # reordered_positions is the permutation of the index positions where
