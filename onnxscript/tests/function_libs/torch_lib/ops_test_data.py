@@ -1211,6 +1211,23 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("argmax", core_ops.aten_argmax)
     .skip(
+        matcher=lambda sample: "dim" in sample.kwargs,
+        reason="this overload does not support the 'dim' attribute by design",
+    )
+    .skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo("argmax_dim", core_ops.aten_argmax_dim)
+    .xfail(
+        matcher=lambda sample: "dim" not in sample.kwargs,
+        reason="this overload requires the 'dim' attribute by design",
+    )
+    .skip(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     )
@@ -1219,6 +1236,23 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT did not implement ArgMax for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     TorchLibOpInfo("argmin", core_ops.aten_argmin)
+    .skip(
+        matcher=lambda sample: "dim" in sample.kwargs,
+        reason="this overload does not support the 'dim' attribute by design",
+    )
+    .skip(
+        enabled_if=ops_test_common.IS_WINDOWS,
+        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        reason="fixme: ORT did not implement ArgMin for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    ),
+    TorchLibOpInfo("argmin_dim", core_ops.aten_argmin_dim)
+    .xfail(
+        matcher=lambda sample: "dim" not in sample.kwargs,
+        reason="this overload requires the 'dim' attribute by design",
+    )
     .skip(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
