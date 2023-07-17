@@ -118,6 +118,12 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         expected = outer.to_model_proto()
         onnxscript.testing.assert_isomorphic(traced, expected)
 
+    def test_add_input_works_with_optionaltype(self):
+        graph = graph_building.TorchScriptGraph()
+        x = graph.add_input(input_name=None)
+        with evaluator.default_as(self.tracer):
+            _ = x.shape
+
 
 class TestTorchScriptGraph(unittest.TestCase):
     def test_add_initializer_raises_when_the_same_name_used_for_different_tensors(self):
