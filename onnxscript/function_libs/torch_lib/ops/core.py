@@ -31,7 +31,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TTensor2,
     TTensorOrString,
 )
-from onnxscript.onnx_opset import opset18 as op
+from onnxscript.onnx_opset import opset19 as op
 from onnxscript.onnx_types import TensorType
 
 _INT64_MAX = 9223372036854775807

@@ -27,7 +27,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TReal,
     TTensor,
 )
-from onnxscript.onnx_opset import opset18 as op
+from onnxscript.onnx_opset import opset19 as op
 from onnxscript.onnx_types import BOOL, TensorType
 
 _MATH_PI = math.pi
