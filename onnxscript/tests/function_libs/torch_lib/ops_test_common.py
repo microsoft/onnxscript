@@ -261,7 +261,8 @@ def convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, (tuple, list)):
         if len(input) == 0:
             return np.array((), dtype=np.int64)
-        if isinstance(input[0], torch.Tensor):
+        if any(isinstance(x, torch.Tensor) for x in input):
+            # The list can be Optional[Tensor], e.g. [None, Tensor, None] etc.
             return [convert_tensor_to_numpy(x) for x in input]
         if isinstance(input[0], bool):
             return np.array(input, dtype=np.bool_)
@@ -276,10 +277,7 @@ def convert_tensor_to_numpy(input: Any) -> Any:
 
 
 def convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Converts kwargs to be compatible with ONNX Runtime.
-
-    ONNX Runtime doesn't support torch.bool, so we convert them to torch.uint8.
-    """
+    """Converts kwargs to be compatible with ONNX Runtime."""
     new_kwargs = {}
     for key, value in kwargs.items():
         if key == "device":
@@ -515,10 +513,9 @@ def graph_executor(
         # Make sure the model is valid
         try:
             onnx.checker.check_model(onnx_model, full_check=True)
-        except onnx.checker.ValidationError as e:
+        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             raise AssertionError(
-                f"ONNX model is invalid: {e}. "
-                f"Model:\n"
+                f"ONNX model is invalid, Model:\n"
                 f"{onnxscript.proto2text(onnx_model)}"
             ) from e
 

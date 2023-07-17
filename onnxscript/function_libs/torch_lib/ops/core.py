@@ -14,8 +14,6 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-import numpy as np
-
 from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
