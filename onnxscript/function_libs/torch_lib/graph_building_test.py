@@ -118,7 +118,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         expected = outer.to_model_proto()
         onnxscript.testing.assert_isomorphic(traced, expected)
 
-    def test_add_input_works_with_optionaltype(self):
+    def test_add_input_with_optionaltype_does_not_raise_torch_internal_error(self):
         graph = graph_building.TorchScriptGraph()
         x = graph.add_input(input_name=None)
         with evaluator.default_as(self.tracer):
