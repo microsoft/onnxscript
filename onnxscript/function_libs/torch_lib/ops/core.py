@@ -3040,7 +3040,7 @@ def _shape_of_broadcast_tensors(*args: TensorType) -> INT64:
     return op.Shape(broadcasted)
 
 
-@torch_op("aten::index", trace_only=True)
+@torch_op(("aten::index.Tensor", "aten::_unsafe_index.Tensor"), trace_only=True)
 def aten_index(self: TensorType, indices: Sequence[Optional[INT64]]) -> TensorType:
     """index.Tensor(Tensor self, Tensor?[] indices) -> Tensor
 
