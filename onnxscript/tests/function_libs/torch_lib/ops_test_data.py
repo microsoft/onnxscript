@@ -1163,6 +1163,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
+    TorchLibOpInfo("unfold", core_ops.aten_unfold, trace_only=True,)
+        .xfail(
+        dtypes=(torch.int64, torch.float16,),
+        reason="fixme: ORT failed",
+    ),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
     TorchLibOpInfo("view", core_ops.aten_view),
     TorchLibOpInfo("view_as", core_ops.aten_view_as),

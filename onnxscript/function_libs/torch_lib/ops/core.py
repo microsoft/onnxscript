@@ -6613,10 +6613,56 @@ def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
     return op.Reshape(self, final_shape)
 
 
-def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> TensorType:
+@torch_op("aten::unfold", trace_only=True)
+def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TensorType:
     """unfold(Tensor(a) self, int dimension, int size, int step) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    perm = [0,1,2,3]
+    perm.append(perm.pop(dimension+1))
+    return _aten_unfold_onnx(self, dimension, size, step, perm)
+
+
+@torch_op("aten::unfold", private=True)
+def _aten_unfold_onnx(self: TensorType, dimension: int, size: int, step: int, perm: Sequence[int]) -> TensorType:
+    self_shape = op.Shape(self)
+    #self_rank = op.Size(self_shape)
+    # if self_rank == 0:
+    #     result = op.Unsqueeze(self, 0)
+    # else:
+    dims = op.Reshape(op.Constant(value_int=dimension), op.Constant(value_ints=[-1]))
+    dim_size = op.Gather(self_shape, dims, axis=0)
+    # target = ((i-size)/step + 1) * step != i-size+step
+    #target_end = op.Squeeze(((dim_size - size) / step + 1) * step)
+    target_end = (dim_size - size) / step + 1
+    seq_result = op.SequenceEmpty()  # FIXME: the dtype for this function cannot work, default to float
+
+    i = op.Constant(value_ints=[0])
+    cond = i < target_end
+    while cond:
+        starts = i
+        ends = starts + size
+        slice_result = op.Slice(self, starts, ends, dims)
+        slice_result_32 = op.Cast(slice_result, to=FLOAT.dtype)
+        seq_result = op.SequenceInsert(seq_result, slice_result_32)
+        i = i + 1
+        cond = i < target_end
+    concat_result = op.ConcatFromSequence(seq_result, axis=dimension, new_axis=1)
+
+    # Generate permute of the new shape
+    # Below logic equal to:
+    # perm = [0,1,2,3,4]
+    # perm.append(perm.pop(dimension+1))
+
+    # rank_result = op.Squeeze(op.Size(op.Shape(concat_result)))
+    # dim_plus_1 = dimension + 1
+    # dim_plus_2 = dimension + 2
+    # perm_prefix = op.Range(0, dim_plus_1, 1)
+    # perm_suffix = op.Range(dim_plus_2, rank_result, 1)
+    # per_dim = op.Range(dim_plus_1, dim_plus_2, 1)
+    # perm = op.Concat(perm_prefix, perm_suffix, per_dim, axis=0)
+
+    result = op.Transpose(concat_result, perm=perm)
+    return op.CastLike(result, self)
 
 
 def aten_unfold_backward(
