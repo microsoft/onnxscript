@@ -4,18 +4,7 @@ from __future__ import annotations
 import logging
 import typing
 import warnings
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Final,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -74,6 +63,18 @@ ValidTorchValueType: TypeAlias = Union[
 ]
 
 # TODO(justinchuby): Build a context manager to handle source information.
+
+
+def _rename_intermediate_value(name: str) -> str:
+    if name.isdigit():
+        return f"_val_{name}"
+    return name
+
+
+def _rename_intermediate_constant(name: str) -> str:
+    if name.isdigit():
+        return f"_const_{name}"
+    return name
 
 
 class TorchScriptTensor(onnxscript_tensor.Tensor):
@@ -457,6 +458,7 @@ class TorchScriptGraph:
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
+            value.setDebugName(_rename_intermediate_constant(value.debugName()))
             return value
 
         if isinstance(constant, bool):
@@ -478,12 +480,14 @@ class TorchScriptGraph:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
             )
-        return _create_op_call_in_torch_graph(
+        value = _create_op_call_in_torch_graph(
             self._torch_graph,
             "onnx::Constant",
             inputs=(),
             attributes=dict(value=constant_tensor),
         )[0]
+        value.setDebugName(_rename_intermediate_constant(value.debugName()))
+        return value
 
     @runtime_typing.checked
     def _add_torchscript_op_call(
@@ -527,9 +531,15 @@ class TorchScriptGraph:
             attributes=onnx_attributes,
             n_outputs=n_outputs,
         )
-        if len(result) <= 1:
-            return TorchScriptTensor(result[0])
-        return tuple(TorchScriptTensor(v) for v in result)
+        assert result, "Expected at least one output from ONNX op call."
+        if len(result) == 1:
+            tensor = TorchScriptTensor(result[0])
+            tensor.name = _rename_intermediate_value(tensor.name)
+            return tensor
+        tensors = tuple(TorchScriptTensor(v) for v in result)
+        for tensor in tensors:
+            tensor.name = _rename_intermediate_value(tensor.name)
+        return tensors
 
     @runtime_typing.checked
     def fetch_function_proto_dict(
@@ -713,7 +723,3 @@ class TorchScriptGraph:
                 self.torch_graph,
             )
         return onnx_model
-
-    def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
-        """Apply a graph pass to the graph."""
-        graph_pass(self._torch_graph, *args, **kwargs)
