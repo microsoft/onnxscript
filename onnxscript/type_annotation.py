@@ -88,16 +88,17 @@ def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
     if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
         return pytype is bool
     type_constructor = typing.get_origin(pytype)
-    # Remove Optional wrapper if present, which is represented as an Union[..., type(None)]
-    if type_constructor is typing.Union:
-        # Filter out type(None), since typing.Optional[X] evaluates to Union[X, type(None)]
+    if type_constructor in _LIST_CONSTRUCTORS:
+        element_type = typing.get_args(pytype)[0]
+        return element_type is bool
+    # Remove Optional wrapper if present:
+    if type_constructor is Optional or type_constructor is Union:
+        # In Python < 3.10, Optional[X] is represented as Union[X, type(None)]
+        # so we filter out type(None) if present
         args = [x for x in typing.get_args(pytype) if x is not type(None)]
         if len(args) == 1:
             return base_type_is_bool(args[0])
-    if type_constructor in _LIST_CONSTRUCTORS:
-        elt_type = typing.get_args(pytype)[0]
-        if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
-            return elt_type is bool
+
     return False
 
 

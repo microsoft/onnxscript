@@ -25,7 +25,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.tests.common import onnx_script_test_case, testutils
@@ -589,7 +589,7 @@ class TestConverter(testutils.TestBase):
         @script()
         def if_then_else_expanded(flag: bool, Y, Z):
             tmp1 = op.Constant(value_int=flag)
-            tmp2 = op.Cast(tmp1, to=9)
+            tmp2 = op.Cast(tmp1, to=BOOL.dtype)
             return op.Where(tmp2, Y, Z)
 
         onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)

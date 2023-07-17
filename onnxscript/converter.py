@@ -282,7 +282,7 @@ class Converter:
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self.generate_unique_name(result + "_as_bool")
-                cast_attr = self.ir_builder.make_attr("to", 9)
+                cast_attr = self.ir_builder.make_attr("to", onnx_types.BOOL.dtype)
                 self.emit(
                     [result_as_bool],
                     values.Op(self.default_opset, "Cast"),
