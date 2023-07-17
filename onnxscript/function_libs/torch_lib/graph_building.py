@@ -77,14 +77,18 @@ ValidTorchValueType: TypeAlias = Union[
 
 
 def _rename_intermediate_value(name: str) -> str:
+    """Prepend `_val_` to a numeric tensor name make it valid in ONNX.
+
+    The TorchScript graph creates numeric value names by default. e.g. `0`, `1`.
+    These are not legal ONNX tensor names, since ONNX requires the names to be valid
+    C variable names.
+
+    It also improves readability by making the names less likely to be confused
+    with shape values.
+    """
     if name.isdigit():
+        # Prefix with `_` to avoid name collision
         return f"_val_{name}"
-    return name
-
-
-def _rename_intermediate_constant(name: str) -> str:
-    if name.isdigit():
-        return f"_const_{name}"
     return name
 
 
@@ -466,7 +470,7 @@ class TorchScriptGraph:
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
-            value.setDebugName(_rename_intermediate_constant(value.debugName()))
+            value.setDebugName(_rename_intermediate_value(value.debugName()))
             return value
 
         if isinstance(constant, bool):
@@ -494,7 +498,7 @@ class TorchScriptGraph:
             inputs=(),
             attributes=dict(value=constant_tensor),
         )[0]
-        value.setDebugName(_rename_intermediate_constant(value.debugName()))
+        value.setDebugName(_rename_intermediate_value(value.debugName()))
         return value
 
     @runtime_typing.checked
