@@ -660,12 +660,11 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "aten.index.Tensor",
+        "ops.aten.index.Tensor",
+        aten_name="index.Tensor",
         dtypes=common_dtype.all_types_and_complex_and(
             torch.bool, torch.float16, torch.bfloat16, torch.chalf
         ),
-        aten_name="index",
-        op=torch.ops.aten.index.Tensor,
         sample_inputs_func=sample_inputs_index,
     ),
     opinfo_core.OpInfo(
