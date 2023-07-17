@@ -444,6 +444,31 @@ def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
 
 
+def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+    s = 5
+    index_1d = common_methods_invocations.index_variable(2, s, device=device)
+    index_2d = common_methods_invocations.index_variable((2, s+1), s, device=device)
+    index_3d = common_methods_invocations.index_variable((2, s+1, s+2), s, device=device)
+    test_args = [
+        ([index_1d],),
+        ([None, index_1d],),
+        ([None, None, None, index_1d],),
+        ([index_1d, None],),
+        ([index_1d, None, None],),
+        ([None, index_1d, None, index_1d],),
+        ([index_1d, None, index_1d, None],),
+        ([None, index_1d, index_1d, None],),
+    ]
+
+    for args in test_args:
+        yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
+
+
 def sample_inputs_native_dropout(
     op_info, device, dtype, requires_grad, *, valid_input_dim=None, **kwargs
 ):
@@ -615,6 +640,15 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_convolution,
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "aten.index.Tensor",
+        dtypes=common_dtype.all_types_and_complex_and(
+            torch.bool, torch.float16, torch.bfloat16, torch.chalf
+        ),
+        aten_name="index",
+        op=torch.ops.aten.index.Tensor,
+        sample_inputs_func=sample_inputs_index,
     ),
     opinfo_core.OpInfo(
         "ops.aten.layer_norm",
