@@ -105,6 +105,10 @@ class TensorType(abc.ABC):
             shape = [cls.shape]  # example: "FLOAT[10]"
         return onnx.helper.make_tensor_type_proto(cls.dtype, shape)
 
+    @classmethod
+    def to_string(cls) -> str:
+        return f"tensor({cls.__name__.lower()})"
+
 
 class FLOAT(TensorType, dtype=onnx.TensorProto.FLOAT):
     pass
@@ -167,6 +171,22 @@ class COMPLEX128(TensorType, dtype=onnx.TensorProto.COMPLEX128):
 
 
 class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
+    pass
+
+
+class FLOAT8E4M3FN(TensorType, dtype=onnx.TensorProto.FLOAT8E4M3FN):
+    pass
+
+
+class FLOAT8E4M3FNUZ(TensorType, dtype=onnx.TensorProto.FLOAT8E4M3FNUZ):
+    pass
+
+
+class FLOAT8E5M2(TensorType, dtype=onnx.TensorProto.FLOAT8E5M2):
+    pass
+
+
+class FLOAT8E5M2FNUZ(TensorType, dtype=onnx.TensorProto.FLOAT8E5M2FNUZ):
     pass
 
 

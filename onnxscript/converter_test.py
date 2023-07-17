@@ -402,92 +402,8 @@ class TestConverter(testutils.TestBase):
     def test_getitem(self):
         from onnxscript.tests.models import getitem
 
-        test_functions = self.validate_save(getitem, check_ort=True, skip_check_ort=None)
-
-        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
-        # expression.
-        A = np.array([0, 1, 2])
-        i = np.array([0])
-        try:
-            A[i : i + 1]
-            eager = True
-        except Exception:
-            # TypeError: only integer scalar arrays can be converted to a scalar index
-            eager = False
-
-        def check_function(x, name, expected, eager=True):
-            with self.subTest(name=name):
-                onx = test_functions[name]
-                session = ort.InferenceSession(onx.SerializeToString())
-                try:
-                    y = session.run(None, {"A": x})[0]
-                except Exception as e:
-                    raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
-                    ) from e
-                self.assertEqual(y.tolist(), expected)
-                f = getattr(getitem, name)
-                if eager:
-                    self.assertEqual(f(x).tolist(), expected)
-
-        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
-
-        check_function(x, "getitem_i", [0.0, 1.0, 2.0])
-        check_function(x, "getitem_i_last", [9.0, 10.0, 11.0])
-        check_function(x, "getitem_i_expr", [1.0, 2.0, 3.0])
-        check_function(x, "getitem_i_slice", [[3.0, 4.0, 5.0]])
-        check_function(x, "getitem_i_slice_left", [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
-        check_function(x, "getitem_i_slice_right", [[0, 1, 2], [3, 4, 5]])
-        check_function(x, "getitem_i_slice_neg", [[3, 4, 5], [6, 7, 8]])
-        check_function(x, "getitem_i_slice_step", [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
-        # TODO: force eager to True when the following issue is resolved.
-        check_function(x, "getitem_i_var", [[3.0, 4.0, 5.0]], eager=eager)
-        check_function(x, "getitem_i_tuple", [[0], [3]])
-        check_function(x, "getitem_i_mixed_tuple", [0, 3])
-        check_function(x, "getitem_column", [1.0, 4.0, 7.0, 10.0])
-        check_function(x, "getitem_index_int0_1", [3, 4, 5], eager=eager)
-        check_function(x, "getitem_index_int0", [0, 1, 2], eager=eager)
-        check_function(x, "getitem_rev", x[:0:-1].tolist())
-        check_function(x, "getitem_rev0", x[0, :0:-1].tolist())
-
-    @unittest.skipIf(
-        sys.version_info[:2] < (3, 9), reason="Notation [...] not supported in python 3.8."
-    )
-    def test_getitem39(self):
-        from onnxscript.tests.models import getitem39
-
-        test_functions = self.validate_save(getitem39, check_ort=True)
-
-        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
-        # expression.
-        A = np.array([0, 1, 2])
-        i = np.array([0])
-        try:
-            A[i : i + 1]
-            eager = True
-        except Exception:
-            # TypeError: only integer scalar arrays can be converted to a scalar index
-            eager = False
-
-        def check_function(x, name, expected, eager=True):
-            with self.subTest(name=name):
-                onx = test_functions[name]
-                session = ort.InferenceSession(onx.SerializeToString())
-                try:
-                    y = session.run(None, {"A": x})[0]
-                except Exception as e:
-                    raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
-                    ) from e
-                self.assertEqual(y.tolist(), expected)
-                f = getattr(getitem39, name)
-                if eager:
-                    self.assertEqual(f(x).tolist(), expected)
-
-        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
-
-        check_function(x, "getitem_index_int", [2.0], eager=eager)
-        check_function(x, "getitem_index_int2", [2.0], eager=eager)
+        self.validate_save(getitem, check_ort=True, skip_check_ort=None)
+        self.validate_run(getitem)
 
     def check_failure(self, f, msg):
         source = textwrap.dedent(inspect.getsource(f))
@@ -516,12 +432,6 @@ class TestConverter(testutils.TestBase):
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
         self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
-
-        def f2(A: FLOAT[...]) -> FLOAT[...]:
-            return A[::-1]
-
-        ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f2, "`?::-1` cannot be expressed with ONNX")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
@@ -637,6 +547,38 @@ class TestConverter(testutils.TestBase):
             return op.Expand(shape=shape, input=X)
 
         onnxscript.testing.assert_isomorphic_function(positional, keyword)
+
+    def test_none_as_input_for_op_with_no_schema(self):
+        """Test conversion of None as an input value in a call to an op with no known schema."""
+
+        @script()
+        def none_as_input(X):
+            return op.UnknownOp(X, None, X)
+
+        # None should be translated into an empty string in NodeProto's input list
+        node = none_as_input.to_function_proto().node[0]
+        self.assertEqual(node.input[1], "")
+
+    def test_unique_names_in_subscript_expr(self):
+        @script()
+        def nested_index_expr(X):
+            return op.Add(op.Shape(X)[-1], 1)
+
+        nodes = nested_index_expr.to_function_proto().node
+        assigned_names = [n.output[0] for n in nodes]
+        self.assertEqual(len(assigned_names), len(set(assigned_names)))
+
+    def test_no_duplicate_output_name(self):
+        """Test that the converter does not generate duplicate output names."""
+
+        @script()
+        def duplicate_output(X):
+            Y = op.Neg(X)
+            return Y, Y
+
+        # The converter should generate distinct names for the two outputs
+        outputs = duplicate_output.to_function_proto().output
+        self.assertNotEqual(outputs[0], outputs[1])
 
 
 if __name__ == "__main__":

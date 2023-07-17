@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+import re
+from types import FunctionType
+from typing import Any, Callable, Generator, Optional
 
 import onnxscript
+
+# Regex that will match "<namespace>::<op_name>[.<overload>]"
+_QUALIFIED_OPERATOR_NAME_REGEX = re.compile(
+    r"^(?P<namespace>[a-zA-Z0-9_]+)::(?P<name>[a-zA-Z0-9_]+)(?P<overload>\.[a-zA-Z0-9._]+)?$"
+)
 
 
 class OverloadedFunction:
@@ -12,16 +19,16 @@ class OverloadedFunction:
 
     Attributes:
         name: Name of the op. E.g. "aten::add".
-        default: Default function.
-        overloads: Overloads.
+        overloads: Overloads function.
         privates: Private functions not exposed to users.
+        complex: Support complex functions.
     """
 
     def __init__(self, name: str):
         self.name = name
-        self.default: Optional[Any] = None
         self.overloads: list[Any] = []
         self.privates: list[Any] = []
+        self.complex: list[Any] = []
 
 
 class Registry:
@@ -31,16 +38,16 @@ class Registry:
         self._registry: dict[str, OverloadedFunction] = {}
 
     def register(
-        self, func: Any, name: str, *, overload: bool = False, private: bool = False
+        self, func: Any, name: str, *, private: bool = False, complex: bool = False
     ) -> None:
         """Register a function."""
 
-        if overload:
-            self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
-        elif private:
+        if private:
             self._registry.setdefault(name, OverloadedFunction(name)).privates.append(func)
+        elif complex:
+            self._registry.setdefault(name, OverloadedFunction(name)).complex.append(func)
         else:
-            self._registry.setdefault(name, OverloadedFunction(name)).default = func
+            self._registry.setdefault(name, OverloadedFunction(name)).overloads.append(func)
 
     def __getitem__(self, name):
         return self._registry[name]
@@ -54,42 +61,73 @@ class Registry:
     def __repr__(self):
         return repr(self._registry)
 
+    def items(self) -> Generator[tuple[str, OverloadedFunction], None, None]:
+        yield from self._registry.items()
+
 
 # Default registry
 default_registry = Registry()
 
 
+def _check_and_normalize_names(name: str | tuple[str, ...]) -> tuple[str, ...]:
+    names: tuple[str, ...]
+
+    if isinstance(name, str):
+        names = (name,)
+    else:
+        names = name
+    if not isinstance(names, tuple):
+        raise TypeError(f"Name must be a string or a tuple of strings, got {name}")
+    for name_ in names:
+        if name_.endswith(".default") or not _QUALIFIED_OPERATOR_NAME_REGEX.fullmatch(name_):
+            raise ValueError(
+                f"Invalid name '{name_}'. Must be in the form 'namespace::name' for default overloads "
+                "or 'namespace::name.overload' for other overloads."
+            )
+
+    return names
+
+
 def torch_op(
-    name,
+    name: str | tuple[str, ...],
     *,
-    overload: bool = False,
     registry: Optional[Registry] = None,
     trace_only: bool = False,
     private: bool = False,
-) -> Callable[[Callable[..., Any]], onnxscript.OnnxFunction | Callable[..., Any]]:
+    complex: bool = False,
+) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
     Args:
-        name: ATen name of the function. E.g. "aten::add".
-        overload: Whether the function is an overload (not default).
+        name: Qualified ATen name of the function. E.g. "aten::relu", "aten::add.Tensor".
+            Or a tuple of names e.g. ("aten::add.Scalar", "aten::add.Tensor").
+            Default overloads should be specified by omitting the overload part,
+            i.e. "aten::relu" instead of "aten::relu.default".
         registry: Registry to register the function to. If None, the default registry is used.
         trace_only: Whether the function should only be traced and not compiled.
         private: Whether the function is private (not directly exposed). It should
             be true for all functions with names starting with "_".
+        complex: Whether the function supports complex.
     """
     if registry is None:
         registry = default_registry
 
-    def wrapper(func: Callable[..., Any]) -> onnxscript.OnnxFunction | Callable[..., Any]:
+    def wrapper(
+        func: FunctionType,
+    ) -> onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction:
+        # Compile the function
+        custom_opset = onnxscript.values.Opset(domain="pkg.onnxscript.torch_lib", version=1)
+
+        processed_func: onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction
         if trace_only:
-            processed_func = func
+            processed_func = onnxscript.values.TracedOnnxFunction(custom_opset, func)
         else:
-            # Compile the function
-            custom_opset = onnxscript.values.Opset(domain="onnxscript.atenlib", version=1)
+            assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
 
         assert registry is not None
-        registry.register(processed_func, name, overload=overload, private=private)
+        for name_ in _check_and_normalize_names(name):
+            registry.register(processed_func, name_, private=private, complex=complex)
         return processed_func
 
     return wrapper

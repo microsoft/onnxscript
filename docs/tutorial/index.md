@@ -63,10 +63,11 @@ are translated into normal value-parameters.
 Thus, in the above example, `X` is treated as a normal value-parameter for this particular call, while
 `start` and `end` are treated as attribute-parameters (when an opschema is unavailable).
 
-## Specifying tensor-valued attributes
+## Specifying tensor constants
 
 Tensor constants can be created using the ONNX utility `make_tensor` and these
-can be used as attribute values, as shown below:
+can be used as attribute values, as shown below. Further, they can be promoted
+to be used as tensor values using the ONNX `Constant` op, also as shown below.
 
 ```{literalinclude} examples/tensor_attr.py
 ```
@@ -79,9 +80,20 @@ the one above.
 ```{literalinclude} examples/tensor_attr_short.py
 ```
 
-This works for scalar constants. However, if the user wants to
-create an 1-dimensional tensor containing a single value, instead of a 0-dimensional
-tensor, they need to do so more explicitly (as in the previous example).
+The direct usage of literals can be used to create scalars or one-dimensional tensors
+of type `FLOAT` or `INT64` or `STRING`, as shown in the table below.
+
+| Python source  | Generated ONNX constant                  |
+| -------------- | ---------------------------------------- |
+| `0`            | Scalar value `0` of type `INT64`         |
+| `0.0`          | Scalar value `0.0` of type `FLOAT`       |
+| `"x"`          | Scalar value `"x"` of type `STRING`      |
+| `[0, 1]`       | One dimensional tensor of type `INT64`   |
+| `[0.0, 1.0]`   | One dimensional tensor of type `FLOAT`   |
+| `["x", "y"]`   | One dimensional tensor of type `STRING`  |
+
+However, if the user wants to use tensor constants of other types or other rank,
+they need to do so more explicitly (as in the previous example).
 
 ## Semantics: Script Constants
 
@@ -157,6 +169,28 @@ when constants are used in a context where they are constrained to be of the
 same type as some other (non-constant) operand. For example, the expression
 `2 * X` is expanded to `op.CastLike(2, X) * X`, which allows the same
 code to work for different types of `X`.
+
+## Indexing and Slicing
+
+{{onnxscript}} supports the use of Python's indexing and slicing operations on
+tensors, which are translated into ONNX's `Slice` and `Gather` operations.
+The semantics of this operation is similar to that of Numpy's.
+
+In the expression `e[i_1, i_2, ..., i_n]`, `n` is either the rank of the
+input tensor or any value less than that. Each index-value `i_j` may be
+a scalar value (a tensor of rank zero) or a higher-dimensional tensor or
+a slice-expression of the form `start:end:step`. Semantically, a
+slice-expression `start:end:step` is equivalent to a 1-dimensional tensor
+containing the corresponding sequence of values.
+
+However, the translator maps indexing using slice-expressions to ONNX's
+`Slice` operation which may be more efficient than the corresponding `Gather`
+operation. The more general case (where `i_j` is an arbitrary tensor) is
+translated using the `Gather` operation.
+
+Note: The current implementation does not yet support the use of arbitrary
+tensors in the index-expressions. It does not support the use of ellipsis or
+newaxis in the index.
 
 ## Control-Flow
 

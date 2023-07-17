@@ -26,9 +26,9 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest!=7.1.0",
     "pyyaml",
 )
-ONNX = "onnx==1.13.1"
-ONNX_RUNTIME = "onnxruntime==1.14.1"
-PYTORCH = "torch==2.0.0"
+ONNX = "onnx==1.14.0"
+ONNX_RUNTIME = "onnxruntime==1.15.0"
+PYTORCH = "torch==2.0.1"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
@@ -61,44 +61,14 @@ def test(session):
     session.run("pytest", "docs/test", *session.posargs)
 
 
-@nox.session(tags=["test-function-experiment"])
-def test_onnx_func_expe(session):
-    """Test with onnx function experiment builds."""
-    # TODO(justinchuby): Remove when test-ort-nightly contains this change.
-    session.install(
-        *COMMON_TEST_DEPENDENCIES,
-        PYTORCH,
-    )
-    # Install ONNX and ORT with experimental ONNX function support
-    session.install(
-        "-f",
-        "https://onnxruntimepackages.z14.web.core.windows.net/onnxruntime-function-experiment.html",
-        "--pre",
-        "ort-function-experiment-nightly",
-    )
-
-    session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
-    session.install(".", "--no-deps")
-    session.run("pip", "list")
-    # Ignore ops_correctness_test because this version of ORT does not contain the
-    # latest fixes and may fail some tests in the torch op tests.
-    session.run(
-        "pytest",
-        "onnxscript",
-        "--ignore=onnxscript/tests/function_libs/torch_lib/ops_test.py",
-        *session.posargs,
-    )
-    session.run("pytest", "docs/test", *session.posargs)
-
-
 @nox.session(tags=["test-torch-nightly"])
 def test_torch_nightly(session):
     """Test with PyTorch nightly (preview) build."""
     session.install(
         *COMMON_TEST_DEPENDENCIES,
-        ONNX,
         ONNX_RUNTIME,
     )
+    session.install("-r", "requirements/ci/requirements-onnx-weekly.txt")
     session.install("-r", "requirements/ci/requirements-pytorch-nightly.txt")
     session.install(".", "--no-deps")
     session.run("pip", "list")

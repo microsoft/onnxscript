@@ -28,7 +28,6 @@ jobs:
           - py310
           - py39
           - py38
-          - py310-experimental
           - py310-torch-nightly
           - py310-onnx-weekly
           - py310-ort-nightly
@@ -42,9 +41,6 @@ jobs:
           - name: py38
             python-version: "3.8"
             nox-tag: test
-          - name: py310-experimental
-            python-version: "3.10"
-            nox-tag: test-function-experiment
           - name: py310-torch-nightly
             python-version: "3.10"
             nox-tag: test-torch-nightly
@@ -66,6 +62,7 @@ jobs:
       - name: Run tests
         run: nox -t ${{ matrix.nox-tag }} --forcecolor -- -v --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto
         env:
+          CACHE_ORT_SESSIONS: "${{ matrix.os == 'windows-latest' && '0' || '1' }}"
           CATCH_ORT_SEGFAULT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

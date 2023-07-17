@@ -8,7 +8,7 @@ import dataclasses
 import io
 import logging
 import warnings
-from typing import Any, Optional, Protocol, Sequence
+from typing import Any, Optional, Protocol, Sequence, Union
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -17,6 +17,7 @@ from onnx.defs import onnx_opset_version
 import onnxscript
 from onnxscript import type_annotation as ta
 from onnxscript import values
+from onnxscript._internal import version_utils
 from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
@@ -172,7 +173,12 @@ class IRAttributeParameter:
                 "Attribute has no default value. Only attributes with default "
                 "values can be converted to AttributeProto."
             )
-        return helper.make_attribute(self.name, self.default_value)
+        if version_utils.onnx_older_than("1.14.1"):
+            # Argument 'attr_type' was added after version 1.14.0.
+            return helper.make_attribute(self.name, self.default_value)
+        # pylint: disable=unexpected-keyword-arg
+        return helper.make_attribute(self.name, self.default_value, attr_type=self.type)  # type: ignore[call-arg]
+        # pylint: enable=unexpected-keyword-arg
 
 
 class IRStmt:
@@ -202,7 +208,7 @@ class IRStmt:
 
         args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
         domain = self.callee.opset.domain
-        opname = self.callee.opname
+        opname = self.callee.name
         callee = f"{domain}.{opname}" if (domain != "") else opname
         return f"{lhs} = {callee} {attrs}{args}"
 
@@ -212,7 +218,7 @@ class IRStmt:
 
     def to_node_proto(self, node_name: str) -> onnx.NodeProto:
         n = helper.make_node(
-            self.callee.opname,
+            self.callee.name,
             [_opt_var_to_str(x) for x in self.args],
             [str(x) for x in self.result],
             domain=self.callee.opset.domain,
@@ -234,21 +240,31 @@ class IRFunction:
     def __init__(self, name: str, domain: str = "") -> None:
         self.domain = domain
         self.name = name
-        self.inputs: list[IRVar] = []
         self.outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
-        # attribute parameters
-        self.attrs: list[IRAttributeParameter] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
         # a dictionary of nested function-definitions
         self.nested_functions: dict[str, IRFunction] = {}
         self.outer_scope_variables: dict[Any, Any] = {}
+        self.ordered_inputs_and_attrs: list[Union[IRVar, IRAttributeParameter]] = []
 
     @property
     def assigned_names(self) -> Sequence[str]:
         """Returns the list of variables assigned to by this function."""
         return [v for stmt in self.stmts for v in stmt.output_names]
+
+    @property
+    def inputs(self) -> Sequence[IRVar]:
+        return [var for var in self.ordered_inputs_and_attrs if isinstance(var, IRVar)]
+
+    @property
+    def attrs(self) -> Sequence[IRAttributeParameter]:
+        return [
+            attr
+            for attr in self.ordered_inputs_and_attrs
+            if isinstance(attr, IRAttributeParameter)
+        ]
 
     def __str__(self):
         attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
@@ -264,13 +280,13 @@ class IRFunction:
         self.stmts.append(stmt)
 
     def append_input(self, name: IRVar) -> None:
-        self.inputs.append(name)
+        self.ordered_inputs_and_attrs.append(name)
 
     def append_output(self, name: IRVar) -> None:
         self.outputs.append(name)
 
     def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
-        self.attrs.append(attr)
+        self.ordered_inputs_and_attrs.append(attr)
 
     def debug_print(self):
         if logger.isEnabledFor(logging.DEBUG):
@@ -439,19 +455,7 @@ class IRFunction:
             onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
         ]
 
-        # attribute_proto is introduced in version onnx==1.14.0.
-        # If this attribute is available, onnxscript uses it to
-        # default values for attributes. The function has then two
-        # lists, one list for attributes without default values,
-        # another one for attributes with default values.
-        # If this *attribute_proto* is not available,
-        # all attributes are moved to the first
-        # list, default values are removed.
-        # TODO: remove this when onnx with attribute_proto is released.
-        if hasattr(onnx.FunctionProto, "attribute_proto"):
-            attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
-        else:
-            attribute_names = [attr.name for attr in self.attrs]
+        attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
 
         f = helper.make_function(
             self.domain,
@@ -526,5 +530,7 @@ class IRBuilder:
         proto = onnx.AttributeProto()
         proto.name = attrname
         proto.ref_attr_name = refname
-        proto.type = ta.pytype_to_attrtype(pytype)
+        attr_type = ta.pytype_to_attrtype(pytype)
+        assert attr_type is not None
+        proto.type = attr_type
         return IRAttributeValue(proto)

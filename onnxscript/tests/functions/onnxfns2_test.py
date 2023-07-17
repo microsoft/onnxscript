@@ -1,27 +1,15 @@
 import unittest
 
-import onnxruntime
-import pytest
-
-from onnxscript._internal import version_utils
 from onnxscript.tests.common import onnx_script_test_case
 from onnxscript.tests.models import onnxfns2
 
 
-@pytest.mark.xfail(
-    version_utils.onnxruntime_older_than("1.16") and not version_utils.onnx_older_than("1.14"),
-    reason="ORT <=1.15dev does not support IR version 9 produced by ONNX 1.14",
-)
 class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.rtol = 1e-05
 
-    @unittest.skipIf(
-        version_utils.onnxruntime_older_than("1.12"),
-        reason="onnxruntime does not support that scenario.",
-    )
     def test_onnxfns_reduce_sum_square(self):
         default_keepdims = 1
 
@@ -61,10 +49,6 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
             ],
         )
 
-    @unittest.skipIf(
-        version_utils.onnxruntime_older_than("1.12"),
-        reason="onnxruntime does not support that scenario.",
-    )
     def test_onnxfns_reduce_log_sum(self):
         default_keepdims = 1
 
@@ -75,10 +59,6 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
             skip_test_names=["test_reduce_log_sum_default"],
         )
 
-    @unittest.skipIf(
-        version_utils.onnxruntime_older_than("1.12"),
-        reason="onnxruntime does not support that scenario.",
-    )
     def test_onnxfns_reduce_log_sum_exp(self):
         default_keepdims = 1
 
@@ -107,10 +87,6 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
     #         mode=default_mode,
     #         skip_test_names=[])
 
-    @unittest.skipIf(
-        onnxruntime.__version__[:4] == "1.14",
-        reason="onnxruntime 1.14 Segfaults.",
-    )
     def test_onnxfns_space_to_depth(self):
         self.run_onnx_test(onnxfns2.SpaceToDepth, skip_test_names=[], skip_eager_test=True)
 

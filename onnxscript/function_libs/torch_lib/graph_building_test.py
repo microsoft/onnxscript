@@ -78,6 +78,60 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         expected = expected_model.to_model_proto()
         onnxscript.testing.assert_isomorphic(traced, expected)
 
+    def test_model_local_function_constructed_by_traced_graph_is_same_as_compiled_graph(
+        self,
+    ):
+        aten_abs = ops.core.aten_abs
+        aten_relu = ops.nn.aten_relu
+
+        inner_graph = graph_building.TorchScriptGraph()
+        inner_tracer = graph_building.TorchScriptTracingEvaluator(inner_graph)
+
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        x = inner_graph.add_input("x", x_tensor.shape, x_tensor.dtype)
+        with evaluator.default_as(inner_tracer):
+            output = aten_abs(x)
+        inner_graph.register_outputs(output)
+
+        outer_graph = graph_building.TorchScriptGraph()
+        outer_tracer = graph_building.TorchScriptTracingEvaluator(outer_graph)
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        x = outer_graph.add_input("x", x_tensor.shape, x_tensor.dtype)
+        with evaluator.default_as(outer_tracer):
+            output = aten_relu(x)
+        output = outer_graph.add_module_call("inner", inner_graph, (output,))
+        outer_graph.register_outputs(output)
+        traced = outer_graph.to_model_proto(self.opset_version)
+
+        @onnxscript.script(
+            opset=onnxscript.values.Opset("torch_export", 1),
+            default_opset=op,
+        )
+        def inner(x: FLOAT[1, 2, 3]):
+            return aten_abs(x)
+
+        @onnxscript.script(default_opset=op)
+        def outer(x: FLOAT[1, 2, 3]):
+            output = aten_relu(x)
+            return inner(output)
+
+        expected = outer.to_model_proto()
+        onnxscript.testing.assert_isomorphic(traced, expected)
+
+
+class TestTorchScriptGraph(unittest.TestCase):
+    def test_add_initializer_raises_when_the_same_name_used_for_different_tensors(self):
+        graph = graph_building.TorchScriptGraph()
+        graph.add_initializer("x", torch.ones((1, 2, 3), dtype=torch.float32))
+        with self.assertRaises(ValueError):
+            graph.add_initializer("x", torch.ones((1, 2, 3), dtype=torch.float32))
+
+    def test_add_initializer_allows_adding_the_same_tensor_twice_using_same_name(self):
+        graph = graph_building.TorchScriptGraph()
+        x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
+        graph.add_initializer("x", x_tensor)
+        graph.add_initializer("x", x_tensor)
+
 
 if __name__ == "__main__":
     unittest.main()

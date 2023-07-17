@@ -27,6 +27,7 @@ from .onnx_opset import (
     opset16,
     opset17,
     opset18,
+    opset19,
     opset_ai_onnx_ml1,
     opset_ai_onnx_ml2,
     opset_ai_onnx_ml3,
@@ -35,6 +36,10 @@ from .onnx_opset import (
 from .onnx_types import (
     BFLOAT16,
     FLOAT16,
+    FLOAT8E4M3FN,
+    FLOAT8E4M3FNUZ,
+    FLOAT8E5M2,
+    FLOAT8E5M2FNUZ,
     FLOAT,
     DOUBLE,
     INT8,
@@ -54,7 +59,7 @@ from .onnx_types import (
 # isort: on
 
 from .utils import external_tensor, proto2text
-from .values import OnnxFunction
+from .values import OnnxFunction, TracedOnnxFunction
 
 try:
     __version__ = importlib.metadata.version("onnxscript")
@@ -66,12 +71,17 @@ __all__ = [
     "script",
     "export_onnx_lib",
     "OnnxFunction",
+    "TracedOnnxFunction",
     "proto2python",
     "proto2text",
     "external_tensor",
     "graph",
     "BFLOAT16",
     "FLOAT16",
+    "FLOAT8E4M3FN",
+    "FLOAT8E4M3FNUZ",
+    "FLOAT8E5M2",
+    "FLOAT8E5M2FNUZ",
     "FLOAT",
     "DOUBLE",
     "INT8",
@@ -104,6 +114,7 @@ __all__ = [
     "opset16",
     "opset17",
     "opset18",
+    "opset19",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",

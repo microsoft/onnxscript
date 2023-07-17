@@ -5,15 +5,20 @@
 from __future__ import annotations
 
 import dataclasses
+import inspect
 import logging
 import types
+import typing
 from enum import IntFlag
-from typing import Any, Optional, Sequence, _GenericAlias  # type: ignore[attr-defined]
+from typing import _GenericAlias  # type: ignore[attr-defined]
+from typing import Any, ClassVar, Optional, Protocol, Sequence
 
 import onnx
 import onnx.defs
 
-from onnxscript import irbuilder, sourceinfo
+from onnxscript import converter as converter_module
+from onnxscript import irbuilder, sourceinfo, type_annotation
+from onnxscript._internal import ast_utils
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -47,7 +52,9 @@ class Opset:
     Only a single instance of Opset is created for a given (domain, version) pair.
     """
 
-    cache: dict[tuple[type, str, int], Opset] = {}
+    domain: str
+    version: int
+    cache: ClassVar[dict[tuple[type, str, int], Opset]] = {}
 
     def __new__(cls, domain: str, version: int):
         key = (cls, domain, version)
@@ -158,75 +165,164 @@ def _get_attribute_value(attr_proto: onnx.AttributeProto) -> Any:
     return onnx.helper.get_attribute_value(attr_proto)
 
 
-class Op:
+def param_schemas_from_op_schema(
+    op_schema: onnx.defs.OpSchema,
+) -> tuple[ParamSchema, ...]:
+    """Get the parameter schemas from an ONNX OpSchema."""
+    schemas = []
+    for input_ in op_schema.inputs:
+        param_schema = ParamSchema(
+            name=input_.name,
+            is_input=True,
+            required=(input_.option != onnx.defs.OpSchema.FormalParameterOption.Optional),
+            is_variadic_input=(
+                input_.option == onnx.defs.OpSchema.FormalParameterOption.Variadic
+            ),
+        )
+        schemas.append(param_schema)
+    for attr_name, attribute in op_schema.attributes.items():
+        default_attr_proto = attribute.default_value
+        param_schema = ParamSchema(
+            name=attr_name,
+            type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
+            default=_get_attribute_value(default_attr_proto),
+            is_input=False,
+            required=attribute.required,
+        )
+        schemas.append(param_schema)
+
+    return tuple(schemas)
+
+
+def _param_schema_from_function_ir_input(input: irbuilder.IRVar):
+    if type_annotation.is_optional(input.typeinfo):
+        required = False
+    else:
+        required = True
+    return ParamSchema(name=input.name, type=input.typeinfo, is_input=True, required=required)
+
+
+def _param_schema_from_function_ir_attr(attr: irbuilder.IRAttributeParameter):
+    return ParamSchema(
+        name=attr.name,
+        type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
+            onnx.defs.OpSchema.AttrType(attr.type)  # type: ignore[call-arg]
+        ),
+        default=_EmptyDefault if attr.default_value is None else attr.default_value,
+        is_input=False,
+        required=not attr.has_default,
+    )
+
+
+def param_schemas_from_function_ir(
+    function_ir: irbuilder.IRFunction,
+) -> tuple[ParamSchema, ...]:
+    """Get the parameter schemas from a FunctionIR."""
+    schemas = []
+
+    # OnnxFunction supports interleaving inputs and attributes as arguments.
+    # Preserve the original order for param_schemas.
+    # NOTE the interleave ordering is only preserved at OnnxFunction/FunctionIR level.
+    # ONNX OpSchema and FunctionProto does not support interleaving inputs and attributes.
+    # This is by design. See more at https://github.com/microsoft/onnxscript/issues/771.
+    for arg in function_ir.ordered_inputs_and_attrs:
+        if isinstance(arg, irbuilder.IRVar):
+            # input
+            schemas.append(_param_schema_from_function_ir_input(arg))
+        elif isinstance(arg, irbuilder.IRAttributeParameter):
+            # attr
+            schemas.append(_param_schema_from_function_ir_attr(arg))
+        else:
+            raise TypeError(f"Unknown input/attr type {type(arg)} from FunctionIR.")
+
+    return tuple(schemas)
+
+
+@typing.runtime_checkable
+class OpLike(Protocol):
+    """A protocol for objects that have an ONNX OpSchema."""
+
+    @property
+    def name(self) -> str:
+        ...
+
+    @property
+    def opset(self) -> Opset:
+        ...
+
+    @property
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
+        ...
+
+    def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
+        ...
+
+
+class Op(OpLike):
     """Represents an ONNX op instance (for example, the MatMul op from ONNX opset version 13).
+
     It belongs to a particular Opset and has a name.
 
     Attributes:
         opset: The Opset that this op belongs to.
-        opname: The name of the op.
-        opschema: The ONNX OpSchema for the op.
+        name: The name of the op.
+        op_schema: The ONNX OpSchema for the op.
     """
 
     def __init__(
-        self, opset, opname: str, opschema: Optional[onnx.defs.OpSchema] = None
+        self, opset: Opset, opname: str, op_schema: Optional[onnx.defs.OpSchema] = None
     ) -> None:
-        self.opset = opset
-        self.opname = opname
-        self.opschema = opschema
+        self._opset = opset
+        self._name = opname
+        self._op_schema = op_schema or opset[opname]
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
+
+        if self._op_schema is None:
+            logging.debug(
+                "An OpSchema was not provided for Op '%s' and "
+                "there is not one found in opset '%s'.",
+                opname,
+                opset,
+            )
 
     def __call__(self, *args, **kwargs):
         # FIXME(after #225): Move import to the top of the file.
         from onnxscript import evaluator  # pylint: disable=import-outside-toplevel
 
-        return evaluator.default().eval(self.get_schema(), args, kwargs)
+        schema = self.op_schema
+        if schema is None:
+            raise RuntimeError(
+                f"Op '{self.name}' does not have an OpSchema and cannot be evaluated."
+            )
+        return evaluator.default().eval(schema, args, kwargs)
 
-    def is_single_op(self) -> bool:
-        return isinstance(self.opname, str)
+    @property
+    def name(self) -> str:
+        return self._name
 
-    def get_schema(self) -> Optional[onnx.defs.OpSchema]:
-        """Returns the ONNX OpSchema for this op."""
-        if self.opschema:
-            return self.opschema
-        return self.opset[self.opname]
+    @property
+    def opset(self) -> Opset:
+        return self._opset
+
+    @property
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
+        return self._op_schema
 
     def has_schema(self) -> bool:
         """Returns True if this op has an OpSchema."""
-        return self.get_schema() is not None
+        return self.op_schema is not None
 
     def param_schemas(self) -> Optional[tuple[ParamSchema, ...]]:
         """Returns the parameter schemas for this op, if it has one."""
         if self._param_schemas is not None:
             return self._param_schemas
 
-        op_schema = self.get_schema()
+        op_schema = self.op_schema
         if op_schema is None:
             return None
-        schemas = []
-        for input_ in op_schema.inputs:
-            param_schema = ParamSchema(
-                name=input_.name,
-                is_input=True,
-                required=(input_.option != onnx.defs.OpSchema.FormalParameterOption.Optional),
-                is_variadic_input=(
-                    input_.option == onnx.defs.OpSchema.FormalParameterOption.Variadic
-                ),
-            )
-            schemas.append(param_schema)
-        for attr_name, attribute in op_schema.attributes.items():
-            default_attr_proto = attribute.default_value
-            param_schema = ParamSchema(
-                name=attr_name,
-                type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE[attribute.type],
-                default=_get_attribute_value(default_attr_proto),
-                is_input=False,
-                required=attribute.required,
-            )
-            schemas.append(param_schema)
 
-        self._param_schemas = tuple(schemas)
-        return self._param_schemas  # type: ignore[return-value]
+        self._param_schemas = param_schemas_from_op_schema(op_schema)
+        return self._param_schemas
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -244,26 +340,130 @@ class OnnxClosure:
     function: Any
 
 
+@dataclasses.dataclass
+class TypeConstraint:
+    """Represents a type constraint for an ONNX op.
+
+    Attributes:
+        name: The name of the type constraint.
+        allowed_types: The allowed types for the type constraint.
+    """
+
+    name: str
+    allowed_types: list[str]
+    description: str = ""
+
+    def as_tuple(self) -> tuple[str, list[str], str]:
+        """Returns the type constraint as a tuple."""
+        return (self.name, self.allowed_types, self.description)
+
+
+def op_schema_from_function_ir(
+    function_ir: irbuilder.IRFunction, opset: Opset
+) -> onnx.defs.OpSchema:
+    """Construct an ONNX OpSchema from an IRFunction."""
+
+    # Find all distinct types in the inputs and outputs
+    distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
+        {arg.typeinfo for arg in function_ir.outputs}
+    )
+    # Create a mapping from type to a unique name
+    type_to_constraint = {}
+    for i, type_ in enumerate(distinct_types):
+        name = f"T{i}"
+        type_to_constraint[type_] = TypeConstraint(
+            name=type_annotation.get_type_constraint_name(type_) or name,
+            allowed_types=type_annotation.pytype_to_type_strings(type_),
+        )
+
+    formal_inputs = [
+        onnx.defs.OpSchema.FormalParameter(
+            arg.name,
+            type_to_constraint[arg.typeinfo].name,
+            param_option=(
+                onnx.defs.OpSchema.FormalParameterOption.Optional
+                if type_annotation.is_optional(arg.typeinfo)
+                else onnx.defs.OpSchema.FormalParameterOption.Single
+            ),
+            # TODO(justinchu): Check this is_homogeneous thing
+            is_homogeneous=True,
+        )
+        for arg in function_ir.inputs
+    ]
+    formal_outputs = [
+        onnx.defs.OpSchema.FormalParameter(
+            arg.name,
+            type_to_constraint[arg.typeinfo].name,
+            param_option=(
+                onnx.defs.OpSchema.FormalParameterOption.Optional
+                if type_annotation.is_optional(arg.typeinfo)
+                else onnx.defs.OpSchema.FormalParameterOption.Single
+            ),
+            # TODO(justinchu): Check this is_homogeneous thing
+            is_homogeneous=True,
+        )
+        for arg in function_ir.outputs
+    ]
+    return onnx.defs.OpSchema(
+        function_ir.name,
+        opset.domain,
+        since_version=opset.version,
+        doc=function_ir.docstring,
+        inputs=formal_inputs,
+        outputs=formal_outputs,
+        type_constraints=[constraint.as_tuple() for constraint in type_to_constraint.values()],
+        attributes=[
+            *[
+                onnx.defs.OpSchema.Attribute(
+                    attr.name,
+                    type=onnx.defs.OpSchema.AttrType(attr.type),  # type: ignore[call-arg]
+                )
+                for attr in function_ir.attrs
+                if not attr.has_default
+            ],
+            *[
+                onnx.defs.OpSchema.Attribute(
+                    attr.name,
+                    default_value=attr.attr_proto,
+                )
+                for attr in function_ir.attrs
+                if attr.has_default
+            ],
+        ],
+    )
+
+
 class OnnxFunction(Op):
     """Represents an ONNX op for which a function-body has been defined in onnxscript.
 
-    Args:
-        opset: opset the function belongs to
-        pyfun: python function
-        irfun: python code parsed by class
-            :class:`onnxscript.converter.Converter`
-        source: source code used to generate the function
-        kwargs: additional properties used to construct a ModelProto
+    Attributes:
+        opset: Opset the function belongs to.
+        name: Name of the function.
+        function: Python function.
+        function_ir: Python code parsed as an :class:`irbuilder.IRFunction`.
+        source: Source code used to generate the function.
+        kwargs: Additional properties used to construct a ModelProto.
+        op_schema: Generated ONNX OpSchema for this op.
     """
 
     def __init__(
         self,
-        opset: Opset,
+        opset: Optional[Opset],
         pyfun: types.FunctionType,
         irfun: irbuilder.IRFunction,
         source: str,
         kwargs: dict[str, Any],
     ):
+        """Constructs an OnnxFunction.
+
+        Args:
+            opset: opset the function belongs to
+            pyfun: python function
+            irfun: python code parsed by class
+                :class:`onnxscript.converter.Converter`
+            source: source code used to generate the function
+            kwargs: additional properties used to construct a ModelProto
+        """
         opset = opset or Opset(irfun.domain, 1)
         super().__init__(opset, irfun.name)
         self.function = pyfun
@@ -271,11 +471,17 @@ class OnnxFunction(Op):
         self.source = source
         self.kwargs = kwargs
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
+        self._op_schema: Optional[onnx.defs.OpSchema] = None
 
     @property
-    def name(self):
-        """Returns the function name."""
-        return self.opname
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
+        """Construct an OpSchema from function_ir."""
+        if self._op_schema is not None:
+            return self._op_schema
+
+        self._op_schema = op_schema_from_function_ir(self.function_ir, self.opset)
+
+        return self._op_schema
 
     def __getitem__(self, instance):
         """Returns a lambda to evaluate function using given evaluator instance.
@@ -306,38 +512,11 @@ class OnnxFunction(Op):
         if self._param_schemas is not None:
             return self._param_schemas
 
-        function_ir = self.function_ir
-        # The first len(func_ir.inputs) arguments are onnx inputs
-        inputs = function_ir.inputs
-        # The rest is onnx attributes
-
-        schemas = []
-        for arg in inputs:
-            if isinstance(arg.typeinfo, onnx.TypeProto.Optional):
-                required = False
-            else:
-                required = True
-            schemas.append(
-                ParamSchema(name=arg.name, type=arg.typeinfo, is_input=True, required=required)
-            )
-
-        for attr_parameter in function_ir.attrs:
-            schemas.append(
-                ParamSchema(
-                    name=attr_parameter.name,
-                    type=_ATTRIBUTE_TYPE_TO_PYTHON_TYPE.get(
-                        onnx.defs.OpSchema.AttrType(attr_parameter.type)  # type: ignore[call-arg]
-                    ),
-                    default=_EmptyDefault
-                    if attr_parameter.default_value is None
-                    else attr_parameter.default_value,
-                    is_input=False,
-                    required=not attr_parameter.has_default,
-                )
-            )
-
-        self._param_schemas = tuple(schemas)
-        return self._param_schemas  # type: ignore[return-value]
+        # NOTE: We generate the parameter schemas from the function_ir instead
+        # of relying on the auto generated OpSchema because we need to preserve the keyword
+        # argument order from the Python function definition, which is lost in OpSchema.
+        self._param_schemas = param_schemas_from_function_ir(self.function_ir)
+        return self._param_schemas
 
     def to_function_proto(self):
         """Converts the function into :class:`onnx.FunctionProto`."""
@@ -359,6 +538,67 @@ class OnnxFunction(Op):
         # Merge kwargs specified in script-decorator with those specified in this call.
         merged_kw_args = {**self.kwargs, **kwargs}
         return self.function_ir.to_model_proto(**merged_kw_args)
+
+
+class TracedOnnxFunction(Op):
+    """TracedOnnxFunction.
+
+    Attributes:
+        name: Name of the op. E.g. "aten::add".
+        func: Function.
+    """
+
+    def __init__(self, opset: Opset, func: types.FunctionType):
+        super().__init__(opset, func.__name__)
+        self.func = func
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.func!r})"
+
+    @property
+    def function_ir(self) -> irbuilder.IRFunction:
+        """Return the function_ir.
+
+        This function IR contains only the signature of the function.
+        """
+        src, func_ast = ast_utils.get_src_and_ast(self.func)
+        module = inspect.getmodule(self.func)
+        closure = inspect.getclosurevars(self.func)
+        global_names = module.__dict__.copy()
+        global_names.update(closure.nonlocals)
+        converter = converter_module.Converter(
+            opset=self._opset,
+            global_names=global_names,
+            source=src,
+        )
+
+        return converter.translate_function_signature(func_ast)
+
+    @property
+    def op_schema(self) -> Optional[onnx.defs.OpSchema]:
+        """Return the OpSchema."""
+
+        if self._op_schema is not None:
+            return self._op_schema
+
+        # FIXME(justinchuby): outputs are empty. Need to fix.
+        self._op_schema = op_schema_from_function_ir(self.function_ir, self._opset)
+
+        return self._op_schema
+
+    def param_schemas(self) -> tuple[ParamSchema, ...]:
+        """Returns the parameter schemas of this function."""
+        if self._param_schemas is not None:
+            return self._param_schemas
+
+        # NOTE: We generate the parameter schemas from the function_ir instead
+        # of relying on the auto generated OpSchema because we need to preserve the keyword
+        # argument order from the Python function definition, which is lost in OpSchema.
+        self._param_schemas = param_schemas_from_function_ir(self.function_ir)
+        return self._param_schemas
 
 
 class SymbolValue:

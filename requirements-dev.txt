@@ -1,6 +1,6 @@
 setuptools>=61.0.0
 numpy
-onnx-weekly==1.14.0.dev20230403
+onnx-weekly>=1.15.0.dev20230605
 onnxruntime
 typing_extensions
 
@@ -30,4 +30,4 @@ torch>=1.13
 
 # Lint
 lintrunner>=0.10.7
-lintrunner_adapters>=0.7.0
+lintrunner_adapters>=0.8.0

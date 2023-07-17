@@ -165,7 +165,7 @@ class OnnxBackendTest:
                     deci = decimal
                 if e.dtype == np.object_:
                     try:
-                        np.testing.assert_almost_equal_string(e, o)
+                        assert_almost_equal_string(e, o)
                     except AssertionError as ex:
                         raise AssertionError(  # pragma: no cover
                             f"Output {i} of test {index} in folder {self.folder} failed."

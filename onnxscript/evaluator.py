@@ -27,7 +27,7 @@ import onnx.helper
 from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import param_manipulation
+from onnxscript._internal import feature_switch, param_manipulation
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -206,7 +206,7 @@ class BaseEvaluator(Evaluator, abc.ABC):
         Enables some syntactic sugar, such as the use of Python scalars,
         in a manner consistent with the translator. See autocast.py for details.
         """
-        return autocast.dynamic_cast_inputs(schema, *inputs)
+        return autocast.dynamic_cast_inputs(schema, inputs)
 
     def adapt_attributes(
         self, schema: onnx.defs.OpSchema, attributes: Mapping[str, ExtendedModeValue]
@@ -283,15 +283,34 @@ class BaseEvaluator(Evaluator, abc.ABC):
         param_schemas = function.param_schemas()
         # Split happens in the evaluator instead of the OnnxFunction __call__ method
         # so that evaluators can control behaviors like whether to fill in default values for attributes.
-        inputs, attributes = param_manipulation.separate_input_attributes_from_arguments(
+        tagged_args, tagged_kwargs = param_manipulation.tag_arguments_with_param_schemas(
             param_schemas,
             args,
             kwargs,
             fill_defaults=False,
             allow_extra_kwargs=self._ignore_unknown_function_kwargs,
         )
-        adapted_inputs, has_array = _adapt_to_eager_mode(inputs)
-        result = function.function(*adapted_inputs, **attributes)
+
+        adapted_args: list[ExtendedModeValue] = []
+        adapted_kwargs: dict[str, ExtendedModeValue] = {}
+        has_array = False
+        for arg, param_schema in tagged_args:
+            if param_schema.is_input:
+                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
+                has_array = has_array or _has_array
+                adapted_args.append(adapted_arg)
+            else:
+                adapted_args.append(arg)
+
+        for key, (arg, param_schema) in tagged_kwargs.items():
+            if param_schema.is_input:
+                adapted_arg, _has_array = _adapt_to_eager_mode(arg)
+                has_array = has_array or _has_array
+                adapted_kwargs[key] = adapted_arg
+            else:
+                adapted_kwargs[key] = arg
+
+        result = function.function(*adapted_args, **adapted_kwargs)
 
         # We use a heuristic to decide whether to return output values as
         # numpy arrays or tensor.Tensors. If the function has at least one
@@ -316,10 +335,12 @@ def _rename_io(prefix, i, arg):
     return f"{prefix}{i}"
 
 
-def _compute_num_outputs(schema: onnx.defs.OpSchema, *args: Any, **kwargs: Any):
-    """Returns the number of outputs expected.
-    TODO: Use ONNX type inference to replace the special-case handling below.
-    """
+def compute_num_outputs(
+    schema: onnx.defs.OpSchema, args: Sequence[Any], kwargs: Mapping[str, Any]
+) -> int:
+    """Returns the number of outputs expected."""
+
+    # TODO: Use ONNX type inference to replace the special-case handling below.
     if schema.domain == "":
         if schema.name == "BatchNormalization":
             if not kwargs.get("training_mode", 0):
@@ -354,12 +375,16 @@ def _cache_(model, providers):
     import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
     serialized = model.SerializeToString()
-    key = serialized, tuple(providers)
-    if key in _cache_models:
-        return _cache_models[key]
-    session = ort.InferenceSession(serialized, providers=providers)
-    _cache_models[key] = session
-    return session
+    if feature_switch.CACHE_ORT_SESSIONS:
+        key = serialized, tuple(providers)
+        if key in _cache_models:
+            return _cache_models[key]
+        session = ort.InferenceSession(serialized, providers=providers)
+        _cache_models[key] = session
+
+        return session
+
+    return ort.InferenceSession(serialized, providers=providers)
 
 
 def _os_to_ort_value(v):
@@ -410,7 +435,7 @@ def _call_ort(
     # Construct ONNX model with a single op call:
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
-    num_outputs = _compute_num_outputs(schema, *args, **kwargs)
+    num_outputs = compute_num_outputs(schema, args, kwargs)
     outputs = [f"output{i}" for i in range(num_outputs)]
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)

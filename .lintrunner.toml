@@ -29,35 +29,6 @@ init_command = [
     '--dry-run={{DRYRUN}}',
     '--requirement=requirements/lintrunner/requirements.txt',
 ]
-
-[[linter]]
-code = 'RUFF-FIX'
-include_patterns = [
-    '**/*.py',
-    '**/*.pyi',
-]
-exclude_patterns = [
-    'docs/**',
-    'onnxscript/tests/models/**',
-]
-command = [
-    'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'ruff_fix_linter',
-    '--config=pyproject.toml',
-    '@{{PATHSFILE}}'
-]
-init_command = [
-    'python',
-    '-m',
-    'lintrunner_adapters',
-    'run',
-    'pip_init',
-    '--dry-run={{DRYRUN}}',
-    '--requirement=requirements/lintrunner/requirements.txt',
-]
 is_formatter = true
 
 [[linter]]
@@ -73,13 +44,9 @@ exclude_patterns = [
     'onnxscript/evaluator_test.py',
     'onnxscript/evaluator.py',
     'onnxscript/onnx_types.py',
-    'onnxscript/tests/eager_mode_test.py',
-    'onnxscript/tests/eager_test.py',
-    'onnxscript/tests/external_tensor_test.py',
-    'onnxscript/tests/functions/**',
-    'onnxscript/tests/loop_test.py',
-    'onnxscript/tests/operator_test.py',
-    'onnxscript/type_annotation_test.py',
+    'onnxscript/tests/**', # Skip linting test files for speed
+    'onnxscript/**/*_test.py', # Skip linting test files for speed
+    'onnxscript/function_libs/torch_lib/ops/**', # Operators typing do not play well with mypy
 ]
 command = [
     'python',

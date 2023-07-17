@@ -6,25 +6,19 @@ from __future__ import annotations
 
 import ast
 import logging
-import sys
 from enum import IntEnum
-from typing import Any, Dict, List, NoReturn, Optional, Union
+from typing import Any, Dict, List, NoReturn, Optional, Sequence, Tuple, Union
 
-import numpy
 import onnx
-from onnx import helper, numpy_helper
 
 import onnxscript
 from onnxscript import analysis, autocast, irbuilder, onnx_types, sourceinfo
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript._internal import param_manipulation
+from onnxscript._internal import ast_utils, param_manipulation
 
-use_subscript = sys.version_info[:2] >= (3, 9)
-if use_subscript:
-    _ast_Subscript = ast.Subscript  # noqa: N816
-else:
-    _ast_Subscript = (ast.Subscript, ast.Index)  # type: ignore[misc,assignment]  # noqa: N816
+PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
+
 
 logger = logging.getLogger("onnxscript")
 
@@ -57,45 +51,6 @@ def fail_if(cond, msg):
 def ignore(cond, msg):
     if cond:
         warn(msg)
-
-
-# Utility to convert a python value to TensorProto:
-def py_type_to_onnx_type(pytype: type, info: sourceinfo.SourceInfo):
-    if pytype is bool:
-        return onnx.TensorProto.BOOL
-    if pytype is int:
-        return onnx.TensorProto.INT64
-    if pytype is float:
-        return onnx.TensorProto.FLOAT
-    if pytype is str:
-        return onnx.TensorProto.STRING
-    fail(info.msg(f"Tensor conversion of element of type {pytype} is not implemented"))
-
-
-def pyvalue_to_tensor(
-    tensor_name: str, pyvalue, converter, info: sourceinfo.SourceInfo
-):  # pylint: disable=unused-argument
-    if isinstance(pyvalue, numpy.ndarray):
-        return numpy_helper.from_array(pyvalue, tensor_name)
-    if isinstance(pyvalue, list):
-        if len(pyvalue) == 0:
-            fail(info.msg("Cannot convert an empty list to tensor"))
-        pytype = type(pyvalue[0])
-        if not all(isinstance(e, pytype) for e in pyvalue):
-            fail(info.msg("Cannot convert an list with elements of different types to tensor"))
-        return helper.make_tensor(
-            tensor_name,
-            py_type_to_onnx_type(pytype, info),
-            [len(pyvalue)],
-            pyvalue,
-        )
-    onnx_type = py_type_to_onnx_type(type(pyvalue), info)
-    if onnx_type is onnx.TensorProto.BOOL:
-        return helper.make_tensor(tensor_name, onnx_type, [], [int(pyvalue)])
-    if onnx_type is onnx.TensorProto.STRING:
-        return helper.make_tensor(tensor_name, onnx_type, [], vals=[pyvalue.encode("utf-8")])
-
-    return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
 
 # map from python operators to ONNX ops
@@ -135,7 +90,8 @@ class ConverterExpression:
     def is_const(self):
         return self.kind == ConverterExpressionKind.CONST
 
-    def __str__(self):
+    def __str__(self) -> str:
+        assert isinstance(self.name, str), "`name` is not a string. This is likely a bug."
         return self.name
 
 
@@ -180,6 +136,13 @@ class Converter:
         self.this_module = opset
         self.default_opset_ = default_opset
 
+        # States initialized by `init_function_translation`
+        self._outer = []
+        self._current_fn = None
+        self._nextvar = 0
+        self._used_vars = set()
+        self._locals: List[Dict[Any, Any]] = [{}]
+
     @property
     def default_opset(self):
         if self.default_opset_ is None:
@@ -222,14 +185,14 @@ class Converter:
 
     def init_function_translation(self):
         """Initialize self for translating a new (top-level) function."""
-        self.outer = []
-        self.current_fn = None
-        self.nextvar = 0
-        self.used_vars = set()
-        self.locals: List[Dict[Any, Any]] = [{}]
+        self._outer = []
+        self._current_fn = None
+        self._nextvar = 0
+        self._used_vars = set()
+        self._locals: List[Dict[Any, Any]] = [{}]
 
     def source_of(self, node: ast.AST) -> sourceinfo.SourceInfo:
-        return sourceinfo.SourceInfo(node, self.source, self.current_fn.name)
+        return sourceinfo.SourceInfo(node, self.source, self._current_fn.name)
 
     def message(self, node: ast.AST, error_msg: str) -> str:
         """Constructs an error message containing source information about an ast node."""
@@ -252,28 +215,28 @@ class Converter:
         """Enter a control-flow block (a loop body or if-then-else branch).
         The block is translated into a nested-scope in ONNX.
         """
-        self.outer.insert(0, self.current_fn)
-        self.current_fn = self.ir_builder.new_function(name)
-        self.locals.insert(0, {})
-        logger.debug("Converter:enter_scope:%d:node:%s", len(self.locals), type(parent_node))
+        self._outer.insert(0, self._current_fn)
+        self._current_fn = self.ir_builder.new_function(name)
+        self._locals.insert(0, {})
+        logger.debug("Converter:enter_scope:%d:node:%s", len(self._locals), type(parent_node))
 
     def exit_scope(self):
         """Exit from a control-flow block (a loop body or if-then-else branch)."""
-        logger.debug("Converter:exit_scope:%d", len(self.locals))
-        graph = self.current_fn
-        self.current_fn = self.outer.pop(0)
-        self.locals.pop(0)
+        logger.debug("Converter:exit_scope:%d", len(self._locals))
+        graph = self._current_fn
+        self._current_fn = self._outer.pop(0)
+        self._locals.pop(0)
         return graph
 
     def current_scope(self):
-        return self.locals[0]
+        return self._locals[0]
 
     def bind(self, name, val):
         logger.debug("Converter:bind:%s", name)
-        self.locals[0][name] = val
+        self._locals[0][name] = val
 
     def lookup(self, name, info, raise_exception=True):
-        for scope in self.locals:
+        for scope in self._locals:
             if name in scope:
                 return scope[name]
         if name in self.globals:
@@ -285,10 +248,10 @@ class Converter:
     def generate_unique_name(self, candidate: str = "tmp") -> str:
         # TODO(justinchuby): Can we reduce the O complexity of this function?
         r = candidate
-        while r in self.used_vars:
-            r = f"{candidate}_{self.nextvar}"
-            self.nextvar = self.nextvar + 1
-        self.used_vars.add(r)
+        while r in self._used_vars:
+            r = f"{candidate}_{self._nextvar}"
+            self._nextvar = self._nextvar + 1
+        self._used_vars.add(r)
         return r
 
     def to_onnx_attr_ref(self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]):
@@ -326,11 +289,24 @@ class Converter:
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring):
-        self.ir_builder.add_docstring(self.current_fn, docstring)
+        self.ir_builder.add_docstring(self._current_fn, docstring)
 
-    def emit(self, outputs, callee, inputs, attrs, sub_functions=None):
+    def emit(
+        self,
+        outputs: Sequence[str],
+        callee: values.Op | str,
+        inputs: Sequence[Optional[str]],
+        attrs: Optional[Sequence[irbuilder.IRAttributeValue]] = None,
+        sub_functions: Optional[dict[str, onnx.FunctionProto]] = None,
+    ):
+        if not isinstance(callee, values.Op):
+            callee = values.Op(self.default_opset, callee)
+        if attrs is None:
+            attrs = []
+        if sub_functions is None:
+            sub_functions = {}
         self.ir_builder.add_stmt(
-            self.current_fn,
+            self._current_fn,
             outputs,
             callee,
             inputs,
@@ -355,8 +331,26 @@ class Converter:
         )
 
     def emit_const(self, pyvalue, suggested_name, info):
+        if suggested_name is None:
+            if isinstance(pyvalue, int):
+                if pyvalue >= 0:
+                    suggested_name = f"int64_{pyvalue}"
+                else:
+                    suggested_name = f"int64_m{abs(pyvalue)}"
+            elif (
+                isinstance(pyvalue, list) and len(pyvalue) == 1 and isinstance(pyvalue[0], int)
+            ):
+                if pyvalue[0] >= 0:
+                    suggested_name = f"int64_{pyvalue[0]}_1d"
+                else:
+                    suggested_name = f"int64_m{abs(pyvalue[0])}_1d"
+            else:
+                suggested_name = "const"
         ovar = self.generate_unique_name(suggested_name)
-        tensor = pyvalue_to_tensor(ovar, pyvalue, self, info)
+        try:
+            tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
+        except ValueError as e:
+            fail(info.msg(str(e)))
         attr = self.ir_builder.make_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return ConverterExpression(ovar, ConverterExpressionKind.CONST)
@@ -405,7 +399,7 @@ class Converter:
         # TODO: assert (self.is_constant_expr(expr))
         # TODO: Refine types
         locals: dict[Any, Any] = {}
-        expr = ast.Expression(expr)
+        expr = ast.Expression(expr, lineno=expr.lineno, col_offset=expr.col_offset)
         cpl = compile(expr, filename="<ast>", mode="eval")
         try:
             return eval(cpl, self.globals, locals)  # pylint: disable=eval-used
@@ -465,7 +459,9 @@ class Converter:
             f"Unexpected type {type(node)!r} for node. Unsupoorted version of python."
         )
 
-    def translate_expr(self, node, target="tmp") -> ConverterExpression:
+    def translate_expr(
+        self, node, target: str | Sequence[str] | None = None
+    ) -> ConverterExpression:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -482,8 +478,8 @@ class Converter:
             r = self.translate_compare_expr(node)
         elif isinstance(node, ast.Name):
             r = self.translate_name_expr(node)
-        elif isinstance(node, _ast_Subscript):
-            r = self.translate_subscript_expr(node)
+        elif isinstance(node, ast.Subscript):
+            r = self.translate_subscript_expr(node, target)
         elif self.is_constant_expr(node):
             r = self.emit_const(self.eval_constant_expr(node), target, self.source_of(node))
         else:
@@ -494,6 +490,7 @@ class Converter:
             return r
         if isinstance(r, tuple):
             callee, args, attrs = r
+            target = "tmp" if target is None else target
             if isinstance(target, str):
                 result = self.generate_unique_name(target)
                 self.emit([result], callee, args, attrs)
@@ -503,7 +500,7 @@ class Converter:
             return ConverterExpression(results, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
-    def translate_opt_expr(self, node, target="tmp"):
+    def translate_opt_expr(self, node):
         """Translation of an expression where "None" is permitted.
 
         (eg., for an optional argument)
@@ -511,9 +508,9 @@ class Converter:
         """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
             return ConverterExpression(None, ConverterExpressionKind.ANY)
-        return self.translate_expr(node, target)
+        return self.translate_expr(node)
 
-    def translate_subscript_expr(self, node):
+    def translate_subscript_expr(self, node, target):
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -552,207 +549,192 @@ class Converter:
         """
         var = self.translate_expr(node.value)
         var_name = var.name
+        if target is None:
+            target = f"{var_name}_subscripted"
+        target = self.generate_unique_name(target)
+        indices = ast_utils.normalize_subscript_expr(node)
+        info = self.source_of(node.slice if PY_VERSION_GE_39 else node)
 
-        info = self.source_of(node.slice if use_subscript else node)
+        # Create cached int constants:
+        # TODO: Do this at a graph-scope level.
+        cached_int_consts = {}
 
-        def _get_arg(node_arg, axis, zero, one, default_value=None):
+        def const_1d(value, name: Optional[str] = None):
+            nonlocal cached_int_consts
+            if value not in cached_int_consts:
+                cached_int_consts[value] = self.emit_const([value], name, info)
+            return cached_int_consts[value]
+
+        def one_1d():
+            return const_1d(1)
+
+        # Max/min 64-bit int values are used to represent default values for start/stop in Slice.
+        maxint = (1 << 63) - 1
+        minint = -(1 << 63)
+
+        def translate_slice_component(
+            node_arg, default_value: Optional[int] = None
+        ) -> tuple[str, Optional[int]]:
+            """Translate optional start/stop/step component of a Slice expression."""
             if node_arg is None:
                 if default_value is None:
-                    return "", None
-                # The default value for the extremities depends on the step.
-                # This one is usually positive unless it is a constant,
-                # otherwise it is unknown.
-                if default_value == "begin":
-                    return zero.name, None
-                if default_value == "begin_":
-                    self.fail(
-                        node,
-                        "`?::-1` cannot be expressed with ONNX, `?:0:-1` misses "
-                        "the first line, `:-1:-1` returns an empty tensor.",
+                    # TODO: Emit "Where(step > 0, pos_default, neg_default)"
+                    raise RuntimeError(
+                        "Default start/stop not supported when step direction is unknown."
                     )
-                if default_value == "end":
-                    shape_name = self.generate_unique_name(f"{var_name}_shape")
-                    self.emit(
-                        [shape_name],
-                        values.Op(self.default_opset, "Shape"),
-                        [var_name],
-                        [],
-                    )
-                    dim_name = self.generate_unique_name(f"{shape_name}_dim")
-                    self.emit(
-                        [dim_name],
-                        values.Op(self.default_opset, "Gather"),
-                        [shape_name, axis.name],
-                        [],
-                    )
-                    return dim_name, None
-                raise RuntimeError(f"Unexpected default value {default_value!r}.")
+                return const_1d(default_value), default_value
 
-            name = self.translate_expr(node_arg).name
-            reshaped = self.generate_unique_name(f"{name}_reshaped")
-            self.emit(
-                [reshaped],
-                values.Op(self.default_opset, "Reshape"),
-                [name, one.name],
-                [],
-            )
             if self.is_constant_expr(node_arg):
                 cst = self.eval_constant_expr(node_arg)
+                if isinstance(cst, int):
+                    return const_1d(cst), cst
+                else:
+                    raise RuntimeError(f"Slice component type must be int, not {type(cst)}")
             else:
-                cst = None
-            return reshaped, cst
+                name = self.translate_expr(node_arg).name
+                reshaped = self.generate_unique_name(f"{name}_reshaped")
+                self.emit(
+                    [reshaped],
+                    values.Op(self.default_opset, "Reshape"),
+                    [name, one_1d().name],
+                    [],
+                )
+                return reshaped, None
 
-        def _get_slice_input(node_slice, axis, zero, one):
-            step_name, cst = _get_arg(node_slice.step, axis, zero, one)
-            if cst is not None and cst < 0:
-                # handling [::-1]
-                def_a, def_b = "end", "begin_"
+        def translate_slice(slice_expr: ast.Slice) -> tuple[str, str, str]:
+            """Translate slice-expression of the form from:to:step."""
+            step_name, step = translate_slice_component(slice_expr.step, 1)
+            if step is None:
+                # Step direction unknown.
+                # TODO: Handle default-values using runtime check on sign of step.
+                lower_name, _ = translate_slice_component(slice_expr.lower, None)
+                upper_name, _ = translate_slice_component(slice_expr.upper, None)
+            elif step > 0:
+                lower_name, _ = translate_slice_component(slice_expr.lower, 0)
+                upper_name, _ = translate_slice_component(slice_expr.upper, maxint)
             else:
-                def_a, def_b = "begin", "end"
-            lower_name, _ = _get_arg(node_slice.lower, axis, zero, one, default_value=def_a)
-            upper_name, _ = _get_arg(node_slice.upper, axis, zero, one, default_value=def_b)
-            inputs = [var_name, lower_name, upper_name, axis.name]
-            if step_name != "":
-                inputs.append(step_name)
-            return inputs
+                lower_name, _ = translate_slice_component(slice_expr.lower, maxint)
+                upper_name, _ = translate_slice_component(slice_expr.upper, minint)
+            return (lower_name, upper_name, step_name)
 
-        if use_subscript:
-            node_slice = node.slice
-        else:
-            node_slice = getattr(node.slice, "value", None)
+        # An input like X[2] is translated into a Gather op.
+        # An input like X[1:5:2] is translated into a Slice op.
+        # An input like X[2, 3] is translated into a Slice + Squeeze (instead of two Gathers),
+        #   as an optimization.
+        # An input like X[I, J] is translated into two Gathers (which is correct whatever the
+        #   rank of I and J)
+        # To replace multiple Gathers by the Slice we need to know that the index-values
+        # are scalars.
 
-        if self.is_constant_expr(node_slice):
-            # A[i], i is an integer
-            index = self.eval_constant_expr(node_slice)
-            var_index = self.emit_const([index], "subscript_index", info)
-            tmp = self.generate_unique_name(f"{var_name}_gather")
-            self.emit(
-                [tmp],
-                values.Op(self.default_opset, "Gather"),
-                [var_name, var_index.name],
-                [],
-            )
-            axis = self.emit_const([0], "subscript_axis", info)
-            inputs = [tmp, axis.name]
-            return values.Op(self.default_opset, "Squeeze"), inputs, []
-
-        if isinstance(node.slice, ast.Slice):
-            # A[a:b], a, b are expressions equivalent to integers
-            one = self.emit_const([1], "one", info)
-            axis = self.emit_const([0], "subscript_axis", info)
-            inputs = _get_slice_input(node.slice, axis, axis, one)
-            return values.Op(self.default_opset, "Slice"), inputs, []
-
-        if isinstance(node.slice, ast.Tuple) or (
-            not use_subscript and isinstance(node.slice, ast.ExtSlice)
-        ):
-            # A[a:b, c:d, e], a, b, c, d, e are expressions equivalent to integers
-            # tuple can be any length
-            if isinstance(node.slice, ast.Tuple):
-                elts = node.slice.elts
+        # As the first step, we partition the index elements into four kinds: Slice (eg., 1:5:2),
+        # known-to-be-scalar (eg., 2), other-tensor (eg., I), skip/no-op (that is, just ":")
+        sliced_indices: List[Tuple[int, ast.expr]] = []
+        scalar_indices: List[Tuple[int, ast.expr]] = []
+        non_scalar_indices: List[Tuple[int, ast.expr]] = []
+        for axis, elt in enumerate(indices):
+            if isinstance(elt, ast.Slice):
+                # Add to sliced_indices, unless it is "::", which is a no-op.
+                if not (elt.lower is None and elt.upper is None and elt.step is None):
+                    sliced_indices.append((axis, elt))
+            elif self.is_constant_expr(elt) and isinstance(self.eval_constant_expr(elt), int):
+                scalar_indices.append((axis, elt))
             else:
-                elts = node.slice.dims
-            one = self.emit_const([1], "one", info)
-            zero = None
+                non_scalar_indices.append((axis, elt))
+        if not (sliced_indices or scalar_indices or non_scalar_indices):
+            # Edge case: no index specified. Eg. A[:, :]
+            self.emit([target], "Identity", [var_name])
+            return target
+        if sliced_indices or len(scalar_indices) > 1:
+            # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
+            # scalar indices (like 2) is more than 1.
             starts = []
             ends = []
             axes = []
             steps = []
             squeezed_axes = []
-            for axis, elt in enumerate(elts):
-                if self.is_constant_expr(elt) or (
-                    not use_subscript and isinstance(elt, ast.Index)
-                ):
-                    # if the tuple contains a constant, it is replaced
-                    # by a slice and processed like any other slice
-                    element = None
-                    if use_subscript:
-                        index = self.eval_constant_expr(elt)
-                    else:
-                        try:
-                            index = self.eval_constant_expr(elt.value)
-                        except NameError:
-                            element = elt
-                    if element is None:
-                        squeezed_axes.append(axis)
-                        kwargs = dict(
-                            lineno=getattr(elt, "lineno", node.lineno),
-                            col_offset=getattr(elt, "col_offset", node.col_offset),
-                        )
-                        element = ast.Slice(
-                            ast.Constant(index, **kwargs),
-                            ast.Constant(index + 1, **kwargs),
-                            ast.Constant(1, **kwargs),
-                        )
-                else:
-                    element = elt
-
-                var_axis = self.emit_const([axis], f"ax{axis}", info)
-                if axis == 0:
-                    zero = var_axis
-
-                if isinstance(element, ast.Slice):
-                    # process slice index
-                    inputs = _get_slice_input(element, var_axis, zero, one)
-                    starts.append(inputs[1])
-                    ends.append(inputs[2])
-                    axes.append(var_axis.name)
-                    steps.append(inputs[4] if len(inputs) > 4 else one.name)
-                    continue
-
-                # not a constant, not a slice -> an expression
+            for axis, expr in scalar_indices:
+                # Treat a scalar index i as slice "i:i+1:1", but squeeze the axis finally.
+                # TODO: handle negative i
+                index = self.eval_constant_expr(expr)
                 squeezed_axes.append(axis)
-                index = self.translate_expr(element).name
-                starts.append(index)
-                index_1 = self.generate_unique_name(f"{var_name}_end")
-                self.emit([index_1], values.Op(self.default_opset, "Add"), [index, one], [])
-                ends.append(index_1)
-                axes.append(var_axis.name)
-                steps.append(one.name)
+                kwargs = dict(
+                    lineno=getattr(expr, "lineno", node.lineno),
+                    col_offset=getattr(expr, "col_offset", node.col_offset),
+                )
+                element = ast.Slice(
+                    ast.Constant(index, **kwargs),
+                    ast.Constant(index + 1, **kwargs),
+                    ast.Constant(1, **kwargs),
+                )
+                sliced_indices.append((axis, element))
+            scalar_indices = []
+            for axis, element in sliced_indices:
+                axis_var = const_1d(axis)
+                inputs = translate_slice(element)
+                starts.append(inputs[0])
+                ends.append(inputs[1])
+                axes.append(axis_var.name)
+                steps.append(inputs[2])
 
-            attr = self.ir_builder.make_attr("axis", 0)
-            start_name = self.generate_unique_name(f"{var_name}_start")
-            self.emit([start_name], values.Op(self.default_opset, "Concat"), starts, [attr])
+            if len(starts) > 1:
+                axis_0_attr = self.ir_builder.make_attr("axis", 0)
+                start_name = self.generate_unique_name(f"{var_name}_start")
+                self.emit([start_name], "Concat", starts, [axis_0_attr])
 
-            end_name = self.generate_unique_name(f"{var_name}_end")
-            self.emit([end_name], values.Op(self.default_opset, "Concat"), ends, [attr])
+                end_name = self.generate_unique_name(f"{var_name}_end")
+                self.emit([end_name], "Concat", ends, [axis_0_attr])
 
-            axes_name = self.generate_unique_name(f"{var_name}_axis")
-            self.emit([axes_name], values.Op(self.default_opset, "Concat"), axes, [attr])
+                axes_name = self.generate_unique_name(f"{var_name}_axis")
+                self.emit([axes_name], "Concat", axes, [axis_0_attr])
 
-            steps_name = self.generate_unique_name(f"{var_name}_step")
-            self.emit([steps_name], values.Op(self.default_opset, "Concat"), steps, [attr])
+                steps_name = self.generate_unique_name(f"{var_name}_step")
+                self.emit([steps_name], "Concat", steps, [axis_0_attr])
+            else:
+                start_name = starts[0]
+                end_name = ends[0]
+                axes_name = axes[0]
+                steps_name = steps[0]
+
             if squeezed_axes:
-                sliced_name = self.generate_unique_name(f"{var_name}sliced")
+                sliced_name = self.generate_unique_name(f"{var_name}_sliced")
                 self.emit(
                     [sliced_name],
-                    values.Op(self.default_opset, "Slice"),
+                    "Slice",
                     [var_name, start_name, end_name, axes_name, steps_name],
-                    [],
                 )
-                squeezed_axis = self.emit_const(squeezed_axes, f"squeezed_ax{axis}", info)
-                return (
-                    values.Op(self.default_opset, "Squeeze"),
-                    [sliced_name, squeezed_axis],
-                    [],
-                )
-            return (
-                values.Op(self.default_opset, "Slice"),
-                [var_name, start_name, end_name, axes_name, steps_name],
-                [],
-            )
+                squeezed_axes = self.emit_const(squeezed_axes, "squeezed_axes", info)
 
-        # A[i], i is an expression equivalent to an integer
-        var_index = self.translate_expr(node_slice)
-        tmp = self.generate_unique_name(f"{var_name}_gather")
-        self.emit(
-            [tmp],
-            values.Op(self.default_opset, "Gather"),
-            [var_name, var_index.name],
-            [],
-        )
-        axis = self.emit_const([0], "subscript_axis", info)
-        return values.Op(self.default_opset, "Squeeze"), [tmp, axis.name], []
+                if non_scalar_indices:  # use temporary to store result of squeeze
+                    result = self.generate_unique_name(f"{var_name}_squeezed")
+                else:  # store squeezed result in final target
+                    result = target
+
+                self.emit([result], "Squeeze", [sliced_name, squeezed_axes])
+            else:
+                if non_scalar_indices:  # use temporary to store result of Slice
+                    result = self.generate_unique_name(f"{var_name}_sliced")
+                else:  # store result of Slice in final target
+                    result = target
+                slice_inputs = [var_name, start_name, end_name, axes_name, steps_name]
+                self.emit([result], "Slice", slice_inputs)
+        else:
+            result = var_name
+        non_scalar_indices.extend(scalar_indices)
+        if non_scalar_indices:
+            last_axis, _ = non_scalar_indices[-1]
+        for axis, index_expr in non_scalar_indices:
+            index_value = self.translate_expr(index_expr)
+            axis_attr = self.ir_builder.make_attr("axis", axis)
+            # use Gather to perform indexing
+            # Assign gathered value to either temporary or final target
+            if axis != last_axis:  # use temporary to store result of Gather
+                gathered = self.generate_unique_name(f"{var_name}_axis_{axis}")
+            else:  # store result of Gather in final target
+                gathered = target
+            self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
+            result = gathered
+
+        return result
 
     def translate_call_expr(self, node):
         """Translates a call-expression."""
@@ -770,7 +752,7 @@ class Converter:
         else:
             args = [self.translate_opt_expr(x) for x in node.args]
             attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
-        args = autocast.static_cast_inputs(self, callee.get_schema(), *args)
+        args = autocast.static_cast_inputs(self, callee.op_schema, args)
 
         # In ONNX, there is no way to explicitly specify a None value for an attribute.
         # Instead, the attribute must be omitted from the attribute list.
@@ -779,8 +761,8 @@ class Converter:
         return callee, args, attrs
 
     def _cast_like_binary_expression(self, op, left, right):
-        schema = op.get_schema()
-        return autocast.static_cast_inputs(self, schema, left, right)
+        schema = op.op_schema
+        return autocast.static_cast_inputs(self, schema, (left, right))
 
     def translate_bool_op_expr(self, node: ast.BoolOp) -> ConverterExpression:
         if isinstance(node.op, ast.And):
@@ -898,7 +880,7 @@ class Converter:
             function_name = node.id
             found = self.lookup(function_name, self.source_of(node), raise_exception=False)
             if isinstance(found, onnxscript.OnnxFunction):
-                self.current_fn.add_called_function(found)
+                self._current_fn.add_called_function(found)
                 return found
             if isinstance(found, values.Op):
                 return found
@@ -1012,11 +994,16 @@ class Converter:
                 # In ONNX, a graph-input cannot be an output of the graph.
                 # We need to insert a copy.
                 return_var = self.emit_copy(return_var, preferred_name)
+            for prev_output in self._current_fn.outputs:
+                if prev_output.name == return_var:
+                    # ONNX does not allow duplicate output names.
+                    return_var = self.emit_copy(return_var, f"{return_var}_copy")
+                    break
             if self.returntype is None:
                 t = None
             else:
                 t = self.returntype[i]
-            self.ir_builder.add_output(self.current_fn, return_var, t, self.source_of(stmt))
+            self.ir_builder.add_output(self._current_fn, return_var, t, self.source_of(stmt))
             return return_var
 
         val = stmt.value
@@ -1123,7 +1110,7 @@ class Converter:
         self.enter_scope("loop_body", loop_stmt)
         o_loop_var = self.generate_unique_name(p_loop_var)
         self.ir_builder.add_input(
-            self.current_fn,
+            self._current_fn,
             o_loop_var,
             onnx_types.INT64,
             self.source_of(loop_stmt),
@@ -1134,7 +1121,7 @@ class Converter:
         )
 
         self.ir_builder.add_input(
-            self.current_fn,
+            self._current_fn,
             i_cond_var,
             onnx_types.BOOL,
             self.source_of(loop_stmt),
@@ -1145,7 +1132,9 @@ class Converter:
             # TODO: retrieve the annotation for variable pv is any is specified.
             # typeinfo = self.eval_constant_expr(pv.annotation)
             typeinfo = None
-            self.ir_builder.add_input(self.current_fn, ov, typeinfo, self.source_of(loop_stmt))
+            self.ir_builder.add_input(
+                self._current_fn, ov, typeinfo, self.source_of(loop_stmt)
+            )
             self.bind(
                 pv,
                 values.Dynamic(ov, values.DynamicKind.Loop, self.source_of(loop_stmt)),
@@ -1201,14 +1190,14 @@ class Converter:
         )
 
         self.ir_builder.add_output(
-            self.current_fn,
+            self._current_fn,
             o_cond_out,
             onnx_types.BOOL,
             self.source_of(loop_stmt),
         )
         for pv in loop_state_vars:
             ov = self.py_var_to_onnx_var(pv, self.source_of(loop_stmt))
-            if ov not in self.current_fn.assigned_names:
+            if ov not in self._current_fn.assigned_names:
                 # When converting the loop-body into a graph, we need to handle
                 # identity assignments of the form "x = y" inside the loop body
                 # specially if y represents a value computed outside the loop body.
@@ -1218,7 +1207,7 @@ class Converter:
             # TODO: retrieve variable type for the annotation if any.
             typeinfo = None
             self.ir_builder.add_output(
-                self.current_fn, ov, typeinfo, self.source_of(loop_stmt)
+                self._current_fn, ov, typeinfo, self.source_of(loop_stmt)
             )
         body = self.exit_scope()
         inputs = [o_loop_bound, o_true] + [
@@ -1245,19 +1234,19 @@ class Converter:
             if pvar in self.current_scope():
                 pv_val = self.current_scope()[pvar]
                 output = self.to_onnx_var(pv_val, pvar)
-                if output not in self.current_fn.assigned_names:
+                if output not in self._current_fn.assigned_names:
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
                     output = self.emit_copy(output, pvar)
                 self.ir_builder.add_output(
-                    self.current_fn,
+                    self._current_fn,
                     output,
                     pv_val.typeinfo,
                     self.source_of(info_stmt),
                 )
             else:
                 pv_val = None
-                for scope in self.locals:  # TODO: skip current_scope
+                for scope in self._locals:  # TODO: skip current_scope
                     if pvar in scope:
                         pv_val = scope[pvar]
                         break
@@ -1265,7 +1254,7 @@ class Converter:
                     self.fail(
                         stmts[0],
                         f"Variable {pvar} is not assigned a value along a conditional "
-                        f"branch, known variables: {list(self.locals)}.",
+                        f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
                 ovar = self.generate_unique_name(pvar)
@@ -1278,7 +1267,7 @@ class Converter:
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
                 self.ir_builder.add_output(
-                    self.current_fn, ovar, typeinfo, self.source_of(info_stmt)
+                    self._current_fn, ovar, typeinfo, self.source_of(info_stmt)
                 )
         graph = self.exit_scope()
         return graph.to_graph_and_functions()
@@ -1294,15 +1283,15 @@ class Converter:
         ]
         self.bind(fn.name, function_ir)
         # TODO: Does not yet handle nested functions within nested functions.
-        self.current_fn.add_nested_function(function_ir)
+        self._current_fn.add_nested_function(function_ir)
 
-    def translate_function_def(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
-        logger.debug("Converter:translate_function_def:%s", fn.name)
+    def translate_function_signature(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
+        """Translate a function signature."""
         args = fn.args
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
             warn(f"{fn.name}: Unsupported feature in function signature.")
         domain = self.this_module.domain
-        self.current_fn = self.ir_builder.new_function(fn.name, domain, True)
+        self._current_fn = self.ir_builder.new_function(fn.name, domain, True)
         for i, x in enumerate(args.args):
             arg_with_default_start_index = len(args.args) - len(args.defaults)
             if args.defaults and i >= arg_with_default_start_index:
@@ -1324,15 +1313,15 @@ class Converter:
                 typeinfo = None
             if typeinfo and ta.is_attr_type(typeinfo):
                 self.ir_builder.add_attr_parameter(
-                    self.current_fn,
+                    self._current_fn,
                     x.arg,
                     ta.pytype_to_attrtype(typeinfo),
                     default_value,
                 )
                 self.bind(x.arg, values.AttrRef(x.arg, typeinfo, self.source_of(x)))
             else:
-                self.ir_builder.add_input(self.current_fn, x.arg, typeinfo, self.source_of(x))
-                self.used_vars.add(x.arg)
+                self.ir_builder.add_input(self._current_fn, x.arg, typeinfo, self.source_of(x))
+                self._used_vars.add(x.arg)
                 self.bind(
                     x.arg,
                     values.Dynamic(x.arg, values.DynamicKind.Input, self.source_of(x)),
@@ -1352,9 +1341,16 @@ class Converter:
                 self.returntype = None
         else:
             self.returntype = None
+
+        return self._current_fn
+
+    def translate_function_def(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
+        """Translate a function definition, including the signature and its body."""
+        logger.debug("Converter:translate_function_def:%s", fn.name)
+        _ = self.translate_function_signature(fn)
         for i, s in enumerate(fn.body):
             self.translate_stmt(s, index_of_stmt=i)
-        return self.current_fn
+        return self._current_fn
 
     def top_level_stmt(self, stmt: ast.FunctionDef) -> irbuilder.IRFunction:
         if isinstance(stmt, ast.FunctionDef):
