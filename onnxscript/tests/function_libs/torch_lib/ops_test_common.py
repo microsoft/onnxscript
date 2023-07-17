@@ -472,6 +472,8 @@ def graph_executor(
                         sequence_input.append(input)
                         ort_inputs[input_name] = subarg
                     else:
+                        # Include non-numpy inputs as-is
+                        # For example, it could be a None value that we want to keep
                         sequence_input.append(subarg)
                 onnxscript_args.append(sequence_input)
             else:
