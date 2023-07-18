@@ -382,7 +382,10 @@ class Converter:
         )
 
     def emit_const(
-        self, pyvalue: PyValue, suggested_name: Optional[PreferredName], info: sourceinfo.SourceInfo
+        self,
+        pyvalue: PyValue,
+        suggested_name: Optional[PreferredName],
+        info: sourceinfo.SourceInfo,
     ) -> ConverterExpression:
         if suggested_name is None:
             if isinstance(pyvalue, int):
@@ -991,14 +994,22 @@ class Converter:
             elif isinstance(lhs, ast.Tuple):
                 # Assignments of the form "x, y, z = op.SomeOp(...)"
                 if not isinstance(rhs, ast.Call):
-                    self.fail(rhs, f"RHS must be a Call expression for unpacking, found: {type(rhs)!r}")
+                    self.fail(
+                        rhs,
+                        f"RHS must be a Call expression for unpacking, found: {type(rhs)!r}",
+                    )
                 callee, inputs, attrs = self.translate_call_expr(rhs)
 
                 def generate_onnx_name(x: ast.AST):
                     if not isinstance(x, ast.Name):
                         self.fail(x, f"LHS must be a Name for unpacking, found: {type(x)!r}")
                     onnx_name = self.generate_unique_name(x.id)
-                    self.bind(x.id, values.Dynamic(onnx_name, values.DynamicKind.Intermediate, self.source_of(x)))
+                    self.bind(
+                        x.id,
+                        values.Dynamic(
+                            onnx_name, values.DynamicKind.Intermediate, self.source_of(x)
+                        ),
+                    )
                     return onnx_name
 
                 outputs = [generate_onnx_name(x) for x in lhs.elts]

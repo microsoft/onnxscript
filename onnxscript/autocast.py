@@ -179,10 +179,11 @@ def static_cast_inputs(converter, op_schema: Optional[OpSchema], args) -> tuple[
     def get_type_info(x):
         """Return x if x is not a constant and None otherwise.
         A non-constant tensor-variable can serve as the second argument of CastLike,
-        serving as the type-info for the cast."""
+        serving as the type-info for the cast.
+        """
         return None if x is None or x.is_const() else x
 
-    def cast(x, typeinfo) -> str:
+    def cast(x, typeinfo) -> Optional[str]:
         if x is None:
             return None
         if x.is_const() and typeinfo is not None:
