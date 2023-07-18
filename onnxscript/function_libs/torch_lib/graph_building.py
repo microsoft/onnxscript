@@ -4,18 +4,7 @@ from __future__ import annotations
 import logging
 import typing
 import warnings
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Final,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -731,7 +720,3 @@ class TorchScriptGraph:
                 self.torch_graph,
             )
         return onnx_model
-
-    def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
-        """Apply a graph pass to the graph."""
-        graph_pass(self._torch_graph, *args, **kwargs)
