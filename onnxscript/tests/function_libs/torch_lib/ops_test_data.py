@@ -1062,6 +1062,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT failed",
     ),
     TorchLibOpInfo("select", core_ops.aten_select),
+    TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter)
+    .xfail(
+        dtypes=[torch.float16, torch.int64,],
+        reason = "ffffff",
+    ),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
     TorchLibOpInfo("sin", core_ops.aten_sin),

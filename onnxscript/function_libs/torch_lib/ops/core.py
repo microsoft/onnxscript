@@ -5840,10 +5840,27 @@ def aten_select_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::select_scatter")
 def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int) -> TensorType:
     """select_scatter(Tensor self, Tensor src, int dim, int index) -> Tensor"""
 
-    raise NotImplementedError()
+    # 先把index扩展成2维，比如2 ->[[2,2,2,2]]
+    indices = op.Expand(index, op.Constant(value_ints=[5,5]))
+    # 把src = op.Unsqueeze(src, axes=0), 和 self rank 相同
+    update = op.Unsqueeze(src, axes=0)
+
+    return op.ScatterElements(self, indices, update, axis=dim, reduction="none")
+
+# def test_aten_select_scatter():
+#     import numpy as np
+#     self = np.array(range(16)).reshape(4,4).astype(np.float32)
+#     src = np.ones(4).astype(np.float32)
+#     dim = 0
+#     index = 2
+#     r = aten_select_scatter(self, src, dim, index)
+#     print(r)
+# test_aten_select_scatter()
+# exit(0)
 
 
 @torch_op("aten::selu")
