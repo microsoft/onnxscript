@@ -93,7 +93,8 @@ class ConverterExpressionKind(IntEnum):
 
 
 class ConverterExpression:
-    def __init__(self, name: Optional[Union[str, List[str]]], kind: ConverterExpressionKind):
+    def __init__(self, name: str, kind: ConverterExpressionKind):
+        assert isinstance(name, str)
         self.name = name
         self.kind = kind
 
@@ -126,13 +127,12 @@ if TYPE_CHECKING:
 
     SymValue = Union[LocalSymValue, PyValue]
 
-    # PreferredName is a type used to represent the preferred name(s) used in the
-    # generated ONNX for the (one or more) values returned by an expression.
-    # If none specified, the names are generated automatically. Even if names
-    # are specified, the converter will modify them (with a suffix) to ensure
-    # they are unique (to ensure ONNX's SSA requirement).
+    # PreferredName is a type-alias used to represent the preferred name used in the generated
+    # ONNX for a value returned by an expression. There is no guarantee that the specified
+    # name will be used exactly. The converter will modify the name (with a suffix),
+    # if necesssary, to ensure that it is unique (to ensure ONNX's SSA requirement).
 
-    PreferredName = Optional[Union[str, List[str]]]
+    PreferredName = str
 
     # The type-alias OnnxVar indicates variable names used in the generated ONNX.
     OnnxVarName = str
@@ -382,7 +382,7 @@ class Converter:
         )
 
     def emit_const(
-        self, pyvalue: PyValue, suggested_name: PreferredName, info: sourceinfo.SourceInfo
+        self, pyvalue: PyValue, suggested_name: Optional[PreferredName], info: sourceinfo.SourceInfo
     ) -> ConverterExpression:
         if suggested_name is None:
             if isinstance(pyvalue, int):
@@ -546,25 +546,21 @@ class Converter:
         if isinstance(r, tuple):
             callee, args, attrs = r
             target = "tmp" if target is None else target
-            if isinstance(target, str):
-                result = self.generate_unique_name(target)
-                self.emit([result], callee, args, attrs)
-                return ConverterExpression(result, ConverterExpressionKind.ANY)
-            results = [self.generate_unique_name(x) for x in target]
-            self.emit(results, callee, args, attrs)
-            return ConverterExpression(results, ConverterExpressionKind.ANY)
+            assert isinstance(target, str)
+            result = self.generate_unique_name(target)
+            self.emit([result], callee, args, attrs)
+            return ConverterExpression(result, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
-    def translate_opt_expr(self, node: ast.expr) -> ConverterExpression:
-        """Translation of an expression where "None" is permitted.
-        (eg., for an optional argument)
+    def translate_opt_expr(self, node: ast.expr) -> Optional[ConverterExpression]:
+        """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
-            return ConverterExpression(None, ConverterExpressionKind.ANY)
+            return None
         return self.translate_expr(node)
 
-    def translate_subscript_expr(self, node: ast.Subscript, target: PreferredName):
+    def translate_subscript_expr(self, node: ast.Subscript, target: Optional[PreferredName]):
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 

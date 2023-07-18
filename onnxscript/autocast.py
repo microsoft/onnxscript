@@ -177,9 +177,14 @@ def static_cast_inputs(converter, op_schema: Optional[OpSchema], args) -> tuple[
     """Used for autocast during script-translation."""
 
     def get_type_info(x):
-        return x if not x.is_const() else None
+        """Return x if x is not a constant and None otherwise.
+        A non-constant tensor-variable can serve as the second argument of CastLike,
+        serving as the type-info for the cast."""
+        return None if x is None or x.is_const() else x
 
     def cast(x, typeinfo) -> str:
+        if x is None:
+            return None
         if x.is_const() and typeinfo is not None:
             # Scalar values are promoted to tensors of a type chosen as below:
 
