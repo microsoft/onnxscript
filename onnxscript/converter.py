@@ -980,45 +980,52 @@ class Converter:
         raise ValueError(self.message(node, f"Unsupported statement type {type(node)!r}."))
 
     def translate_assign_stmt(self, stmt: Union[ast.Assign, ast.AnnAssign]) -> None:
-        def assign(lhs, rhs):
-            info = self.source_of(lhs)
+        def assign(lhs: ast.AST, rhs: ast.AST) -> None:
             if isinstance(lhs, ast.Name):
+                # Assignments of the form "x = SomeExpression"
+                info = self.source_of(lhs)
                 lhs = lhs.id
                 t = self.translate_expr(rhs, lhs).name
                 if isinstance(stmt, ast.AnnAssign):
-                    var = values.Dynamic(
-                        t,
-                        values.DynamicKind.Intermediate,
-                        info,
-                        typeinfo=self.eval_constant_expr(stmt.annotation),
-                    )
+                    typeinfo = self.eval_constant_expr(stmt.annotation)
                 else:
-                    var = values.Dynamic(t, values.DynamicKind.Intermediate, info)
+                    typeinfo = None
+                var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
                 self.bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
+                # Assignments of the form "x, y, z = op.SomeOp(...)"
+                if not isinstance(rhs, ast.Call):
+                    self.fail(rhs, f"RHS must be a Call expression for unpacking, found: {type(rhs)!r}")
+                callee, inputs, attrs = self.translate_call_expr(rhs)
 
-                def id(x):
-                    assert isinstance(x, ast.Name)
-                    return x.id
+                def generate_onnx_name(x: ast.AST):
+                    if not isinstance(x, ast.Name):
+                        self.fail(x, f"LHS must be a Name for unpacking, found: {type(x)!r}")
+                    onnx_name = self.generate_unique_name(x.id)
+                    self.bind(x.id, values.Dynamic(onnx_name, values.DynamicKind.Intermediate, self.source_of(x)))
+                    return onnx_name
 
-                ids = [id(x) for x in lhs.elts]
-                onnxids = self.translate_expr(rhs, ids).name
-                for x, y in zip(ids, onnxids):
-                    self.bind(x, values.Dynamic(y, values.DynamicKind.Intermediate, info))
+                outputs = [generate_onnx_name(x) for x in lhs.elts]
+                self.emit(outputs, callee, inputs, attrs)
             else:
-                fail("Unsupported construct in LHS of assignment.")
+                self.fail(lhs, f"Unsupported construct in LHS of assignment: {type(lhs)!r}")
 
         if isinstance(stmt, ast.Assign):
             targets = stmt.targets
         else:
             targets = [stmt.target]
         if len(targets) != 1:
+            # Assignments of the form "x = y = SomeExpression"
             self.fail(stmt, "Multi-assignment not supported.")
         lhs = targets[0]
         rhs = stmt.value
         if isinstance(rhs, ast.Tuple):
+            # Assignments of the form "... = Expression1, Expression2"
             if not isinstance(lhs, ast.Tuple):
+                # Assignments of the form "single_var = Expression1, Expression2".
+                # We do not support tuple-typed variables.
                 self.fail(lhs, f"Left term must be a tuple not {type(lhs)!r}.")
+            # Parallel assignments of the form "x, y = Expression1, Expression2"
             if len(lhs.elts) != len(rhs.elts):
                 self.fail(
                     stmt, "Expected same number of elements on lhs and rhs of assignments."
