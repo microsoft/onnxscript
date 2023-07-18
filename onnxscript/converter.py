@@ -318,13 +318,12 @@ class Converter:
             fail(info.msg(msg) if info else msg)
         return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
 
-    # TODO(rama): Cleanup representation of returned values (ConverterExpression etc.)
     def to_onnx_var(
         self,
         val: values.SymbolValue | PyValue,
         target: Optional[PreferredName] = None,
         info: Optional[sourceinfo.SourceInfo] = None,
-    ) -> ConverterExpression | OnnxVarName:
+    ) -> ConverterExpression:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target or "tmp")
@@ -345,7 +344,7 @@ class Converter:
                 return ConverterExpression(result_as_bool, ConverterExpressionKind.CONST)
             return ConverterExpression(result, ConverterExpressionKind.CONST)
         if isinstance(val, values.Dynamic):
-            return val.value
+            return ConverterExpression(val.value, ConverterExpressionKind.ANY)
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error message otherwise
@@ -353,7 +352,7 @@ class Converter:
 
     def py_var_to_onnx_var(
         self, py_var: str, info: sourceinfo.SourceInfo
-    ) -> ConverterExpression | OnnxVarName:
+    ) -> ConverterExpression:
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring: str) -> None:
@@ -556,9 +555,8 @@ class Converter:
             return ConverterExpression(results, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
-    def translate_opt_expr(self, node):
+    def translate_opt_expr(self, node: ast.expr) -> ConverterExpression:
         """Translation of an expression where "None" is permitted.
-
         (eg., for an optional argument)
         None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
@@ -907,7 +905,7 @@ class Converter:
 
         return op, [left, right], []
 
-    def translate_name_expr(self, node: ast.Name) -> ConverterExpression | OnnxVarName:
+    def translate_name_expr(self, node: ast.Name) -> ConverterExpression:
         return self.py_var_to_onnx_var(node.id, self.source_of(node))
 
     # pylint: disable=inconsistent-return-statements
@@ -1253,7 +1251,7 @@ class Converter:
             self.source_of(loop_stmt),
         )
         for pv in loop_state_vars:
-            ov = self.py_var_to_onnx_var(pv, self.source_of(loop_stmt))
+            ov = self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)).name
             if ov not in self._current_fn.assigned_names:
                 # When converting the loop-body into a graph, we need to handle
                 # identity assignments of the form "x = y" inside the loop body
@@ -1268,7 +1266,7 @@ class Converter:
             )
         body = self.exit_scope()
         inputs = [o_loop_bound, o_true] + [
-            self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)) for pv in loop_state_vars
+            self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)).name for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
         attrs = [self.ir_builder.make_attr("body", graph)]
@@ -1304,7 +1302,7 @@ class Converter:
         for pvar in live_defs:
             if pvar in self.current_scope():
                 pv_val = self.current_scope()[pvar]
-                output = self.to_onnx_var(pv_val, pvar)
+                output = self.to_onnx_var(pv_val, pvar).name
                 if output not in self._current_fn.assigned_names:
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
@@ -1328,7 +1326,7 @@ class Converter:
                         f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
-                ovar = self.emit_copy(self.to_onnx_var(pv_val, pvar), pvar)
+                ovar = self.emit_copy(self.to_onnx_var(pv_val, pvar).name, pvar)
 
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
