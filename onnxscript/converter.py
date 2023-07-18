@@ -93,8 +93,9 @@ class ConverterExpressionKind(IntEnum):
 
 
 class ConverterExpression:
-    def __init__(self, name: str, kind: ConverterExpressionKind):
-        assert isinstance(name, str)
+    def __init__(
+        self, name: str, kind: ConverterExpressionKind = ConverterExpressionKind.CONST
+    ):
         self.name = name
         self.kind = kind
 
@@ -102,7 +103,6 @@ class ConverterExpression:
         return self.kind == ConverterExpressionKind.CONST
 
     def __str__(self) -> str:
-        assert isinstance(self.name, str), "`name` is not a string. This is likely a bug."
         return self.name
 
 
@@ -529,7 +529,7 @@ class Converter:
         elif isinstance(node, (ast.BinOp, ast.BitAnd, ast.BitOr)):
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.BoolOp):
-            r = self.translate_bool_op_expr(node)
+            r = self.translate_bool_op_expr(node, target)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
         elif isinstance(node, ast.Compare):
@@ -563,7 +563,9 @@ class Converter:
             return None
         return self.translate_expr(node)
 
-    def translate_subscript_expr(self, node: ast.Subscript, target: Optional[PreferredName]):
+    def translate_subscript_expr(
+        self, node: ast.Subscript, target: Optional[PreferredName]
+    ) -> ConverterExpression:
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -696,7 +698,7 @@ class Converter:
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
             self.emit([target], "Identity", [var_name])
-            return target
+            return ConverterExpression(target)
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
@@ -787,7 +789,7 @@ class Converter:
             self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
             result = gathered
 
-        return result
+        return ConverterExpression(result)
 
     def translate_call_expr(self, node: ast.Call):
         """Translates a call-expression."""
@@ -817,7 +819,9 @@ class Converter:
         schema = op.op_schema
         return autocast.static_cast_inputs(self, schema, (left, right))
 
-    def translate_bool_op_expr(self, node: ast.BoolOp) -> ConverterExpression:
+    def translate_bool_op_expr(
+        self, node: ast.BoolOp, target: PreferredName
+    ) -> ConverterExpression:
         if isinstance(node.op, ast.And):
             op = values.Op(self.default_opset, "And")
         elif isinstance(node.op, ast.Or):
@@ -830,7 +834,7 @@ class Converter:
             left, right = self._cast_like_binary_expression(
                 op, expr, self.translate_expr(operand)
             )
-            ovar = self.generate_unique_name()
+            ovar = self.generate_unique_name(target)
             self.emit([ovar], op, [left, right], [])
             expr = ConverterExpression(ovar, ConverterExpressionKind.ANY)
         return expr

@@ -581,6 +581,19 @@ class TestConverter(testutils.TestBase):
         outputs = duplicate_output.to_function_proto().output
         self.assertNotEqual(outputs[0], outputs[1])
 
+    def test_bool_op_name_generation(self):
+        """Verify that python variable name is used as onnx variable name (when possible)
+        for boolean operation translation.
+        """
+
+        @script(default_opset=op)
+        def bool_op(X, Y):
+            T = X and Y
+            return T
+
+        node = bool_op.to_function_proto().node[0]
+        self.assertEqual(node.output[0], "T")
+
     def test_bool_attr_promotion(self):
         @script()
         def if_then_else(flag: bool, Y, Z):
