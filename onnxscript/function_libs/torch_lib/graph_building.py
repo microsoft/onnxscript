@@ -669,8 +669,8 @@ class TorchScriptGraph:
         ] = self.fetch_function_proto_dict(opset_version)
         unique_custom_domains: Dict[str, int] = {}
 
-        for _, function_proto in function_proto_dict.items():
-            # TODO: All local function domain versions are hardcoded as 1.
+        for function_proto in function_proto_dict.values():
+            # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function_proto.domain] = 1
 
         (
