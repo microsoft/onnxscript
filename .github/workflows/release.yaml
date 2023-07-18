@@ -79,6 +79,10 @@ jobs:
     needs: [release]
     runs-on: ubuntu-latest
     environment: PyPI Dev
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      # See https://docs.pypi.org/trusted-publishers/using-a-publisher/
+      id-token: write
     # Publish only when it is a scheduled run (dev builds)
     if: github.event_name == 'schedule' && !startsWith(github.ref, 'refs/tags/v')
     steps:
