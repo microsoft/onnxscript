@@ -7,7 +7,17 @@ from __future__ import annotations
 import ast
 import logging
 from enum import IntEnum
-from typing import Any, Dict, List, NoReturn, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    NoReturn,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import onnx
 
@@ -95,36 +105,37 @@ class ConverterExpression:
         return self.name
 
 
-# The type-alias LocalSymValue represents the types of values that local names in a
-# script-function may be bound to during translation, (ONNX IR values).
-# TODO(rama): Rationalize this and values.SymbolValue
+if TYPE_CHECKING:
+    # The type-alias LocalSymValue represents the types of values that local names in a
+    # script-function may be bound to during translation, (ONNX IR values).
+    # TODO(rama): Rationalize this and values.SymbolValue
 
-LocalSymValue = Union[values.SymbolValue, irbuilder.IRFunction]
+    LocalSymValue = Union[values.SymbolValue, irbuilder.IRFunction]
 
-# The type-alias PyValue is used to represent the types of python values that may be used
-# in an ONNX Script function.
-# TODO(rama): Flesh out the set of valid types here. These include values such as
-# 1 (int), 1.0 (float), [2, 4], [1.0], etc. which will be converted to ONNX, for
-# use as value-parameters or attribute-parameters in an ONNX call (Node).
+    # The type-alias PyValue is used to represent the types of python values that may be used
+    # in an ONNX Script function.
+    # TODO(rama): Flesh out the set of valid types here. These include values such as
+    # 1 (int), 1.0 (float), [2, 4], [1.0], etc. which will be converted to ONNX, for
+    # use as value-parameters or attribute-parameters in an ONNX call (Node).
 
-PyValue = Any
+    PyValue = Any
 
-# The type-alias SymValue denotes values that an identifier may be bound to during
-# translation. A local name will be bound to a LocalSymValue, while a global name
-# will be bound to a PyValue.
+    # The type-alias SymValue denotes values that an identifier may be bound to during
+    # translation. A local name will be bound to a LocalSymValue, while a global name
+    # will be bound to a PyValue.
 
-SymValue = Union[LocalSymValue, PyValue]
+    SymValue = Union[LocalSymValue, PyValue]
 
-# PreferredName is a type used to represent the preferred name(s) used in the
-# generated ONNX for the (one or more) values returned by an expression.
-# If none specified, the names are generated automatically. Even if names
-# are specified, the converter will modify them (with a suffix) to ensure
-# they are unique (to ensure ONNX's SSA requirement).
+    # PreferredName is a type used to represent the preferred name(s) used in the
+    # generated ONNX for the (one or more) values returned by an expression.
+    # If none specified, the names are generated automatically. Even if names
+    # are specified, the converter will modify them (with a suffix) to ensure
+    # they are unique (to ensure ONNX's SSA requirement).
 
-PreferredName = Optional[Union[str, List[str]]]
+    PreferredName = Optional[Union[str, List[str]]]
 
-# The type-alias OnnxVar indicates variable names used in the generated ONNX.
-OnnxVarName = str
+    # The type-alias OnnxVar indicates variable names used in the generated ONNX.
+    OnnxVarName = str
 
 
 class Converter:
