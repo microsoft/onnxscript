@@ -6627,22 +6627,26 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
             self_rank = self_rank + 1
         # perm need to be list[int], so have to be generated in trace_only mode
         perm = list(range(self_rank))
-        perm.append(perm.pop(dimension+1))
+        perm.append(perm.pop(dimension + 1))
         result = _aten_unfold_onnx(self, dimension, size, step, target_end, perm)
     return result
 
 
 @torch_op("aten::unfold", private=True)
-def _aten_unfold_onnx(self: TTensor, dim: int, size: int, step: int, target_end: int, perm: Sequence[int]) -> TTensor:
+def _aten_unfold_onnx(
+    self: TTensor, dim: int, size: int, step: int, target_end: int, perm: Sequence[int]
+) -> TTensor:
     dims = op.Reshape(op.Constant(value_int=dim), op.Constant(value_ints=[-1]))
-    seq_result = op.SequenceEmpty()  # FIXME: the dtype for this function cannot work, default to float
+    # FIXME: the dtype for this function cannot work, default to float
+    seq_result = op.SequenceEmpty()
     i = op.Constant(value_ints=[0])
     cond = i < target_end
-    while cond:  # becuase for loop cannot work here, so use while loop
+    while cond:  # because for loop cannot work here, so use while loop
         starts = i * step  # starts is [0, step, step*2, step*3, ...]
         ends = starts + size  # ends is [0+size, step+size, step*2+size, step*3+size, ...]
         slice_result = op.Slice(self, starts, ends, dims)
-        slice_result_float32 = op.Cast(slice_result, to=FLOAT.dtype)  # sequence only support float32
+        # sequence only support float32
+        slice_result_float32 = op.Cast(slice_result, to=FLOAT.dtype)
         seq_result = op.SequenceInsert(seq_result, slice_result_float32)
         i = i + 1
         cond = i < target_end
