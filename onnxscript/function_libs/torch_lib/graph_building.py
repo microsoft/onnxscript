@@ -129,7 +129,10 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         if value_type is None:
             return None
         value_type = typing.cast(torch.TensorType, value_type)
-        shape = value_type.varyingSizes()
+        if isinstance(value_type, torch.OptionalType):
+            shape = value_type.getElementType().varyingSizes()  # type: ignore[attr-defined]
+        else:
+            shape = value_type.varyingSizes()
         if shape is None:
             return None
         return tuple(shape)
