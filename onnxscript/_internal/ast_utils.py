@@ -44,3 +44,12 @@ def normalize_subscript_expr(expr: ast.Subscript):
         else:
             indices = [index_expr]  # single slice-index
         return [x.value if isinstance(x, ast.Index) else x for x in indices]  # type: ignore[attr-defined]
+
+
+def is_print_call(stmt: ast.stmt) -> bool:
+    """Return True if the statement is a call to the print function."""
+    if isinstance(stmt, ast.Expr):
+        if isinstance(stmt.value, ast.Call):
+            if isinstance(stmt.value.func, ast.Name):
+                return stmt.value.func.id == "print"
+    return False
