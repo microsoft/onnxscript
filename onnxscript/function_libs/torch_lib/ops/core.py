@@ -6614,53 +6614,39 @@ def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
 
 
 @torch_op("aten::unfold", trace_only=True)
-def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TensorType:
+def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     """unfold(Tensor(a) self, int dimension, int size, int step) -> Tensor(a)"""
 
-    perm = [0,1,2,3]
-    perm.append(perm.pop(dimension+1))
-    return _aten_unfold_onnx(self, dimension, size, step, perm)
+    self_rank = len(self.shape)
+    if self_rank == 0:
+        result = op.Unsqueeze(self, 0)
+    else:
+        dim_size = self.shape[dimension]
+        target_end = (dim_size - size) // step + 1
+        if target_end > 1:  # the rank of final reuslt will be self_rank + 1
+            self_rank = self_rank + 1
+        # perm need to be list[int], so have to be generated in trace_only mode
+        perm = list(range(self_rank))
+        perm.append(perm.pop(dimension+1))
+        result = _aten_unfold_onnx(self, dimension, size, step, target_end, perm)
+    return result
 
 
 @torch_op("aten::unfold", private=True)
-def _aten_unfold_onnx(self: TensorType, dimension: int, size: int, step: int, perm: Sequence[int]) -> TensorType:
-    self_shape = op.Shape(self)
-    #self_rank = op.Size(self_shape)
-    # if self_rank == 0:
-    #     result = op.Unsqueeze(self, 0)
-    # else:
-    dims = op.Reshape(op.Constant(value_int=dimension), op.Constant(value_ints=[-1]))
-    dim_size = op.Gather(self_shape, dims, axis=0)
-    # target = ((i-size)/step + 1) * step != i-size+step
-    #target_end = op.Squeeze(((dim_size - size) / step + 1) * step)
-    target_end = (dim_size - size) / step + 1
+def _aten_unfold_onnx(self: TTensor, dim: int, size: int, step: int, target_end: int, perm: Sequence[int]) -> TTensor:
+    dims = op.Reshape(op.Constant(value_int=dim), op.Constant(value_ints=[-1]))
     seq_result = op.SequenceEmpty()  # FIXME: the dtype for this function cannot work, default to float
-
     i = op.Constant(value_ints=[0])
     cond = i < target_end
-    while cond:
-        starts = i
-        ends = starts + size
+    while cond:  # becuase for loop cannot work here, so use while loop
+        starts = i * step  # starts is [0, step, step*2, step*3, ...]
+        ends = starts + size  # ends is [0+size, step+size, step*2+size, step*3+size, ...]
         slice_result = op.Slice(self, starts, ends, dims)
-        slice_result_32 = op.Cast(slice_result, to=FLOAT.dtype)
-        seq_result = op.SequenceInsert(seq_result, slice_result_32)
+        slice_result_float32 = op.Cast(slice_result, to=FLOAT.dtype)  # sequence only support float32
+        seq_result = op.SequenceInsert(seq_result, slice_result_float32)
         i = i + 1
         cond = i < target_end
-    concat_result = op.ConcatFromSequence(seq_result, axis=dimension, new_axis=1)
-
-    # Generate permute of the new shape
-    # Below logic equal to:
-    # perm = [0,1,2,3,4]
-    # perm.append(perm.pop(dimension+1))
-
-    # rank_result = op.Squeeze(op.Size(op.Shape(concat_result)))
-    # dim_plus_1 = dimension + 1
-    # dim_plus_2 = dimension + 2
-    # perm_prefix = op.Range(0, dim_plus_1, 1)
-    # perm_suffix = op.Range(dim_plus_2, rank_result, 1)
-    # per_dim = op.Range(dim_plus_1, dim_plus_2, 1)
-    # perm = op.Concat(perm_prefix, perm_suffix, per_dim, axis=0)
-
+    concat_result = op.ConcatFromSequence(seq_result, axis=dim, new_axis=1)
     result = op.Transpose(concat_result, perm=perm)
     return op.CastLike(result, self)
 
