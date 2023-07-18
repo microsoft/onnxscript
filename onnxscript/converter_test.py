@@ -10,6 +10,7 @@ import pathlib
 import sys
 import textwrap
 import types
+import typing
 import unittest
 import warnings
 
@@ -24,7 +25,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.tests.common import onnx_script_test_case, testutils
@@ -579,6 +580,32 @@ class TestConverter(testutils.TestBase):
         # The converter should generate distinct names for the two outputs
         outputs = duplicate_output.to_function_proto().output
         self.assertNotEqual(outputs[0], outputs[1])
+
+    def test_bool_attr_promotion(self):
+        @script()
+        def if_then_else(flag: bool, Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: bool, Y, Z):
+            tmp1 = op.Constant(value_int=flag)
+            tmp2 = op.Cast(tmp1, to=BOOL.dtype)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_bool_list_attr_promotion(self):
+        @script()
+        def if_then_else(flag: typing.List[bool], Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: typing.List[bool], Y, Z):
+            tmp1 = op.Constant(value_ints=flag)
+            tmp2 = op.Cast(tmp1, to=9)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
 
 
 if __name__ == "__main__":
