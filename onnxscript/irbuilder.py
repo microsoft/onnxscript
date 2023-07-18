@@ -481,7 +481,7 @@ class IRBuilder:
     def __init__(self):
         self.functions = {}
 
-    def new_function(self, name: str, domain: str = "", register: bool = False):
+    def new_function(self, name: str, domain: str = "", register: bool = False) -> IRFunction:
         if register and (domain, name) in self.functions:
             raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
         function = IRFunction(name, domain)

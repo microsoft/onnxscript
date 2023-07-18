@@ -115,7 +115,9 @@ select = [
     "ISC", # flake8-implicit-str-concat
     "N", # pep8-naming
     "NPY", # modern numpy
+    "PERF", # Perflint
     "RUF", # Ruff-specific rules
+    "T10", # flake8-debugger
     "TID252", # Disallow relative imports
     "UP", # pyupgrade
     "W", # pycodestyle
@@ -136,6 +138,8 @@ ignore = [
     "N806",
     "N999", # Invalid module name
     "NPY002", # We may not always need a generator
+    "PERF203", # try-except in loops sometimes necessary
+    "PERF401", # List comprehension is not always readable
     "UP006", # keep-runtime-typing
     "UP007", # keep-runtime-typing
 ]

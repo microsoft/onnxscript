@@ -16,7 +16,7 @@ Usage:
 from __future__ import annotations
 
 import unittest
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 import numpy as np
 import onnx
@@ -70,18 +70,6 @@ def _should_skip_xfail_test_sample(
             if decorator_meta.matcher(sample):
                 return decorator_meta.test_behavior, decorator_meta.reason
     return None, None
-
-
-def _split_function_and_wrangler(
-    onnx_function_and_wrangler: Callable[..., Any]
-    | tuple[Callable[..., Any], Callable[..., Any]]
-) -> tuple[Callable[..., Any], Callable[..., Any] | None]:
-    """Splits a function with an optional input wrangler into a function and an input wrangler."""
-    if isinstance(onnx_function_and_wrangler, tuple):
-        return onnx_function_and_wrangler
-
-    assert callable(onnx_function_and_wrangler)
-    return onnx_function_and_wrangler, None
 
 
 class TestFunctionValidity(unittest.TestCase):
