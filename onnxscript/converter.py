@@ -1266,7 +1266,8 @@ class Converter:
             )
         body = self.exit_scope()
         inputs = [o_loop_bound, o_true] + [
-            self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)).name for pv in loop_state_vars
+            self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)).name
+            for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
         attrs = [self.ir_builder.make_attr("body", graph)]
