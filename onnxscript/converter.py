@@ -15,6 +15,7 @@ from typing import (
     NoReturn,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
 )
@@ -99,7 +100,7 @@ class ConverterExpression:
         self.name = name
         self.kind = kind
 
-    def is_const(self):
+    def is_const(self) -> bool:
         return self.kind == ConverterExpressionKind.CONST
 
     def __str__(self) -> str:
@@ -165,11 +166,11 @@ class Converter:
 
     def __init__(
         self,
-        ir_builder=None,
-        opset=None,
-        global_names=None,
-        source=None,
-        default_opset=None,
+        ir_builder: Optional[irbuilder.IRBuilder] = None,
+        opset: Optional[values.Opset] = None,
+        global_names: Optional[dict[str, Any]] = None,
+        source: Optional[str] = None,
+        default_opset: Optional[values.Opset] = None,
     ):
         self.ir_builder = ir_builder or irbuilder.IRBuilder()
         self.source = source
@@ -180,14 +181,14 @@ class Converter:
         self.default_opset_ = default_opset
 
         # States initialized by `init_function_translation`
-        self._outer = []
-        self._current_fn = None
-        self._nextvar = 0
-        self._used_vars = set()
+        self._outer: List[irbuilder.IRFunction] = []
+        self._current_fn: irbuilder.IRFunction = None
+        self._nextvar: int = 0
+        self._used_vars: Set[str] = set()
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     @property
-    def default_opset(self):
+    def default_opset(self) -> values.Opset:
         if self.default_opset_ is None:
             raise RuntimeError(
                 "default_opset must be specified in script for functions "
@@ -195,7 +196,7 @@ class Converter:
             )
         return self.default_opset_
 
-    def set_default_opset(self, opset, node):
+    def set_default_opset(self, opset: values.Opset, node: ast.AST) -> None:
         if opset.domain != "":
             return
         if self.default_opset_ is not None:
@@ -226,7 +227,7 @@ class Converter:
                 return res
         return None
 
-    def init_function_translation(self):
+    def init_function_translation(self) -> None:
         """Initialize self for translating a new (top-level) function."""
         self._outer = []
         self._current_fn: Optional[irbuilder.IRFunction] = None
