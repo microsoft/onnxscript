@@ -680,6 +680,7 @@ def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
 
     # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
     # Optimizers may consider this path and replace it with Gemm
+    # We do not use Gemm here because input can have batch dimensions, which Gemm does not support
     weight_transposed = op.Transpose(weight, perm=[1, 0])
     return op.MatMul(input, weight_transposed)
 
@@ -690,6 +691,7 @@ def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
 
     # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
     # Optimizers may consider this path and replace it with Gemm
+    # We do not use Gemm here because input can have batch dimensions, which Gemm does not support
     weight_transposed = op.Transpose(weight, perm=[1, 0])
     mul = op.MatMul(input, weight_transposed)
     return op.Add(mul, bias)
