@@ -829,14 +829,23 @@ class Converter:
         else:
             raise ValueError(self.message(node, f"Unsupported operator {node.op!r}."))
 
+        # This may denote an expression of the form `e1 and e2 and e3 and e4`.
+        # Since ONNX boolean ops are binary, we may need to emit multiple ops.
+
+        def emit_op(
+            left: ConverterExpression,
+            right: ConverterExpression,
+            preferred_name: PreferredName,
+        ) -> ConverterExpression:
+            left, right = self._cast_like_binary_expression(op, left, right)
+            onnx_var = self.generate_unique_name(preferred_name)
+            self.emit([onnx_var], op, [left, right], [])
+            return ConverterExpression(onnx_var, ConverterExpressionKind.ANY)
+
         expr = self.translate_expr(node.values[0])
-        for operand in node.values[1:]:
-            left, right = self._cast_like_binary_expression(
-                op, expr, self.translate_expr(operand)
-            )
-            ovar = self.generate_unique_name(target)
-            self.emit([ovar], op, [left, right], [])
-            expr = ConverterExpression(ovar, ConverterExpressionKind.ANY)
+        for operand in node.values[1:-1]:
+            expr = emit_op(expr, self.translate_expr(operand), target + "_tmp")
+        expr = emit_op(expr, self.translate_expr(node.values[-1]), target)
         return expr
 
     def translate_bin_op_expr(self, node: ast.BinOp):
@@ -980,7 +989,7 @@ class Converter:
             return self.translate_nested_function_def(node)
         if ast_utils.is_print_call(node):
             return None
-        raise ValueError(self.message(node, f"Unsupported statement type {type(node)!r}."))
+        raise ValueError(self.message(node, f"Unsupported statement type '{type(node)!r}'."))
 
     def translate_assign_stmt(self, stmt: Union[ast.Assign, ast.AnnAssign]) -> None:
         def assign(lhs: ast.AST, rhs: ast.AST) -> None:
@@ -1000,13 +1009,13 @@ class Converter:
                 if not isinstance(rhs, ast.Call):
                     self.fail(
                         rhs,
-                        f"RHS must be a Call expression for unpacking, found: {type(rhs)!r}",
+                        f"RHS must be a Call expression for unpacking, found: '{type(rhs)!r}'",
                     )
                 callee, inputs, attrs = self.translate_call_expr(rhs)
 
                 def generate_onnx_name(x: ast.AST):
                     if not isinstance(x, ast.Name):
-                        self.fail(x, f"LHS must be a Name for unpacking, found: {type(x)!r}")
+                        self.fail(x, f"LHS must be a Name for unpacking, found: '{type(x)!r}'")
                     onnx_name = self.generate_unique_name(x.id)
                     self.bind(
                         x.id,
@@ -1019,7 +1028,7 @@ class Converter:
                 outputs = [generate_onnx_name(x) for x in lhs.elts]
                 self.emit(outputs, callee, inputs, attrs)
             else:
-                self.fail(lhs, f"Unsupported construct in LHS of assignment: {type(lhs)!r}")
+                self.fail(lhs, f"Unsupported construct in LHS of assignment: '{type(lhs)!r}'")
 
         if isinstance(stmt, ast.Assign):
             targets = stmt.targets
@@ -1035,7 +1044,7 @@ class Converter:
             if not isinstance(lhs, ast.Tuple):
                 # Assignments of the form "single_var = Expression1, Expression2".
                 # We do not support tuple-typed variables.
-                self.fail(lhs, f"Left term must be a tuple not {type(lhs)!r}.")
+                self.fail(lhs, f"Left term must be a tuple not '{type(lhs)!r}'.")
             # Parallel assignments of the form "x, y = Expression1, Expression2"
             if len(lhs.elts) != len(rhs.elts):
                 self.fail(
