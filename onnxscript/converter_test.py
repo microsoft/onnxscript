@@ -432,7 +432,7 @@ class TestConverter(testutils.TestBase):
             return r
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
+        self.check_failure(f1, f"Left term must be a tuple not '<class '{ast_name}.Name'>'")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
@@ -580,6 +580,19 @@ class TestConverter(testutils.TestBase):
         # The converter should generate distinct names for the two outputs
         outputs = duplicate_output.to_function_proto().output
         self.assertNotEqual(outputs[0], outputs[1])
+
+    def test_bool_op_name_generation(self):
+        """Verify that python variable name is used as onnx variable name (when possible)
+        for boolean operation translation.
+        """
+
+        @script(default_opset=op)
+        def bool_op(X, Y):
+            T = X and Y
+            return T
+
+        node = bool_op.to_function_proto().node[0]
+        self.assertEqual(node.output[0], "T")
 
     def test_bool_attr_promotion(self):
         @script()
