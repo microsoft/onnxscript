@@ -181,7 +181,7 @@ def _amin_amax_input_wrangler(
     return args, kwargs
 
 
-def _avg_pool2d_input_wrangler(
+def _avg_pool_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     if "dim" not in kwargs:
@@ -197,10 +197,11 @@ def _avg_pool2d_input_wrangler(
                 # Cannot using list(padding) here, because the element will be numpy.int64 instead of int
                 padding = padding.tolist()
             kwargs["padding"] = padding
-        stride = args.pop(2)
-        if isinstance(stride, np.ndarray):
-            stride = stride.tolist()
-        kwargs["stride"] = stride
+        if len(args) > 2:
+            stride = args.pop(2)
+            if isinstance(stride, np.ndarray):
+                stride = stride.tolist()
+            kwargs["stride"] = stride
         kernel_size = args.pop(1)
         if isinstance(kernel_size, np.ndarray):
             kernel_size = kernel_size.tolist()
@@ -1394,13 +1395,50 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ),
     TorchLibOpInfo(
+        "nn.functional.avg_pool1d",
+        nn_ops.aten_avg_pool1d,
+        input_wrangler=_avg_pool_input_wrangler,
+        trace_only=True,
+    )
+    .xfail(
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
+        or (sample.kwargs.get("divisor_override") is not None),
+        reason="ONNX doesn't support divisor_override argument",
+    )
+    .xfail(
+        matcher=lambda sample: (sample.kwargs.get("ceil_mode") is True)
+        and (
+            sample.kwargs.get("count_include_pad") is True
+            or sample.input.shape[2]
+            % (sample.args[0][0] if isinstance(sample.args[0], tuple) else sample.args[0])
+            != 0
+        ),
+        reason="fixme: ORT doesn't match PyTorch when ceil_mode=True until opset 19",
+    ),
+    TorchLibOpInfo(
         "nn.functional.avg_pool2d",
         nn_ops.aten_avg_pool2d,
-        input_wrangler=_avg_pool2d_input_wrangler,
+        input_wrangler=_avg_pool_input_wrangler,
         trace_only=True,
     ).xfail(
-        matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
+        or (sample.kwargs.get("divisor_override") is not None),
         reason="ONNX doesn't support divisor_override argument",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.avg_pool3d",
+        nn_ops.aten_avg_pool3d,
+        input_wrangler=_avg_pool_input_wrangler,
+        trace_only=True,
+    )
+    .xfail(
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
+        or (sample.kwargs.get("divisor_override") is not None),
+        reason="ONNX doesn't support divisor_override argument",
+    )
+    .xfail(
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
+        reason="fixme: ORT doesn't match PyTorch when ceil_mode=True until opset 19",
     ),
     TorchLibOpInfo(
         "nn.functional.conv1d",
