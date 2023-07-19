@@ -6726,6 +6726,7 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
             self_rank = self_rank + 1
         # perm need to be list[int], so have to be generated in trace_only mode
         perm = list(range(self_rank))
+        # from [0,1,2,3,4] -> [0,1,3,4,2] when dimension=1
         perm.append(perm.pop(dimension + 1))
         result = _aten_unfold_onnx(self, dimension, size, step, target_end, perm)
     return result
