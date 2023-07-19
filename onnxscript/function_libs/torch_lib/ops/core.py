@@ -5827,10 +5827,16 @@ def aten_select_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::select_scatter")
 def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int) -> TensorType:
     """select_scatter(Tensor self, Tensor src, int dim, int index) -> Tensor"""
 
-    raise NotImplementedError()
+    # Change src rank to self rank according to dim
+    # e.g. if self is [2,3,4], src is [2,4], dim=1, then update is [2,1,4]
+    update = op.Unsqueeze(src, axes=dim)
+    # Change index rank to the same as 'update' [2,1,4]
+    indices = op.Expand(index, op.Shape(update))
+    return op.ScatterElements(self, indices, update, axis=dim, reduction="none")
 
 
 @torch_op("aten::selu")
