@@ -4644,9 +4644,13 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=training,
     )
+
+    # For this function's test case, the returned mean and var must be empty tensors
+    # Seems we don't have any other way to create a real empty tensor, cannot use zero to simulate here
+    empty_int = op.Shape(input, start=0, end=0)
     # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
-    empty_var = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
+    empty_mean = op.Cast(empty_int, to=FLOAT.dtype)
+    empty_var = op.Cast(empty_int, to=FLOAT.dtype)
     return norm, empty_mean, empty_var
 
 
