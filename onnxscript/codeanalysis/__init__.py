@@ -2,16 +2,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# pylint: disable=import-outside-toplevel
-# pylint: disable=too-many-ancestors
-# --------------------------------------------------------------------------
 
 from __future__ import annotations
 
+import dataclasses
 import os
+import pathlib
 from collections import defaultdict
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Final, Protocol, Sequence, runtime_checkable
 
 import libcst as cst
@@ -28,12 +25,12 @@ __all__ = [
 ]
 
 
-def format_code(path: Path | None, code: bytes) -> bytes:
+def format_code(path: pathlib.Path | None, code: bytes) -> bytes:
     try:
-        import ufmt
+        import ufmt  # pylint: disable=import-outside-toplevel
 
         if path is None:
-            path = Path(os.curdir)
+            path = pathlib.Path(os.curdir)
 
         return ufmt.ufmt_bytes(
             path,
@@ -84,7 +81,7 @@ def make_const_expr(const: str | int | float) -> cst.BaseExpression:
     return val
 
 
-@dataclass
+@dataclasses.dataclass
 class ImportAlias:
     name: str
     alias: str | None = None
@@ -95,7 +92,7 @@ class ImportAlias:
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Import:
     module: ImportAlias
 
@@ -103,7 +100,7 @@ class Import:
         return cst.Import(names=[self.module.to_cst()])
 
 
-@dataclass
+@dataclasses.dataclass
 class ImportFrom:
     module: str
     names: list[ImportAlias]
@@ -121,7 +118,9 @@ class ScopeAnalyzer(Protocol):
         pass
 
 
-class RemoveUnusedImportsTransformer(cst.CSTTransformer, ScopeAnalyzer):
+class RemoveUnusedImportsTransformer(
+    cst.CSTTransformer, ScopeAnalyzer
+):  # pylint: disable=too-many-ancestors
     def __init__(self):
         self.__unused_imports: dict[cst.Import | cst.ImportFrom, set[str]] = defaultdict(set)
 
