@@ -24,7 +24,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "License :: OSI Approved :: Apache Software License",
 ]
-dependencies = ["numpy", "onnx>=1.14", "typing_extensions"]
+dependencies = ["numpy", "onnx>=1.14", "typing_extensions", "libcst"]
 
 [tool.setuptools.packages.find]
 include = ["onnxscript*"]
@@ -60,6 +60,7 @@ module = [
   "onnxruntime.*",
   "parameterized.*",
   "torchgen.*",
+  "ufmt.*",
 ]
 ignore_missing_imports = true
 

@@ -5,9 +5,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+import pathlib
 import re
-from dataclasses import dataclass
-from pathlib import Path
 from typing import BinaryIO, Final, Literal, Sequence, cast, overload
 
 import libcst as cst
@@ -33,7 +33,7 @@ __all__ = [
 DEFAULT_OPSET_VERSION: Final = 18
 
 
-@dataclass
+@dataclasses.dataclass
 class QualifiedOnnxOp:
     domain: str
     name: str
@@ -501,10 +501,10 @@ class Driver:
 
     def __init__(
         self,
-        model: onnx.ModelProto | Path | str | BinaryIO,
+        model: onnx.ModelProto | pathlib.Path | str | BinaryIO,
         transformers: Sequence[cst.CSTTransformer] | None = None,
     ):
-        if isinstance(model, Path):
+        if isinstance(model, pathlib.Path):
             model = str(model.resolve())
         if not isinstance(model, onnx.ModelProto):
             model = onnx.load_model(model)
@@ -526,7 +526,7 @@ class Driver:
         cst_module = codegen.apply_transformers(cst_module, self.transformers)
         return cst_module
 
-    def to_python_code(self, reference_path: Path | None = None) -> bytes:
+    def to_python_code(self, reference_path: pathlib.Path | None = None) -> bytes:
         return format_code(
             path=reference_path,
             code=self.to_cst_module().bytes,
