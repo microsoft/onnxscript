@@ -812,19 +812,6 @@ def aten_atleast_3d_single_tensor(self: TTensor) -> TTensor:
     return self
 
 
-def aten_avg_pool1d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0,),
-    ceil_mode: bool = False,
-    count_include_pad: bool = True,
-) -> TensorType:
-    """avg_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, bool ceil_mode=False, bool count_include_pad=True) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::baddbmm")
 def aten_baddbmm(
     self: TRealOrUInt8,
