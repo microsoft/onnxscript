@@ -528,8 +528,6 @@ class Converter:
             r = self.translate_call_expr(node)
         elif isinstance(node, (ast.BinOp, ast.BitAnd, ast.BitOr)):
             r = self.translate_bin_op_expr(node)
-        elif isinstance(node, ast.BoolOp):
-            r = self.translate_bool_op_expr(node, target)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
         elif isinstance(node, ast.Compare):
@@ -818,35 +816,6 @@ class Converter:
     def _cast_like_binary_expression(self, op, left, right):
         schema = op.op_schema
         return autocast.static_cast_inputs(self, schema, (left, right))
-
-    def translate_bool_op_expr(
-        self, node: ast.BoolOp, target: PreferredName
-    ) -> ConverterExpression:
-        if isinstance(node.op, ast.And):
-            op = values.Op(self.default_opset, "And")
-        elif isinstance(node.op, ast.Or):
-            op = values.Op(self.default_opset, "Or")
-        else:
-            raise ValueError(self.message(node, f"Unsupported operator {node.op!r}."))
-
-        # This may denote an expression of the form `e1 and e2 and e3 and e4`.
-        # Since ONNX boolean ops are binary, we may need to emit multiple ops.
-
-        def emit_op(
-            left: ConverterExpression,
-            right: ConverterExpression,
-            preferred_name: PreferredName,
-        ) -> ConverterExpression:
-            left, right = self._cast_like_binary_expression(op, left, right)
-            onnx_var = self.generate_unique_name(preferred_name)
-            self.emit([onnx_var], op, [left, right], [])
-            return ConverterExpression(onnx_var, ConverterExpressionKind.ANY)
-
-        expr = self.translate_expr(node.values[0])
-        for operand in node.values[1:-1]:
-            expr = emit_op(expr, self.translate_expr(operand), target + "_tmp")
-        expr = emit_op(expr, self.translate_expr(node.values[-1]), target)
-        return expr
 
     def translate_bin_op_expr(self, node: ast.BinOp):
         op = type(node.op)
