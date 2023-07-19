@@ -93,7 +93,9 @@ class ConverterExpressionKind(IntEnum):
 
 
 class ConverterExpression:
-    def __init__(self, name: Optional[Union[str, List[str]]], kind: ConverterExpressionKind):
+    def __init__(
+        self, name: str, kind: ConverterExpressionKind = ConverterExpressionKind.CONST
+    ):
         self.name = name
         self.kind = kind
 
@@ -101,7 +103,6 @@ class ConverterExpression:
         return self.kind == ConverterExpressionKind.CONST
 
     def __str__(self) -> str:
-        assert isinstance(self.name, str), "`name` is not a string. This is likely a bug."
         return self.name
 
 
@@ -126,13 +127,12 @@ if TYPE_CHECKING:
 
     SymValue = Union[LocalSymValue, PyValue]
 
-    # PreferredName is a type used to represent the preferred name(s) used in the
-    # generated ONNX for the (one or more) values returned by an expression.
-    # If none specified, the names are generated automatically. Even if names
-    # are specified, the converter will modify them (with a suffix) to ensure
-    # they are unique (to ensure ONNX's SSA requirement).
+    # PreferredName is a type-alias used to represent the preferred name used in the generated
+    # ONNX for a value returned by an expression. There is no guarantee that the specified
+    # name will be used exactly. The converter will modify the name (with a suffix),
+    # if necesssary, to ensure that it is unique (to ensure ONNX's SSA requirement).
 
-    PreferredName = Optional[Union[str, List[str]]]
+    PreferredName = str
 
     # The type-alias OnnxVar indicates variable names used in the generated ONNX.
     OnnxVarName = str
@@ -318,13 +318,12 @@ class Converter:
             fail(info.msg(msg) if info else msg)
         return self.ir_builder.make_attr_ref(attrname, val.value, pytype)
 
-    # TODO(rama): Cleanup representation of returned values (ConverterExpression etc.)
     def to_onnx_var(
         self,
         val: values.SymbolValue | PyValue,
         target: Optional[PreferredName] = None,
         info: Optional[sourceinfo.SourceInfo] = None,
-    ) -> ConverterExpression | OnnxVarName:
+    ) -> ConverterExpression:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target or "tmp")
@@ -345,7 +344,7 @@ class Converter:
                 return ConverterExpression(result_as_bool, ConverterExpressionKind.CONST)
             return ConverterExpression(result, ConverterExpressionKind.CONST)
         if isinstance(val, values.Dynamic):
-            return val.value
+            return ConverterExpression(val.value, ConverterExpressionKind.ANY)
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error message otherwise
@@ -353,7 +352,7 @@ class Converter:
 
     def py_var_to_onnx_var(
         self, py_var: str, info: sourceinfo.SourceInfo
-    ) -> ConverterExpression | OnnxVarName:
+    ) -> ConverterExpression:
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring: str) -> None:
@@ -383,7 +382,10 @@ class Converter:
         )
 
     def emit_const(
-        self, pyvalue: PyValue, suggested_name: PreferredName, info: sourceinfo.SourceInfo
+        self,
+        pyvalue: PyValue,
+        suggested_name: Optional[PreferredName],
+        info: sourceinfo.SourceInfo,
     ) -> ConverterExpression:
         if suggested_name is None:
             if isinstance(pyvalue, int):
@@ -527,7 +529,7 @@ class Converter:
         elif isinstance(node, (ast.BinOp, ast.BitAnd, ast.BitOr)):
             r = self.translate_bin_op_expr(node)
         elif isinstance(node, ast.BoolOp):
-            r = self.translate_bool_op_expr(node)
+            r = self.translate_bool_op_expr(node, target)
         elif isinstance(node, ast.UnaryOp):
             r = self.translate_unary_op_expr(node)
         elif isinstance(node, ast.Compare):
@@ -547,26 +549,23 @@ class Converter:
         if isinstance(r, tuple):
             callee, args, attrs = r
             target = "tmp" if target is None else target
-            if isinstance(target, str):
-                result = self.generate_unique_name(target)
-                self.emit([result], callee, args, attrs)
-                return ConverterExpression(result, ConverterExpressionKind.ANY)
-            results = [self.generate_unique_name(x) for x in target]
-            self.emit(results, callee, args, attrs)
-            return ConverterExpression(results, ConverterExpressionKind.ANY)
+            assert isinstance(target, str)
+            result = self.generate_unique_name(target)
+            self.emit([result], callee, args, attrs)
+            return ConverterExpression(result, ConverterExpressionKind.ANY)
         return ConverterExpression(r, ConverterExpressionKind.ANY)
 
-    def translate_opt_expr(self, node):
-        """Translation of an expression where "None" is permitted.
-
-        (eg., for an optional argument)
+    def translate_opt_expr(self, node: ast.expr) -> Optional[ConverterExpression]:
+        """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
         if isinstance(node, (ast.NameConstant, ast.Constant)) and (node.value is None):
-            return ConverterExpression(None, ConverterExpressionKind.ANY)
+            return None
         return self.translate_expr(node)
 
-    def translate_subscript_expr(self, node: ast.Subscript, target: PreferredName):
+    def translate_subscript_expr(
+        self, node: ast.Subscript, target: Optional[PreferredName]
+    ) -> ConverterExpression:
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -699,7 +698,7 @@ class Converter:
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
             self.emit([target], "Identity", [var_name])
-            return target
+            return ConverterExpression(target)
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
@@ -790,7 +789,7 @@ class Converter:
             self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
             result = gathered
 
-        return result
+        return ConverterExpression(result)
 
     def translate_call_expr(self, node: ast.Call):
         """Translates a call-expression."""
@@ -820,7 +819,9 @@ class Converter:
         schema = op.op_schema
         return autocast.static_cast_inputs(self, schema, (left, right))
 
-    def translate_bool_op_expr(self, node: ast.BoolOp) -> ConverterExpression:
+    def translate_bool_op_expr(
+        self, node: ast.BoolOp, target: PreferredName
+    ) -> ConverterExpression:
         if isinstance(node.op, ast.And):
             op = values.Op(self.default_opset, "And")
         elif isinstance(node.op, ast.Or):
@@ -828,14 +829,23 @@ class Converter:
         else:
             raise ValueError(self.message(node, f"Unsupported operator {node.op!r}."))
 
+        # This may denote an expression of the form `e1 and e2 and e3 and e4`.
+        # Since ONNX boolean ops are binary, we may need to emit multiple ops.
+
+        def emit_op(
+            left: ConverterExpression,
+            right: ConverterExpression,
+            preferred_name: PreferredName,
+        ) -> ConverterExpression:
+            left, right = self._cast_like_binary_expression(op, left, right)
+            onnx_var = self.generate_unique_name(preferred_name)
+            self.emit([onnx_var], op, [left, right], [])
+            return ConverterExpression(onnx_var, ConverterExpressionKind.ANY)
+
         expr = self.translate_expr(node.values[0])
-        for operand in node.values[1:]:
-            left, right = self._cast_like_binary_expression(
-                op, expr, self.translate_expr(operand)
-            )
-            ovar = self.generate_unique_name()
-            self.emit([ovar], op, [left, right], [])
-            expr = ConverterExpression(ovar, ConverterExpressionKind.ANY)
+        for operand in node.values[1:-1]:
+            expr = emit_op(expr, self.translate_expr(operand), target + "_tmp")
+        expr = emit_op(expr, self.translate_expr(node.values[-1]), target)
         return expr
 
     def translate_bin_op_expr(self, node: ast.BinOp):
@@ -907,7 +917,7 @@ class Converter:
 
         return op, [left, right], []
 
-    def translate_name_expr(self, node: ast.Name) -> ConverterExpression | OnnxVarName:
+    def translate_name_expr(self, node: ast.Name) -> ConverterExpression:
         return self.py_var_to_onnx_var(node.id, self.source_of(node))
 
     # pylint: disable=inconsistent-return-statements
@@ -979,48 +989,63 @@ class Converter:
             return self.translate_nested_function_def(node)
         if ast_utils.is_print_call(node):
             return None
-        raise ValueError(self.message(node, f"Unsupported statement type {type(node)!r}."))
+        raise ValueError(self.message(node, f"Unsupported statement type '{type(node)!r}'."))
 
     def translate_assign_stmt(self, stmt: Union[ast.Assign, ast.AnnAssign]) -> None:
-        def assign(lhs, rhs):
-            info = self.source_of(lhs)
+        def assign(lhs: ast.AST, rhs: ast.AST) -> None:
             if isinstance(lhs, ast.Name):
+                # Assignments of the form "x = SomeExpression"
+                info = self.source_of(lhs)
                 lhs = lhs.id
                 t = self.translate_expr(rhs, lhs).name
                 if isinstance(stmt, ast.AnnAssign):
-                    var = values.Dynamic(
-                        t,
-                        values.DynamicKind.Intermediate,
-                        info,
-                        typeinfo=self.eval_constant_expr(stmt.annotation),
-                    )
+                    typeinfo = self.eval_constant_expr(stmt.annotation)
                 else:
-                    var = values.Dynamic(t, values.DynamicKind.Intermediate, info)
+                    typeinfo = None
+                var = values.Dynamic(t, values.DynamicKind.Intermediate, info, typeinfo)
                 self.bind(lhs, var)
             elif isinstance(lhs, ast.Tuple):
+                # Assignments of the form "x, y, z = op.SomeOp(...)"
+                if not isinstance(rhs, ast.Call):
+                    self.fail(
+                        rhs,
+                        f"RHS must be a Call expression for unpacking, found: '{type(rhs)!r}'",
+                    )
+                callee, inputs, attrs = self.translate_call_expr(rhs)
 
-                def id(x):
-                    assert isinstance(x, ast.Name)
-                    return x.id
+                def generate_onnx_name(x: ast.AST):
+                    if not isinstance(x, ast.Name):
+                        self.fail(x, f"LHS must be a Name for unpacking, found: '{type(x)!r}'")
+                    onnx_name = self.generate_unique_name(x.id)
+                    self.bind(
+                        x.id,
+                        values.Dynamic(
+                            onnx_name, values.DynamicKind.Intermediate, self.source_of(x)
+                        ),
+                    )
+                    return onnx_name
 
-                ids = [id(x) for x in lhs.elts]
-                onnxids = self.translate_expr(rhs, ids).name
-                for x, y in zip(ids, onnxids):
-                    self.bind(x, values.Dynamic(y, values.DynamicKind.Intermediate, info))
+                outputs = [generate_onnx_name(x) for x in lhs.elts]
+                self.emit(outputs, callee, inputs, attrs)
             else:
-                fail("Unsupported construct in LHS of assignment.")
+                self.fail(lhs, f"Unsupported construct in LHS of assignment: '{type(lhs)!r}'")
 
         if isinstance(stmt, ast.Assign):
             targets = stmt.targets
         else:
             targets = [stmt.target]
         if len(targets) != 1:
+            # Assignments of the form "x = y = SomeExpression"
             self.fail(stmt, "Multi-assignment not supported.")
         lhs = targets[0]
         rhs = stmt.value
         if isinstance(rhs, ast.Tuple):
+            # Assignments of the form "... = Expression1, Expression2"
             if not isinstance(lhs, ast.Tuple):
-                self.fail(lhs, f"Left term must be a tuple not {type(lhs)!r}.")
+                # Assignments of the form "single_var = Expression1, Expression2".
+                # We do not support tuple-typed variables.
+                self.fail(lhs, f"Left term must be a tuple not '{type(lhs)!r}'.")
+            # Parallel assignments of the form "x, y = Expression1, Expression2"
             if len(lhs.elts) != len(rhs.elts):
                 self.fail(
                     stmt, "Expected same number of elements on lhs and rhs of assignments."
@@ -1253,7 +1278,7 @@ class Converter:
             self.source_of(loop_stmt),
         )
         for pv in loop_state_vars:
-            ov = self.py_var_to_onnx_var(pv, self.source_of(loop_stmt))
+            ov = self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)).name
             if ov not in self._current_fn.assigned_names:
                 # When converting the loop-body into a graph, we need to handle
                 # identity assignments of the form "x = y" inside the loop body
@@ -1268,7 +1293,8 @@ class Converter:
             )
         body = self.exit_scope()
         inputs = [o_loop_bound, o_true] + [
-            self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)) for pv in loop_state_vars
+            self.py_var_to_onnx_var(pv, self.source_of(loop_stmt)).name
+            for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
         attrs = [self.ir_builder.make_attr("body", graph)]
@@ -1304,7 +1330,7 @@ class Converter:
         for pvar in live_defs:
             if pvar in self.current_scope():
                 pv_val = self.current_scope()[pvar]
-                output = self.to_onnx_var(pv_val, pvar)
+                output = self.to_onnx_var(pv_val, pvar).name
                 if output not in self._current_fn.assigned_names:
                     # To return an outer-scope variable, an ONNX Graph has to
                     # use an explicit copy via Identity.
@@ -1328,7 +1354,7 @@ class Converter:
                         f"branch, known variables: {list(self._locals)}.",
                     )
                 # introduce a copy
-                ovar = self.emit_copy(self.to_onnx_var(pv_val, pvar), pvar)
+                ovar = self.emit_copy(self.to_onnx_var(pv_val, pvar).name, pvar)
 
                 # TODO: retrieve the annotation if any.
                 typeinfo = None
