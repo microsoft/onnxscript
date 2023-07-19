@@ -432,7 +432,7 @@ class TestConverter(testutils.TestBase):
             return r
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
+        self.check_failure(f1, f"Left term must be a tuple not '<class '{ast_name}.Name'>'")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
