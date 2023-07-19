@@ -1475,11 +1475,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
         # input: input, args: weight, bias; so len(args) == 2 means bias is provided
-        matcher=lambda sample: sample.kwargs.get("bias") is not None or len(sample.args) == 2,
+        matcher=lambda sample: len(sample.args) != 1,
         reason="this overload is implemented for bias=None",
     ),
     TorchLibOpInfo("nn.functional.linear_bias", nn_ops.aten_linear_bias).skip(
-        matcher=lambda sample: sample.kwargs.get("bias") is None,
+        # input: input, args: weight, bias; so len(args) == 2 means bias is provided
+        matcher=lambda sample: len(sample.args) != 2,
         reason="this overload is implemented for bias!=None",
     ),
     TorchLibOpInfo(
