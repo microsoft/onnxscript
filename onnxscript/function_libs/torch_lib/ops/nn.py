@@ -674,17 +674,26 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::linear", trace_only=True)
-def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TFloat:
+@torch_op("aten::linear")
+def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
     # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
     # Optimizers may consider this path and replace it with Gemm
     weight_transposed = op.Transpose(weight, perm=[1, 0])
-    result = op.MatMul(input, weight_transposed)
-    if bias is not None:
-        result = op.Add(result, bias)
-    return result
+    return op.MatMul(input, weight_transposed)
+
+
+@torch_op("aten::linear")
+def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
+    """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
+
+    # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
+    # Optimizers may consider this path and replace it with Gemm
+    # return op.Gemm(input, weight, bias, transB=1)
+    weight_transposed = op.Transpose(weight, perm=[1, 0])
+    mul = op.MatMul(input, weight_transposed)
+    return op.Add(mul, bias)
 
 
 @torch_op("aten::log_sigmoid")

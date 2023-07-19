@@ -1471,7 +1471,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=[torch.float16],
         reason="fixme: ONNX Runtime aborted",
     ),
-    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
+    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
+        # input: input, args: weight, bias; so len(args) == 2 means bias is provided
+        matcher=lambda sample: sample.kwargs.get("bias") is not None or len(sample.args) == 2,
+        reason="this overload is implemented for bias=None",
+    ),
+    TorchLibOpInfo("nn.functional.linear_bias", nn_ops.aten_linear_bias).skip(
+        matcher=lambda sample: sample.kwargs.get("bias") is None,
+        reason="this overload is implemented for bias!=None",
+    ),
     TorchLibOpInfo(
         "nn.functional.max_pool1d",
         nn_ops.aten_max_pool1d,
@@ -1720,6 +1728,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_stride
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
+)
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
 )
