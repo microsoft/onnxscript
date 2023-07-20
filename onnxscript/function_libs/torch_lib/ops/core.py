@@ -3713,16 +3713,33 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
     return op.Div(op.Log(summation), op.Log(2.0))
 
 
-@torch_op("aten::logcumsumexp")
-def aten_logcumsumexp(self: TFloatOrBFloat16, dim: INT64) -> TFloatOrBFloat16:
+@torch_op("aten::logcumsumexp", trace_only=True)
+def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """logcumsumexp(Tensor self, int dim) -> Tensor"""
+
+    return _aten_logcumsumexp_onnx(self, [dim])
+
+@torch_op("aten::logcumsumexp", private=True)
+def _aten_logcumsumexp_onnx(self: TFloatOrBFloat16, dims: Sequence[int]) -> TFloatOrBFloat16:
+    """logcumsumexp(Tensor self, int dim) -> Tensor
+
+    Iterative implementation based on https://www.tensorflow.org/api_docs/python/tf/math/cumulative_logsumexp
+    for stability.
+    """
+
+    @graph()
+    def log_add_exp(x, y):
+        # Compute pairwise log_exp.
+        # Based on https://www.tensorflow.org/api_docs/python/tf/math/cumulative_logsumexp.
+        # log_add_exp(x, y) = log(1 + exp(min(x, y) - max(x, y))) + max(x, y)
+        sum_out = op.Add(op.Log(op.Add(1, op.Exp(op.Sub(op.Min(x, y), op.Max(x, y))))), op.Max(x, y))
+        return x, sum_out
 
     if op.Size(op.Shape(self)) == 0:
         # A scalar
         result = op.Identity(self)
     else:
-        # FIXME(justinchuby): Ensure numerical stability
-        result = op.Log(op.CumSum(op.Exp(self), dim))
+        _, result = op.Scan(0, self, body=log_add_exp, num_scan_inputs=1, scan_input_axes=dims, scan_output_axes=dims)
 
     return result
 
