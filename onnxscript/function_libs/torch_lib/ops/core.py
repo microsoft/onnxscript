@@ -5722,7 +5722,7 @@ def _aten_roll_shifts_and_dims_onnx(self: TTensor, shifts: Sequence[int], dims: 
         dim_int = dims[i]
         # Below function not work, because dim_int is dynamic value
         # We don't have any other way to handle this case
-        result = op.Concat(prefix, suffix, axis=dim_int)
+        # result = op.Concat(prefix, suffix, axis=dim_int)
     return result
 
 
