@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import ast
 import logging
-from enum import IntEnum
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -88,25 +87,25 @@ primop_map = {
 }
 
 
-class VariableKind(IntEnum):
-    ANY = 0
-    CONST = 1
-
-
-# TODO(rama): Consider merging this with IRVar. However, "kind" is specific to this converter.
-
-
 class Variable:
-    def __init__(self, name: str, kind: VariableKind = VariableKind.ANY):
-        self.name = name
-        self.kind = kind
+    """Represents an ONNX variable.
 
-    def is_const(self) -> bool:
-        """Indicates if variable represents a constant in source ONNXScript code.
-        Examples are: 1, 1.0, [1, 2], etc. Such constants are treated as polymorphic
-        values and castable to other types as needed.
+    TODO(rama): Consider merging this with IRVar. However, "castable" is specific to this
+    converter.
+    """
+
+    def __init__(self, name: str, castable: bool = False):
+        """Initialize the instance.
+
+        Args:
+           name: Name of the ONNX variable
+           castable: Whether this variable is castable to a desired target type.
+              Used for ONNX variables representing constants created from python values
+              like 0 or 1 or 0.5 which are treated as polymorphic values castable to other
+              types as needed.
         """
-        return self.kind == VariableKind.CONST
+        self.name = name
+        self.is_castable = castable
 
     def __str__(self) -> str:
         return self.name
@@ -347,10 +346,10 @@ class Converter:
                     [result],
                     [cast_attr],
                 )
-                return Variable(result_as_bool, VariableKind.CONST)
-            return Variable(result, VariableKind.CONST)
+                return Variable(result_as_bool, True)
+            return Variable(result, True)
         if isinstance(val, values.Dynamic):
-            return Variable(val.value, VariableKind.ANY)
+            return Variable(val.value)
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error message otherwise
@@ -413,7 +412,7 @@ class Converter:
             fail(info.msg(str(e)))
         attr = self.ir_builder.make_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
-        return Variable(ovar, VariableKind.CONST)
+        return Variable(ovar, True)
 
     def emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
@@ -554,8 +553,8 @@ class Converter:
             assert isinstance(target, str)
             result = self.generate_unique_name(target)
             self.emit([result], callee, args, attrs)
-            return Variable(result, VariableKind.ANY)
-        return Variable(r, VariableKind.ANY)
+            return Variable(result)
+        return Variable(r)
 
     def translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).

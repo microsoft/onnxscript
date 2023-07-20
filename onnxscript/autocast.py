@@ -182,22 +182,23 @@ def static_cast_inputs(
     args: Sequence[Optional[converter.Variable]],
 ) -> tuple[str, ...]:
     """Used for autocast during script-translation.
+    This is meant to transform expressions like "Add(X, 1)" to "Add(X, CastLike(1, X))"
     Polymorphic constants (like 0 and 1) are cast to the type of other operands as needed.
     """
 
     def get_type_info(x: Optional[converter.Variable]) -> Optional[converter.Variable]:
-        """Return x if x is not a constant and None otherwise.
-        A non-constant tensor-variable can serve as the second argument of CastLike,
-        serving as the type-info for the cast.
+        """Returns x back if x can serve as the target-type for a cast (as the second
+        argument of CastLike) and None otherwise. In the expression "Add(X, 1), 1 is
+        castable, while X can serve as the target-type.
         """
-        return None if x is None or x.is_const() else x
+        return None if x is None or x.is_castable else x
 
     def cast_like(
         x: Optional[converter.Variable], y: Optional[converter.Variable]
     ) -> Optional[str]:
         if x is None:
             return None
-        if x.is_const() and y is not None:
+        if x.is_castable and y is not None:
             # Polymorphic constant x is cast to the type of y:
             tmp = converter_.generate_unique_name(f"{x.name}_cast")
             converter_.emit([tmp], "CastLike", [x.name, y])
