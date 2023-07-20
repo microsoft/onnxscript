@@ -5711,7 +5711,7 @@ def _aten_roll_shifts_and_dims_onnx(
     self: TTensor,
     shifts: Sequence[int],  # pylint: disable=unused-argument
     dims: Sequence[int],  # pylint: disable=unused-argument
-    length: int  # pylint: disable=unused-argument
+    length: int,  # pylint: disable=unused-argument
 ) -> TTensor:
     result = op.Identity(self)
     # for i in range(length):
