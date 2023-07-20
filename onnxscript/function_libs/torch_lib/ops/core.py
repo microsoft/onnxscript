@@ -5649,12 +5649,24 @@ def aten_rnn_tanh_cell(
     raise NotImplementedError()
 
 
+@torch_op("aten::roll", trace_only=True)
 def aten_roll(
     self: TensorType, shifts: Sequence[int], dims: Optional[Sequence[int]] = None
 ) -> TensorType:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
+
+
+def aten_roll_no_dim(self, shift):
+    pass
+
+def aten_roll_int(self, shift, dim):
+    pass
+
+def aten_roll_tuple(self, shifts, dims):
+    pass
+
 
 
 def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> TensorType:
