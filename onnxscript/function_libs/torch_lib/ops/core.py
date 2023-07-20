@@ -5670,6 +5670,7 @@ def aten_roll(
             result = _aten_roll_shifts_and_dims_onnx(self, shifts, dims, len(shifts))
             return result
 
+
 @torch_op("aten::roll", private=True)
 def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: INT64) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
@@ -5707,7 +5708,10 @@ def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: INT64, dim: int) -> TTen
 
 @torch_op("aten::roll", private=True)
 def _aten_roll_shifts_and_dims_onnx(
-    self: TTensor, shifts: Sequence[int], dims: Sequence[int], length: int
+    self: TTensor,
+    shifts: Sequence[int],  # pylint: disable=unused-argument
+    dims: Sequence[int],  # pylint: disable=unused-argument
+    length: int  # pylint: disable=unused-argument
 ) -> TTensor:
     result = op.Identity(self)
     # for i in range(length):
