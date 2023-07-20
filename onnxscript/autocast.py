@@ -5,14 +5,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 import numpy as np
 import onnx
 from onnx import helper, numpy_helper
 from onnx.defs import OpSchema
 
-from onnxscript import tensor, values
+from onnxscript import tensor
+
+if TYPE_CHECKING:
+    from onnxscript import converter
 
 # Conversions from python values to ONNX are used by both the script converter as well
 # as the eager-mode runtime and both need to be consistent. The script converter converts
@@ -173,30 +176,32 @@ def dynamic_cast_inputs(op_schema: OpSchema, args):
     return cast_inputs(get_type_info, cast_pyvalue_to_os_tensor, op_schema, args)
 
 
-def static_cast_inputs(converter, op_schema: Optional[OpSchema], args) -> tuple[str, ...]:
-    """Used for autocast during script-translation."""
+def static_cast_inputs(
+    converter_: converter.Converter,
+    op_schema: Optional[OpSchema],
+    args: Sequence[Optional[converter.Variable]],
+) -> tuple[str, ...]:
+    """Used for autocast during script-translation.
+    Polymorphic constants (like 0 and 1) are cast to the type of other operands as needed.
+    """
 
-    def get_type_info(x):
+    def get_type_info(x: Optional[converter.Variable]) -> Optional[converter.Variable]:
         """Return x if x is not a constant and None otherwise.
         A non-constant tensor-variable can serve as the second argument of CastLike,
         serving as the type-info for the cast.
         """
         return None if x is None or x.is_const() else x
 
-    def cast(x, typeinfo) -> Optional[str]:
+    def cast_like(
+        x: Optional[converter.Variable], y: Optional[converter.Variable]
+    ) -> Optional[str]:
         if x is None:
             return None
-        if x.is_const() and typeinfo is not None:
-            # Scalar values are promoted to tensors of a type chosen as below:
-
-            tmp = converter.generate_unique_name(f"{x.name}_cast")
-            converter.emit(
-                [tmp],
-                values.Op(converter.default_opset, "CastLike"),
-                [x.name, typeinfo],
-                [],
-            )
+        if x.is_const() and y is not None:
+            # Polymorphic constant x is cast to the type of y:
+            tmp = converter_.generate_unique_name(f"{x.name}_cast")
+            converter_.emit([tmp], "CastLike", [x.name, y])
             return tmp
         return x.name
 
-    return cast_inputs(get_type_info, cast, op_schema, args)
+    return cast_inputs(get_type_info, cast_like, op_schema, args)

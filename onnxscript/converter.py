@@ -88,20 +88,25 @@ primop_map = {
 }
 
 
-class ConverterExpressionKind(IntEnum):
+class VariableKind(IntEnum):
     ANY = 0
     CONST = 1
 
 
-class ConverterExpression:
-    def __init__(
-        self, name: str, kind: ConverterExpressionKind = ConverterExpressionKind.CONST
-    ):
+# TODO(rama): Consider merging this with IRVar. However, "kind" is specific to this converter.
+
+
+class Variable:
+    def __init__(self, name: str, kind: VariableKind = VariableKind.ANY):
         self.name = name
         self.kind = kind
 
     def is_const(self) -> bool:
-        return self.kind == ConverterExpressionKind.CONST
+        """Indicates if variable represents a constant in source ONNXScript code.
+        Examples are: 1, 1.0, [1, 2], etc. Such constants are treated as polymorphic
+        values and castable to other types as needed.
+        """
+        return self.kind == VariableKind.CONST
 
     def __str__(self) -> str:
         return self.name
@@ -324,7 +329,7 @@ class Converter:
         val: values.SymbolValue | PyValue,
         target: Optional[PreferredName] = None,
         info: Optional[sourceinfo.SourceInfo] = None,
-    ) -> ConverterExpression:
+    ) -> Variable:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target or "tmp")
@@ -342,18 +347,16 @@ class Converter:
                     [result],
                     [cast_attr],
                 )
-                return ConverterExpression(result_as_bool, ConverterExpressionKind.CONST)
-            return ConverterExpression(result, ConverterExpressionKind.CONST)
+                return Variable(result_as_bool, VariableKind.CONST)
+            return Variable(result, VariableKind.CONST)
         if isinstance(val, values.Dynamic):
-            return ConverterExpression(val.value, ConverterExpressionKind.ANY)
+            return Variable(val.value, VariableKind.ANY)
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error message otherwise
         return self.emit_const(val, target or "tmp", info)
 
-    def py_var_to_onnx_var(
-        self, py_var: str, info: sourceinfo.SourceInfo
-    ) -> ConverterExpression:
+    def py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> Variable:
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring: str) -> None:
@@ -387,7 +390,7 @@ class Converter:
         pyvalue: PyValue,
         suggested_name: Optional[PreferredName],
         info: sourceinfo.SourceInfo,
-    ) -> ConverterExpression:
+    ) -> Variable:
         if suggested_name is None:
             if isinstance(pyvalue, int):
                 if pyvalue >= 0:
@@ -410,7 +413,7 @@ class Converter:
             fail(info.msg(str(e)))
         attr = self.ir_builder.make_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
-        return ConverterExpression(ovar, ConverterExpressionKind.CONST)
+        return Variable(ovar, VariableKind.CONST)
 
     def emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
@@ -520,7 +523,7 @@ class Converter:
 
     def translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
-    ) -> ConverterExpression:
+    ) -> Variable:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -543,7 +546,7 @@ class Converter:
             raise ValueError(
                 self.message(node, f"Unsupported expression type {type(node)!r}.")
             )
-        if isinstance(r, ConverterExpression):
+        if isinstance(r, Variable):
             return r
         if isinstance(r, tuple):
             callee, args, attrs = r
@@ -551,10 +554,10 @@ class Converter:
             assert isinstance(target, str)
             result = self.generate_unique_name(target)
             self.emit([result], callee, args, attrs)
-            return ConverterExpression(result, ConverterExpressionKind.ANY)
-        return ConverterExpression(r, ConverterExpressionKind.ANY)
+            return Variable(result, VariableKind.ANY)
+        return Variable(r, VariableKind.ANY)
 
-    def translate_opt_expr(self, node: ast.expr) -> Optional[ConverterExpression]:
+    def translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
@@ -564,7 +567,7 @@ class Converter:
 
     def translate_subscript_expr(
         self, node: ast.Subscript, target: Optional[PreferredName]
-    ) -> ConverterExpression:
+    ) -> Variable:
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -697,7 +700,7 @@ class Converter:
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
             self.emit([target], "Identity", [var_name])
-            return ConverterExpression(target)
+            return Variable(target)
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
@@ -788,7 +791,7 @@ class Converter:
             self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
             result = gathered
 
-        return ConverterExpression(result)
+        return Variable(result)
 
     def translate_call_expr(self, node: ast.Call):
         """Translates a call-expression."""
@@ -887,7 +890,7 @@ class Converter:
 
         return op, [left, right], []
 
-    def translate_name_expr(self, node: ast.Name) -> ConverterExpression:
+    def translate_name_expr(self, node: ast.Name) -> Variable:
         return self.py_var_to_onnx_var(node.id, self.source_of(node))
 
     # pylint: disable=inconsistent-return-statements
