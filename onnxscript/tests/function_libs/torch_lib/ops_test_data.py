@@ -1609,7 +1609,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: the scale_factor tests",
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
-    TorchLibOpInfo("roll", core_ops.aten_roll, trace_only=True),
+    TorchLibOpInfo("roll", core_ops.aten_roll, trace_only=True)
+    .skip(
+        matcher=lambda sample: not isinstance(sample.kwargs.get("shifts"), int),
+        reason="Cannot handle when shifts is tuple",
+    ),
     TorchLibOpInfo(
         "scatter_reduce",
         core_ops.aten_scatter_reduce,

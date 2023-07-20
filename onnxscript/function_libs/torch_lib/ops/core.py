@@ -5651,22 +5651,79 @@ def aten_rnn_tanh_cell(
 
 @torch_op("aten::roll", trace_only=True)
 def aten_roll(
-    self: TensorType, shifts: Sequence[int], dims: Optional[Sequence[int]] = None
-) -> TensorType:
+    self: TTensor, shifts: Sequence[int], dims: Optional[Sequence[int]] = None
+) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
-    return op.Identity(self)
+    self_rank = len(self.shape)
+    if self_rank == 0:
+        return self
+    elif self.shape[0] == 0:  # empty tensor
+        return self
+    else:
+        if dims is None:
+            return _aten_roll_shift_no_dim_onnx(self, shifts)
+        elif isinstance(shifts, int) and isinstance(dims, int):
+            return _aten_roll_shift_and_dim_onnx(self, shifts, dims)
+        else:  # Below condition was skipped because we cannot handle it in OnnxScript
+            assert(len(shifts) == len(dims))
+            result = _aten_roll_shifts_and_dims_onnx(self, shifts, dims, len(shifts))
+            return result
+
+@torch_op("aten::roll", private=True)
+def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: INT64) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    # flatten the self tensor
+    self_flatten = op.Reshape(self, neg_1)
+    # Compute slice length
+    shift_tensor = op.Reshape(shift, neg_1)
+    if shift_tensor < 0:
+        slice_length = -shift_tensor
+    else:
+        slice_length = op.Size(self_flatten) - shift_tensor
+    # Get second part of the tensor
+    suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
+    # Get first part of the tensor
+    prefix = op.Slice(self_flatten, slice_length, op.Reshape(op.Size(self_flatten), neg_1))
+    # Concat first+second together
+    result = op.Concat(prefix, suffix, axis=0)
+    return op.Reshape(result, op.Shape(self))
 
 
-def aten_roll_no_dim(self, shift):
-    pass
+@torch_op("aten::roll", private=True)
+def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: INT64, dim: int) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    shift_tensor = op.Reshape(shift, neg_1)
+    if shift_tensor < 0:
+        slice_length = -shift_tensor
+    else:
+        slice_length = op.Gather(op.Shape(self), dim, axis=0) - shift_tensor
+    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
+    suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
+    prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
+    result = op.Concat(prefix, suffix, axis=dim)
+    return result
 
-def aten_roll_int(self, shift, dim):
-    pass
 
-def aten_roll_tuple(self, shifts, dims):
-    pass
-
+@torch_op("aten::roll", private=True)
+def _aten_roll_shifts_and_dims_onnx(self: TTensor, shifts: Sequence[int], dims: Sequence[int], length: int):
+    result = op.Identity(self)
+    for i in range(length):
+        shift = shifts[i]
+        dim = dims[i]
+        neg_1 = op.Constant(value_ints=[-1])
+        shift_tensor = op.Reshape(shift, neg_1)
+        slice_length = op.Gather(op.Shape(result), dim, axis=0) - shift_tensor
+        if shift_tensor < 0:
+            slice_length = -shift_tensor
+        dim_tensor = op.Reshape(dim, neg_1)
+        suffix = op.Slice(result, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
+        prefix = op.Slice(result, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
+        dim_int = dims[i]
+        # Below function not work, because dim_int is dynamic value
+        # We don't have any other way to handle this case
+        result = op.Concat(prefix, suffix, axis=dim_int)
+    return result
 
 
 def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> TensorType:
