@@ -4649,7 +4649,6 @@ def _aten_native_batch_norm_inference_onnx(
 
     # For this function's test case, the returned mean and var must be empty tensors
     # Seems we don't have any other way to create a real empty tensor, cannot use zero to simulate here
-    #empty_int = op.Shape(input, start=0, end=0)
     empty_mean = op.Constant(
         value=onnx.helper.make_tensor("empty", onnx.TensorProto.FLOAT, [0], [])
     )
