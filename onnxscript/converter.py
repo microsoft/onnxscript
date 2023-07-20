@@ -417,7 +417,7 @@ class Converter:
     def emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
-        self.emit([new_var], values.Op(self.default_opset, "Identity"), [original_var], [])
+        self.emit([new_var], "Identity", [original_var])
         return new_var
 
     def is_constant_expr(self, node: ast.AST) -> None:
@@ -883,7 +883,7 @@ class Converter:
         left, right = self._cast_like_binary_expression(op, left, right)
         if opname == "NotEqual":
             tmp = self.generate_unique_name()
-            self.emit([tmp], op, [left, right], [])
+            self.emit([tmp], op, [left, right])
             not_op = values.Op(self.default_opset, "Not")
             return not_op, [tmp], []
 
