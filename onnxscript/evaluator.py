@@ -126,7 +126,6 @@ def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
 
     return new_kwargs
 
-
 @runtime_checkable
 class Evaluator(Protocol):
     """Protocol for evaluating ONNX ops."""
@@ -221,21 +220,25 @@ class BaseEvaluator(Evaluator, abc.ABC):
         adapted_attributes = {}
         for k, v in attributes.items():
             attr_meta = schema.attributes[k]
-            
-            if isinstance(v, values.OnnxClosure):
-                if use_graph_attribute:
-                    adapted_attributes[k] = v.function_ir.to_graph_proto()
-                    for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                        closure[onnxvar.value] = v.frame.f_locals[pyvar]
+            if attr_meta.type == onnx.AttributeProto.GRAPH:
+                if isinstance(v, values.OnnxClosure):
+                    if use_graph_attribute:
+                        adapted_attributes[k] = v.function_ir.to_graph_proto()
+                        for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                            closure[onnxvar.value] = v.frame.f_locals[pyvar]
+                    else:
+                        adapted_attributes[k] = v.function
+                elif callable(v):
+                    raise ValueError(
+                        f"Error: function-valued attribute {v.__name__} has no graph_proto"
+                        "attribute. Did you forget to decorate it with @graph?"
+                    )
+                elif isinstance(v, onnx.GraphProto):
+                    adapted_attributes[k] = v
                 else:
-                    adapted_attributes[k] = v.function
-            elif callable(v):
-                raise ValueError(
-                    f"Error: function-valued attribute {v.__name__} has no graph_proto"
-                    "attribute. Did you forget to decorate it with @graph?"
-                )
-            else:
-                adapted_attributes[k] = v
+                    raise TypeError(
+                        f"Error: function-valued attribute {v} has type {type(v)}."
+                    )
         return adapted_attributes, closure
 
     def adapt_outputs(self, schema: onnx.defs.OpSchema, outputs: Sequence[EagerModeValue]):
