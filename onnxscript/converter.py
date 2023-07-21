@@ -14,7 +14,6 @@ from typing import (
     NoReturn,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
 )
@@ -188,7 +187,7 @@ class Converter:
         self._outer: List[irbuilder.IRFunction] = []
         self._current_fn: irbuilder.IRFunction = None
         self._nextvar: int = 0
-        self._used_vars: Set[str] = set()
+        self._used_vars: set[str] = set()
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     @property
@@ -566,14 +565,12 @@ class Converter:
             )
         if isinstance(r, Variable):
             return r
-        if isinstance(r, tuple):
-            callee, args, attrs = r
-            target = "tmp" if target is None else target
-            assert isinstance(target, str)
-            result = self.generate_unique_name(target)
-            self.emit([result], callee, args, attrs)
-            return Variable(result)
-        return Variable(r)
+        callee, args, attrs = r
+        target = "tmp" if target is None else target
+        assert isinstance(target, str)
+        result = self.generate_unique_name(target)
+        self.emit([result], callee, args, attrs)
+        return Variable(result)
 
     def translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
