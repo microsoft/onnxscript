@@ -1007,11 +1007,18 @@ def aten_binomial(
     raise NotImplementedError()
 
 
-@torch_op("aten::bitwise_and")
+@torch_op(("aten::bitwise_and", "aten::bitwise_and.Tensor"))
 def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.BitwiseAnd(self, other)
+
+
+@torch_op(("aten::bitwise_and", "aten::bitwise_and.Tensor"))
+def aten_bitwise_and_bool(self: BOOL, other: BOOL) -> BOOL:
+    """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    return op.And(self, other)
 
 
 @torch_op("aten::bitwise_left_shift")
@@ -1034,11 +1041,18 @@ def aten_bitwise_not_bool(self: BOOL) -> BOOL:
     return op.Not(self)
 
 
-@torch_op("aten::bitwise_or")
+@torch_op(("aten::bitwise_or", "aten::bitwise_or.Tensor"))
 def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     """bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.BitwiseOr(self, other)
+
+
+@torch_op(("aten::bitwise_or", "aten::bitwise_or.Tensor"))
+def aten_bitwise_or_bool(self: BOOL, other: BOOL) -> BOOL:
+    """bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    return op.Or(self, other)
 
 
 @torch_op("aten::bitwise_right_shift")
@@ -1048,11 +1062,18 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     return op.BitShift(self, other, direction="RIGHT")
 
 
-@torch_op("aten::bitwise_xor")
+@torch_op(("aten::bitwise_xor", "aten::bitwise_xor.Tensor"))
 def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     """bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.BitwiseXor(self, other)
+
+
+@torch_op(("aten::bitwise_xor", "aten::bitwise_xor.Tensor"))
+def aten_bitwise_xor_bool(self: BOOL, other: BOOL) -> BOOL:
+    """bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    return op.Xor(self, other)
 
 
 def aten_blackman_window(window_length: int) -> TensorType:
