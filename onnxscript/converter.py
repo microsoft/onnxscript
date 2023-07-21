@@ -472,7 +472,10 @@ class Converter:
             ) from e
 
     def translate_attr(
-        self, attr_name: str, expr: ast.AST
+        self,
+        attr_name: str,
+        expr: ast.AST,
+        attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
     ) -> Optional[irbuilder.IRAttributeValue]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
@@ -482,10 +485,17 @@ class Converter:
         * Expr must be an attribute-reference, that is a name representing an
         attribute-parameter of a containing function.
         """
+
         if isinstance(expr, ast.Name):
             val = self.lookup(expr.id, self.source_of(expr))
             if isinstance(val, values.AttrRef):
-                return self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                attr_ref = self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                if attr_meta and (attr_ref.type != attr_meta.type):
+                    self.fail(
+                        expr,
+                        f"Attribute type {attr_ref.type} does not match expected type {attr_meta.type}",
+                    )
+                return attr_ref
             if isinstance(val, irbuilder.IRFunction):
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
@@ -509,8 +519,17 @@ class Converter:
         # The caller is responsible for omitting such attribute-values from the list of attributes
         # in a NodeProto.
         if val is None:
+            if attr_meta and attr_meta.required:
+                self.fail(expr, "Attribute {attr_name} is required.")
             return None
-        return self.ir_builder.make_attr(attr_name, val)
+        attr_type = attr_meta.type if attr_meta else None
+        attr = self.ir_builder.make_attr(attr_name, val, attr_type)
+        if attr_meta and (attr.type != attr_meta.type):
+            self.fail(
+                expr,
+                f"Attribute type {attr.type} does not match expected type {attr_meta.type}",
+            )
+        return attr
 
     def translate_docstring(self, node: ast.Expr) -> None:
         if hasattr(node.value, "value"):
@@ -804,7 +823,10 @@ class Converter:
                 param_schemas, node.args, kwargs, fill_defaults=False
             )
             args = [self.translate_opt_expr(x) for x in args]
-            attrs = [self.translate_attr(x, y) for x, y in attrs.items()]
+            attrs = [
+                self.translate_attr(x, y, callee.op_schema.attributes[x])
+                for x, y in attrs.items()
+            ]
         else:
             args = [self.translate_opt_expr(x) for x in node.args]
             attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]

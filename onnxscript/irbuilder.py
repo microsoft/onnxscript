@@ -8,7 +8,7 @@ import dataclasses
 import io
 import logging
 import warnings
-from typing import Any, Optional, Protocol, Sequence, Union
+from typing import Any, Optional, Protocol, Sequence, Union, cast
 
 import onnx
 from onnx import ValueInfoProto, helper
@@ -523,8 +523,23 @@ class IRBuilder:
         var = IRVar(varname, typeinfo, sourceinfo)
         fn.append_output(var)
 
-    def make_attr(self, attrname: str, attrval: Any) -> IRAttributeValue:
-        return IRAttributeValue(helper.make_attribute(attrname, attrval))
+    def make_attr(
+        self, attrname: str, attrval: Any, attrtype: Optional[int]
+    ) -> IRAttributeValue:
+        # TODO(rama): Need updated ONNX (with PR 5220) to specify attrtype
+        # as parameter to helper.make_attribute
+        #    attr = helper.make_attribute(attrname, attrval, attr_type=attrtype)
+        # Temporary workaround below, for special case of empty lists
+        if isinstance(attrval, list) and not attrval:
+            # special case for empty list:
+            if attrtype is None:
+                attrtype = onnx.AttributeProto.INTS
+            proto = onnx.AttributeProto()
+            proto.name = attrname
+            proto.type = cast(onnx.AttributeProto.AttributeType, attrtype)
+        else:
+            proto = helper.make_attribute(attrname, attrval)
+        return IRAttributeValue(proto)
 
     def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
         proto = onnx.AttributeProto()
