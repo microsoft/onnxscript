@@ -220,6 +220,8 @@ class BaseEvaluator(Evaluator, abc.ABC):
         closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
+            attr_meta = schema.attributes[k]
+            
             if isinstance(v, values.OnnxClosure):
                 if use_graph_attribute:
                     adapted_attributes[k] = v.function_ir.to_graph_proto()
