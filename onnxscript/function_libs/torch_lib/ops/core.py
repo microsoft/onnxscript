@@ -1007,7 +1007,14 @@ def aten_binomial(
     raise NotImplementedError()
 
 
-@torch_op(("aten::bitwise_and", "aten::bitwise_and.Tensor"))
+@torch_op(
+    (
+        "aten::bitwise_and",
+        "aten::bitwise_and.Tensor",
+        "aten::bitwise_and.Scalar",
+        "aten::bitwise_and.Scalar_Tensor",
+    )
+)
 def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
     # logical_and implements the BOOL variant
@@ -1030,7 +1037,14 @@ def aten_bitwise_not(self: TInt) -> TInt:
     return op.BitwiseNot(self)
 
 
-@torch_op(("aten::bitwise_or", "aten::bitwise_or.Tensor"))
+@torch_op(
+    (
+        "aten::bitwise_or",
+        "aten::bitwise_or.Tensor",
+        "aten::bitwise_or.Scalar",
+        "aten::bitwise_or.Scalar_Tensor",
+    )
+)
 def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     """bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor"""
     # logical_or implements the BOOL variant
@@ -1045,7 +1059,14 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     return op.BitShift(self, other, direction="RIGHT")
 
 
-@torch_op(("aten::bitwise_xor", "aten::bitwise_xor.Tensor"))
+@torch_op(
+    (
+        "aten::bitwise_xor",
+        "aten::bitwise_xor.Tensor",
+        "aten::bitwise_xor.Scalar",
+        "aten::bitwise_xor.Scalar_Tensor",
+    )
+)
 def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     """bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor"""
     # logical_xor implements the BOOL variant
@@ -3732,7 +3753,15 @@ def aten_logdet(self: TFloat) -> TFloat:
     return op.Log(op.Det(self))
 
 
-@torch_op(("aten::logical_and", "aten::bitwise_and", "aten::bitwise_and.Tensor"))
+@torch_op(
+    (
+        "aten::logical_and",
+        "aten::bitwise_and",
+        "aten::bitwise_and.Tensor",
+        "aten::bitwise_and.Scalar",
+        "aten::bitwise_and.Scalar_Tensor",
+    )
+)
 def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
     """logical_and(Tensor self, Tensor other) -> Tensor"""
 
@@ -3746,14 +3775,30 @@ def aten_logical_not(self: BOOL) -> BOOL:
     return op.Not(self)
 
 
-@torch_op(("aten::logical_or", "aten::bitwise_or", "aten::bitwise_or.Tensor"))
+@torch_op(
+    (
+        "aten::logical_or",
+        "aten::bitwise_or",
+        "aten::bitwise_or.Tensor",
+        "aten::bitwise_or.Scalar",
+        "aten::bitwise_or.Scalar_Tensor",
+    )
+)
 def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
 
     return op.Or(self, other)
 
 
-@torch_op(("aten::logical_xor", "aten::bitwise_xor", "aten::bitwise_xor.Tensor"))
+@torch_op(
+    (
+        "aten::logical_xor",
+        "aten::bitwise_xor",
+        "aten::bitwise_xor.Tensor",
+        "aten::bitwise_xor.Scalar",
+        "aten::bitwise_xor.Scalar_Tensor",
+    )
+)
 def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     """logical_xor(Tensor self, Tensor other) -> Tensor"""
 
