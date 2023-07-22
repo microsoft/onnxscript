@@ -15,6 +15,11 @@ from typing import Optional, Sequence
 
 from onnxscript.onnx_types import TensorType
 
+from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.onnx_opset import opset18 as op
+
+import math
+
 
 def aten_linalg_cholesky(self: TensorType, upper: bool = False) -> TensorType:
     """linalg_cholesky(Tensor self, *, bool upper=False) -> Tensor"""
@@ -305,6 +310,7 @@ def aten_linalg_vecdot(x: TensorType, y: TensorType, dim: int = -1) -> TensorTyp
     raise NotImplementedError()
 
 
+@torch_op("aten::linalg_vector_norm", trace_only=True)
 def aten_linalg_vector_norm(
     self: TensorType,
     ord: float = 2,
@@ -314,4 +320,30 @@ def aten_linalg_vector_norm(
 ) -> TensorType:
     """linalg_vector_norm(Tensor self, Scalar ord=2, int[1]? dim=None, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
-    raise NotImplementedError()
+    if dim is None:
+        self = op.Reshape(self, op.Constant(value_ints=[-1]))
+        keepdim = False
+
+    self = op.Abs(self)
+    if ord == math.inf:
+        result = op.ReduceMax(self, dim, keepdims=keepdim)
+    elif ord == -math.inf:
+        result = op.ReduceMin(self, dim, keepdims=keepdim)
+    elif ord == 0:  # sum(x!=0)
+        raise NotImplementedError()
+    else:
+        self_pow = op.Pow(self, ord)
+        result = op.ReduceSum(self_pow, dim, keepdims=keepdim)
+        result = op.Pow(result, 1 / ord)
+    return result
+
+
+def test_linalg_vector_norm():
+    import numpy as np
+    a = np.arange(0,9).reshape(3,3).astype(np.float32) - 4.0
+    b = a.reshape(3,3)
+    r = aten_linalg_vector_norm(a)
+    print(r)
+    r = aten_linalg_vector_norm(b)
+    print(r)
+test_linalg_vector_norm()
