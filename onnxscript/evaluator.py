@@ -27,7 +27,7 @@ import onnx.helper
 from typing_extensions import TypeAlias
 
 from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import feature_switch, param_manipulation
+from onnxscript._internal import feature_switch, onnx_utils, param_manipulation
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -126,6 +126,7 @@ def _unwrap_tensors_in_kwargs(kwargs: Mapping[str, Any]) -> dict[str, Any]:
 
     return new_kwargs
 
+
 @runtime_checkable
 class Evaluator(Protocol):
     """Protocol for evaluating ONNX ops."""
@@ -219,26 +220,20 @@ class BaseEvaluator(Evaluator, abc.ABC):
         closure: dict[Any, Any] = {}
         adapted_attributes = {}
         for k, v in attributes.items():
-            attr_meta = schema.attributes[k]
-            if attr_meta.type == onnx.AttributeProto.GRAPH:
-                if isinstance(v, values.OnnxClosure):
-                    if use_graph_attribute:
-                        adapted_attributes[k] = v.function_ir.to_graph_proto()
-                        for pyvar, onnxvar in v.function_ir.outer_scope_variables:
-                            closure[onnxvar.value] = v.frame.f_locals[pyvar]
-                    else:
-                        adapted_attributes[k] = v.function
-                elif callable(v):
-                    raise ValueError(
-                        f"Error: function-valued attribute {v.__name__} has no graph_proto"
-                        "attribute. Did you forget to decorate it with @graph?"
-                    )
-                elif isinstance(v, onnx.GraphProto):
-                    adapted_attributes[k] = v
+            if isinstance(v, values.OnnxClosure):
+                if use_graph_attribute:
+                    adapted_attributes[k] = v.function_ir.to_graph_proto()
+                    for pyvar, onnxvar in v.function_ir.outer_scope_variables:
+                        closure[onnxvar.value] = v.frame.f_locals[pyvar]
                 else:
-                    raise TypeError(
-                        f"Error: function-valued attribute {v} has type {type(v)}."
-                    )
+                    adapted_attributes[k] = v.function
+            elif callable(v):
+                raise ValueError(
+                    f"Error: function-valued attribute {v.__name__} has no graph_proto"
+                    "attribute. Did you forget to decorate it with @graph?"
+                )
+            else:
+                adapted_attributes[k] = v
         return adapted_attributes, closure
 
     def adapt_outputs(self, schema: onnx.defs.OpSchema, outputs: Sequence[EagerModeValue]):
@@ -443,7 +438,12 @@ def _call_ort(
     num_outputs = compute_num_outputs(schema, args, kwargs)
     outputs = [f"output{i}" for i in range(num_outputs)]
 
-    node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)
+    node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain)
+    node.attribute.extend(
+        onnx_utils.make_attribute(key, value, "", schema.attributes[key].type)
+        for key, value in kwargs.items()
+        if value is not None
+    )
     input_value_infos = utils.values_to_value_infos(zip(inputs, args))
     implicit_value_infos = utils.values_to_value_infos(implicit_args.items())
     output_value_infos = [
