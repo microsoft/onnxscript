@@ -5667,7 +5667,11 @@ def aten_roll(
             return _aten_roll_shift_and_dim_onnx(self, shifts, dims)
         else:  # Below condition was skipped because we cannot handle it in OnnxScript
             assert len(shifts) == len(dims)
-            result = _aten_roll_shifts_and_dims_onnx(self, shifts, dims, len(shifts))
+            result = self
+            for i in range(len(shifts)):
+                shift = shifts[i]
+                dim = dims[i]
+                result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
             return result
 
 
@@ -5692,14 +5696,14 @@ def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: INT64) -> TTensor:
 
 
 @torch_op("aten::roll", private=True)
-def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: INT64, dim: int) -> TTensor:
+def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
-    shift_tensor = op.Reshape(shift, neg_1)
+    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
+    shift_tensor = op.Reshape(op.Constant(value_int=shift), neg_1)
     if shift_tensor < 0:
         slice_length = -shift_tensor
     else:
-        slice_length = op.Gather(op.Shape(self), dim, axis=0) - shift_tensor
-    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
+        slice_length = op.Gather(op.Shape(self), dim_tensor, axis=0) - shift_tensor
     suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
     prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
     result = op.Concat(prefix, suffix, axis=dim)
