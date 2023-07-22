@@ -812,19 +812,6 @@ def aten_atleast_3d_single_tensor(self: TTensor) -> TTensor:
     return self
 
 
-def aten_avg_pool1d(
-    self: TensorType,
-    kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
-    padding: Sequence[int] = (0,),
-    ceil_mode: bool = False,
-    count_include_pad: bool = True,
-) -> TensorType:
-    """avg_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, bool ceil_mode=False, bool count_include_pad=True) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::baddbmm")
 def aten_baddbmm(
     self: TRealOrUInt8,
@@ -1020,9 +1007,17 @@ def aten_binomial(
     raise NotImplementedError()
 
 
-@torch_op("aten::bitwise_and")
+@torch_op(
+    (
+        "aten::bitwise_and",
+        "aten::bitwise_and.Tensor",
+        "aten::bitwise_and.Scalar",
+        "aten::bitwise_and.Scalar_Tensor",
+    )
+)
 def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
     """bitwise_and.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # logical_and implements the BOOL variant
 
     return op.BitwiseAnd(self, other)
 
@@ -1037,19 +1032,22 @@ def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
 @torch_op("aten::bitwise_not")
 def aten_bitwise_not(self: TInt) -> TInt:
     """bitwise_not(Tensor self) -> Tensor"""
+    # logical_not implements the BOOL variant
 
     return op.BitwiseNot(self)
 
 
-@torch_op("aten::bitwise_not")
-def aten_bitwise_not_bool(self: BOOL) -> BOOL:
-    """bitwise_not(Tensor self) -> Tensor"""
-    return op.Not(self)
-
-
-@torch_op("aten::bitwise_or")
+@torch_op(
+    (
+        "aten::bitwise_or",
+        "aten::bitwise_or.Tensor",
+        "aten::bitwise_or.Scalar",
+        "aten::bitwise_or.Scalar_Tensor",
+    )
+)
 def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
     """bitwise_or.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # logical_or implements the BOOL variant
 
     return op.BitwiseOr(self, other)
 
@@ -1061,9 +1059,17 @@ def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
     return op.BitShift(self, other, direction="RIGHT")
 
 
-@torch_op("aten::bitwise_xor")
+@torch_op(
+    (
+        "aten::bitwise_xor",
+        "aten::bitwise_xor.Tensor",
+        "aten::bitwise_xor.Scalar",
+        "aten::bitwise_xor.Scalar_Tensor",
+    )
+)
 def aten_bitwise_xor(self: TInt, other: TInt) -> TInt:
     """bitwise_xor.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # logical_xor implements the BOOL variant
 
     return op.BitwiseXor(self, other)
 
@@ -3747,28 +3753,52 @@ def aten_logdet(self: TFloat) -> TFloat:
     return op.Log(op.Det(self))
 
 
-@torch_op("aten::logical_and")
+@torch_op(
+    (
+        "aten::logical_and",
+        "aten::bitwise_and",
+        "aten::bitwise_and.Tensor",
+        "aten::bitwise_and.Scalar",
+        "aten::bitwise_and.Scalar_Tensor",
+    )
+)
 def aten_logical_and(self: BOOL, other: BOOL) -> BOOL:
     """logical_and(Tensor self, Tensor other) -> Tensor"""
 
     return op.And(self, other)
 
 
-@torch_op("aten::logical_not")
+@torch_op(("aten::logical_not", "aten::bitwise_not"))
 def aten_logical_not(self: BOOL) -> BOOL:
     """logical_not(Tensor self) -> Tensor"""
 
     return op.Not(self)
 
 
-@torch_op("aten::logical_or")
+@torch_op(
+    (
+        "aten::logical_or",
+        "aten::bitwise_or",
+        "aten::bitwise_or.Tensor",
+        "aten::bitwise_or.Scalar",
+        "aten::bitwise_or.Scalar_Tensor",
+    )
+)
 def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
     """logical_or(Tensor self, Tensor other) -> Tensor"""
 
     return op.Or(self, other)
 
 
-@torch_op("aten::logical_xor")
+@torch_op(
+    (
+        "aten::logical_xor",
+        "aten::bitwise_xor",
+        "aten::bitwise_xor.Tensor",
+        "aten::bitwise_xor.Scalar",
+        "aten::bitwise_xor.Scalar_Tensor",
+    )
+)
 def aten_logical_xor(self: BOOL, other: BOOL) -> BOOL:
     """logical_xor(Tensor self, Tensor other) -> Tensor"""
 
@@ -5840,10 +5870,16 @@ def aten_select_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::select_scatter")
 def aten_select_scatter(self: TensorType, src: TensorType, dim: int, index: int) -> TensorType:
     """select_scatter(Tensor self, Tensor src, int dim, int index) -> Tensor"""
 
-    raise NotImplementedError()
+    # Change src rank to self rank according to dim
+    # e.g. if self is [2,3,4], src is [2,4], dim=1, then update is [2,1,4]
+    update = op.Unsqueeze(src, axes=dim)
+    # Change index rank to the same as 'update' [2,1,4]
+    indices = op.Expand(index, op.Shape(update))
+    return op.ScatterElements(self, indices, update, axis=dim, reduction="none")
 
 
 @torch_op("aten::selu")
@@ -6725,10 +6761,47 @@ def aten_unflatten(self: TReal, dim: INT64, sizes: INT64):
     return op.Reshape(self, final_shape)
 
 
-def aten_unfold(self: TensorType, dimension: int, size: int, step: int) -> TensorType:
+@torch_op("aten::unfold", trace_only=True)
+def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     """unfold(Tensor(a) self, int dimension, int size, int step) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    self_rank = len(self.shape)
+    if self_rank == 0:
+        result = op.Unsqueeze(self, 0)
+    else:
+        dim_size = self.shape[dimension]
+        target_end = (dim_size - size) // step + 1
+        if target_end > 1:  # the rank of final reuslt will be self_rank + 1
+            self_rank = self_rank + 1
+        # perm need to be list[int], so have to be generated in trace_only mode
+        perm = list(range(self_rank))
+        # from [0,1,2,3,4] -> [0,1,3,4,2] when dimension=1
+        perm.append(perm.pop(dimension + 1))
+        result = _aten_unfold_onnx(self, dimension, size, step, target_end, perm)
+    return result
+
+
+@torch_op("aten::unfold", private=True)
+def _aten_unfold_onnx(
+    self: TTensor, dim: int, size: int, step: int, target_end: int, perm: Sequence[int]
+) -> TTensor:
+    dims = op.Reshape(op.Constant(value_int=dim), op.Constant(value_ints=[-1]))
+    # FIXME: the dtype for this function cannot work, default to float
+    seq_result = op.SequenceEmpty()
+    i = op.Constant(value_ints=[0])
+    cond = i < target_end
+    while cond:  # because for loop cannot work here, so use while loop
+        starts = i * step  # starts is [0, step, step*2, step*3, ...]
+        ends = starts + size  # ends is [0+size, step+size, step*2+size, step*3+size, ...]
+        slice_result = op.Slice(self, starts, ends, dims)
+        # sequence only support float32
+        slice_result_float32 = op.Cast(slice_result, to=FLOAT.dtype)
+        seq_result = op.SequenceInsert(seq_result, slice_result_float32)
+        i = i + 1
+        cond = i < target_end
+    concat_result = op.ConcatFromSequence(seq_result, axis=dim, new_axis=1)
+    result = op.Transpose(concat_result, perm=perm)
+    return op.CastLike(result, self)
 
 
 def aten_unfold_backward(

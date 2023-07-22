@@ -4,18 +4,7 @@ from __future__ import annotations
 import logging
 import typing
 import warnings
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Final,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -144,7 +133,10 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         if value_type is None:
             return None
         value_type = typing.cast(torch.TensorType, value_type)
-        shape = value_type.varyingSizes()
+        if isinstance(value_type, torch.OptionalType):
+            shape = value_type.getElementType().varyingSizes()  # type: ignore[attr-defined]
+        else:
+            shape = value_type.varyingSizes()
         if shape is None:
             return None
         return tuple(shape)
@@ -681,8 +673,8 @@ class TorchScriptGraph:
         ] = self.fetch_function_proto_dict(opset_version)
         unique_custom_domains: Dict[str, int] = {}
 
-        for _, function_proto in function_proto_dict.items():
-            # TODO: All local function domain versions are hardcoded as 1.
+        for function_proto in function_proto_dict.values():
+            # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function_proto.domain] = 1
 
         (
@@ -735,7 +727,3 @@ class TorchScriptGraph:
                 self.torch_graph,
             )
         return onnx_model
-
-    def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
-        """Apply a graph pass to the graph."""
-        graph_pass(self._torch_graph, *args, **kwargs)

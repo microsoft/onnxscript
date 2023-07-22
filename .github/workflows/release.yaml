@@ -29,6 +29,9 @@ jobs:
       - name: Install Python build dependencies
         run: |
           python -m pip install --upgrade pip build wheel
+      - name: Temporarily rename package to onnx-preview
+        run: |
+          sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
       - name: Build ONNX Script wheel dev version
         run: |
           python -m build
@@ -53,10 +56,10 @@ jobs:
     steps:
       - name: Checkout ONNX Script
         uses: actions/checkout@v3
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.10'
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip wheel
@@ -76,6 +79,10 @@ jobs:
     needs: [release]
     runs-on: ubuntu-latest
     environment: PyPI Dev
+    permissions:
+      # IMPORTANT: this permission is mandatory for trusted publishing
+      # See https://docs.pypi.org/trusted-publishers/using-a-publisher/
+      id-token: write
     # Publish only when it is a scheduled run (dev builds)
     if: github.event_name == 'schedule' && !startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -86,8 +93,6 @@ jobs:
       # TODO: Check the version number is a dev version
       - name: Publish dev version to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
 
   publish-release:
     needs: [release]
@@ -103,5 +108,3 @@ jobs:
       # TODO: Check the tag name matches the VERSION file
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}

@@ -181,7 +181,7 @@ def _amin_amax_input_wrangler(
     return args, kwargs
 
 
-def _avg_pool2d_input_wrangler(
+def _avg_pool_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     if "dim" not in kwargs:
@@ -197,10 +197,11 @@ def _avg_pool2d_input_wrangler(
                 # Cannot using list(padding) here, because the element will be numpy.int64 instead of int
                 padding = padding.tolist()
             kwargs["padding"] = padding
-        stride = args.pop(2)
-        if isinstance(stride, np.ndarray):
-            stride = stride.tolist()
-        kwargs["stride"] = stride
+        if len(args) > 2:
+            stride = args.pop(2)
+            if isinstance(stride, np.ndarray):
+                stride = stride.tolist()
+            kwargs["stride"] = stride
         kernel_size = args.pop(1)
         if isinstance(kernel_size, np.ndarray):
             kernel_size = kernel_size.tolist()
@@ -429,7 +430,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
     TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
-    TorchLibOpInfo("addbmm", core_ops.aten_addbmm),
+    TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
     TorchLibOpInfo("addmm", core_ops.aten_addmm),
@@ -1062,6 +1063,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT failed",
     ),
     TorchLibOpInfo("select", core_ops.aten_select),
+    TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
     TorchLibOpInfo("sin", core_ops.aten_sin),
@@ -1164,6 +1166,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
+    TorchLibOpInfo("unfold", core_ops.aten_unfold, trace_only=True),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
     TorchLibOpInfo("view", core_ops.aten_view),
     TorchLibOpInfo("view_as", core_ops.aten_view_as),
@@ -1394,13 +1397,50 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ),
     TorchLibOpInfo(
+        "nn.functional.avg_pool1d",
+        nn_ops.aten_avg_pool1d,
+        input_wrangler=_avg_pool_input_wrangler,
+        trace_only=True,
+    )
+    .xfail(
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
+        or (sample.kwargs.get("divisor_override") is not None),
+        reason="ONNX doesn't support divisor_override argument",
+    )
+    .xfail(
+        matcher=lambda sample: (sample.kwargs.get("ceil_mode") is True)
+        and (
+            sample.kwargs.get("count_include_pad") is True
+            or sample.input.shape[2]
+            % (sample.args[0][0] if isinstance(sample.args[0], tuple) else sample.args[0])
+            != 0
+        ),
+        reason="fixme: ORT doesn't match PyTorch when ceil_mode=True until opset 19",
+    ),
+    TorchLibOpInfo(
         "nn.functional.avg_pool2d",
         nn_ops.aten_avg_pool2d,
-        input_wrangler=_avg_pool2d_input_wrangler,
+        input_wrangler=_avg_pool_input_wrangler,
         trace_only=True,
     ).xfail(
-        matcher=lambda sample: len(sample.args) > 5 and sample.args[5] is not None,
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
+        or (sample.kwargs.get("divisor_override") is not None),
         reason="ONNX doesn't support divisor_override argument",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.avg_pool3d",
+        nn_ops.aten_avg_pool3d,
+        input_wrangler=_avg_pool_input_wrangler,
+        trace_only=True,
+    )
+    .xfail(
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
+        or (sample.kwargs.get("divisor_override") is not None),
+        reason="ONNX doesn't support divisor_override argument",
+    )
+    .xfail(
+        matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
+        reason="fixme: ORT doesn't match PyTorch when ceil_mode=True until opset 19",
     ),
     TorchLibOpInfo(
         "nn.functional.conv1d",
@@ -1433,7 +1473,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=[torch.float16],
         reason="fixme: ONNX Runtime aborted",
     ),
-    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear, trace_only=True),
+    TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
+        # input: input, args: weight, bias; so len(args) == 2 means bias is provided
+        matcher=lambda sample: len(sample.args) != 1,
+        reason="this overload is implemented for bias=None",
+    ),
+    TorchLibOpInfo("nn.functional.linear_bias", nn_ops.aten_linear_bias).skip(
+        # input: input, args: weight, bias; so len(args) == 2 means bias is provided
+        matcher=lambda sample: len(sample.args) != 2,
+        reason="this overload is implemented for bias!=None",
+    ),
     TorchLibOpInfo(
         "nn.functional.max_pool1d",
         nn_ops.aten_max_pool1d,
@@ -1682,6 +1731,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_stride
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
+)
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.nll_loss", ("nn.functional.nll_loss_weight",)
 )
