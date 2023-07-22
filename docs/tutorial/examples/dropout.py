@@ -1,8 +1,10 @@
-from onnxscript import opset15 as op
-from onnxscript import script
 import onnx
 
+from onnxscript import opset15 as op
+from onnxscript import script
+
 true = onnx.helper.make_tensor("true", onnx.TensorProto.BOOL, [], [1])
+
 
 @script()
 def Dropout(data, ratio, training_mode, seed: float):

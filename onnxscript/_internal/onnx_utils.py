@@ -4,8 +4,11 @@
 # --------------------------------------------------------------------------
 
 from __future__ import annotations
+
 from typing import Any, Optional, cast
+
 import onnx
+
 
 def make_attribute(
     key: str,
