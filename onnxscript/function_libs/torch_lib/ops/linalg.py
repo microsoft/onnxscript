@@ -13,16 +13,11 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from onnxscript.onnx_types import TensorType
-
 from onnxscript import BOOL, FLOAT, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import (
-    TFloat,
-)
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
-
-import math
+from onnxscript.onnx_types import TensorType
 
 
 def aten_linalg_cholesky(self: TensorType, upper: bool = False) -> TensorType:
@@ -362,7 +357,9 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
 
 
 @torch_op("aten::linalg_vector_norm", private=True)
-def _aten_linalg_vector_norm_onnx(self: TFloat, ord: float, dim: INT64, keepdim: bool) -> TFloat:
+def _aten_linalg_vector_norm_onnx(
+    self: TFloat, ord: float, dim: INT64, keepdim: bool
+) -> TFloat:
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
         self = op.Unsqueeze(self, axes=[0])
