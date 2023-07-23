@@ -46,6 +46,7 @@ from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
+from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
@@ -267,6 +268,15 @@ def _grid_sample_input_wrangler(
     args.append(padding_mode_options[kwargs["padding_mode"]])
     args.append(kwargs["align_corners"])
     kwargs.clear()
+    return args, kwargs
+
+
+def _linalg_vector_norm_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Make the dims as tensor
+    if "dim" in kwargs:
+        kwargs["dim"] = np.array(kwargs["dim"], dtype=np.int64)
     return args, kwargs
 
 
@@ -630,6 +640,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isnan", core_ops.aten_isnan),
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo(
+        "linalg.vector_norm",
+        linalg_ops.aten_linalg_vector_norm,
+        trace_only=True,
+        tolerance={torch.float16: (2e-3, 2e-3)},
+        input_wrangler=_linalg_vector_norm_input_wrangler
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("ord") == 6 and sample.input.dtype == torch.float16,
+        reason="ORT return wrong value for float16 with ord=6 (expected=Inf, actual=9.48).",
+    ),
     TorchLibOpInfo(
         "linspace",
         core_ops.aten_linspace,

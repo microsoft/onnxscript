@@ -15,7 +15,11 @@ from typing import Optional, Sequence
 
 from onnxscript.onnx_types import TensorType
 
+from onnxscript import BOOL, FLOAT, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import (
+    TFloat,
+)
 from onnxscript.onnx_opset import opset18 as op
 
 import math
@@ -312,38 +316,74 @@ def aten_linalg_vecdot(x: TensorType, y: TensorType, dim: int = -1) -> TensorTyp
 
 @torch_op("aten::linalg_vector_norm", trace_only=True)
 def aten_linalg_vector_norm(
-    self: TensorType,
+    self: TFloat,
     ord: float = 2,
     dim: Optional[int] = None,
     keepdim: bool = False,
-    dtype: Optional[int] = None,
-) -> TensorType:
+    dtype: int = -1,
+) -> TFloat:
     """linalg_vector_norm(Tensor self, Scalar ord=2, int[1]? dim=None, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
-    if dim is None:
+    if dtype != -1:
+        self = op.Cast(self, to=dtype)
+    if dim is None or (isinstance(dim, tuple) and len(dim) == 0):
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
         keepdim = False
+        return _aten_linalg_vector_norm_no_dim_onnx(self, ord, keepdim)
+    else:
+        return _aten_linalg_vector_norm_onnx(self, ord, dim, keepdim)
+
+
+@torch_op("aten::linalg_vector_norm", private=True)
+def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool) -> TFloat:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        self = op.Unsqueeze(self, axes=[0])
 
     self = op.Abs(self)
-    if ord == math.inf:
-        result = op.ReduceMax(self, dim, keepdims=keepdim)
-    elif ord == -math.inf:
-        result = op.ReduceMin(self, dim, keepdims=keepdim)
-    elif ord == 0:  # sum(x!=0)
-        raise NotImplementedError()
+    ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
+    if op.IsInf(ord, detect_negative=0, detect_positive=1):
+        result = op.ReduceMax(self, keepdims=keepdim)
+    elif op.IsInf(ord, detect_negative=1, detect_positive=0):
+        result = op.ReduceMin(self, keepdims=keepdim)
+    elif ord == 0.0:  # sum(x!=0) means count non-zero elements
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_0_1 = op.CastLike(self_bool, self)
+        result = op.ReduceSum(self_0_1, keepdims=False)
     else:
-        self_pow = op.Pow(self, ord)
-        result = op.ReduceSum(self_pow, dim, keepdims=keepdim)
-        result = op.Pow(result, 1 / ord)
+        ord_float = op.CastLike(ord, self)
+        self_pow = op.Pow(self, ord_float)
+        result = op.Pow(op.ReduceSum(self_pow, keepdims=keepdim), op.Div(1.0, ord_float))
+
+    if self_rank == 0:
+        result = op.Squeeze(result)
+
     return result
 
 
-def test_linalg_vector_norm():
-    import numpy as np
-    a = np.arange(0,9).reshape(3,3).astype(np.float32) - 4.0
-    b = a.reshape(3,3)
-    r = aten_linalg_vector_norm(a)
-    print(r)
-    r = aten_linalg_vector_norm(b)
-    print(r)
-test_linalg_vector_norm()
+@torch_op("aten::linalg_vector_norm", private=True)
+def _aten_linalg_vector_norm_onnx(self: TFloat, ord: float, dim: INT64, keepdim: bool) -> TFloat:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        self = op.Unsqueeze(self, axes=[0])
+
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+    self = op.Abs(self)
+    ord = op.Cast(ord, to=FLOAT.dtype)  # Must be FLOAT, due to op.IsInf() needs FLOAT
+    if op.IsInf(ord, detect_negative=0, detect_positive=1):
+        result = op.ReduceMax(self, dim, keepdims=keepdim)
+    elif op.IsInf(ord, detect_negative=1, detect_positive=0):
+        result = op.ReduceMin(self, dim, keepdims=keepdim)
+    elif ord == 0.0:  # sum(x!=0) means count non-zero elements
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_0_1 = op.CastLike(self_bool, self)
+        result = op.ReduceSum(self_0_1, dim, keepdims=keepdim)
+    else:
+        ord_float = op.CastLike(ord, self)
+        self_pow = op.Pow(self, ord_float)
+        result = op.Pow(op.ReduceSum(self_pow, dim, keepdims=keepdim), op.Div(1.0, ord_float))
+
+    if self_rank == 0:
+        result = op.Squeeze(result)
+
+    return result
