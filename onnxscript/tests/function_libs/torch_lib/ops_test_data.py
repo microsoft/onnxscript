@@ -229,6 +229,17 @@ def _dropout_input_wrangler(
     return args, kwargs
 
 
+def _embedding_bag_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "mode" in kwargs:
+        # aten_embedding_bag can only accept integer argument instead of string
+        mode_options = ["mean", "max", "sum"]  # 0,1,2
+        mode_value = kwargs["mode"]
+        kwargs["mode"] = mode_options.index(mode_value)  # Change string to integer
+    return args, kwargs
+
+
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -882,6 +893,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         dtypes=[torch.float16],
         reason="fixme: ONNX Runtime aborted",
+    ),
+    TorchLibOpInfo(
+        "nn.functional.embedding_bag",
+        core_ops.aten_embedding_bag,
+        input_wrangler=_embedding_bag_input_wrangler,
+        trace_only=True,
+        tolerance={torch.float16: (1e-3, 1e-2)},
+    ).skip(
+        matcher=lambda sample: "padding_idx" in sample.kwargs,
+        reason="padding_idx is used for training mode",
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",
