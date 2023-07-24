@@ -21,6 +21,22 @@ from onnxscript._internal import version_utils
 from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
+from dataclasses import make_dataclass
+
+import spox
+from spox._type_system import Type as SpoxType
+from spox._var import Var as SpoxVar
+from spox._attributes import _Ref as SpoxAttrRef
+from spox._attributes import Attr as SpoxAttr
+from spox._attributes import AttrInt64
+from spox._fields import BaseAttributes, BaseInputs, BaseOutputs
+from spox._node import Node as SpoxNode
+from spox._node import OpType
+from spox._scope import Scope as SpoxScope
+from spox._scope import ScopeSpace
+
+import numpy as np
+
 # A simple IR (Function, Stmt, Attr, Var):
 
 logger = logging.getLogger("onnxscript")
@@ -64,11 +80,20 @@ class IRTypeLike(Protocol):
     def to_type_proto(self) -> onnx.TypeProto:
         """Converts IR type representation to onnx.TypeProto"""
 
+# wrapper around spox class instance
+# implementation will wrap a spox type instance
 
-class IRVar:
+class IRVar(SpoxVar):
     """A variable (representing a formal parameter)."""
 
     def __init__(self, varname: str, typeinfo: IRTypeLike, sourceinfo: SourceInfo) -> None:
+        """Wrap inputs to fit spox class types"""
+        if typeinfo is not None:
+            type_ = SpoxType()._from_onnx(typeinfo.to_type_proto())
+        else:
+            type_ = SpoxType()
+        super().__init__(varname, type_, None)
+
         if not isinstance(varname, str):
             raise ValueError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
@@ -84,7 +109,7 @@ class IRVar:
     def typed_str(self):
         return f"{self.name} : {self.typeinfo}"
 
-    def to_value_info(self, use_default_type: bool = True):
+    def _to_value_info(self, use_default_type: bool = True):
         """Converts the content of this class into :class:`onnx.ValueInfoProto`.
 
         Args:
@@ -104,12 +129,18 @@ class IRVar:
             value_info_proto.type.CopyFrom(IRType().to_type_proto())
         return value_info_proto
 
+    def to_value_info(self, use_default_type: bool = True):
+        spox_value_info_proto = self.type._to_onnx_value_info(self.name)
+        assert spox_value_info_proto == self._to_value_info(use_default_type)
+        return spox_value_info_proto
 
 def _opt_var_to_str(x):
     return "" if x is None else str(x)
 
 
-class IRAttributeValue:
+# TODO: Wrap around other SpoxAttr classes such as AttrFloat, AttrString etc
+# Only wrapped around AttrInt64 for dummy testing purpose
+class IRAttributeValue(AttrInt64):
     """An attribute value (representing an actual parameter).
 
     Attributes:
@@ -119,6 +150,12 @@ class IRAttributeValue:
     """
 
     def __init__(self, attrproto: onnx.AttributeProto) -> None:
+        if not attrproto.ref_attr_name:
+            value = helper.get_attribute_value(attrproto)
+        else:
+            dummy_tens = AttrInt64(0)
+            value = SpoxAttrRef(dummy_tens, attrproto.ref_attr_name)
+        super().__init__(value)
         self.attr_proto = attrproto
 
     def __str__(self):
@@ -136,6 +173,7 @@ class IRAttributeValue:
         return self.attr_proto.type
 
 
+# TODO: Add this class equivalent to spox
 @dataclasses.dataclass(frozen=True)
 class IRAttributeParameter:
     """An attribute parameter (representing a formal parameter).
@@ -181,7 +219,7 @@ class IRAttributeParameter:
         # pylint: enable=unexpected-keyword-arg
 
 
-class IRStmt:
+class IRStmt(SpoxNode):
     def __init__(
         self,
         result: Sequence[str],
@@ -195,16 +233,74 @@ class IRStmt:
         self.result = result
         self.callee = callee
         self.args = args
-        self.attrs = attrs
+        self._attrs = attrs
         self.functions = sub_functions or {}
+
+        # Convert inputs to spox types and initialize spox node instance
+        spox_attrs = self.convert_to_spox_attrs(attrs)
+        spox_inputs = self.create_spox_inputs(args)
+        spox_outputs = self.create_spox_outputs(result)
+        super().__init__(spox_attrs, spox_inputs, spox_outputs)
+        self.op_type = OpType(callee._name, callee._opset.domain, callee._opset.version)
+        # Populate spox scope variable
+        what = {}
+        for i in self.inputs:
+            what[i] = str(i)
+        for i in self.outputs:
+            what[i] = str(i)
+        self.scope = SpoxScope()
+        vscope = ScopeSpace(name_of=what)
+        self.scope.var = vscope
+        nscope = ScopeSpace()
+        self.scope.node = nscope
+
+    def convert_to_spox_attrs(self, attrs) -> BaseAttributes:
+        spox_attrs = BaseAttributes()
+        fields = []
+        for a in attrs:
+            # TODO: Set tensor type based on Attr Tensor Type
+            # Testing only int64 types for dummy testing
+            fields.append((a.attr_proto.name, AttrInt64))
+        spox_attrs.__class__ = make_dataclass('Attributes', fields=fields, bases=(BaseAttributes,))
+        for a in attrs:
+            setattr(spox_attrs, a.attr_proto.name, a)
+        return spox_attrs
+
+    def create_spox_inputs(self, args) -> BaseInputs:
+        spox_inputs = BaseInputs()
+        fields = []
+        for a in args:
+            fields.append((a, IRVar))
+        spox_inputs.__class__ = make_dataclass('Inputs', fields=fields, bases=(BaseInputs,))
+        for a in args:
+            # TODO: Set tensor type based on Var Type
+            # Testing only float types for dummy testing
+            irtype = IRTensorType(1)
+            irvar = IRVar(a, irtype, None)
+            setattr(spox_inputs, a, irvar)
+        return spox_inputs
+
+    def create_spox_outputs(self, args) -> BaseOutputs:
+        spox_inputs = BaseInputs()
+        fields = []
+        for a in args:
+            fields.append((a, IRVar))
+        spox_inputs.__class__ = make_dataclass('Outputs', fields=fields, bases=(BaseOutputs,))
+        for a in args:
+            # TODO: Set tensor type based on Var Type
+            # Testing only float types for dummy testing
+            irtype = IRTensorType(1)
+            irvar = IRVar(a, irtype, None)
+            setattr(spox_inputs, a, irvar)
+        return spox_inputs
 
     def __str__(self):
         if isinstance(self.result, str):
             logger.debug("unexpected str type for self.result where type(self)=%r", type(self))
         lhs = ", ".join(self.result)
         attrs = ""
-        if self.attrs:
-            attrs = _format(self.attrs, "<", ", ", ">")
+        if self._attrs:
+            attrs = _format(self._attrs, "<", ", ", ">")
 
         args = _format(self.args, "(", ", ", ")", _opt_var_to_str)
         domain = self.callee.opset.domain
@@ -216,7 +312,7 @@ class IRStmt:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("%s: %s", type(self), str(self))
 
-    def to_node_proto(self, node_name: str) -> onnx.NodeProto:
+    def _to_node_proto(self, node_name: str) -> onnx.NodeProto:
         n = helper.make_node(
             self.callee.name,
             [_opt_var_to_str(x) for x in self.args],
@@ -224,9 +320,15 @@ class IRStmt:
             domain=self.callee.opset.domain,
             name=node_name,
         )
-        for a in self.attrs:
+        for a in self._attrs:
             n.attribute.append(a.attr_proto)
         return n
+
+    def to_node_proto(self, node_name: str) -> onnx.NodeProto:
+        self.scope.node.__setitem__(self, node_name)
+        spox_n = self.to_onnx(self.scope)[0]
+        assert spox_n == self._to_node_proto(node_name)
+        return spox_n
 
     @property
     def output_names(self) -> Sequence[str]:
