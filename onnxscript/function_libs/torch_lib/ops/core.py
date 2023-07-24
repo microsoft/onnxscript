@@ -2306,10 +2306,10 @@ def _aten_embedding_bag_1d_onnx(
     # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
     # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
     len_tensor = op.Reshape(op.Size(offsets), neg_1)
-    if include_last_offset == 1:
+    if include_last_offset == True:  # pylint: disable=singleton-comparison
         len_tensor = len_tensor - 1
     else:
-        offsets = op.Concat(offsets, op.Shape(indices), axis=0)
+        offsets = op.Concat(offsets, op.Shape(indices), axis=0)  # Replace end with number
 
     # The element in sequence must be FLOAT32 dtype due to ORT bug
     new_weight = op.Cast(new_weight, to=FLOAT.dtype)
