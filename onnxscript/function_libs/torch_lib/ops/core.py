@@ -2306,7 +2306,7 @@ def _aten_embedding_bag_1d_onnx(
     # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
     # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
     len_tensor = op.Reshape(op.Size(offsets), neg_1)
-    if include_last_offset is True:
+    if include_last_offset == 1:
         len_tensor = len_tensor - 1
     else:
         offsets = op.Concat(offsets, op.Shape(indices), axis=0)
