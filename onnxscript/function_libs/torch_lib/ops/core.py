@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, FLOAT16, INT8, INT16, INT32, INT64, UINT8, graph
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, UINT8, graph
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -2259,17 +2259,18 @@ def aten_embedding_backward(
 
     raise NotImplementedError()
 
+
 @torch_op("aten::embedding_bag", trace_only=True)
 def aten_embedding_bag(
-    weight: TensorType,
-    indices: TensorType,
-    offsets: TensorType = None,  # Could be None accotding to the doc, go 2d branch
-    scale_grad_by_freq: bool = False,
+    weight: TFloat,
+    indices: INT64,
+    offsets: INT64 = None,  # Could be None accotding to the doc, go 2d branch
+    scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
     mode: int = 0,  # [0,1,2] indicate ["mean", "sum", "max"]
-    sparse: bool = False,
-    per_sample_weights: Optional[TensorType] = None,
+    sparse: bool = False,  # pylint: disable=unused-argument
+    per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-) -> tuple[TensorType, TensorType, TensorType, TensorType]:
+) -> TFloat:
     """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
 
     if per_sample_weights is None:
@@ -2277,15 +2278,24 @@ def aten_embedding_bag(
         per_sample_weights = op.CastLike(per_sample_weights, weight)
 
     if len(indices.shape) == 1:  # 1d
-        return _aten_embedding_bag_1d_onnx(weight, indices, offsets, mode, per_sample_weights, include_last_offset)
+        return _aten_embedding_bag_1d_onnx(
+            weight, indices, offsets, mode, per_sample_weights, include_last_offset
+        )
     else:  # 2d
         # assert(len(indices.shape) == 2)
         # assert(indices.shape == per_sample_weights.shape)
-        return _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights, include_last_offset)
+        return _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights)
 
 
 @torch_op("aten::embedding_bag", private=True)
-def _aten_embedding_bag_1d_onnx(weight, indices, offsets, mode, per_sample_weights, include_last_offset):
+def _aten_embedding_bag_1d_onnx(
+    weight: TFloat,
+    indices: INT64,
+    offsets: INT64,
+    mode: int,
+    per_sample_weights: TFloat,
+    include_last_offset: bool,
+) -> TFloat:
     neg_1 = op.Constant(value_ints=[-1])
     # Get weight out according to indices,
     # e.g. indices=[0,1,2,4] means get weight[0],weight[1],weight[2],weight[4]
@@ -2296,7 +2306,7 @@ def _aten_embedding_bag_1d_onnx(weight, indices, offsets, mode, per_sample_weigh
     # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
     # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
     len_tensor = op.Reshape(op.Size(offsets), neg_1)
-    if include_last_offset == True:
+    if include_last_offset is True:
         len_tensor = len_tensor - 1
     else:
         offsets = op.Concat(offsets, op.Shape(indices), axis=0)
@@ -2309,8 +2319,12 @@ def _aten_embedding_bag_1d_onnx(weight, indices, offsets, mode, per_sample_weigh
     while cond:
         start = op.Slice(offsets, index_tensor, index_tensor + 1)
         end = op.Slice(offsets, index_tensor + 1, index_tensor + 2)
-        if start == end:  # row_result should be 0, need to generate (1,N) shape tensor with 0 values
-            row_result = op.Expand(op.Constant(value_floats=[0.0]), op.Concat(op.Constant(value_ints=[1]), dim_1_size, axis=0))
+        # row_result should be 0, need to generate (1,N) shape tensor with 0 values
+        if start == end:
+            row_result = op.Expand(
+                op.Constant(value_floats=[0.0]),
+                op.Concat(op.Constant(value_ints=[1]), dim_1_size, axis=0),
+            )
         else:
             weight_rows = op.Slice(new_weight, start, end)
             # Process embedding_bag operation against weight_rows according to mode
@@ -2329,7 +2343,12 @@ def _aten_embedding_bag_1d_onnx(weight, indices, offsets, mode, per_sample_weigh
 
 
 @torch_op("aten::embedding_bag", private=True)
-def _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights, include_last_offset):
+def _aten_embedding_bag_2d_onnx(
+    weight: TFloat,
+    indices: INT64,
+    mode: int,
+    per_sample_weights: TFloat,
+) -> TFloat:
     # Get weight out according to indices
     new_weight = op.Gather(weight, indices)
     new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=2))
