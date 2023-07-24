@@ -165,6 +165,36 @@ class TorchLibOpInfo:
         )
         return self
 
+    def flaky(
+        self,
+        variant_name: str = "",
+        *,
+        reason: str,
+        dtypes: Optional[Collection[torch.dtype]] = None,
+        enabled_if: bool = True,
+        test_class_name: Optional[str] = None,
+    ) -> Self:
+        """Marks an OpInfo test as flaky.
+
+        Args:
+            variant_name: Optional OpInfo variant_test_name.
+            reason: The reason for the flakiness.
+            dtypes: The dtypes to mark as flaky.
+            enabled_if: Whether rerun when flaky is enabled.
+            test_class_name: The test class name to apply the flaky marker to.
+                If None, it is applied to all test classes.
+        """
+        self.skips_or_fails.append(
+            ops_test_common.flaky(
+                self.op_info_name,
+                variant_name,
+                reason=reason,
+                dtypes=dtypes,
+                enabled_if=enabled_if,
+                test_class_name=test_class_name,
+            )
+        )
+        return self
 
 # Modify this section ##########################################################
 
