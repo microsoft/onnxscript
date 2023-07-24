@@ -56,8 +56,6 @@ FLOAT_TYPES = (
 
 TEST_OPSET_VERSION = 18
 IS_WINDOWS = os.name == "nt"
-# The number of reruns for flaky tests
-FLAKY_RERUNS = 5
 
 
 @dataclasses.dataclass
@@ -149,38 +147,6 @@ def skip(
         enabled_if=enabled_if,
         test_class_name=test_class_name,
         test_behavior="skip",
-    )
-
-
-def flaky(
-    op_name: str,
-    variant_name: str = "",
-    *,
-    reason: str,
-    dtypes: Optional[Collection[torch.dtype]] = None,
-    enabled_if: bool = True,
-    test_class_name: Optional[str] = None,
-) -> DecorateMeta:
-    """Mark an OpInfo test as flaky to enable reruns.
-
-    Args:
-        op_name: The name of the operator.
-        variant_name: Optional OpInfo variant_test_name.
-        reason: The reason for the flakiness.
-        dtypes: The dtypes to mark as flaky.
-        enabled_if: Whether rerun when flaky is enabled.
-        test_class_name: The test class name to apply the flaky marker to.
-            If None, it is applied to all test classes.
-    """
-    return DecorateMeta(
-        op_name=op_name,
-        variant_name=variant_name,
-        decorator=pytest.mark.flaky(reruns=FLAKY_RERUNS, rerun_except="AssertionError"),
-        dtypes=dtypes,
-        reason=reason,
-        enabled_if=enabled_if,
-        test_class_name=test_class_name,
-        test_behavior="flaky",
     )
 
 
@@ -571,12 +537,12 @@ def graph_executor(
             onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
             # pylint: enable=c-extension-no-member
         ) as e:
-            raise RuntimeError(
+            raise AssertionError(
                 "ONNX Runtime failed to evaluate:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
         except OrtAbortedError as e:
-            raise OrtAbortedError(
+            raise AssertionError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
