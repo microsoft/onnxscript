@@ -165,6 +165,37 @@ class TorchLibOpInfo:
         )
         return self
 
+    def flaky(
+        self,
+        variant_name: str = "",
+        *,
+        reason: str,
+        dtypes: Optional[Collection[torch.dtype]] = None,
+        enabled_if: bool = True,
+        test_class_name: Optional[str] = None,
+    ) -> Self:
+        """Marks an OpInfo test as flaky.
+
+        Args:
+            variant_name: Optional OpInfo variant_test_name.
+            reason: The reason for the flakiness.
+            dtypes: The dtypes to mark as flaky.
+            enabled_if: Whether rerun when flaky is enabled.
+            test_class_name: The test class name to apply the flaky marker to.
+                If None, it is applied to all test classes.
+        """
+        self.skips_or_fails.append(
+            ops_test_common.flaky(
+                self.op_info_name,
+                variant_name,
+                reason=reason,
+                dtypes=dtypes,
+                enabled_if=enabled_if,
+                test_class_name=test_class_name,
+            )
+        )
+        return self
+
 
 # Modify this section ##########################################################
 
@@ -525,11 +556,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=[torch.float16],
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     ),
-    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
-    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
@@ -694,7 +725,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
-    TorchLibOpInfo("maximum", core_ops.aten_maximum).skip(
+    TorchLibOpInfo("maximum", core_ops.aten_maximum).flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
@@ -719,7 +750,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mT", core_ops.aten_mT),
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
-    .skip(
+    .flaky(
         variant_name="reduction_with_dim",
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
@@ -746,7 +777,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
-    TorchLibOpInfo("minimum", core_ops.aten_minimum).skip(
+    TorchLibOpInfo("minimum", core_ops.aten_minimum).flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
@@ -1218,7 +1249,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: "dim" in sample.kwargs,
         reason="this overload does not support the 'dim' attribute by design",
     )
-    .skip(
+    .flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     )
@@ -1231,7 +1262,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: "dim" not in sample.kwargs,
         reason="this overload requires the 'dim' attribute by design",
     )
-    .skip(
+    .flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     )
@@ -1244,7 +1275,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: "dim" in sample.kwargs,
         reason="this overload does not support the 'dim' attribute by design",
     )
-    .skip(
+    .flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     )
@@ -1257,7 +1288,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: "dim" not in sample.kwargs,
         reason="this overload requires the 'dim' attribute by design",
     )
-    .skip(
+    .flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     )
@@ -1273,7 +1304,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="partial_views",
         reason="ONNX doesn't have partial view for tensor",
     ),
-    TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True).skip(
+    TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True).flaky(
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
@@ -1334,7 +1365,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
-    .skip(
+    .flaky(
         variant_name="reduction_with_dim",
         enabled_if=ops_test_common.IS_WINDOWS,
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
