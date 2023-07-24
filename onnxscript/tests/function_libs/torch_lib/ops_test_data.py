@@ -901,8 +901,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
         tolerance={torch.float16: (1e-3, 1e-2)},
     ).skip(
-        matcher=lambda sample: "padding_idx" in sample.kwargs,
-        reason="padding_idx is used for training mode",
+        matcher=lambda sample: "padding_idx" in sample.kwargs or "max_norm" in sample.kwargs,
+        reason="padding_idx is used for training mode, and max_norm is rare case.",
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",

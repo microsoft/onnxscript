@@ -2280,7 +2280,7 @@ def aten_embedding_bag(
         return _aten_embedding_bag_1d_onnx(weight, indices, offsets, mode, per_sample_weights, include_last_offset)
     else:  # 2d
         # assert(len(indices.shape) == 2)
-        #assert(indices.shape == per_sample_weights.shape)
+        # assert(indices.shape == per_sample_weights.shape)
         return _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights, include_last_offset)
 
 
@@ -2342,25 +2342,6 @@ def _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights, inclu
         result = op.ReduceSum(new_weight, axes=[1], keepdims=False)
 
     return result
-
-
-# def test_aten_embedding_bag():
-#     import numpy as np
-#     # weight
-#     weight = (np.array([[0,0,0],[1,1,1],[2,2,2],[3,3,3],[4,4,4]]) + 0.1).astype(np.float32)
-#     indices = np.array([0,1,2,4])
-#     offset = np.array([0,3]).astype(np.int64)
-#     per_sample_weights = np.array([0.5,1.,1.,1.]).astype(np.float32)
-#     #r = aten_embedding_bag(weight, indices, offset, mode=2, per_sample_weights=per_sample_weights)
-#     r = aten_embedding_bag(weight, indices, offset, mode=2)
-#     #print(r)
-
-#     indices = np.array([[0,0,1],[1,2,3]]).astype(np.int64)
-#     per_sample_weights = np.array([[0.5,1.,1.],[1.,0.5,1.]]).astype(np.float32)
-#     r = aten_embedding_bag(weight, indices, mode=2, per_sample_weights=per_sample_weights)
-#     print(r)
-# test_aten_embedding_bag()
-# exit(0)
 
 
 def aten_embedding_dense_backward(
