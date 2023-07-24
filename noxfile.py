@@ -21,7 +21,6 @@ COMMON_TEST_DEPENDENCIES = (
     "parameterized",
     "pytest-cov",
     "pytest-randomly",
-    "pytest-rerunfailures",
     "pytest-subtests",
     "pytest-xdist",
     "pytest!=7.1.0",
