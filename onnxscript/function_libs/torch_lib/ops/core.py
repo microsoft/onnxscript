@@ -5712,7 +5712,7 @@ def aten_roll(
             assert len(shifts) == len(dims)
             result = self
             for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
-                shift = shifts[i]
+                shift = op.Gather(shifts, i, axis=0)
                 dim = dims[i]
                 result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
             return result
@@ -5739,10 +5739,10 @@ def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: INT64) -> TTensor:
 
 
 @torch_op("aten::roll", private=True)
-def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTensor:
+def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: INT64, dim: int) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
-    shift_tensor = op.Reshape(op.Constant(value_int=shift), neg_1)
+    shift_tensor = op.Reshape(shift, neg_1)
     if shift_tensor < 0:
         slice_length = -shift_tensor
     else:

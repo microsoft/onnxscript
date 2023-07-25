@@ -349,6 +349,16 @@ def _replication_pad3d_input_wrangler(
     return args, kwargs
 
 
+def _roll_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if len(args) >= 3 and isinstance(args[2], np.ndarray):
+        # Change dims from args to kwargs to keep tuple/list type
+        dims = args.pop(2)
+        kwargs["dims"] = dims.tolist()
+    return args, kwargs
+
+
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1609,9 +1619,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: the scale_factor tests",
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
-    TorchLibOpInfo("roll", core_ops.aten_roll, trace_only=True).skip(
-        matcher=lambda sample: isinstance(sample.args[0], tuple),
-        reason="Cannot handle when shifts is tuple",
+    TorchLibOpInfo(
+        "roll",
+        core_ops.aten_roll,
+        trace_only=True,
+        input_wrangler=_roll_input_wrangler,
     ),
     TorchLibOpInfo(
         "scatter_reduce",
