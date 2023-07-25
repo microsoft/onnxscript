@@ -63,15 +63,19 @@ def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
 
     return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
-_repeated_attribute_types = frozenset([
-    onnx.AttributeProto.FLOATS,
-    onnx.AttributeProto.INTS,
-    onnx.AttributeProto.STRINGS,
-    onnx.AttributeProto.TENSORS,
-    onnx.AttributeProto.GRAPHS,
-    onnx.AttributeProto.SPARSE_TENSORS,
-    onnx.AttributeProto.TYPE_PROTOS,
-])
+
+_repeated_attribute_types = frozenset(
+    [
+        onnx.AttributeProto.FLOATS,
+        onnx.AttributeProto.INTS,
+        onnx.AttributeProto.STRINGS,
+        onnx.AttributeProto.TENSORS,
+        onnx.AttributeProto.GRAPHS,
+        onnx.AttributeProto.SPARSE_TENSORS,
+        onnx.AttributeProto.TYPE_PROTOS,
+    ]
+)
+
 
 def pyvalue_to_onnx_attribute(
     key: str,
@@ -95,21 +99,19 @@ def pyvalue_to_onnx_attribute(
         if attr_type is None:
             raise ValueError("Attribute type must be specified for empty list value.")
         if attr_type_enum not in _repeated_attribute_types:
-            raise ValueError(
-                "Empty list value is only allowed for repeated attribute types."
-            )
+            raise ValueError("Empty list value is only allowed for repeated attribute types.")
         proto = onnx.AttributeProto()
         proto.name = key
         proto.type = attr_type_enum
         return proto
     elif attr_type == onnx.AttributeProto.TENSOR and not isinstance(value, onnx.TensorProto):
-        proto = onnx.AttributeProto()
-        proto.name = key
-        proto.type = attr_type_enum
-        proto.t = pyvalue_to_onnx_tensor(name_generator(), value)
+        proto = onnx.AttributeProto(
+            name=key, type=attr_type_enum, t=pyvalue_to_onnx_tensor(name_generator(), value)
+        )
         return proto
     else:
         return onnx.helper.make_attribute(key, value)
+
 
 # Utilities to convert python values into onnxscript tensors.
 

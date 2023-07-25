@@ -306,10 +306,15 @@ class Converter:
     def make_onnx_attr(
         self, attrname: str, attrval: Any, attrtype: Optional[int] = None
     ) -> irbuilder.IRAttributeValue:
-        tensor_name_generator = lambda: self.generate_unique_name(f"attr_{attrname}")
-        proto = autocast.pyvalue_to_onnx_attribute(attrname, attrval, tensor_name_generator, attrtype)
+        def tensor_name_generator() -> str:
+            """Return name to be used for tensor, if we need to create one."""
+            return self.generate_unique_name(f"attr_{attrname}")
+
+        proto = autocast.pyvalue_to_onnx_attribute(
+            attrname, attrval, tensor_name_generator, attrtype
+        )
         return self.ir_builder.make_attr(proto)
-    
+
     def to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
     ) -> irbuilder.IRAttributeValue:
@@ -931,6 +936,7 @@ class Converter:
         else:
             self.fail(node, "Invalid opset expression.")
 
+    # pylint: enable=inconsistent-return-statements
     def translate_callee_expr(self, node: ast.AST) -> values.Op:  # pylint: disable=R1710
         """Return an Op"""
         if isinstance(node, ast.Attribute):

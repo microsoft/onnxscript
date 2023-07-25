@@ -440,7 +440,9 @@ def _call_ort(
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain)
     node.attribute.extend(
-        autocast.pyvalue_to_onnx_attribute(key, value, lambda: f"attr_{key}", schema.attributes[key].type)
+        autocast.pyvalue_to_onnx_attribute(
+            key, value, lambda: f"attr_{key}", schema.attributes[key].type
+        )
         for key, value in kwargs.items()
         if value is not None
     )
