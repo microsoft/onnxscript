@@ -2260,13 +2260,21 @@ def aten_embedding_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::embedding_bag", "aten::_embedding_bag", "aten::_embedding_bag_forward_only", "aten::embedding_bag.padding_idx"), trace_only=True)
+@torch_op(
+    (
+        "aten::embedding_bag",
+        "aten::_embedding_bag",
+        "aten::_embedding_bag_forward_only",
+        "aten::embedding_bag.padding_idx",
+    ),
+    trace_only=True,
+)
 def aten_embedding_bag(
     weight: TFloat,
     indices: INT64,
     offsets: INT64 = None,  # Could be None accotding to the doc, go 2d branch
     scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
-    mode: int = 0,  # [0,1,2] indicate ["mean", "sum", "max"]
+    mode: int = 1,  # [0,1,2] indicate ["sum", "mean", "max"], default is "mean"
     sparse: bool = False,  # pylint: disable=unused-argument
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
@@ -2330,12 +2338,12 @@ def _aten_embedding_bag_1d_onnx(
         else:
             weight_rows = op.Slice(new_weight, start, end)
             # Process embedding_bag operation against weight_rows according to mode
-            if mode == 0:  # mean
+            if mode == 1:  # mean
                 row_result = op.ReduceMean(weight_rows, axes=[0])
-            elif mode == 1:  # max
+            elif mode == 2:  # max
                 row_result = op.ReduceMax(weight_rows, axes=[0])
             else:  # sum
-                # assert(mode == 2)
+                # assert(mode == 0)
                 row_result = op.ReduceSum(weight_rows, axes=[0])
         result = op.SequenceInsert(result, row_result)
         index_tensor = index_tensor + 1
@@ -2354,12 +2362,12 @@ def _aten_embedding_bag_2d_onnx(
     # Get weight out according to indices
     new_weight = op.Gather(weight, indices)
     new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=2))
-    if mode == 0:  # mean
+    if mode == 1:  # mean
         result = op.ReduceMean(new_weight, axes=[1], keepdims=False)
-    elif mode == 1:  # max
+    elif mode == 2:  # max
         result = op.ReduceMax(new_weight, axes=[1], keepdims=False)
     else:  # sum
-        # assert(mode == 2)
+        # assert(mode == 0)
         result = op.ReduceSum(new_weight, axes=[1], keepdims=False)
 
     return result
