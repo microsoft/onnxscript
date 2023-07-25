@@ -312,7 +312,7 @@ def aten_linalg_vecdot(x: TensorType, y: TensorType, dim: int = -1) -> TensorTyp
 @torch_op("aten::linalg_vector_norm", trace_only=True)
 def aten_linalg_vector_norm(
     self: TFloat,
-    ord: float = 2,
+    ord: float = 2.0,
     dim: Optional[int] = None,
     keepdim: bool = False,
     dtype: int = -1,

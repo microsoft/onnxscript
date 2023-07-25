@@ -646,10 +646,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
         tolerance={torch.float16: (2e-3, 2e-3)},
         input_wrangler=_linalg_vector_norm_input_wrangler,
-    ).skip(
-        matcher=lambda sample: sample.kwargs.get("ord") == 6
-        and sample.input.dtype == torch.float16,
-        reason="ORT return wrong value for float16 with ord=6 (expected=Inf, actual=9.48).",
+    ).xfail(
+        matcher=lambda sample: sample.kwargs.get("ord") == 6,
+        dtypes=[torch.float16],
+        reason="ORT returns a more accurate value for float16 with ord=6 (expected=Inf, actual=9.48).",
     ),
     TorchLibOpInfo(
         "linspace",
