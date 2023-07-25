@@ -10,7 +10,7 @@ import onnxscript
 
 # Regex that will match "<namespace>::<op_name>[.<overload>]"
 _QUALIFIED_OPERATOR_NAME_REGEX = re.compile(
-    r"^(?P<namespace>[a-zA-Z0-9_]+)::(?P<name>[a-zA-Z0-9_]+)(?P<overload>\.[a-zA-Z0-9._]+)?$"
+    r"^(?P<namespace>\w+)::(?P<name>\w+)(?:\.(?P<overload>\w+))?$"
 )
 
 
