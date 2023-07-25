@@ -5711,7 +5711,7 @@ def aten_roll(
         else:  # Below condition was skipped because we cannot handle it in OnnxScript
             assert len(shifts) == len(dims)
             result = self
-            for i in range(len(shifts)):
+            for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
                 shift = shifts[i]
                 dim = dims[i]
                 result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
