@@ -303,6 +303,13 @@ class Converter:
         self._used_vars.add(r)
         return r
 
+    def make_onnx_attr(
+        self, attrname: str, attrval: Any, attrtype: Optional[int] = None
+    ) -> irbuilder.IRAttributeValue:
+        tensor_name_generator = lambda: self.generate_unique_name(f"attr_{attrname}")
+        proto = autocast.pyvalue_to_onnx_attribute(attrname, attrval, tensor_name_generator, attrtype)
+        return self.ir_builder.make_attr(proto)
+    
     def to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
     ) -> irbuilder.IRAttributeValue:
@@ -338,7 +345,7 @@ class Converter:
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self.generate_unique_name(result + "_as_bool")
-                cast_attr = self.ir_builder.make_attr("to", onnx_types.BOOL.dtype)
+                cast_attr = self.make_onnx_attr("to", onnx_types.BOOL.dtype)
                 self.emit(
                     [result_as_bool],
                     values.Op(self.default_opset, "Cast"),
@@ -409,7 +416,7 @@ class Converter:
             tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
         except ValueError as e:
             fail(info.msg(str(e)))
-        attr = self.ir_builder.make_attr("value", tensor)
+        attr = self.make_onnx_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return Variable(ovar, True)
 
@@ -522,7 +529,7 @@ class Converter:
                 self.fail(expr, "Attribute {attr_name} is required.")
             return None
         attr_type = attr_meta.type if attr_meta else None
-        attr = self.ir_builder.make_attr(attr_name, val, attr_type)
+        attr = self.make_onnx_attr(attr_name, val, attr_type)
         if attr_meta and (attr.type != attr_meta.type):
             self.fail(
                 expr,
@@ -749,7 +756,7 @@ class Converter:
                 steps.append(inputs[2])
 
             if len(starts) > 1:
-                axis_0_attr = self.ir_builder.make_attr("axis", 0)
+                axis_0_attr = self.make_onnx_attr("axis", 0)
                 start_name = self.generate_unique_name(f"{var_name}_start")
                 self.emit([start_name], "Concat", starts, [axis_0_attr])
 
@@ -796,7 +803,7 @@ class Converter:
             last_axis, _ = non_scalar_indices[-1]
         for axis, index_expr in non_scalar_indices:
             index_value = self.translate_expr(index_expr)
-            axis_attr = self.ir_builder.make_attr("axis", axis)
+            axis_attr = self.make_onnx_attr("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
             if axis != last_axis:  # use temporary to store result of Gather
@@ -850,7 +857,7 @@ class Converter:
             # attribute fmod=1 is added in that case.
             cst = self.eval_constant_expr(node.right)
             if isinstance(cst, float):
-                attr = [self.ir_builder.make_attr("fmod", 1)]
+                attr = [self.make_onnx_attr("fmod", 1)]
 
         op = values.Op(self.default_opset, primop_map[op])
         left, right = self._cast_like_binary_expression(
@@ -1097,11 +1104,11 @@ class Converter:
         thenGraph, sub_fct_then = self.translate_block(
             stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        thenAttr = self.ir_builder.make_attr("then_branch", thenGraph)
+        thenAttr = self.make_onnx_attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
             stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        elseAttr = self.ir_builder.make_attr("else_branch", elseGraph)
+        elseAttr = self.make_onnx_attr("else_branch", elseGraph)
 
         def rename(x):
             r = self.generate_unique_name(x)
@@ -1288,7 +1295,7 @@ class Converter:
             for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
-        attrs = [self.ir_builder.make_attr("body", graph)]
+        attrs = [self.make_onnx_attr("body", graph)]
         info = self.source_of(loop_stmt)
 
         def rename(x):

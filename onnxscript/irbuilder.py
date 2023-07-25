@@ -17,7 +17,7 @@ from onnx.defs import onnx_opset_version
 import onnxscript
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript._internal import onnx_utils, version_utils
+from onnxscript._internal import version_utils
 from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
@@ -523,11 +523,8 @@ class IRBuilder:
         var = IRVar(varname, typeinfo, sourceinfo)
         fn.append_output(var)
 
-    def make_attr(
-        self, attrname: str, attrval: Any, attrtype: Optional[int] = None
-    ) -> IRAttributeValue:
-        proto = onnx_utils.make_attribute(attrname, attrval, "", attrtype)
-        return IRAttributeValue(proto)
+    def make_attr(self, attrproto: onnx.AttributeProto) -> IRAttributeValue:
+        return IRAttributeValue(attrproto)
 
     def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
         proto = onnx.AttributeProto()
