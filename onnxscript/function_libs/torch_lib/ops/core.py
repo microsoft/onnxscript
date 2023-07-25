@@ -2260,7 +2260,7 @@ def aten_embedding_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::embedding_bag", trace_only=True)
+@torch_op(("aten::embedding_bag", "aten::_embedding_bag", "aten::_embedding_bag_forward_only", "aten::embedding_bag.padding_idx"), trace_only=True)
 def aten_embedding_bag(
     weight: TFloat,
     indices: INT64,
@@ -2270,6 +2270,7 @@ def aten_embedding_bag(
     sparse: bool = False,  # pylint: disable=unused-argument
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
+    padding_idx: int = -1,  # pylint: disable=unused-argument
 ) -> TFloat:
     """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
 
@@ -2306,13 +2307,14 @@ def _aten_embedding_bag_1d_onnx(
     # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
     # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
     len_tensor = op.Reshape(op.Size(offsets), neg_1)
-    if include_last_offset == True:  # pylint: disable=singleton-comparison
+    if op.Equal(include_last_offset, True):
         len_tensor = len_tensor - 1
     else:
         offsets = op.Concat(offsets, op.Shape(indices), axis=0)  # Replace end with number
 
     # The element in sequence must be FLOAT32 dtype due to ORT bug
     new_weight = op.Cast(new_weight, to=FLOAT.dtype)
+    # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
     result = op.SequenceEmpty()
     index_tensor = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
     cond = index_tensor < len_tensor
