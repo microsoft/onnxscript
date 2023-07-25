@@ -234,7 +234,7 @@ def _embedding_bag_input_wrangler(
 ) -> tuple[list[Any], dict[str, Any]]:
     if "mode" in kwargs:
         # aten_embedding_bag can only accept integer argument instead of string
-        mode_options = [ "sum", "mean", "max"]  # 0,1,2
+        mode_options = ["sum", "mean", "max"]  # 0,1,2
         mode_value = kwargs["mode"]
         kwargs["mode"] = mode_options.index(mode_value)  # Change string to integer
     return args, kwargs
