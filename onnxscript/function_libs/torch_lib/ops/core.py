@@ -2748,7 +2748,7 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::ge")
+@torch_op(("aten::ge", "aten::ge.Tensor", "aten::ge.Scalar"))
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -2905,7 +2905,7 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-@torch_op("aten::gt")
+@torch_op(("aten::gt", "aten::gt.Scalar"))
 def aten_gt(self: TReal, other: TReal) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -4462,7 +4462,7 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::mul")
+@torch_op(("aten::mul", "aten::mul.Tensor"))
 def aten_mul(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
     # FIXME(titaiwang): get rid of this when we have type_promotion
@@ -4470,7 +4470,7 @@ def aten_mul(self: TReal, other: TReal) -> TReal:
     return op.Mul(self, other)
 
 
-@torch_op("aten::mul")
+@torch_op(("aten::mul", "aten::mul.Tensor"))
 def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     """ONNX Mul doesn't support Boolean, so use And as an equivalent operator."""
 
