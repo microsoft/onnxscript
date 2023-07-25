@@ -5693,9 +5693,7 @@ def aten_rnn_tanh_cell(
 
 
 @torch_op("aten::roll", trace_only=True)
-def aten_roll(
-    self: TTensor, shifts: INT64, dims: Optional[Sequence[int]] = None
-) -> TTensor:
+def aten_roll(self: TTensor, shifts: INT64, dims: Optional[Sequence[int]] = None) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
     self_rank = len(self.shape)
