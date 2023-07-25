@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import os
 import pathlib
+import pprint
 from typing import Dict, List, Set, Tuple
 
 import libcst as cst
@@ -60,6 +61,16 @@ class _TorchlibOpOverloadCollector(cst.CSTVisitor):
         if not matchers.matches(node.func, matchers.Name("torch_op")):
             return
 
+        # skip private ops
+        if any(
+            matchers.matches(
+                arg,
+                matchers.Arg(value=matchers.Name("True"), keyword=matchers.Name("private")),
+            )
+            for arg in node.args
+        ):
+            return
+
         function_name = self._stack[-1]
         overload_names = _cst_arg_to_overload_names(node.args[0])
         namespace_op_name = _overload_names_to_namespace_op(overload_names)
@@ -110,6 +121,16 @@ class _TorchlibOpOverloadAdder(cst.CSTTransformer):
         if not matchers.matches(original_node.func, matchers.Name("torch_op")):
             return original_node
 
+        # skip private ops
+        if any(
+            matchers.matches(
+                arg,
+                matchers.Arg(value=matchers.Name("True"), keyword=matchers.Name("private")),
+            )
+            for arg in original_node.args
+        ):
+            return original_node
+
         original_overload_names = _cst_arg_to_overload_names(original_node.args[0])
         namespace_op_name = _overload_names_to_namespace_op(original_overload_names)
         overload_names = self._overload_names[namespace_op_name][0][1]
@@ -144,37 +165,49 @@ def add_overload_names(
 
 
 def main():
-    new_overload_names = {
-        "aten::add.Tensor",
-        "aten::clamp.Tensor",
-        "aten::div.Tensor",
-        "aten::eq.Scalar",
-        "aten::eq.Tensor",
-        "aten::fill.Tensor",
-        "aten::ge.Scalar",
-        "aten::ge.Tensor",
-        "aten::gt.Scalar",
-        "aten::le.Tensor",
-        "aten::lt.Scalar",
-        "aten::mul.Tensor",
-        "aten::ne.Scalar",
-        "aten::roll.default",
-        "aten::rsub.Scalar",
-        "aten::select.int",
-        "aten::slice.Tensor",
-        "aten::split.Tensor",
-        "aten::sub.Tensor",
-        "aten::transpose.int",
-        "aten::unbind.int",
-        "aten::where.self",
+    new_overload_names_from_bench = {
+        "aten.add.Tensor": 35510,
+        "aten.bitwise_and.Tensor": 12,
+        "aten.clamp.Tensor": 2690,
+        "aten.div.Tensor": 10622,
+        "aten.div.Tensor_mode": 2,
+        "aten.empty.memory_format": 12486,
+        "aten.eq.Scalar": 72,
+        "aten.eq.Tensor": 112,
+        "aten.fill.Tensor": 28,
+        "aten.ge.Scalar": 4,
+        "aten.ge.Tensor": 4,
+        "aten.gt.Scalar": 46,
+        "aten.le.Tensor": 32,
+        "aten.lt.Scalar": 80,
+        "aten.masked_fill.Scalar": 360,
+        "aten.masked_fill.Tensor": 396,
+        "aten.mul.Tensor": 24214,
+        "aten.ne.Scalar": 630,
+        "aten.pow.Tensor_Scalar": 528,
+        "aten.pow.Tensor_Tensor": 1820,
+        "aten.rsub.Scalar": 354,
+        "aten.scatter_reduce.two": 18,
+        "aten.select.int": 4669,
+        "aten.slice.Tensor": 17717,
+        "aten.split.Tensor": 3182,
+        "aten.sub.Tensor": 7868,
+        "aten.sum.dim_IntList": 6122,
+        "aten.transpose.int": 13219,
+        "aten.unbind.int": 1188,
+        "aten.where.self": 732,
     }
+    new_overload_names = set(
+        {k.replace("aten.", "aten::") for k in new_overload_names_from_bench}
+    )
     file_paths = [
         pathlib.Path(os.path.join(root, file))
         for root, dirs, files in os.walk("onnxscript/function_libs/torch_lib/ops")
         for file in files
     ]
     for file_path in file_paths:
-        print(add_overload_names(file_path, new_overload_names))
+        print("Processing file:", file_path)
+        pprint.pprint(add_overload_names(file_path, new_overload_names))
 
 
 if __name__ == "__main__":
