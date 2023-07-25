@@ -21,10 +21,10 @@ from typing import (
 import onnx
 
 import onnxscript
-from onnxscript import analysis, autocast, irbuilder, onnx_types, sourceinfo
+from onnxscript import analysis, irbuilder, onnx_types, sourceinfo
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript._internal import ast_utils, param_manipulation
+from onnxscript._internal import ast_utils, autocast, param_manipulation
 
 PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
 

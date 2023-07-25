@@ -26,8 +26,8 @@ import onnx.defs
 import onnx.helper
 from typing_extensions import TypeAlias
 
-from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import feature_switch, onnx_utils, param_manipulation
+from onnxscript import irbuilder, onnx_opset, tensor, utils, values
+from onnxscript._internal import autocast, feature_switch, onnx_utils, param_manipulation
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -440,7 +440,7 @@ def _call_ort(
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain)
     node.attribute.extend(
-        onnx_utils.make_attribute(key, value, "", schema.attributes[key].type)
+        onnx_utils.make_attribute(key, value, lambda: f"attr_{key}", "", schema.attributes[key].type)
         for key, value in kwargs.items()
         if value is not None
     )
