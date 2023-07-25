@@ -5754,32 +5754,6 @@ def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTenso
     return result
 
 
-@torch_op("aten::roll", private=True)
-def _aten_roll_shifts_and_dims_onnx(
-    self: TTensor,
-    shifts: Sequence[int],  # pylint: disable=unused-argument
-    dims: Sequence[int],  # pylint: disable=unused-argument
-    length: int,  # pylint: disable=unused-argument
-) -> TTensor:
-    result = op.Identity(self)
-    # for i in range(length):
-    #     shift = shifts[i]
-    #     dim = dims[i]
-    #     neg_1 = op.Constant(value_ints=[-1])
-    #     shift_tensor = op.Reshape(shift, neg_1)
-    #     slice_length = op.Gather(op.Shape(result), dim, axis=0) - shift_tensor
-    #     if shift_tensor < 0:
-    #         slice_length = -shift_tensor
-    #     dim_tensor = op.Reshape(dim, neg_1)
-    #     suffix = op.Slice(result, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
-    #     prefix = op.Slice(result, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
-    #     dim_int = dims[i]
-    #     # Below function not work, because dim_int is dynamic value
-    #     # We don't have any other way to handle this case
-    #     result = op.Concat(prefix, suffix, axis=dim_int)
-    return result
-
-
 def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> TensorType:
     """rot90(Tensor self, int k=1, int[] dims=[0,1]) -> Tensor"""
 
