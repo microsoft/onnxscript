@@ -1610,7 +1610,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo("roll", core_ops.aten_roll, trace_only=True).skip(
-        matcher=lambda sample: not isinstance(sample.kwargs.get("shifts"), int),
+        matcher=lambda sample: isinstance(sample.args[0], tuple),
         reason="Cannot handle when shifts is tuple",
     ),
     TorchLibOpInfo(

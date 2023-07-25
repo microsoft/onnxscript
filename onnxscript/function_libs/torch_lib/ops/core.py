@@ -5747,6 +5747,7 @@ def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: int, dim: int) -> TTenso
         slice_length = -shift_tensor
     else:
         slice_length = op.Gather(op.Shape(self), dim_tensor, axis=0) - shift_tensor
+    # from [A,B,C,D,E] -> [E,A,B,C,D], [E] is prefix, [A,B,C,D] is suffix
     suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
     prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
     result = op.Concat(prefix, suffix, axis=dim)
