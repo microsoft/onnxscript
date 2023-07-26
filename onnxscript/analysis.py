@@ -51,7 +51,7 @@ def local_defs(lhs: ast.expr) -> Set[str]:
     return {get_id(lhs)}
 
 
-def defs(stmt: ast.stmt) -> Set[str]:
+def defs(stmt: ast.stmt | list[ast.stmt], formatter: sourceinfo.Formatter) -> Set[str]:
     """Return the set of all variables that may be defined (assigned to) in an
     execution of input stmt.
     """
@@ -59,7 +59,7 @@ def defs(stmt: ast.stmt) -> Set[str]:
     def block_defs(block: Sequence[ast.stmt]) -> Set[str]:
         result: set[Any] = set()
         for s in block:
-            result = result | defs(s)
+            result = result | defs(s, formatter)
         return result
 
     if isinstance(stmt, ast.Assign):
@@ -70,12 +70,18 @@ def defs(stmt: ast.stmt) -> Set[str]:
         return set()
     if isinstance(stmt, ast.If):
         return block_defs(stmt.body) | block_defs(stmt.orelse)
+    if isinstance(stmt, ast.For):
+        return block_defs(stmt.body) | {get_loop_var(stmt, formatter)}
+    if isinstance(stmt, ast.While):
+        return block_defs(stmt.body)
     if isinstance(stmt, list):
         return block_defs(stmt)
     if isinstance(stmt, ast.Break):
         return set()
     if ast_utils.is_print_call(stmt):
         return set()
+    if isinstance(stmt, list):
+        return block_defs(stmt)
     raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
 
 
