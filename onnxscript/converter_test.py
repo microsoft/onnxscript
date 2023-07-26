@@ -628,7 +628,7 @@ class TestConverter(testutils.TestBase):
         def int_as_tensor():
             return op.Constant(value=17)
 
-        expected = np.array([17], dtype=np.int64).reshape(())
+        expected = np.array(17, dtype=np.int64)
         self.check_run(int_as_tensor, [], expected)
 
     def test_int_list_as_tensor_attribute(self):

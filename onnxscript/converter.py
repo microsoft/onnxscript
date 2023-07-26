@@ -501,10 +501,10 @@ class Converter:
             val = self.lookup(expr.id, self.source_of(expr))
             if isinstance(val, values.AttrRef):
                 attr_ref = self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
-                if attr_meta and (attr_ref.type != attr_meta.type):
+                if attr_meta is not None and (attr_ref.type != attr_meta.type):
                     self.fail(
                         expr,
-                        f"Attribute type {attr_ref.type} does not match expected type {attr_meta.type}",
+                        f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
                     )
                 return attr_ref
             if isinstance(val, irbuilder.IRFunction):
@@ -515,8 +515,8 @@ class Converter:
                     if current.value != previous.value:
                         self.fail(
                             expr,
-                            f"Outer scope variable {pyvar} referenced by function "
-                            f"{expr.id!r} modified.",
+                            f"Outer scope variable '{pyvar}' referenced by function "
+                            f"'{expr.id!r}' modified.",
                         )
 
                 # Create GraphProto attribute
@@ -531,14 +531,14 @@ class Converter:
         # in a NodeProto.
         if val is None:
             if attr_meta and attr_meta.required:
-                self.fail(expr, "Attribute {attr_name} is required.")
+                self.fail(expr, "Attribute '{attr_name}' is required.")
             return None
         attr_type = attr_meta.type if attr_meta else None
         attr = self.make_onnx_attr(attr_name, val, attr_type)
         if attr_meta and (attr.type != attr_meta.type):
             self.fail(
                 expr,
-                f"Attribute type {attr.type} does not match expected type {attr_meta.type}",
+                f"Attribute type '{attr.type}' does not match expected type '{attr_meta.type}'",
             )
         return attr
 
