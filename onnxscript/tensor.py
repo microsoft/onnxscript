@@ -11,7 +11,8 @@ import numpy as np
 import onnx.helper
 from onnx import TensorProto
 
-from onnxscript import autocast, onnx_opset
+from onnxscript import onnx_opset
+from onnxscript._internal import autocast
 
 
 class Tensor:

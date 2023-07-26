@@ -26,8 +26,8 @@ import onnx.defs
 import onnx.helper
 from typing_extensions import TypeAlias
 
-from onnxscript import autocast, irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import feature_switch, param_manipulation
+from onnxscript import irbuilder, onnx_opset, tensor, utils, values
+from onnxscript._internal import autocast, feature_switch, param_manipulation
 
 if typing.TYPE_CHECKING:
     import onnxruntime as ort
@@ -432,13 +432,25 @@ def _call_ort(
     args = [_os_to_ort_value(x) for x in args]
     implicit_args = {k: _os_to_ort_value(v) for k, v in implicit_args.items()}
 
+    # Utility to convert kwarg to ONNX AttributeProto:
+    def make_attr(key: str, value: Any) -> onnx.AttributeProto:
+        def make_tensor_name() -> str:
+            return f"attr_{key}"
+
+        return autocast.pyvalue_to_onnx_attribute(
+            key, value, make_tensor_name, schema.attributes[key].type
+        )
+
     # Construct ONNX model with a single op call:
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
     num_outputs = compute_num_outputs(schema, args, kwargs)
     outputs = [f"output{i}" for i in range(num_outputs)]
 
-    node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain, **kwargs)
+    node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain)
+    node.attribute.extend(
+        make_attr(key, value) for key, value in kwargs.items() if value is not None
+    )
     input_value_infos = utils.values_to_value_infos(zip(inputs, args))
     implicit_value_infos = utils.values_to_value_infos(implicit_args.items())
     output_value_infos = [
