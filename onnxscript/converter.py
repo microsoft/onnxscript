@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import ast
 import logging
-from enum import IntEnum
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -22,10 +21,10 @@ from typing import (
 import onnx
 
 import onnxscript
-from onnxscript import analysis, autocast, irbuilder, onnx_types, sourceinfo
+from onnxscript import analysis, irbuilder, onnx_types, sourceinfo
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript._internal import ast_utils, param_manipulation
+from onnxscript._internal import ast_utils, autocast, param_manipulation
 
 PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
 
@@ -87,20 +86,25 @@ primop_map = {
 }
 
 
-class ConverterExpressionKind(IntEnum):
-    ANY = 0
-    CONST = 1
+class Variable:
+    """Represents an ONNX variable.
 
+    TODO(rama): Consider merging this with IRVar. However, "castable" is specific to this
+    converter.
+    """
 
-class ConverterExpression:
-    def __init__(
-        self, name: str, kind: ConverterExpressionKind = ConverterExpressionKind.CONST
-    ):
+    def __init__(self, name: str, castable: bool = False):
+        """Initialize the instance.
+
+        Args:
+           name: Name of the ONNX variable
+           castable: Whether this variable is castable to a desired target type.
+              Used for ONNX variables representing constants created from python values
+              like 0 or 1 or 0.5 which are treated as polymorphic values castable to other
+              types as needed.
+        """
         self.name = name
-        self.kind = kind
-
-    def is_const(self):
-        return self.kind == ConverterExpressionKind.CONST
+        self.is_castable = castable
 
     def __str__(self) -> str:
         return self.name
@@ -165,11 +169,11 @@ class Converter:
 
     def __init__(
         self,
-        ir_builder=None,
-        opset=None,
-        global_names=None,
-        source=None,
-        default_opset=None,
+        ir_builder: Optional[irbuilder.IRBuilder] = None,
+        opset: Optional[values.Opset] = None,
+        global_names: Optional[dict[str, Any]] = None,
+        source: Optional[str] = None,
+        default_opset: Optional[values.Opset] = None,
     ):
         self.ir_builder = ir_builder or irbuilder.IRBuilder()
         self.source = source
@@ -180,14 +184,14 @@ class Converter:
         self.default_opset_ = default_opset
 
         # States initialized by `init_function_translation`
-        self._outer = []
-        self._current_fn = None
-        self._nextvar = 0
-        self._used_vars = set()
+        self._outer: List[irbuilder.IRFunction] = []
+        self._current_fn: irbuilder.IRFunction = None
+        self._nextvar: int = 0
+        self._used_vars: set[str] = set()
         self._locals: List[Dict[str, LocalSymValue]] = [{}]
 
     @property
-    def default_opset(self):
+    def default_opset(self) -> values.Opset:
         if self.default_opset_ is None:
             raise RuntimeError(
                 "default_opset must be specified in script for functions "
@@ -195,7 +199,7 @@ class Converter:
             )
         return self.default_opset_
 
-    def set_default_opset(self, opset, node):
+    def set_default_opset(self, opset: values.Opset, node: ast.AST) -> None:
         if opset.domain != "":
             return
         if self.default_opset_ is not None:
@@ -226,7 +230,7 @@ class Converter:
                 return res
         return None
 
-    def init_function_translation(self):
+    def init_function_translation(self) -> None:
         """Initialize self for translating a new (top-level) function."""
         self._outer = []
         self._current_fn: Optional[irbuilder.IRFunction] = None
@@ -299,6 +303,18 @@ class Converter:
         self._used_vars.add(r)
         return r
 
+    def make_onnx_attr(
+        self, attrname: str, attrval: Any, attrtype: Optional[int] = None
+    ) -> irbuilder.IRAttributeValue:
+        def tensor_name_generator() -> str:
+            """Return name to be used for tensor, if we need to create one."""
+            return self.generate_unique_name(f"attr_{attrname}")
+
+        proto = autocast.pyvalue_to_onnx_attribute(
+            attrname, attrval, tensor_name_generator, attrtype
+        )
+        return self.ir_builder.make_attr(proto)
+
     def to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
     ) -> irbuilder.IRAttributeValue:
@@ -323,7 +339,7 @@ class Converter:
         val: values.SymbolValue | PyValue,
         target: Optional[PreferredName] = None,
         info: Optional[sourceinfo.SourceInfo] = None,
-    ) -> ConverterExpression:
+    ) -> Variable:
         if isinstance(val, values.AttrRef):
             # promote attribute to value
             result = self.generate_unique_name(target or "tmp")
@@ -334,25 +350,23 @@ class Converter:
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self.generate_unique_name(result + "_as_bool")
-                cast_attr = self.ir_builder.make_attr("to", onnx_types.BOOL.dtype)
+                cast_attr = self.make_onnx_attr("to", onnx_types.BOOL.dtype)
                 self.emit(
                     [result_as_bool],
                     values.Op(self.default_opset, "Cast"),
                     [result],
                     [cast_attr],
                 )
-                return ConverterExpression(result_as_bool, ConverterExpressionKind.CONST)
-            return ConverterExpression(result, ConverterExpressionKind.CONST)
+                return Variable(result_as_bool, True)
+            return Variable(result, True)
         if isinstance(val, values.Dynamic):
-            return ConverterExpression(val.value, ConverterExpressionKind.ANY)
+            return Variable(val.value)
         # Assume value is a python-value convertible to a tensor
         # TODO: check if value is convertible to a TensorProto, so that we can
         # produce a better error message otherwise
         return self.emit_const(val, target or "tmp", info)
 
-    def py_var_to_onnx_var(
-        self, py_var: str, info: sourceinfo.SourceInfo
-    ) -> ConverterExpression:
+    def py_var_to_onnx_var(self, py_var: str, info: sourceinfo.SourceInfo) -> Variable:
         return self.to_onnx_var(self.lookup(py_var, info), target=py_var, info=info)
 
     def emit_docstring(self, docstring: str) -> None:
@@ -386,7 +400,7 @@ class Converter:
         pyvalue: PyValue,
         suggested_name: Optional[PreferredName],
         info: sourceinfo.SourceInfo,
-    ) -> ConverterExpression:
+    ) -> Variable:
         if suggested_name is None:
             if isinstance(pyvalue, int):
                 if pyvalue >= 0:
@@ -407,14 +421,14 @@ class Converter:
             tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
         except ValueError as e:
             fail(info.msg(str(e)))
-        attr = self.ir_builder.make_attr("value", tensor)
+        attr = self.make_onnx_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
-        return ConverterExpression(ovar, ConverterExpressionKind.CONST)
+        return Variable(ovar, True)
 
     def emit_copy(self, original_var: str, suggested_name: str) -> str:
         """Emits a copy statement, using the ONNX Identity operator."""
         new_var = self.generate_unique_name(suggested_name)
-        self.emit([new_var], values.Op(self.default_opset, "Identity"), [original_var], [])
+        self.emit([new_var], "Identity", [original_var])
         return new_var
 
     def is_constant_expr(self, node: ast.AST) -> None:
@@ -469,7 +483,10 @@ class Converter:
             ) from e
 
     def translate_attr(
-        self, attr_name: str, expr: ast.AST
+        self,
+        attr_name: str,
+        expr: ast.AST,
+        attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
     ) -> Optional[irbuilder.IRAttributeValue]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
@@ -479,10 +496,17 @@ class Converter:
         * Expr must be an attribute-reference, that is a name representing an
         attribute-parameter of a containing function.
         """
+
         if isinstance(expr, ast.Name):
             val = self.lookup(expr.id, self.source_of(expr))
             if isinstance(val, values.AttrRef):
-                return self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                attr_ref = self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                if attr_meta is not None and (attr_ref.type != attr_meta.type):
+                    self.fail(
+                        expr,
+                        f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
+                    )
+                return attr_ref
             if isinstance(val, irbuilder.IRFunction):
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
@@ -491,8 +515,8 @@ class Converter:
                     if current.value != previous.value:
                         self.fail(
                             expr,
-                            f"Outer scope variable {pyvar} referenced by function "
-                            f"{expr.id!r} modified.",
+                            f"Outer scope variable '{pyvar}' referenced by function "
+                            f"'{expr.id!r}' modified.",
                         )
 
                 # Create GraphProto attribute
@@ -506,8 +530,17 @@ class Converter:
         # The caller is responsible for omitting such attribute-values from the list of attributes
         # in a NodeProto.
         if val is None:
+            if attr_meta and attr_meta.required:
+                self.fail(expr, "Attribute '{attr_name}' is required.")
             return None
-        return self.ir_builder.make_attr(attr_name, val)
+        attr_type = attr_meta.type if attr_meta else None
+        attr = self.make_onnx_attr(attr_name, val, attr_type)
+        if attr_meta and (attr.type != attr_meta.type):
+            self.fail(
+                expr,
+                f"Attribute type '{attr.type}' does not match expected type '{attr_meta.type}'",
+            )
+        return attr
 
     def translate_docstring(self, node: ast.Expr) -> None:
         if hasattr(node.value, "value"):
@@ -519,7 +552,7 @@ class Converter:
 
     def translate_expr(
         self, node: ast.AST, target: Optional[PreferredName] = None
-    ) -> ConverterExpression:
+    ) -> Variable:
         """Expression-translation generates "IR statements/nodes" that compute the value of
         the expression into a target-variable, and returns the variable that is
         assigned this value.
@@ -542,18 +575,16 @@ class Converter:
             raise ValueError(
                 self.message(node, f"Unsupported expression type {type(node)!r}.")
             )
-        if isinstance(r, ConverterExpression):
+        if isinstance(r, Variable):
             return r
-        if isinstance(r, tuple):
-            callee, args, attrs = r
-            target = "tmp" if target is None else target
-            assert isinstance(target, str)
-            result = self.generate_unique_name(target)
-            self.emit([result], callee, args, attrs)
-            return ConverterExpression(result, ConverterExpressionKind.ANY)
-        return ConverterExpression(r, ConverterExpressionKind.ANY)
+        callee, args, attrs = r
+        target = "tmp" if target is None else target
+        assert isinstance(target, str)
+        result = self.generate_unique_name(target)
+        self.emit([result], callee, args, attrs)
+        return Variable(result)
 
-    def translate_opt_expr(self, node: ast.expr) -> Optional[ConverterExpression]:
+    def translate_opt_expr(self, node: ast.expr) -> Optional[Variable]:
         """Translation of an expression where "None" is permitted (eg., for an optional argument).
         None is represented as a NameConstant in Python 3.7 and Constant in Python 3.9.
         """
@@ -563,7 +594,7 @@ class Converter:
 
     def translate_subscript_expr(
         self, node: ast.Subscript, target: Optional[PreferredName]
-    ) -> ConverterExpression:
+    ) -> Variable:
         """List of supported syntaxes is below.
         `A` is a tensor or an expression equivalent to a tensor.
 
@@ -696,7 +727,7 @@ class Converter:
         if not (sliced_indices or scalar_indices or non_scalar_indices):
             # Edge case: no index specified. Eg. A[:, :]
             self.emit([target], "Identity", [var_name])
-            return ConverterExpression(target)
+            return Variable(target)
         if sliced_indices or len(scalar_indices) > 1:
             # We emit a Slice operation if we have any indices like 1:5:2 or if the number of
             # scalar indices (like 2) is more than 1.
@@ -730,7 +761,7 @@ class Converter:
                 steps.append(inputs[2])
 
             if len(starts) > 1:
-                axis_0_attr = self.ir_builder.make_attr("axis", 0)
+                axis_0_attr = self.make_onnx_attr("axis", 0)
                 start_name = self.generate_unique_name(f"{var_name}_start")
                 self.emit([start_name], "Concat", starts, [axis_0_attr])
 
@@ -777,7 +808,7 @@ class Converter:
             last_axis, _ = non_scalar_indices[-1]
         for axis, index_expr in non_scalar_indices:
             index_value = self.translate_expr(index_expr)
-            axis_attr = self.ir_builder.make_attr("axis", axis)
+            axis_attr = self.make_onnx_attr("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
             if axis != last_axis:  # use temporary to store result of Gather
@@ -787,7 +818,7 @@ class Converter:
             self.emit([gathered], "Gather", [str(result), index_value], [axis_attr])
             result = gathered
 
-        return ConverterExpression(result)
+        return Variable(result)
 
     def translate_call_expr(self, node: ast.Call):
         """Translates a call-expression."""
@@ -801,7 +832,10 @@ class Converter:
                 param_schemas, node.args, kwargs, fill_defaults=False
             )
             args = [self.translate_opt_expr(x) for x in args]
-            attrs = [self.translate_attr(x, y) for x, y in attrs.items()]
+            attrs = [
+                self.translate_attr(x, y, callee.op_schema.attributes[x])
+                for x, y in attrs.items()
+            ]
         else:
             args = [self.translate_opt_expr(x) for x in node.args]
             attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
@@ -828,7 +862,7 @@ class Converter:
             # attribute fmod=1 is added in that case.
             cst = self.eval_constant_expr(node.right)
             if isinstance(cst, float):
-                attr = [self.ir_builder.make_attr("fmod", 1)]
+                attr = [self.make_onnx_attr("fmod", 1)]
 
         op = values.Op(self.default_opset, primop_map[op])
         left, right = self._cast_like_binary_expression(
@@ -880,13 +914,13 @@ class Converter:
         left, right = self._cast_like_binary_expression(op, left, right)
         if opname == "NotEqual":
             tmp = self.generate_unique_name()
-            self.emit([tmp], op, [left, right], [])
+            self.emit([tmp], op, [left, right])
             not_op = values.Op(self.default_opset, "Not")
             return not_op, [tmp], []
 
         return op, [left, right], []
 
-    def translate_name_expr(self, node: ast.Name) -> ConverterExpression:
+    def translate_name_expr(self, node: ast.Name) -> Variable:
         return self.py_var_to_onnx_var(node.id, self.source_of(node))
 
     # pylint: disable=inconsistent-return-statements
@@ -902,6 +936,7 @@ class Converter:
         else:
             self.fail(node, "Invalid opset expression.")
 
+    # pylint: enable=inconsistent-return-statements
     def translate_callee_expr(self, node: ast.AST) -> values.Op:  # pylint: disable=R1710
         """Return an Op"""
         if isinstance(node, ast.Attribute):
@@ -1075,11 +1110,11 @@ class Converter:
         thenGraph, sub_fct_then = self.translate_block(
             stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        thenAttr = self.ir_builder.make_attr("then_branch", thenGraph)
+        thenAttr = self.make_onnx_attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
             stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        elseAttr = self.ir_builder.make_attr("else_branch", elseGraph)
+        elseAttr = self.make_onnx_attr("else_branch", elseGraph)
 
         def rename(x):
             r = self.generate_unique_name(x)
@@ -1266,7 +1301,7 @@ class Converter:
             for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
-        attrs = [self.ir_builder.make_attr("body", graph)]
+        attrs = [self.make_onnx_attr("body", graph)]
         info = self.source_of(loop_stmt)
 
         def rename(x):

@@ -66,14 +66,18 @@ ValidTorchValueType: TypeAlias = Union[
 
 
 def _rename_intermediate_value(name: str) -> str:
+    """Prepend `_val_` to a numeric tensor name make it valid in ONNX.
+
+    The TorchScript graph creates numeric value names by default. e.g. `0`, `1`.
+    These are not legal ONNX tensor names, since ONNX requires the names to be valid
+    C variable names.
+
+    It also improves readability by making the names less likely to be confused
+    with shape values.
+    """
     if name.isdigit():
+        # Prefix with `_` to avoid name collision
         return f"_val_{name}"
-    return name
-
-
-def _rename_intermediate_constant(name: str) -> str:
-    if name.isdigit():
-        return f"_const_{name}"
     return name
 
 
@@ -85,6 +89,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._torch_value: torch.Value = value
         self._concrete_value: Optional[np.ndarray] = None
         self._shape: Optional[Tuple[int | None, ...]] = None
+        self._torch_dtype: Optional[torch.dtype] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
 
@@ -145,15 +150,19 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @property  # type: ignore[override]
     def dtype(self) -> torch.dtype | None:
         # TODO: Return numpy dtype
+        if self._torch_dtype is not None:
+            return self._torch_dtype
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         )
         if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
             return None
-        return torch_dtype.dtype()
+        self._torch_dtype = torch_dtype.dtype()
+        return self._torch_dtype
 
     @dtype.setter
     def dtype(self, dtype: torch.dtype):
+        self._torch_dtype = dtype
         self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
 
     @property
@@ -458,7 +467,7 @@ class TorchScriptGraph:
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
-            value.setDebugName(_rename_intermediate_constant(value.debugName()))
+            value.setDebugName(_rename_intermediate_value(value.debugName()))
             return value
 
         if isinstance(constant, bool):
@@ -486,7 +495,7 @@ class TorchScriptGraph:
             inputs=(),
             attributes=dict(value=constant_tensor),
         )[0]
-        value.setDebugName(_rename_intermediate_constant(value.debugName()))
+        value.setDebugName(_rename_intermediate_value(value.debugName()))
         return value
 
     @runtime_typing.checked

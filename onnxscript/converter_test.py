@@ -607,6 +607,54 @@ class TestConverter(testutils.TestBase):
 
         onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
 
+    def test_empty_ints_attribute(self):
+        @script()
+        def empty_ints():
+            return op.Constant(value_ints=[])
+
+        expected = np.array([], dtype=np.int64)
+        self.check_run(empty_ints, [], expected)
+
+    def test_empty_floats_attribute(self):
+        @script()
+        def empty_floats():
+            return op.Constant(value_floats=[])
+
+        expected = np.array([], dtype=np.float32)
+        self.check_run(empty_floats, [], expected)
+
+    def test_int_as_tensor_attribute(self):
+        @script()
+        def int_as_tensor():
+            return op.Constant(value=17)
+
+        expected = np.array(17, dtype=np.int64)
+        self.check_run(int_as_tensor, [], expected)
+
+    def test_int_list_as_tensor_attribute(self):
+        @script()
+        def int_list_as_tensor():
+            return op.Constant(value=[13, 17])
+
+        expected = np.array([13, 17], dtype=np.int64).reshape((2,))
+        self.check_run(int_list_as_tensor, [], expected)
+
+    def test_float_as_tensor_attribute(self):
+        @script()
+        def float_as_tensor():
+            return op.Constant(value=17.0)
+
+        expected = np.array([17], dtype=np.float32).reshape(())
+        self.check_run(float_as_tensor, [], expected)
+
+    def test_float_list_as_tensor_attribute(self):
+        @script()
+        def float_list_as_tensor():
+            return op.Constant(value=[13.0, 17.0])
+
+        expected = np.array([13, 17], dtype=np.float32).reshape((2,))
+        self.check_run(float_list_as_tensor, [], expected)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

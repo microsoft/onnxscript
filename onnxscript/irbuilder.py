@@ -523,8 +523,8 @@ class IRBuilder:
         var = IRVar(varname, typeinfo, sourceinfo)
         fn.append_output(var)
 
-    def make_attr(self, attrname: str, attrval: Any) -> IRAttributeValue:
-        return IRAttributeValue(helper.make_attribute(attrname, attrval))
+    def make_attr(self, attrproto: onnx.AttributeProto) -> IRAttributeValue:
+        return IRAttributeValue(attrproto)
 
     def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
         proto = onnx.AttributeProto()
