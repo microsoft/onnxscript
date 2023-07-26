@@ -2278,7 +2278,7 @@ def aten_embedding_bag(
     sparse: bool = False,  # pylint: disable=unused-argument
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-    padding_idx: int = -1,  # pylint: disable=unused-argument
+    padding_idx: int = None,
 ) -> TFloat:
     """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
 
@@ -2287,13 +2287,42 @@ def aten_embedding_bag(
         per_sample_weights = op.CastLike(per_sample_weights, weight)
 
     if len(indices.shape) == 1:  # 1d
-        return _aten_embedding_bag_1d_onnx(
-            weight, indices, offsets, mode, per_sample_weights, include_last_offset
-        )
+        if padding_idx is None or padding_idx not in indices:
+            return _aten_embedding_bag_1d_onnx(
+                weight, indices, offsets, mode, per_sample_weights, include_last_offset
+            )
+        else:
+            # Compute sections based on indices and offsets
+            sections, _ = _compute_sections(indices, offsets, include_last_offset, padding_idx)
+
+            return _aten_embedding_bag_1d_padding_idx_onnx(
+                weight, indices, mode, per_sample_weights, sections
+            )
     else:  # 2d
         # assert(len(indices.shape) == 2)
         # assert(indices.shape == per_sample_weights.shape)
         return _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights)
+
+def _compute_sections(indices, offsets, include_last_offset, padding_idx):
+    parts = len(offsets)
+    if include_last_offset is True:
+        parts = parts - 1
+        new_offsets = offsets
+    else:
+        new_offsets = list(offsets)
+        new_offsets.append(len(indices))
+    sections = []
+    for i in range(parts):
+        start = new_offsets[i]
+        end = new_offsets[i + 1]
+        section = []
+        for j in range(start, end):
+            if indices[j] != padding_idx:
+                section.append(indices[j])
+        sections.append(section)
+    print(sections)
+    print(new_offsets)
+    return sections, new_offsets
 
 
 @torch_op("aten::embedding_bag", private=True)
@@ -2353,6 +2382,21 @@ def _aten_embedding_bag_1d_onnx(
 
 
 @torch_op("aten::embedding_bag", private=True)
+def _aten_embedding_bag_1d_padding_idx_onnx(
+    weight: TFloat,
+    indices: INT64,
+    mode: int,
+    per_sample_weights: TFloat,
+    sections,
+
+) -> TFloat:
+
+    for i in range(3):
+        section = sections[i]
+    return op.Identity(weight)
+
+
+@torch_op("aten::embedding_bag", private=True)
 def _aten_embedding_bag_2d_onnx(
     weight: TFloat,
     indices: INT64,
@@ -2372,6 +2416,17 @@ def _aten_embedding_bag_2d_onnx(
 
     return result
 
+
+def test_aten_embedding_bag():
+    import numpy as np
+    weight = np.array([[0,0,0],[1,1,1],[2,2,2],[3,3,3],[4,4,4],[5,5,5],[6,6,6]]).astype(np.float32)
+    indices = np.array([0,1,2,4,5,6]).astype(np.int64)
+    offsets = np.array([0,1,3]).astype(np.int64)
+    padding_idx = 5
+    r = aten_embedding_bag(weight, indices, offsets, padding_idx=padding_idx, mode=0, include_last_offset=False)
+    print(r)
+test_aten_embedding_bag()
+exit(0)
 
 def aten_embedding_dense_backward(
     grad_output: TensorType,
