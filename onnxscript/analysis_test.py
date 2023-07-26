@@ -163,10 +163,10 @@ class TestExposedUses(unittest.TestCase):
         self.assertUses(f, {"x"})
 
 
-class TestDefAnalysis(unittest.TestCase):
+class TestAssignedVarAnalysis(unittest.TestCase):
     def assertDefs(self, f, expected: set[str]):
         source, parse_tree = ast_utils.get_src_and_ast(f)
-        result = analysis.defs(parse_tree.body, formatter(source))
+        result = analysis.assigned_vars(parse_tree.body, formatter(source))
         self.assertEqual(result, expected)
 
     def test_basic_defs(self):

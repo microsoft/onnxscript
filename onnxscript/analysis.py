@@ -37,10 +37,8 @@ def used_vars(expr: Optional[ast.expr]) -> Set[str]:
     return result
 
 
-def local_defs(lhs: ast.expr) -> Set[str]:
-    """Utility function to return set of assigned/defined
-    variables in the lhs of an assignment statement.
-    """
+def lhs_vars(lhs: ast.expr) -> Set[str]:
+    """Return set of assigned variables in the lhs of an assignment statement."""
 
     def get_id(e):
         assert isinstance(e, ast.Name), "Only simple assignments supported."
@@ -51,37 +49,39 @@ def local_defs(lhs: ast.expr) -> Set[str]:
     return {get_id(lhs)}
 
 
-def defs(stmt: ast.stmt | list[ast.stmt], formatter: sourceinfo.Formatter) -> Set[str]:
-    """Return the set of all variables that may be defined (assigned to) in an
-    execution of input stmt.
+def assigned_vars(
+    stmt: ast.stmt | list[ast.stmt], formatter: sourceinfo.Formatter
+) -> Set[str]:
+    """Return the set of all variables that may be assigned to in an execution of input stmt
+    or sequence of statements.
     """
 
-    def block_defs(block: Sequence[ast.stmt]) -> Set[str]:
+    def assigned_in_block(block: Sequence[ast.stmt]) -> Set[str]:
         result: set[Any] = set()
         for s in block:
-            result = result | defs(s, formatter)
+            result = result | assigned_vars(s, formatter)
         return result
 
     if isinstance(stmt, ast.Assign):
-        return local_defs(stmt.targets[0])
+        return lhs_vars(stmt.targets[0])
     if isinstance(stmt, ast.AnnAssign):
-        return local_defs(stmt.target)
+        return lhs_vars(stmt.target)
     if isinstance(stmt, ast.Return):
         return set()
     if isinstance(stmt, ast.If):
-        return block_defs(stmt.body) | block_defs(stmt.orelse)
+        return assigned_in_block(stmt.body) | assigned_in_block(stmt.orelse)
     if isinstance(stmt, ast.For):
-        return block_defs(stmt.body) | {get_loop_var(stmt, formatter)}
+        return assigned_in_block(stmt.body) | {get_loop_var(stmt, formatter)}
     if isinstance(stmt, ast.While):
-        return block_defs(stmt.body)
+        return assigned_in_block(stmt.body)
     if isinstance(stmt, list):
-        return block_defs(stmt)
+        return assigned_in_block(stmt)
     if isinstance(stmt, ast.Break):
         return set()
     if ast_utils.is_print_call(stmt):
         return set()
     if isinstance(stmt, list):
-        return block_defs(stmt)
+        return assigned_in_block(stmt)
     raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
 
 
@@ -104,9 +104,9 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
             return live_out
 
         if isinstance(stmt, ast.Assign):
-            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+            return live_out.difference(lhs_vars(stmt.targets[0])) | used_vars(stmt.value)
         if isinstance(stmt, ast.AnnAssign):
-            return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
+            return live_out.difference(lhs_vars(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
             return used_vars(stmt.value)
         if isinstance(stmt, ast.If):
@@ -176,9 +176,9 @@ def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
 
     def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
         if isinstance(stmt, ast.Assign):
-            return live_out.difference(local_defs(stmt.targets[0])) | used_vars(stmt.value)
+            return live_out.difference(lhs_vars(stmt.targets[0])) | used_vars(stmt.value)
         if isinstance(stmt, ast.AnnAssign):
-            return live_out.difference(local_defs(stmt.target)) | used_vars(stmt.value)
+            return live_out.difference(lhs_vars(stmt.target)) | used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
             return used_vars(stmt.value)
         if isinstance(stmt, ast.If):
