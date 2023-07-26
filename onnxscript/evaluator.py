@@ -432,6 +432,15 @@ def _call_ort(
     args = [_os_to_ort_value(x) for x in args]
     implicit_args = {k: _os_to_ort_value(v) for k, v in implicit_args.items()}
 
+    # Utility to convert kwarg to ONNX AttributeProto:
+    def make_attr(key: str, value: Any) -> onnx.AttributeProto:
+        def make_tensor_name() -> str:
+            return f"attr_{key}"
+
+        return autocast.pyvalue_to_onnx_attribute(
+            key, value, make_tensor_name, schema.attributes[key].type
+        )
+
     # Construct ONNX model with a single op call:
     inputs = [_rename_io("input", i, arg) for i, arg in enumerate(args)]
 
@@ -440,11 +449,7 @@ def _call_ort(
 
     node = onnx.helper.make_node(schema.name, inputs, outputs, domain=schema.domain)
     node.attribute.extend(
-        autocast.pyvalue_to_onnx_attribute(
-            key, value, lambda: f"attr_{key}", schema.attributes[key].type
-        )
-        for key, value in kwargs.items()
-        if value is not None
+        make_attr(key, value) for key, value in kwargs.items() if value is not None
     )
     input_value_infos = utils.values_to_value_infos(zip(inputs, args))
     implicit_value_infos = utils.values_to_value_infos(implicit_args.items())
