@@ -71,7 +71,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: Test Results (${{ matrix.name }})
+          name: Test Results (${{ matrix.name }}-${{ matrix.os }})
           path: pytest.xml
 
   build_docs:
