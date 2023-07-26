@@ -2293,10 +2293,10 @@ def aten_embedding_bag(
             )
         else:
             # Compute sections based on indices and offsets
-            sections, _ = _compute_sections(indices, offsets, include_last_offset, padding_idx)
+            new_indices, sections = _compute_sections(indices, offsets, include_last_offset, padding_idx)
 
             return _aten_embedding_bag_1d_padding_idx_onnx(
-                weight, indices, mode, per_sample_weights, sections
+                weight, new_indices, sections, mode, per_sample_weights
             )
     else:  # 2d
         # assert(len(indices.shape) == 2)
@@ -2311,18 +2311,20 @@ def _compute_sections(indices, offsets, include_last_offset, padding_idx):
     else:
         new_offsets = list(offsets)
         new_offsets.append(len(indices))
+    new_indices = []
     sections = []
     for i in range(parts):
         start = new_offsets[i]
         end = new_offsets[i + 1]
-        section = []
+        count = 0
         for j in range(start, end):
             if indices[j] != padding_idx:
-                section.append(indices[j])
-        sections.append(section)
+                new_indices.append(indices[j])
+                count += 1
+        sections.append(count)
+    print(new_indices)
     print(sections)
-    print(new_offsets)
-    return sections, new_offsets
+    return new_indices, sections
 
 
 @torch_op("aten::embedding_bag", private=True)
@@ -2384,11 +2386,10 @@ def _aten_embedding_bag_1d_onnx(
 @torch_op("aten::embedding_bag", private=True)
 def _aten_embedding_bag_1d_padding_idx_onnx(
     weight: TFloat,
-    indices: INT64,
+    new_indices: INT64,
+    sections: INT64,
     mode: int,
     per_sample_weights: TFloat,
-    sections,
-
 ) -> TFloat:
 
     for i in range(3):
