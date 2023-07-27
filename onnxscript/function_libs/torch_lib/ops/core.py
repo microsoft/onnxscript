@@ -5828,7 +5828,9 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
 
 
 @torch_op("aten::scalar_tensor")
-def aten_scalar_tensor_sym_number(s: Union[FLOAT, INT32, BOOL], dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+def aten_scalar_tensor_sym_number(
+    s: Union[FLOAT, INT32, BOOL], dtype: int = FLOAT.dtype
+) -> TTensor:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     return op.Cast(s, to=dtype)
