@@ -21,7 +21,7 @@ from onnxscript.onnx_types import TensorType
 
 
 @torch_op(
-    ("aten::_fft_c2c", "aten::_fft_c2r", "_fft_r2c"),
+    ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
     trace_only=True,
     private=True,
     complex=True,
