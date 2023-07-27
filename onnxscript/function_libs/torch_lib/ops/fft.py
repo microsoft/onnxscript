@@ -97,9 +97,10 @@ def aten__fft_c2r(
     # TODO(justinchuby): Figure out what last_dim_size does
 
     transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False)
+    # Take only the real part
+    real_part = op.Slice(transformed, axes=[-1], starts=[0], ends=[1])
 
-    # Remove the last dimension
-    return op.Squeeze(transformed, axes=[-1])
+    return op.Squeeze(real_part, axes=[-1])
 
 
 @torch_op("aten::_fft_r2c", trace_only=True)
@@ -115,6 +116,7 @@ def aten__fft_r2c(
     self = op.Unsqueeze(self, axes=[-1])
     # Append an all-zero imaginary part
     zeros = op.ConstantOfShape(op.Shape(self), value=0.0)
+    zeros = op.CastLike(zeros, self)
     signal = op.Concat(self, zeros, axis=-1)
 
     return _fftn_onnx(signal, dim, normalization, inverse=False, onesided=onesided)
