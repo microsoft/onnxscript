@@ -362,10 +362,18 @@ def _replication_pad3d_input_wrangler(
 def _roll_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    if len(args) >= 3 and isinstance(args[2], np.ndarray):
-        # Change dims from args to kwargs to keep tuple/list type
-        dims = args.pop(2)
-        kwargs["dims"] = dims.tolist()
+    if len(args) >= 3:
+        if isinstance(args[2], np.ndarray):  # convert dims to list[int]
+            # Change dims from args to kwargs to keep tuple/list type
+            dims = args.pop(2)
+            kwargs["dims"] = dims.tolist()
+        elif isinstance(args[2], int):  # convert dims to list[int]
+            dims = args.pop(2)
+            kwargs["dims"] = []
+            kwargs["dims"].append(dims)
+    if len(args) >= 2:
+        if isinstance(args[1], int):  # convert shift to tensor
+            args[1] = np.array([args[1]], dtype=np.int64)
     return args, kwargs
 
 

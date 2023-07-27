@@ -5705,12 +5705,8 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
         if isinstance(dims, tuple) and len(dims) == 0:  # Empty list
             # assert isinstance(shifts, int)
             return _aten_roll_shift_no_dim_onnx(self, shifts)
-        elif isinstance(shifts, int) and isinstance(dims, int):
-            return _aten_roll_shift_and_dim_onnx(self, shifts, dims)
         else:
-            # assert isinstance(shifts, np.ndarray)
-            # assert isinstance(dims, tuple)
-            # assert len(shifts) == len(dims)
+            # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
             result = self
             for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
                 shift = op.Gather(shifts, i, axis=0)
