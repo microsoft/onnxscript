@@ -20,26 +20,38 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-@torch_op("aten::_fft_c2c", trace_only=True)
-def aten__fft_c2c(
-    self: TFloat, dim: Sequence[int], normalization: int, forward: bool
+@torch_op(("aten::_fft_c2c", "_fft_r2c"), trace_only=True)
+def _fftn_onnx(
+    self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool
 ) -> TFloat:
-    """_fft_c2c(Tensor self, SymInt[] dim, int normalization, bool forward) -> Tensor"""
+    """_fft_c2c(Tensor self, SymInt[] dim, int normalization, bool forward) -> Tensor
 
-    # NOTE: trace_only because we need to
-    # 1. Process each dimension in a loop
-    # 2. Negate forward
+    Standard complex to complex FFT (forward or backward).
+
+    Args:
+        self: The input tensor.
+        dims: The dimensions to apply FFT.
+        normalization: The normalization mode.
+        inverse: Whether to compute the inverse FFT.
+        onesided: Whether to compute the one-sided FFT, which retains only the
+            positive frequencies.
+
+    Returns:
+        The transformed tensor.
+    """
+
+    # NOTE: trace_only because we need to process each dimension in a loop
     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
-    # TODO(justinchuby): Make dim dynamic with ONNX provides support
+    # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
 
     transformed = self
-    for dim_ in dim:
-        transformed = op.DFT(self, axis=dim_, inverse=not forward)
+    for dim_ in dims:
+        transformed = op.DFT(transformed, axis=dim_, inverse=inverse, onesided=onesided)
 
     # Obtain the total_sample_count (n) for normalization
     total_sample_count = op.Constant(value_int=1)
     self_shape = op.Shape(self)
-    for dim_ in dim:
+    for dim_ in dims:
         total_sample_count = op.Mul(total_sample_count, self_shape[dim_])
 
     total_sample_count = op.CastLike(total_sample_count, transformed)
@@ -58,20 +70,53 @@ def aten__fft_c2c(
     return result
 
 
+@torch_op("aten::_fft_c2c", trace_only=True)
+def aten__fft_c2c(
+    self: TFloat, dim: Sequence[int], normalization: int, forward: bool
+) -> TFloat:
+    """_fft_c2c(Tensor self, SymInt[] dim, int normalization, bool forward) -> Tensor
+
+    Standard complex to complex FFT (forward or backward).
+    """
+
+    # NOTE: trace_only because we need to negate forward
+    # NOTE: SymInt dim is not support because DFT-17 needs a static axis
+    # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
+    return _fftn_onnx(self, dim, normalization, inverse=not forward, onesided=False)
+
+
 def aten__fft_c2r(
     self: TFloat, dim: Sequence[int], normalization: int, last_dim_size: INT64
 ) -> TFloat:
-    """_fft_c2r(Tensor self, int[] dim, int normalization, SymInt last_dim_size) -> Tensor"""
+    """_fft_c2r(Tensor self, int[] dim, int normalization, SymInt last_dim_size) -> Tensor
 
-    raise NotImplementedError()
+    Complex to real inverse FFT.
+    """
+
+    # TODO(justinchuby): Figure out what last_dim_size does
+
+    transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False)
+
+    # Remove the last dimension
+    return op.Squeeze(transformed, axes=[-1])
 
 
+@torch_op("aten::_fft_r2c", trace_only=True)
 def aten__fft_r2c(
     self: TFloat, dim: Sequence[int], normalization: int, onesided: bool
 ) -> TFloat:
-    """_fft_r2c(Tensor self, int[] dim, int normalization, bool onesided) -> Tensor"""
+    """_fft_r2c(Tensor self, int[] dim, int normalization, bool onesided) -> Tensor
 
-    raise NotImplementedError()
+    Real to complex forward FFT.
+    """
+
+    # Add a new dimension at the end
+    self = op.Unsqueeze(self, axes=[-1])
+    # Append an all-zero imaginary part
+    zeros = op.ConstantOfShape(op.Shape(self), value=0.0)
+    signal = op.Concat(self, zeros, axis=-1)
+
+    return _fftn_onnx(signal, dim, normalization, inverse=False, onesided=onesided)
 
 
 def aten_fft_fft(
