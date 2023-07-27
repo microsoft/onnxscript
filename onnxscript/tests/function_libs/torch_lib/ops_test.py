@@ -187,7 +187,7 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i != 5: continue
+            #if i != 5: continue
             test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample, dtype)
 
             with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):

@@ -2418,16 +2418,16 @@ def _aten_embedding_bag_2d_onnx(
     return result
 
 
-def test_aten_embedding_bag():
-    import numpy as np
-    weight = np.array([[0,0,0],[1,1,1],[2,2,2],[3,3,3],[4,4,4],[5,5,5],[6,6,6]]).astype(np.float32)
-    indices = np.array([0,1,2,4,5,6]).astype(np.int64)
-    offsets = np.array([0,1,3]).astype(np.int64)
-    padding_idx = 5
-    r = aten_embedding_bag(weight, indices, offsets, padding_idx=padding_idx, mode=0, include_last_offset=False)
-    print(r)
-test_aten_embedding_bag()
-exit(0)
+# def test_aten_embedding_bag():
+#     import numpy as np
+#     weight = np.array([[0,0,0],[1,1,1],[2,2,2],[3,3,3],[4,4,4],[5,5,5],[6,6,6]]).astype(np.float32)
+#     indices = np.array([0,1,2,4,5,6]).astype(np.int64)
+#     offsets = np.array([0,1,3]).astype(np.int64)
+#     padding_idx = 5
+#     r = aten_embedding_bag(weight, indices, offsets, padding_idx=padding_idx, mode=0, include_last_offset=False)
+#     print(r)
+# test_aten_embedding_bag()
+# exit(0)
 
 def aten_embedding_dense_backward(
     grad_output: TensorType,
