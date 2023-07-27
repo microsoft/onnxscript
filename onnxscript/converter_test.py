@@ -17,6 +17,7 @@ import warnings
 import numpy as np
 import onnx
 import onnxruntime as ort
+import pytest
 from onnxruntime.capi.onnxruntime_pybind11_state import (
     Fail,
     InvalidArgument,
@@ -266,7 +267,7 @@ class TestConverter(testutils.TestBase):
 
         self.validate_save(renaming, shape_inference=False)
 
-    @unittest.skip(reason="TypeError: val must be numeric not <class 'NoneType'>")
+    @pytest.mark.xfail(strict=True, reason="default_opset must be specified in script for functions that do not contain any use of an ONNX op")
     def test_opt_output(self):
         from onnxscript.tests.models import opt_output
 

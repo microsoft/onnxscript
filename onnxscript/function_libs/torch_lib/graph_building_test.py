@@ -9,12 +9,10 @@ import torch
 import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, evaluator
-from onnxscript import opset17 as op
-from onnxscript._internal import version_utils
+from onnxscript import opset18 as op
 from onnxscript.function_libs.torch_lib import graph_building, ops
 
 
-@unittest.skipIf(version_utils.torch_older_than("2.0"), "torchscript in 1.13 not supported")
 class TestTorchScriptTracingEvaluator(unittest.TestCase):
     def setUp(self):
         self.opset_version = 18
