@@ -5726,7 +5726,8 @@ def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: INT64) -> TTensor:
         # For [A,B,C,D], if shift is -1, slice_length = -(-1) = 1, means move [A] to the end
         slice_length = -shift_tensor
     else:
-        # For [A,B,C,D], if shift is 1, slice_length = 5 - 1 = 4, means move [D] to the beginning
+        # For [A,B,C,D], if shift is 1, slice_length = 4 - 1 = 3, means move [A,B,C] to the end
+        # The effect equals to move [D] to the beginning
         slice_length = op.Size(self_flatten) - shift_tensor
     # Get second part of the tensor, e.g. [A,B,C]
     suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
