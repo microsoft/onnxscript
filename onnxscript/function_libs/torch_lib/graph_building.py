@@ -651,11 +651,7 @@ class TorchScriptGraph:
             keep_initializers_as_inputs=False,
             custom_opsets={},
             add_node_names=True,
-            # TODO(wechi): Passing in this instead of reading from env.
-            # User must put the exported model file in the same folder to launch ORT.
-            onnx_file_path=os.path.join(
-                os.getenv("EXTERNAL_ONNX_INITIALIZER_FOLDER", ""), "dummy_model_path.onnx"
-            ),
+            onnx_file_path="",
             node_attr_to_name={},  # Current module as function feature does not utilize attributes.
         )
 
@@ -703,7 +699,11 @@ class TorchScriptGraph:
             keep_initializers_as_inputs=False,
             custom_opsets={},
             add_node_names=True,
-            onnx_file_path="",
+            # TODO(wechi): Passing in this instead of reading from env.
+            # User must put the exported model file in the same folder to launch ORT.
+            onnx_file_path=os.path.join(
+                os.getenv("EXTERNAL_ONNX_INITIALIZER_FOLDER", ""), "dummy_model_path.onnx"
+            ),
             node_attr_to_name={},
         )
 
