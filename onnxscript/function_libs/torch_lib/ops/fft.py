@@ -85,6 +85,7 @@ def aten__fft_c2c(
     return _fftn_onnx(self, dim, normalization, inverse=not forward, onesided=False)
 
 
+@torch_op("aten::_fft_c2r", trace_only=True)
 def aten__fft_c2r(
     self: TFloat, dim: Sequence[int], normalization: int, last_dim_size: INT64
 ) -> TFloat:
