@@ -5020,7 +5020,8 @@ def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
 @torch_op("aten::nonzero")
 def aten_nonzero(self: TTensor) -> INT64:
     """nonzero(Tensor self) -> Tensor"""
-
+    # NOTE: In torch the return shape is [n, d], while in onnx [d, n],
+    # where `d` is rank of input tensor, `n` is number of nonzero elements.
     return op.Transpose(op.NonZero(self), perm=[1, 0])
 
 

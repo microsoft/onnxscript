@@ -1023,7 +1023,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="Output 'shape' do not match: torch.Size([0, 1]) != torch.Size([0, 0]).",
+        reason="fixme: output 'shape' do not match: torch.Size([0, 1]) != torch.Size([0, 0]).",
     ),
     TorchLibOpInfo(
         "normal",
