@@ -5021,7 +5021,7 @@ def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
 def aten_nonzero(self: TTensor) -> INT64:
     """nonzero(Tensor self) -> Tensor"""
 
-    return op.NonZero(self)
+    return op.Transpose(op.NonZero(self), perm=[1, 0])
 
 
 def aten_nonzero_numpy(self: TensorType) -> TensorType:
@@ -6546,6 +6546,11 @@ def aten_tensor_float(self: float, dtype: int) -> TensorType:
 def aten_tensor_int(self: int, dtype: int) -> TensorType:
     tensor = op.Constant(value_int=self)
     return op.Cast(tensor, to=dtype)
+
+
+@torch_op(("aten::tensor.bool", "aten::tensor.float", "aten::tensor.int"))
+def aten_tensor_sym_number(self: Union[FLOAT, INT32, BOOL], dtype: int) -> TensorType:
+    return op.Cast(self, to=dtype)
 
 
 def aten_tensordot(

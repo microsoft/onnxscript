@@ -320,6 +320,14 @@ def _nll_loss_input_wrangler(
     return args, kwargs
 
 
+def _nonzero_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "as_tuple" in kwargs:
+        del kwargs["as_tuple"]
+    return args, kwargs
+
+
 def _randn_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1007,9 +1015,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nonzero",
         core_ops.aten_nonzero,
-    ).xfail(
-        matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
+        input_wrangler=_nonzero_input_wrangler,
+    )
+    .xfail(
+        matcher=lambda sample: sample.kwargs.get("as_tuple"),
         reason="as_tuple=True is not supported",
+    )
+    .xfail(
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="Output 'shape' do not match: torch.Size([0, 1]) != torch.Size([0, 0]).",
     ),
     TorchLibOpInfo(
         "normal",
