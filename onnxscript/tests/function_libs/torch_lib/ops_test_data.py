@@ -385,6 +385,14 @@ def _roll_input_wrangler(
     return args, kwargs
 
 
+def _scalar_tensor_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "requires_grad" in kwargs:
+        del kwargs["requires_grad"]
+    return args, kwargs
+
+
 def _scatter_reduce_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1102,7 +1110,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
-    # TorchLibOpInfo("scalar_tensor", core_ops.aten_scalar_tensor),  # no test case in OPS_DB
+    TorchLibOpInfo(
+        "scalar_tensor",
+        core_ops.aten_scalar_tensor,
+        input_wrangler=_scalar_tensor_input_wrangler,
+    ),
     TorchLibOpInfo(
         "scatter_add",
         core_ops.aten_scatter_add,

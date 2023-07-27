@@ -5827,6 +5827,13 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
     return op.Cast(s, to=dtype)
 
 
+@torch_op("aten::scalar_tensor")
+def aten_scalar_tensor_sym_number(s: Union[FLOAT, INT32, BOOL], dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
+    return op.Cast(s, to=dtype)
+
+
 @torch_op("aten::scatter_add")
 def aten_scatter_add(
     self: TReal,
@@ -6547,11 +6554,6 @@ def aten_tensor_float(self: float, dtype: int) -> TensorType:
 def aten_tensor_int(self: int, dtype: int) -> TensorType:
     tensor = op.Constant(value_int=self)
     return op.Cast(tensor, to=dtype)
-
-
-@torch_op(("aten::tensor.bool", "aten::tensor.float", "aten::tensor.int"))
-def aten_tensor_sym_number(self: Union[FLOAT, INT32, BOOL], dtype: int) -> TensorType:
-    return op.Cast(self, to=dtype)
 
 
 def aten_tensordot(
