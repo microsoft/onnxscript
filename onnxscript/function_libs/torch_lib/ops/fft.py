@@ -24,7 +24,7 @@ from onnxscript.onnx_types import TensorType
 def _fftn_onnx(
     self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool
 ) -> TFloat:
-    """Standard complex to complex FFT (forward or backward).
+    """Standard complex to complex or real to complex FFT (forward or backward).
 
     This is a private shared function for implementing the various FFT functions.
 
@@ -114,10 +114,7 @@ def aten__fft_r2c(
 
     # Add a new dimension at the end
     self = op.Unsqueeze(self, axes=[-1])
-    # Append an all-zero imaginary part
-    zeros = op.ConstantOfShape(op.Shape(self), value=0.0)
-    zeros = op.CastLike(zeros, self)
-    signal = op.Concat(self, zeros, axis=-1)
+    # No need to fill the imaginary part because ONNX DFT accepts real inputs
 
     return _fftn_onnx(signal, dim, normalization, inverse=False, onesided=onesided)
 
