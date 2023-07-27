@@ -13,7 +13,65 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from onnxscript import INT64
+from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+
+@torch_op("aten::_fft_c2c", trace_only=True)
+def aten__fft_c2c(
+    self: TFloat, dim: Sequence[int], normalization: int, forward: bool
+) -> TFloat:
+    """_fft_c2c(Tensor self, SymInt[] dim, int normalization, bool forward) -> Tensor"""
+
+    # NOTE: trace_only because we need to
+    # 1. Process each dimension in a loop
+    # 2. Negate forward
+    # NOTE: SymInt dim is not support because DFT-17 needs a static axis
+    # TODO(justinchuby): Make dim dynamic with ONNX provides support
+
+    transformed = self
+    for dim_ in dim:
+        transformed = op.DFT(self, axis=dim_, inverse=not forward)
+
+    # Obtain the total_sample_count (n) for normalization
+    total_sample_count = op.Constant(value_int=1)
+    self_shape = op.Shape(self)
+    for dim_ in dim:
+        total_sample_count = op.Mul(total_sample_count, self_shape[dim_])
+
+    total_sample_count = op.CastLike(total_sample_count, transformed)
+    # Normalize the result
+    # Reference https://pytorch.org/docs/stable/generated/torch.fft.fftn.html#torch.fft.fftn
+    if normalization == 1:
+        # forward - normalize by 1/2
+        result = op.Div(transformed, total_sample_count)
+    elif normalization == 2:
+        # backward - no normalization
+        result = transformed
+    else:  # normalization == 3:
+        # ortho - normalize by 1/sqrt(n)
+        result = op.Div(transformed, op.Sqrt(total_sample_count))
+
+    return result
+
+
+def aten__fft_c2r(
+    self: TFloat, dim: Sequence[int], normalization: int, last_dim_size: INT64
+) -> TFloat:
+    """_fft_c2r(Tensor self, int[] dim, int normalization, SymInt last_dim_size) -> Tensor"""
+
+    raise NotImplementedError()
+
+
+def aten__fft_r2c(
+    self: TFloat, dim: Sequence[int], normalization: int, onesided: bool
+) -> TFloat:
+    """_fft_r2c(Tensor self, int[] dim, int normalization, bool onesided) -> Tensor"""
+
+    raise NotImplementedError()
 
 
 def aten_fft_fft(
