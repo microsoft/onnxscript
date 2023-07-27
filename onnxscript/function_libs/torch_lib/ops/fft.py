@@ -118,7 +118,7 @@ def aten__fft_r2c(
     """
 
     # Add a new dimension at the end
-    self = op.Unsqueeze(self, axes=[-1])
+    signal = op.Unsqueeze(self, axes=[-1])
     # No need to fill the imaginary part because ONNX DFT accepts real inputs
     # https://onnx.ai/onnx/operators/onnx__DFT.html#inputs
 
