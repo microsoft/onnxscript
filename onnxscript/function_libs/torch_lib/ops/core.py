@@ -5692,12 +5692,66 @@ def aten_rnn_tanh_cell(
     raise NotImplementedError()
 
 
-def aten_roll(
-    self: TensorType, shifts: Sequence[int], dims: Optional[Sequence[int]] = None
-) -> TensorType:
+@torch_op("aten::roll", trace_only=True)
+def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
-    raise NotImplementedError()
+    self_rank = len(self.shape)
+    if self_rank == 0:
+        return self
+    elif self.shape[0] == 0:  # empty tensor
+        return self
+    else:
+        if isinstance(dims, tuple) and len(dims) == 0:  # Empty list
+            # assert isinstance(shifts, int)
+            return _aten_roll_shift_no_dim_onnx(self, shifts)
+        else:
+            # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
+            result = self
+            for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
+                shift = op.Gather(shifts, i, axis=0)
+                dim = dims[i]
+                result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
+            return result
+
+
+@torch_op("aten::roll", private=True)
+def _aten_roll_shift_no_dim_onnx(self: TTensor, shift: INT64) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    # flatten the self tensor: from [[A,B],[C,D]] to [A,B,C,D]
+    self_flatten = op.Reshape(self, neg_1)
+    # Compute slice length
+    shift_tensor = op.Reshape(shift, neg_1)
+    if shift_tensor < 0:
+        # For [A,B,C,D], if shift is -1, slice_length = -(-1) = 1, means move [A] to the end
+        slice_length = -shift_tensor
+    else:
+        # For [A,B,C,D], if shift is 1, slice_length = 4 - 1 = 3, means move [A,B,C] to the end
+        # The effect equals to move [D] to the beginning
+        slice_length = op.Size(self_flatten) - shift_tensor
+    # Get second part of the tensor, e.g. [A,B,C]
+    suffix = op.Slice(self_flatten, op.Constant(value_ints=[0]), slice_length)
+    # Get first part of the tensor, e.g. [D]
+    prefix = op.Slice(self_flatten, slice_length, op.Reshape(op.Size(self_flatten), neg_1))
+    # Concat first+second together, e.g. [D,A,B,C]
+    result = op.Concat(prefix, suffix, axis=0)
+    return op.Reshape(result, op.Shape(self))
+
+
+@torch_op("aten::roll", private=True)
+def _aten_roll_shift_and_dim_onnx(self: TTensor, shift: INT64, dim: int) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
+    shift_tensor = op.Reshape(shift, neg_1)
+    if shift_tensor < 0:
+        slice_length = -shift_tensor
+    else:
+        slice_length = op.Gather(op.Shape(self), dim_tensor, axis=0) - shift_tensor
+    # from [A,B,C,D] -> [D,A,B,C], [D] is prefix, [A,B,C] is suffix
+    suffix = op.Slice(self, op.Constant(value_ints=[0]), slice_length, axes=dim_tensor)
+    prefix = op.Slice(self, slice_length, op.Reshape(op.Size(self), neg_1), axes=dim_tensor)
+    result = op.Concat(prefix, suffix, axis=dim)
+    return result
 
 
 def aten_rot90(self: TensorType, k: int = 1, dims: Sequence[int] = (0, 1)) -> TensorType:
