@@ -64,6 +64,50 @@ def pyvalue_to_onnx_tensor(tensor_name: str, pyvalue):
     return helper.make_tensor(tensor_name, onnx_type, [], [pyvalue])
 
 
+_REPEATED_ATTRIBUTE_TYPES = frozenset(
+    {
+        onnx.AttributeProto.FLOATS,
+        onnx.AttributeProto.INTS,
+        onnx.AttributeProto.STRINGS,
+        onnx.AttributeProto.TENSORS,
+        onnx.AttributeProto.GRAPHS,
+        onnx.AttributeProto.SPARSE_TENSORS,
+        onnx.AttributeProto.TYPE_PROTOS,
+    }
+)
+
+
+def pyvalue_to_onnx_attribute(
+    key: str,
+    value: Any,
+    name_generator: Callable[[], str],
+    attr_type: Optional[onnx.AttributeProto.AttributeType] = None,
+) -> onnx.AttributeProto:
+    """Helper function to create an ONNX AttributeProto.
+
+    This is a refinement of onnx.helper.make_attribute that works with ONNX Script
+    conventions for allowed types for attribute-values. In particular, it allows
+    * Empty lists as attribute values, provided the attribute type is specified
+    and is a list type.
+    * Scalar-values like 1.0 as well as lists like [1, -1] to be specified
+    when the attribute type is TensorProto by automatically converting the value
+    into a 0-D or 1-D tensor respectively.
+    """
+    if isinstance(value, list) and not value:
+        # Empty list value:
+        if attr_type is None:
+            raise ValueError("Attribute type must be specified for empty list value.")
+        if attr_type not in _REPEATED_ATTRIBUTE_TYPES:
+            raise ValueError("Empty list value is only allowed for repeated attribute types.")
+        return onnx.AttributeProto(name=key, type=attr_type)
+    elif attr_type == onnx.AttributeProto.TENSOR and not isinstance(value, onnx.TensorProto):
+        return onnx.AttributeProto(
+            name=key, type=attr_type, t=pyvalue_to_onnx_tensor(name_generator(), value)
+        )
+    else:
+        return onnx.helper.make_attribute(key, value)
+
+
 # Utilities to convert python values into onnxscript tensors.
 
 

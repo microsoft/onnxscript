@@ -89,6 +89,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._torch_value: torch.Value = value
         self._concrete_value: Optional[np.ndarray] = None
         self._shape: Optional[Tuple[int | None, ...]] = None
+        self._torch_dtype: Optional[torch.dtype] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
 
@@ -149,15 +150,19 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @property  # type: ignore[override]
     def dtype(self) -> torch.dtype | None:
         # TODO: Return numpy dtype
+        if self._torch_dtype is not None:
+            return self._torch_dtype
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         )
         if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
             return None
-        return torch_dtype.dtype()
+        self._torch_dtype = torch_dtype.dtype()
+        return self._torch_dtype
 
     @dtype.setter
     def dtype(self, dtype: torch.dtype):
+        self._torch_dtype = dtype
         self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
 
     @property
