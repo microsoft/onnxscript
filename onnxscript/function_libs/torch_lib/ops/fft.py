@@ -92,7 +92,10 @@ def aten__fft_c2c(
 
 @torch_op("aten::_fft_c2r", trace_only=True, complex=True)
 def aten__fft_c2r(
-    self: TFloat, dim: Sequence[int], normalization: int, last_dim_size: INT64
+    self: TFloat,
+    dim: Sequence[int],
+    normalization: int,
+    last_dim_size: INT64,  # pylint: disable=unused-argument
 ) -> TFloat:
     """_fft_c2r(Tensor self, int[] dim, int normalization, SymInt last_dim_size) -> Tensor
 
