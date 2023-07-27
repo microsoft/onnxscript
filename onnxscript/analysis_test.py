@@ -164,7 +164,7 @@ class TestExposedUses(unittest.TestCase):
 
 
 class TestAssignedVarAnalysis(unittest.TestCase):
-    def assertDefs(self, f, expected: set[str]):
+    def assert_assigned_vars(self, f, expected: set[str]):
         source, parse_tree = ast_utils.get_src_and_ast(f)
         result = analysis.assigned_vars(parse_tree.body, formatter(source))
         self.assertEqual(result, expected)
@@ -175,7 +175,7 @@ class TestAssignedVarAnalysis(unittest.TestCase):
             y = x + 2
             return y
 
-        self.assertDefs(f, {"x", "y"})
+        self.assert_assigned_vars(f, {"x", "y"})
 
     def test_if_defs(self):
         def f(x):
@@ -187,7 +187,7 @@ class TestAssignedVarAnalysis(unittest.TestCase):
                 z = 3 * t
             return z
 
-        self.assertDefs(f, {"z", "y", "t"})
+        self.assert_assigned_vars(f, {"z", "y", "t"})
 
     def test_loop_defs(self):
         def f(x):
@@ -198,7 +198,7 @@ class TestAssignedVarAnalysis(unittest.TestCase):
                 sum = sum + square
             return sum
 
-        self.assertDefs(f, {"sum", "x", "square"})
+        self.assert_assigned_vars(f, {"sum", "x", "square"})
 
     def test_if_loop_defs(self):
         def f(x):
@@ -212,7 +212,7 @@ class TestAssignedVarAnalysis(unittest.TestCase):
                 sum = 0
             return sum
 
-        self.assertDefs(f, {"sum", "x", "square"})
+        self.assert_assigned_vars(f, {"sum", "x", "square"})
 
 
 if __name__ == "__main__":
