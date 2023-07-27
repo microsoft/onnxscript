@@ -66,7 +66,7 @@ class OnnxScriptCodeGenerator(CstCodeGenerator):
         model_local_functions = [
             self.translate_function_proto(func) for func in model_proto.functions
         ]
-        model_main_function = self.__make_function(model_proto.graph, "script")
+        model_main_function = self.translate_graph_proto(model_proto.graph, "script")
 
         return cst.Module(
             body=[
@@ -377,6 +377,7 @@ class OnnxToPythonOperatorTransformer(OnnxScriptTransformer):
 
         pynode = pynode_type()
 
+        # NOTE: So we need to collapse the consecutive add etc here.
         if (is_binary := isinstance(pynode, cst.BaseBinaryOp)) or isinstance(
             pynode, cst.BaseBooleanOp
         ):
@@ -436,6 +437,7 @@ class OnnxConstantOpToPythonConstantTransformer(OnnxScriptTransformer):
                 return updated_node
 
         # Constant(value_(int|float|string)s?=...)
+        # NOTE: Why not return the updated node here?
         return value_expr
 
     def __transform_value_make_tensor(
