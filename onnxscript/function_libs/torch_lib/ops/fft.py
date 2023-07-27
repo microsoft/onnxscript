@@ -20,7 +20,12 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
 
-@torch_op(("aten::_fft_c2c", "_fft_r2c"), trace_only=True, private=True, complex=True)
+@torch_op(
+    ("aten::_fft_c2c", "aten::_fft_c2r", "_fft_r2c"),
+    trace_only=True,
+    private=True,
+    complex=True,
+)
 def _fftn_onnx(
     self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool
 ) -> TFloat:
