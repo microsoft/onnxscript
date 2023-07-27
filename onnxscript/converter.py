@@ -1102,9 +1102,11 @@ class Converter:
 
     def translate_if_stmt(self, stmt: ast.If) -> None:
         if hasattr(stmt, "live_out"):
-            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+            live_defs = list(
+                stmt.live_out.intersection(analysis.assigned_vars(stmt, self.message))
+            )
         else:
-            live_defs = list(analysis.defs(stmt))
+            live_defs = list(analysis.assigned_vars(stmt, self.message))
         test = self.translate_expr(stmt.test, "cond").name
         lineno = self.source_of(stmt).lineno
         thenGraph, sub_fct_then = self.translate_block(
@@ -1183,7 +1185,7 @@ class Converter:
             self.fail(loop_stmt, f"Unexpected loop type {type(loop_stmt)!r}.")
         # analyze loop body
         exposed_uses = analysis.exposed_uses(loop_stmt.body, self.message)
-        vars_def_in_loop = analysis.defs(loop_stmt.body)
+        vars_def_in_loop = analysis.assigned_vars(loop_stmt.body, self.message)
         loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
