@@ -47,7 +47,7 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
 
     @pytest.mark.xfail(
         strict=True,
-        reason="Clip has optional input min and max. Need to find out how to pass default min and max to the test case executor."
+        reason="Clip has optional input min and max. Need to find out how to pass default min and max to the test case executor.",
     )
     def test_onnxfns_hard_clip(self):
         self.run_onnx_test(onnxfns1A.Clip)
