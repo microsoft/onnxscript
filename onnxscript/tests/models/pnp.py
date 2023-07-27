@@ -78,9 +78,8 @@ def extend_roi_indices(roi_indices: INT64["roi_D", "roi_H", "roi_W", 3], seg_C: 
     zero = op.Constant(value_int=0)
     one = op.Constant(value_int=1)
     one_ = op.Constant(value_ints=[1])
-    roi_D, roi_H, roi_W, _ = op.Split(op.Shape(roi_indices), num_outputs=4)
-    shape_1_seg_C_roi_D_H_W_1 = op.Concat(one_, seg_C, roi_D, roi_H, roi_W, one_, axis=0)
-    zeros_1_seg_C_D_H_W_1 = op.Cast(op.ConstantOfShape(shape_1_seg_C_roi_D_H_W_1), to=INT64.dtype) # seg_C, roi_D, roi_H, roi_W, 1
+    shape_1_seg_C_roi_D_H_W_1 = op.Concat(one_, seg_C, op.Shape(roi_indices, end=3), one_, axis=0)
+    zeros_1_seg_C_D_H_W_1 = op.ConstantOfShape(shape_1_seg_C_roi_D_H_W_1, value=make_tensor("zerof", TensorProto.INT64, [1], [0])) # seg_C, roi_D, roi_H, roi_W, 1
 
     seg_indices = op.Range(zero, seg_C, one)
     seg_indices_unsqueezed = op.Unsqueeze(seg_indices, op.Constant(value_ints=[0, 2, 3, 4, 5])) # 1, seg_C, 1, 1, 1, 1
@@ -129,7 +128,7 @@ def roi_indices_3d(start: INT64[3], stop: INT64[3], step: INT64[3]) -> (INT64["r
     return indices, roi_shape
 
 @script()
-def aggrregate_predictor_output(
+def aggregate_predictor_output(
     pred: FLOAT["N", "seg_C", "roi_D", "roi_H", "roi_W"],
     start: INT64[3],
     stop: INT64[3],
@@ -176,6 +175,20 @@ def predict_mock_2(inputs: FLOAT["N", 1, "roi_D", "roi_H", "roi_W"]) -> FLOAT["N
     return c
 
 @script()
+def range_with_limit(image_W: INT64, W: INT64, step_W: INT64) -> INT64["N"]:
+    """
+    This function is used to adjust the last element of the grid to avoid overflow.
+    """
+    if W * step_W > image_W:
+        grid_w_0 = op.Range(0, (W  - 1) * step_W, step_W)
+        last = image_W - step_W
+        grid_w_0 = op.Concat(grid_w_0, last, axis=0)
+    else:
+        grid_w_0 = op.Range(0, W * step_W, step_W)
+    return grid_w_0
+    
+
+@script()
 def dense_patch_slices_script(image_size: INT64[3], patch_size: INT64[3], scan_interval: INT64[3]) -> INT64["N", 3, 2]:
     """
     Enumerate all slices defining ND patches of size `patch_size` from an `image_size` input image.
@@ -184,19 +197,18 @@ def dense_patch_slices_script(image_size: INT64[3], patch_size: INT64[3], scan_i
     D, H, W = op.Split(scan_num, num_outputs=3)
     step_D, step_H, step_W = op.Split(scan_interval, num_outputs=3)
     zeros_D_H_W = op.CastLike(op.ConstantOfShape(scan_num), image_size)
-    
-    grid_w_0 = op.Range(0, W * step_W, step_W)
+
+    image_D, image_H, image_W = op.Split(image_size, num_outputs=3)
+    grid_w_0 = range_with_limit(image_W, W, step_W)
     grid_w = grid_w_0 + zeros_D_H_W
 
-    grid_h_0 = op.Range(0, H * step_H, step_H)
-    zeros_D_W_H = op.Transpose(zeros_D_H_W, perm=[0, 2, 1])
-    grid_h_1 = zeros_D_W_H + grid_h_0
-    grid_h = op.Transpose(grid_h_1, perm=[0, 2, 1])
+    grid_h_0 = range_with_limit(image_H, H, step_H)
+    grid_h_1 = op.Unsqueeze(grid_h_0, op.Constant(value_ints=[1]))
+    grid_h = grid_h_1 + zeros_D_H_W
 
-    grid_d_0 = op.Range(0, D * step_D, step_D)
-    zeros_H_W_D = op.Transpose(zeros_D_H_W, perm=[1, 2, 0])
-    grid_d_1 = zeros_H_W_D + grid_d_0
-    grid_d = op.Transpose(grid_d_1, perm=[2, 0, 1])
+    grid_d_0 = range_with_limit(image_D, D, step_D)
+    grid_d_1 = op.Unsqueeze(grid_d_0, op.Constant(value_ints=[1, 2]))
+    grid_d = grid_d_1 + zeros_D_H_W
                         
     original_grid_start_seq = op.SequenceConstruct(grid_d, grid_h, grid_w)
     original_grid_start_stack = op.ConcatFromSequence(original_grid_start_seq, axis=-1, new_axis=1)  # [D, H, W, 3]
@@ -228,35 +240,30 @@ def prepare_for_predictor_batch_size_is_1_script(inputs: FLOAT["N", 1, "D", "H",
     return win_data, start, stop
 
 @script()
-def sliding_window_inference(inputs: FLOAT["N", 1, "D", "H", "W"], roi_size: INT64[3]) -> FLOAT["N", "Seg_C", "D", "H", "W"]:
+def sliding_window_inference(inputs: FLOAT["N", "C", "D", "H", "W"], roi_size: INT64[3]) -> FLOAT["N", "Seg_C", "D", "H", "W"]:
     """
-    for simplicity, we assume that the step size is the same as the roi size. D/H/W are multiple of roi_size in 3 dimensions,
-    no overlay, no padding. weight is 1.
-    TODOs: sw_batch_size > 1, roi_size is not multiple of D/H/W, overlay, padding, weight is not 1.
+    The sliding window method is used for model inference. It involves taking a 3D sliding window on the input tensor
+    and making predictions using a provided predictor. The outputs from the predictor are then aggregated to form the output of the operator.
     """
-
     inputs_shape = op.Shape(inputs)
-    inputs_spatial_shape = op.Slice(inputs_shape, op.Constant(value_ints=[2]), op.Constant(value_ints=[5]), op.Constant(value_ints=[0]))
+    inputs_spatial_shape = op.Shape(inputs, start=2)
     N, _, D, H, W = op.Split(inputs_shape, num_outputs=5)
     roi_D, roi_H, roi_W = op.Split(roi_size, num_outputs=3)
     
     scan_interval = roi_size
     slices = dense_patch_slices_script(inputs_spatial_shape, roi_size, scan_interval)
     S_, _, _ = op.Split(op.Shape(slices), num_outputs=3)
-    zero = op.Constant(value_ints=[0])
-    S = op.Squeeze(S_, zero)
+    S = op.Squeeze(S_, op.Constant(value_ints=[0]))
 
-    seg_C = op.Constant(value_ints=[2])
-    one = op.Constant(value_ints=[1])
-    output_shape = op.Concat(one, seg_C, inputs_spatial_shape, axis=0)
+    seg_C = op.Constant(value_ints=[2]) # TODO: get from predictor model
+    output_shape = op.Concat(N, seg_C, inputs_spatial_shape, axis=0)
 
     aggrregated_pred = op.CastLike(op.ConstantOfShape(output_shape), inputs)
     aggrregated_count = op.CastLike(op.ConstantOfShape(inputs_shape), roi_size)
     for slice_g in range(S):
         win_data, start, stop = prepare_for_predictor_batch_size_is_1_script(inputs, slice_g, slices)
-        # pred = predict_mock_2(win_data)
         pred = op.OpaqueOp(win_data, model_path="C:/Temp/sliding_window_predictor_sw_batch_size_is_1.onnx")
-        aggrregated_pred, aggrregated_count = aggrregate_predictor_output(pred, start, stop, aggrregated_pred, aggrregated_count)
+        aggrregated_pred, aggrregated_count = aggregate_predictor_output(pred, start, stop, aggrregated_pred, aggrregated_count)
     
     return aggrregated_pred / op.CastLike(aggrregated_count, aggrregated_pred)
 

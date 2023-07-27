@@ -9,7 +9,7 @@ from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import onnx_script_test_case, testutils
 
-from onnxscript.tests.models.pnp import roi_indices_3d, aggrregate_predictor_output, sliding_window_inference, predict_mock, predict_mock_2, Opset18Ext
+from onnxscript.tests.models.pnp import roi_indices_3d, aggregate_predictor_output, sliding_window_inference, predict_mock, predict_mock_2, Opset18Ext
 
 class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
     def test_roi_indices_3d(delf):
@@ -41,7 +41,7 @@ class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
         
 
         case = onnx_script_test_case.FunctionTestParams(
-            aggrregate_predictor_output,
+            aggregate_predictor_output,
             [pred, start, stop, importance_map, aggrregated_pred, aggrregated_count],
             [aggrregated_pred_expected, aggrregated_count_expected]
             )
@@ -49,7 +49,7 @@ class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
         self.run_converter_test(case)
 
     def test_sliding_window_inference(self):
-        N, C, D, H, W = 1, 1, 128, 128, 128
+        N, C, D, H, W = 1, 1, 100, 111, 127
         roi_D, roi_H, roi_W = 64, 64, 32
         input = np.ones((N, C, D, H, W), dtype=np.float32)
         roi_size = np.array([roi_D, roi_H, roi_W], dtype=np.int64)
@@ -57,12 +57,22 @@ class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
         #output = predict_mock_2(input)
         seg_C = 2
         output_expected = np.zeros((N, seg_C, D, H, W), dtype=np.float32)
+        outout_count = np.zeros((N, 1, D, H, W), dtype=np.int64)
         op = Opset18Ext()
         for d in range(0, D, roi_D):
+            if d + roi_D > D:
+                d = D - roi_D
             for h in range(0, H, roi_H):
+                if h + roi_H > H:
+                    h = H - roi_H
                 for w in range(0, W, roi_W):
+                    if w + roi_W > W:
+                        w = W - roi_W
                     input_patch = input[:, :, d:d+roi_D, h:h+roi_H, w:w+roi_W]
-                    output_expected[:, :, d:d+roi_D, h:h+roi_H, w:w+roi_W] = op.OpaqueOp(input_patch, model_path="C:/Temp/sliding_window_predictor_sw_batch_size_is_1.onnx")
+                    output_expected[:, :, d:d+roi_D, h:h+roi_H, w:w+roi_W] += op.OpaqueOp(input_patch, model_path="C:/Temp/sliding_window_predictor_sw_batch_size_is_1.onnx")
+                    outout_count[:, :, d:d+roi_D, h:h+roi_H, w:w+roi_W] += 1
+
+        output_expected /= outout_count
 
         save_model = False
         if save_model:
