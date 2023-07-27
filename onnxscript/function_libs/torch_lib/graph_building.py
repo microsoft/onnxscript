@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import typing
 import warnings
 from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
@@ -671,7 +672,12 @@ class TorchScriptGraph:
 
     @runtime_typing.checked
     def to_model_proto(
-        self, opset_version: int, include_initializers: bool = True
+        self, opset_version: int,
+        include_initializers: bool = True,
+        # If "my_folder/my_sub_folder/" is provided,
+        # the initializers will be stored to "my_folder/my_sub_folder/".
+        # There will be one file per initializer.
+        external_initializer_path: Optional[str] = None,
     ) -> onnx.ModelProto:
         function_proto_dict: Mapping[
             Tuple[str, str], onnx.FunctionProto
@@ -698,7 +704,9 @@ class TorchScriptGraph:
             keep_initializers_as_inputs=False,
             custom_opsets={},
             add_node_names=True,
-            onnx_file_path="",
+            # This PyTorch API strips the last component in onnx_file_path,
+            # we append "tmp.onnx" so that "external_initializer_path/tmp.onnx".
+            onnx_file_path=os.path.join(external_initializer_path, "tmp.onnx"),
             node_attr_to_name={},
         )
 
