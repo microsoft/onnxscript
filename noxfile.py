@@ -27,7 +27,7 @@ COMMON_TEST_DEPENDENCIES = (
     "pyyaml",
 )
 ONNX = "onnx==1.14.0"
-ONNX_RUNTIME = "onnxruntime==1.15.0"
+ONNX_RUNTIME = "onnxruntime==1.15.1"
 PYTORCH = "torch==2.0.1"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
