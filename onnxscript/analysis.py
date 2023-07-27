@@ -80,8 +80,6 @@ def assigned_vars(
         return set()
     if ast_utils.is_print_call(stmt):
         return set()
-    if isinstance(stmt, list):
-        return assigned_in_block(stmt)
     raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
 
 
