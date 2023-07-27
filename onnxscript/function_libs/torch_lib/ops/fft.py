@@ -24,9 +24,9 @@ from onnxscript.onnx_types import TensorType
 def _fftn_onnx(
     self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool
 ) -> TFloat:
-    """_fft_c2c(Tensor self, SymInt[] dim, int normalization, bool forward) -> Tensor
+    """Standard complex to complex FFT (forward or backward).
 
-    Standard complex to complex FFT (forward or backward).
+    This is a private shared function for implementing the various FFT functions.
 
     Args:
         self: The input tensor.
