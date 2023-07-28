@@ -14,7 +14,6 @@ COMMON_TEST_DEPENDENCIES = (
     "numpy==1.23.5",
     "typing_extensions",
     "beartype",
-    "tabulate",
     "types-PyYAML",
     "expecttest",
     "hypothesis",
