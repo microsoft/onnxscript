@@ -94,7 +94,7 @@ def aten_special_erf(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 
 
 @torch_op(("aten::erfc", "aten::special_erfc"))
-def aten_special_erfc(self: TReal) -> TReal:
+def aten_special_erfc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """erfc(Tensor self) -> Tensor"""
 
     return op.Sub(1, op.Erf(self))

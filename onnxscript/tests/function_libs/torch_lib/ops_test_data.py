@@ -616,12 +616,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("expand", core_ops.aten_expand),
     TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
     TorchLibOpInfo("erf", special_ops.aten_special_erf),
-    TorchLibOpInfo(
-        "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
-    ).xfail(
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement Erf for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    ),
+    TorchLibOpInfo("erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}),
     # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),

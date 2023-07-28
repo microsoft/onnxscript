@@ -48,7 +48,7 @@ def aten__local_scalar_dense(self: Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16]) -> F
 
 
 @torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense(self: IntType) -> INT64:
+def aten__local_scalar_dense_int(self: IntType) -> INT64:
     """_local_scalar_dense(Tensor self) -> Scalar"""
 
     # Return the first element in tensor as a scalar.
@@ -2060,6 +2060,7 @@ def aten_cumsum(
 ) -> TRealUnlessInt16OrInt8:
     """cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"""
 
+    # TODO(justinchuby): The accumulation type for int32 is int64. Consider excluding from inputs.
     if dtype == -1:
         cast = self
     else:
