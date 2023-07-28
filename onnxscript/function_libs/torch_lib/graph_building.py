@@ -4,18 +4,7 @@ from __future__ import annotations
 import logging
 import typing
 import warnings
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Final,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -24,14 +13,13 @@ import onnx.defs
 import onnx.helper
 import onnx.shape_inference
 import torch
-from beartype import beartype
 from torch.onnx import _type_utils
 from typing_extensions import TypeAlias
 
 import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
-from onnxscript._internal import param_manipulation
+from onnxscript._internal import param_manipulation, runtime_typing
 
 __all__ = [
     "TorchScriptTensor",
@@ -77,6 +65,22 @@ ValidTorchValueType: TypeAlias = Union[
 # TODO(justinchuby): Build a context manager to handle source information.
 
 
+def _rename_intermediate_value(name: str) -> str:
+    """Prepend `_val_` to a numeric tensor name make it valid in ONNX.
+
+    The TorchScript graph creates numeric value names by default. e.g. `0`, `1`.
+    These are not legal ONNX tensor names, since ONNX requires the names to be valid
+    C variable names.
+
+    It also improves readability by making the names less likely to be confused
+    with shape values.
+    """
+    if name.isdigit():
+        # Prefix with `_` to avoid name collision
+        return f"_val_{name}"
+    return name
+
+
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
@@ -85,6 +89,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._torch_value: torch.Value = value
         self._concrete_value: Optional[np.ndarray] = None
         self._shape: Optional[Tuple[int | None, ...]] = None
+        self._torch_dtype: Optional[torch.dtype] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
 
@@ -100,14 +105,14 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._concrete_value = value
 
     @property
-    @beartype
+    @runtime_typing.checked
     def name(self) -> str:
         if self._name is not None:
             return self._name
         return self._torch_value.debugName()
 
     @name.setter
-    @beartype
+    @runtime_typing.checked
     def name(self, name: str):
         self._name = name
         self._torch_value.setDebugName(name)
@@ -129,7 +134,10 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         if value_type is None:
             return None
         value_type = typing.cast(torch.TensorType, value_type)
-        shape = value_type.varyingSizes()
+        if isinstance(value_type, torch.OptionalType):
+            shape = value_type.getElementType().varyingSizes()  # type: ignore[attr-defined]
+        else:
+            shape = value_type.varyingSizes()
         if shape is None:
             return None
         return tuple(shape)
@@ -142,15 +150,19 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @property  # type: ignore[override]
     def dtype(self) -> torch.dtype | None:
         # TODO: Return numpy dtype
+        if self._torch_dtype is not None:
+            return self._torch_dtype
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         )
         if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
             return None
-        return torch_dtype.dtype()
+        self._torch_dtype = torch_dtype.dtype()
+        return self._torch_dtype
 
     @dtype.setter
     def dtype(self, dtype: torch.dtype):
+        self._torch_dtype = dtype
         self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
 
     @property
@@ -172,7 +184,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return self._torch_value
 
 
-@beartype
+@runtime_typing.checked
 def _unwrap_tensor_to_torch_value(
     value: Union[
         ValidArgumentType, Mapping[str, ValidArgumentType], Sequence[ValidArgumentType]
@@ -197,7 +209,7 @@ def _unwrap_tensor_to_torch_value(
     return value  # type: ignore[return-value]
 
 
-@beartype
+@runtime_typing.checked
 def _wrap_torch_value_to_tensor(
     value: Union[torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]]
 ) -> Union[
@@ -239,7 +251,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
     def eval(self, schema, inputs, attributes):
         return self._graph.add_op_call(schema, inputs, attributes)
 
-    @beartype
+    @runtime_typing.checked
     def eval_function(  # type: ignore[override]
         self,
         function: onnxscript.OnnxFunction,
@@ -264,7 +276,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph.add_function_call(function, inputs, attributes)
 
 
-@beartype
+@runtime_typing.checked
 def _add_attribute_to_torchscript_node(
     node: torch.Node,
     key: str,
@@ -292,7 +304,7 @@ def _add_attribute_to_torchscript_node(
     raise TypeError(f"Unsupported attribute type '{type(value)}' for attribute '{key}'")
 
 
-@beartype
+@runtime_typing.checked
 def _create_op_call_in_torch_graph(
     graph: torch.Graph,
     opname: str,
@@ -371,7 +383,7 @@ class TorchScriptGraph:
     def num_outputs(self) -> int:
         return len(list(self._torch_graph.outputs()))
 
-    @beartype
+    @runtime_typing.checked
     def add_input(
         self,
         input_name: Optional[str],
@@ -399,13 +411,13 @@ class TorchScriptGraph:
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
         return tensor_value  # type: ignore[return-value]
 
-    @beartype
+    @runtime_typing.checked
     def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
         if name in self._initializers_inputs:
             # NOTE: Previously it raises when `name` is already set. This is relaxed
             # because this will be invoked multiple times when submodule is called
             # multiple times.
-            if name in self._initializers and self._initializers[name] != value:
+            if name in self._initializers and self._initializers[name] is not value:
                 raise ValueError(
                     f"Initializer '{name}' exists already with a different value."
                 )
@@ -433,7 +445,7 @@ class TorchScriptGraph:
         self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
         return tensor_value  # type: ignore[return-value]
 
-    @beartype
+    @runtime_typing.checked
     def register_outputs(
         self, outputs: Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]
     ):
@@ -455,6 +467,7 @@ class TorchScriptGraph:
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
+            value.setDebugName(_rename_intermediate_value(value.debugName()))
             return value
 
         if isinstance(constant, bool):
@@ -476,14 +489,16 @@ class TorchScriptGraph:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
             )
-        return _create_op_call_in_torch_graph(
+        value = _create_op_call_in_torch_graph(
             self._torch_graph,
             "onnx::Constant",
             inputs=(),
             attributes=dict(value=constant_tensor),
         )[0]
+        value.setDebugName(_rename_intermediate_value(value.debugName()))
+        return value
 
-    @beartype
+    @runtime_typing.checked
     def _add_torchscript_op_call(
         self,
         name: str,
@@ -514,8 +529,10 @@ class TorchScriptGraph:
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
                 graph_inputs.append(input)
-        for value in onnx_attributes.values():
-            assert not isinstance(value, TorchScriptTensor)
+        for key, value in onnx_attributes.items():
+            assert not isinstance(
+                value, TorchScriptTensor
+            ), f"ONNX attribute must not be a TorchScriptTensor, got {key}: {value}."
         result = _create_op_call_in_torch_graph(
             self._torch_graph,
             name,
@@ -523,11 +540,17 @@ class TorchScriptGraph:
             attributes=onnx_attributes,
             n_outputs=n_outputs,
         )
-        if len(result) <= 1:
-            return TorchScriptTensor(result[0])
-        return tuple(TorchScriptTensor(v) for v in result)
+        assert result, "Expected at least one output from ONNX op call."
+        if len(result) == 1:
+            tensor = TorchScriptTensor(result[0])
+            tensor.name = _rename_intermediate_value(tensor.name)
+            return tensor
+        tensors = tuple(TorchScriptTensor(v) for v in result)
+        for tensor in tensors:
+            tensor.name = _rename_intermediate_value(tensor.name)
+        return tensors
 
-    @beartype
+    @runtime_typing.checked
     def fetch_function_proto_dict(
         self, opset_version: int
     ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
@@ -553,7 +576,7 @@ class TorchScriptGraph:
             function_proto_dict[name_domain] = function.to_function_proto()
         return function_proto_dict
 
-    @beartype
+    @runtime_typing.checked
     def add_op_call(
         self,
         onnx_op_schema: onnx.defs.OpSchema,
@@ -571,7 +594,7 @@ class TorchScriptGraph:
 
         return result
 
-    @beartype
+    @runtime_typing.checked
     def add_function_call(
         self,
         onnx_function: onnxscript.OnnxFunction,
@@ -591,7 +614,7 @@ class TorchScriptGraph:
 
         return result
 
-    @beartype
+    @runtime_typing.checked
     def add_module_call(
         self,
         name: str,
@@ -609,7 +632,7 @@ class TorchScriptGraph:
             n_outputs=sub_torch_script_graph.num_outputs,
         )
 
-    @beartype
+    @runtime_typing.checked
     def to_function_proto(self, opset_version: int, function_name: str) -> onnx.FunctionProto:
         assert len(self.initializers) == 0, "Model local functions cannot have initializers."
         (
@@ -646,15 +669,17 @@ class TorchScriptGraph:
         # TODO: onnx.checker.check_function(onnx_function)?
         return onnx_function
 
-    @beartype
-    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
+    @runtime_typing.checked
+    def to_model_proto(
+        self, opset_version: int, include_initializers: bool = True
+    ) -> onnx.ModelProto:
         function_proto_dict: Mapping[
             Tuple[str, str], onnx.FunctionProto
         ] = self.fetch_function_proto_dict(opset_version)
         unique_custom_domains: Dict[str, int] = {}
 
-        for _, function_proto in function_proto_dict.items():
-            # TODO: All local function domain versions are hardcoded as 1.
+        for function_proto in function_proto_dict.values():
+            # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function_proto.domain] = 1
 
         (
@@ -663,7 +688,7 @@ class TorchScriptGraph:
             _,
             _,
         ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
-            initializers=self.initializers,
+            initializers=self.initializers if include_initializers else {},
             onnx_opset_version=opset_version,
             # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
@@ -707,7 +732,3 @@ class TorchScriptGraph:
                 self.torch_graph,
             )
         return onnx_model
-
-    def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
-        """Apply a graph pass to the graph."""
-        graph_pass(self._torch_graph, *args, **kwargs)

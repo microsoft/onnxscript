@@ -5,15 +5,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Tuple, Union
+from __future__ import annotations
+
+from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 from onnx import GraphProto
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset16 import Opset16
 from onnxscript.onnx_types import (
@@ -41,12 +45,9 @@ class Opset17(Opset16):
     def __new__(cls):
         return Opset.__new__(cls, "", 17)
 
-    def __init__(self):
-        super().__init__()
+    T1_BlackmanWindow = TypeVar("T1_BlackmanWindow", INT32, INT64)
 
-    def BlackmanWindow(
-        self, size: Union[INT32, INT64], output_datatype: int = 1, periodic: int = 1
-    ) -> Union[
+    T2_BlackmanWindow: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -59,7 +60,11 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    ]
+
+    def BlackmanWindow(
+        self, size: T1_BlackmanWindow, *, output_datatype: int = 1, periodic: int = 1
+    ) -> T2_BlackmanWindow:
         r"""[🌐 BlackmanWindow(17)](https://onnx.ai/onnx/operators/onnx__BlackmanWindow.html#blackmanwindow-17 "Online Documentation")
 
 
@@ -81,37 +86,26 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("BlackmanWindow", 17, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "BlackmanWindow", schema)
+        op = Op(self, "BlackmanWindow", schema)
         return op(
             *self._prepare_inputs(schema, size),
             output_datatype=output_datatype,
             periodic=periodic,
         )
 
+    T1_DFT = TypeVar("T1_DFT", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    T2_DFT = TypeVar("T2_DFT", INT32, INT64)
+
     def DFT(
         self,
-        input: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        dft_length: Optional[Union[INT32, INT64]] = None,
+        input: T1_DFT,
+        dft_length: Optional[T2_DFT] = None,
+        *,
         axis: int = 1,
         inverse: int = 0,
         onesided: int = 0,
-    ) -> Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]:
+    ) -> T1_DFT:
         r"""[🌐 DFT(17)](https://onnx.ai/onnx/operators/onnx__DFT.html#dft-17 "Online Documentation")
 
         Computes the discrete Fourier transform of input.
@@ -147,7 +141,7 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("DFT", 17, "")
-        op: Callable[..., Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]] = Op(self, "DFT", schema)
+        op = Op(self, "DFT", schema)
         return op(
             *self._prepare_inputs(schema, input, dft_length),
             axis=axis,
@@ -155,9 +149,9 @@ class Opset17(Opset16):
             onesided=onesided,
         )
 
-    def HammingWindow(
-        self, size: Union[INT32, INT64], output_datatype: int = 1, periodic: int = 1
-    ) -> Union[
+    T1_HammingWindow = TypeVar("T1_HammingWindow", INT32, INT64)
+
+    T2_HammingWindow: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -170,7 +164,11 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    ]
+
+    def HammingWindow(
+        self, size: T1_HammingWindow, *, output_datatype: int = 1, periodic: int = 1
+    ) -> T2_HammingWindow:
         r"""[🌐 HammingWindow(17)](https://onnx.ai/onnx/operators/onnx__HammingWindow.html#hammingwindow-17 "Online Documentation")
 
 
@@ -192,32 +190,16 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("HammingWindow", 17, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "HammingWindow", schema)
+        op = Op(self, "HammingWindow", schema)
         return op(
             *self._prepare_inputs(schema, size),
             output_datatype=output_datatype,
             periodic=periodic,
         )
 
-    def HannWindow(
-        self, size: Union[INT32, INT64], output_datatype: int = 1, periodic: int = 1
-    ) -> Union[
+    T1_HannWindow = TypeVar("T1_HannWindow", INT32, INT64)
+
+    T2_HannWindow: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -230,7 +212,11 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    ]
+
+    def HannWindow(
+        self, size: T1_HannWindow, *, output_datatype: int = 1, periodic: int = 1
+    ) -> T2_HannWindow:
         r"""[🌐 HannWindow(17)](https://onnx.ai/onnx/operators/onnx__HannWindow.html#hannwindow-17 "Online Documentation")
 
 
@@ -252,40 +238,27 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("HannWindow", 17, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "HannWindow", schema)
+        op = Op(self, "HannWindow", schema)
         return op(
             *self._prepare_inputs(schema, size),
             output_datatype=output_datatype,
             periodic=periodic,
         )
 
+    T_LayerNormalization = TypeVar("T_LayerNormalization", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    U_LayerNormalization: TypeAlias = Union[BFLOAT16, FLOAT]
+
     def LayerNormalization(
         self,
-        X: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        Scale: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        B: Optional[Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]] = None,
+        X: T_LayerNormalization,
+        Scale: T_LayerNormalization,
+        B: Optional[T_LayerNormalization] = None,
+        *,
         axis: int = -1,
         epsilon: float = 9.999999747378752e-06,
         stash_type: int = 1,
-    ) -> Tuple[
-        Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16], Union[BFLOAT16, FLOAT], Union[BFLOAT16, FLOAT]
-    ]:
+    ) -> Tuple[T_LayerNormalization, U_LayerNormalization, U_LayerNormalization]:
         r"""[🌐 LayerNormalization(17)](https://onnx.ai/onnx/operators/onnx__LayerNormalization.html#layernormalization-17 "Online Documentation")
 
 
@@ -348,14 +321,7 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("LayerNormalization", 17, "")
-        op: Callable[
-            ...,
-            Tuple[
-                Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-                Union[BFLOAT16, FLOAT],
-                Union[BFLOAT16, FLOAT],
-            ],
-        ] = Op(self, "LayerNormalization", schema)
+        op = Op(self, "LayerNormalization", schema)
         return op(
             *self._prepare_inputs(schema, X, Scale, B),
             axis=axis,
@@ -363,15 +329,11 @@ class Opset17(Opset16):
             stash_type=stash_type,
         )
 
-    def MelWeightMatrix(
-        self,
-        num_mel_bins: Union[INT32, INT64],
-        dft_length: Union[INT32, INT64],
-        sample_rate: Union[INT32, INT64],
-        lower_edge_hertz: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        upper_edge_hertz: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        output_datatype: int = 1,
-    ) -> Union[
+    T1_MelWeightMatrix = TypeVar("T1_MelWeightMatrix", INT32, INT64)
+
+    T2_MelWeightMatrix = TypeVar("T2_MelWeightMatrix", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    T3_MelWeightMatrix: TypeAlias = Union[
         BFLOAT16,
         DOUBLE,
         FLOAT,
@@ -384,7 +346,18 @@ class Opset17(Opset16):
         UINT32,
         UINT64,
         UINT8,
-    ]:
+    ]
+
+    def MelWeightMatrix(
+        self,
+        num_mel_bins: T1_MelWeightMatrix,
+        dft_length: T1_MelWeightMatrix,
+        sample_rate: T1_MelWeightMatrix,
+        lower_edge_hertz: T2_MelWeightMatrix,
+        upper_edge_hertz: T2_MelWeightMatrix,
+        *,
+        output_datatype: int = 1,
+    ) -> T3_MelWeightMatrix:
         r"""[🌐 MelWeightMatrix(17)](https://onnx.ai/onnx/operators/onnx__MelWeightMatrix.html#melweightmatrix-17 "Online Documentation")
 
 
@@ -424,23 +397,7 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("MelWeightMatrix", 17, "")
-        op: Callable[
-            ...,
-            Union[
-                BFLOAT16,
-                DOUBLE,
-                FLOAT,
-                FLOAT16,
-                INT16,
-                INT32,
-                INT64,
-                INT8,
-                UINT16,
-                UINT32,
-                UINT64,
-                UINT8,
-            ],
-        ] = Op(self, "MelWeightMatrix", schema)
+        op = Op(self, "MelWeightMatrix", schema)
         return op(
             *self._prepare_inputs(
                 schema,
@@ -453,14 +410,19 @@ class Opset17(Opset16):
             output_datatype=output_datatype,
         )
 
+    T1_STFT = TypeVar("T1_STFT", BFLOAT16, DOUBLE, FLOAT, FLOAT16)
+
+    T2_STFT = TypeVar("T2_STFT", INT32, INT64)
+
     def STFT(
         self,
-        signal: Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16],
-        frame_step: Union[INT32, INT64],
-        window: Optional[Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]] = None,
-        frame_length: Optional[Union[INT32, INT64]] = None,
+        signal: T1_STFT,
+        frame_step: T2_STFT,
+        window: Optional[T1_STFT] = None,
+        frame_length: Optional[T2_STFT] = None,
+        *,
         onesided: int = 1,
-    ) -> Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]:
+    ) -> T1_STFT:
         r"""[🌐 STFT(17)](https://onnx.ai/onnx/operators/onnx__STFT.html#stft-17 "Online Documentation")
 
         Computes the Short-time Fourier Transform of the signal.
@@ -495,65 +457,14 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("STFT", 17, "")
-        op: Callable[..., Union[BFLOAT16, DOUBLE, FLOAT, FLOAT16]] = Op(self, "STFT", schema)
+        op = Op(self, "STFT", schema)
         return op(
             *self._prepare_inputs(schema, signal, frame_step, window, frame_length),
             onesided=onesided,
         )
 
-    def SequenceMap(
-        self,
-        input_sequence: Union[
-            Sequence[BOOL],
-            Sequence[COMPLEX128],
-            Sequence[COMPLEX64],
-            Sequence[DOUBLE],
-            Sequence[FLOAT],
-            Sequence[FLOAT16],
-            Sequence[INT16],
-            Sequence[INT32],
-            Sequence[INT64],
-            Sequence[INT8],
-            Sequence[STRING],
-            Sequence[UINT16],
-            Sequence[UINT32],
-            Sequence[UINT64],
-            Sequence[UINT8],
-        ],
-        *additional_inputs: Union[
-            Sequence[BOOL],
-            Sequence[COMPLEX128],
-            Sequence[COMPLEX64],
-            Sequence[DOUBLE],
-            Sequence[FLOAT],
-            Sequence[FLOAT16],
-            Sequence[INT16],
-            Sequence[INT32],
-            Sequence[INT64],
-            Sequence[INT8],
-            Sequence[STRING],
-            Sequence[UINT16],
-            Sequence[UINT32],
-            Sequence[UINT64],
-            Sequence[UINT8],
-            BOOL,
-            COMPLEX128,
-            COMPLEX64,
-            DOUBLE,
-            FLOAT,
-            FLOAT16,
-            INT16,
-            INT32,
-            INT64,
-            INT8,
-            STRING,
-            UINT16,
-            UINT32,
-            UINT64,
-            UINT8,
-        ],
-        body: Optional[GraphProto] = None,
-    ) -> Union[
+    S_SequenceMap = TypeVar(
+        "S_SequenceMap",
         Sequence[BOOL],
         Sequence[COMPLEX128],
         Sequence[COMPLEX64],
@@ -569,7 +480,48 @@ class Opset17(Opset16):
         Sequence[UINT32],
         Sequence[UINT64],
         Sequence[UINT8],
-    ]:
+    )
+
+    V_SequenceMap = TypeVar(
+        "V_SequenceMap",
+        Sequence[BOOL],
+        Sequence[COMPLEX128],
+        Sequence[COMPLEX64],
+        Sequence[DOUBLE],
+        Sequence[FLOAT],
+        Sequence[FLOAT16],
+        Sequence[INT16],
+        Sequence[INT32],
+        Sequence[INT64],
+        Sequence[INT8],
+        Sequence[STRING],
+        Sequence[UINT16],
+        Sequence[UINT32],
+        Sequence[UINT64],
+        Sequence[UINT8],
+        BOOL,
+        COMPLEX128,
+        COMPLEX64,
+        DOUBLE,
+        FLOAT,
+        FLOAT16,
+        INT16,
+        INT32,
+        INT64,
+        INT8,
+        STRING,
+        UINT16,
+        UINT32,
+        UINT64,
+        UINT8,
+    )
+
+    def SequenceMap(
+        self,
+        input_sequence: S_SequenceMap,
+        *additional_inputs: V_SequenceMap,
+        body: GraphProto,
+    ) -> S_SequenceMap:
         r"""[🌐 SequenceMap(17)](https://onnx.ai/onnx/operators/onnx__SequenceMap.html#sequencemap-17 "Online Documentation")
 
 
@@ -599,24 +551,5 @@ class Opset17(Opset16):
         """
 
         schema = get_schema("SequenceMap", 17, "")
-        op: Callable[
-            ...,
-            Union[
-                Sequence[BOOL],
-                Sequence[COMPLEX128],
-                Sequence[COMPLEX64],
-                Sequence[DOUBLE],
-                Sequence[FLOAT],
-                Sequence[FLOAT16],
-                Sequence[INT16],
-                Sequence[INT32],
-                Sequence[INT64],
-                Sequence[INT8],
-                Sequence[STRING],
-                Sequence[UINT16],
-                Sequence[UINT32],
-                Sequence[UINT64],
-                Sequence[UINT8],
-            ],
-        ] = Op(self, "SequenceMap", schema)
+        op = Op(self, "SequenceMap", schema)
         return op(*self._prepare_inputs(schema, input_sequence, *additional_inputs), body=body)

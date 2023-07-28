@@ -11,7 +11,8 @@ import numpy as np
 import onnx.helper
 from onnx import TensorProto
 
-from onnxscript import autocast, onnx_opset
+from onnxscript import onnx_opset
+from onnxscript._internal import autocast
 
 
 class Tensor:
@@ -87,7 +88,7 @@ class Tensor:
             )
 
         # Promote integer indices to tensors of rank 0
-        index = [autocast.cast_scalar_to_tensor(x) for x in index]
+        index = [autocast.cast_pyvalue_to_os_tensor(x) for x in index]
         # Process all elements in index
         shape = self.shape
         sliced_indices = []

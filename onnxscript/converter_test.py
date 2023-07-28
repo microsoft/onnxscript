@@ -10,6 +10,7 @@ import pathlib
 import sys
 import textwrap
 import types
+import typing
 import unittest
 import warnings
 
@@ -24,7 +25,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.tests.common import onnx_script_test_case, testutils
@@ -402,92 +403,8 @@ class TestConverter(testutils.TestBase):
     def test_getitem(self):
         from onnxscript.tests.models import getitem
 
-        test_functions = self.validate_save(getitem, check_ort=True, skip_check_ort=None)
-
-        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
-        # expression.
-        A = np.array([0, 1, 2])
-        i = np.array([0])
-        try:
-            A[i : i + 1]
-            eager = True
-        except Exception:
-            # TypeError: only integer scalar arrays can be converted to a scalar index
-            eager = False
-
-        def check_function(x, name, expected, eager=True):
-            with self.subTest(name=name):
-                onx = test_functions[name]
-                session = ort.InferenceSession(onx.SerializeToString())
-                try:
-                    y = session.run(None, {"A": x})[0]
-                except Exception as e:
-                    raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
-                    ) from e
-                self.assertEqual(y.tolist(), expected)
-                f = getattr(getitem, name)
-                if eager:
-                    self.assertEqual(f(x).tolist(), expected)
-
-        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
-
-        check_function(x, "getitem_i", [0.0, 1.0, 2.0])
-        check_function(x, "getitem_i_last", [9.0, 10.0, 11.0])
-        check_function(x, "getitem_i_expr", [1.0, 2.0, 3.0])
-        check_function(x, "getitem_i_slice", [[3.0, 4.0, 5.0]])
-        check_function(x, "getitem_i_slice_left", [[3, 4, 5], [6, 7, 8], [9, 10, 11]])
-        check_function(x, "getitem_i_slice_right", [[0, 1, 2], [3, 4, 5]])
-        check_function(x, "getitem_i_slice_neg", [[3, 4, 5], [6, 7, 8]])
-        check_function(x, "getitem_i_slice_step", [[6.0, 7.0, 8.0], [3.0, 4.0, 5.0]])
-        # TODO: force eager to True when the following issue is resolved.
-        check_function(x, "getitem_i_var", [[3.0, 4.0, 5.0]], eager=eager)
-        check_function(x, "getitem_i_tuple", [[0], [3]])
-        check_function(x, "getitem_i_mixed_tuple", [0, 3])
-        check_function(x, "getitem_column", [1.0, 4.0, 7.0, 10.0])
-        check_function(x, "getitem_index_int0_1", [3, 4, 5], eager=eager)
-        check_function(x, "getitem_index_int0", [0, 1, 2], eager=eager)
-        check_function(x, "getitem_rev", x[:0:-1].tolist())
-        check_function(x, "getitem_rev0", x[0, :0:-1].tolist())
-
-    @unittest.skipIf(
-        sys.version_info[:2] < (3, 9), reason="Notation [...] not supported in python 3.8."
-    )
-    def test_getitem39(self):
-        from onnxscript.tests.models import getitem39
-
-        test_functions = self.validate_save(getitem39, check_ort=True)
-
-        # eager mode is disabled because A[np.array([0]): np.array([1])] is not a valid
-        # expression.
-        A = np.array([0, 1, 2])
-        i = np.array([0])
-        try:
-            A[i : i + 1]
-            eager = True
-        except Exception:
-            # TypeError: only integer scalar arrays can be converted to a scalar index
-            eager = False
-
-        def check_function(x, name, expected, eager=True):
-            with self.subTest(name=name):
-                onx = test_functions[name]
-                session = ort.InferenceSession(onx.SerializeToString())
-                try:
-                    y = session.run(None, {"A": x})[0]
-                except Exception as e:
-                    raise AssertionError(
-                        f"Unable to run ONNX for function {name!r} due to {e!r}\n{onx}."
-                    ) from e
-                self.assertEqual(y.tolist(), expected)
-                f = getattr(getitem39, name)
-                if eager:
-                    self.assertEqual(f(x).tolist(), expected)
-
-        x = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], dtype=np.float32)
-
-        check_function(x, "getitem_index_int", [2.0], eager=eager)
-        check_function(x, "getitem_index_int2", [2.0], eager=eager)
+        self.validate_save(getitem, check_ort=True, skip_check_ort=None)
+        self.validate_run(getitem)
 
     def check_failure(self, f, msg):
         source = textwrap.dedent(inspect.getsource(f))
@@ -515,13 +432,7 @@ class TestConverter(testutils.TestBase):
             return r
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
-
-        def f2(A: FLOAT[...]) -> FLOAT[...]:
-            return A[::-1]
-
-        ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f2, "`?::-1` cannot be expressed with ONNX")
+        self.check_failure(f1, f"Left term must be a tuple not '<class '{ast_name}.Name'>'")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
@@ -648,6 +559,113 @@ class TestConverter(testutils.TestBase):
         # None should be translated into an empty string in NodeProto's input list
         node = none_as_input.to_function_proto().node[0]
         self.assertEqual(node.input[1], "")
+
+    def test_unique_names_in_subscript_expr(self):
+        @script()
+        def nested_index_expr(X):
+            return op.Add(op.Shape(X)[-1], 1)
+
+        nodes = nested_index_expr.to_function_proto().node
+        assigned_names = [n.output[0] for n in nodes]
+        self.assertEqual(len(assigned_names), len(set(assigned_names)))
+
+    def test_no_duplicate_output_name(self):
+        """Test that the converter does not generate duplicate output names."""
+
+        @script()
+        def duplicate_output(X):
+            Y = op.Neg(X)
+            return Y, Y
+
+        # The converter should generate distinct names for the two outputs
+        outputs = duplicate_output.to_function_proto().output
+        self.assertNotEqual(outputs[0], outputs[1])
+
+    def test_bool_attr_promotion(self):
+        @script()
+        def if_then_else(flag: bool, Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: bool, Y, Z):
+            tmp1 = op.Constant(value_int=flag)
+            tmp2 = op.Cast(tmp1, to=BOOL.dtype)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_bool_list_attr_promotion(self):
+        @script()
+        def if_then_else(flag: typing.List[bool], Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: typing.List[bool], Y, Z):
+            tmp1 = op.Constant(value_ints=flag)
+            tmp2 = op.Cast(tmp1, to=9)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_empty_ints_attribute(self):
+        @script()
+        def empty_ints():
+            return op.Constant(value_ints=[])
+
+        expected = np.array([], dtype=np.int64)
+        self.check_run(empty_ints, [], expected)
+
+    def test_empty_floats_attribute(self):
+        @script()
+        def empty_floats():
+            return op.Constant(value_floats=[])
+
+        expected = np.array([], dtype=np.float32)
+        self.check_run(empty_floats, [], expected)
+
+    def test_int_as_tensor_attribute(self):
+        @script()
+        def int_as_tensor():
+            return op.Constant(value=17)
+
+        expected = np.array(17, dtype=np.int64)
+        self.check_run(int_as_tensor, [], expected)
+
+    def test_int_list_as_tensor_attribute(self):
+        @script()
+        def int_list_as_tensor():
+            return op.Constant(value=[13, 17])
+
+        expected = np.array([13, 17], dtype=np.int64).reshape((2,))
+        self.check_run(int_list_as_tensor, [], expected)
+
+    def test_float_as_tensor_attribute(self):
+        @script()
+        def float_as_tensor():
+            return op.Constant(value=17.0)
+
+        expected = np.array([17], dtype=np.float32).reshape(())
+        self.check_run(float_as_tensor, [], expected)
+
+    def test_float_list_as_tensor_attribute(self):
+        @script()
+        def float_list_as_tensor():
+            return op.Constant(value=[13.0, 17.0])
+
+        expected = np.array([13, 17], dtype=np.float32).reshape((2,))
+        self.check_run(float_list_as_tensor, [], expected)
+
+    def test_loop_inside_if(self):
+        @script(default_opset=op)
+        def sum(n: INT64) -> INT64:
+            sum = op.Constant(value=0)
+            if n > 0:
+                for i in range(n):
+                    sum = sum + i
+            return sum
+
+        self.check_run(sum, [np.array(5, dtype=np.int64)], np.array(10, dtype=np.int64))
+        self.check_run(sum, [np.array(-5, dtype=np.int64)], np.array(0, dtype=np.int64))
 
 
 if __name__ == "__main__":

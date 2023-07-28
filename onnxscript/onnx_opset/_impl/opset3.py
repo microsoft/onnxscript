@@ -5,14 +5,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
 
-from typing import Callable, Optional, Sequence, Tuple, Union
+from __future__ import annotations
+
+from typing import Optional, Sequence, Tuple, TypeVar
 
 from onnx.defs import get_schema
+from typing_extensions import TypeAlias
 
 from onnxscript.onnx_opset._impl.opset2 import Opset2
 from onnxscript.onnx_types import DOUBLE, FLOAT, FLOAT16, INT32
@@ -23,17 +27,19 @@ class Opset3(Opset2):
     def __new__(cls):
         return Opset.__new__(cls, "", 3)
 
-    def __init__(self):
-        super().__init__()
+    T_GRU = TypeVar("T_GRU", DOUBLE, FLOAT, FLOAT16)
+
+    T1_GRU: TypeAlias = INT32
 
     def GRU(
         self,
-        X: Union[DOUBLE, FLOAT, FLOAT16],
-        W: Union[DOUBLE, FLOAT, FLOAT16],
-        R: Union[DOUBLE, FLOAT, FLOAT16],
-        B: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
-        sequence_lens: Optional[INT32] = None,
-        initial_h: Optional[Union[DOUBLE, FLOAT, FLOAT16]] = None,
+        X: T_GRU,
+        W: T_GRU,
+        R: T_GRU,
+        B: Optional[T_GRU] = None,
+        sequence_lens: Optional[T1_GRU] = None,
+        initial_h: Optional[T_GRU] = None,
+        *,
         activation_alpha: Optional[Sequence[float]] = None,
         activation_beta: Optional[Sequence[float]] = None,
         activations: Optional[Sequence[str]] = None,
@@ -42,7 +48,7 @@ class Opset3(Opset2):
         hidden_size: Optional[int] = None,
         linear_before_reset: int = 0,
         output_sequence: int = 0,
-    ) -> Tuple[Union[DOUBLE, FLOAT, FLOAT16], Union[DOUBLE, FLOAT, FLOAT16]]:
+    ) -> Tuple[T_GRU, T_GRU]:
         r"""[🌐 GRU(3)](https://onnx.ai/onnx/operators/onnx__GRU.html#gru-3 "Online Documentation")
 
 
@@ -179,9 +185,7 @@ class Opset3(Opset2):
         """
 
         schema = get_schema("GRU", 3, "")
-        op: Callable[
-            ..., Tuple[Union[DOUBLE, FLOAT, FLOAT16], Union[DOUBLE, FLOAT, FLOAT16]]
-        ] = Op(self, "GRU", schema)
+        op = Op(self, "GRU", schema)
         return op(
             *self._prepare_inputs(schema, X, W, R, B, sequence_lens, initial_h),
             activation_alpha=activation_alpha,

@@ -42,7 +42,7 @@ jobs:
       - name: Build documentation
         run: python -m sphinx docs dist/html
       - name: Upload documentation archive
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v2
         with:
           path: 'dist/html'
       - name: Deploy to GitHub Pages

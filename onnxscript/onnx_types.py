@@ -174,6 +174,22 @@ class BFLOAT16(TensorType, dtype=onnx.TensorProto.BFLOAT16):
     pass
 
 
+class FLOAT8E4M3FN(TensorType, dtype=onnx.TensorProto.FLOAT8E4M3FN):
+    pass
+
+
+class FLOAT8E4M3FNUZ(TensorType, dtype=onnx.TensorProto.FLOAT8E4M3FNUZ):
+    pass
+
+
+class FLOAT8E5M2(TensorType, dtype=onnx.TensorProto.FLOAT8E5M2):
+    pass
+
+
+class FLOAT8E5M2FNUZ(TensorType, dtype=onnx.TensorProto.FLOAT8E5M2FNUZ):
+    pass
+
+
 def onnx_type_to_onnxscript_repr(onnx_type: onnx.TypeProto) -> str:
     """Converts an onnx type into the string representation of the type in *onnxscript*.
 

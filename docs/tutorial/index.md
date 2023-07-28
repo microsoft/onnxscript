@@ -63,10 +63,11 @@ are translated into normal value-parameters.
 Thus, in the above example, `X` is treated as a normal value-parameter for this particular call, while
 `start` and `end` are treated as attribute-parameters (when an opschema is unavailable).
 
-## Specifying tensor-valued attributes
+## Specifying tensor constants
 
 Tensor constants can be created using the ONNX utility `make_tensor` and these
-can be used as attribute values, as shown below:
+can be used as attribute values, as shown below. Further, they can be promoted
+to be used as tensor values using the ONNX `Constant` op, also as shown below.
 
 ```{literalinclude} examples/tensor_attr.py
 ```
@@ -79,9 +80,20 @@ the one above.
 ```{literalinclude} examples/tensor_attr_short.py
 ```
 
-This works for scalar constants. However, if the user wants to
-create an 1-dimensional tensor containing a single value, instead of a 0-dimensional
-tensor, they need to do so more explicitly (as in the previous example).
+The direct usage of literals can be used to create scalars or one-dimensional tensors
+of type `FLOAT` or `INT64` or `STRING`, as shown in the table below.
+
+| Python source  | Generated ONNX constant                  |
+| -------------- | ---------------------------------------- |
+| `0`            | Scalar value `0` of type `INT64`         |
+| `0.0`          | Scalar value `0.0` of type `FLOAT`       |
+| `"x"`          | Scalar value `"x"` of type `STRING`      |
+| `[0, 1]`       | One dimensional tensor of type `INT64`   |
+| `[0.0, 1.0]`   | One dimensional tensor of type `FLOAT`   |
+| `["x", "y"]`   | One dimensional tensor of type `STRING`  |
+
+However, if the user wants to use tensor constants of other types or other rank,
+they need to do so more explicitly (as in the previous example).
 
 ## Semantics: Script Constants
 
