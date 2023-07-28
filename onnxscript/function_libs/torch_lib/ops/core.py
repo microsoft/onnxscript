@@ -3742,7 +3742,16 @@ def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     else:
         # Make dim 1-d
         dims = op.Unsqueeze(dim, axes=[0])
-        # TODO(justinchuby): Add explanation
+        # This uses the max trick to avoid overflow:
+        # Assuming A = [a_1, a_2, ..., a_n] and the output
+        # out = [out_1, out_2, ..., out_n], then
+        # out_i = log(cumsum(exp(A)))_i
+        #       = log(exp(a_1) + ... + exp(a_i))
+        #       = log(exp(a_1) + ... + exp(a_i)) - max(A) + max(B)
+        #       = log((exp(a_1) + ... + exp(a_i)) / exp(max(A))) + max(A)
+        #       = log(exp(a_1-max(A)) + ... + exp(a_i-max(A))) + max(A)
+        #       = log(sum<j=1...i>(exp(a_j - max(A)))) + max(A)
+        # Vectorizing for all i, we get the expression below.
         self_max = op.ReduceMax(self, dims)
         result = op.Log(op.CumSum(op.Exp(self - self_max), dims)) + self_max
     return result
