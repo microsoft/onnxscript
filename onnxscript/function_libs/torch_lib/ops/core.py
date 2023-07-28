@@ -2380,6 +2380,8 @@ def aten_eq(self: TTensor, other: TTensor) -> BOOL:
 def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     """equal(Tensor self, Tensor other) -> bool"""
 
+    # NOTE: Torch aten::equal returns a single Boolean while ONNX Equal is elementwise.
+    # The equivalent Torch op with ONNX Equal is aten::eq.
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
     # ReduceMax does not support bool. So we cast to int64
