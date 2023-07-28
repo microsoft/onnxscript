@@ -942,7 +942,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         #matcher=lambda sample: "padding_idx" in sample.kwargs or "max_norm" in sample.kwargs,
         matcher=lambda sample: "max_norm" in sample.kwargs,
-        reason="padding_idx or max_norm is not part of the aten signature.",
+        reason="max_norm is not part of the aten signature.",
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",
