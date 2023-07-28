@@ -3743,9 +3743,8 @@ def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
         # Make dim 1-d
         dims = op.Unsqueeze(dim, axes=[0])
         # TODO(justinchuby): Add explanation
-        result = op.Log(
-            op.CumSum(op.Exp(self - op.ReduceMax(self, dims)), dims)
-        ) + op.ReduceMax(self, dims)
+        self_max = op.ReduceMax(self, dims)
+        result = op.Log(op.CumSum(op.Exp(self - self_max), dims)) + self_max
     return result
 
 
