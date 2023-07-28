@@ -3638,10 +3638,11 @@ def aten_lift_fresh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::lift_fresh_copy")
 def aten_lift_fresh_copy(self: TensorType) -> TensorType:
     """lift_fresh_copy(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_linear_backward(
