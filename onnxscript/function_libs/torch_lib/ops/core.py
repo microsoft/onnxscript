@@ -2315,33 +2315,38 @@ def aten_embedding_bag(
 
 def _compute_sections_1d(indices, offsets, include_last_offset, padding_idx):
     parts = len(offsets)
+    neg_1 = op.Constant(value_ints=[-1])
     if include_last_offset is True:
         parts = parts - 1
     else:
-        offsets = list(offsets)
-        offsets.append(len(indices))
+        size = op.Reshape(op.Constant(value_int=len(indices)), neg_1)
+        offsets = op.Concat(offsets, size, axis=0)
     new_offsets = []
     for i in range(parts):
-        start_pos = offsets[i]
-        end_pos = offsets[i + 1]
-        curr_offset = []
-        for j in range(start_pos, end_pos):
-            if indices[j] != padding_idx:
-                curr_offset.append(j)
+        start_pos = op.Gather(offsets, i)
+        end_pos = op.Gather(offsets, i + 1)
+        curr_offset = op.Constant(value_ints=[])
+        j = start_pos
+        cond = j < end_pos
+        while cond:
+            index = op.Gather(indices, j)
+            if not op.Equal(index, padding_idx):
+                curr_offset = op.Concat(curr_offset, op.Reshape(j, neg_1), axis=0)
+            j = j + 1
+            cond = j < end_pos
         # Convert list to constant tensor
-        offset_tensor = op.Constant(value_ints=curr_offset)
-        new_offsets.append(offset_tensor)
+        new_offsets.append(curr_offset)
 
-    print(new_offsets)
     return new_offsets
 
 def _compute_sections_2d(indices, padding_idx):
     new_offsets = []
     for i in range(indices.shape[0]):
         curr_offset = []
-        curr_indices = indices[i]
+        curr_indices = op.Gather(indices, i)
         for j in range(indices.shape[1]):
-            if curr_indices[j] != padding_idx:
+            curr_index = op.Gather(curr_indices, j)
+            if not op.Equal(curr_index, padding_idx):
                 curr_offset.append(j)
         offset_tensor = op.Constant(value_ints=curr_offset)
         new_offsets.append(offset_tensor)
@@ -2545,15 +2550,15 @@ def _aten_embedding_bag_2d_padding_idx_onnx(
 # test_aten_embedding_bag()
 # exit(0)
 
-# def test_aten_embedding_bag_2d():
-#     import numpy as np
-#     weight = np.array([[0,0,0,0,0.5],[1,1,1,1,1.5],[2,2,2,2,2.5],[3,3,3,3,3.5],[4,4,4,4,4.5]]).astype(np.float32)+0.1
-#     indices = np.array([[2,3,4],[1,2,3],[0,1,0]]).astype(np.int64)
-#     psw = np.array([[0.5,1,1],[1,0.5,1],[1,1,0.5]]).astype(np.float32)
-#     r = aten_embedding_bag(weight, indices, mode=0, per_sample_weights=psw, padding_idx=2)
-#     print(r)
-# test_aten_embedding_bag_2d()
-# exit(0)
+def test_aten_embedding_bag_2d():
+    import numpy as np
+    weight = np.array([[0,0,0,0,0.5],[1,1,1,1,1.5],[2,2,2,2,2.5],[3,3,3,3,3.5],[4,4,4,4,4.5]]).astype(np.float32)+0.1
+    indices = np.array([[2,3,4],[1,2,3],[0,1,0]]).astype(np.int64)
+    psw = np.array([[1,2,3],[4,5,6],[7,8,9]]).astype(np.float32)
+    r = aten_embedding_bag(weight, indices, mode=0, per_sample_weights=psw, padding_idx=2)
+    print(r)
+test_aten_embedding_bag_2d()
+exit(0)
 
 
 def aten_embedding_dense_backward(
