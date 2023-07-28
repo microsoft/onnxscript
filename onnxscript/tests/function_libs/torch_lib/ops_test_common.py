@@ -261,7 +261,8 @@ def convert_tensor_to_numpy(input: Any) -> Any:
     if isinstance(input, (tuple, list)):
         if len(input) == 0:
             return np.array((), dtype=np.int64)
-        if isinstance(input[0], torch.Tensor):
+        if any(isinstance(x, torch.Tensor) for x in input):
+            # The list can be Optional[Tensor], e.g. [None, Tensor, None] etc.
             return [convert_tensor_to_numpy(x) for x in input]
         if isinstance(input[0], bool):
             return np.array(input, dtype=np.bool_)
@@ -276,10 +277,7 @@ def convert_tensor_to_numpy(input: Any) -> Any:
 
 
 def convert_kwargs_for_onnx(kwargs: dict[str, Any]) -> dict[str, Any]:
-    """Converts kwargs to be compatible with ONNX Runtime.
-
-    ONNX Runtime doesn't support torch.bool, so we convert them to torch.uint8.
-    """
+    """Converts kwargs to be compatible with ONNX Runtime."""
     new_kwargs = {}
     for key, value in kwargs.items():
         if key == "device":
@@ -304,7 +302,9 @@ def _ort_session_run(serialized_model: bytes, ort_inputs: Mapping[str, Any]):
     session_options.graph_optimization_level = (
         onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     )
-    session = ort.InferenceSession(serialized_model, session_options)
+    session = ort.InferenceSession(
+        serialized_model, session_options, providers=("CPUExecutionProvider",)
+    )
     return session.run(None, ort_inputs)
 
 
@@ -424,7 +424,9 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
     first_input_type_name = schema.inputs[0].type_str
     # Find the type constraint for the first input by matching the parameter name
     first_input_type_constraint = next(
-        (x for x in schema.type_constraints if x.type_param_str == first_input_type_name), None
+        # Here we consider seq(tensor(float)) compatible with tensor(float) as well
+        (x for x in schema.type_constraints if first_input_type_name in x.type_param_str),
+        None,
     )
     assert first_input_type_constraint is not None
     allowed_type_strs = first_input_type_constraint.allowed_type_strs
@@ -469,6 +471,10 @@ def graph_executor(
                         input.value = subarg
                         sequence_input.append(input)
                         ort_inputs[input_name] = subarg
+                    else:
+                        # Include non-numpy inputs as-is
+                        # For example, it could be a None value that we want to keep
+                        sequence_input.append(subarg)
                 onnxscript_args.append(sequence_input)
             else:
                 onnxscript_args.append(arg)
@@ -511,11 +517,9 @@ def graph_executor(
         # Make sure the model is valid
         try:
             onnx.checker.check_model(onnx_model, full_check=True)
-        except onnx.checker.ValidationError as e:
+        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             raise AssertionError(
-                f"ONNX model is invalid: {e}. "
-                f"Model:\n"
-                f"{onnxscript.proto2text(onnx_model)}"
+                f"ONNX model is invalid. Model:\n{onnxscript.proto2text(onnx_model)}"
             ) from e
 
         try:

@@ -5,10 +5,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
-# flake8: noqa
+# pylint: disable=W0221,W0222,R0901,W0237
 # mypy: disable-error-code=override
-# pylint: disable=W0221,W0222,W0237,W0246,R0901,W0611
+# ruff: noqa: N801,E741
+# ruff: noqa: D214,D402,D405,D411,D412,D416,D417
 # --------------------------------------------------------------------------
+
+from __future__ import annotations
 
 from typing import Mapping, Tuple
 
@@ -32,6 +35,7 @@ from onnxscript.onnx_opset._impl.opset15 import Opset15
 from onnxscript.onnx_opset._impl.opset16 import Opset16
 from onnxscript.onnx_opset._impl.opset17 import Opset17
 from onnxscript.onnx_opset._impl.opset18 import Opset18
+from onnxscript.onnx_opset._impl.opset19 import Opset19
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml1 import Opset_ai_onnx_ml1
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml2 import Opset_ai_onnx_ml2
 from onnxscript.onnx_opset._impl.opset_ai_onnx_ml3 import Opset_ai_onnx_ml3
@@ -60,6 +64,7 @@ __all__ = [
     "opset16",
     "opset17",
     "opset18",
+    "opset19",
     "opset_ai_onnx_ml1",
     "opset_ai_onnx_ml2",
     "opset_ai_onnx_ml3",
@@ -91,6 +96,7 @@ opset15 = Opset15()
 opset16 = Opset16()
 opset17 = Opset17()
 opset18 = Opset18()
+opset19 = Opset19()
 opset_ai_onnx_ml1 = Opset_ai_onnx_ml1()
 opset_ai_onnx_ml2 = Opset_ai_onnx_ml2()
 opset_ai_onnx_ml3 = Opset_ai_onnx_ml3()
@@ -168,6 +174,10 @@ all_opsets: Mapping[Tuple[str, int], Opset] = {
         "",
         18,
     ): opset18,
+    (
+        "",
+        19,
+    ): opset19,
     (
         "ai.onnx.ml",
         1,

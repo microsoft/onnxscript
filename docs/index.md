@@ -96,6 +96,7 @@ result = MatmulAdd(x, wt, bias)
 ```{toctree}
 :maxdepth: 1
 
+articles/index
 tutorial/index
 auto_examples/index
 api/index

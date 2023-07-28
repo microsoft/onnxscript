@@ -82,6 +82,26 @@ def pytype_to_attrtype(
     return None
 
 
+def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
+    """Returns True if base type of pytype is bool, False otherwise."""
+    pytype = _remove_annotation(pytype)
+    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
+        return pytype is bool
+    type_constructor = typing.get_origin(pytype)
+    if type_constructor in _LIST_CONSTRUCTORS:
+        element_type = typing.get_args(pytype)[0]
+        return element_type is bool
+    # Remove Optional wrapper if present:
+    if type_constructor is Optional or type_constructor is Union:
+        # In Python < 3.10, Optional[X] is represented as Union[X, type(None)]
+        # so we filter out type(None) if present
+        args = [x for x in typing.get_args(pytype) if x is not type(None)]
+        if len(args) == 1:
+            return base_type_is_bool(args[0])
+
+    return False
+
+
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:
     if isinstance(typeinfo, onnx_types.TensorType):
         return True
@@ -140,7 +160,13 @@ def is_valid_type(typeinfo: TypeAnnotationValue):
 
 def is_optional(pytype) -> bool:
     """Returns whether a pytype is an Optional."""
-    return typing.get_origin(pytype) is typing.Union and type(None) in typing.get_args(pytype)
+    if typing.get_origin(pytype) is Union and type(None) in typing.get_args(pytype):
+        # Python < 3.10
+        return True
+    if typing.get_origin(pytype) is Optional:
+        # Python >= 3.10
+        return True
+    return False
 
 
 def get_return_types(typeinfo: type | Sequence[type]) -> Sequence[type]:
@@ -179,7 +205,9 @@ def pytype_to_type_strings(pytype: TypeAnnotationValue) -> list[str]:
     if isinstance(pytype, typing.TypeVar):
         constraints = pytype.__constraints__
         if constraints:
-            return pytype_to_type_strings(Union.__getitem__(constraints))
+            return pytype_to_type_strings(
+                Union.__getitem__(constraints)
+            )  # pylint: disable=unnecessary-dunder-call
         bound = pytype.__bound__
         if bound is None:
             return list(ALL_TENSOR_TYPE_STRINGS)

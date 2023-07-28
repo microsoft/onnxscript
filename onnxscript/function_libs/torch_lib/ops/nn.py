@@ -20,6 +20,7 @@ from typing import Optional, Sequence, Tuple
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
+    IntType,
     TFloat,
     TFloatOrBFloat16,
     TFloatOrUInt8,
@@ -126,6 +127,70 @@ def aten_adaptive_max_pool3d_backward(
     raise NotImplementedError()
 
 
+def _adjust_attributes_of_avg_pool(
+    expand_size: int,
+    kernel_size: Sequence[int],
+    stride: Sequence[int],
+    padding: Sequence[int],
+) -> Tuple[Sequence[int], Sequence[int], Sequence[int]]:
+    """Adjust attributes of avg_pool to match ONNX specification."""
+
+    if isinstance(kernel_size, int):
+        kernel_shape = [kernel_size] * expand_size
+    else:
+        kernel_shape = kernel_size
+
+    if isinstance(padding, int):
+        pads = [padding] * expand_size * 2
+    elif len(padding) == 1:
+        pads = padding * expand_size * 2
+    elif len(padding) == 2:
+        pads = padding * expand_size
+    else:
+        pads = padding * 2
+
+    if isinstance(stride, int):
+        strides = [stride] * expand_size
+    elif not stride:
+        strides = kernel_shape
+    else:
+        strides = stride
+
+    return (kernel_shape, strides, pads)
+
+
+@torch_op("aten::avg_pool1d", trace_only=True)
+def aten_avg_pool1d(
+    self: TFloat,
+    kernel_size: Sequence[int],
+    stride: Sequence[int] = (),
+    padding: Sequence[int] = (0,),
+    ceil_mode: bool = False,
+    count_include_pad: bool = True,
+) -> TFloat:
+    """avg_pool1d(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, bool ceil_mode=False, bool count_include_pad=True) -> Tensor"""
+
+    # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
+    # But ONNX needs pair number [x,y] to specify on each side explicitly
+    # For pool3d, this number should be 3
+    expand_size = 1
+
+    kernel_shape, strides, pads = _adjust_attributes_of_avg_pool(
+        expand_size, kernel_size, stride, padding
+    )
+
+    result = op.AveragePool(
+        self,
+        ceil_mode=ceil_mode,
+        count_include_pad=count_include_pad,
+        kernel_shape=kernel_shape,
+        pads=pads,
+        strides=strides,
+    )
+
+    return result
+
+
 @torch_op("aten::avg_pool2d", trace_only=True)
 def aten_avg_pool2d(
     self: TFloat,
@@ -143,29 +208,9 @@ def aten_avg_pool2d(
     # For pool3d, this number should be 3
     expand_size = 2
 
-    # The kernel_shape should be [x, y]
-    if isinstance(kernel_size, int):  # x -> [x, x]
-        kernel_shape = [kernel_size] * expand_size
-    else:  # assert(len(kernel_size)==2), already [x, y]
-        kernel_shape = kernel_size
-
-    # The pads should be [w, x, y, z]
-    if isinstance(padding, int):  # w -> [w, w, w, w]
-        pads = [padding] * expand_size * 2
-    elif len(padding) == 1:  # [w] -> [w, w, w, w]
-        pads = padding * 4
-    elif len(padding) == 2:  # [w, x] -> [w, x, w, x]
-        pads = padding * 2
-    else:  # assert len(padding) == 4, already [w, x, y, z]
-        pads = padding
-
-    # The strides should be [x, y]
-    if isinstance(stride, int):  # x -> [x, x]
-        strides = [stride] * expand_size
-    elif stride is None:
-        strides = kernel_shape
-    else:
-        strides = stride
+    kernel_shape, strides, pads = _adjust_attributes_of_avg_pool(
+        expand_size, kernel_size, stride, padding
+    )
 
     result = op.AveragePool(
         self,
@@ -207,18 +252,50 @@ def aten_avg_pool2d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::avg_pool3d", trace_only=True)
 def aten_avg_pool3d(
-    self: TensorType,
+    self: TFloat,
     kernel_size: Sequence[int],
-    stride: Optional[Sequence[int]] = None,
+    stride: Sequence[int] = (),
     padding: Sequence[int] = (0, 0, 0),
     ceil_mode: bool = False,
     count_include_pad: bool = True,
-    divisor_override: Optional[int] = None,
-) -> TensorType:
+    divisor_override: Optional[int] = None,  # pylint: disable=unused-argument
+) -> TFloat:
     """avg_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # Torch prefer to use single number x for kerne,stride,pad,dilation on both side implicitly
+    # But ONNX needs pair number [x,y] to specify on each side explicitly
+    # For pool3d, this number should be 3
+    expand_size = 3
+
+    kernel_shape, strides, pads = _adjust_attributes_of_avg_pool(
+        expand_size, kernel_size, stride, padding
+    )
+
+    result = op.AveragePool(
+        self,
+        kernel_shape=kernel_shape,
+        strides=strides,
+        pads=pads,
+        count_include_pad=count_include_pad,
+        ceil_mode=ceil_mode,
+    )
+
+    # TODO: if want to support divisor_override argument, need to op.Mul(result, mask)
+    # mask = [
+    #    1, 2, 3, S,..3, 2, 1
+    #    2, 4, 6, 2S, 6, 4, 2
+    #    3, 6, 9, 3S, 9, 6, 3
+    #    S, 2S,3S,SS,3S,2S, S
+    #    3, 6, 9, 3S, 9, 6, 3
+    #    2, 4, 6, 2S, 6, 4, 2
+    #    1, 2, 3, S,..3, 2, 1
+    # ]
+    # S is stride size, in this case S=4,
+    # S may dup lot of times according to the image size
+
+    return result
 
 
 def aten_avg_pool3d_backward(
@@ -318,7 +395,7 @@ def aten_conv_depthwise3d(
 @torch_op("aten::cross_entropy_loss")
 def aten_cross_entropy_loss(
     self: TFloatOrBFloat16,
-    target: Sequence[int],
+    target: IntType,
     weight: Optional[TFloatOrBFloat16] = None,
     reduction: int = 1,  # default is 'mean'
     ignore_index: int = -100,
@@ -597,17 +674,27 @@ def aten_leaky_relu_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::linear", trace_only=True)
-def aten_linear(input: TFloat, weight: TFloat, bias: Optional[TFloat] = None) -> TFloat:
+@torch_op("aten::linear")
+def aten_linear(input: TFloat, weight: TFloat) -> TFloat:
     """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
 
     # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
     # Optimizers may consider this path and replace it with Gemm
+    # We do not use Gemm here because input can have batch dimensions, which Gemm does not support
     weight_transposed = op.Transpose(weight, perm=[1, 0])
-    result = op.MatMul(input, weight_transposed)
-    if bias is not None:
-        result = op.Add(result, bias)
-    return result
+    return op.MatMul(input, weight_transposed)
+
+
+@torch_op("aten::linear")
+def aten_linear_bias(input: TFloat, weight: TFloat, bias: TFloat) -> TFloat:
+    """linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor"""
+
+    # NOTE: The symbolic function in torch.onnx also uses Gemm in certain cases
+    # Optimizers may consider this path and replace it with Gemm
+    # We do not use Gemm here because input can have batch dimensions, which Gemm does not support
+    weight_transposed = op.Transpose(weight, perm=[1, 0])
+    mul = op.MatMul(input, weight_transposed)
+    return op.Add(mul, bias)
 
 
 @torch_op("aten::log_sigmoid")
@@ -669,7 +756,7 @@ def aten_max_pool1d_with_indices(
     padding: Sequence[int] = (0,),
     dilation: Sequence[int] = (1,),
     ceil_mode: bool = False,
-) -> tuple[TFloatOrUInt8, INT64]:
+) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool1d_with_indices(Tensor self, int[1] kernel_size, int[1] stride=[], int[1] padding=0, int[1] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""
 
     # Torch prefers to use single number x for kernel, stride, pad and dilation on both sides implicitly.
@@ -711,13 +798,25 @@ def _adjust_attributes_of_max_pool(
     else:
         kernel_shape = kernel_size
 
+    # NOTE: expand_size is the dimension of pooling kernel,
+    # ONNX needs begin and end padding so we need to double the padding
+
+    # NOTE: expand size prevents padding from being a single int in
+    # multiple dimension cases
     if isinstance(padding, int):
         pads = [padding] * expand_size * 2
     elif len(padding) == 1:
         pads = padding * expand_size * 2
     elif len(padding) == 2:
-        pads = padding * expand_size
+        # 2D padding
+        pads = padding * 2
+    elif len(padding) == 3:
+        # 3D padding
+        pads = padding * 2
     else:
+        # When padding is already done for all dimensions,
+        # we don't need to double it
+        # eg: (1, 1, 1, 1, 1, 1)
         pads = padding
 
     if isinstance(stride, int):
@@ -786,8 +885,8 @@ def aten_max_pool3d(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
     stride: Sequence[int] = (),
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0, 0),
+    dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
 ) -> TFloatOrUInt8:
     """max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor"""
@@ -856,8 +955,8 @@ def aten_max_pool3d_with_indices(
     self: TFloatOrUInt8,
     kernel_size: Sequence[int],
     stride: Sequence[int] = (),
-    padding: Sequence[int] = (0, 0),
-    dilation: Sequence[int] = (1, 1),
+    padding: Sequence[int] = (0, 0, 0),
+    dilation: Sequence[int] = (1, 1, 1),
     ceil_mode: bool = False,
 ) -> Tuple[TFloatOrUInt8, INT64]:
     """max_pool3d_with_indices(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)"""

@@ -3,7 +3,7 @@ from onnxscript import script
 
 
 @script()
-def Dropout(data, ratio, training_mode, seed: int):
+def Dropout(data, ratio, training_mode, seed: float):
     if training_mode:
         rand = op.RandomUniformLike(data, dtype=1, seed=seed)
         mask = rand >= ratio
