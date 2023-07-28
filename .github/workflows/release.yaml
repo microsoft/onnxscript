@@ -2,8 +2,8 @@ name: Release
 
 on:
   schedule:
-    # Run weekly on Mondays and Wednesdays 00:00
-    - cron: '00 00 * * MON,WED'
+    # Run daily at 00:00
+    - cron: '00 00 * * *'
   push:
     branches: [main, rel-*]
   pull_request:
