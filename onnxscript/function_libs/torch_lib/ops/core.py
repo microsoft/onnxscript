@@ -3748,7 +3748,7 @@ def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
         # out = [out_1, out_2, ..., out_n], then
         # out_i = log(cumsum(exp(A)))_i
         #       = log(exp(a_1) + ... + exp(a_i))
-        #       = log(exp(a_1) + ... + exp(a_i)) - max(A) + max(B)
+        #       = log(exp(a_1) + ... + exp(a_i)) - max(A) + max(A)
         #       = log((exp(a_1) + ... + exp(a_i)) / exp(max(A))) + max(A)
         #       = log(exp(a_1-max(A)) + ... + exp(a_i-max(A))) + max(A)
         #       = log(sum<j=1...i>(exp(a_j - max(A)))) + max(A)
