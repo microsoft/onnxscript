@@ -187,7 +187,6 @@ def range_with_limit(image_W: INT64, W: INT64, step_W: INT64) -> INT64["N"]:
         grid_w_0 = op.Range(0, W * step_W, step_W)
     return grid_w_0
     
-
 @script()
 def dense_patch_slices_script(image_size: INT64[3], patch_size: INT64[3], scan_interval: INT64[3]) -> INT64["N", 3, 2]:
     """
@@ -240,7 +239,7 @@ def prepare_for_predictor_batch_size_is_1_script(inputs: FLOAT["N", 1, "D", "H",
     return win_data, start, stop
 
 @script()
-def sliding_window_inference(inputs: FLOAT["N", "C", "D", "H", "W"], roi_size: INT64[3]) -> FLOAT["N", "Seg_C", "D", "H", "W"]:
+def sliding_window_inference(inputs: FLOAT["N", "C", "D", "H", "W"], roi_size: INT64[3], overlap=0.25) -> FLOAT["N", "Seg_C", "D", "H", "W"]:
     """
     The sliding window method is used for model inference. It involves taking a 3D sliding window on the input tensor
     and making predictions using a provided predictor. The outputs from the predictor are then aggregated to form the output of the operator.
@@ -251,6 +250,7 @@ def sliding_window_inference(inputs: FLOAT["N", "C", "D", "H", "W"], roi_size: I
     roi_D, roi_H, roi_W = op.Split(roi_size, num_outputs=3)
     
     scan_interval = roi_size
+    # scan_interval = get_scan_interval_script(inputs_spatial_shape, roi_size, overlap)
     slices = dense_patch_slices_script(inputs_spatial_shape, roi_size, scan_interval)
     S_, _, _ = op.Split(op.Shape(slices), num_outputs=3)
     S = op.Squeeze(S_, op.Constant(value_ints=[0]))
@@ -267,3 +267,48 @@ def sliding_window_inference(inputs: FLOAT["N", "C", "D", "H", "W"], roi_size: I
     
     return aggrregated_pred / op.CastLike(aggrregated_count, aggrregated_pred)
 
+@script()
+def _get_scan_interval_script_1(image_size: INT64[3], roi_size: INT64[3], overlap: FLOAT[3], dim: INT64) -> INT64[1]:
+    # return int((1 - overlap[i]) * roi_size[i]) if image_size[i] > roi_size[i] else image_size[i]
+    zero = op.Constant(value_int=0)
+    one = op.Constant(value_int=1)
+
+    starts = op.Unsqueeze(dim, zero)
+    ends = op.Unsqueeze(dim + one, zero)
+    zero_1d = op.Unsqueeze(zero, zero)
+    image_size_1 = op.Slice(image_size, starts, ends, zero_1d)
+    roi_size_1 = op.Slice(roi_size, starts, ends, zero_1d)
+    if image_size_1 == roi_size_1:
+        interval = image_size_1
+    else:
+        overlap_1 = op.Slice(overlap, starts, ends, zero_1d)
+        one_f = op.CastLike(one, overlap_1)
+        roi_size_1_f = op.CastLike(roi_size_1, overlap_1)
+        interval_f = (one_f - overlap_1) * roi_size_1_f
+        interval_i = op.CastLike(interval_f, roi_size_1)
+        interval = op.Clip(interval_i, one)
+    return interval
+
+@script()
+def get_scan_interval_script(image_size: INT64[3], roi_size: INT64[3]) -> INT64[3]:
+    """
+    Compute scan interval according to the image size, roi size and overlap.
+    Scan interval will be `int((1 - overlap) * roi_size)`, if interval is 0,
+    use 1 instead to make sure sliding window works.
+    """
+    zero = op.Constant(value_int=0)
+    scan_interval = zero
+
+    num_spatial_dims = op.Size(image_size)
+    one = op.Constant(value_int=1)
+    # if op.Size(overlap) == one:
+    s = op.Shape(roi_size)
+    overlap = op.ConstantOfShape(s, value=make_tensor("value", 1, dims=[1], vals=[0.25]))
+
+    scan_interval = _get_scan_interval_script_1(image_size, roi_size, overlap, zero)
+
+    for dim in range(num_spatial_dims - one):
+        dim_1 = dim + one
+        scan_interval_1 = _get_scan_interval_script_1(image_size, roi_size, overlap, dim_1)
+        scan_interval = op.Concat(scan_interval, scan_interval_1, axis=0)
+    return scan_interval

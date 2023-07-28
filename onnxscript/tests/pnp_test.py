@@ -9,7 +9,15 @@ from onnxscript.onnx_opset import opset15 as op
 from onnxscript.onnx_types import FLOAT, INT64
 from onnxscript.tests.common import onnx_script_test_case, testutils
 
-from onnxscript.tests.models.pnp import roi_indices_3d, aggregate_predictor_output, sliding_window_inference, predict_mock, predict_mock_2, Opset18Ext
+from onnxscript.tests.models.pnp import (
+    roi_indices_3d,
+    aggregate_predictor_output,
+    sliding_window_inference,
+    predict_mock,
+    predict_mock_2,
+    Opset18Ext,
+    get_scan_interval_script,
+)
 
 class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
     def test_roi_indices_3d(delf):
@@ -46,6 +54,28 @@ class PnpOpTest(onnx_script_test_case.OnnxScriptTestCase):
             [aggrregated_pred_expected, aggrregated_count_expected]
             )
         self.run_eager_test(case)
+        self.run_converter_test(case)
+
+    def test_get_scan_interval_script(self):
+        D, H, W = 100, 111, 127
+        roi_D, roi_H, roi_W = 64, 64, 32
+        image_size = np.array((D, H, W), dtype=np.int64)
+        roi_size = np.array([roi_D, roi_H, roi_W], dtype=np.int64)
+        overlap = (0.25, ) * 3
+
+        scan_interval = [int((1 - overlap[i]) * roi_size[i]) if image_size[i] > roi_size[i] else image_size[i] for i in range(3)]
+        save_model = True
+        if save_model:
+            model = get_scan_interval_script.function_ir.to_model_proto(producer_name="monai")
+            onnx.save(model, "C:/temp/test_get_scan_interval.onnx")
+        case = onnx_script_test_case.FunctionTestParams(
+            get_scan_interval_script,
+            [image_size, roi_size],
+            [scan_interval],
+            )
+        # eager test failed with data Not equal. this is expected as the output is not run with predictor.
+        self.run_eager_test(case)
+        # converter test extect to fail with No Op registered for OpaqueOp with domain_version of 18
         self.run_converter_test(case)
 
     def test_sliding_window_inference(self):
