@@ -578,6 +578,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
+    TorchLibOpInfo("lift_fresh_copy", core_ops.aten_lift_fresh_copy),
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
@@ -1792,6 +1793,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tenso
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
+ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
