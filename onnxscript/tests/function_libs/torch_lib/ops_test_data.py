@@ -1150,7 +1150,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_split_with_sizes,
     ).xfail(
         dtypes=[torch.float16],
-        reason="fixme: ORT failed",
+        reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     ),
     TorchLibOpInfo(
         "split",
@@ -1158,12 +1158,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=[torch.float16],
-        reason="fixme: ORT failed",
+        reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
         variant_name="list_args",
         dtypes=[torch.float16],
-        reason="fixme: ORT: Type (seq(tensor(float16))) of output arg (output0) of node () does not match expected type (seq(tensor(float)))",
+        reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     ),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
     TorchLibOpInfo(
