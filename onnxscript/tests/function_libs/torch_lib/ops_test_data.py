@@ -684,7 +684,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     )
     .xfail(
-        dtypes=(torch.int64,),
+        dtypes=(torch.int64, torch.int32),
         reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
     )
     .xfail(
@@ -1197,12 +1197,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
     TorchLibOpInfo("topk", core_ops.aten_topk).xfail(
-        dtypes=(torch.int64,),
+        dtypes=(torch.int64, torch.int32),
         enabled_if=not ops_test_common.IS_WINDOWS,
         reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
     ),
-    TorchLibOpInfo("tril", core_ops.aten_tril),
-    TorchLibOpInfo("triu", core_ops.aten_triu),
+    TorchLibOpInfo("tril", core_ops.aten_tril).xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: ORT does not have an implementation of Trilu for int32."
+    ),
+    TorchLibOpInfo("triu", core_ops.aten_triu).xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: ORT does not have an implementation of Trilu for int32."
+    ),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
     TorchLibOpInfo(
         "unbind",
@@ -1246,7 +1252,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start_step",
         core_ops.aten_arange_start_step,
         trace_only=True,
-    ).xfail(
+    )
+    .xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: output shape mismatch in edge cases."
+    )
+    .xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
@@ -1254,7 +1265,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start",
         core_ops.aten_arange_start,
         trace_only=True,
-    ).skip(
+    )
+    .xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: output shape mismatch in edge cases."
+    )
+    .skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
@@ -1262,6 +1278,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange",
         core_ops.aten_arange,
         trace_only=True,
+    )
+    .xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: output shape mismatch in edge cases."
     )
     .xfail(
         matcher=lambda sample: len(sample.args) != 0,
@@ -1343,7 +1363,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=[torch.float16],
         reason="fixme: Tensor-likes are not close. https://github.com/microsoft/onnxruntime/issues/16007",
     ),
-    TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
+    TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True).xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: torch.cumsum with int32 inputs uses int64 as the output type"
+    ),
     TorchLibOpInfo("contiguous", core_ops.aten_contiguous),
     TorchLibOpInfo(
         "ops.aten.convolution",
@@ -1720,6 +1743,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_sum_dim_IntList,
         input_wrangler=_sum_input_wrangler,
         trace_only=True,
+    ).xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: torch.sum uses int64 as the accumulator for int32 inputs",
     ),
     TorchLibOpInfo(
         "ops.aten.tensor.bool", core_ops.aten_tensor_bool
