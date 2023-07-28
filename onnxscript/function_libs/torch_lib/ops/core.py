@@ -3746,26 +3746,26 @@ def _aten_logcumsumexp_onnx(self: TFloatOrBFloat16, dims: Sequence[int]) -> TFlo
     for stability.
     """
 
-    @graph()
-    def log_add_exp(x, y):
-        # Compute pairwise log_exp.
-        # Based on https://www.tensorflow.org/api_docs/python/tf/math/cumulative_logsumexp.
-        # log_add_exp(x, y) = log(1 + exp(min(x, y) - max(x, y))) + max(x, y)
-        sum_out = op.Add(op.Log(op.Add(1, op.Exp(op.Sub(op.Min(x, y), op.Max(x, y))))), op.Max(x, y))
-        return x, sum_out
+    # @graph()
+    # def log_add_exp(x, y):
+    #     # Compute pairwise log_exp.
+    #     # Based on https://www.tensorflow.org/api_docs/python/tf/math/cumulative_logsumexp.
+    #     # log_add_exp(x, y) = log(1 + exp(min(x, y) - max(x, y))) + max(x, y)
+    #     sum_out = op.Add(op.Log(op.Add(1, op.Exp(op.Sub(op.Min(x, y), op.Max(x, y))))), op.Max(x, y))
+    #     return sum_out, sum_out
 
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
-        # A scalar
-        result = op.Identity(self)
-    elif self_rank == 1:
-        # A 1d tensor
-        _, result = op.Scan(op.CastLike(0.0, self), self, body=log_add_exp, num_scan_inputs=1, scan_input_axes=dims, scan_output_axes=dims)
-    else:
-        zero = op.Expand(op.CastLike(0.0, self), op.Shape(self))
-        # Take dims out from zero
-        zero = op.ReduceSum(zero, dims, keepdims=0)
-        _, result = op.Scan(zero, self, body=log_add_exp, num_scan_inputs=1, scan_input_axes=dims, scan_output_axes=dims)
+    # self_rank = op.Size(op.Shape(self))
+    # if self_rank == 0:
+    #     # A scalar
+    #     result = op.Identity(self)
+    # elif self_rank == 1:
+    #     # A 1d tensor
+    #     _, result = op.Scan(op.CastLike(0.0, self), self, body=log_add_exp, num_scan_inputs=1, scan_input_axes=dims, scan_output_axes=dims)
+    # else:
+    #     zero = op.Expand(op.CastLike(0.0, self), op.Shape(self))
+    #     # Take dims out from zero
+    #     zero = op.ReduceSum(zero, dims, keepdims=0)
+    #     _, result = op.Scan(zero, self, body=log_add_exp, num_scan_inputs=1, scan_input_axes=dims, scan_output_axes=dims)
 
     return result
 
