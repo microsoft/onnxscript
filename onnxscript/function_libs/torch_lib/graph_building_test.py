@@ -2,6 +2,8 @@
 # mypy: disable-error-code="arg-type,type-arg,valid-type"
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
 
 import torch
@@ -137,6 +139,45 @@ class TestTorchScriptGraph(unittest.TestCase):
         x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
         graph.add_initializer("x", x_tensor)
         graph.add_initializer("x", x_tensor)
+
+
+class TestLargeModelSave(unittest.TestCase):
+    def test_save_initializer_to_files_for_large_model(self):
+        class MLP(torch.nn.Module):
+            def __init__(self, input_size, hidden_size, output_size):
+                super().__init__()
+                self.fc1 = torch.nn.Linear(input_size, hidden_size)
+                self.fc2 = torch.nn.Linear(hidden_size, output_size)
+                self.relu = torch.nn.ReLU()
+
+            def forward(self, x):
+                out = self.fc1(x)
+                out = self.relu(out)
+                out = self.fc2(out)
+                return out
+
+        # # of model parameters:
+        #  input_size x hidden_size + hidden_size +
+        #  hidden_size x output_size + output_size
+        # Thus, we have
+        #  (4 x 50000000 + 50000000 = 250000000) +
+        #  (50000000 x 10 + 10 = 500000010)
+        #  = 750000010 parameters
+        #  = 750000010 * 4 bytes
+        #  = 3 GB
+        batch_size, input_size, hidden_size, output_size = 1, 4, 50000000, 10
+        model = MLP(input_size, hidden_size, output_size)
+        x = torch.randn(batch_size, input_size)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            os.environ["EXTERNAL_ONNX_INITIALIZER_FOLDER"] = temp_dir
+            torch.onnx.dynamo_export(
+                model,
+                x,
+            )
+            # Expect initializers fc1.bias, fc1.weight, fc2.weight
+            # are saved to individual files.
+            self.assertEqual(os.listdir(temp_dir), 3)
 
 
 if __name__ == "__main__":
