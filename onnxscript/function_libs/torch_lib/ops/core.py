@@ -14,7 +14,19 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, UINT8, graph, FLOAT16, BFLOAT16
+from onnxscript import (
+    BFLOAT16,
+    BOOL,
+    DOUBLE,
+    FLOAT,
+    FLOAT16,
+    INT8,
+    INT16,
+    INT32,
+    INT64,
+    UINT8,
+    graph,
+)
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -2385,7 +2397,9 @@ def aten_equal_bool(self: BOOL, other: BOOL) -> BOOL:
 
     elementwise_difference = op.Xor(self, other)
     elementwise_difference_int = op.Cast(elementwise_difference, to=INT64.dtype)
-    any_difference = op.ReduceMax(elementwise_difference_int, keepdims=0, noop_with_empty_axes=0)
+    any_difference = op.ReduceMax(
+        elementwise_difference_int, keepdims=0, noop_with_empty_axes=0
+    )
     return op.Not(op.Cast(any_difference, to=BOOL.dtype))
 
 
