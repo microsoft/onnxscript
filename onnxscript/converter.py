@@ -21,10 +21,10 @@ from typing import (
 import onnx
 
 import onnxscript
-from onnxscript import analysis, autocast, irbuilder, onnx_types, sourceinfo
+from onnxscript import analysis, irbuilder, onnx_types, sourceinfo
 from onnxscript import type_annotation as ta
 from onnxscript import values
-from onnxscript._internal import ast_utils, param_manipulation
+from onnxscript._internal import ast_utils, autocast, param_manipulation
 
 PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
 
@@ -303,6 +303,18 @@ class Converter:
         self._used_vars.add(r)
         return r
 
+    def make_onnx_attr(
+        self, attrname: str, attrval: Any, attrtype: Optional[int] = None
+    ) -> irbuilder.IRAttributeValue:
+        def tensor_name_generator() -> str:
+            """Return name to be used for tensor, if we need to create one."""
+            return self.generate_unique_name(f"attr_{attrname}")
+
+        proto = autocast.pyvalue_to_onnx_attribute(
+            attrname, attrval, tensor_name_generator, attrtype
+        )
+        return self.ir_builder.make_attr(proto)
+
     def to_onnx_attr_ref(
         self, val: values.AttrRef, info: Optional[sourceinfo.SourceInfo]
     ) -> irbuilder.IRAttributeValue:
@@ -338,7 +350,7 @@ class Converter:
                 # distinguish between int and bool. So we cast the int tensor to a bool tensor,
                 # to promote a (python) bool attribute to a ONNX bool tensor.
                 result_as_bool = self.generate_unique_name(result + "_as_bool")
-                cast_attr = self.ir_builder.make_attr("to", onnx_types.BOOL.dtype)
+                cast_attr = self.make_onnx_attr("to", onnx_types.BOOL.dtype)
                 self.emit(
                     [result_as_bool],
                     values.Op(self.default_opset, "Cast"),
@@ -409,7 +421,7 @@ class Converter:
             tensor = autocast.pyvalue_to_onnx_tensor(ovar, pyvalue)
         except ValueError as e:
             fail(info.msg(str(e)))
-        attr = self.ir_builder.make_attr("value", tensor)
+        attr = self.make_onnx_attr("value", tensor)
         self.emit([ovar], values.Op(self.default_opset, "Constant"), [], [attr])
         return Variable(ovar, True)
 
@@ -471,7 +483,10 @@ class Converter:
             ) from e
 
     def translate_attr(
-        self, attr_name: str, expr: ast.AST
+        self,
+        attr_name: str,
+        expr: ast.AST,
+        attr_meta: Optional[onnx.defs.OpSchema.Attribute] = None,
     ) -> Optional[irbuilder.IRAttributeValue]:
         """Translate an attribute-value specification of the form `attr_name=<expr>`
         in a call to an op. expr is an AST. The following cases are supported:
@@ -481,10 +496,17 @@ class Converter:
         * Expr must be an attribute-reference, that is a name representing an
         attribute-parameter of a containing function.
         """
+
         if isinstance(expr, ast.Name):
             val = self.lookup(expr.id, self.source_of(expr))
             if isinstance(val, values.AttrRef):
-                return self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                attr_ref = self.ir_builder.make_attr_ref(attr_name, val.value, val.typeinfo)
+                if attr_meta is not None and (attr_ref.type != attr_meta.type):
+                    self.fail(
+                        expr,
+                        f"Attribute type '{attr_ref.type}' does not match expected type '{attr_meta.type}'",
+                    )
+                return attr_ref
             if isinstance(val, irbuilder.IRFunction):
                 # Check that outer-scope variables referenced by function have same value
                 # at function-definition site and use-as-attribute site, to avoid errors.
@@ -493,8 +515,8 @@ class Converter:
                     if current.value != previous.value:
                         self.fail(
                             expr,
-                            f"Outer scope variable {pyvar} referenced by function "
-                            f"{expr.id!r} modified.",
+                            f"Outer scope variable '{pyvar}' referenced by function "
+                            f"'{expr.id!r}' modified.",
                         )
 
                 # Create GraphProto attribute
@@ -508,8 +530,17 @@ class Converter:
         # The caller is responsible for omitting such attribute-values from the list of attributes
         # in a NodeProto.
         if val is None:
+            if attr_meta and attr_meta.required:
+                self.fail(expr, "Attribute '{attr_name}' is required.")
             return None
-        return self.ir_builder.make_attr(attr_name, val)
+        attr_type = attr_meta.type if attr_meta else None
+        attr = self.make_onnx_attr(attr_name, val, attr_type)
+        if attr_meta and (attr.type != attr_meta.type):
+            self.fail(
+                expr,
+                f"Attribute type '{attr.type}' does not match expected type '{attr_meta.type}'",
+            )
+        return attr
 
     def translate_docstring(self, node: ast.Expr) -> None:
         if hasattr(node.value, "value"):
@@ -730,7 +761,7 @@ class Converter:
                 steps.append(inputs[2])
 
             if len(starts) > 1:
-                axis_0_attr = self.ir_builder.make_attr("axis", 0)
+                axis_0_attr = self.make_onnx_attr("axis", 0)
                 start_name = self.generate_unique_name(f"{var_name}_start")
                 self.emit([start_name], "Concat", starts, [axis_0_attr])
 
@@ -777,7 +808,7 @@ class Converter:
             last_axis, _ = non_scalar_indices[-1]
         for axis, index_expr in non_scalar_indices:
             index_value = self.translate_expr(index_expr)
-            axis_attr = self.ir_builder.make_attr("axis", axis)
+            axis_attr = self.make_onnx_attr("axis", axis)
             # use Gather to perform indexing
             # Assign gathered value to either temporary or final target
             if axis != last_axis:  # use temporary to store result of Gather
@@ -801,7 +832,10 @@ class Converter:
                 param_schemas, node.args, kwargs, fill_defaults=False
             )
             args = [self.translate_opt_expr(x) for x in args]
-            attrs = [self.translate_attr(x, y) for x, y in attrs.items()]
+            attrs = [
+                self.translate_attr(x, y, callee.op_schema.attributes[x])
+                for x, y in attrs.items()
+            ]
         else:
             args = [self.translate_opt_expr(x) for x in node.args]
             attrs = [self.translate_attr(x.arg, x.value) for x in node.keywords]
@@ -828,7 +862,7 @@ class Converter:
             # attribute fmod=1 is added in that case.
             cst = self.eval_constant_expr(node.right)
             if isinstance(cst, float):
-                attr = [self.ir_builder.make_attr("fmod", 1)]
+                attr = [self.make_onnx_attr("fmod", 1)]
 
         op = values.Op(self.default_opset, primop_map[op])
         left, right = self._cast_like_binary_expression(
@@ -902,6 +936,7 @@ class Converter:
         else:
             self.fail(node, "Invalid opset expression.")
 
+    # pylint: enable=inconsistent-return-statements
     def translate_callee_expr(self, node: ast.AST) -> values.Op:  # pylint: disable=R1710
         """Return an Op"""
         if isinstance(node, ast.Attribute):
@@ -1067,19 +1102,21 @@ class Converter:
 
     def translate_if_stmt(self, stmt: ast.If) -> None:
         if hasattr(stmt, "live_out"):
-            live_defs = list(stmt.live_out.intersection(analysis.defs(stmt)))
+            live_defs = list(
+                stmt.live_out.intersection(analysis.assigned_vars(stmt, self.message))
+            )
         else:
-            live_defs = list(analysis.defs(stmt))
+            live_defs = list(analysis.assigned_vars(stmt, self.message))
         test = self.translate_expr(stmt.test, "cond").name
         lineno = self.source_of(stmt).lineno
         thenGraph, sub_fct_then = self.translate_block(
             stmt.body, f"thenGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        thenAttr = self.ir_builder.make_attr("then_branch", thenGraph)
+        thenAttr = self.make_onnx_attr("then_branch", thenGraph)
         elseGraph, sub_fct_else = self.translate_block(
             stmt.orelse, f"elseGraph_{lineno}", live_defs, parent_stmt=stmt
         )
-        elseAttr = self.ir_builder.make_attr("else_branch", elseGraph)
+        elseAttr = self.make_onnx_attr("else_branch", elseGraph)
 
         def rename(x):
             r = self.generate_unique_name(x)
@@ -1148,7 +1185,7 @@ class Converter:
             self.fail(loop_stmt, f"Unexpected loop type {type(loop_stmt)!r}.")
         # analyze loop body
         exposed_uses = analysis.exposed_uses(loop_stmt.body, self.message)
-        vars_def_in_loop = analysis.defs(loop_stmt.body)
+        vars_def_in_loop = analysis.assigned_vars(loop_stmt.body, self.message)
         loop_state_vars = vars_def_in_loop.intersection(exposed_uses | loop_stmt.live_out)
         scan_outputs = set()  # TODO
         outputs = list(loop_state_vars | scan_outputs)
@@ -1266,7 +1303,7 @@ class Converter:
             for pv in loop_state_vars
         ]
         graph, sub_functions = body.to_graph_and_functions()
-        attrs = [self.ir_builder.make_attr("body", graph)]
+        attrs = [self.make_onnx_attr("body", graph)]
         info = self.source_of(loop_stmt)
 
         def rename(x):
