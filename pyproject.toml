@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "onnxscript"
 dynamic = ["version"]
-description = "ONNX Script enables developers to naturally author ONNX functions and models using a subset of Python"
+description = "Naturally author ONNX functions and models using a subset of Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
 urls = { "Repository" = "https://github.com/microsoft/onnxscript" }
 readme = "README.md"
