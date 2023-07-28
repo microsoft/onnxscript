@@ -272,7 +272,7 @@ def aten_all(self: TTensor) -> BOOL:
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        all_true = op.ReduceMin(self_int, keepdims=True)
+        all_true = op.ReduceMin(self_int, keepdims=False)
         result = op.Cast(all_true, to=BOOL.dtype)
     return result
 
@@ -368,7 +368,7 @@ def aten_any(self: TTensor) -> BOOL:
         self_bool = op.Cast(self, to=BOOL.dtype)
         # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        any_true = op.ReduceMax(self_int, keepdims=True, noop_with_empty_axes=0)
+        any_true = op.ReduceMax(self_int, keepdims=False)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
@@ -386,7 +386,7 @@ def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
         self_int = op.Cast(self_bool, to=INT64.dtype)
         # Change dim from int to INT64[1]
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        any_true = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        any_true = op.ReduceMax(self_int, dims, keepdims=keepdim)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
@@ -2383,7 +2383,7 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
     # ReduceMax does not support bool. So we cast to int64
-    all_equal = op.ReduceMin(elementwise_equal_int, keepdims=0, noop_with_empty_axes=0)
+    all_equal = op.ReduceMin(elementwise_equal_int, keepdims=0)
     return op.Cast(all_equal, to=BOOL.dtype)
 
 
