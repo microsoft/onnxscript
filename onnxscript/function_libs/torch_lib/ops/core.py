@@ -3732,7 +3732,7 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
     return op.Div(op.Log(summation), op.Log(2.0))
 
 
-@torch_op("aten::logcumsumexp", trace_only=False)
+@torch_op("aten::logcumsumexp")
 def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """logcumsumexp(Tensor self, int dim) -> Tensor"""
 
