@@ -2395,12 +2395,11 @@ def aten_equal(self: TReal, other: TReal) -> BOOL:
 def aten_equal_bool(self: BOOL, other: BOOL) -> BOOL:
     """equal(Tensor self, Tensor other) -> bool"""
 
-    elementwise_difference = op.Xor(self, other)
-    elementwise_difference_int = op.Cast(elementwise_difference, to=INT64.dtype)
-    any_difference = op.ReduceMax(
-        elementwise_difference_int, keepdims=0, noop_with_empty_axes=0
-    )
-    return op.Not(op.Cast(any_difference, to=BOOL.dtype))
+    elementwise_equal = op.Equal(self, other)
+    elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
+    # ReduceMax does not support bool. So we cast to int64
+    all_equal = op.ReduceMin(elementwise_equal_int, keepdims=0, noop_with_empty_axes=0)
+    return op.Cast(all_equal, to=BOOL.dtype)
 
 
 def aten_erfinv(self: TensorType) -> TensorType:
