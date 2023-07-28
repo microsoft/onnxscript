@@ -3753,16 +3753,27 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
 
 
 @torch_op("aten::logcumsumexp")
-def aten_logcumsumexp(self: TFloatOrBFloat16, dim: INT64) -> TFloatOrBFloat16:
+def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """logcumsumexp(Tensor self, int dim) -> Tensor"""
 
-    if op.Size(op.Shape(self)) == 0:
-        # A scalar
-        result = op.Identity(self)
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        result = self
     else:
-        # FIXME(justinchuby): Ensure numerical stability
-        result = op.Log(op.CumSum(op.Exp(self), dim))
-
+        # Make dim 1-d
+        dims = op.Unsqueeze(dim, axes=[0])
+        # This uses the max trick to avoid overflow:
+        # Assuming A = [a_1, a_2, ..., a_n] and the output
+        # out = [out_1, out_2, ..., out_n], then
+        # out_i = log(cumsum(exp(A)))_i
+        #       = log(exp(a_1) + ... + exp(a_i))
+        #       = log(exp(a_1) + ... + exp(a_i)) - max(A) + max(A)
+        #       = log((exp(a_1) + ... + exp(a_i)) / exp(max(A))) + max(A)
+        #       = log(exp(a_1-max(A)) + ... + exp(a_i-max(A))) + max(A)
+        #       = log(sum<j=1...i>(exp(a_j - max(A)))) + max(A)
+        # Vectorizing for all i, we get the expression below.
+        self_max = op.ReduceMax(self, dims)
+        result = op.Log(op.CumSum(op.Exp(self - self_max), dims)) + self_max
     return result
 
 
