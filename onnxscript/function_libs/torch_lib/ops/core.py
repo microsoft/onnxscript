@@ -266,14 +266,14 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
-    if op.Size(op.Shape(self)) == 0:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
         result = op.Cast(self, to=BOOL.dtype)
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        result_int = op.ReduceMin(self_int, keepdims=0)
-        result = op.Cast(result_int, to=BOOL.dtype)
-
+        all_true = op.ReduceMin(self_int, keepdims=True)
+        result = op.Cast(all_true, to=BOOL.dtype)
     return result
 
 
@@ -281,15 +281,15 @@ def aten_all(self: TTensor) -> BOOL:
 def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """all.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
-    if op.Size(op.Shape(self)) == 0:
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
         result = op.Cast(self, to=BOOL.dtype)
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_int = op.Cast(self_bool, to=INT64.dtype)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        result_int = op.ReduceMin(self_int, dims, keepdims=keepdim)
-        result = op.Cast(result_int, to=BOOL.dtype)
-
+        all_true = op.ReduceMin(self_int, dims, keepdims=keepdim)
+        result = op.Cast(all_true, to=BOOL.dtype)
     return result
 
 
@@ -358,41 +358,36 @@ def aten_angle(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::any")
-def aten_any(
-    self: TTensor,
-    keepdim: bool = True,  # pylint: disable=unused-argument
-) -> BOOL:
+def aten_any(self: TTensor) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        result = op.Not(op.Equal(self, 0.0))
+        result = op.Cast(self, to=BOOL.dtype)
     else:
-        # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
         self_bool = op.Cast(self, to=BOOL.dtype)
-        # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
+        # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
         self_int = op.Cast(self_bool, to=INT64.dtype)
-        result_max = op.ReduceMax(self_int, keepdims=0, noop_with_empty_axes=0)
-        result = op.Greater(result_max, op.Constant(value_int=0))
+        any_true = op.ReduceMax(self_int, keepdims=True, noop_with_empty_axes=0)
+        result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
 
 @torch_op("aten::any.dim")
-def aten_any_dim(self: TTensor, dim: int, keepdim: bool = True) -> BOOL:
+def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """any.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
-        result = op.Not(op.Equal(self, 0.0))
+        result = op.Cast(self, to=BOOL.dtype)
     else:
-        # cannot cast to INT64 because 0.1 will be cast to 0, then convert to false
         self_bool = op.Cast(self, to=BOOL.dtype)
-        # op.ReduceMax() in next step cannot calculate BOOL value, so convert to INT64
+        # op.ReduceMax() in the next step cannot process BOOL inputs, so convert to INT64
         self_int = op.Cast(self_bool, to=INT64.dtype)
         # Change dim from int to INT64[1]
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
-        result_max = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
-        result = op.Greater(result_max, op.Constant(value_int=0))
+        any_true = op.ReduceMax(self_int, dims, keepdims=keepdim, noop_with_empty_axes=0)
+        result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
 
