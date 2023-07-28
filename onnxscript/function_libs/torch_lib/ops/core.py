@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, UINT8, graph
+from onnxscript import BOOL, DOUBLE, FLOAT, INT8, INT16, INT32, INT64, UINT8, graph, FLOAT16, BFLOAT16
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -40,11 +40,19 @@ _MATH_PI = math.pi
 
 
 @torch_op("aten::_local_scalar_dense")
-def aten__local_scalar_dense(self: TTensor) -> TTensor:
+def aten__local_scalar_dense(self: Union[FLOAT16, FLOAT, DOUBLE, BFLOAT16]) -> FLOAT:
     """_local_scalar_dense(Tensor self) -> Scalar"""
 
     # Return the first element in tensor as a scalar.
-    return op.Gather(op.Reshape(self, [-1]), 0)
+    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=FLOAT.dtype)
+
+
+@torch_op("aten::_local_scalar_dense")
+def aten__local_scalar_dense(self: IntType) -> INT64:
+    """_local_scalar_dense(Tensor self) -> Scalar"""
+
+    # Return the first element in tensor as a scalar.
+    return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
 
 
 @torch_op("aten::abs")

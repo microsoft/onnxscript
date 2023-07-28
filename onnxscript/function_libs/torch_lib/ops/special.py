@@ -87,7 +87,7 @@ def aten_special_entr(self: TensorType) -> TensorType:
 
 
 @torch_op(("aten::erf", "aten::special_erf"))
-def aten_special_erf(self: TReal) -> TReal:
+def aten_special_erf(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """erf(Tensor self) -> Tensor"""
 
     return op.Erf(self)
