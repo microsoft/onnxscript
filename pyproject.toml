@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "onnxscript"
 dynamic = ["version"]
-description = "Authoring ONNX functions in Python"
+description = "Naturally author ONNX functions and models using a subset of Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
-urls = { "Repository" = "https://github.com/onnx/onnxscript" }
+urls = { "Repository" = "https://github.com/microsoft/onnxscript" }
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-  "License :: OSI Approved :: Apache Software License",
+  "License :: OSI Approved :: MIT License",
 ]
 dependencies = ["numpy", "onnx>=1.14", "typing_extensions"]
 
