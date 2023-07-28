@@ -703,13 +703,13 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
 #    the `op` field explicitly.
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
-    opinfo_core.OpInfo(
         "ops.aten._fft_c2c",
         aten_name="_fft_c2c",
         dtypes=common_dtype.all_types(),  # TODO: add complex here
         sample_inputs_func=sample_inputs__fft_c2c,
         supports_out=False,
     ),
+    opinfo_core.OpInfo(
         "ops.aten._local_scalar_dense",
         aten_name="_local_scalar_dense",
         dtypes=common_dtype.all_types(),
