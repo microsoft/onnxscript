@@ -331,6 +331,14 @@ def _nll_loss_input_wrangler(
     return args, kwargs
 
 
+def _nonzero_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "as_tuple" in kwargs:
+        del kwargs["as_tuple"]
+    return args, kwargs
+
+
 def _randn_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -385,6 +393,14 @@ def _roll_input_wrangler(
     if len(args) >= 2:
         if isinstance(args[1], int):  # convert shift to tensor
             args[1] = np.array([args[1]], dtype=np.int64)
+    return args, kwargs
+
+
+def _scalar_tensor_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "requires_grad" in kwargs:
+        del kwargs["requires_grad"]
     return args, kwargs
 
 
@@ -669,6 +685,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isnan", core_ops.aten_isnan),
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
+    TorchLibOpInfo("lift_fresh_copy", core_ops.aten_lift_fresh_copy),
     TorchLibOpInfo(
         "linalg.vector_norm",
         linalg_ops.aten_linalg_vector_norm,
@@ -1029,9 +1046,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nonzero",
         core_ops.aten_nonzero,
-    ).xfail(
-        matcher=lambda sample: sample.kwargs.get("as_tuple") is not None,
+        input_wrangler=_nonzero_input_wrangler,
+    )
+    .xfail(
+        matcher=lambda sample: sample.kwargs.get("as_tuple"),
         reason="as_tuple=True is not supported",
+    )
+    .xfail(
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: output 'shape' do not match: torch.Size([0, 1]) != torch.Size([0, 0]).",
     ),
     TorchLibOpInfo(
         "normal",
@@ -1110,7 +1133,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
-    # TorchLibOpInfo("scalar_tensor", core_ops.aten_scalar_tensor),  # no test case in OPS_DB
+    TorchLibOpInfo(
+        "scalar_tensor",
+        core_ops.aten_scalar_tensor,
+        input_wrangler=_scalar_tensor_input_wrangler,
+    ),
     TorchLibOpInfo(
         "scatter_add",
         core_ops.aten_scatter_add,
@@ -1788,6 +1815,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tenso
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
+ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
