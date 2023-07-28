@@ -705,7 +705,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "ops.aten._fft_c2c",
         aten_name="_fft_c2c",
-        dtypes=common_dtype.all_types(),  # TODO: add complex here
+        dtypes=common_dtype.complex_types(),
         sample_inputs_func=sample_inputs__fft_c2c,
         supports_out=False,
     ),
