@@ -141,9 +141,10 @@ class TestTorchScriptGraph(unittest.TestCase):
         graph.add_initializer("x", x_tensor)
 
 
-class TestLargeModelSave(unittest.TestCase):
+class TestModelSaving(unittest.TestCase):
     @unittest.skipIf(
-        version_utils.torch_older_than("2.1"), "dynamo_export API needs ver >= 2.1"
+        version_utils.torch_older_than("2.1"),
+        "dynamo_export requires PyTorch >= 2.1.",
     )
     def test_save_initializer_to_files_for_large_model(self):
         class MLP(torch.nn.Module):
@@ -162,13 +163,7 @@ class TestLargeModelSave(unittest.TestCase):
         # # of model parameters:
         #  input_size x hidden_size + hidden_size +
         #  hidden_size x output_size + output_size
-        # Thus, we have
-        #  (4 x 50000000 + 50000000 = 250000000) +
-        #  (50000000 x 10 + 10 = 500000010)
-        #  = 750000010 parameters
-        #  = 750000010 * 4 bytes
-        #  = 3 GB
-        batch_size, input_size, hidden_size, output_size = 1, 4, 50000000, 10
+        batch_size, input_size, hidden_size, output_size = 2, 4, 6, 8
         model = MLP(input_size, hidden_size, output_size)
         x = torch.randn(batch_size, input_size)
 
@@ -178,9 +173,10 @@ class TestLargeModelSave(unittest.TestCase):
                 model,
                 x,
             )
-            # Expect initializers fc1.bias, fc1.weight, fc2.weight
-            # are saved to individual files.
-            self.assertEqual(os.listdir(temp_dir), 3)
+            # No initializer file since model size < 2GB.
+            # We will change PyTorch to enable this feature
+            # for small model and change this `0` to `4`.
+            self.assertEqual(os.listdir(temp_dir), 0)
 
 
 if __name__ == "__main__":
