@@ -142,6 +142,9 @@ class TestTorchScriptGraph(unittest.TestCase):
 
 
 class TestLargeModelSave(unittest.TestCase):
+    @unittest.skipIf(
+        version_utils.torch_older_than("2.1"), "dynamo_export API needs ver >= 2.1"
+    )
     def test_save_initializer_to_files_for_large_model(self):
         class MLP(torch.nn.Module):
             def __init__(self, input_size, hidden_size, output_size):

@@ -66,6 +66,12 @@ jobs:
           CATCH_ORT_SEGFAULT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: dynamo-report (${{ matrix.name }}-${{ matrix.os }})
+          path: report_dynamo_export.sarif
 
   build_docs:
     strategy:
