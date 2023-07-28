@@ -5020,8 +5020,9 @@ def aten_nextafter(self: TensorType, other: TensorType) -> TensorType:
 @torch_op("aten::nonzero")
 def aten_nonzero(self: TTensor) -> INT64:
     """nonzero(Tensor self) -> Tensor"""
-
-    return op.NonZero(self)
+    # NOTE: In torch the return shape is [n, d], while in onnx [d, n],
+    # where `d` is rank of input tensor, `n` is number of nonzero elements.
+    return op.Transpose(op.NonZero(self), perm=[1, 0])
 
 
 def aten_nonzero_numpy(self: TensorType) -> TensorType:
@@ -5821,6 +5822,15 @@ def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 @torch_op("aten::scalar_tensor")
 def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+    """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
+    return op.Cast(s, to=dtype)
+
+
+@torch_op("aten::scalar_tensor")
+def aten_scalar_tensor_sym_number(
+    s: Union[FLOAT, INT32, BOOL], dtype: int = FLOAT.dtype
+) -> TTensor:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     return op.Cast(s, to=dtype)
