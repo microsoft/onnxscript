@@ -659,6 +659,18 @@ class TestConverter(testutils.TestBase):
         expected = np.array([13, 17], dtype=np.float32).reshape((2,))
         self.check_run(float_list_as_tensor, [], expected)
 
+    def test_loop_inside_if(self):
+        @script(default_opset=op)
+        def sum(n: INT64) -> INT64:
+            sum = op.Constant(value=0)
+            if n > 0:
+                for i in range(n):
+                    sum = sum + i
+            return sum
+
+        self.check_run(sum, [np.array(5, dtype=np.int64)], np.array(10, dtype=np.int64))
+        self.check_run(sum, [np.array(-5, dtype=np.int64)], np.array(0, dtype=np.int64))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
