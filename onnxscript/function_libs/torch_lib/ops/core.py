@@ -2291,7 +2291,6 @@ def aten_embedding_bag(
         padding_idx = weight.shape[0] + padding_idx
 
     if len(indices.shape) == 1:  # 1d
-        #if padding_idx is None or padding_idx not in indices:
         if padding_idx is None:
             return _aten_embedding_bag_1d_onnx(
                 weight, indices, offsets, mode, per_sample_weights, include_last_offset
@@ -2305,7 +2304,6 @@ def aten_embedding_bag(
     else:  # 2d
         # assert(len(indices.shape) == 2)
         # assert(indices.shape == per_sample_weights.shape)
-        #if padding_idx is None or padding_idx not in indices:
         if padding_idx is None:
             return _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights)
         else:
@@ -2550,15 +2548,15 @@ def _aten_embedding_bag_2d_padding_idx_onnx(
 # test_aten_embedding_bag()
 # exit(0)
 
-def test_aten_embedding_bag_2d():
-    import numpy as np
-    weight = np.array([[0,0,0,0,0.5],[1,1,1,1,1.5],[2,2,2,2,2.5],[3,3,3,3,3.5],[4,4,4,4,4.5]]).astype(np.float32)+0.1
-    indices = np.array([[2,3,4],[1,2,3],[0,1,0]]).astype(np.int64)
-    psw = np.array([[1,2,3],[4,5,6],[7,8,9]]).astype(np.float32)
-    r = aten_embedding_bag(weight, indices, mode=0, per_sample_weights=psw, padding_idx=2)
-    print(r)
-test_aten_embedding_bag_2d()
-exit(0)
+# def test_aten_embedding_bag_2d():
+#     import numpy as np
+#     weight = np.array([[0,0,0,0,0.5],[1,1,1,1,1.5],[2,2,2,2,2.5],[3,3,3,3,3.5],[4,4,4,4,4.5]]).astype(np.float32)+0.1
+#     indices = np.array([[2,3,4],[1,2,3],[0,1,0]]).astype(np.int64)
+#     psw = np.array([[1,2,3],[4,5,6],[7,8,9]]).astype(np.float32)
+#     r = aten_embedding_bag(weight, indices, mode=0, per_sample_weights=psw, padding_idx=2)
+#     print(r)
+# test_aten_embedding_bag_2d()
+# exit(0)
 
 
 def aten_embedding_dense_backward(
