@@ -611,6 +611,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
     TorchLibOpInfo("eq", core_ops.aten_eq),
     TorchLibOpInfo("equal", core_ops.aten_equal),
+    TorchLibOpInfo("equal_bool", core_ops.aten_equal_bool),
     TorchLibOpInfo("exp", core_ops.aten_exp),
     TorchLibOpInfo("exp2", core_ops.aten_exp2),
     TorchLibOpInfo("expand", core_ops.aten_expand),
@@ -733,7 +734,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_logsumexp,
     ),
     TorchLibOpInfo("lt", core_ops.aten_lt),
-    TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill),
+    TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill).xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not have an implementation for Where with bool inputs.",
+    ),
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
@@ -1202,12 +1206,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
     ),
     TorchLibOpInfo("tril", core_ops.aten_tril).xfail(
-        dtypes=(torch.int32,),
-        reason="fixme: ORT does not have an implementation of Trilu for int32."
+        dtypes=(torch.int32, torch.bool),
+        reason="fixme: ORT does not have an implementation of Trilu for int32 or bool."
     ),
     TorchLibOpInfo("triu", core_ops.aten_triu).xfail(
-        dtypes=(torch.int32,),
-        reason="fixme: ORT does not have an implementation of Trilu for int32."
+        dtypes=(torch.int32, torch.bool),
+        reason="fixme: ORT does not have an implementation of Trilu for int32 or bool."
     ),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
     TorchLibOpInfo(
@@ -1245,7 +1249,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).xfail(
         reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
-    TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler),
+    TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not have an implementation for Where with bool inputs.",
+    ),
     TorchLibOpInfo("xlogy", special_ops.aten_special_xlogy),
     TorchLibOpInfo("zeros", core_ops.aten_zeros),
     TorchLibOpInfo(
@@ -1810,6 +1817,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "equal", ("equal_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))

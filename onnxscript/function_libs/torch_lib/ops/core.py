@@ -2370,13 +2370,23 @@ def aten_eq(self: TTensor, other: TTensor) -> BOOL:
 
 
 @torch_op("aten::equal")
-def aten_equal(self: TTensor, other: TTensor) -> BOOL:
+def aten_equal(self: TReal, other: TReal) -> BOOL:
     """equal(Tensor self, Tensor other) -> bool"""
 
     sub_self_other = op.Sub(self, other)
     abs_sub = op.Abs(sub_self_other)
     sum_of_abs = op.ReduceSum(abs_sub, keepdims=0)
     return op.Equal(sum_of_abs, 0)
+
+
+@torch_op("aten::equal")
+def aten_equal_bool(self: BOOL, other: BOOL) -> BOOL:
+    """equal(Tensor self, Tensor other) -> bool"""
+
+    elementwise_difference = op.Xor(self, other)
+    elementwise_difference_int = op.Cast(elementwise_difference, to=INT64.dtype)
+    any_difference = op.ReduceMax(elementwise_difference_int, keepdims=0, noop_with_empty_axes=0)
+    return op.Not(op.Cast(any_difference, to=BOOL.dtype))
 
 
 def aten_erfinv(self: TensorType) -> TensorType:
