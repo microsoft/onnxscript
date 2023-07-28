@@ -312,7 +312,7 @@ def aten_allclose(
 
     # If min is 0, some elements are not close -> allclose is False
     # If min is 1, all elements are close -> allclose is True
-    return op.Cast(op.ReduceMin(is_close_int, keepdims=0), to=BOOL.dtype)
+    return op.Cast(op.ReduceMin(is_close_int, keepdims=False), to=BOOL.dtype)
 
 
 def aten_alpha_dropout(input: TensorType, p: float, train: bool) -> TensorType:
@@ -2385,7 +2385,7 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
     # ReduceMax does not support bool. So we cast to int64
-    all_equal = op.ReduceMin(elementwise_equal_int, keepdims=0)
+    all_equal = op.ReduceMin(elementwise_equal_int, keepdims=False)
     return op.Cast(all_equal, to=BOOL.dtype)
 
 
@@ -3421,7 +3421,7 @@ def aten_is_same_size(self: TTensor, other: TTensor) -> BOOL:
         other_shape = op.Shape(other)
         result_bool = op.Equal(self_shape, other_shape)
         result_int = op.Cast(result_bool, to=INT8.dtype)
-        result = op.Cast(op.ReduceMin(result_int, keepdims=0), to=BOOL.dtype)
+        result = op.Cast(op.ReduceMin(result_int, keepdims=False), to=BOOL.dtype)
 
     return result
 
@@ -4055,7 +4055,7 @@ def aten_max(self: TReal) -> TReal:
     if self_rank == 0:
         self = op.Reshape(self, op.Constant(value_ints=[-1]))
 
-    result = op.ReduceMax(self, keepdims=0)
+    result = op.ReduceMax(self, keepdims=False)
 
     if self_rank == 0:
         result = op.Squeeze(result)
@@ -4121,7 +4121,7 @@ def aten_meshgrid(tensors: Sequence[TensorType]) -> TensorType:
 def aten_min(self: TReal) -> TReal:
     """min(Tensor self) -> Tensor"""
 
-    return op.ReduceMin(self, keepdims=0)
+    return op.ReduceMin(self, keepdims=False)
 
 
 @torch_op("aten::min.dim")
@@ -4678,10 +4678,10 @@ def _aten_native_batch_norm_training_onnx(
     mean = op.ReduceMean(input, axes)
     input_sub_mean = op.Sub(input, mean)
     sqr = op.Mul(input_sub_mean, input_sub_mean)
-    var = op.ReduceMean(sqr, axes, keepdims=0)
+    var = op.ReduceMean(sqr, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
-    mean = op.ReduceMean(input, axes, keepdims=0)
+    mean = op.ReduceMean(input, axes, keepdims=False)
     return norm, mean, rstd
 
 
@@ -4827,10 +4827,10 @@ def _aten_native_group_norm_onnx(
     input_sub_mean = op.Sub(input_N_group_neg1, mean)
     sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
     # In Pytorch, vstd = 1/(sqrt(var + eps))
-    var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=0)
+    var = op.ReduceMean(sqr_input_sub_mean, axes, keepdims=False)
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get the correct shape [N, group] for mean again
-    mean = op.ReduceMean(input_N_group_neg1, axes, keepdims=0)
+    mean = op.ReduceMean(input_N_group_neg1, axes, keepdims=False)
     return norm_result, mean, rstd
 
 
@@ -6818,7 +6818,7 @@ def aten_unbind(self: TTensor, dim: int = 0) -> Sequence[TTensor]:
     """unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]"""
 
     split_sizes = op.Constant(value_int=1)
-    return op.SplitToSequence(self, split_sizes, axis=dim, keepdims=0)
+    return op.SplitToSequence(self, split_sizes, axis=dim, keepdims=False)
 
 
 @torch_op("aten::unflatten")
@@ -7062,7 +7062,7 @@ def _aten_var_mean_onnx(
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
-        numel_float = op.Cast(op.ReduceProd(self_shape, keepdims=0), to=FLOAT.dtype)
+        numel_float = op.Cast(op.ReduceProd(self_shape, keepdims=False), to=FLOAT.dtype)
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, correction)
         var = op.Div(mul, sub)
@@ -7077,14 +7077,14 @@ def _aten_var_mean_dim_onnx(
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
     # Computer mean and var
     mean = op.ReduceMean(self, dim, keepdims=keepdim)
-    sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=1))
+    sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=True))
     sqr_mean = op.Mul(sub_mean, sub_mean)
     var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
         dim_size = op.Gather(self_shape, dim, axis=0)
-        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=0), self)
+        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=False), self)
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, correction)
         var = op.Div(mul, sub)
