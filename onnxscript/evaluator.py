@@ -395,6 +395,7 @@ def _call_ort(
 ):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
+    import onnxruntime as ort  # pylint: disable=import-outside-toplevel
     from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
         Fail,
         InvalidArgument,
@@ -442,10 +443,6 @@ def _call_ort(
     )
     model = onnx.shape_inference.infer_shapes(model)
     try:
-        # Delay import onnxruntime so that onnxscript can be used without
-        # installing onnxruntime.
-        import onnxruntime as ort  # pylint: disable=import-outside-toplevel
-
         session = ort.InferenceSession(
             model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
