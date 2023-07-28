@@ -1238,9 +1238,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "unbind",
         core_ops.aten_unbind,
-    ).xfail(
+    )
+    .xfail(
         dtypes=(torch.float16,),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+    )
+    .xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
     TorchLibOpInfo(
         "unflatten",
