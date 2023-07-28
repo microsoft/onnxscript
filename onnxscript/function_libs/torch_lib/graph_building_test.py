@@ -142,10 +142,7 @@ class TestTorchScriptGraph(unittest.TestCase):
 
 
 class TestModelSaving(unittest.TestCase):
-    @unittest.skipIf(
-        version_utils.torch_older_than("2.1"),
-        "dynamo_export requires PyTorch >= 2.1.",
-    )
+    @unittest.skipIf(os.getenv("CI") == "true", "CI is not ready to run dyanmo_export.")
     def test_save_initializer_to_files_for_large_model(self):
         class MLP(torch.nn.Module):
             def __init__(self, input_size, hidden_size, output_size):
@@ -163,7 +160,8 @@ class TestModelSaving(unittest.TestCase):
         # # of model parameters:
         #  input_size x hidden_size + hidden_size +
         #  hidden_size x output_size + output_size
-        batch_size, input_size, hidden_size, output_size = 2, 4, 6, 8
+        #  ~= 3GB below
+        batch_size, input_size, hidden_size, output_size = 1, 4, 50000000, 10
         model = MLP(input_size, hidden_size, output_size)
         x = torch.randn(batch_size, input_size)
 
@@ -173,10 +171,8 @@ class TestModelSaving(unittest.TestCase):
                 model,
                 x,
             )
-            # No initializer file since model size < 2GB.
-            # We will change PyTorch to enable this feature
-            # for small model and change this `0` to `4`.
-            self.assertEqual(os.listdir(temp_dir), 0)
+            # 3 initializers are saved to files as external data.
+            self.assertEqual(len(os.listdir(temp_dir)), 3)
 
 
 if __name__ == "__main__":
