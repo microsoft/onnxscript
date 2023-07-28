@@ -706,8 +706,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "ops.aten._fft_c2c",
         aten_name="_fft_c2c",
-        # dtypes can be a tuple of (torch.float, torch.double).
-        dtypes=common_dtype.all_types(),
+        dtypes=common_dtype.all_types(),  # TODO: add complex here
         sample_inputs_func=sample_inputs__fft_c2c,
         supports_out=False,
     ),
