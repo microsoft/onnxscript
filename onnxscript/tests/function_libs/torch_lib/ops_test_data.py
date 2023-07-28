@@ -616,7 +616,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
     TorchLibOpInfo("eq", core_ops.aten_eq),
     TorchLibOpInfo("equal", core_ops.aten_equal),
-    TorchLibOpInfo("equal_bool", core_ops.aten_equal_bool),
     TorchLibOpInfo("exp", core_ops.aten_exp),
     TorchLibOpInfo("exp2", core_ops.aten_exp2),
     TorchLibOpInfo("expand", core_ops.aten_expand),

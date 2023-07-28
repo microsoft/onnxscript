@@ -2382,17 +2382,7 @@ def aten_eq(self: TTensor, other: TTensor) -> BOOL:
 
 
 @torch_op("aten::equal")
-def aten_equal(self: TReal, other: TReal) -> BOOL:
-    """equal(Tensor self, Tensor other) -> bool"""
-
-    sub_self_other = op.Sub(self, other)
-    abs_sub = op.Abs(sub_self_other)
-    sum_of_abs = op.ReduceSum(abs_sub, keepdims=0)
-    return op.Equal(sum_of_abs, 0)
-
-
-@torch_op("aten::equal")
-def aten_equal_bool(self: BOOL, other: BOOL) -> BOOL:
+def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     """equal(Tensor self, Tensor other) -> bool"""
 
     elementwise_equal = op.Equal(self, other)
