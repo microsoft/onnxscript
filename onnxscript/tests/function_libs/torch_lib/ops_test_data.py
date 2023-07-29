@@ -955,10 +955,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
         tolerance={torch.float16: (1e-3, 1e-2)},
     ).skip(
-        #matcher=lambda sample: "padding_idx" in sample.kwargs or "max_norm" in sample.kwargs,
-        matcher=lambda sample: "max_norm" in sample.kwargs,
+        matcher=lambda sample: "padding_idx" in sample.kwargs or "max_norm" in sample.kwargs,
         reason="max_norm is not part of the aten signature.",
     ),
+    # TorchLibOpInfo(
+    #     "nn.functional.embedding_bag.padding_idx",
+    #     core_ops.aten_embedding_bag_padding_idx,
+    #     input_wrangler=_embedding_bag_input_wrangler,
+    #     trace_only=True,
+    #     tolerance={torch.float16: (1e-3, 1e-2)},
+    # ).skip(
+    #     matcher=lambda sample: "padding_idx" not in sample.kwargs or "max_norm" in sample.kwargs,
+    #     reason="max_norm is not part of the aten signature.",
+    # ),
     TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,
@@ -1824,6 +1833,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_stride
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "nn.functional.embedding_bag", ("nn.functional.embedding_bag.padding_idx",)
+)
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
 )
