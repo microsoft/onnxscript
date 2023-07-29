@@ -3,9 +3,10 @@
 
 trigger:
 - main
-
 pool:
   vmImage: ubuntu-latest
+variables:
+  Codeql.Enabled: true
 strategy:
   matrix:
     Python310-onnx:
