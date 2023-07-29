@@ -2284,18 +2284,18 @@ def aten_embedding_bag(
         per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
         per_sample_weights = op.CastLike(per_sample_weights, weight)
 
-    return _aten_embedding_bag_onnx(weight, indices, offsets, mode, per_sample_weights, include_last_offset)
+    if len(indices.shape) == 1:  # 1d
+        return _aten_embedding_bag_1d_onnx(
+            weight, indices, offsets, mode, per_sample_weights, include_last_offset
+        )
+    else:  # 2d
+        # assert(len(indices.shape) == 2)
+        # assert(indices.shape == per_sample_weights.shape)
+        return _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights)
 
-    # if len(indices.shape) == 1:  # 1d
-    #     return _aten_embedding_bag_1d_onnx(
-    #         weight, indices, offsets, mode, per_sample_weights, include_last_offset
-    #     )
-    # else:  # 2d
-    #     # assert(len(indices.shape) == 2)
-    #     # assert(indices.shape == per_sample_weights.shape)
-    #     return _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights)
+    # return _aten_embedding_bag_onnx(weight, indices, offsets, mode, per_sample_weights, include_last_offset)
 
-
+'''
 @torch_op("aten::embedding_bag", private=True)
 def _aten_embedding_bag_onnx(
     weight: TFloat,
@@ -2364,7 +2364,7 @@ def _aten_embedding_bag_onnx(
             # assert(mode == 0)
             result = op.ReduceSum(new_weight, axes=[1], keepdims=False)
     return result
-
+'''
 
 @torch_op("aten::embedding_bag.padding_idx", trace_only=True)
 def aten_embedding_bag_padding_idx(
