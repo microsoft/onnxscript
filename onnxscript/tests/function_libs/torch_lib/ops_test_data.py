@@ -1833,7 +1833,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tenso
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
-ops_test_common.duplicate_opinfo(OPS_DB, "equal", ("equal_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
