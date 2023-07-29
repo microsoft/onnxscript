@@ -7,7 +7,6 @@ from __future__ import annotations
 import abc
 import contextlib
 import pprint
-import typing
 from typing import (
     Any,
     Callable,
@@ -27,11 +26,7 @@ import onnx.helper
 from typing_extensions import TypeAlias
 
 from onnxscript import irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import autocast, feature_switch, param_manipulation
-
-if typing.TYPE_CHECKING:
-    import onnxruntime as ort
-
+from onnxscript._internal import autocast, param_manipulation
 
 UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
 
@@ -366,27 +361,6 @@ def compute_num_outputs(
     return len(schema.outputs)
 
 
-_cache_models: dict[Any, ort.InferenceSession] = {}
-
-
-def _cache_(model, providers):
-    # Delay import onnxruntime so that onnxscript can be used without
-    # installing onnxruntime.
-    import onnxruntime as ort  # pylint: disable=import-outside-toplevel
-
-    serialized = model.SerializeToString()
-    if feature_switch.CACHE_ORT_SESSIONS:
-        key = serialized, tuple(providers)
-        if key in _cache_models:
-            return _cache_models[key]
-        session = ort.InferenceSession(serialized, providers=providers)
-        _cache_models[key] = session
-
-        return session
-
-    return ort.InferenceSession(serialized, providers=providers)
-
-
 def _os_to_ort_value(v):
     """Converts an onnxscript encoding of an ONNX value into the encoding used by ORT."""
     if isinstance(v, tensor.Tensor):
@@ -421,6 +395,7 @@ def _call_ort(
 ):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
+    import onnxruntime as ort  # pylint: disable=import-outside-toplevel
     from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
         Fail,
         InvalidArgument,
@@ -467,9 +442,10 @@ def _call_ort(
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
     model = onnx.shape_inference.infer_shapes(model)
-    # onnx.checker.check_model(model)
     try:
-        session = _cache_(model, ["CPUExecutionProvider"])
+        session = ort.InferenceSession(
+            model.SerializeToString(), providers=("CPUExecutionProvider",)
+        )
     except (Fail, InvalidGraph, InvalidArgument) as e:
         raise RuntimeError(
             f"Unable to create onnxruntime InferenceSession "
