@@ -960,16 +960,20 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: "padding_idx" in sample.kwargs or "max_norm" in sample.kwargs,
         reason="max_norm is not part of the aten signature.",
     ),
-    # TorchLibOpInfo(
-    #     "nn.functional.embedding_bag.padding_idx",
-    #     core_ops.aten_embedding_bag_padding_idx,
-    #     input_wrangler=_embedding_bag_input_wrangler,
-    #     trace_only=True,
-    #     tolerance={torch.float16: (1e-3, 1e-2)},
-    # ).skip(
-    #     matcher=lambda sample: "padding_idx" not in sample.kwargs or "max_norm" in sample.kwargs,
-    #     reason="max_norm is not part of the aten signature.",
-    # ),
+    TorchLibOpInfo(
+        "nn.functional.embedding_bag.padding_idx",
+        core_ops.aten_embedding_bag_padding_idx,
+        input_wrangler=_embedding_bag_input_wrangler,
+        trace_only=True,
+        tolerance={torch.float16: (1e-3, 1e-2)},
+    ).skip(
+        matcher=lambda sample: "padding_idx" not in sample.kwargs or "max_norm" in sample.kwargs,
+        reason="max_norm is not part of the aten signature.",
+    )
+    .xfail(
+        reason="result is wrong only when in FullGraph mode, it might be ORT bug",
+        test_class_name="TestOutputConsistencyFullGraph",
+    ),
     TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,

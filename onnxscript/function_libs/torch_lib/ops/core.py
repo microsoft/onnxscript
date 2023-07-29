@@ -2402,7 +2402,8 @@ def aten_embedding_bag_padding_idx(
         per_sample_weights = op.CastLike(per_sample_weights, weight)
 
     # Change padding_idx to positive value
-    padding_idx = weight.shape[0] + padding_idx
+    if padding_idx < 0:
+        padding_idx = weight.shape[0] + padding_idx
 
     if len(indices.shape) == 1:  # 1d
         # Compute new_indices and new_offsets
@@ -2419,26 +2420,28 @@ def aten_embedding_bag_padding_idx(
 
 
 def _compute_sections_1d(indices, offsets, include_last_offset, padding_idx):
-    parts = len(offsets)
     neg_1 = op.Constant(value_ints=[-1])
     if include_last_offset is True:
-        parts = parts - 1
+        parts = len(offsets) - 1  # for [0,3] parts = 1
     else:
+        parts = len(offsets)  # for [0,3,...] parts = 2
+        # Change [0,3] -> [0,3,end], means [0:3],[3:end]
         size = op.Reshape(op.Constant(value_int=len(indices)), neg_1)
         offsets = op.Concat(offsets, size, axis=0)
     new_offsets = []
     for i in range(parts):
         start_pos = op.Gather(offsets, i)
         end_pos = op.Gather(offsets, i + 1)
-        curr_offset = op.Constant(value_ints=[])
+        # empty tensor
+        curr_offset = op.Shape(indices, start=0, end=0)
         j = start_pos
-        cond = j < end_pos
+        cond = op.Less(j, end_pos)
         while cond:
             index = op.Gather(indices, j)
             if not op.Equal(index, padding_idx):
                 curr_offset = op.Concat(curr_offset, op.Reshape(j, neg_1), axis=0)
-            j = j + 1
-            cond = j < end_pos
+            j = op.Add(j, 1)
+            cond = op.Less(j, end_pos)
         new_offsets.append(curr_offset)
     return new_offsets
 
@@ -2537,10 +2540,6 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     parts = op.Reshape(op.Size(offsets), neg_1)
     if op.Equal(include_last_offset, True):
         parts = parts - 1
-    else:
-        # Replace 'end' with number, e.g. [0,1,3,5]
-        offsets = op.Concat(offsets, op.Shape(indices), axis=0)
-
 
     # The element in sequence must be FLOAT32 dtype due to ORT bug
     indices_weight = op.Cast(indices_weight, to=FLOAT.dtype)
