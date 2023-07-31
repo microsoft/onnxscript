@@ -1,0 +1,31 @@
+# Template steps for the release pipeline
+
+steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.11'
+    displayName: 'Set Up Python'
+  - script: python -m pip install --upgrade pip build wheel
+    displayName: 'Install Python build dependencies'
+  - script: sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
+    displayName: 'Temporarily rename package to onnx-preview'
+  - script: python -m build
+    displayName: 'Build ONNX Script wheel dev version'
+  - task: CopyFiles@2
+    displayName: 'Copy Python Wheel to: $(Build.ArtifactStagingDirectory)'
+    inputs:
+      SourceFolder: 'dist'
+      Contents: '*.whl'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish onnxscript'
+    inputs:
+      ArtifactName: onnxscript
+  # Test the wheels. This needs to happen after PublishBuildArtifacts
+  # to avoid interference with the artifacts
+  - script: python -m pip install -r requirements-dev.txt
+    displayName: 'Install Python dependencies'
+  - script: python -m pip install dist/*.whl --no-deps
+    displayName: 'Install wheel'
+  - script: python -m pytest -v -n auto
+    displayName: 'Run tests'
