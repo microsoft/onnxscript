@@ -1,3 +1,5 @@
+# Build the dev version of the package and publish to artifacts
+
 trigger: none
 
 pool:
