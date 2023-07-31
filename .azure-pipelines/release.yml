@@ -5,22 +5,20 @@ trigger: none
 pool:
   vmImage: ubuntu-latest
 variables:
+  CI: 'true'
   # Set the release environment variable to build a release version of the wheel
   ONNX_SCRIPT_RELEASE: 1
 steps:
-  - displayName: 'Set Up Python'
-    task: UsePythonVersion@0
+  - task: UsePythonVersion@0
     inputs:
       versionSpec: '3.11'
-  - displayName: Install Python build dependencies
-    script: |
-      python -m pip install --upgrade pip build wheel
-  - displayName: Temporarily rename package to onnx-preview
-    script: |
-      sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
-  - displayName: Build ONNX Script wheel
-    script: |
-      python -m build
+    displayName: 'Set Up Python'
+  - script: python -m pip install --upgrade pip build wheel
+    displayName: "Install Python build dependencies"
+  - script: sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
+    displayName: 'Temporarily rename package to onnx-preview'
+  - script: python -m build
+    displayName: 'Build ONNX Script wheel'
   - task: CopyFiles@2
     displayName: 'Copy Python Wheel to: $(Build.ArtifactStagingDirectory)'
     inputs:
@@ -34,12 +32,9 @@ steps:
 
   # Test the wheels. This needs to happen after PublishBuildArtifacts
   # to avoid interference with the artifacts
-  - name: Install Python dependencies
-    script: |
-      python -m pip install -r requirements-dev.txt
-  - name: Install wheel
-    run: |
-      python -m pip install dist/*.whl --no-deps
-  - name: Run tests
-    run: |
-      python -m pytest -v -n auto
+  - script: python -m pip install -r requirements-dev.txt
+    displayName: 'Install Python dependencies'
+  - script: python -m pip install dist/*.whl --no-deps
+    displayName: 'Install wheel'
+  - script: python -m pytest -v -n auto
+    displayName: 'Run tests'
