@@ -984,11 +984,10 @@ class Converter:
             return self.translate_if_stmt(node)
         if isinstance(node, (ast.For, ast.While)):
             return self.translate_loop_stmt(node)
-        if isinstance(node, ast.Expr):
-            if index_of_stmt == 0 and hasattr(node, "value"):
-                if hasattr(node.value, "value") and isinstance(node.value.value, str):
-                    # python 3.8+
-                    return self.translate_docstring(node)
+        if ast_utils.is_doc_string(node):
+            if index_of_stmt == 0:
+                return self.translate_docstring(node)
+            return None
         if isinstance(node, ast.FunctionDef):
             return self.translate_nested_function_def(node)
         if ast_utils.is_print_call(node):
