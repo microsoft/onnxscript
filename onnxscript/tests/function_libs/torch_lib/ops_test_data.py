@@ -690,10 +690,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_linspace,
         trace_only=True,
     )
-    .xfail(
-        dtypes=(torch.int64, torch.int32),
-        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
-    )
+    # .xfail(
+    #     dtypes=(torch.int64, torch.int32),
+    #     reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
+    # )
     .xfail(
         dtypes=(torch.float16,),
         reason="op 'Range' doesn't support float16.",

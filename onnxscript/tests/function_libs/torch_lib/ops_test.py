@@ -252,6 +252,8 @@ def run_test_output_match(
                             check_device=False,
                         )
                     except AssertionError as e:
+                        print("=== actual: ", actual)
+                        print("=== expected: ", expected)
                         if len(flattened_torch_outputs) > 1:
                             raise AssertionError(f"Output {j} mismatch") from e
                         raise
