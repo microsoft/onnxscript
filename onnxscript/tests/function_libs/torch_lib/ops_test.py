@@ -39,14 +39,12 @@ TESTED_DTYPES = (
     # Uncomment below item when we really need testing it
     # torch.bfloat16,
     # torch.float64,
-    # torch.bool,
+    torch.bool,
     # torch.int8,
     # torch.int16,
-    # torch.int32,
+    torch.int32,
     torch.int64,
     # torch.uint8,
-    # torch.complex64,
-    # ......
 )
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)

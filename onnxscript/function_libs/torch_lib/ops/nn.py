@@ -1144,9 +1144,9 @@ def aten_mse_loss(self: TReal, target: TReal, reduction: int = 1) -> TReal:
     # FIXME: When reduction=0, the shape(result) will be different than other case
     result = op.Mul(self - target, self - target)
     if reduction == 1:  # mean
-        result = op.ReduceMean(result, keepdims=0)
+        result = op.ReduceMean(result, keepdims=False)
     if reduction == 2:  # sum
-        result = op.ReduceSum(result, keepdims=0)
+        result = op.ReduceSum(result, keepdims=False)
 
     return result
 
