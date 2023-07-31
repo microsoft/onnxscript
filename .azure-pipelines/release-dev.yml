@@ -6,6 +6,8 @@ trigger:
 
 pool:
   vmImage: ubuntu-latest
+variables:
+  CI: 'true'
 steps:
   - task: UsePythonVersion@0
     inputs:
