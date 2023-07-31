@@ -31,11 +31,9 @@ steps:
 
   # Test the wheels. This needs to happen after PublishBuildArtifacts
   # to avoid interference with the artifacts
-  - name: Install Python dependencies
-    script: python -m pip install -r requirements-dev.txt
-  - name: Install wheel
-    run: |
-      python -m pip install dist/*.whl --no-deps
-  - name: Run tests
-    run: |
-      python -m pytest -v -n auto
+  - script: python -m pip install -r requirements-dev.txt
+    displayName: 'Install Python dependencies'
+  - script: python -m pip install dist/*.whl --no-deps
+    displayName: 'Install wheel'
+  - script: python -m pytest -v -n auto 
+    displayName: 'Run tests'
