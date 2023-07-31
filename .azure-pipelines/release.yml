@@ -8,19 +8,19 @@ variables:
   # Set the release environment variable to build a release version of the wheel
   ONNX_SCRIPT_RELEASE: 1
 steps:
-  - displayName: 'Set Up Python'
-    task: UsePythonVersion@0
+  - task: UsePythonVersion@0
     inputs:
       versionSpec: '3.11'
-  - displayName: Install Python build dependencies
-    script: |
+    displayName:'Set Up Python'
+  - script: |
       python -m pip install --upgrade pip build wheel
-  - displayName: Temporarily rename package to onnx-preview
-    script: |
+    displayName: "Install Python build dependencies"
+  - script: |
       sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
-  - displayName: Build ONNX Script wheel
-    script: |
+    displayName: 'Temporarily rename package to onnx-preview'
+  - script: |
       python -m build
+    displayName: 'Build ONNX Script wheel'
   - task: CopyFiles@2
     displayName: 'Copy Python Wheel to: $(Build.ArtifactStagingDirectory)'
     inputs:
