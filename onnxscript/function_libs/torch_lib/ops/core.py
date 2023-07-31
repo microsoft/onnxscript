@@ -2602,7 +2602,7 @@ def _aten_embedding_bag_2d_onnx_mean(
     new_weight = op.Gather(weight, indices_1d)
     # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
     new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
-    dim_1_size = op.Reshape(op.Shape(weight, start=1), neg_1)
+    weight_dim = op.Reshape(op.Shape(weight, start=1), neg_1)
 
     # Assume indices is shape(5,3), offsets=[0,1,3], include_last_offset = False
     # [0,1,3] -> [0:1], [1:3], [3:15]
@@ -2626,7 +2626,7 @@ def _aten_embedding_bag_2d_onnx_mean(
         if start == end:
             row_result = op.Expand(
                 op.Constant(value_floats=[0.0]),
-                op.Concat(op.Constant(value_ints=[1]), dim_1_size, axis=0),
+                op.Concat(op.Constant(value_ints=[1]), weight_dim, axis=0),
             )
         else:
             weight_rows = op.Slice(new_weight, start, end)
@@ -2644,9 +2644,10 @@ def _aten_embedding_bag_2d_onnx_mean(
         last = end  # 3 from [1,3]
     else:
         last = start  # 3 from [3,15]
-    # It is weird that the denominator is 2 instead of 15-3=12 in this case
-    denominator = op.Sub(dim_1_size, last)
-    row_result = op.Div(row_result, op.CastLike(denominator, weight))
+    # It is weird that the denominator is indices.dim(0):5-3=2 instead of 15-3=12 in this case
+    denominator = op.Sub(op.Shape(indices, start=0, end=1), last)
+    if op.Greater(denominator, 0):
+        row_result = op.Div(row_result, op.CastLike(denominator, weight))
     result = op.SequenceInsert(result, row_result)
     result = op.ConcatFromSequence(result, axis=0)
     return op.CastLike(result, weight)
