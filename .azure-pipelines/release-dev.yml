@@ -5,7 +5,7 @@ trigger:
   - releases/*
 
 pool:
-  vmImage: ubuntu-latestFIXME
+  vmImage: ubuntu-latest
 variables:
   CI: 'true'
 steps:
