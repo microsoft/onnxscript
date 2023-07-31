@@ -5,10 +5,10 @@ trigger: none
 pool:
   vmImage: ubuntu-latest
 steps:
-  - displayName: 'Use Python 3.10'
+  - displayName: 'Set Up Python'
     task: UsePythonVersion@0
     inputs:
-      versionSpec: '3.10'
+      versionSpec: '3.11'
   - displayName: Install Python build dependencies
     script: |
       python -m pip install --upgrade pip build wheel
