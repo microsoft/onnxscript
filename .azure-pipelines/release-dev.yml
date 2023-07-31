@@ -1,25 +1,28 @@
 # Build the dev version of the package and publish to artifacts
 
+# TODO: Remove the triggers
 trigger:
   - main
-  - releases/*
+
+pr:
+  - main
 
 pool:
   vmImage: ubuntu-latest
 steps:
-  - displayName: 'Set Up Python'
-    task: UsePythonVersion@0
+  - task: UsePythonVersion@0
     inputs:
       versionSpec: '3.11'
-  - displayName: Install Python build dependencies
-    script: |
+    displayName: 'Set Up Python'
+  - script: |
       python -m pip install --upgrade pip build wheel
-  - displayName: Temporarily rename package to onnx-preview
-    script: |
+    displayName: Install Python build dependencies
+  - script: |
       sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
-  - displayName: Build ONNX Script wheel dev version
-    script: |
+    displayName: Temporarily rename package to onnx-preview
+  - script: |
       python -m build
+    displayName: Build ONNX Script wheel dev version
   - task: CopyFiles@2
     displayName: 'Copy Python Wheel to: $(Build.ArtifactStagingDirectory)'
     inputs:
@@ -33,12 +36,12 @@ steps:
 
   # Test the wheels. This needs to happen after PublishBuildArtifacts
   # to avoid interference with the artifacts
-  - name: Install Python dependencies
-    script: |
+  - script: |
       python -m pip install -r requirements-dev.txt
-  - name: Install wheel
-    run: |
+    displayName: Install Python dependencies
+  - script: |
       python -m pip install dist/*.whl --no-deps
-  - name: Run tests
-    run: |
+    displayName: Install wheel
+  - script: |
       python -m pytest -v -n auto
+    displayName: Run tests
