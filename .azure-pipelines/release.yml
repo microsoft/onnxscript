@@ -11,15 +11,12 @@ steps:
   - task: UsePythonVersion@0
     inputs:
       versionSpec: '3.11'
-    displayName:'Set Up Python'
-  - script: |
-      python -m pip install --upgrade pip build wheel
+    displayName: 'Set Up Python'
+  - script: python -m pip install --upgrade pip build wheel
     displayName: "Install Python build dependencies"
-  - script: |
-      sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
+  - script: sed -i 's/name = "onnxscript"/name = "onnxscript-preview"/' 'pyproject.toml'
     displayName: 'Temporarily rename package to onnx-preview'
-  - script: |
-      python -m build
+  - script: python -m build
     displayName: 'Build ONNX Script wheel'
   - task: CopyFiles@2
     displayName: 'Copy Python Wheel to: $(Build.ArtifactStagingDirectory)'
@@ -35,8 +32,7 @@ steps:
   # Test the wheels. This needs to happen after PublishBuildArtifacts
   # to avoid interference with the artifacts
   - name: Install Python dependencies
-    script: |
-      python -m pip install -r requirements-dev.txt
+    script: python -m pip install -r requirements-dev.txt
   - name: Install wheel
     run: |
       python -m pip install dist/*.whl --no-deps
