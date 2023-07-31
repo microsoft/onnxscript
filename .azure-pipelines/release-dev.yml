@@ -1,6 +1,8 @@
 # Build the dev version of the package and publish to artifacts
 
-trigger: none
+trigger:
+  - main
+  - releases/*
 
 pool:
   vmImage: ubuntu-latest
