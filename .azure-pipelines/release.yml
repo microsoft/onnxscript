@@ -5,6 +5,7 @@ trigger: none
 pool:
   vmImage: ubuntu-latest
 variables:
+  CI: 'true'
   # Set the release environment variable to build a release version of the wheel
   ONNX_SCRIPT_RELEASE: 1
 steps:
