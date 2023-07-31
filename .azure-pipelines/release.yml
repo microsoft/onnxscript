@@ -36,5 +36,5 @@ steps:
     displayName: 'Install Python dependencies'
   - script: python -m pip install dist/*.whl --no-deps
     displayName: 'Install wheel'
-  - script: python -m pytest -v -n auto 
+  - script: python -m pytest -v -n auto
     displayName: 'Run tests'
