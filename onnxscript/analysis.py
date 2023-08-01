@@ -80,7 +80,10 @@ def assigned_vars(
         return set()
     if ast_utils.is_print_call(stmt):
         return set()
-    raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
+    if ast_utils.is_doc_string(stmt):
+        return set()
+    error_message = formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
+    raise ValueError(error_message)
 
 
 def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
@@ -133,11 +136,8 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
             # Break statements in the middle of the loop, however, will require
             # a generalization.
             return live_out
-        if isinstance(stmt, ast.Expr) and hasattr(stmt, "value"):
-            # docstring
-            if hasattr(stmt.value, "value") and isinstance(stmt.value.value, str):
-                # python 3.8+
-                return live_out
+        if ast_utils.is_doc_string(stmt):
+            return live_out
         if isinstance(stmt, ast.FunctionDef):
             return live_out
         if ast_utils.is_print_call(stmt):
@@ -184,6 +184,8 @@ def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
             live2 = visitBlock(stmt.orelse, live_out)
             return (live1 | live2) | used_vars(stmt.test)
         if ast_utils.is_print_call(stmt):
+            return live_out
+        if ast_utils.is_doc_string(stmt):
             return live_out
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved

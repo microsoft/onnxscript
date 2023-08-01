@@ -48,6 +48,19 @@ class TestLivenessAnalysis(unittest.TestCase):
 
         self.assertLiveness(basic_eg, [["x"], ["y"], ["y"]])
 
+    def test_doc_string(self):
+        def basic_eg(x):
+            # live = {x}
+            """This is a docstring."""
+            # live = {x}
+            y = x + 1
+            # live = {y}
+            x = 1
+            # live = {y}
+            return y + 1
+
+        self.assertLiveness(basic_eg, [["x"], ["x"], ["y"], ["y"]])
+
     def test_for_loop(self):
         def loop_eg():
             # live = {}
@@ -162,6 +175,16 @@ class TestExposedUses(unittest.TestCase):
 
         self.assertUses(f, {"x"})
 
+    def test_doc_string(self):
+        def f(x):
+            """This is a docstring."""
+            x = x + 10
+            y = 20
+            z = x + y
+            x = 30 + z
+
+        self.assertUses(f, {"x"})
+
 
 class TestAssignedVarAnalysis(unittest.TestCase):
     def assert_assigned_vars(self, f, expected: set[str]):
@@ -213,6 +236,15 @@ class TestAssignedVarAnalysis(unittest.TestCase):
             return sum
 
         self.assert_assigned_vars(f, {"sum", "x", "square"})
+
+    def test_doc_string(self):
+        def f(x):
+            """This is a docstring."""
+            x = x + 1
+            y = x + 2
+            return y
+
+        self.assert_assigned_vars(f, {"x", "y"})
 
 
 if __name__ == "__main__":

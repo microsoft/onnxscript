@@ -572,9 +572,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "chunk",
         core_ops.aten_chunk,
-    ).xfail(
-        dtypes=[torch.float16],
+    )
+    .xfail(
+        dtypes=(torch.float16,),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+    )
+    .xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
         enabled_if=ops_test_common.IS_WINDOWS,
@@ -622,15 +627,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("exp2", core_ops.aten_exp2),
     TorchLibOpInfo("expand", core_ops.aten_expand),
     TorchLibOpInfo("expand_as", core_ops.aten_expand_as),
-    TorchLibOpInfo("erf", special_ops.aten_special_erf).xfail(
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement Erf for int64. https://github.com/microsoft/onnxruntime/issues/16654",
-    ),
+    TorchLibOpInfo("erf", special_ops.aten_special_erf),
     TorchLibOpInfo(
         "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
-    ).xfail(
-        dtypes=(torch.int64,),
-        reason="fixme: ORT did not implement Erf for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
     TorchLibOpInfo("fill", core_ops.aten_fill),
@@ -690,7 +689,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_linalg_vector_norm_input_wrangler,
     ).skip(
         matcher=lambda sample: sample.kwargs.get("ord") == 6,
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="ORT returns a more accurate value for float16 with ord=6 (expected=Inf, actual=9.48).",
     ),
     TorchLibOpInfo(
@@ -699,11 +698,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     )
     .xfail(
-        dtypes=(torch.int64,),
+        dtypes=(torch.int64, torch.int32),
         reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
     )
     .xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="op 'Range' doesn't support float16.",
     )
     .skip(
@@ -716,7 +715,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "log10",
         core_ops.aten_log10,
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float).",
     ),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
@@ -726,7 +725,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (4e-4, 6e-3)},
     ).xfail(
         variant_name="with_dtype",
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
@@ -734,21 +733,22 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "log2",
         core_ops.aten_log2,
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model",
     ),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
-    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp).xfail(
-        reason="naive implementation not numerically stable"
-    ),
+    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
     TorchLibOpInfo(
         "logsumexp",
         core_ops.aten_logsumexp,
     ),
     TorchLibOpInfo("lt", core_ops.aten_lt),
-    TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill),
+    TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill).xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not have an implementation for Where with bool inputs.",
+    ),
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
@@ -917,7 +917,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="only global pooling is supported; only batched inputs are supported",
     )
     .xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: RuntimeError: ORT inference error GlobalAveragePool",
     ),
     TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
@@ -943,7 +943,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.elu",
         nn_ops.aten_elu,
     ).skip(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo(
@@ -1020,7 +1020,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.selu",
         core_ops.aten_selu,
     ).skip(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo(
@@ -1052,13 +1052,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         test_class_name="TestOutputConsistencyEager",
     )
     .xfail(
         variant_name="number_mean",
         reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
@@ -1083,7 +1083,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_randn_input_wrangler,
         nondeterministic=True,
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: Shape inference error",
     ),
     TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
@@ -1091,7 +1091,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "remainder",
         core_ops.aten_remainder,
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="Eager mode failed on case(self=7.75,other=0.1582) due to precision loss",
         test_class_name="TestOutputConsistencyEager",
     ),
@@ -1132,7 +1132,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
     )
     .xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: ORT failed",
     ),
     TorchLibOpInfo("select", core_ops.aten_select),
@@ -1147,34 +1147,48 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
     )
     .xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: ORT failed",
     )
     .xfail(
         variant_name="with_dtype",
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo(
         "split_with_sizes",
         core_ops.aten_split_with_sizes,
-    ).xfail(
-        dtypes=[torch.float16],
-        reason="fixme: ORT failed",
+    )
+    .xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
+    )
+    .xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
     TorchLibOpInfo(
         "split",
         core_ops.aten_split,
     )
     .xfail(
-        dtypes=[torch.float16],
-        reason="fixme: ORT failed",
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
         variant_name="list_args",
-        dtypes=[torch.float16],
-        reason="fixme: ORT: Type (seq(tensor(float16))) of output arg (output0) of node () does not match expected type (seq(tensor(float)))",
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
+    )
+    .xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
+    )
+    .xfail(
+        variant_name="list_args",
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
     TorchLibOpInfo("sqrt", core_ops.aten_sqrt),
     TorchLibOpInfo(
@@ -1212,19 +1226,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
     TorchLibOpInfo("topk", core_ops.aten_topk).xfail(
-        dtypes=(torch.int64,),
+        dtypes=(torch.int64, torch.int32),
         enabled_if=not ops_test_common.IS_WINDOWS,
         reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
     ),
-    TorchLibOpInfo("tril", core_ops.aten_tril),
-    TorchLibOpInfo("triu", core_ops.aten_triu),
+    TorchLibOpInfo("tril", core_ops.aten_tril).xfail(
+        dtypes=(torch.int32, torch.bool),
+        reason="fixme: ORT does not have an implementation of Trilu for int32 or bool.",
+    ),
+    TorchLibOpInfo("triu", core_ops.aten_triu).xfail(
+        dtypes=(torch.int32, torch.bool),
+        reason="fixme: ORT does not have an implementation of Trilu for int32 or bool.",
+    ),
     TorchLibOpInfo("trunc", core_ops.aten_trunc),
     TorchLibOpInfo(
         "unbind",
         core_ops.aten_unbind,
-    ).xfail(
-        dtypes=[torch.float16],
+    )
+    .xfail(
+        dtypes=(torch.float16,),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
+    )
+    .xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
     TorchLibOpInfo(
         "unflatten",
@@ -1254,14 +1279,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).xfail(
         reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
     ),
-    TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler),
+    TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
+        dtypes=(torch.bool,),
+        reason="fixme: ORT does not have an implementation for Where with bool inputs.",
+    ),
     TorchLibOpInfo("xlogy", special_ops.aten_special_xlogy),
     TorchLibOpInfo("zeros", core_ops.aten_zeros),
     TorchLibOpInfo(
         "arange_start_step",
         core_ops.aten_arange_start_step,
         trace_only=True,
-    ).xfail(
+    )
+    .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
+    .xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
@@ -1269,7 +1299,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start",
         core_ops.aten_arange_start,
         trace_only=True,
-    ).skip(
+    )
+    .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
+    .skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
@@ -1278,6 +1310,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_arange,
         trace_only=True,
     )
+    .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
     .xfail(
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
@@ -1355,10 +1388,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_col2im,
         trace_only=True,
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: Tensor-likes are not close. https://github.com/microsoft/onnxruntime/issues/16007",
     ),
-    TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True),
+    TorchLibOpInfo("cumsum", core_ops.aten_cumsum, trace_only=True).xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: torch.cumsum with int32 inputs uses int64 as the output type",
+    ),
     TorchLibOpInfo("contiguous", core_ops.aten_contiguous),
     TorchLibOpInfo(
         "ops.aten.convolution",
@@ -1460,7 +1496,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_native_group_norm,
         trace_only=True,
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: 'GroupNormKernelImpl' not implemented for 'Half' in nightly and weekly",
     ),
     TorchLibOpInfo(
@@ -1543,7 +1579,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_gelu,
         trace_only=True,
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
@@ -1727,7 +1763,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
     ).xfail(
-        dtypes=[torch.float16],
+        dtypes=(torch.float16,),
         reason="RuntimeError: MKL FFT doesn't support tensors of type: Half",
     ),
     TorchLibOpInfo(
@@ -1735,6 +1771,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_sum_dim_IntList,
         input_wrangler=_sum_input_wrangler,
         trace_only=True,
+    ).xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: torch.sum uses int64 as the accumulator for int32 inputs",
     ),
     TorchLibOpInfo(
         "ops.aten.tensor.bool", core_ops.aten_tensor_bool
