@@ -23,19 +23,30 @@ class SourceInfo:
         self.ast_node = ast_node
         self.code = code
         self.function_name = function_name
-        self.lineno = ast_node.lineno
 
-    def msg(self, text: str) -> str:
-        return f"ERROR\n{self}\n    {text}"
+    @property
+    def lineno(self):
+        return self.ast_node.lineno
 
-    def __str__(self) -> str:
+    def msg(self, error_message: str) -> str:
+        lineno = self.lineno
+        if self.function_name:
+            source_loc = f"Function '{self.function_name}', line {lineno}"
+        else:
+            source_loc = "Line {lineno}"
+
         if self.code:
             lines = self.code.split("\n")
-            line = f" ...{lines[self.lineno - 1]}"
+            line = lines[lineno-1]
+            marker_prefix = " " * (self.ast_node.col_offset)
+            source_line = f"{line}\n{marker_prefix}^\n"
         else:
-            line = ""
-        function_name = self.function_name or ""
-        return f"{function_name}:{int(self.lineno)}{line}"
+            source_line = ""
+
+        return f"ERROR: {error_message}\nat: {source_loc}\n{source_line}"
+
+    def __str__(self) -> str:
+        raise ValueError("Cannot happen!")
 
 
 Formatter = Callable[[ast.AST, str], str]
