@@ -4,7 +4,7 @@ import ast
 import unittest
 from typing import Any
 
-from onnxscript import analysis
+from onnxscript._internal import analysis
 from onnxscript._internal import ast_utils
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.sourceinfo import formatter
