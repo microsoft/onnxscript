@@ -185,8 +185,8 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            #if i not in range(20,30): continue
-            #if i!=6: continue
+            #if i not in range(5,7): continue
+            #if i!=29: continue
             if dtype != torch.float: continue
             test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample, dtype)
 

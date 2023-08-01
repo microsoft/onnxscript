@@ -2329,163 +2329,14 @@ def aten_embedding_bag(
     offset_shape = op.Shape(offsets)
     if mode == 0:  # sum
         offset2bag = op.Shape(indices, start=0, end=0)  # Generate empty tensor
-        bag_size = op.Expand(0, offset_shape)
-        max_indices = op.Expand(0, offset_shape)
     else:
-        offset2bag = op.Expand(0, op.Shape(indices))
-        bag_size = op.Expand(0, offset_shape)
-        max_indices = op.Expand(0, offset_shape)
+        offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
+    bag_size = op.Expand(0, offset_shape)
+    max_indices = op.Expand(0, offset_shape)
     return result, offset2bag, bag_size, max_indices
 
     # return _aten_embedding_bag_onnx(weight, indices, offsets, mode, per_sample_weights, include_last_offset)
 
-'''
-@torch_op("aten::embedding_bag", private=True)
-def _aten_embedding_bag_onnx(
-    weight: TFloat,
-    indices: INT64,
-    offsets: INT64,
-    mode: int,
-    per_sample_weights: TFloat,
-    include_last_offset: bool,
-) -> TFloat:
-    if op.Size(op.Shape(indices)) == 1:  # indices is 1d
-        neg_1 = op.Constant(value_ints=[-1])
-        # Get weight out according to indices,
-        # e.g. indices=[0,1,2,4] means get weight[0],weight[1],weight[2],weight[4]
-        new_weight = op.Gather(weight, indices)
-        # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
-        new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
-        dim_1_size = op.Reshape(op.Gather(op.Shape(weight), 1), neg_1)
-        # Parse offsets=[0,1,3,3,4], btw, this is edge case, the normal case is something like [0,3]
-        # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
-        # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
-        len_tensor = op.Reshape(op.Size(offsets), neg_1)
-        if op.Equal(include_last_offset, True):
-            len_tensor = len_tensor - 1
-        else:
-            offsets = op.Concat(offsets, op.Shape(indices), axis=0)  # Replace end with number
-
-        # The element in sequence must be FLOAT32 dtype due to ORT bug
-        new_weight = op.Cast(new_weight, to=FLOAT.dtype)
-        # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
-        result = op.SequenceEmpty()
-        index_tensor = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
-        cond = index_tensor < len_tensor
-        while cond:
-            start = op.Slice(offsets, index_tensor, index_tensor + 1)
-            end = op.Slice(offsets, index_tensor + 1, index_tensor + 2)
-            # row_result should be 0, need to generate (1,N) shape tensor with 0 values
-            if start == end:
-                row_result = op.Expand(
-                    op.Constant(value_floats=[0.0]),
-                    op.Concat(op.Constant(value_ints=[1]), dim_1_size, axis=0),
-                )
-            else:
-                weight_rows = op.Slice(new_weight, start, end)
-                # Process embedding_bag operation against weight_rows according to mode
-                if mode == 1:  # mean
-                    row_result = op.ReduceMean(weight_rows, axes=[0])
-                elif mode == 2:  # max
-                    row_result = op.ReduceMax(weight_rows, axes=[0])
-                else:  # sum
-                    # assert(mode == 0)
-                    row_result = op.ReduceSum(weight_rows, axes=[0])
-            result = op.SequenceInsert(result, row_result)
-            index_tensor = index_tensor + 1
-            cond = index_tensor < len_tensor
-        result = op.ConcatFromSequence(result, axis=0)
-        result = op.CastLike(result, weight)
-    else:  # indices is 2d
-        # Get weight out according to indices
-        new_weight = op.Gather(weight, indices)
-        new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=2))
-        if mode == 1:  # mean
-            result = op.ReduceMean(new_weight, axes=[1], keepdims=False)
-        elif mode == 2:  # max
-            result = op.ReduceMax(new_weight, axes=[1], keepdims=False)
-        else:  # sum
-            # assert(mode == 0)
-            result = op.ReduceSum(new_weight, axes=[1], keepdims=False)
-    return result
-'''
-
-@torch_op("aten::embedding_bag.padding_idx", trace_only=True)
-def aten_embedding_bag_padding_idx(
-    weight: TFloat,
-    indices: INT64,
-    offsets: INT64 = None,  # Could be None accotding to the doc, go 2d branch
-    scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
-    mode: int = 1,  # [0,1,2] indicate ["sum", "mean", "max"], default is "mean"
-    sparse: bool = False,  # pylint: disable=unused-argument
-    per_sample_weights: Optional[TFloat] = None,
-    include_last_offset: bool = False,
-    padding_idx: int = None,
-) -> TFloat:
-    """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
-    # assert(padding_idx is not None)
-
-    if per_sample_weights is None:
-        per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
-        per_sample_weights = op.CastLike(per_sample_weights, weight)
-
-    # Change padding_idx to positive value
-    if padding_idx < 0:
-        padding_idx = weight.shape[0] + padding_idx
-
-    if len(indices.shape) == 1:  # 1d
-        # Compute new_indices and new_offsets
-        new_offsets = _compute_sections_1d(indices, offsets, include_last_offset, padding_idx)
-        return _aten_embedding_bag_1d_padding_idx_onnx(
-            new_offsets, weight, indices, offsets, mode, per_sample_weights, include_last_offset, padding_idx
-        )
-    else:  # 2d
-        # assert(len(indices.shape) == 2)
-        # assert(indices.shape == per_sample_weights.shape)
-        # Compute new_indices and new_offsets
-        new_offsets = _compute_sections_2d(indices, padding_idx)
-        return _aten_embedding_bag_2d_padding_idx_onnx(new_offsets, weight, indices, mode, per_sample_weights, padding_idx)
-
-
-def _compute_sections_1d(indices, offsets, include_last_offset, padding_idx):
-    neg_1 = op.Constant(value_ints=[-1])
-    if include_last_offset is True:
-        parts = len(offsets) - 1  # for [0,3] parts = 1
-    else:
-        parts = len(offsets)  # for [0,3,...] parts = 2
-        # Change [0,3] -> [0,3,end], means [0:3],[3:end]
-        size = op.Reshape(op.Constant(value_int=len(indices)), neg_1)
-        offsets = op.Concat(offsets, size, axis=0)
-    new_offsets = []
-    for i in range(parts):
-        start_pos = op.Gather(offsets, i)
-        end_pos = op.Gather(offsets, i + 1)
-        # empty tensor
-        curr_offset = op.Shape(indices, start=0, end=0)
-        j = start_pos
-        cond = op.Less(j, end_pos)
-        while cond:
-            index = op.Gather(indices, j)
-            if not op.Equal(index, padding_idx):
-                curr_offset = op.Concat(curr_offset, op.Reshape(j, neg_1), axis=0)
-            j = op.Add(j, 1)
-            cond = op.Less(j, end_pos)
-        new_offsets.append(curr_offset)
-    return new_offsets
-
-
-def _compute_sections_2d(indices, padding_idx):
-    new_offsets = []
-    for i in range(indices.shape[0]):
-        curr_offset = []
-        curr_indices = op.Gather(indices, i)
-        for j in range(indices.shape[1]):
-            curr_index = op.Gather(curr_indices, j)
-            if not op.Equal(curr_index, padding_idx):
-                curr_offset.append(j)
-        offset_tensor = op.Constant(value_ints=curr_offset)
-        new_offsets.append(offset_tensor)
-    return new_offsets
 
 @torch_op("aten::embedding_bag", private=True)
 def _aten_embedding_bag_1d_onnx_sum(
@@ -2502,13 +2353,13 @@ def _aten_embedding_bag_1d_onnx_sum(
     new_weight = op.Gather(weight, indices)
     # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
     new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
-    dim_1_size = op.Reshape(op.Gather(op.Shape(weight), 1), neg_1)
+    weight_dim_1 = op.Reshape(op.Gather(op.Shape(weight), 1), neg_1)
     # Parse offsets=[0,1,3,3,4], btw, this is edge case, the normal case is something like [0,3]
     # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
     # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
-    len_tensor = op.Reshape(op.Size(offsets), neg_1)
+    num_bag = op.Reshape(op.Size(offsets), neg_1)
     if op.Equal(include_last_offset, True):
-        len_tensor = len_tensor - 1
+        num_bag = num_bag - 1
     else:
         offsets = op.Concat(offsets, op.Shape(indices), axis=0)  # Replace end with number
 
@@ -2517,7 +2368,7 @@ def _aten_embedding_bag_1d_onnx_sum(
     # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
     result = op.SequenceEmpty()
     index_tensor = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
-    cond = index_tensor < len_tensor
+    cond = index_tensor < num_bag
     while cond:
         start = op.Slice(offsets, index_tensor, index_tensor + 1)
         end = op.Slice(offsets, index_tensor + 1, index_tensor + 2)
@@ -2525,7 +2376,7 @@ def _aten_embedding_bag_1d_onnx_sum(
         if start == end:
             row_result = op.Expand(
                 op.Constant(value_floats=[0.0]),
-                op.Concat(op.Constant(value_ints=[1]), dim_1_size, axis=0),
+                op.Concat(op.Constant(value_ints=[1]), weight_dim_1, axis=0),
             )
         else:
             weight_rows = op.Slice(new_weight, start, end)
@@ -2533,9 +2384,10 @@ def _aten_embedding_bag_1d_onnx_sum(
             row_result = op.ReduceSum(weight_rows, axes=[0])
         result = op.SequenceInsert(result, row_result)
         index_tensor = index_tensor + 1
-        cond = index_tensor < len_tensor
+        cond = index_tensor < num_bag
     result = op.ConcatFromSequence(result, axis=0)
     return op.CastLike(result, weight)
+
 
 @torch_op("aten::embedding_bag", private=True)
 def _aten_embedding_bag_1d_onnx_mean(
@@ -2547,27 +2399,27 @@ def _aten_embedding_bag_1d_onnx_mean(
     include_last_offset: bool,
 ) -> TFloat:
     neg_1 = op.Constant(value_ints=[-1])
+    indices_1d = op.Identity(indices)
     # Get weight out according to indices,
-    # e.g. indices=[0,1,2,4] means get weight[0],weight[1],weight[2],weight[4]
     new_weight = op.Gather(weight, indices)
     # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
     new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
-    dim_1_size = op.Reshape(op.Gather(op.Shape(weight), 1), neg_1)
-    # Parse offsets=[0,1,3,3,4], btw, this is edge case, the normal case is something like [0,3]
-    # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
-    # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
-    len_tensor = op.Reshape(op.Size(offsets), neg_1)
+    weight_dim_1 = op.Reshape(op.Gather(op.Shape(weight), 1), neg_1)
+    # Parse offsets=[0,2,3], btw, this is edge case, the normal case is something like [0,3]
+    # When include_last_offset=False, means: [0:2],[2:3],[3:7]
+    # When include_last_offset=True, means: [0:2],[2:7]
+    num_bag = op.Reshape(op.Size(offsets), neg_1)
     if op.Equal(include_last_offset, True):
-        len_tensor = len_tensor - 1
+        num_bag = num_bag - 1
     else:
-        offsets = op.Concat(offsets, op.Shape(indices), axis=0)  # Replace end with number
+        offsets = op.Concat(offsets, op.Shape(indices_1d), axis=0)  # Replace end with number
 
     # The element in sequence must be FLOAT32 dtype due to ORT bug
     new_weight = op.Cast(new_weight, to=FLOAT.dtype)
     # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
     result = op.SequenceEmpty()
     index_tensor = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
-    cond = index_tensor < len_tensor
+    cond = index_tensor < num_bag
     while cond:
         start = op.Slice(offsets, index_tensor, index_tensor + 1)
         end = op.Slice(offsets, index_tensor + 1, index_tensor + 2)
@@ -2575,18 +2427,79 @@ def _aten_embedding_bag_1d_onnx_mean(
         if start == end:
             row_result = op.Expand(
                 op.Constant(value_floats=[0.0]),
-                op.Concat(op.Constant(value_ints=[1]), dim_1_size, axis=0),
+                op.Concat(op.Constant(value_ints=[1]), weight_dim_1, axis=0),
             )
+        elif op.Equal(index_tensor, num_bag - 1):
+            weight_rows = op.Slice(new_weight, start, end)
+            row_result = op.ReduceSum(weight_rows, axes=[0])
+            # When include_last_offset=True, offsets=[0,2,3], end=7, denominator=7-2=5
+            denominator = op.Sub(op.Shape(indices, start=0, end=1), start)
+            if op.Greater(denominator, 0):
+                row_result = op.Div(row_result, op.CastLike(denominator, weight))
         else:
             weight_rows = op.Slice(new_weight, start, end)
             # Process embedding_bag operation against weight_rows according to mode
             row_result = op.ReduceMean(weight_rows, axes=[0])
         result = op.SequenceInsert(result, row_result)
         index_tensor = index_tensor + 1
-        cond = index_tensor < len_tensor
+        cond = index_tensor < num_bag
     result = op.ConcatFromSequence(result, axis=0)
     return op.CastLike(result, weight)
 
+
+@torch_op("aten::embedding_bag", private=True)
+def _aten_embedding_bag_1d_onnx_max(
+    weight: TFloat,
+    indices: INT64,
+    offsets: INT64,
+    mode: int,
+    per_sample_weights: TFloat,
+    include_last_offset: bool,
+) -> TFloat:
+    neg_1 = op.Constant(value_ints=[-1])
+    indices_1d = op.Identity(indices)
+    # Get weight out according to indices,
+    new_weight = op.Gather(weight, indices)
+    # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
+    new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
+    weight_dim_1 = op.Reshape(op.Gather(op.Shape(weight), 1), neg_1)
+
+    num_bag = op.Reshape(op.Size(offsets), neg_1)
+    if op.Equal(include_last_offset, True):
+        num_bag = num_bag - 1
+    else:
+        offsets = op.Concat(offsets, op.Shape(indices_1d), axis=0)  # Replace end with number
+
+    # The element in sequence must be FLOAT32 dtype due to ORT bug
+    new_weight = op.Cast(new_weight, to=FLOAT.dtype)
+    # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
+    result = op.SequenceEmpty()
+    index_tensor = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
+    cond = index_tensor < num_bag
+    while cond:
+        start = op.Slice(offsets, index_tensor, index_tensor + 1)
+        end = op.Slice(offsets, index_tensor + 1, index_tensor + 2)
+        # row_result should be 0, need to generate (1,N) shape tensor with 0 values
+        if start == end:
+            row_result = op.Expand(
+                op.Constant(value_floats=[0.0]),
+                op.Concat(op.Constant(value_ints=[1]), weight_dim_1, axis=0),
+            )
+        elif op.Equal(index_tensor, num_bag - 1):
+            weight_rows = op.Slice(new_weight, start, op.Shape(indices_1d))
+            row_result = op.ReduceMax(weight_rows, axes=[0])
+        else:
+            weight_rows = op.Slice(new_weight, start, end)
+            # Process embedding_bag operation against weight_rows according to mode
+            row_result = op.ReduceMax(weight_rows, axes=[0])
+        result = op.SequenceInsert(result, row_result)
+        index_tensor = index_tensor + 1
+        cond = index_tensor < num_bag
+    result = op.ConcatFromSequence(result, axis=0)
+    return op.CastLike(result, weight)
+
+
+@torch_op("aten::embedding_bag", private=True)
 def _aten_embedding_bag_2d_onnx_mean(
     weight: TFloat,
     indices: INT64,
@@ -2602,11 +2515,11 @@ def _aten_embedding_bag_2d_onnx_mean(
     new_weight = op.Gather(weight, indices_1d)
     # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
     new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
-    weight_dim = op.Reshape(op.Shape(weight, start=1), neg_1)
+    weight_dim_1 = op.Reshape(op.Shape(weight, start=1), neg_1)
 
     # Assume indices is shape(5,3), offsets=[0,1,3], include_last_offset = False
     # [0,1,3] -> [0:1], [1:3], [3:15]
-    num_bag = op.Size(offsets)  # 3 bags, means 15 is the last index
+    num_bag = op.Reshape(op.Size(offsets), neg_1)  # 3 bags, means 15 is the last index
     if op.Equal(include_last_offset, True):
         num_bag = num_bag - 1  # 2 bags, means 3 is the last index
     else:
@@ -2626,7 +2539,7 @@ def _aten_embedding_bag_2d_onnx_mean(
         if start == end:
             row_result = op.Expand(
                 op.Constant(value_floats=[0.0]),
-                op.Concat(op.Constant(value_ints=[1]), weight_dim, axis=0),
+                op.Concat(op.Constant(value_ints=[1]), weight_dim_1, axis=0),
             )
         else:
             weight_rows = op.Slice(new_weight, start, end)
@@ -2649,62 +2562,6 @@ def _aten_embedding_bag_2d_onnx_mean(
     if op.Greater(denominator, 0):
         row_result = op.Div(row_result, op.CastLike(denominator, weight))
     result = op.SequenceInsert(result, row_result)
-    result = op.ConcatFromSequence(result, axis=0)
-    return op.CastLike(result, weight)
-
-@torch_op("aten::embedding_bag", private=True)
-def _aten_embedding_bag_1d_onnx_max(
-    weight: TFloat,
-    indices: INT64,
-    offsets: INT64,
-    mode: int,
-    per_sample_weights: TFloat,
-    include_last_offset: bool,
-) -> TFloat:
-    neg_1 = op.Constant(value_ints=[-1])
-    # Get weight out according to indices,
-    # e.g. indices=[0,1,2,4] means get weight[0],weight[1],weight[2],weight[4]
-    new_weight = op.Gather(weight, indices)
-    # This happends after first step of Gather. Because Shape(indices)==Shape(per_sample_weights)
-    new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=1))
-    dim_1_size = op.Reshape(op.Gather(op.Shape(weight), 1), neg_1)
-    # Parse offsets=[0,1,3,3,4], btw, this is edge case, the normal case is something like [0,3]
-    # When include_last_offset=False, means: [0:1],[1:3],[3:3],[3:4],[4:end]
-    # When include_last_offset=True, means: [0:1],[1:3],[3:3],[3:4]
-    len_tensor = op.Reshape(op.Size(offsets), neg_1)
-    if op.Equal(include_last_offset, True):
-        len_tensor = len_tensor - 1
-    else:
-        offsets = op.Concat(offsets, op.Shape(indices), axis=0)  # Replace end with number
-
-    # The element in sequence must be FLOAT32 dtype due to ORT bug
-    new_weight = op.Cast(new_weight, to=FLOAT.dtype)
-    # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
-    result = op.SequenceEmpty()
-    index_tensor = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
-    cond = index_tensor < len_tensor
-    while cond:
-        start = op.Slice(offsets, index_tensor, index_tensor + 1)
-        end = op.Slice(offsets, index_tensor + 1, index_tensor + 2)
-        # row_result should be 0, need to generate (1,N) shape tensor with 0 values
-        if start == end:
-            row_result = op.Expand(
-                op.Constant(value_floats=[0.0]),
-                op.Concat(op.Constant(value_ints=[1]), dim_1_size, axis=0),
-            )
-        else:
-            weight_rows = op.Slice(new_weight, start, end)
-            # Process embedding_bag operation against weight_rows according to mode
-            if mode == 1:  # mean
-                row_result = op.ReduceMean(weight_rows, axes=[0])
-            elif mode == 2:  # max
-                row_result = op.ReduceMax(weight_rows, axes=[0])
-            else:  # sum
-                # assert(mode == 0)
-                row_result = op.ReduceSum(weight_rows, axes=[0])
-        result = op.SequenceInsert(result, row_result)
-        index_tensor = index_tensor + 1
-        cond = index_tensor < len_tensor
     result = op.ConcatFromSequence(result, axis=0)
     return op.CastLike(result, weight)
 
@@ -2833,19 +2690,101 @@ def _aten_embedding_bag_2d_padding_idx_onnx(
     return op.CastLike(result, weight)
 
 
+@torch_op("aten::embedding_bag.padding_idx", trace_only=True)
+def aten_embedding_bag_padding_idx(
+    weight: TFloat,
+    indices: INT64,
+    offsets: INT64 = None,  # Could be None accotding to the doc, go 2d branch
+    scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
+    mode: int = 1,  # [0,1,2] indicate ["sum", "mean", "max"], default is "mean"
+    sparse: bool = False,  # pylint: disable=unused-argument
+    per_sample_weights: Optional[TFloat] = None,
+    include_last_offset: bool = False,
+    padding_idx: int = None,
+) -> TFloat:
+    """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
+    # assert(padding_idx is not None)
 
-# def test_aten_embedding_bag():
-#     import numpy as np
-#     weight = np.array([[0,0,0],[1,1,1],[2,2,2],[3,3,3],[4,4,4],[5,5,5],[6,6,6]])+0.1
-#     indices = np.array([[0,1],[2,3],[4,6]]).astype(np.int64)
-#     offsets = np.array([0,3]).astype(np.int64)
-#     mode = 1
-#     #psw = np.array([1,1,1,1,1,1]).astype(np.float32)
-#     r = aten_embedding_bag(
-#         weight, indices, offsets, mode=mode)
-#     print(r)
-# test_aten_embedding_bag()
-# exit(0)
+    if per_sample_weights is None:
+        per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
+        per_sample_weights = op.CastLike(per_sample_weights, weight)
+
+    # Change padding_idx to positive value
+    if padding_idx < 0:
+        padding_idx = weight.shape[0] + padding_idx
+
+    if len(indices.shape) == 1:  # 1d
+        # Compute new_indices and new_offsets
+        new_offsets = _compute_sections_1d(indices, offsets, include_last_offset, padding_idx)
+        return _aten_embedding_bag_1d_padding_idx_onnx(
+            new_offsets, weight, indices, offsets, mode, per_sample_weights, include_last_offset, padding_idx
+        )
+    else:  # 2d
+        # assert(len(indices.shape) == 2)
+        # assert(indices.shape == per_sample_weights.shape)
+        # Compute new_indices and new_offsets
+        new_offsets = _compute_sections_2d(indices, padding_idx)
+        return _aten_embedding_bag_2d_padding_idx_onnx(new_offsets, weight, indices, mode, per_sample_weights, padding_idx)
+
+
+def _compute_sections_1d(indices, offsets, include_last_offset, padding_idx):
+    neg_1 = op.Constant(value_ints=[-1])
+    if include_last_offset is True:
+        parts = len(offsets) - 1  # for [0,3] parts = 1
+    else:
+        parts = len(offsets)  # for [0,3,...] parts = 2
+        # Change [0,3] -> [0,3,end], means [0:3],[3:end]
+        size = op.Reshape(op.Constant(value_int=len(indices)), neg_1)
+        offsets = op.Concat(offsets, size, axis=0)
+    new_offsets = []
+    for i in range(parts):
+        start_pos = op.Gather(offsets, i)
+        end_pos = op.Gather(offsets, i + 1)
+        # empty tensor
+        curr_offset = op.Shape(indices, start=0, end=0)
+        j = start_pos
+        cond = op.Less(j, end_pos)
+        while cond:
+            index = op.Gather(indices, j)
+            if not op.Equal(index, padding_idx):
+                curr_offset = op.Concat(curr_offset, op.Reshape(j, neg_1), axis=0)
+            j = op.Add(j, 1)
+            cond = op.Less(j, end_pos)
+        new_offsets.append(curr_offset)
+    return new_offsets
+
+
+def _compute_sections_2d(indices, padding_idx):
+    new_offsets = []
+    for i in range(indices.shape[0]):
+        curr_offset = []
+        curr_indices = op.Gather(indices, i)
+        for j in range(indices.shape[1]):
+            curr_index = op.Gather(curr_indices, j)
+            if not op.Equal(curr_index, padding_idx):
+                curr_offset.append(j)
+        offset_tensor = op.Constant(value_ints=curr_offset)
+        new_offsets.append(offset_tensor)
+    return new_offsets
+
+
+def test_aten_embedding_bag():
+    import numpy as np
+    weight = np.array([[9,0,0,0],[1,8,1,1],[7,2,7,2],[3,7,3,3],[4,4,4,4],[5,5,5,5],[6,6,6,6]])+0.1
+    weight = weight.astype(np.float32)
+    indices_1d = np.array([0,1,0,2,3,4,6]).astype(np.int64)
+    # indices = np.array([[0,1],[2,3],[4,6]]).astype(np.int64)
+    offsets = np.array([0,2,3]).astype(np.int64)
+    for mode in (0,1,2):
+    #psw = np.array([1,1,1,1,1,1]).astype(np.float32)
+    # r = aten_embedding_bag(weight, indices_1d, offsets, mode=mode)
+    # print(r)
+        r = aten_embedding_bag(weight, indices_1d, offsets, mode=mode)
+        print(r)
+        r = aten_embedding_bag(weight, indices_1d, offsets, mode=mode, include_last_offset=True)
+        print(r)
+test_aten_embedding_bag()
+exit(0)
 
 # def test_aten_embedding_bag_2d():
 #     import numpy as np

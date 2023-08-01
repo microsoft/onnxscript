@@ -643,7 +643,7 @@ def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs)
     offsets_2 = torch.tensor([0, 2], device=device, dtype=torch.long)
 
     for generate_per_sample_weight in (True, False):
-        for mode in (1,): #, 1, 2):  #('sum', 'mean', 'max')
+        for mode in (0,1,): #, 1, 2):  #('sum', 'mean', 'max')
             # per_sample_weights is only supported for mode='sum' (got mode='****')
             if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
                 continue
@@ -675,16 +675,22 @@ def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs)
             # 2-D index tensor
             idx = make_long_input((S, S), low=0, high=M)
             per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 3
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
+            input = make_input((M, S))
+            if not(generate_per_sample_weight is False and mode == 2):  # 'max'
+                # 3
+                yield common_methods_invocations.SampleInput(input, args=(idx,),
                               #kwargs={'mode': mode, 'per_sample_weights': per_sample_weights})
                               kwargs={'offsets': offsets, 'mode': mode, 'per_sample_weights': per_sample_weights})
 
-            idx = make_long_input((S, S), low=0, high=M, noncontiguous=True)
+            idx = make_long_input((S, S), low=0, high=S)
             per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 4
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode, 'per_sample_weights': per_sample_weights})
+            input = make_input((M, S))
+            if not(generate_per_sample_weight is False and mode == 2):  # 'max'
+                # this case will make torch crash
+                # https://github.com/pytorch/pytorch/issues/106362
+                # 4
+                yield common_methods_invocations.SampleInput(input, args=(idx,),
+                                kwargs={'offsets': offsets, 'mode': mode, 'per_sample_weights': per_sample_weights})
 
             # The gradient vector at `padding_idx` is not updated.
             # Negative padding_idx
@@ -703,7 +709,8 @@ def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs)
             idx[1, 1] = 2
             per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
             # 6
-            yield common_methods_invocations.SampleInput(make_input((S, S)), args=(idx,),
+            if not(generate_per_sample_weight is False and mode == 2):  # 'max'
+                yield common_methods_invocations.SampleInput(make_input((S, S)), args=(idx,),
                               kwargs={'offsets': offsets, 'mode': mode,
                                       'per_sample_weights': per_sample_weights},)
 
