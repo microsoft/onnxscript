@@ -1,5 +1,6 @@
 # Build the dev version of the package and publish to artifacts
 
+# To configure triggers, see https://github.com/microsoft/onnx-converters-private/wiki/ONNX-Script-release
 trigger: none
 
 pool:
