@@ -3681,19 +3681,9 @@ def aten_linspace(
     if dtype == -1:
         zero = op.CastLike(0.0, steps)
         one = op.CastLike(1.0, steps)
-    elif _range_supported(dtype):
-        zero = op.Cast(0, to=dtype)
-        one = op.Cast(1, to=dtype)
-        start = op.Cast(start, to=dtype)
-        end = op.Cast(end, to=dtype)
-        steps = op.Cast(steps, to=dtype)
     else:
-        # Cast input to float if dtype is not supported by Range,
-        # because the input dtype may be e.g. bfloat16 / int8 etc.
-        # which Range does not support. The output type is ensured because the output
-        # is casted to the specified dtype.
-        zero = op.Cast(0.0, to=FLOAT.dtype)
-        one = op.Cast(1.0, to=FLOAT.dtype)
+        zero = op.Cast(0, to=FLOAT.dtype)
+        one = op.Cast(1, to=FLOAT.dtype)
         start = op.Cast(start, to=FLOAT.dtype)
         end = op.Cast(end, to=FLOAT.dtype)
         steps = op.Cast(steps, to=FLOAT.dtype)
@@ -3706,7 +3696,10 @@ def aten_linspace(
         op.Sub(steps, one),
     )
 
-    return op.Add(op.Mul(range_tensor, step), start)
+    if dtype == -1 or not _range_supported(dtype):
+        return op.Add(op.Mul(range_tensor, step), start)
+    else:
+        return op.Cast(op.Add(op.Mul(range_tensor, step), start), to=dtype)
 
 
 @torch_op("aten::log")
