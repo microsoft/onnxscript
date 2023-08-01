@@ -37,7 +37,7 @@ class SourceInfo:
 
         if self.code:
             lines = self.code.split("\n")
-            line = lines[lineno-1]
+            line = lines[lineno - 1]
             marker_prefix = " " * (self.ast_node.col_offset)
             source_line = f"{line}\n{marker_prefix}^\n"
         else:

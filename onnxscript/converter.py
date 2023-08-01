@@ -141,6 +141,7 @@ if TYPE_CHECKING:
     # The type-alias OnnxVar indicates variable names used in the generated ONNX.
     OnnxVarName = str
 
+
 class Converter:
     """Main class to translate python code into ONNX operators.
 
@@ -716,7 +717,9 @@ class Converter:
                 # Add to sliced_indices, unless it is "::", which is a no-op.
                 if not (elt.lower is None and elt.upper is None and elt.step is None):
                     sliced_indices.append((axis, elt))
-            elif self._is_constant_expr(elt) and isinstance(self._eval_constant_expr(elt), int):
+            elif self._is_constant_expr(elt) and isinstance(
+                self._eval_constant_expr(elt), int
+            ):
                 scalar_indices.append((axis, elt))
             else:
                 non_scalar_indices.append((axis, elt))
@@ -1376,8 +1379,9 @@ class Converter:
         # TODO: Does not yet handle nested functions within nested functions.
         self._current_fn.add_nested_function(function_ir)
 
-      
-    def _translate_function_signature_common(self, fn: ast.FunctionDef) -> irbuilder.IRFunction:
+    def _translate_function_signature_common(
+        self, fn: ast.FunctionDef
+    ) -> irbuilder.IRFunction:
         """Translate a function signature (top-level or nested)."""
         args = fn.args
         if args.vararg or args.kwonlyargs or args.kw_defaults or args.kwarg:
@@ -1410,7 +1414,9 @@ class Converter:
                 )
                 self._bind(x.arg, values.AttrRef(x.arg, typeinfo, self._source_of(x)))
             else:
-                self.ir_builder.add_input(self._current_fn, x.arg, typeinfo, self._source_of(x))
+                self.ir_builder.add_input(
+                    self._current_fn, x.arg, typeinfo, self._source_of(x)
+                )
                 self._used_vars.add(x.arg)
                 self._bind(
                     x.arg,
