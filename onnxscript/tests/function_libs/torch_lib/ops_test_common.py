@@ -32,6 +32,7 @@ from torch.testing._internal.opinfo import core as opinfo_core
 import onnxscript
 import onnxscript.evaluator
 from onnxscript.function_libs.torch_lib import graph_building
+from onnxscript.tests.function_libs.torch_lib import error_reproduction
 
 T = TypeVar("T")
 
@@ -523,7 +524,7 @@ def graph_executor(
             ) from e
 
         try:
-            if os.environ.get("CATCH_ORT_SEGFAULT") == "1":
+            if os.environ.get("CATCH_ORT_SEGFAULT") == "1" or os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
                 # Use an individual process to run ONNX Runtime to catch segfaults
                 return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
 
@@ -542,6 +543,9 @@ def graph_executor(
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
         except OrtAbortedError as e:
+            if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+                # Save the model and inputs to a file for reproduction
+                error_reproduction.create_reproduction_report(onnx_model, ort_inputs)
             raise AssertionError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
