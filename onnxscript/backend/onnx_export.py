@@ -196,6 +196,7 @@ def _attribute_value(attr: onnx.AttributeProto):
 
 
 def _python_make_node_name(domain, version, name, node=False):
+    name = _rename_variable(name)
     if node:
         if version is None:
             version = 1
