@@ -12,6 +12,13 @@ Usage:
 
     pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k nn_functional_scaled_dot_product_attention
 
+## Environment variables
+
+1. Set environment variable `CATCH_ORT_SEGFAULT=1` to catch segmentation faults
+in onnxruntime by running the inference sessions in a separate process.
+
+2. Set `CREATE_REPRODUCTION_REPORT=1` to create markdown files for reproduction of
+errors.
 """
 from __future__ import annotations
 

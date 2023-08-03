@@ -425,13 +425,13 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
     first_input_type_name = schema.inputs[0].type_str
     # Find the type constraint for the first input by matching the parameter name
     first_input_type_constraint = next(
-        # Here we consider seq(tensor(float)) compatible with tensor(float) as well
         (x for x in schema.type_constraints if first_input_type_name in x.type_param_str),
         None,
     )
     assert first_input_type_constraint is not None
     allowed_type_strs = first_input_type_constraint.allowed_type_strs
-    return TORCH_DTYPE_TO_ONNX_STRING[dtype] in allowed_type_strs
+    # Here we consider seq(tensor(float)) compatible with tensor(float) as well
+    return any(TORCH_DTYPE_TO_ONNX_STRING[dtype] in type_str for type_str in allowed_type_strs)
 
 
 def graph_executor(
@@ -525,7 +525,10 @@ def graph_executor(
             ) from e
 
         try:
-            if os.environ.get("CATCH_ORT_SEGFAULT") == "1" or os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+            if (
+                os.environ.get("CATCH_ORT_SEGFAULT") == "1"
+                or os.environ.get("CREATE_REPRODUCTION_REPORT") == "1"
+            ):
                 # Use an individual process to run ONNX Runtime to catch segfaults
                 return _safe_ort_session_run(onnx_model.SerializeToString(), ort_inputs)
 
@@ -540,7 +543,9 @@ def graph_executor(
             # pylint: enable=c-extension-no-member
         ) as e:
             if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
-                error_reproduction.create_reproduction_report(test_name, onnx_model, ort_inputs, e)
+                error_reproduction.create_reproduction_report(
+                    test_name, onnx_model, ort_inputs, e
+                )
             raise AssertionError(
                 "ONNX Runtime failed to evaluate:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
@@ -548,7 +553,9 @@ def graph_executor(
         except OrtAbortedError as e:
             if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
                 # Save the model and inputs to a file for reproduction
-                error_reproduction.create_reproduction_report(test_name, onnx_model, ort_inputs, e)
+                error_reproduction.create_reproduction_report(
+                    test_name, onnx_model, ort_inputs, e
+                )
             raise AssertionError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)

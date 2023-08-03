@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pathlib
 import sys
 import time
 import traceback
@@ -8,10 +9,11 @@ from typing import Any, Mapping
 import numpy as np
 import onnx
 
-_REPRODUCTION_TEMPLATE = '''
+_REPRODUCTION_TEMPLATE = '''\
 import onnx
 import onnxruntime as ort
 import numpy as np
+from numpy import array, float16, float32, float64, int32, int64
 
 onnx_model_text = """
 {onnx_model_text}
@@ -26,7 +28,7 @@ session_options.graph_optimization_level = (
 onnx_model = onnx.parser.parse_model(onnx_model_text)
 
 session = ort.InferenceSession(
-    onnx_model, session_options, providers=("CPUExecutionProvider",)
+    onnx_model.SerializeToString(), session_options, providers=("CPUExecutionProvider",)
 )
 ort_outputs = session.run(None, ort_inputs)
 '''
@@ -75,6 +77,10 @@ def create_reproduction_report(
     )
 
     # Turn test name into a valid file name
-    markdown_file_name = f'test_name.split(".")[-1].replace("/", "-").replace(":", "-")-{int(time.time())}.md'
-    with open(markdown_file_name, "w") as f:
+    markdown_file_name = (
+        f'{test_name.split(".")[-1].replace("/", "-").replace(":", "-")}-{int(time.time())}.md'
+    )
+    reports_dir = pathlib.Path("error_reports")
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    with open(reports_dir / markdown_file_name, "w") as f:
         f.write(markdown)
