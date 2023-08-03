@@ -140,6 +140,7 @@ def _translate_type(onnx_type):
     """Converts a onnx type into a type defined by *onnxscript*."""
     return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type)
 
+
 def _translate_signature(inputs, outputs):
     """Produce the script-functions signature."""
 
@@ -162,8 +163,10 @@ def _to_str(s):
         return s.decode("utf-8")
     return s
 
+
 def _is_attribute_ref(attr: onnx.AttributeProto) -> bool:
     return attr.HasField("ref_attr_name") and attr.ref_attr_name != ""
+
 
 def _attribute_value(attr: onnx.AttributeProto):
     if attr.type == onnx.AttributeProto.FLOAT:
@@ -425,14 +428,15 @@ class Exporter:
 
     def translate_function_signature(self, funproto: onnx.FunctionProto) -> str:
         """Generate signature for FunctionProto."""
-        type_map = _attribute_param_types (funproto)
-        def attr_sig(attr_name:str) -> str:
+        type_map = _attribute_param_types(funproto)
+
+        def attr_sig(attr_name: str) -> str:
             name = self._rename_variable(attr_name)
             # A default type of INT is used for attribute parameters that are never used.
             type = type_map.get(attr_name, onnx.AttributeProto.INT)
             typerep = onnxscript.type_annotation.onnx_attr_type_to_onnxscript_repr(type)
             return f"{name}: {typerep}"
-      
+
         inputs = [self._rename_variable(x) for x in funproto.input]
         attrs = [attr_sig(x) for x in funproto.attribute]
         input_and_attrs = ", ".join(inputs + attrs)
@@ -442,10 +446,14 @@ class Exporter:
             message = ""
         return f"({input_and_attrs}):{message}"
 
-def _attribute_param_types (funproto: onnx.FunctionProto) -> dict[str, onnx.AttributeProto.AttributeType]:
+
+def _attribute_param_types(
+    funproto: onnx.FunctionProto,
+) -> dict[str, onnx.AttributeProto.AttributeType]:
     """Compute mapping from (names of) attribute parameters of function to their types."""
     type_map = {}
-    def visit_node (node: onnx.NodeProto) -> None:
+
+    def visit_node(node: onnx.NodeProto) -> None:
         for attr in node.attribute:
             if _is_attribute_ref(attr):
                 type_map[attr.ref_attr_name] = attr.type
@@ -454,12 +462,15 @@ def _attribute_param_types (funproto: onnx.FunctionProto) -> dict[str, onnx.Attr
             elif attr.type == onnx.AttributeProto.GRAPHS:
                 for graph in attr.graphs:
                     visit_graph(graph)
+
     def visit_graph(graph: onnx.GraphProto) -> None:
         for node in graph.node:
             visit_node(node)
+
     for node in funproto.node:
         visit_node(node)
     return type_map
+
 
 def export_template(
     model_onnx,
@@ -519,7 +530,7 @@ def export_template(
         "unique_function_domain_version": unique_function_domain_version_sorted,
         "rename": rename_variable,
         "translate_sig": _translate_signature,
-        "translate_function_signature": exporter.translate_function_signature
+        "translate_function_signature": exporter.translate_function_signature,
     }
 
     # opset

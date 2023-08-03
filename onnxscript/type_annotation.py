@@ -45,18 +45,20 @@ _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.
 
 # Map from ONNX AttributeProto type to its representation (in ONNX Script).
 _ATTRTYPE_TO_REPR = {
-    onnx.AttributeProto.FLOAT : "float",
-    onnx.AttributeProto.INT : "int",
+    onnx.AttributeProto.FLOAT: "float",
+    onnx.AttributeProto.INT: "int",
     onnx.AttributeProto.STRING: "str",
-    onnx.AttributeProto.FLOATS : "Sequence[float]",
-    onnx.AttributeProto.INTS : "Sequence[int]",
-    onnx.AttributeProto.STRINGS: "Sequence[str]",    
+    onnx.AttributeProto.FLOATS: "Sequence[float]",
+    onnx.AttributeProto.INTS: "Sequence[int]",
+    onnx.AttributeProto.STRINGS: "Sequence[str]",
 }
+
 
 def onnx_attr_type_to_onnxscript_repr(attr_type: onnx.AttributeProto.AttributeType) -> str:
     if attr_type not in _ATTRTYPE_TO_REPR:
         raise ValueError("Unsupported attribute type {attr_type}")
     return _ATTRTYPE_TO_REPR[attr_type]
+
 
 # A sorted list of all type strings used in an OpSchema
 ALL_TENSOR_TYPE_STRINGS = tuple(
