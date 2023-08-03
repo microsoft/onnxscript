@@ -82,6 +82,8 @@ def create_reproduction_report(
     ort_inputs: Mapping[str, Any],
     error: Exception,
 ) -> None:
+    # NOTE: We choose to embed the ONNX model as a string in the report instead of
+    # saving it to a file because it is easier to share the report with others.
     onnx_model_text = str(onnx_model)
     with np.printoptions(threshold=sys.maxsize):
         ort_inputs = dict(ort_inputs.items())
@@ -94,8 +96,7 @@ Python version: {sys.version}
 onnx=={onnx.__version__}
 onnxruntime=={ort.__version__}
 numpy=={np.__version__}
-torch=={torch.__version__}
-"""
+torch=={torch.__version__}"""
     short_test_name = test_name.split(".")[-1]
     reproduction_code = _REPRODUCTION_TEMPLATE.format(
         onnx_model_text=onnx_model_text,
@@ -113,7 +114,7 @@ torch=={torch.__version__}
     )
 
     # Turn test name into a valid file name
-    markdown_file_name = f'{test_name.split(".")[-1].replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
+    markdown_file_name = f'{short_test_name.replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
     reports_dir = pathlib.Path("error_reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
     with open(reports_dir / markdown_file_name, "w", encoding="utf-8") as f:
