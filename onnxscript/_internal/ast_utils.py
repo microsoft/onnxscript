@@ -53,3 +53,10 @@ def is_print_call(stmt: ast.stmt) -> bool:
             if isinstance(stmt.value.func, ast.Name):
                 return stmt.value.func.id == "print"
     return False
+
+
+def is_doc_string(stmt: ast.stmt) -> bool:
+    """Return True if the statement is a docstring."""
+    if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant):
+        return isinstance(stmt.value.value, str)
+    return False

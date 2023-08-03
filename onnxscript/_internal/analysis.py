@@ -11,13 +11,13 @@ from onnxscript import sourceinfo
 from onnxscript._internal import ast_utils
 
 
-def get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
+def _get_loop_var(for_stmt: ast.For, formatter: sourceinfo.Formatter) -> str:
     if not isinstance(for_stmt.target, ast.Name):
         raise ValueError(formatter(for_stmt, "For loop target must be a single variable."))
     return for_stmt.target.id
 
 
-def used_vars(expr: Optional[ast.expr]) -> Set[str]:
+def _used_vars(expr: Optional[ast.expr]) -> Set[str]:
     """Return set of all variables used, including function names, in an expression."""
     if expr is None:
         return set()
@@ -33,11 +33,11 @@ def used_vars(expr: Optional[ast.expr]) -> Set[str]:
     else:
         children = ast.iter_child_nodes(expr)  # type: ignore[assignment]
     for c in children:
-        result = result | used_vars(c)
+        result = result | _used_vars(c)
     return result
 
 
-def lhs_vars(lhs: ast.expr) -> Set[str]:
+def _lhs_vars(lhs: ast.expr) -> Set[str]:
     """Return set of assigned variables in the lhs of an assignment statement."""
 
     def get_id(e):
@@ -63,15 +63,15 @@ def assigned_vars(
         return result
 
     if isinstance(stmt, ast.Assign):
-        return lhs_vars(stmt.targets[0])
+        return _lhs_vars(stmt.targets[0])
     if isinstance(stmt, ast.AnnAssign):
-        return lhs_vars(stmt.target)
+        return _lhs_vars(stmt.target)
     if isinstance(stmt, ast.Return):
         return set()
     if isinstance(stmt, ast.If):
         return assigned_in_block(stmt.body) | assigned_in_block(stmt.orelse)
     if isinstance(stmt, ast.For):
-        return assigned_in_block(stmt.body) | {get_loop_var(stmt, formatter)}
+        return assigned_in_block(stmt.body) | {_get_loop_var(stmt, formatter)}
     if isinstance(stmt, ast.While):
         return assigned_in_block(stmt.body)
     if isinstance(stmt, list):
@@ -80,7 +80,10 @@ def assigned_vars(
         return set()
     if ast_utils.is_print_call(stmt):
         return set()
-    raise ValueError(f"Unsupported statement type {type(stmt)!r}.")
+    if ast_utils.is_doc_string(stmt):
+        return set()
+    error_message = formatter(stmt, f"Unsupported statement type {type(stmt)!r}.")
+    raise ValueError(error_message)
 
 
 def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
@@ -102,17 +105,17 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
             return live_out
 
         if isinstance(stmt, ast.Assign):
-            return live_out.difference(lhs_vars(stmt.targets[0])) | used_vars(stmt.value)
+            return live_out.difference(_lhs_vars(stmt.targets[0])) | _used_vars(stmt.value)
         if isinstance(stmt, ast.AnnAssign):
-            return live_out.difference(lhs_vars(stmt.target)) | used_vars(stmt.value)
+            return live_out.difference(_lhs_vars(stmt.target)) | _used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
-            return used_vars(stmt.value)
+            return _used_vars(stmt.value)
         if isinstance(stmt, ast.If):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
-            return live1 | live2 | used_vars(stmt.test)
+            return live1 | live2 | _used_vars(stmt.test)
         if isinstance(stmt, ast.For):
-            p_loop_var = get_loop_var(stmt, formatter)
+            p_loop_var = _get_loop_var(stmt, formatter)
             prev = None
             curr = live_out
             while curr != prev:
@@ -120,7 +123,7 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
                 curr = visitBlock(stmt.body, prev).difference({p_loop_var})
             return curr
         if isinstance(stmt, ast.While):
-            cond_vars = used_vars(stmt.test)
+            cond_vars = _used_vars(stmt.test)
             prev = None
             curr = live_out | cond_vars
             while curr != prev:
@@ -133,11 +136,8 @@ def do_liveness_analysis(fun: ast.FunctionDef, formatter: sourceinfo.Formatter):
             # Break statements in the middle of the loop, however, will require
             # a generalization.
             return live_out
-        if isinstance(stmt, ast.Expr) and hasattr(stmt, "value"):
-            # docstring
-            if hasattr(stmt.value, "value") and isinstance(stmt.value.value, str):
-                # python 3.8+
-                return live_out
+        if ast_utils.is_doc_string(stmt):
+            return live_out
         if isinstance(stmt, ast.FunctionDef):
             return live_out
         if ast_utils.is_print_call(stmt):
@@ -174,30 +174,32 @@ def exposed_uses(stmts: Sequence[ast.stmt], formatter: sourceinfo.Formatter):
 
     def visit(stmt: ast.stmt, live_out: Set[str]) -> Set[str]:
         if isinstance(stmt, ast.Assign):
-            return live_out.difference(lhs_vars(stmt.targets[0])) | used_vars(stmt.value)
+            return live_out.difference(_lhs_vars(stmt.targets[0])) | _used_vars(stmt.value)
         if isinstance(stmt, ast.AnnAssign):
-            return live_out.difference(lhs_vars(stmt.target)) | used_vars(stmt.value)
+            return live_out.difference(_lhs_vars(stmt.target)) | _used_vars(stmt.value)
         if isinstance(stmt, ast.Return):
-            return used_vars(stmt.value)
+            return _used_vars(stmt.value)
         if isinstance(stmt, ast.If):
             live1 = visitBlock(stmt.body, live_out)
             live2 = visitBlock(stmt.orelse, live_out)
-            return (live1 | live2) | used_vars(stmt.test)
+            return (live1 | live2) | _used_vars(stmt.test)
         if ast_utils.is_print_call(stmt):
+            return live_out
+        if ast_utils.is_doc_string(stmt):
             return live_out
         if isinstance(stmt, ast.For):
             # Analysis assumes loop may execute zero times. Results can be improved
             # for loops that execute at least once.
-            loop_var_set = {get_loop_var(stmt, formatter)}
+            loop_var_set = {_get_loop_var(stmt, formatter)}
             used_after_loop = live_out.difference(loop_var_set)
             used_inside_loop = visitBlock(stmt.body, set()).difference(loop_var_set)
-            used_in_loop_header = used_vars(stmt.iter)
+            used_in_loop_header = _used_vars(stmt.iter)
             return used_inside_loop | used_in_loop_header | used_after_loop
         if isinstance(stmt, ast.While):
             # Analysis assumes loop may execute zero times. Results can be improved
             # for loops that execute at least once.
             used_inside_loop = visitBlock(stmt.body, set())
-            used_in_loop_header = used_vars(stmt.test)
+            used_in_loop_header = _used_vars(stmt.test)
             return used_inside_loop | used_in_loop_header | live_out
         if isinstance(stmt, ast.Break):
             # Currently, we assume that break statements are only allowed as the last
