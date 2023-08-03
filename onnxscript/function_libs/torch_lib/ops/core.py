@@ -2989,20 +2989,21 @@ def aten_hspmm(mat1: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::hstack", trace_only=True)
+@torch_op("aten::hstack")
 def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
-    # Use another onnx function
-    tensors = _aten_atleast_1d_onnx(tensors)
+    @graph()
+    def reshape_to_1d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank == 0:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1]))
+        return tensor
 
-    # NOTE: The if/else graph has different shape/type which breaks the
-    #       graph matching. We need to use trace_only.
-    if len(tensors[0].shape) == 1:
-        result = op.ConcatFromSequence(tensors, axis=0, new_axis=0)
-    else:
-        result = op.ConcatFromSequence(tensors, axis=1, new_axis=0)
-    return result
+    tensors_1d = op.SequenceMap(tensors, body=reshape_to_1d)
+
+    return op.ConcatFromSequence(tensors_1d, axis=1, new_axis=0)
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -7163,8 +7164,18 @@ def aten_view_copy(self: TTensor, size: IntType) -> TTensor:
 def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     """vstack(Tensor[] tensors) -> Tensor"""
 
-    tensors = _aten_atleast_2d_onnx(tensors)
-    return op.ConcatFromSequence(tensors, axis=0)
+    # The same logic as atleast_2d duplicated here to keep
+    # the function self contained
+    @graph()
+    def reshape_to_2d(tensor):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
+        return tensor
+
+    tensors_2d = op.SequenceMap(tensors, body=reshape_to_2d)
+    return op.ConcatFromSequence(tensors_2d, axis=0)
 
 
 @torch_op(("aten::where", "aten::where.self"))
