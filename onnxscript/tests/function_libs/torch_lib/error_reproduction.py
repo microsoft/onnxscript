@@ -48,7 +48,7 @@ for _ in range(N):
 _ISSUE_MARKDOWN_TEMPLATE = """
 ### Summary
 
-ORT raises `{error_text}` when executing test `{test_name}` in ONNX Script `TorchLib`.
+ONNX Runtime raises `{error_text}` when executing test `{test_name}` in ONNX Script `TorchLib`.
 
 To recreate this report, use
 

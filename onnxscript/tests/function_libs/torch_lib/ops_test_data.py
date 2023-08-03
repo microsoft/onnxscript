@@ -519,29 +519,38 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("atan", core_ops.aten_atan),
     TorchLibOpInfo("atan2", core_ops.aten_atan2),
     TorchLibOpInfo("atanh", core_ops.aten_atanh),
-    TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d),
-    TorchLibOpInfo(
-        "atleast_1d_single_tensor",
-        core_ops.aten_atleast_1d_single_tensor,
-    ).skip(
+    TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
-        reason="atleast_1d_single_tensor overload takes single tensor as input",
+        reason="takes single tensor as input",
     ),
-    TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d),
     TorchLibOpInfo(
-        "atleast_2d_single_tensor",
-        core_ops.aten_atleast_2d_single_tensor,
+        "atleast_1d_Sequence",
+        core_ops.aten_atleast_1d_sequence,
     ).skip(
-        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
-        reason="atleast_2d_single_tensor overload takes single tensor as input",
+        matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
+        reason="takes tensor sequences only",
     ),
-    TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d),
+    TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d).skip(
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="takes single tensor as input",
+    ),
     TorchLibOpInfo(
-        "atleast_3d_single_tensor",
-        core_ops.aten_atleast_3d_single_tensor,
+        "atleast_2d_Sequence",
+        core_ops.aten_atleast_2d_sequence,
+    ).skip(
+        matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
+        reason="takes tensor sequences only",
+    ),
+    TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d).skip(
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="takes single tensor as input",
+    ),
+    TorchLibOpInfo(
+        "atleast_3d_Sequence",
+        core_ops.aten_atleast_3d_sequence,
     ).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
-        reason="atleast_3d_single_tensor overload takes single tensor as input",
+        reason="takes tensor sequences only",
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
@@ -1828,9 +1837,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
-ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
-ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
-ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_Sequence",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
