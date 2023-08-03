@@ -529,6 +529,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
         reason="takes tensor sequences only",
+    ).xfail(
+        reason=(
+            "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
+            "https://github.com/microsoft/onnxscript/issues/960"
+        )
     ),
     TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -540,6 +545,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
         reason="takes tensor sequences only",
+    ).xfail(
+        reason=(
+            "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
+            "https://github.com/microsoft/onnxscript/issues/960"
+        )
     ),
     TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -1426,7 +1436,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "hstack",
         core_ops.aten_hstack,
-        trace_only=True,
     ).xfail(
         reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
     ),
