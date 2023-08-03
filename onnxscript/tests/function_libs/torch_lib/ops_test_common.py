@@ -546,7 +546,7 @@ def graph_executor(
                 error_reproduction.create_reproduction_report(
                     test_name, onnx_model, ort_inputs, e
                 )
-            raise AssertionError(
+            raise RuntimeError(
                 "ONNX Runtime failed to evaluate:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
@@ -556,10 +556,16 @@ def graph_executor(
                 error_reproduction.create_reproduction_report(
                     test_name, onnx_model, ort_inputs, e
                 )
-            raise AssertionError(
+            raise OrtAbortedError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
             ) from e
+        except Exception as e:
+            if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+                error_reproduction.create_reproduction_report(
+                    test_name, onnx_model, ort_inputs, e
+                )
+            raise
 
     return _capture_graph_and_evaluate_torch_script_evaluator
 

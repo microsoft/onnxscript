@@ -548,9 +548,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "atleast_3d_Sequence",
         core_ops.aten_atleast_3d_sequence,
-    ).skip(
-        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+    )
+    .skip(
+        matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
         reason="takes tensor sequences only",
+    )
+    .xfail(
+        reason=(
+            "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
+            "https://github.com/microsoft/onnxscript/issues/960"
+        )
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
@@ -1279,7 +1286,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "vstack",
         core_ops.aten_vstack,
     ).xfail(
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+        reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
         dtypes=(torch.bool,),
@@ -1421,7 +1428,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_hstack,
         trace_only=True,
     ).xfail(
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+        reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo(
         "nn.functional.grid_sample",
