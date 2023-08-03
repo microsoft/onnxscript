@@ -526,10 +526,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "atleast_1d_Sequence",
         core_ops.aten_atleast_1d_sequence,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
         reason="takes tensor sequences only",
-    ).xfail(
+    )
+    .xfail(
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
@@ -542,10 +544,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "atleast_2d_Sequence",
         core_ops.aten_atleast_2d_sequence,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
         reason="takes tensor sequences only",
-    ).xfail(
+    )
+    .xfail(
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
