@@ -209,7 +209,8 @@ def run_test_output_match(
                     # TODO(justinchuby): Find a more general solution
                     reference_torch_outputs = [reference_torch_outputs]
 
-                function_output = function_executor(reference_torch_outputs)(
+                test_name = test_suite.id()
+                function_output = function_executor(test_name, reference_torch_outputs)(
                     onnx_function, input_onnx, kwargs_onnx
                 )
                 # Finally we re-flatten everything

@@ -435,6 +435,7 @@ def dtype_op_schema_compatible(dtype: torch.dtype, schema: onnx.defs.OpSchema) -
 
 
 def graph_executor(
+    test_name: str,
     outputs: Sequence[Any],
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
@@ -538,6 +539,8 @@ def graph_executor(
             onnxruntime.capi.onnxruntime_pybind11_state.NotImplemented,
             # pylint: enable=c-extension-no-member
         ) as e:
+            if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+                error_reproduction.create_reproduction_report(test_name, onnx_model, ort_inputs, e)
             raise AssertionError(
                 "ONNX Runtime failed to evaluate:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
@@ -545,7 +548,7 @@ def graph_executor(
         except OrtAbortedError as e:
             if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
                 # Save the model and inputs to a file for reproduction
-                error_reproduction.create_reproduction_report(onnx_model, ort_inputs)
+                error_reproduction.create_reproduction_report(test_name, onnx_model, ort_inputs, e)
             raise AssertionError(
                 "ONNX Runtime aborted:\n"
                 + _format_model_and_input_information(onnx_model, ort_inputs)
@@ -555,10 +558,12 @@ def graph_executor(
 
 
 def eager_executor(
+    test_name: str,
     outputs,
 ) -> Callable[[Callable[..., Any], tuple[Any], dict[str, Any]], None]:
     """Eagerly executes a function."""
 
+    del test_name  # Unused
     del outputs  # Unused
 
     def executor(function, args, kwargs):
