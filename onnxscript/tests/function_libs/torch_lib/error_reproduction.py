@@ -96,16 +96,17 @@ onnxruntime=={ort.__version__}
 numpy=={np.__version__}
 torch=={torch.__version__}
 """
-
+    short_test_name = test_name.split(".")[-1]
     reproduction_code = _REPRODUCTION_TEMPLATE.format(
         onnx_model_text=onnx_model_text,
         ort_inputs=input_text,
+        short_test_name=short_test_name,
     )
 
     markdown = _ISSUE_MARKDOWN_TEMPLATE.format(
         error_text=error_text,
         test_name=test_name,
-        short_test_name=test_name.split(".")[-1],
+        short_test_name=short_test_name,
         reproduction_code=reproduction_code,
         error_stack=error_stack,
         sys_info=sys_info,
