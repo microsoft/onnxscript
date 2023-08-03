@@ -185,8 +185,6 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            if i !=0: continue
-
             if dtype != torch.float: continue
             test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample, dtype)
 
