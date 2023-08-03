@@ -66,10 +66,10 @@ def create_reproduction_report(
 ) -> None:
     onnx_model_text = onnx.printer.to_text(onnx_model)
     with np.printoptions(threshold=sys.maxsize):
-        ort_inputs = dict((k, v) for k, v in ort_inputs.items())
+        ort_inputs = dict(ort_inputs.items())
         input_text = str(ort_inputs)
     error_text = str(error)
-    error_stack = traceback.format_exc()
+    error_stack = error_text + "\n" + "".join(traceback.format_tb(error.__traceback__))
 
     reproduction_code = _REPRODUCTION_TEMPLATE.format(
         onnx_model_text=onnx_model_text,
@@ -85,9 +85,7 @@ def create_reproduction_report(
     )
 
     # Turn test name into a valid file name
-    markdown_file_name = (
-        f'{test_name.split(".")[-1].replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
-    )
+    markdown_file_name = f'{test_name.split(".")[-1].replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
     reports_dir = pathlib.Path("error_reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
     with open(reports_dir / markdown_file_name, "w") as f:
