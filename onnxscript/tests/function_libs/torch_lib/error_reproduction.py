@@ -34,10 +34,17 @@ ort_outputs = session.run(None, ort_inputs)
 '''
 
 _ISSUE_MARKDOWN_TEMPLATE = """
-### Error Reproduction
+### Summary
 
-ORT raises `{error_text}` when executing test `{test_name}` in ONNX Script `TorchLib`. To reproduce:
+ORT raises `{error_text}` when executing test `{test_name}` in ONNX Script `TorchLib`.
 
+To recreate this report, use
+
+```bash
+CREATE_REPRODUCTION_REPORT=1 python -m pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k {short_test_name}
+```
+
+### To reproduce
 
 ```python
 {reproduction_code}
@@ -62,7 +69,7 @@ def create_reproduction_report(
         ort_inputs = dict((k, v) for k, v in ort_inputs.items())
         input_text = str(ort_inputs)
     error_text = str(error)
-    error_stack = error_text + "\n" + "".join(traceback.format_tb(error.__traceback__))
+    error_stack = traceback.format_exc()
 
     reproduction_code = _REPRODUCTION_TEMPLATE.format(
         onnx_model_text=onnx_model_text,
@@ -72,13 +79,14 @@ def create_reproduction_report(
     markdown = _ISSUE_MARKDOWN_TEMPLATE.format(
         error_text=error_text,
         test_name=test_name,
+        short_test_name=test_name.split(".")[-1],
         reproduction_code=reproduction_code,
         error_stack=error_stack,
     )
 
     # Turn test name into a valid file name
     markdown_file_name = (
-        f'{test_name.split(".")[-1].replace("/", "-").replace(":", "-")}-{int(time.time())}.md'
+        f'{test_name.split(".")[-1].replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
     )
     reports_dir = pathlib.Path("error_reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
