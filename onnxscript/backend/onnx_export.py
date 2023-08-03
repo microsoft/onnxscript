@@ -28,9 +28,14 @@ from onnxscript.onnx_opset import opset{{ opsets[''] }}
 {% for domain, name, fct in functions: %}
 @script({{ domain }}{{ version }})
 def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
-    ", ".join(map(rename, fct['proto'].input)) }}):
-    # attributes are missing
-    {% if fct['proto'].doc_string %}"""
+    ", ".join(map(rename, list(fct['proto'].input) + list(fct['proto'].attribute))) }}):
+    {%- if (len(fct['proto'].attribute) > 0) %}
+    # Attribute parameter types not generated yet.
+    {% endif %}
+    {%- if (len(fct['proto'].attribute_proto) > 0) %}
+    # Attribute parameters default-values not handled yet.
+    {%- endif -%}
+    {%- if fct['proto'].doc_string %}"""
     {{ fct['proto'].doc_string }}
     """{%- endif %}
     {%- for node in fct['proto'].node: %}
@@ -254,6 +259,9 @@ class Exporter:
     def _python_make_node_make_attribute_str(self, node):
         attributes = []
         for at in node.attribute:
+            if at.HasField("ref_attr_name") and at.ref_attr_name != "":
+                attributes.append((at.name, at.ref_attr_name))
+                continue
             value = _attribute_value(at)
             if isinstance(value, str):
                 attributes.append((at.name, f"{value!r}"))
@@ -527,7 +535,7 @@ def export_template(
 
     template = Template(template)
     final = template.render(
-        enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, **context
+        enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, list=list, **context
     )
 
     final += "\n"
