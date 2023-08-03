@@ -91,9 +91,10 @@ def create_reproduction_report(
     sys_info = f"""\
 OS: {platform.platform()}
 Python version: {sys.version}
-torch=={torch.__version__}
 onnx=={onnx.__version__}
 onnxruntime=={ort.__version__}
+numpy=={np.__version__}
+torch=={torch.__version__}
 """
 
     reproduction_code = _REPRODUCTION_TEMPLATE.format(
