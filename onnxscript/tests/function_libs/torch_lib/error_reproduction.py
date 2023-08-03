@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+import platform
 import sys
 import time
 import traceback
@@ -8,6 +9,8 @@ from typing import Any, Mapping
 
 import numpy as np
 import onnx
+import onnxruntime as ort
+import torch
 
 _REPRODUCTION_TEMPLATE = '''\
 import google.protobuf.text_format
@@ -16,23 +19,27 @@ from numpy import array, float16, float32, float64, int32, int64
 import onnx
 import onnxruntime as ort
 
+# Run n times
+N = 1
+
 onnx_model_text = """
 {onnx_model_text}
 """
 
 ort_inputs = {ort_inputs}
 
+# Set up the inference session
 session_options = ort.SessionOptions()
-session_options.graph_optimization_level = (
-    ort.GraphOptimizationLevel.ORT_DISABLE_ALL
-)
+session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 onnx_model = onnx.ModelProto()
 google.protobuf.text_format.Parse(onnx_model_text, onnx_model)
 
-session = ort.InferenceSession(
-    onnx_model.SerializeToString(), session_options, providers=("CPUExecutionProvider",)
-)
-ort_outputs = session.run(None, ort_inputs)
+onnx.checker.check_model(onnx_model)
+session = ort.InferenceSession(onnx_model.SerializeToString(), session_options, providers=("CPUExecutionProvider",))
+
+# Run the model
+for _ in range(N):
+    ort_outputs = session.run(None, ort_inputs)
 '''
 
 _ISSUE_MARKDOWN_TEMPLATE = """
@@ -57,6 +64,12 @@ CREATE_REPRODUCTION_REPORT=1 python -m pytest onnxscript/tests/function_libs/tor
 ```
 {error_stack}
 ```
+
+### Environment
+
+```
+{sys_info}
+```
 """
 
 
@@ -72,6 +85,13 @@ def create_reproduction_report(
         input_text = str(ort_inputs)
     error_text = str(error)
     error_stack = error_text + "\n" + "".join(traceback.format_tb(error.__traceback__))
+    sys_info = f"""\
+OS: {platform.platform()}
+Python version: {sys.version}
+torch=={torch.__version__}
+onnx=={onnx.__version__}
+onnxruntime=={ort.__version__}
+"""
 
     reproduction_code = _REPRODUCTION_TEMPLATE.format(
         onnx_model_text=onnx_model_text,
@@ -84,11 +104,12 @@ def create_reproduction_report(
         short_test_name=test_name.split(".")[-1],
         reproduction_code=reproduction_code,
         error_stack=error_stack,
+        sys_info=sys_info,
     )
 
     # Turn test name into a valid file name
     markdown_file_name = f'{test_name.split(".")[-1].replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
     reports_dir = pathlib.Path("error_reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
-    with open(reports_dir / markdown_file_name, "w") as f:
+    with open(reports_dir / markdown_file_name, "w", encoding="utf-8") as f:
         f.write(markdown)
