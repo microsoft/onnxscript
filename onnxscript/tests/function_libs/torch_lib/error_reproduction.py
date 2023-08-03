@@ -10,10 +10,11 @@ import numpy as np
 import onnx
 
 _REPRODUCTION_TEMPLATE = '''\
-import onnx
-import onnxruntime as ort
+import google.protobuf.text_format
 import numpy as np
 from numpy import array, float16, float32, float64, int32, int64
+import onnx
+import onnxruntime as ort
 
 onnx_model_text = """
 {onnx_model_text}
@@ -25,7 +26,8 @@ session_options = ort.SessionOptions()
 session_options.graph_optimization_level = (
     ort.GraphOptimizationLevel.ORT_DISABLE_ALL
 )
-onnx_model = onnx.parser.parse_model(onnx_model_text)
+onnx_model = onnx.ModelProto()
+google.protobuf.text_format.Parse(onnx_model_text, onnx_model)
 
 session = ort.InferenceSession(
     onnx_model.SerializeToString(), session_options, providers=("CPUExecutionProvider",)
@@ -64,7 +66,7 @@ def create_reproduction_report(
     ort_inputs: Mapping[str, Any],
     error: Exception,
 ) -> None:
-    onnx_model_text = onnx.printer.to_text(onnx_model)
+    onnx_model_text = str(onnx_model)
     with np.printoptions(threshold=sys.maxsize):
         ort_inputs = dict(ort_inputs.items())
         input_text = str(ort_inputs)
