@@ -230,17 +230,6 @@ def _dropout_input_wrangler(
     return args, kwargs
 
 
-# def _embedding_bag_input_wrangler(
-#     args: list[Any], kwargs: dict[str, Any]
-# ) -> tuple[list[Any], dict[str, Any]]:
-#     if "mode" in kwargs:
-#         # aten_embedding_bag can only accept integer argument instead of string
-#         mode_options = ["sum", "mean", "max"]  # 0,1,2
-#         mode_value = kwargs["mode"]
-#         kwargs["mode"] = mode_options.index(mode_value)  # Change string to integer
-#     return args, kwargs
-
-
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -951,32 +940,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo(
-        #"nn.functional.embedding_bag",
         "ops.aten.embedding_bag",
         core_ops.aten_embedding_bag,
-        #input_wrangler=_embedding_bag_input_wrangler,
         trace_only=True,
-        tolerance={torch.float16: (1e-3, 1e-2)},
     ),
-    # ).skip(
-    #     matcher=lambda sample: "max_norm" in sample.kwargs,
-    #     reason="max_norm is not part of the aten signature.",
-    # ),
-    # TorchLibOpInfo(
-    #     #"nn.functional.embedding_bag.padding_idx",
-    #     "ops.aten.embedding.embedding_bag.padding_idx",
-    #     core_ops.aten_embedding_bag_padding_idx,
-    #     #input_wrangler=_embedding_bag_input_wrangler,
-    #     trace_only=True,
-    #     tolerance={torch.float16: (1e-3, 1e-2)},
-    # ).skip(
-    #     matcher=lambda sample: sample.kwargs or "max_norm" in sample.kwargs,
-    #     reason="max_norm is not part of the aten signature.",
-    # ),
-    # .xfail(
-    #     reason="result is wrong only when in FullGraph mode, it might be ORT bug",
-    #     test_class_name="TestOutputConsistencyFullGraph",
-    # ),
+    TorchLibOpInfo(
+        "ops.aten.embedding_bag.padding_idx",
+        core_ops.aten_embedding_bag_padding_idx,
+        trace_only=True,
+    ),
     TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,

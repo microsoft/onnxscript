@@ -185,8 +185,8 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            #if i not in range(5,7): continue
-            #if i!=29: continue
+            if i !=0: continue
+
             if dtype != torch.float: continue
             test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample, dtype)
 
@@ -259,7 +259,6 @@ def run_test_output_match(
                             raise AssertionError(f"Output {j} mismatch") from e
                         raise
 
-                    break  # only test output[0]
 
 class TestOutputConsistencyEager(unittest.TestCase):
     """Test output consistency between the ONNX op run with ONNX eager mode and PyTorch eager mode.

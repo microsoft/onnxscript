@@ -622,166 +622,6 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
-def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):
-    del op_info
-
-    def make_input(shape):
-        return common_methods_invocations.make_tensor(shape, device=device, dtype=dtype, requires_grad=requires_grad)
-
-    def make_long_input(shape, *, low, high, noncontiguous=False):
-        return common_methods_invocations.make_tensor(shape, device=device, dtype=torch.long, low=low, high=high,
-                           noncontiguous=noncontiguous)
-
-    def make_per_sample_weight(flag, idx):
-        # a tensor of float / double weights, or None
-        # to indicate all weights should be taken to be 1
-        if flag:
-            return make_input(idx.reshape(-1).shape)
-        return None
-
-    offsets = torch.tensor([0, 3], device=device, dtype=torch.long)
-    offsets_2 = torch.tensor([0, 2], device=device, dtype=torch.long)
-
-    for generate_per_sample_weight in (True, False):
-        for mode in (0,1,): #, 1, 2):  #('sum', 'mean', 'max')
-            # per_sample_weights is only supported for mode='sum' (got mode='****')
-            if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
-                continue
-
-            # 1-D index tensor
-            idx = make_long_input((S,), low=0, high=M)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 0
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode,
-                                      'per_sample_weights': per_sample_weights})
-
-            idx = make_long_input((S,), low=0, high=M, noncontiguous=True)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 1
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode,
-                                      'per_sample_weights': per_sample_weights})
-
-            # bag with zero length
-            idx = make_long_input((S,), low=0, high=M, noncontiguous=True)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 2
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': torch.tensor([0, 0, 3], device=device, dtype=torch.long),
-                                      'mode': mode,
-                                      'per_sample_weights': per_sample_weights})
-
-            # 2-D index tensor
-            idx = make_long_input((S, S), low=0, high=M)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            input = make_input((M, S))
-            if not(generate_per_sample_weight is False and mode == 2):  # 'max'
-                # 3
-                yield common_methods_invocations.SampleInput(input, args=(idx,),
-                              #kwargs={'mode': mode, 'per_sample_weights': per_sample_weights})
-                              kwargs={'offsets': offsets, 'mode': mode, 'per_sample_weights': per_sample_weights})
-
-            idx = make_long_input((S, S), low=0, high=S)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            input = make_input((M, S))
-            if not(generate_per_sample_weight is False and mode == 2):  # 'max'
-                # this case will make torch crash
-                # https://github.com/pytorch/pytorch/issues/106362
-                # 4
-                yield common_methods_invocations.SampleInput(input, args=(idx,),
-                                kwargs={'offsets': offsets, 'mode': mode, 'per_sample_weights': per_sample_weights})
-
-            # The gradient vector at `padding_idx` is not updated.
-            # Negative padding_idx
-            idx = make_long_input((6,), low=0, high=S)
-            idx[0] = 4
-            idx[4] = 4
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 5
-            yield common_methods_invocations.SampleInput(make_input((S, S)), args=(idx,),
-                              kwargs={'offsets': offsets,
-                                      'mode': mode, 'per_sample_weights': per_sample_weights},)
-
-            idx = make_long_input((3, 3), low=0, high=S)
-            # Positive padding_idx
-            idx[0, 0] = 2
-            idx[1, 1] = 2
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 6
-            if not(generate_per_sample_weight is False and mode == 2):  # 'max'
-                yield common_methods_invocations.SampleInput(make_input((S, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode,
-                                      'per_sample_weights': per_sample_weights},)
-
-            idx = make_long_input((6, ), low=0, high=S)
-            weights = make_input((S, S))
-            offsets_ = torch.tensor([0, 3, 6], device=device, dtype=torch.long)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 7
-            yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                              kwargs={'mode': mode, 'offsets': offsets_, 'include_last_offset': True},)
-
-            if not requires_grad:
-                # Following inputs return different gradient from the numerical gradient.
-                # This is expected and relevant tests are present in `test_nn.py`.
-
-                # Due to inplace renorming of weight, the numerical gradient doesn't match the
-                # analytical gradient.
-                idx = make_long_input((2, 2), low=0, high=S)
-                weights = make_input((S, S)) * 2
-                per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                # 8
-                yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                  kwargs={'offsets': offsets_2, #'max_norm': 1.,
-                                          'mode': mode,
-                                          'per_sample_weights': per_sample_weights},)
-
-                idx = make_long_input((6, ), low=0, high=S)
-                weights = make_input((S, S)) * 2
-                per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                # 9
-                yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                  kwargs={'offsets': offsets, #'max_norm': 1., 'norm_type': 1.0,
-                                          'mode': mode,
-                                          'per_sample_weights': per_sample_weights},)
-
-                if mode != 1:  # 'max':
-                    # Scale the gradient based on the inverse frequency of a particular index.
-                    # Note : smax mode does not support sparse weights
-                    idx = make_long_input((2, 2), low=0, high=S)
-                    idx[0, 0] = 1
-                    idx[0, 1] = 1
-                    weights = make_input((S, S))
-                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                    # max value in offset cannot be larger than idx.size(0)
-                    # 10
-                    yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                      kwargs={'offsets': offsets_2, 'scale_grad_by_freq': True, 'mode': mode,
-                                              'per_sample_weights': per_sample_weights},)
-
-                    # gradcheck not implemented for sparse tensors.
-                    # Note : max mode does not support sparse weights
-                    idx = make_long_input((6, ), low=0, high=S)
-                    weights = make_input((S, S))
-                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                    # 11
-                    yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                      kwargs={'offsets': offsets, 'sparse': True,
-                                              'mode': mode, 'per_sample_weights': per_sample_weights})
-
-                    idx = make_long_input((6, ), low=0, high=S)
-                    idx[0] = 1  # freq more than 1
-                    idx[1] = 1  # freq more than 1
-                    idx[3] = 0  # padding_idx
-                    weights = make_input((S, S)) * 2
-                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                    # 12
-                    yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                      kwargs={'offsets': offsets, 'sparse': True, 'scale_grad_by_freq': True,
-                                              #'max_norm': 1.,
-                                              'mode': mode, 'per_sample_weights': per_sample_weights})
-
 def sample_inputs_embedding_bag_padding_idx(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
 
@@ -799,139 +639,104 @@ def sample_inputs_embedding_bag_padding_idx(op_info, device, dtype, requires_gra
             return make_input(idx.reshape(-1).shape)
         return None
 
-    offsets = torch.tensor([0, 3], device=device, dtype=torch.long)
-    for generate_per_sample_weight in (True, False):
-        for mode in (0, 1, 2):  #('sum', 'mean', 'max')
-            # per_sample_weights is only supported for mode='sum' (got mode='****')
-            if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
-                continue
+    offsets = [
+        torch.tensor([0, 2, 3], device=device, dtype=torch.long),
+        torch.tensor([0, 2, 2, 4], device=device, dtype=torch.long)
+    ]
+    for offset in offsets:
+        for include_last_offset in (True, False):
+            for generate_per_sample_weight in (True, False):
+                for mode in (0, 1, 2):  #('sum', 'mean', 'max')
+                    # per_sample_weights only support mode='sum'
+                    if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
+                        continue
 
-            # 1-D index tensor
-            idx = make_long_input((S,), low=0, high=M)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 0
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode,
-                                      'per_sample_weights': per_sample_weights})
+                    for padding_idx in (-1,0,1,2,3):
+                        # 1-D index tensor
+                        indices = make_long_input((S,), low=0, high=M)
+                        per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                        # 0
+                        yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                                kwargs={'offsets': offset, 'scale_grad_by_freq': False, 'mode': mode, 'sparse': False, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset, 'padding_idx': padding_idx})
 
-            idx = make_long_input((S,), low=0, high=M, noncontiguous=True)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 1
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode,
-                                      'per_sample_weights': per_sample_weights})
+                        indices = make_long_input((S,), low=0, high=M, noncontiguous=True)
+                        per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                        # 1
+                        yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                                kwargs={'offsets': offset, 'scale_grad_by_freq': False, 'mode': mode, 'sparse': False, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset, 'padding_idx': padding_idx})
 
-            # bag with zero length
-            idx = make_long_input((S,), low=0, high=M, noncontiguous=True)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 2
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': torch.tensor([0, 0, 3], device=device, dtype=torch.long),
-                                      'mode': mode,
-                                      'per_sample_weights': per_sample_weights})
+                        if mode != 2:  # 'max' mode in 2-D index tensor make aten func crash
+                            # 2-D index tensor
+                            indices = make_long_input((S, S), low=0, high=M)
+                            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                            # 2
+                            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                                    kwargs={'offsets': offset, 'scale_grad_by_freq': False, 'mode': mode, 'sparse': False, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset, 'padding_idx': padding_idx})
 
-            # 2-D index tensor
-            idx = make_long_input((S, S), low=0, high=M)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 3
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              #kwargs={'mode': mode, 'per_sample_weights': per_sample_weights})
-                              kwargs={'offsets': offsets, 'mode': mode, 'per_sample_weights': per_sample_weights})
+                            indices = make_long_input((S, S), low=0, high=M, noncontiguous=True)
+                            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                            # 3
+                            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                                    kwargs={'offsets': offset, 'scale_grad_by_freq': False, 'mode': mode, 'sparse': False, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset, 'padding_idx': padding_idx})
 
-            idx = make_long_input((S, S), low=0, high=M, noncontiguous=True)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 4
-            yield common_methods_invocations.SampleInput(make_input((M, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode, 'per_sample_weights': per_sample_weights})
 
-            # The gradient vector at `padding_idx` is not updated.
-            # Negative padding_idx
-            idx = make_long_input((6,), low=0, high=S)
-            idx[0] = 4
-            idx[4] = 4
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 5
-            yield common_methods_invocations.SampleInput(make_input((S, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'padding_idx': -1,
-                                      'mode': mode, 'per_sample_weights': per_sample_weights},)
+def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
 
-            idx = make_long_input((3, 3), low=0, high=S)
-            # Positive padding_idx
-            idx[0, 0] = 2
-            idx[1, 1] = 2
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 6
-            yield common_methods_invocations.SampleInput(make_input((S, S)), args=(idx,),
-                              kwargs={'offsets': offsets, 'padding_idx': 2, 'mode': mode,
-                                      'per_sample_weights': per_sample_weights},)
+    def make_input(shape):
+        return common_methods_invocations.make_tensor(shape, device=device, dtype=dtype, requires_grad=requires_grad)
 
-            idx = make_long_input((6, ), low=0, high=S)
-            weights = make_input((S, S))
-            offsets_ = torch.tensor([0, 3, 6], device=device, dtype=torch.long)
-            per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-            # 7
-            yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                              kwargs={'offsets': offsets, 'mode': mode, 'offsets': offsets_, 'include_last_offset': True},)
+    def make_long_input(shape, *, low, high, noncontiguous=False):
+        return common_methods_invocations.make_tensor(shape, device=device, dtype=torch.long, low=low, high=high,
+                           noncontiguous=noncontiguous)
 
-            if not requires_grad:
-                # Following inputs return different gradient from the numerical gradient.
-                # This is expected and relevant tests are present in `test_nn.py`.
+    def make_per_sample_weight(flag, idx):
+        # a tensor of float / double weights, or None
+        # to indicate all weights should be taken to be 1
+        if flag:
+            return make_input(idx.reshape(-1).shape)
+        return None
 
-                # Due to inplace renorming of weight, the numerical gradient doesn't match the
-                # analytical gradient.
-                idx = make_long_input((2, 2), low=0, high=S)
-                weights = make_input((S, S)) * 2
-                per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                # 8
-                yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                  kwargs={'offsets': offsets, 'max_norm': 1., 'mode': mode,
-                                          'per_sample_weights': per_sample_weights},)
+    offsets = [
+        torch.tensor([0, 2, 3], device=device, dtype=torch.long),
+        torch.tensor([0, 0, 2], device=device, dtype=torch.long),
+        torch.tensor([0, 2, 2, 4], device=device, dtype=torch.long)
+    ]
+    for offset in offsets:
+        for include_last_offset in (True, False):
+            for generate_per_sample_weight in (True, False):
+                for mode in (0,1,2,):  #('sum', 'mean', 'max')
+                    # per_sample_weights only support mode='sum'
+                    if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
+                        continue
 
-                idx = make_long_input((6, ), low=0, high=S)
-                weights = make_input((S, S)) * 2
-                per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                # 9
-                yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                  kwargs={'offsets': offsets, 'max_norm': 1., 'norm_type': 1.0,
-                                          'mode': mode,
-                                          'per_sample_weights': per_sample_weights},)
+                    # 1-D index tensor
+                    indices = make_long_input((S,), low=0, high=M)
+                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                    # 0
+                    yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                            kwargs={'offsets': offset, 'mode': mode, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset})
 
-                if mode != 1:  # 'max':
-                    # Scale the gradient based on the inverse frequency of a particular index.
-                    # Note : smax mode does not support sparse weights
-                    idx = make_long_input((2, 2), low=0, high=S)
-                    idx[0, 0] = 1
-                    idx[0, 1] = 1
-                    weights = make_input((S, S))
-                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                    # max value in offset cannot be larger than idx.size(0)
-                    offsets_2 = torch.tensor([0, 2], device=device, dtype=torch.long)
-                    # 10
-                    yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                      kwargs={'offsets': offsets_2, 'scale_grad_by_freq': True, 'mode': mode,
-                                              'per_sample_weights': per_sample_weights},)
+                    indices = make_long_input((S,), low=0, high=M, noncontiguous=True)
+                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                    # 1
+                    yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                            kwargs={'offsets': offset, 'mode': mode, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset})
 
-                    # gradcheck not implemented for sparse tensors.
-                    # Note : max mode does not support sparse weights
-                    idx = make_long_input((6, ), low=0, high=S)
-                    weights = make_input((S, S))
-                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                    # 11
-                    yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                      kwargs={'offsets': offsets, 'sparse': True,
-                                              'mode': mode, 'per_sample_weights': per_sample_weights})
+                    if mode != 2:  # 'max' mode in 2-D index tensor make aten func crash
+                        # 2-D index tensor
+                        indices = make_long_input((S, S), low=0, high=M)
+                        per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                        # 2
+                        yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                                kwargs={'offsets': offset, 'mode': mode, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset})
 
-                    idx = make_long_input((6, ), low=0, high=S)
-                    idx[0] = 1  # freq more than 1
-                    idx[1] = 1  # freq more than 1
-                    idx[3] = 0  # padding_idx
-                    weights = make_input((S, S)) * 2
-                    per_sample_weights = make_per_sample_weight(generate_per_sample_weight, idx)
-                    # 12
-                    yield common_methods_invocations.SampleInput(weights, args=(idx,),
-                                      kwargs={'offsets': offsets, 'sparse': True, 'scale_grad_by_freq': True, 'padding_idx': 0,
-                                              'max_norm': 1.,
-                                              'mode': mode, 'per_sample_weights': per_sample_weights})
+                        indices = make_long_input((S, S), low=0, high=M, noncontiguous=True)
+                        per_sample_weights = make_per_sample_weight(generate_per_sample_weight, indices)
+                        # 3
+                        yield common_methods_invocations.SampleInput(make_input((M, S)), args=(indices,),
+                                kwargs={'offsets': offset, 'mode': mode, 'per_sample_weights': per_sample_weights, 'include_last_offset': include_last_offset})
+
 
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
