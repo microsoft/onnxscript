@@ -34,6 +34,9 @@ session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABL
 onnx_model = onnx.ModelProto()
 google.protobuf.text_format.Parse(onnx_model_text, onnx_model)
 
+# Uncomment this line to save the model to a file for examination
+# onnx.save_model(onnx_model, "{short_test_name}.onnx")
+
 onnx.checker.check_model(onnx_model)
 session = ort.InferenceSession(onnx_model.SerializeToString(), session_options, providers=("CPUExecutionProvider",))
 
