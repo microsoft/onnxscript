@@ -1693,9 +1693,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     )
     .skip(
-        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
-    )
-    .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype == torch.bool,
         reason="this overload takes a non-boolean mask",
@@ -1708,9 +1705,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
-    )
-    .skip(
-        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
