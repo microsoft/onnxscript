@@ -1930,9 +1930,27 @@ TORCHLIB_OPINFO_MAPPING: dict[
 
 TESTED_OPS = frozenset(TORCHLIB_OPINFO_MAPPING)
 
-EXPECTED_SKIPS_OR_FAILS: tuple[ops_test_common.DecorateMeta, ...] = tuple()
+EXPECTED_SKIPS_OR_FAILS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
+)
 
-SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = tuple()
+SKIP_XFAIL_SUBTESTS: tuple[ops_test_common.DecorateMeta, ...] = tuple(
+    functools.reduce(
+        # Flatten the list
+        lambda a, b: [*a, *b],
+        [
+            [meta for meta in info.skips_or_fails if meta.matcher is not None]
+            for info in TESTED_TORCHLIB_OPS
+        ],
+    )
+)
 
 # MARK: Complex supported functions
 COMPLEX_FUNCTION_MAPPING: dict[
