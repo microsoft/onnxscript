@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 
 import pathlib
 import platform
@@ -68,6 +69,12 @@ CREATE_REPRODUCTION_REPORT=1 python -m pytest onnxscript/tests/function_libs/tor
 {error_stack}
 ```
 
+### The ONNX model text for visualization
+
+```
+{onnx_model_textual_representation}
+```
+
 ### Environment
 
 ```
@@ -103,6 +110,7 @@ torch=={torch.__version__}"""
         ort_inputs=input_text,
         short_test_name=short_test_name,
     )
+    onnx_model_textual_representation = onnx.printer.to_text(onnx_model)
 
     markdown = _ISSUE_MARKDOWN_TEMPLATE.format(
         error_text=error_text,
@@ -111,11 +119,14 @@ torch=={torch.__version__}"""
         reproduction_code=reproduction_code,
         error_stack=error_stack,
         sys_info=sys_info,
+        onnx_model_textual_representation=onnx_model_textual_representation,
     )
 
     # Turn test name into a valid file name
     markdown_file_name = f'{short_test_name.replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
     reports_dir = pathlib.Path("error_reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
-    with open(reports_dir / markdown_file_name, "w", encoding="utf-8") as f:
+    markdown_file_path = reports_dir / markdown_file_name
+    with open(markdown_file_path, "w", encoding="utf-8") as f:
         f.write(markdown)
+    print(f"Created reproduction report at {markdown_file_path}")
