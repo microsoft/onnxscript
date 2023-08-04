@@ -519,29 +519,59 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("atan", core_ops.aten_atan),
     TorchLibOpInfo("atan2", core_ops.aten_atan2),
     TorchLibOpInfo("atanh", core_ops.aten_atanh),
-    TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d),
-    TorchLibOpInfo(
-        "atleast_1d_single_tensor",
-        core_ops.aten_atleast_1d_single_tensor,
-    ).skip(
+    TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
-        reason="atleast_1d_single_tensor overload takes single tensor as input",
+        reason="takes single tensor as input",
     ),
-    TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d),
     TorchLibOpInfo(
-        "atleast_2d_single_tensor",
-        core_ops.aten_atleast_2d_single_tensor,
-    ).skip(
-        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
-        reason="atleast_2d_single_tensor overload takes single tensor as input",
+        "atleast_1d_Sequence",
+        core_ops.aten_atleast_1d_sequence,
+    )
+    .skip(
+        matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
+        reason="takes tensor sequences only",
+    )
+    .xfail(
+        reason=(
+            "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
+            "https://github.com/microsoft/onnxscript/issues/960"
+        )
     ),
-    TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d),
-    TorchLibOpInfo(
-        "atleast_3d_single_tensor",
-        core_ops.aten_atleast_3d_single_tensor,
-    ).skip(
+    TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
-        reason="atleast_3d_single_tensor overload takes single tensor as input",
+        reason="takes single tensor as input",
+    ),
+    TorchLibOpInfo(
+        "atleast_2d_Sequence",
+        core_ops.aten_atleast_2d_sequence,
+    )
+    .skip(
+        matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
+        reason="takes tensor sequences only",
+    )
+    .xfail(
+        reason=(
+            "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
+            "https://github.com/microsoft/onnxscript/issues/960"
+        )
+    ),
+    TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d).skip(
+        matcher=lambda sample: isinstance(sample.input, (list, tuple)),
+        reason="takes single tensor as input",
+    ),
+    TorchLibOpInfo(
+        "atleast_3d_Sequence",
+        core_ops.aten_atleast_3d_sequence,
+    )
+    .skip(
+        matcher=lambda sample: not isinstance(sample.input, (list, tuple)),
+        reason="takes tensor sequences only",
+    )
+    .xfail(
+        reason=(
+            "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
+            "https://github.com/microsoft/onnxscript/issues/960"
+        )
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
@@ -1277,7 +1307,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "vstack",
         core_ops.aten_vstack,
     ).xfail(
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+        reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
         dtypes=(torch.bool,),
@@ -1417,9 +1447,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "hstack",
         core_ops.aten_hstack,
-        trace_only=True,
     ).xfail(
-        reason="fixme: A bug of constant-propagation optimization within the subgraph, we can avoid it by turning off graph-optimizations in session options",
+        reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo(
         "nn.functional.grid_sample",
@@ -1835,9 +1864,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
-ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_single_tensor",))
-ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_single_tensor",))
-ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_single_tensor",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_Sequence",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
