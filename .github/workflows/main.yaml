@@ -63,6 +63,7 @@ jobs:
         run: nox -t ${{ matrix.nox-tag }} --forcecolor -- -v --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto --junit-xml pytest.xml
         env:
           CATCH_ORT_SEGFAULT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
+          CREATE_REPRODUCTION_REPORT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v3
@@ -72,6 +73,12 @@ jobs:
         with:
           name: Test Results (${{ matrix.name }}-${{ matrix.os }})
           path: pytest.xml
+      - name: Upload torchlib error reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: Error reports (${{ matrix.name }}-${{ matrix.os }})
+          path: error_reports
 
   build_docs:
     strategy:
