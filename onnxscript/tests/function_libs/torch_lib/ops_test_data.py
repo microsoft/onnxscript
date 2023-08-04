@@ -944,7 +944,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag,
         trace_only=True,
         # Output[0] is OK, but other 3 outputs just have the same shape with zero values
-        nondeterministic = True,
+        nondeterministic=True,
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",

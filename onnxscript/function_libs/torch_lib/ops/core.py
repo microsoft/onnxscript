@@ -2310,7 +2310,9 @@ def aten_embedding_bag(
     result = _aten_embedding_bag_onnx(
         weight, indices, offsets, mode, per_sample_weights, include_last_offset
     )
-    offset2bag, bag_size, max_indices = _compute_output_others(weight, indices, offsets, mode, include_last_offset)
+    offset2bag, bag_size, max_indices = _compute_output_others(
+        weight, indices, offsets, mode, include_last_offset
+    )
     return result, offset2bag, bag_size, max_indices
 
 
@@ -2322,14 +2324,14 @@ def _compute_output_others(weight, indices, offsets, mode, include_last_off):
     elif mode == 1:  # mean
         offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
         if include_last_off is True:
-            bag_size = op.Expand(0, op.Shape(offsets)-1)
+            bag_size = op.Expand(0, op.Shape(offsets) - 1)
         else:
             bag_size = op.Expand(0, op.Shape(offsets))
         max_indices = op.Expand(0, op.Shape(bag_size))
     else:  # max
         offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
         if include_last_off is True:
-            bag_size = op.Expand(0, op.Shape(offsets)-1)
+            bag_size = op.Expand(0, op.Shape(offsets) - 1)
         else:
             bag_size = op.Expand(0, op.Shape(offsets))
         # shape = (bag_size.dim[0], weight.dim[1])
