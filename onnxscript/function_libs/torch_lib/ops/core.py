@@ -2283,7 +2283,7 @@ def aten_embedding_bag(
     sparse: bool = False,  # pylint: disable=unused-argument
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-) -> TFloat:
+) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
 
     # assert(rank(indices) in [1,2])
@@ -2300,13 +2300,14 @@ def aten_embedding_bag(
     result = _aten_embedding_bag_onnx(
         weight, indices, offsets, mode, per_sample_weights, include_last_offset
     )
-    offset2bag, bag_size, max_indices = _compute_output_others(
+    offset2bag, bag_size, max_indices = _compute_output_others_shape(
         weight, indices, offsets, mode, include_last_offset
     )
     return result, offset2bag, bag_size, max_indices
 
 
-def _compute_output_others(weight, indices, offsets, mode, include_last_off):
+# This python function only compute the shape of outputs instead of values, fill with 0
+def _compute_output_others_shape(weight, indices, offsets, mode, include_last_off):
     if mode == 0:  # sum
         offset2bag = op.Shape(indices, start=0, end=0)  # Generate empty tensor
         bag_size = op.Expand(0, op.Shape(offsets))
@@ -2376,29 +2377,28 @@ def _aten_embedding_bag_onnx(
                 op.Constant(value_floats=[0.0]),
                 op.Concat(op.Constant(value_ints=[1]), weight_dim_1, axis=0),
             )
-        elif op.Equal(index_tensor, num_bag - 1):
-            if mode == 0:  # sum
-                weight_rows = op.Slice(new_weight, start, end)
-                row_result = op.ReduceSum(weight_rows, axes=[0])
-            elif mode == 1:  # mean
-                weight_rows = op.Slice(new_weight, start, end)
-                row_result = op.ReduceSum(weight_rows, axes=[0])
-                # When include_last_offset=False, offsets=[0,2,3], denominator=5-3=2
-                # When include_last_offset=True, offsets=[0,2,3], denominator=5-2=3
-                denominator = op.Sub(op.Shape(indices, start=0, end=1), start)
-                if op.Greater(denominator, 0):
-                    row_result = op.Div(row_result, op.CastLike(denominator, weight))
-            else:  # max
-                weight_rows = op.Slice(new_weight, start, indices_size)
-                row_result = op.ReduceMax(weight_rows, axes=[0])
         else:
-            weight_rows = op.Slice(new_weight, start, end)
             if mode == 0:  # sum
+                weight_rows = op.Slice(new_weight, start, end)
                 row_result = op.ReduceSum(weight_rows, axes=[0])
             elif mode == 1:  # mean
-                row_result = op.ReduceMean(weight_rows, axes=[0])
+                weight_rows = op.Slice(new_weight, start, end)
+                if op.Equal(index_tensor, num_bag - 1):  # The last bag
+                    row_result = op.ReduceSum(weight_rows, axes=[0])
+                    # When include_last_offset=False, offsets=[0,2,3], denominator=5-3=2
+                    # When include_last_offset=True, offsets=[0,2,3], denominator=5-2=3
+                    denominator = op.Sub(op.Shape(indices, start=0, end=1), start)
+                    if op.Greater(denominator, 0):
+                        row_result = op.Div(row_result, op.CastLike(denominator, new_weight))
+                else:
+                    row_result = op.ReduceMean(weight_rows, axes=[0])
             else:  # max
+                if op.Equal(index_tensor, num_bag - 1):  # The last bag
+                    weight_rows = op.Slice(new_weight, start, indices_size)
+                else:
+                    weight_rows = op.Slice(new_weight, start, end)
                 row_result = op.ReduceMax(weight_rows, axes=[0])
+
         result = op.SequenceInsert(result, row_result)
         index_tensor = index_tensor + 1
         cond = index_tensor < num_bag
