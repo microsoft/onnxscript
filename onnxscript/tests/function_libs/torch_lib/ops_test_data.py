@@ -970,6 +970,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ONNX Runtime aborted",
     ),
     TorchLibOpInfo(
+        "ops.aten.embedding_bag",
+        core_ops.aten_embedding_bag,
+        trace_only=True,
+        # Output[0] is OK, but other 3 outputs just have the same shape with zero values
+        nondeterministic=True,
+    ),
+    TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
@@ -1872,6 +1879,9 @@ ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_stride
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
+# ops_test_common.duplicate_opinfo(
+#     OPS_DB, "nn.functional.embedding_bag", ("nn.functional.embedding_bag.padding_idx",)
+# )
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
 )
