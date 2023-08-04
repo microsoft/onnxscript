@@ -35,7 +35,7 @@ def script_check(
         source=source,
         default_opset=default_opset,
     )
-    return convert.top_level_stmt(f)
+    return convert.translate_function_def(f)
 
 
 def script(

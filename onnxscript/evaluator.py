@@ -25,8 +25,8 @@ import onnx.defs
 import onnx.helper
 from typing_extensions import TypeAlias
 
-from onnxscript import irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import autocast, param_manipulation
+from onnxscript import irbuilder, onnx_opset, tensor, values
+from onnxscript._internal import autocast, param_manipulation, utils
 
 UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
 
