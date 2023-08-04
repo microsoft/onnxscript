@@ -941,7 +941,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
-        reason="fixme: RuntimeError: ORT inference error GlobalAveragePool",
+        reason="fixme: RuntimeError: ORT inference error GlobalAveragePool. https://github.com/microsoft/onnxruntime/issues/16449",
     ),
     TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
     TorchLibOpInfo(
@@ -1163,7 +1163,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
-        reason="fixme: ORT failed",
+        reason="fixme: ORT error: MLFloat16 data type is not supported with ScatterElements opset 16 when reduction is 'add'",
     ),
     TorchLibOpInfo("select", core_ops.aten_select),
     TorchLibOpInfo("select_scatter", core_ops.aten_select_scatter),
@@ -1175,10 +1175,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "softmax",
         special_ops.aten_special_softmax,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
-    )
-    .xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: ORT failed",
     )
     .xfail(
         variant_name="with_dtype",
@@ -1242,7 +1238,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "t",
         core_ops.aten_t,
     ).xfail(
-        reason="fixme: ORT Graph attribute inferencing failed on rank-1 input",
+        reason="fixme: ORT Graph attribute inferencing failed on rank-1 input. https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("tan", core_ops.aten_tan),
@@ -1285,10 +1281,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "unflatten",
         core_ops.aten_unflatten,
         input_wrangler=_unflatten_input_wrangler,
-    )
-    .xfail(
-        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
-        test_class_name="TestOutputConsistencyFullGraph",
     )
     .xfail(
         matcher=lambda sample: any(dim == 0 for dim in sample.input.shape),
