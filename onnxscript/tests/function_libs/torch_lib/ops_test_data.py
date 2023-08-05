@@ -953,13 +953,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
     ),
-    TorchLibOpInfo(
-        "nn.functional.elu",
-        nn_ops.aten_elu,
-    ).skip(
-        dtypes=(torch.float16,),
-        reason="fixme: ONNX Runtime aborted",
-    ),
+    TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
     TorchLibOpInfo(
         "ops.aten.embedding_bag",
         core_ops.aten_embedding_bag,
@@ -1037,13 +1031,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
     ),
-    TorchLibOpInfo(
-        "nn.functional.selu",
-        core_ops.aten_selu,
-    ).skip(
-        dtypes=(torch.float16,),
-        reason="fixme: ONNX Runtime aborted",
-    ),
+    TorchLibOpInfo("nn.functional.selu", core_ops.aten_selu),
     TorchLibOpInfo(
         "nn.functional.mse_loss",
         nn_ops.aten_mse_loss,
