@@ -604,14 +604,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.bool,),
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
-    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
-    ),
-    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
-    ),
+    TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max),
+    TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min),
     TorchLibOpInfo("clone", core_ops.aten_clone),
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
