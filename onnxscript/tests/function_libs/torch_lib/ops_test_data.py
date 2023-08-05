@@ -1585,9 +1585,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.gelu",
         nn_ops.aten_gelu,
         trace_only=True,
-    ).xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: ONNX Runtime aborted",
+        tolerance={torch.float16: (8e-2, 1e-4)},
     ),
     TorchLibOpInfo("nn.functional.linear", nn_ops.aten_linear).skip(
         # input: input, args: weight, bias; so len(args) == 2 means bias is provided
