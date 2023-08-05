@@ -1729,10 +1729,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_upsample_input_wrangler,
         trace_only=True,
     )
-    .xfail(
-        reason="fixme: ORT fails with invalid model: 'INVALID_ARGUMENT : Failed to load model with error: vector::_M_range_check: __n (which is 1) >= this->size() (which is 1)'",
-        test_class_name="TestOutputConsistencyFullGraph",
-    )
     .skip(
         # Shape should be [N, C, H, W]
         matcher=lambda sample: len(sample.input.shape) != 2 + 2,
