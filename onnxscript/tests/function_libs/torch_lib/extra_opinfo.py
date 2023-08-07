@@ -734,6 +734,23 @@ def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs)
                         )
 
 
+def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    # Case `target_end == 1`, where `target_end = (input.size(dimension) - size) // step + 1`.
+    t = torch_testing.make_tensor(
+        (2, 3, 4),
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        **kwargs,
+    )
+    dimension = 1
+    size = 2
+    step = 2
+    # target_end = (3 - 2) // 2 + 1 = 1
+    yield opinfo_core.SampleInput(t, args=(dimension, size, step))
+
+
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
 #    This function should yield SampleInputs.
@@ -903,6 +920,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="bernoulli.p",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "unfold_extra",
+        op=lambda x, *args: x.unfold(*args),
+        aten_name="unfold",
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_unfold,
         supports_out=False,
     ),
 ]
