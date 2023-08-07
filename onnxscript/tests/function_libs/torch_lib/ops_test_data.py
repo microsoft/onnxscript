@@ -490,7 +490,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18",
+        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
         "amin",
@@ -498,7 +498,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18",
+        reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
         "any",
@@ -605,12 +605,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT does not implement SplitToSequence for bool inputs: https://github.com/microsoft/onnxruntime/issues/16905",
     ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
     TorchLibOpInfo("concat", core_ops.aten_concat).skip(
@@ -781,8 +781,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
     ),
     TorchLibOpInfo("maximum", core_ops.aten_maximum).skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
         "mean",
@@ -807,8 +807,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
     .skip(
         variant_name="reduction_with_dim",
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
         variant_name="reduction_with_dim",
@@ -833,8 +833,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this ATen overload only supports one tensor as input by design",
     ),
     TorchLibOpInfo("minimum", core_ops.aten_minimum).skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("mm", core_ops.aten_mm),
     TorchLibOpInfo("mul", core_ops.aten_mul),
@@ -1356,8 +1356,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this overload does not support the 'dim' attribute by design",
     )
     .skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
         dtypes=(torch.int64,),
@@ -1369,8 +1369,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this overload requires the 'dim' attribute by design",
     )
     .skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
         dtypes=(torch.int64,),
@@ -1382,8 +1382,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this overload does not support the 'dim' attribute by design",
     )
     .skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
         dtypes=(torch.int64,),
@@ -1395,8 +1395,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this overload requires the 'dim' attribute by design",
     )
     .skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
         dtypes=(torch.int64,),
@@ -1411,8 +1411,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="ONNX doesn't have partial view for tensor",
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True).skip(
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
         "ops.aten.col2im",
@@ -1475,8 +1475,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
     .skip(
         variant_name="reduction_with_dim",
-        enabled_if=ops_test_common.IS_WINDOWS,
-        reason="fixme: ORT has memory errors. https://github.com/microsoft/onnxruntime/issues/16492",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
         variant_name="reduction_with_dim",
