@@ -524,6 +524,9 @@ def graph_executor(
                 f"ONNX model is invalid. Model:\n{onnxscript.proto2text(onnx_model)}"
             ) from e
 
+        if ("min" in test_name or "max" in test_name) and "pool" not in test_name:
+            print(test_name, "ort_inputs", ort_inputs)
+
         try:
             if (
                 os.environ.get("CATCH_ORT_SEGFAULT") == "1"
