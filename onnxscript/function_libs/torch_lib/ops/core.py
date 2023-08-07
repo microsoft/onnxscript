@@ -6982,7 +6982,7 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     else:
         dim_size = self.shape[dimension]
         target_end = (dim_size - size) // step + 1
-        if target_end > 1:  # the rank of final reuslt will be self_rank + 1
+        if target_end >= 1:  # the rank of final reuslt will be self_rank + 1
             self_rank = self_rank + 1
         # perm need to be list[int], so have to be generated in trace_only mode
         perm = list(range(self_rank))
