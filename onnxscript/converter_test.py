@@ -157,7 +157,7 @@ class TestConverter(testutils.TestBase):
             def square(x):
                 return op.Mul(undefined, x)  # noqa: F821
 
-        self.assertIn("square:3", str(e.exception))
+        self.assertIn("Unbound name: undefined", str(e.exception))
 
     def test_model_generation(self):
         @script()
@@ -419,7 +419,7 @@ class TestConverter(testutils.TestBase):
             opset=op, global_names=global_names, source=source, default_opset=op
         )
         try:
-            cvt.top_level_stmt(f_ast)
+            cvt.translate_function_def(f_ast)
         except converter.TranslationError as e:
             if msg not in str(e):
                 raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e

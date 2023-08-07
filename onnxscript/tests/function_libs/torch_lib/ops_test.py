@@ -12,6 +12,13 @@ Usage:
 
     pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k nn_functional_scaled_dot_product_attention
 
+## Environment variables
+
+1. Set environment variable `CATCH_ORT_SEGFAULT=1` to catch segmentation faults
+in onnxruntime by running the inference sessions in a separate process.
+
+2. Set `CREATE_REPRODUCTION_REPORT=1` to create markdown files for reproduction of
+errors.
 """
 from __future__ import annotations
 
@@ -39,14 +46,12 @@ TESTED_DTYPES = (
     # Uncomment below item when we really need testing it
     # torch.bfloat16,
     # torch.float64,
-    # torch.bool,
+    torch.bool,
     # torch.int8,
     # torch.int16,
-    # torch.int32,
+    torch.int32,
     torch.int64,
     # torch.uint8,
-    # torch.complex64,
-    # ......
 )
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
@@ -211,7 +216,8 @@ def run_test_output_match(
                     # TODO(justinchuby): Find a more general solution
                     reference_torch_outputs = [reference_torch_outputs]
 
-                function_output = function_executor(reference_torch_outputs)(
+                test_name = test_suite.id()
+                function_output = function_executor(test_name, reference_torch_outputs)(
                     onnx_function, input_onnx, kwargs_onnx
                 )
                 # Finally we re-flatten everything

@@ -1,14 +1,6 @@
 name: Release
 
 on:
-  schedule:
-    # Run weekly on Mondays and Wednesdays 00:00
-    - cron: '00 00 * * MON,WED'
-  push:
-    branches: [main, rel-*]
-  pull_request:
-    branches: [main, rel-*]
-
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 

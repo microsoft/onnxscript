@@ -13,6 +13,7 @@ from torch.testing._internal import common_dtype, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
 
 S = 5
+M = 10
 
 
 def sample_inputs__local_scalar_dense(op_info, device, dtype, requires_grad, **kwargs):
@@ -622,6 +623,134 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
+def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    def make_input(shape):
+        return common_methods_invocations.make_tensor(
+            shape, device=device, dtype=dtype, requires_grad=requires_grad
+        )
+
+    def make_long_input(shape, *, low, high, noncontiguous=False):
+        return common_methods_invocations.make_tensor(
+            shape,
+            device=device,
+            dtype=torch.long,
+            low=low,
+            high=high,
+            noncontiguous=noncontiguous,
+        )
+
+    def make_per_sample_weight(flag, idx):
+        # a tensor of float / double weights, or None
+        # to indicate all weights should be taken to be 1
+        if flag:
+            return make_input(idx.reshape(-1).shape)
+        return None
+
+    offsets = [
+        torch.tensor([0, 2, 3], device=device, dtype=torch.long),
+        torch.tensor([0, 0, 2], device=device, dtype=torch.long),
+        torch.tensor([0, 2, 2, 4], device=device, dtype=torch.long),
+    ]
+    for offset in offsets:
+        for include_last_offset in (True, False):
+            for generate_per_sample_weight in (True, False):
+                for mode in (
+                    0,
+                    1,
+                    2,
+                ):  # ('sum', 'mean', 'max')
+                    # per_sample_weights only support mode='sum'
+                    if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
+                        continue
+
+                    # 1-D index tensor
+                    indices = make_long_input((S,), low=0, high=M)
+                    per_sample_weights = make_per_sample_weight(
+                        generate_per_sample_weight, indices
+                    )
+                    # 0
+                    yield common_methods_invocations.SampleInput(
+                        make_input((M, S)),
+                        args=(indices,),
+                        kwargs={
+                            "offsets": offset,
+                            "mode": mode,
+                            "per_sample_weights": per_sample_weights,
+                            "include_last_offset": include_last_offset,
+                        },
+                    )
+
+                    indices = make_long_input((S,), low=0, high=M, noncontiguous=True)
+                    per_sample_weights = make_per_sample_weight(
+                        generate_per_sample_weight, indices
+                    )
+                    # 1
+                    yield common_methods_invocations.SampleInput(
+                        make_input((M, S)),
+                        args=(indices,),
+                        kwargs={
+                            "offsets": offset,
+                            "mode": mode,
+                            "per_sample_weights": per_sample_weights,
+                            "include_last_offset": include_last_offset,
+                        },
+                    )
+
+                    if mode != 2:  # "max" mode in 2-D index tensor make aten func crash
+                        # 2-D index tensor
+                        indices = make_long_input((S, S), low=0, high=M)
+                        per_sample_weights = make_per_sample_weight(
+                            generate_per_sample_weight, indices
+                        )
+                        # 2
+                        yield common_methods_invocations.SampleInput(
+                            make_input((M, S)),
+                            args=(indices,),
+                            kwargs={
+                                "offsets": offset,
+                                "mode": mode,
+                                "per_sample_weights": per_sample_weights,
+                                "include_last_offset": include_last_offset,
+                            },
+                        )
+
+                        indices = make_long_input((S, S), low=0, high=M, noncontiguous=True)
+                        per_sample_weights = make_per_sample_weight(
+                            generate_per_sample_weight, indices
+                        )
+                        # 3
+                        yield common_methods_invocations.SampleInput(
+                            make_input((M, S)),
+                            args=(indices,),
+                            kwargs={
+                                "offsets": offset,
+                                "mode": mode,
+                                "per_sample_weights": per_sample_weights,
+                                "include_last_offset": include_last_offset,
+                            },
+                        )
+
+
+def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    # Case `target_end == 1`, where `target_end = (input.size(dimension) - size) // step + 1`.
+    t = torch_testing.make_tensor(
+        (2, 3, 4),
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        **kwargs,
+    )
+    dimension = 1
+    size = 2
+    step = 2
+    # target_end = (3 - 2) // 2 + 1 = 1
+    yield opinfo_core.SampleInput(t, args=(dimension, size, step))
+
+
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
 #    This function should yield SampleInputs.
@@ -649,6 +778,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_col2im,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.embedding_bag",
+        aten_name="embedding_bag",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_embedding_bag,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -784,6 +920,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="bernoulli.p",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "unfold_extra",
+        op=lambda x, *args: x.unfold(*args),
+        aten_name="unfold",
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_unfold,
         supports_out=False,
     ),
 ]
