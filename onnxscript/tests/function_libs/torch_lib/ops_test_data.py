@@ -962,13 +962,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
     ),
-    TorchLibOpInfo(
-        "nn.functional.elu",
-        nn_ops.aten_elu,
-    ).skip(
-        dtypes=(torch.float16,),
-        reason="fixme: ONNX Runtime aborted",
-    ),
+    TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
     TorchLibOpInfo(
         "ops.aten.embedding_bag",
         core_ops.aten_embedding_bag,
@@ -1046,13 +1040,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         reason="this Aten overload need args[1] == 'replicate' for pad mode, and 3D tensor",
     ),
-    TorchLibOpInfo(
-        "nn.functional.selu",
-        core_ops.aten_selu,
-    ).skip(
-        dtypes=(torch.float16,),
-        reason="fixme: ONNX Runtime aborted",
-    ),
+    TorchLibOpInfo("nn.functional.selu", core_ops.aten_selu),
     TorchLibOpInfo(
         "nn.functional.mse_loss",
         nn_ops.aten_mse_loss,
@@ -1159,7 +1147,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         matcher=lambda sample: len(sample.input.shape) == 0,
-        reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch",
+        reason="fixme: Rank(0) input will lead ORT failed due to different rank(result) in if-else branch. https://github.com/onnx/onnx/issues/4986",
     )
     .xfail(
         dtypes=(torch.float16,),
@@ -1312,7 +1300,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_arange_start_step,
         trace_only=True,
     )
-    .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
+    .xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
+    )
     .xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
@@ -1322,7 +1313,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_arange_start,
         trace_only=True,
     )
-    .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
+    .xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
+    )
     .skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
@@ -1332,7 +1326,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_arange,
         trace_only=True,
     )
-    .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
+    .xfail(
+        dtypes=(torch.int32,),
+        reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
+    )
     .xfail(
         matcher=lambda sample: len(sample.args) != 0,
         reason="arange overload takes single argument",
@@ -1509,7 +1506,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ).xfail(
         variant_name="empty_strides",
-        reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2])",
+        reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2]). https://github.com/microsoft/onnxscript/issues/975",
     ),
     TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
     TorchLibOpInfo(
@@ -1570,7 +1567,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         matcher=lambda sample: sample.kwargs.get("ceil_mode") is True,
-        reason="fixme: ORT doesn't match PyTorch when ceil_mode=True until opset 19",
+        reason="fixme(after opset19): ORT doesn't match PyTorch when ceil_mode=True until opset 19",
     ),
     TorchLibOpInfo(
         "nn.functional.conv1d",
@@ -1683,9 +1680,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention",
         nn_ops.aten_scaled_dot_product_attention,
         trace_only=True,
-    )
-    .skip(
-        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
+        tolerance={torch.float32: (1e-5, 1e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
@@ -1700,9 +1695,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
-    )
-    .skip(
-        reason="fixme: ORT crashes on Windows, segfaults randomly on Linux",
+        tolerance={torch.float32: (1e-5, 1e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
