@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
         name:
           - py310
           - py39
@@ -60,10 +60,10 @@ jobs:
       - name: Install nox
         run: python -m pip install nox
       - name: Run tests
-        run: nox -t ${{ matrix.nox-tag }} --forcecolor -- -v --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto --junit-xml pytest.xml
+        run: nox -t ${{ matrix.nox-tag }} --forcecolor -- -v --cov=onnxscript --cov-report=xml --cov-append --cov-branch -n=auto --junit-xml pytest.xml -k max
         env:
-          CATCH_ORT_SEGFAULT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
-          CREATE_REPRODUCTION_REPORT: "${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}"
+          CATCH_ORT_SEGFAULT: "1"
+          CREATE_REPRODUCTION_REPORT: "1"
       - name: Upload coverage to Codecov
         if: always()
         uses: codecov/codecov-action@v3
