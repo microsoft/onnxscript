@@ -737,9 +737,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "log10",
         core_ops.aten_log10,
-    ).xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: Shape inference error(s): (op_type:Div, node name: n3): B has inconsistent type tensor(float).",
     ),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
     TorchLibOpInfo(
@@ -755,18 +752,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "log2",
         core_ops.aten_log2,
-    ).xfail(
-        dtypes=(torch.float16,),
-        reason="fixme: RuntimeError: Unable to create onnxruntime InferenceSession for executing .Div op with onnx model",
     ),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
     TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
-    TorchLibOpInfo(
-        "logsumexp",
-        core_ops.aten_logsumexp,
-    ),
+    TorchLibOpInfo("logsumexp", core_ops.aten_logsumexp),
     TorchLibOpInfo("lt", core_ops.aten_lt),
     TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill).xfail(
         dtypes=(torch.bool,),

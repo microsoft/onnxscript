@@ -3836,7 +3836,7 @@ def aten_log(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 def aten_log10(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """log10(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.Log(10.0))
+    return op.Div(op.Log(self), op.CastLike(op.Log(10.0), self))
 
 
 @torch_op("aten::log1p")
@@ -3850,7 +3850,7 @@ def aten_log1p(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 def aten_log2(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """log2(Tensor self) -> Tensor"""
 
-    return op.Div(op.Log(self), op.Log(2.0))
+    return op.Div(op.Log(self), op.CastLike(op.Log(2.0), self))
 
 
 @torch_op("aten::logaddexp")
@@ -3865,7 +3865,7 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
     """logaddexp2(Tensor self, Tensor other) -> Tensor"""
     summation = op.Add(op.Pow(2.0, self), op.Pow(2.0, other))
 
-    return op.Div(op.Log(summation), op.Log(2.0))
+    return op.Div(op.Log(summation), op.CastLike(op.Log(2.0), self))
 
 
 @torch_op("aten::logcumsumexp")
