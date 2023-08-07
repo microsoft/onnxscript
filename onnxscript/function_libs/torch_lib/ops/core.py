@@ -2190,12 +2190,18 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op(("aten::div", "aten::div.Tensor"))
+@torch_op(("aten::div", "aten::div.Tensor", "aten::div.Scalar"))
 def aten_div(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
+
+@torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), rounding_mode: str)
+def aten_div(self: TFloat, other: TFloat) -> TFloat:
+    """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor"""
+
+    pass
 
 
 def aten_divide(self: TensorType, other: TensorType) -> TensorType:
