@@ -2190,24 +2190,41 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
     raise NotImplementedError()
 
 
-@torch_op(("aten::div", "aten::div.Tensor", "aten::div.Scalar"))
+@torch_op(
+    (
+        "aten::div",
+        "aten::div.Tensor",
+        "aten::div.Scalar",
+        # When rounding_mode is None, performs a true division
+        # https://pytorch.org/docs/stable/generated/torch.div.html
+        "aten::div.Tensor_mode",
+        "aten::div.Scalar_mode",
+        "aten::divide",
+        "aten::true_divide",
+    )
+)
 def aten_div(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
 
-@torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), rounding_mode: str)
-def aten_div(self: TFloat, other: TFloat) -> TFloat:
+
+@torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
+def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: str) -> TFloat:
     """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor"""
 
-    pass
+    # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
+    assert rounding_mode in {"trunc", "floor"}
 
+    if rounding_mode == "trunc":
+        # Rounds the results of the division towards zero.
+        # Equivalent to C-style integer division
+        result = aten_trunc(op.Div(self, other))
+    else:  # rounding_mode == "floor"
+        result = op.Floor(op.Div(self, other))
 
-def aten_divide(self: TensorType, other: TensorType) -> TensorType:
-    """divide.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    raise NotImplementedError()
+    return result
 
 
 @torch_op("aten::dot")
@@ -6920,12 +6937,6 @@ def aten_triu(self: TensorType, diagonal: int = 0) -> TensorType:
 
 def aten_triu_indices(row: int, col: int, offset: int = 0) -> TensorType:
     """triu_indices(int row, int col, int offset=0, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_true_divide(self: TensorType, other: TensorType) -> TensorType:
-    """true_divide.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     raise NotImplementedError()
 
