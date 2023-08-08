@@ -633,9 +633,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="this variation does not take the rounding_mode argument",
     ),
-    TorchLibOpInfo("div_mode", core_ops.aten_div_mode, trace_only=True).skip(
+    TorchLibOpInfo("div_mode", core_ops.aten_div_mode, trace_only=True)
+    .skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is None,
         reason="this variation requires the rounding_mode argument",
+    )
+    .xfail(
+        variant_name="trunc_rounding",
+        dtypes=(torch.float16,),
+        reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
+    )
+    .xfail(
+        variant_name="floor_rounding",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
@@ -659,7 +671,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
-    TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide),
+    TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: off-by-one issue due to numerical precision. https://github.com/microsoft/onnxscript/issues/989",
+    ),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("full", core_ops.aten_full),
     TorchLibOpInfo(
