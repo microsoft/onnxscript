@@ -636,9 +636,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("div_mode", core_ops.aten_div_mode, trace_only=True).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is None,
         reason="this variation requires the rounding_mode argument",
-    # ).xfail(
-    #     dtypes=(torch.float16,),
-    #     reason="fixme: division"
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(

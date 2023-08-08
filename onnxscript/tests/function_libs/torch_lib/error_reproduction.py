@@ -82,6 +82,45 @@ CREATE_REPRODUCTION_REPORT=1 python -m pytest onnxscript/tests/function_libs/tor
 """
 
 
+_MISMATCH_MARKDOWN_TEMPLATE = """\
+### Summary
+
+The output of ONNX Runtime does not match that of PyTorch when executing test
+`{test_name}`, `sample {sample_num}` in ONNX Script `TorchLib`.
+
+To recreate this report, use
+
+```bash
+CREATE_REPRODUCTION_REPORT=1 python -m pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k {short_test_name}
+```
+
+### Inputs
+
+```python
+inputs = {inputs}
+kwargs = {kwargs}
+```
+
+### Expected output
+
+```python
+expected = {expected}
+```
+
+### Actual output
+
+```python
+actual = {actual}
+```
+
+### Full error stack
+
+```
+{error_stack}
+```
+"""
+
+
 def create_reproduction_report(
     test_name: str,
     onnx_model: onnx.ModelProto,
@@ -123,9 +162,43 @@ torch=={torch.__version__}"""
 
     # Turn test name into a valid file name
     markdown_file_name = f'{short_test_name.replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
+    markdown_file_path = save_error_report(markdown_file_name, markdown)
+    print(f"Created reproduction report at {markdown_file_path}")
+
+
+def create_mismatch_report(
+    test_name: str,
+    sample_num: int,
+    inputs,
+    kwargs,
+    actual,
+    expected,
+    error: Exception,
+) -> None:
+    error_text = str(error)
+    error_stack = error_text + "\n" + "".join(traceback.format_tb(error.__traceback__))
+    short_test_name = test_name.split(".")[-1]
+    markdown = _MISMATCH_MARKDOWN_TEMPLATE.format(
+        test_name=test_name,
+        short_test_name=short_test_name,
+        sample_num=sample_num,
+        inputs=inputs,
+        kwargs=kwargs,
+        expected=expected,
+        actual=actual,
+        error_stack=error_stack,
+    )
+
+    markdown_file_name = f'mismatch-{short_test_name.replace("/", "-").replace(":", "-")}-{str(time.time()).replace(".", "_")}.md'
+    markdown_file_path = save_error_report(markdown_file_name, markdown)
+    print(f"Created reproduction report at {markdown_file_path}")
+
+
+def save_error_report(file_name: str, text: str):
     reports_dir = pathlib.Path("error_reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
-    markdown_file_path = reports_dir / markdown_file_name
-    with open(markdown_file_path, "w", encoding="utf-8") as f:
-        f.write(markdown)
-    print(f"Created reproduction report at {markdown_file_path}")
+    file_path = reports_dir / file_name
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+    return file_path

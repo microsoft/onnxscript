@@ -22,6 +22,7 @@ errors.
 """
 from __future__ import annotations
 
+import os
 import unittest
 from typing import Callable, Optional, Sequence, Tuple
 
@@ -36,7 +37,11 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
+from onnxscript.tests.function_libs.torch_lib import (
+    error_reproduction,
+    ops_test_common,
+    ops_test_data,
+)
 
 # All dtypes will be tested on the generated symbolic functions.
 # complex64 will be flattened to float32.
@@ -260,6 +265,10 @@ def run_test_output_match(
                             check_device=False,
                         )
                     except AssertionError as e:
+                        if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+                            error_reproduction.create_mismatch_report(
+                                test_name, j, inputs, cpu_sample.kwargs, actual, expected, e
+                            )
                         if len(flattened_torch_outputs) > 1:
                             raise AssertionError(f"Output {j} mismatch") from e
                         raise
