@@ -638,17 +638,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is None,
         reason="this variation requires the rounding_mode argument",
     )
-    .xfail(
-        variant_name="trunc_rounding",
-        dtypes=(torch.float16,),
-        enabled_if=not ops_test_common.IS_MACOS,
-        reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
-    )
     .skip(
         variant_name="trunc_rounding",
         dtypes=(torch.float16,),
         # Numbers match sometimes but not other times
         reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
+    )
+    .xfail(
+        variant_name="floor_rounding",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
