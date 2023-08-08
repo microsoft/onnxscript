@@ -647,15 +647,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         variant_name="trunc_rounding",
         dtypes=(torch.float16,),
-        # Numbers match on MacOS sometimes but not other times
-        enabled_if=ops_test_common.IS_MACOS,
+        # Numbers match sometimes but not other times
         reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
-    )
-    .xfail(
-        variant_name="floor_rounding",
-        dtypes=(torch.float16,),
-        test_class_name="TestOutputConsistencyEager",
-        reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
