@@ -635,7 +635,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("div_mode", core_ops.aten_div_mode, trace_only=True)
     .skip(
-        matcher=lambda sample: sample.kwargs.get("rounding_mode") is None,
+        variant_name="no_rounding_mode",
         reason="this variation requires the rounding_mode argument",
     )
     .skip(
