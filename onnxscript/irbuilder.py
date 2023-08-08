@@ -174,6 +174,7 @@ class IRAttributeParameter:
                 "values can be converted to AttributeProto."
             )
         if version_utils.onnx_older_than("1.15"):
+            # TODO(after 1.14 is deprecated): Remove this branch.
             # Argument 'attr_type' was added after version 1.14.
             return helper.make_attribute(self.name, self.default_value)
         # pylint: disable=unexpected-keyword-arg
