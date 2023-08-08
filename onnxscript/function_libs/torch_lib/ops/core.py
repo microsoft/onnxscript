@@ -2217,17 +2217,13 @@ def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: str) -> TFloat:
     # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
     assert rounding_mode in {"trunc", "floor"}
 
-    # Cast inputs to float to preserve numerical precision
-    self_float = op.Cast(self, to=FLOAT.dtype)
-    other_float = op.Cast(other, to=FLOAT.dtype)
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
         # Equivalent to C-style integer division
-        result = aten_trunc(op.Div(self_float, other_float))
+        result = aten_trunc(op.Div(self, other))
     else:  # rounding_mode == "floor"
-        result = op.Floor(op.Div(self_float, other_float))
+        result = op.Floor(op.Div(self, other))
 
-    result = op.CastLike(result, self)
     return result
 
 

@@ -6,6 +6,7 @@ import sys
 import time
 import traceback
 from typing import Any, Mapping
+import difflib
 
 import numpy as np
 import onnx
@@ -113,6 +114,12 @@ expected = {expected}
 actual = {actual}
 ```
 
+### Difference
+
+```diff
+{diff}
+```
+
 ### Full error stack
 
 ```
@@ -178,6 +185,13 @@ def create_mismatch_report(
     error_text = str(error)
     error_stack = error_text + "\n" + "".join(traceback.format_tb(error.__traceback__))
     short_test_name = test_name.split(".")[-1]
+    diff = difflib.unified_diff(
+        str(actual).splitlines(),
+        str(expected).splitlines(),
+        tofile="actual",
+        fromfile="expected",
+        lineterm="",
+    )
     markdown = _MISMATCH_MARKDOWN_TEMPLATE.format(
         test_name=test_name,
         short_test_name=short_test_name,
@@ -186,6 +200,7 @@ def create_mismatch_report(
         kwargs=kwargs,
         expected=expected,
         actual=actual,
+        diff="\n".join(diff),
         error_stack=error_stack,
     )
 
