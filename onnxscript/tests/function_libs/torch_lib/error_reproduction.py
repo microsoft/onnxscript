@@ -140,9 +140,15 @@ actual = {actual}
 
 ### Difference
 
+<details><summary>Details</summary>
+<p>
+
 ```diff
 {diff}
 ```
+
+</p>
+</details>
 
 ### Full error stack
 
