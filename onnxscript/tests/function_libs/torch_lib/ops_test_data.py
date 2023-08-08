@@ -662,6 +662,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
+    TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("full", core_ops.aten_full),
     TorchLibOpInfo(

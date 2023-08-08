@@ -2773,10 +2773,11 @@ def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Floor(self)
 
 
-def aten_floor_divide(self: TensorType, other: TensorType) -> TensorType:
+@torch_op("aten::floor_divide")
+def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Floor(op.Div(self, other))
 
 
 def aten_fmax(self: TensorType, other: TensorType) -> TensorType:
