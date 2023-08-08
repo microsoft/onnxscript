@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import difflib
 import pathlib
 import platform
 import sys
 import time
 import traceback
 from typing import Any, Mapping
-import difflib
 
 import numpy as np
 import onnx
@@ -97,6 +97,8 @@ CREATE_REPRODUCTION_REPORT=1 python -m pytest onnxscript/tests/function_libs/tor
 
 ### Inputs
 
+Shapes: `{input_shapes}`
+
 ```python
 inputs = {inputs}
 kwargs = {kwargs}
@@ -108,11 +110,15 @@ kwargs = {kwargs}
 expected = {expected}
 ```
 
+Shape: `{expected_shape}`
+
 ### Actual output
 
 ```python
 actual = {actual}
 ```
+
+Shape: `{actual_shape}`
 
 ### Difference
 
@@ -188,18 +194,27 @@ def create_mismatch_report(
     diff = difflib.unified_diff(
         str(actual).splitlines(),
         str(expected).splitlines(),
-        tofile="actual",
-        fromfile="expected",
+        fromfile="actual",
+        tofile="expected",
         lineterm="",
+    )
+    input_shapes = repr(
+        [
+            f"Tensor<{inp.shape}, dtype={inp.dtype}>" if isinstance(inp, torch.Tensor) else inp
+            for inp in inputs
+        ]
     )
     markdown = _MISMATCH_MARKDOWN_TEMPLATE.format(
         test_name=test_name,
         short_test_name=short_test_name,
         sample_num=sample_num,
+        input_shapes=input_shapes,
         inputs=inputs,
         kwargs=kwargs,
         expected=expected,
+        expected_shape=expected.shape if isinstance(expected, torch.Tensor) else None,
         actual=actual,
+        actual_shape=actual.shape if isinstance(actual, torch.Tensor) else None,
         diff="\n".join(diff),
         error_stack=error_stack,
     )

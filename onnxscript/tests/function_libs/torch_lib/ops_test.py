@@ -267,7 +267,7 @@ def run_test_output_match(
                     except AssertionError as e:
                         if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
                             error_reproduction.create_mismatch_report(
-                                test_name, j, inputs, cpu_sample.kwargs, actual, expected, e
+                                test_name, i, inputs, cpu_sample.kwargs, actual, expected, e
                             )
                         if len(flattened_torch_outputs) > 1:
                             raise AssertionError(f"Output {j} mismatch") from e
