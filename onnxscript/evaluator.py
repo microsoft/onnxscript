@@ -381,10 +381,11 @@ def _ort_to_os_value(v):
     """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
+    if np.issctype(type(v)):
+        # E.g. np.int64
+        return tensor.Tensor(np.array(v))
     if isinstance(v, list):
         return [_ort_to_os_value(x) for x in v]
-    if isinstance(v, np.bool_):
-        return tensor.Tensor(np.array(v))
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
     raise TypeError(f"Unexpected ORT value type {type(v)}.")
@@ -503,7 +504,7 @@ class ORTEvaluator(BaseEvaluator):
         return _call_ort(schema, inputs, attributes, closure)
 
 
-class OnnxReferenceRuntimeEvaluator(Evaluator):
+class OnnxReferenceRuntimeEvaluator(BaseEvaluator):
     """Evaluates ONNX ops using ONNX Runtime."""
 
     def _eval(self, schema, inputs, attributes, closure):
