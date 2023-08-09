@@ -12,11 +12,19 @@ Usage:
 
     pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k nn_functional_scaled_dot_product_attention
 
+## Environment variables
+
+1. Set environment variable `CATCH_ORT_SEGFAULT=1` to catch segmentation faults
+in onnxruntime by running the inference sessions in a separate process.
+
+2. Set `CREATE_REPRODUCTION_REPORT=1` to create markdown files for reproduction of
+errors.
 """
 from __future__ import annotations
 
+import os
 import unittest
-from typing import Any, Callable, Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 import numpy as np
 import onnx
@@ -29,7 +37,11 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
+from onnxscript.tests.function_libs.torch_lib import (
+    error_reproduction,
+    ops_test_common,
+    ops_test_data,
+)
 
 # All dtypes will be tested on the generated symbolic functions.
 # complex64 will be flattened to float32.
@@ -39,14 +51,12 @@ TESTED_DTYPES = (
     # Uncomment below item when we really need testing it
     # torch.bfloat16,
     # torch.float64,
-    # torch.bool,
+    torch.bool,
     # torch.int8,
     # torch.int16,
-    # torch.int32,
+    torch.int32,
     torch.int64,
     # torch.uint8,
-    # torch.complex64,
-    # ......
 )
 # NOTE: torch.complex32 is experimental in torch
 COMPLEX_TYPES = (torch.complex64,)
@@ -58,7 +68,7 @@ def dtypes_except(*dtypes: torch.dtype) -> Sequence[torch.dtype]:
 
 
 def _should_skip_xfail_test_sample(
-    op_name: str, sample
+    op_name: str, sample, dtype: torch.dtype
 ) -> Tuple[Optional[str], Optional[str]]:
     """Returns a reason if a test sample should be skipped."""
     if op_name not in ops_test_data.OP_WITH_SKIPPED_XFAIL_SUBTESTS:
@@ -67,21 +77,12 @@ def _should_skip_xfail_test_sample(
         # Linear search on ops_test_data.SKIP_XFAIL_SUBTESTS. That's fine because the list is small.
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
+            if decorator_meta.dtypes is not None and dtype not in decorator_meta.dtypes:
+                # Not applicable for this dtype
+                continue
             if decorator_meta.matcher(sample):
                 return decorator_meta.test_behavior, decorator_meta.reason
     return None, None
-
-
-def _split_function_and_wrangler(
-    onnx_function_and_wrangler: Callable[..., Any]
-    | tuple[Callable[..., Any], Callable[..., Any]]
-) -> tuple[Callable[..., Any], Callable[..., Any] | None]:
-    """Splits a function with an optional input wrangler into a function and an input wrangler."""
-    if isinstance(onnx_function_and_wrangler, tuple):
-        return onnx_function_and_wrangler
-
-    assert callable(onnx_function_and_wrangler)
-    return onnx_function_and_wrangler, None
 
 
 class TestFunctionValidity(unittest.TestCase):
@@ -196,7 +197,7 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample)
+            test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample, dtype)
 
             with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):
                 input_onnx = [ops_test_common.convert_tensor_to_numpy(x) for x in inputs]
@@ -220,7 +221,8 @@ def run_test_output_match(
                     # TODO(justinchuby): Find a more general solution
                     reference_torch_outputs = [reference_torch_outputs]
 
-                function_output = function_executor(reference_torch_outputs)(
+                test_name = test_suite.id()
+                function_output = function_executor(test_name, reference_torch_outputs)(
                     onnx_function, input_onnx, kwargs_onnx
                 )
                 # Finally we re-flatten everything
@@ -263,6 +265,10 @@ def run_test_output_match(
                             check_device=False,
                         )
                     except AssertionError as e:
+                        if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+                            error_reproduction.create_mismatch_report(
+                                test_name, i, inputs, cpu_sample.kwargs, actual, expected, e
+                            )
                         if len(flattened_torch_outputs) > 1:
                             raise AssertionError(f"Output {j} mismatch") from e
                         raise

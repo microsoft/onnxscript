@@ -2,20 +2,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import typing
 import warnings
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Final,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -76,6 +66,22 @@ ValidTorchValueType: TypeAlias = Union[
 # TODO(justinchuby): Build a context manager to handle source information.
 
 
+def _rename_intermediate_value(name: str) -> str:
+    """Prepend `_val_` to a numeric tensor name make it valid in ONNX.
+
+    The TorchScript graph creates numeric value names by default. e.g. `0`, `1`.
+    These are not legal ONNX tensor names, since ONNX requires the names to be valid
+    C variable names.
+
+    It also improves readability by making the names less likely to be confused
+    with shape values.
+    """
+    if name.isdigit():
+        # Prefix with `_` to avoid name collision
+        return f"_val_{name}"
+    return name
+
+
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
@@ -84,6 +90,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         self._torch_value: torch.Value = value
         self._concrete_value: Optional[np.ndarray] = None
         self._shape: Optional[Tuple[int | None, ...]] = None
+        self._torch_dtype: Optional[torch.dtype] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
 
@@ -128,7 +135,10 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         if value_type is None:
             return None
         value_type = typing.cast(torch.TensorType, value_type)
-        shape = value_type.varyingSizes()
+        if isinstance(value_type, torch.OptionalType):
+            shape = value_type.getElementType().varyingSizes()  # type: ignore[attr-defined]
+        else:
+            shape = value_type.varyingSizes()
         if shape is None:
             return None
         return tuple(shape)
@@ -141,15 +151,19 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     @property  # type: ignore[override]
     def dtype(self) -> torch.dtype | None:
         # TODO: Return numpy dtype
+        if self._torch_dtype is not None:
+            return self._torch_dtype
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         )
         if torch_dtype == _type_utils.JitScalarType.UNDEFINED:
             return None
-        return torch_dtype.dtype()
+        self._torch_dtype = torch_dtype.dtype()
+        return self._torch_dtype
 
     @dtype.setter
     def dtype(self, dtype: torch.dtype):
+        self._torch_dtype = dtype
         self._torch_value.setType(self._torch_value.type().with_dtype(dtype))
 
     @property
@@ -454,6 +468,7 @@ class TorchScriptGraph:
                 self._torch_graph, "prim::Constant", inputs=(), attributes={}
             )[0]
             value.setType(torch.OptionalType.ofTensor())
+            value.setDebugName(_rename_intermediate_value(value.debugName()))
             return value
 
         if isinstance(constant, bool):
@@ -475,12 +490,14 @@ class TorchScriptGraph:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
             )
-        return _create_op_call_in_torch_graph(
+        value = _create_op_call_in_torch_graph(
             self._torch_graph,
             "onnx::Constant",
             inputs=(),
             attributes=dict(value=constant_tensor),
         )[0]
+        value.setDebugName(_rename_intermediate_value(value.debugName()))
+        return value
 
     @runtime_typing.checked
     def _add_torchscript_op_call(
@@ -524,9 +541,15 @@ class TorchScriptGraph:
             attributes=onnx_attributes,
             n_outputs=n_outputs,
         )
-        if len(result) <= 1:
-            return TorchScriptTensor(result[0])
-        return tuple(TorchScriptTensor(v) for v in result)
+        assert result, "Expected at least one output from ONNX op call."
+        if len(result) == 1:
+            tensor = TorchScriptTensor(result[0])
+            tensor.name = _rename_intermediate_value(tensor.name)
+            return tensor
+        tensors = tuple(TorchScriptTensor(v) for v in result)
+        for tensor in tensors:
+            tensor.name = _rename_intermediate_value(tensor.name)
+        return tensors
 
     @runtime_typing.checked
     def fetch_function_proto_dict(
@@ -656,8 +679,8 @@ class TorchScriptGraph:
         ] = self.fetch_function_proto_dict(opset_version)
         unique_custom_domains: Dict[str, int] = {}
 
-        for _, function_proto in function_proto_dict.items():
-            # TODO: All local function domain versions are hardcoded as 1.
+        for function_proto in function_proto_dict.values():
+            # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function_proto.domain] = 1
 
         (
@@ -676,7 +699,11 @@ class TorchScriptGraph:
             keep_initializers_as_inputs=False,
             custom_opsets={},
             add_node_names=True,
-            onnx_file_path="",
+            # TODO(#493): Passing in this instead of reading from env.
+            # User must put the exported model file in the same folder to launch ORT.
+            onnx_file_path=os.path.join(
+                os.getenv("EXTERNAL_ONNX_INITIALIZER_FOLDER", ""), "dummy_model_path.onnx"
+            ),
             node_attr_to_name={},
         )
 
@@ -710,7 +737,3 @@ class TorchScriptGraph:
                 self.torch_graph,
             )
         return onnx_model
-
-    def apply(self, graph_pass: Callable, *args, **kwargs) -> None:
-        """Apply a graph pass to the graph."""
-        graph_pass(self._torch_graph, *args, **kwargs)

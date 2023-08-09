@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "onnxscript"
 dynamic = ["version"]
-description = "Authoring ONNX functions in Python"
+description = "Naturally author ONNX functions and models using a subset of Python"
 authors = [{ name = "Microsoft Corporation", email = "onnx@microsoft.com" }]
-urls = { "Repository" = "https://github.com/onnx/onnxscript" }
+urls = { "Repository" = "https://github.com/microsoft/onnxscript" }
 readme = "README.md"
 requires-python = ">=3.8"
 license = { file = "LICENSE" }
@@ -22,7 +22,7 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
-  "License :: OSI Approved :: Apache Software License",
+  "License :: OSI Approved :: MIT License",
 ]
 dependencies = ["numpy", "onnx>=1.14", "typing_extensions"]
 
@@ -36,7 +36,7 @@ onnx = ["py.typed"]
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
-addopts = "-ra --tb=short --color=yes"
+addopts = "-rsfEX --tb=short --color=yes"
 
 [tool.mypy]
 follow_imports = "silent"   # TODO: Remove when we fix all the mypy errors
@@ -115,7 +115,9 @@ select = [
     "ISC", # flake8-implicit-str-concat
     "N", # pep8-naming
     "NPY", # modern numpy
+    "PERF", # Perflint
     "RUF", # Ruff-specific rules
+    "T10", # flake8-debugger
     "TID252", # Disallow relative imports
     "UP", # pyupgrade
     "W", # pycodestyle
@@ -136,6 +138,8 @@ ignore = [
     "N806",
     "N999", # Invalid module name
     "NPY002", # We may not always need a generator
+    "PERF203", # try-except in loops sometimes necessary
+    "PERF401", # List comprehension is not always readable
     "UP006", # keep-runtime-typing
     "UP007", # keep-runtime-typing
 ]

@@ -4,8 +4,7 @@ import ast
 import unittest
 from typing import Any
 
-from onnxscript import analysis
-from onnxscript._internal import ast_utils
+from onnxscript._internal import analysis, ast_utils
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.sourceinfo import formatter
 
@@ -47,6 +46,19 @@ class TestLivenessAnalysis(unittest.TestCase):
             return y + 1
 
         self.assertLiveness(basic_eg, [["x"], ["y"], ["y"]])
+
+    def test_doc_string(self):
+        def basic_eg(x):
+            # live = {x}
+            """This is a docstring."""
+            # live = {x}
+            y = x + 1
+            # live = {y}
+            x = 1
+            # live = {y}
+            return y + 1
+
+        self.assertLiveness(basic_eg, [["x"], ["x"], ["y"], ["y"]])
 
     def test_for_loop(self):
         def loop_eg():
@@ -161,6 +173,77 @@ class TestExposedUses(unittest.TestCase):
             return op.Dummy(x)
 
         self.assertUses(f, {"x"})
+
+    def test_doc_string(self):
+        def f(x):
+            """This is a docstring."""
+            x = x + 10
+            y = 20
+            z = x + y
+            x = 30 + z
+
+        self.assertUses(f, {"x"})
+
+
+class TestAssignedVarAnalysis(unittest.TestCase):
+    def assert_assigned_vars(self, f, expected: set[str]):
+        source, parse_tree = ast_utils.get_src_and_ast(f)
+        result = analysis.assigned_vars(parse_tree.body, formatter(source))
+        self.assertEqual(result, expected)
+
+    def test_basic_defs(self):
+        def f(x):
+            x = x + 1
+            y = x + 2
+            return y
+
+        self.assert_assigned_vars(f, {"x", "y"})
+
+    def test_if_defs(self):
+        def f(x):
+            if x > 1:
+                y = x + 1
+                z = 2 * y
+            else:
+                t = x + 2
+                z = 3 * t
+            return z
+
+        self.assert_assigned_vars(f, {"z", "y", "t"})
+
+    def test_loop_defs(self):
+        def f(x):
+            sum = 0
+            while x > 0:
+                x = x - 1
+                square = x * x
+                sum = sum + square
+            return sum
+
+        self.assert_assigned_vars(f, {"sum", "x", "square"})
+
+    def test_if_loop_defs(self):
+        def f(x):
+            if x > 0:
+                sum = 0
+                while x > 0:
+                    x = x - 1
+                    square = x * x
+                    sum = sum + square
+            else:
+                sum = 0
+            return sum
+
+        self.assert_assigned_vars(f, {"sum", "x", "square"})
+
+    def test_doc_string(self):
+        def f(x):
+            """This is a docstring."""
+            x = x + 1
+            y = x + 2
+            return y
+
+        self.assert_assigned_vars(f, {"x", "y"})
 
 
 if __name__ == "__main__":
