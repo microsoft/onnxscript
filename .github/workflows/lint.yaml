@@ -73,6 +73,8 @@ jobs:
         run: |
           python -m lintrunner_adapters to-sarif lint.json lintrunner.sarif
       - name: Upload SARIF file
+        # Use always() to always upload SARIF even if lintrunner returns with error code
+        # To toggle linter comments in the files page, press `i` on the keyboard
         if: always()
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v2
