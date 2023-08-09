@@ -398,12 +398,6 @@ def _prepare_model_and_inputs_for_eager(
 ):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
-    import onnxruntime as ort  # pylint: disable=import-outside-toplevel
-    from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
-        Fail,
-        InvalidArgument,
-        InvalidGraph,
-    )
 
     implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
@@ -460,6 +454,7 @@ def _call_ort(
 ):
     # Delay import onnxruntime so that onnxscript can be used without
     # installing onnxruntime.
+    import onnxruntime as ort
     from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
         Fail,
         InvalidArgument,
