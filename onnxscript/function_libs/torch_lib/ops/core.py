@@ -6251,7 +6251,7 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::slice_scatter", trace_only=True)
+@torch_op("aten::slice_scatter")
 def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
@@ -6268,41 +6268,21 @@ def aten_slice_scatter(
     # Assert(end-start == shape(src) > 0)
     # Try torch sample to get more information:
     # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
-    # e.g. if dim=2, shape=5, permute will be [0,1]+[4]+[2,3]=[0,1,4,2,3]
-    last = len(src.shape)
-    perm = list(range(0, last))
-    perm.insert(dim, perm.pop(-1))
-    return _aten_slice_scatter_onnx(self, src, start, end, step, dim, perm)
-
-
-@torch_op("aten::slice_scatter", private=True)
-def _aten_slice_scatter_onnx(
-    self: TTensor,
-    src: TTensor,
-    start: INT64,
-    end: INT64,
-    step: INT64,
-    dim: int,
-    perm: Sequence[int],
-) -> TTensor:
-    neg_1 = op.Constant(value_ints=[-1])
-    # Get shapes expcept specifide dim
-    # e.g. if dim=2, shape=(2,3,5,7), shape_expand will be (2,3,7,1)
-    src_shape = op.Shape(src)
-    last_dim = op.Reshape(op.Size(src_shape), neg_1)
-    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
-    shape_before_dim = op.Slice(src_shape, op.Constant(value_ints=[0]), dim_tensor)
-    shape_after_dim = op.Slice(src_shape, op.Add(dim_tensor, 1), last_dim)
-    shape_expand = op.Concat(
-        shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    self_shape = op.Shape(self)
+    dim_shape = op.Gather(self_shape, dim, axis=0)
+    index_base = op.Range(0, dim_shape, 1)
+    index_base = op.Slice(
+        index_base,
+        op.Unsqueeze(start, zero),
+        op.Unsqueeze(end, zero),
+        zero,
+        op.Unsqueeze(step, zero),
     )
-    # Generate index but not finalized, need to do transpose later
-    # e.g. [[0,1,2],[0,1,2],[0,1,2]...,[0,1,2]], total count = 2x3x7
-    index_base = op.Range(start, end, step)  # e.g. [0,1,2]
-    index_expand = op.Expand(index_base, shape_expand)
-    indices = op.Transpose(index_expand, perm=perm)
-
-    return op.ScatterElements(self, indices, src, axis=dim)
+    index_base = op.Unsqueeze(index_base, op.Range(1, op.Size(self_shape) - dim, 1))
+    shape_expand = op.ScatterElements(self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0)
+    indices = op.Expand(index_base, shape_expand)
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
