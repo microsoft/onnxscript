@@ -6283,6 +6283,7 @@ def aten_slice_scatter(
     index_base = op.Unsqueeze(index_base, op.Range(1, op.Size(self_shape) - dim, 1))
     shape_expand = op.ScatterElements(self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0)
     indices = op.Expand(index_base, shape_expand)
+    return op.ScatterElements(self, indices, src, axis=dim)
 
 
 def aten_slogdet(self: TensorType) -> tuple[TensorType, TensorType]:
