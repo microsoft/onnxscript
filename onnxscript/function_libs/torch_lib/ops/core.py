@@ -2227,6 +2227,27 @@ def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: str) -> TFloat:
     return result
 
 
+@torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
+def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
+    """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor
+
+    Variant for integer inputs.
+    """
+    # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
+    assert rounding_mode in {"trunc", "floor"}
+
+    quotient = op.Cast(op.Div(self, other), to=FLOAT.dtype)
+
+    if rounding_mode == "trunc":
+        # Rounds the results of the division towards zero.
+        # Equivalent to C-style integer division
+        result = aten_trunc(quotient)
+    else:  # rounding_mode == "floor"
+        result = op.Floor(quotient)
+
+    return op.CastLike(result, self)
+
+
 @torch_op("aten::dot")
 def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     """dot(Tensor self, Tensor tensor) -> Tensor"""
