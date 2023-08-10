@@ -17,14 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 def torch_lib_onnx_functions_from_registry() -> Generator[onnxscript.OnnxFunction, None, None]:
-    for _, op in registration.default_registry.items():
+    for op in registration.default_registry.values():
         for func in (*op.overloads, *op.privates, *op.complex):
             if isinstance(func, onnxscript.OnnxFunction):
                 yield func
 
 
 class TestDeduceTypeConstraints(unittest.TestCase):
-    _SKIP_FUNCTIONS_WITH_LOOP_OR_SCAN = ("_aten_as_strided_onnx",)
+    _SKIP_FUNCTIONS_WITH_LOOP_OR_SCAN = (
+        "_aten_as_strided_onnx",
+        "_aten_unfold_onnx",
+        "_aten_embedding_bag_onnx",
+    )
     _SKIP_FUNCTIONS_WITH_NESTED_FUNCTION = (
         "aten_atleast_1d",
         "aten_atleast_2d",
