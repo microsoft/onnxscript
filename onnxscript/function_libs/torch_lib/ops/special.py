@@ -15,7 +15,7 @@ from typing import Optional, Sequence
 
 from onnxscript import FLOAT
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TFloatOrBFloat16, TReal
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloatOrBFloat16
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -86,21 +86,21 @@ def aten_special_entr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::erf")
-def aten_special_erf(self: TReal) -> TReal:
+@torch_op(("aten::erf", "aten::special_erf"))
+def aten_special_erf(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """erf(Tensor self) -> Tensor"""
 
     return op.Erf(self)
 
 
-@torch_op("aten::erfc")
-def aten_special_erfc(self: TReal) -> TReal:
+@torch_op(("aten::erfc", "aten::special_erfc"))
+def aten_special_erfc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """erfc(Tensor self) -> Tensor"""
 
     return op.Sub(1, op.Erf(self))
 
 
-@torch_op("aten::erfcx")
+@torch_op("aten::special_erfcx")
 def aten_special_erfcx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """special_erfcx(Tensor self) -> Tensor"""
 

@@ -10,6 +10,7 @@ import pathlib
 import sys
 import textwrap
 import types
+import typing
 import unittest
 import warnings
 
@@ -24,7 +25,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.tests.common import onnx_script_test_case, testutils
@@ -155,7 +156,7 @@ class TestConverter(testutils.TestBase):
             def square(x):
                 return op.Mul(undefined, x)  # noqa: F821
 
-        self.assertIn("square:3", str(e.exception))
+        self.assertIn("Unbound name: undefined", str(e.exception))
 
     def test_model_generation(self):
         @script()
@@ -414,7 +415,7 @@ class TestConverter(testutils.TestBase):
             opset=op, global_names=global_names, source=source, default_opset=op
         )
         try:
-            cvt.top_level_stmt(f_ast)
+            cvt.translate_function_def(f_ast)
         except converter.TranslationError as e:
             if msg not in str(e):
                 raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
@@ -431,7 +432,7 @@ class TestConverter(testutils.TestBase):
             return r
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
+        self.check_failure(f1, f"Left term must be a tuple not '<class '{ast_name}.Name'>'")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
@@ -558,6 +559,113 @@ class TestConverter(testutils.TestBase):
         # None should be translated into an empty string in NodeProto's input list
         node = none_as_input.to_function_proto().node[0]
         self.assertEqual(node.input[1], "")
+
+    def test_unique_names_in_subscript_expr(self):
+        @script()
+        def nested_index_expr(X):
+            return op.Add(op.Shape(X)[-1], 1)
+
+        nodes = nested_index_expr.to_function_proto().node
+        assigned_names = [n.output[0] for n in nodes]
+        self.assertEqual(len(assigned_names), len(set(assigned_names)))
+
+    def test_no_duplicate_output_name(self):
+        """Test that the converter does not generate duplicate output names."""
+
+        @script()
+        def duplicate_output(X):
+            Y = op.Neg(X)
+            return Y, Y
+
+        # The converter should generate distinct names for the two outputs
+        outputs = duplicate_output.to_function_proto().output
+        self.assertNotEqual(outputs[0], outputs[1])
+
+    def test_bool_attr_promotion(self):
+        @script()
+        def if_then_else(flag: bool, Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: bool, Y, Z):
+            tmp1 = op.Constant(value_int=flag)
+            tmp2 = op.Cast(tmp1, to=BOOL.dtype)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_bool_list_attr_promotion(self):
+        @script()
+        def if_then_else(flag: typing.List[bool], Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: typing.List[bool], Y, Z):
+            tmp1 = op.Constant(value_ints=flag)
+            tmp2 = op.Cast(tmp1, to=9)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_empty_ints_attribute(self):
+        @script()
+        def empty_ints():
+            return op.Constant(value_ints=[])
+
+        expected = np.array([], dtype=np.int64)
+        self.check_run(empty_ints, [], expected)
+
+    def test_empty_floats_attribute(self):
+        @script()
+        def empty_floats():
+            return op.Constant(value_floats=[])
+
+        expected = np.array([], dtype=np.float32)
+        self.check_run(empty_floats, [], expected)
+
+    def test_int_as_tensor_attribute(self):
+        @script()
+        def int_as_tensor():
+            return op.Constant(value=17)
+
+        expected = np.array(17, dtype=np.int64)
+        self.check_run(int_as_tensor, [], expected)
+
+    def test_int_list_as_tensor_attribute(self):
+        @script()
+        def int_list_as_tensor():
+            return op.Constant(value=[13, 17])
+
+        expected = np.array([13, 17], dtype=np.int64).reshape((2,))
+        self.check_run(int_list_as_tensor, [], expected)
+
+    def test_float_as_tensor_attribute(self):
+        @script()
+        def float_as_tensor():
+            return op.Constant(value=17.0)
+
+        expected = np.array([17], dtype=np.float32).reshape(())
+        self.check_run(float_as_tensor, [], expected)
+
+    def test_float_list_as_tensor_attribute(self):
+        @script()
+        def float_list_as_tensor():
+            return op.Constant(value=[13.0, 17.0])
+
+        expected = np.array([13, 17], dtype=np.float32).reshape((2,))
+        self.check_run(float_list_as_tensor, [], expected)
+
+    def test_loop_inside_if(self):
+        @script(default_opset=op)
+        def sum(n: INT64) -> INT64:
+            sum = op.Constant(value=0)
+            if n > 0:
+                for i in range(n):
+                    sum = sum + i
+            return sum
+
+        self.check_run(sum, [np.array(5, dtype=np.int64)], np.array(10, dtype=np.int64))
+        self.check_run(sum, [np.array(-5, dtype=np.int64)], np.array(0, dtype=np.int64))
 
 
 if __name__ == "__main__":
