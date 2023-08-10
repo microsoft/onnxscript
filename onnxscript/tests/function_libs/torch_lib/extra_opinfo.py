@@ -191,8 +191,9 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
 
 
 def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
     # Adapted from https://github.com/pytorch/pytorch/blob/01069ad4be449f376cf88a56d842b8eb50f6e9b6/torch/testing/_internal/opinfo/core.py#L2448C1-L2541C79
-    is_fp16_or_chalf = dtype == torch.complex32 or dtype == torch.half
+    is_fp16_or_chalf = dtype in (torch.complex32, torch.half)
     if not is_fp16_or_chalf:
         nd_tensor = functools.partial(
             opinfo_core.make_tensor,
@@ -232,10 +233,10 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
             requires_grad=requires_grad,
         )
 
-    for normalization, forward in itertools.product((1, 2, 3), (True, False)):
+    for normalization, forward, onesided in itertools.product((1, 2, 3), (True, False), (True, False)):
         # 1-D
         yield opinfo_core.SampleInput(
-            oned_tensor(), dim=(0,), normalization=normalization, forward=forward
+            oned_tensor(), dim=(0,), normalization=normalization, forward=forward, onesided=onesided
         )
         # N-D
         for dim in [
@@ -251,7 +252,7 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
             (-3, -2, -1),
         ]:
             yield opinfo_core.SampleInput(
-                nd_tensor(), dim=dim, normalization=normalization, forward=forward
+                nd_tensor(), dim=dim, normalization=normalization, forward=forward, onesided=onesided
             )
 
 
