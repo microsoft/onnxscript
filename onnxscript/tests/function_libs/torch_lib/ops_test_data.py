@@ -650,6 +650,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyEager",
         reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
     ),
+    TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int, trace_only=True).skip(
+        variant_name="no_rounding_mode",
+        reason="this variation requires the rounding_mode argument",
+    ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
         "empty",
@@ -1857,7 +1861,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
-ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode",))
+ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode", "div_mode_int"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))

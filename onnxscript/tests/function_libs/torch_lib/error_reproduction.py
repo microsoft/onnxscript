@@ -99,32 +99,56 @@ CREATE_REPRODUCTION_REPORT=1 python -m pytest onnxscript/tests/function_libs/tor
 
 Shapes: `{input_shapes}`
 
+<details><summary>Details</summary>
+<p>
+
 ```python
-inputs = {inputs}
 kwargs = {kwargs}
+inputs = {inputs}
 ```
 
+</p>
+</details>
+
 ### Expected output
+
+Shape: `{expected_shape}`
+
+<details><summary>Details</summary>
+<p>
 
 ```python
 expected = {expected}
 ```
 
-Shape: `{expected_shape}`
+</p>
+</details>
 
 ### Actual output
+
+Shape: `{actual_shape}`
+
+<details><summary>Details</summary>
+<p>
 
 ```python
 actual = {actual}
 ```
 
-Shape: `{actual_shape}`
+</p>
+</details>
 
 ### Difference
+
+<details><summary>Details</summary>
+<p>
 
 ```diff
 {diff}
 ```
+
+</p>
+</details>
 
 ### Full error stack
 
