@@ -164,8 +164,9 @@ class TestModelSaving(unittest.TestCase):
         model = MLP(input_size, hidden_size, output_size)
         x = torch.randn(batch_size, input_size)
 
-        # No error
-        torch.onnx.dynamo_export(model, x)
+        model_proto = torch.onnx.dynamo_export(model, x).model_proto
+        # Assert model is larger than 2GB (~=3GB)
+        self.assertGreater(model_proto.ByteSize(), 2**31)
 
 
 if __name__ == "__main__":
