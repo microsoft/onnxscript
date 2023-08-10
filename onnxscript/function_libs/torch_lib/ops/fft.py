@@ -49,9 +49,15 @@ def _fftn_onnx(
     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
     # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
 
-    transformed = self
+    # The 0-th dimension in ONNX DFT-17 is the batch dimension. We need to add a new
+    # dimension at the beginning to represent the batch dimension.
+    transformed = op.Unsqueeze(self, axes=[0])
+    # transformed = self
     for dim_ in dims:
+        dim_ = dim_ + 1  # Add 1 to account for the batch dimension
         transformed = op.DFT(transformed, axis=dim_, inverse=inverse, onesided=onesided)
+    # Remove the batch dimension
+    transformed = op.Squeeze(transformed, axes=[0])
 
     # Obtain the total_sample_count (n) for normalization
     total_sample_count = op.Constant(value_int=1)
