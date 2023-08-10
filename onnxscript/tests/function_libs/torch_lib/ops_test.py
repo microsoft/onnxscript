@@ -271,8 +271,8 @@ def run_test_output_match(
                                 i,
                                 inputs,
                                 cpu_sample.kwargs,
-                                function_output,
-                                expected.numpy(),
+                                actual,
+                                expected,
                                 e,
                             )
                         if len(flattened_torch_outputs) > 1:

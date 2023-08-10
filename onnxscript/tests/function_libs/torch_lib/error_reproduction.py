@@ -212,6 +212,8 @@ def create_mismatch_report(
     expected,
     error: Exception,
 ) -> None:
+    torch.set_printoptions(threshold=sys.maxsize)
+
     error_text = str(error)
     error_stack = error_text + "\n" + "".join(traceback.format_tb(error.__traceback__))
     short_test_name = test_name.split(".")[-1]
