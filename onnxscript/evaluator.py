@@ -23,10 +23,11 @@ import numpy as np
 import onnx
 import onnx.defs
 import onnx.helper
+import onnx.reference
 from typing_extensions import TypeAlias
 
-from onnxscript import irbuilder, onnx_opset, tensor, utils, values
-from onnxscript._internal import autocast, param_manipulation
+from onnxscript import irbuilder, onnx_opset, tensor, values
+from onnxscript._internal import autocast, param_manipulation, utils
 
 UserModeValue: TypeAlias = Union[Optional[np.ndarray], Sequence["UserModeValue"]]
 
@@ -361,51 +362,54 @@ def compute_num_outputs(
     return len(schema.outputs)
 
 
-def _os_to_ort_value(v):
-    """Converts an onnxscript encoding of an ONNX value into the encoding used by ORT."""
+def _onnxscript_to_numpy_value(v):
+    """Converts an onnxscript encoding of an ONNX value into the numpy encoding used by runtimes."""
     if isinstance(v, tensor.Tensor):
         return v.value
     if isinstance(v, list):
-        return [_os_to_ort_value(x) for x in v]
+        return [_onnxscript_to_numpy_value(x) for x in v]
     if v is None:
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
         return v
     if isinstance(v, np.ndarray):
         return v
-    raise TypeError(f"Unexpected ORT value type {type(v)}.")
+    raise TypeError(
+        f"Unexpected onnxscript value type '{type(v)}'."
+        "Valid value types are 'Tensor | list[Tensor] | None | np.ndarray | list[np.ndarray]'"
+    )
 
 
-def _ort_to_os_value(v):
+def _numpy_to_onnxscript_value(
+    v: np.ndarray | np.generic | list[np.ndarray] | list[np.generic],
+):
     """Converts an ORT encoding of an ONNX value into the encoding used by onnxscript."""
     if isinstance(v, np.ndarray):
         return tensor.Tensor(v)
+    if np.issctype(type(v)):
+        # Numpy scalar types that are not ndarray
+        # https://numpy.org/doc/stable/reference/arrays.scalars.html
+        return tensor.Tensor(np.array(v))
     if isinstance(v, list):
-        return [_ort_to_os_value(x) for x in v]
+        return [_numpy_to_onnxscript_value(x) for x in v]
     if v is None:
         raise TypeError("Dynamic optional values not yet supported.")
-    raise TypeError(f"Unexpected ORT value type {type(v)}.")
+    raise TypeError(
+        f"Unexpected runtime value type '{type(v)}'."
+        "Valid types are: 'np.ndarray | np.generic | list[np.ndarray] | list[np.generic]'"
+    )
 
 
-def _call_ort(
+def _prepare_model_and_inputs_for_eager(
     schema: onnx.defs.OpSchema,
     args: Sequence[Any],
     kwargs: Mapping[str, Any],
-    implicit_args=None,
+    implicit_args: Optional[Mapping[str, Any]],
 ):
-    # Delay import onnxruntime so that onnxscript can be used without
-    # installing onnxruntime.
-    import onnxruntime as ort  # pylint: disable=import-outside-toplevel
-    from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
-        Fail,
-        InvalidArgument,
-        InvalidGraph,
-    )
-
     implicit_args = implicit_args or {}
     # Convert input values to ORT representation-type:
-    args = [_os_to_ort_value(x) for x in args]
-    implicit_args = {k: _os_to_ort_value(v) for k, v in implicit_args.items()}
+    args = [_onnxscript_to_numpy_value(x) for x in args]
+    implicit_args = {k: _onnxscript_to_numpy_value(v) for k, v in implicit_args.items()}
 
     # Utility to convert kwarg to ONNX AttributeProto:
     def make_attr(key: str, value: Any) -> onnx.AttributeProto:
@@ -442,24 +446,47 @@ def _call_ort(
         ir_version=irbuilder.select_ir_version(schema.since_version, domain=schema.domain),
     )
     model = onnx.shape_inference.infer_shapes(model)
+
+    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
+    session_run_input.update(implicit_args)
+
+    return model, session_run_input, inputs
+
+
+def _call_ort(
+    schema: onnx.defs.OpSchema,
+    args: Sequence[Any],
+    kwargs: Mapping[str, Any],
+    implicit_args: Optional[Mapping[str, Any]],
+):
+    # Delay import onnxruntime so that onnxscript can be used without
+    # installing onnxruntime.
+    import onnxruntime as ort  # pylint: disable=import-outside-toplevel
+    from onnxruntime.capi.onnxruntime_pybind11_state import (  # pylint: disable=import-outside-toplevel
+        Fail,
+        InvalidArgument,
+        InvalidGraph,
+    )
+
+    model, session_run_input, inputs = _prepare_model_and_inputs_for_eager(
+        schema, args, kwargs, implicit_args
+    )
+
     try:
         session = ort.InferenceSession(
             model.SerializeToString(), providers=("CPUExecutionProvider",)
         )
     except (Fail, InvalidGraph, InvalidArgument) as e:
-        raise RuntimeError(
+        raise EagerModeError(
             f"Unable to create onnxruntime InferenceSession "
             f"for executing {schema.domain}.{schema.name} op "
             f"with onnx model\n{utils.proto2text(model)}"
         ) from e
 
-    session_run_input = {name: arg for name, arg in zip(inputs, args) if name != ""}
-    session_run_input.update(implicit_args)
-
     try:
         result = session.run(None, session_run_input)
     except (RuntimeError, Fail) as e:
-        raise RuntimeError(
+        raise EagerModeError(
             f"Unable to execute model operator {schema.name!r} due to {e!r}"
             f"\ninput types:\n"
             f"{pprint.pformat({k: type(v) for k, v in zip(inputs, args)})}"
@@ -469,7 +496,7 @@ def _call_ort(
         ) from e
 
     # Map ORT output values to the onnxscript representation-type.
-    return [_ort_to_os_value(x) for x in result]
+    return [_numpy_to_onnxscript_value(x) for x in result]
 
 
 def _schema_id(schema: onnx.defs.OpSchema) -> tuple[str, str, int]:
@@ -481,6 +508,29 @@ class ORTEvaluator(BaseEvaluator):
 
     def _eval(self, schema, inputs, attributes, closure):
         return _call_ort(schema, inputs, attributes, closure)
+
+
+class OnnxReferenceRuntimeEvaluator(BaseEvaluator):
+    """Evaluates ONNX ops using ONNX Runtime."""
+
+    def _eval(self, schema, inputs, attributes, closure):
+        model, session_run_input, adapted_inputs = _prepare_model_and_inputs_for_eager(
+            schema, inputs, attributes, closure
+        )
+        session = onnx.reference.ReferenceEvaluator(model)
+        try:
+            result = session.run(None, session_run_input)
+        except RuntimeError as e:
+            raise EagerModeError(
+                f"Unable to execute model operator {schema.name!r} due to {e!r}"
+                f"\ninput types:\n"
+                f"{pprint.pformat({k: type(v) for k, v in zip(adapted_inputs, inputs)})}"
+                f"\nmodified input types:\n"
+                f"{pprint.pformat({k: type(v) for k, v in session_run_input.items()})}"
+                f"\ninputs:\n{pprint.pformat(session_run_input)}\n{model}"
+            ) from e
+
+        return [_numpy_to_onnxscript_value(x) for x in result]
 
 
 ort_evaluator = ORTEvaluator()

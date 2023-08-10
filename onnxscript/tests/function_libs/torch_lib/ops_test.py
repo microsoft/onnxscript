@@ -12,9 +12,17 @@ Usage:
 
     pytest onnxscript/tests/function_libs/torch_lib/ops_test.py -k nn_functional_scaled_dot_product_attention
 
+## Environment variables
+
+1. Set environment variable `CATCH_ORT_SEGFAULT=1` to catch segmentation faults
+in onnxruntime by running the inference sessions in a separate process.
+
+2. Set `CREATE_REPRODUCTION_REPORT=1` to create markdown files for reproduction of
+errors.
 """
 from __future__ import annotations
 
+import os
 import unittest
 from typing import Callable, Optional, Sequence, Tuple
 
@@ -29,7 +37,11 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
+from onnxscript.tests.function_libs.torch_lib import (
+    error_reproduction,
+    ops_test_common,
+    ops_test_data,
+)
 
 # All dtypes will be tested on the generated symbolic functions.
 # complex64 will be flattened to float32.
@@ -209,7 +221,8 @@ def run_test_output_match(
                     # TODO(justinchuby): Find a more general solution
                     reference_torch_outputs = [reference_torch_outputs]
 
-                function_output = function_executor(reference_torch_outputs)(
+                test_name = test_suite.id()
+                function_output = function_executor(test_name, reference_torch_outputs)(
                     onnx_function, input_onnx, kwargs_onnx
                 )
                 # Finally we re-flatten everything
@@ -252,6 +265,10 @@ def run_test_output_match(
                             check_device=False,
                         )
                     except AssertionError as e:
+                        if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+                            error_reproduction.create_mismatch_report(
+                                test_name, i, inputs, cpu_sample.kwargs, actual, expected, e
+                            )
                         if len(flattened_torch_outputs) > 1:
                             raise AssertionError(f"Output {j} mismatch") from e
                         raise

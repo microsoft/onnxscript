@@ -32,6 +32,6 @@ onnx_fun = Selu.to_function_proto()
 
 # %%
 # Let's see what the translated function looks like:
-from onnxscript.utils import proto2text  # noqa: E402
+from onnxscript import proto2text  # noqa: E402
 
 print(proto2text(onnx_fun))
