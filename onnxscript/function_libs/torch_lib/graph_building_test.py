@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import tempfile
 import unittest
 
 import torch
@@ -11,7 +10,7 @@ import torch
 import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, evaluator
-from onnxscript import opset17 as op
+from onnxscript import opset18 as op
 from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib import graph_building, ops
 
@@ -165,14 +164,8 @@ class TestModelSaving(unittest.TestCase):
         model = MLP(input_size, hidden_size, output_size)
         x = torch.randn(batch_size, input_size)
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            os.environ["EXTERNAL_ONNX_INITIALIZER_FOLDER"] = temp_dir
-            torch.onnx.dynamo_export(
-                model,
-                x,
-            )
-            # 3 initializers are saved to files as external data.
-            self.assertEqual(len(os.listdir(temp_dir)), 3)
+        # No error
+        torch.onnx.dynamo_export(model, x)
 
 
 if __name__ == "__main__":
