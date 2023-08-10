@@ -732,7 +732,8 @@ class TorchScriptGraph:
                 ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
                     **export_kwargs
                 )
-                onnx_model = onnx.load_model(proto, load_external_data=True)
+                onnx_model = onnx.load_from_string(proto)
+                onnx.load_external_data_for_model(onnx_model, temp_dir)
         else:
             (
                 proto,
