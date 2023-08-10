@@ -233,10 +233,10 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
             requires_grad=requires_grad,
         )
 
-    for normalization, forward, onesided in itertools.product((1, 2, 3), (True, False), (True, False)):
+    for normalization, forward in itertools.product((1, 2, 3), (True, False)):
         # 1-D
         yield opinfo_core.SampleInput(
-            oned_tensor(), dim=(0,), normalization=normalization, forward=forward, onesided=onesided
+            oned_tensor(), dim=(0,), normalization=normalization, forward=forward
         )
         # N-D
         for dim in [
@@ -252,7 +252,7 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
             (-3, -2, -1),
         ]:
             yield opinfo_core.SampleInput(
-                nd_tensor(), dim=dim, normalization=normalization, forward=forward, onesided=onesided
+                nd_tensor(), dim=dim, normalization=normalization, forward=forward
             )
 
 
