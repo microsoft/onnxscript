@@ -2236,7 +2236,7 @@ def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
     # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
     assert rounding_mode in {"trunc", "floor"}
 
-    quotient = op.Cast(op.Div(self, other), to=FLOAT.dtype)
+    quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
 
     if rounding_mode == "trunc":
         # Rounds the results of the division towards zero.
