@@ -724,10 +724,15 @@ class TorchScriptGraph:
             with tempfile.TemporaryDirectory() as temp_dir:
                 onnx_file_path = os.path.join(temp_dir, "exported_model.onnx")
                 export_kwargs["onnx_file_path"] = onnx_file_path
-                _ = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+                (
+                    proto,
+                    _,
+                    _,
+                    _,
+                ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
                     **export_kwargs
                 )
-                onnx_model = onnx.load_model(onnx_file_path, load_external_data=True)
+                onnx_model = onnx.load_model(proto, load_external_data=True)
         else:
             (
                 proto,
