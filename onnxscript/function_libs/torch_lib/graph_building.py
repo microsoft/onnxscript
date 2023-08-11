@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 import typing
 import warnings
 from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
@@ -62,6 +63,9 @@ ValidTorchValueType: TypeAlias = Union[
     bool,
     None,
 ]
+
+# Be sure to leave ample room for the rest of the proto fields.
+_LARGE_MODEL_SIZE_THRESHOLD = int(2**30 * 1.8)  # 1.8GB
 
 # TODO(justinchuby): Build a context manager to handle source information.
 
@@ -340,6 +344,18 @@ def _create_op_call_in_torch_graph(
         _add_attribute_to_torchscript_node(node, key, value)
 
     return node_ouputs
+
+
+def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
+    """Estimate the size of a tensor in bytes.
+
+    Args:
+        tensor: The tensor to estimate the size of.
+
+    Returns:
+        The estimated size of the tensor in bytes.
+    """
+    return tensor.numel() * tensor.element_size()
 
 
 class TorchScriptGraph:
@@ -683,15 +699,15 @@ class TorchScriptGraph:
             # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function_proto.domain] = 1
 
-        (
-            proto,
-            _,
-            _,
-            _,
-        ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+        initializers_size = sum(
+            _tensor_rawdata_size(tensor) for tensor in self.initializers.values()
+        )
+
+        large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
+
+        export_kwargs: dict[str, Any] = dict(
             initializers=self.initializers if include_initializers else {},
             onnx_opset_version=opset_version,
-            # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
             defer_weight_export=False,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
@@ -699,15 +715,42 @@ class TorchScriptGraph:
             keep_initializers_as_inputs=False,
             custom_opsets={},
             add_node_names=True,
-            # TODO(#493): Passing in this instead of reading from env.
-            # User must put the exported model file in the same folder to launch ORT.
-            onnx_file_path=os.path.join(
-                os.getenv("EXTERNAL_ONNX_INITIALIZER_FOLDER", ""), "dummy_model_path.onnx"
-            ),
             node_attr_to_name={},
         )
 
-        onnx_model = onnx.load_from_string(proto)
+        # We decided to cache the model to disk when the model is large.
+        # Alternatively, we could build the ONNX `TensorProto`s in memory
+        # and append them to the model proto.
+        # We did not do it because it is harder to get right (vs. PyTorch's battle-tested
+        # implementation) and creating the `TensorProto`s naively (by converting to numpy)
+        # is slow.
+        cache_model_to_disk = include_initializers and large_model
+
+        if cache_model_to_disk:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                onnx_file_path = os.path.join(temp_dir, "exported_model.onnx")
+                export_kwargs["onnx_file_path"] = onnx_file_path
+                (
+                    proto,
+                    _,
+                    _,
+                    _,
+                ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+                    **export_kwargs
+                )
+                onnx_model = onnx.load_from_string(proto)
+                onnx.load_external_data_for_model(onnx_model, temp_dir)
+        else:
+            (
+                proto,
+                _,
+                _,
+                _,
+            ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+                **export_kwargs
+            )
+            onnx_model = onnx.load_from_string(proto)
+
         onnx_model.functions.extend(function_proto_dict.values())
 
         # `_export_onnx` only exports opset_imports that is visible to it. It does not
@@ -725,10 +768,14 @@ class TorchScriptGraph:
         )
 
         try:
-            onnx_model = onnx.shape_inference.infer_shapes(
-                onnx_model, check_type=True, strict_mode=False, data_prop=True
-            )
-            onnx.checker.check_model(onnx_model, full_check=True)
+            if not cache_model_to_disk:
+                # Only check the model if it is in memory.
+                # Otherwise the checker and shape_inference will fail because
+                # we cannot serialize the model.
+                onnx_model = onnx.shape_inference.infer_shapes(
+                    onnx_model, check_type=True, strict_mode=False, data_prop=True
+                )
+                onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
             logging.debug(
