@@ -277,7 +277,9 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph.add_function_call(function, inputs, attributes)
 
 
-def _add_initializers(model_proto: onnx.ModelProto, initializers: Mapping[str, torch.Tensor]):
+def _add_initializers(
+    model_proto: onnx.ModelProto, initializers: Mapping[str, torch.Tensor]
+) -> None:
     """Add initializers to the model proto."""
     tensor_protos = []
 
@@ -306,7 +308,7 @@ def _add_attribute_to_torchscript_node(
     node: torch.Node,
     key: str,
     value: Union[float, int, str, bytes, Sequence[float], Sequence[int], torch.Tensor],
-):
+) -> torch.Node:
     """Initializes the right attribute based on type of value."""
     if isinstance(value, float):
         return node.f_(key, value)
