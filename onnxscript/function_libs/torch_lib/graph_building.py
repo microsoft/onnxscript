@@ -63,9 +63,6 @@ ValidTorchValueType: TypeAlias = Union[
     None,
 ]
 
-# Be sure to leave ample room for the rest of the proto fields.
-_LARGE_MODEL_SIZE_THRESHOLD = int(2**30 * 1.8)  # 1.8GB
-
 # TODO(justinchuby): Build a context manager to handle source information.
 
 
