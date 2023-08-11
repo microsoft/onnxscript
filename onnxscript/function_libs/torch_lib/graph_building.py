@@ -281,10 +281,13 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
 
 
 def _add_initializers(model_proto: onnx.ModelProto, initializers: Mapping[str, torch.Tensor]):
+    """Add initializers to the model proto."""
     tensor_protos = []
 
     for name, tensor in initializers.items():
-        tensor = tensor.detach().cpu()
+        tensor = tensor.detach().cpu().contiguous()
+        # Take the raw data directly from the tensor to avoid the overhead of
+        # data manipulation in onnx.helper.make_tensor
         raw_data = bytes(
             (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
                 tensor.data_ptr()
