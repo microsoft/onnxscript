@@ -6,14 +6,41 @@
 import unittest
 
 import numpy as np
+import parameterized
 
 import onnxscript
+import onnxscript.evaluator
 import onnxscript.tensor
 from onnxscript import opset17 as op
 from onnxscript import script
 
 
+@parameterized.parameterized_class(
+    (
+        "name",
+        "evaluator",
+    ),
+    [
+        (
+            "reference_runtime",
+            onnxscript.evaluator.OnnxReferenceRuntimeEvaluator(),
+        ),
+        (
+            "onnxruntime",
+            onnxscript.evaluator.ORTEvaluator(),
+        ),
+    ],
+)
 class EagerModeTest(unittest.TestCase):
+    evaluator: onnxscript.evaluator.Evaluator
+
+    def setUp(self):
+        self.default_evaluator = onnxscript.evaluator.default()
+        onnxscript.evaluator.set_default(self.evaluator)
+
+    def tearDown(self):
+        onnxscript.evaluator.set_default(self.default_evaluator)
+
     def test_sequence_input(self):
         @script()
         def Concat(seq):
@@ -35,7 +62,32 @@ def add_with_alpha(this, other, alpha: float = 1.0):
     return op.Add(this, other)
 
 
+@parameterized.parameterized_class(
+    (
+        "name",
+        "evaluator",
+    ),
+    [
+        (
+            "reference_runtime",
+            onnxscript.evaluator.OnnxReferenceRuntimeEvaluator(),
+        ),
+        (
+            "onnxruntime",
+            onnxscript.evaluator.ORTEvaluator(),
+        ),
+    ],
+)
 class TestEagerModeArguments(unittest.TestCase):
+    evaluator: onnxscript.evaluator.Evaluator
+
+    def setUp(self):
+        self.default_evaluator = onnxscript.evaluator.default()
+        onnxscript.evaluator.set_default(self.evaluator)
+
+    def tearDown(self):
+        onnxscript.evaluator.set_default(self.default_evaluator)
+
     def test_op_some_input_by_kwargs(self):
         self.assertEqual(op.Add(1, B=2), 3)
 

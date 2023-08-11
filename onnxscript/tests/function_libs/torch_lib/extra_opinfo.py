@@ -9,12 +9,38 @@ from typing import Any, List
 
 import torch
 from torch import testing as torch_testing
-from torch.testing._internal import (
-    common_dtype,
-    common_methods_invocations,
-    common_utils,
-)
+from torch.testing._internal import common_dtype, common_methods_invocations
 from torch.testing._internal.opinfo import core as opinfo_core
+
+S = 5
+M = 10
+
+
+def sample_inputs__local_scalar_dense(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = (
+        (),
+        (1,),
+        (3,),
+        (1, 1),
+        (1, 2),
+        (2, 1),
+        (1, 1, 1),
+        (2, 2, 2),
+    )
+
+    for shape in shapes:
+        t = torch_testing.make_tensor(
+            shape,
+            low=0,
+            high=1,
+            device=device,
+            dtype=dtype,
+            requires_grad=requires_grad,
+            **kwargs,
+        )
+        yield opinfo_core.SampleInput(t)
 
 
 def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
@@ -280,9 +306,9 @@ def sample_inputs_max_pool_empty_strides(op_info, device, dtype, requires_grad, 
     # FIXME: (RuntimeError: non-empty 3D or 4D (batch mode) tensor expected for input)
 
     params_generator_type_dict = {
-        "max_pool1d": _TestParamsMaxPool1dEmptyStride,
-        "max_pool2d": _TestParamsMaxPool2dEmptyStride,
-        "max_pool3d": _TestParamsMaxPool3dEmptyStride,
+        "ops.aten.max_pool1d": _TestParamsMaxPool1dEmptyStride,
+        "ops.aten.max_pool2d": _TestParamsMaxPool2dEmptyStride,
+        "ops.aten.max_pool3d": _TestParamsMaxPool3dEmptyStride,
     }
 
     params_generator = params_generator_type_dict[op_info.name]()
@@ -419,6 +445,77 @@ def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
         yield opinfo_core.SampleInput(tensor, args=(output_size, kernel_size), kwargs=kwargs)
 
 
+def sample_inputs_index(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+    s = 5
+    index_1d = common_methods_invocations.index_variable(2, s, device=device)
+    index_2d = common_methods_invocations.index_variable((s + 1, 2), s, device=device)
+    index_3d = common_methods_invocations.index_variable((s + 2, s + 1, 2), s, device=device)
+    test_args = [
+        ([index_1d],),
+        ([None, index_1d],),
+        ([None, None, None, index_1d],),
+        ([index_1d, None],),
+        ([index_1d, None, None],),
+        # Extra index
+        ([None, index_1d, None, index_1d],),
+        ([index_1d, None, index_1d, None],),
+        ([None, index_1d, index_1d, None],),
+        ([index_2d],),
+        ([None, index_2d],),
+        ([None, None, None, index_2d],),
+        ([index_2d, None],),
+        ([index_2d, None, None],),
+        # Extra index
+        ([None, index_2d, None, index_2d],),
+        ([index_2d, None, index_2d, None],),
+        ([None, index_2d, index_2d, None],),
+        ([index_3d],),
+        ([None, index_3d],),
+        ([None, None, None, index_3d],),
+        ([index_3d, None],),
+        ([index_3d, None, None],),
+        # Extra index
+        ([None, index_3d, None, index_3d],),
+        ([index_3d, None, index_3d, None],),
+        ([None, index_3d, index_3d, None],),
+        # Mixed indices
+        ([None, index_3d, index_1d, index_2d],),
+        # All indices are not None
+        ([index_2d, index_3d, index_1d],),
+        ([index_2d, index_3d, index_1d, index_2d],),
+    ]
+
+    for args in test_args:
+        yield opinfo_core.SampleInput(make_arg((s, s, s, s)), args=args)
+
+
+def sample_inputs_native_dropout(
+    op_info, device, dtype, requires_grad, *, valid_input_dim=None, **kwargs
+):
+    del op_info  # Unused
+    del kwargs  # Unused
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    if valid_input_dim:
+        cases = ((S,) * i for i in valid_input_dim)
+    else:
+        cases = ((S, S), (S,), ())
+    # ONNX requires 0 <= p < 1
+    p_vals = [0.0]
+
+    training_vals = [True, False]
+
+    for case, p, training in itertools.product(cases, p_vals, training_vals):
+        yield opinfo_core.SampleInput(make_arg(case), p=p, train=training)
+
+
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -476,147 +573,397 @@ def sample_inputs_tensor_int(op_info, device, dtype, requires_grad, **kwargs):
     yield opinfo_core.SampleInput(-5, dtype=dtype)
 
 
+def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = [
+        [3],
+        [],
+        [3, 2],
+        [2, 3, 2],
+    ]
+
+    for shape in shapes:
+        for p in (0, 0.5, 1):
+            t = torch_testing.make_tensor(
+                shape,
+                low=0,
+                high=1,
+                device=device,
+                dtype=dtype,
+                requires_grad=requires_grad,
+                **kwargs,
+            )
+            yield opinfo_core.SampleInput(t, args=(p,))
+            yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
+def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+
+    shapes = [
+        [3],
+        [],
+        [3, 2],
+        [2, 3, 2],
+    ]
+
+    for shape in shapes:
+        for p in (0, 1):
+            t = torch_testing.make_tensor(
+                shape,
+                low=0,
+                high=1,
+                device=device,
+                dtype=dtype,
+                requires_grad=requires_grad,
+                **kwargs,
+            )
+            yield opinfo_core.SampleInput(t, args=(p,))
+            yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
+def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    def make_input(shape):
+        return common_methods_invocations.make_tensor(
+            shape, device=device, dtype=dtype, requires_grad=requires_grad
+        )
+
+    def make_long_input(shape, *, low, high, noncontiguous=False):
+        return common_methods_invocations.make_tensor(
+            shape,
+            device=device,
+            dtype=torch.long,
+            low=low,
+            high=high,
+            noncontiguous=noncontiguous,
+        )
+
+    def make_per_sample_weight(flag, idx):
+        # a tensor of float / double weights, or None
+        # to indicate all weights should be taken to be 1
+        if flag:
+            return make_input(idx.reshape(-1).shape)
+        return None
+
+    offsets = [
+        torch.tensor([0, 2, 3], device=device, dtype=torch.long),
+        torch.tensor([0, 0, 2], device=device, dtype=torch.long),
+        torch.tensor([0, 2, 2, 4], device=device, dtype=torch.long),
+    ]
+    for offset in offsets:
+        for include_last_offset in (True, False):
+            for generate_per_sample_weight in (True, False):
+                for mode in (
+                    0,
+                    1,
+                    2,
+                ):  # ('sum', 'mean', 'max')
+                    # per_sample_weights only support mode='sum'
+                    if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
+                        continue
+
+                    # 1-D index tensor
+                    indices = make_long_input((S,), low=0, high=M)
+                    per_sample_weights = make_per_sample_weight(
+                        generate_per_sample_weight, indices
+                    )
+                    # 0
+                    yield common_methods_invocations.SampleInput(
+                        make_input((M, S)),
+                        args=(indices,),
+                        kwargs={
+                            "offsets": offset,
+                            "mode": mode,
+                            "per_sample_weights": per_sample_weights,
+                            "include_last_offset": include_last_offset,
+                        },
+                    )
+
+                    indices = make_long_input((S,), low=0, high=M, noncontiguous=True)
+                    per_sample_weights = make_per_sample_weight(
+                        generate_per_sample_weight, indices
+                    )
+                    # 1
+                    yield common_methods_invocations.SampleInput(
+                        make_input((M, S)),
+                        args=(indices,),
+                        kwargs={
+                            "offsets": offset,
+                            "mode": mode,
+                            "per_sample_weights": per_sample_weights,
+                            "include_last_offset": include_last_offset,
+                        },
+                    )
+
+                    if mode != 2:  # "max" mode in 2-D index tensor make aten func crash
+                        # 2-D index tensor
+                        indices = make_long_input((S, S), low=0, high=M)
+                        per_sample_weights = make_per_sample_weight(
+                            generate_per_sample_weight, indices
+                        )
+                        # 2
+                        yield common_methods_invocations.SampleInput(
+                            make_input((M, S)),
+                            args=(indices,),
+                            kwargs={
+                                "offsets": offset,
+                                "mode": mode,
+                                "per_sample_weights": per_sample_weights,
+                                "include_last_offset": include_last_offset,
+                            },
+                        )
+
+                        indices = make_long_input((S, S), low=0, high=M, noncontiguous=True)
+                        per_sample_weights = make_per_sample_weight(
+                            generate_per_sample_weight, indices
+                        )
+                        # 3
+                        yield common_methods_invocations.SampleInput(
+                            make_input((M, S)),
+                            args=(indices,),
+                            kwargs={
+                                "offsets": offset,
+                                "mode": mode,
+                                "per_sample_weights": per_sample_weights,
+                                "include_last_offset": include_last_offset,
+                            },
+                        )
+
+
+def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    # Case `target_end == 1`, where `target_end = (input.size(dimension) - size) // step + 1`.
+    t = torch_testing.make_tensor(
+        (2, 3, 4),
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
+        **kwargs,
+    )
+    dimension = 1
+    size = 2
+    step = 2
+    # target_end = (3 - 2) // 2 + 1 = 1
+    yield opinfo_core.SampleInput(t, args=(dimension, size, step))
+
+
+def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+
+    L = 20
+    cases = (
+        ((L, L, L), (L, L, L), (0, 0, L, 1)),
+        ((L, L, L), (L // 2, L, L), (0, L // 2, L, 1)),
+        ((L, L, L), (L // 4, L, L), (0, L // 2, L, 2)),
+        ((L, L, L), (L, L, L), (1, 0, L, 1)),
+        ((L, L, L), (L, L // 2, L), (1, L // 2, L, 1)),
+        ((L, L, L), (L, L // 4, L), (1, L // 2, L, 2)),
+        ((L, L, L), (L, L, L), (2, 0, L, 1)),
+        ((L, L, L), (L, L, L // 2), (2, L // 2, L, 1)),
+        ((L, L, L), (L, L, L // 4), (2, L // 2, L, 2)),
+        ((L, L, L), (L, L // 2, L), (1, L // 2, L * 2, 1)),  # end > L
+        ((L, L, L), (L, L, L), (-2, 0, L, 1)),  # negative dim
+        ((L, L, L), (L, L, L // 4), (-1, L // 2, L * 2, 2)),  # end > L and negative dim
+    )
+
+    for input_shape, src_shape, args in cases:
+        input_ = make_arg(input_shape)
+        src = make_arg(src_shape)
+        yield opinfo_core.SampleInput(input_, args=(src, *args))
+
+
+# NOTE: How to create an OpInfo:
+# 1. Create a function that generates sample inputs for the op.
+#    This function should yield SampleInputs.
+#    Use `sample_inputs_col2im` as an example.
+# 2. Specify dtypes that the op supports.
+# 3. Use how you would call the op in PyTorch as the name of the OpInfo.
+#    For example, `torch.ops.aten.col2im` should be named "ops.aten.col2im".
+#    This way OpInfo knows to use `torch.ops.aten.col2im` as the op.
+#    See the docstring of OpInfo for more details.
+#
+#    This name is used as the unique ID to connect `TorchLibOpInfo("unique_name", ...)``
+#    in ops_test_data.py and opinfo_core.OpInfo("unique_name", ...)
+#    To avoid name duplication, it is possible to rename the OpInfo and specify
+#    the `op` field explicitly.
 OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
-        "col2im",
-        op=torch.ops.aten.col2im,
+        "ops.aten._local_scalar_dense",
+        aten_name="_local_scalar_dense",
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs__local_scalar_dense,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.col2im",
         aten_name="col2im",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_col2im,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "convolution",
-        aliases=("convolution",),
+        "ops.aten.embedding_bag",
+        aten_name="embedding_bag",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_embedding_bag,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "nn.functional.conv3d",
+        aten_name="conv3d",
+        dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
+        sample_inputs_func=sample_inputs_conv3d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.convolution",
         aten_name="convolution",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_convolution,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
-        skips=(),
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "layer_norm",
-        aliases=("layer_norm",),
+        "ops.aten.index.Tensor",
+        aten_name="index.Tensor",
+        dtypes=common_dtype.all_types_and_complex_and(
+            torch.bool, torch.float16, torch.bfloat16, torch.chalf
+        ),
+        sample_inputs_func=sample_inputs_index,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.layer_norm",
         aten_name="layer_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_layer_norm,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
-        skips=(),
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "native_group_norm",
-        op=torch.ops.aten.native_group_norm,
+        "ops.aten.max_pool1d",
+        variant_test_name="empty_strides",
+        aten_name="max_pool1d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.max_pool2d",
+        variant_test_name="empty_strides",
+        aten_name="max_pool2d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.max_pool3d",
+        variant_test_name="empty_strides",
+        aten_name="max_pool3d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_max_pool_empty_strides,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.native_dropout",
+        aten_name="native_dropout",
+        dtypes=common_dtype.all_types_and_half(),
+        sample_inputs_func=sample_inputs_native_dropout,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.native_group_norm",
         aten_name="native_group_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_native_group_norm,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "max_pool1d",
-        variant_test_name="empty_strides",
-        op=torch.ops.aten.max_pool1d,
-        aten_name="max_pool1d",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_max_pool_empty_strides,
-    ),
-    opinfo_core.OpInfo(
-        "max_pool2d",
-        variant_test_name="empty_strides",
-        op=torch.ops.aten.max_pool2d,
-        aten_name="max_pool2d",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_max_pool_empty_strides,
-    ),
-    opinfo_core.OpInfo(
-        "max_pool3d",
-        variant_test_name="empty_strides",
-        op=torch.ops.aten.max_pool3d,
-        aten_name="max_pool3d",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        sample_inputs_func=sample_inputs_max_pool_empty_strides,
-    ),
-    opinfo_core.OpInfo(
-        "nn.functional.conv3d",
-        aliases=("conv3d",),
-        aten_name="conv3d",
-        dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
-        sample_inputs_func=sample_inputs_conv3d,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
-        skips=(),
-        supports_out=False,
-    ),
-    opinfo_core.OpInfo(
         "nn.functional.max_pool1d_with_indices",
         aten_name="max_pool1d_with_indices",
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        skips=(),
         sample_inputs_func=sample_inputs_max_pool1d_with_indices,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "nn.functional.max_pool2d_with_indices",
         aten_name="max_pool2d_with_indices",
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        skips=(),
         sample_inputs_func=sample_inputs_max_pool2d_with_indices,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
         "nn.functional.max_pool3d_with_indices",
         aten_name="max_pool3d_with_indices",
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
-        skips=(),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
+        supports_out=False,
     ),
     # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
     # This custom OpInfo uses aten::stft directly.
     opinfo_core.OpInfo(
-        "aten.stft",
+        "ops.aten.stft",
         aten_name="stft",
-        op=torch.ops.aten.stft,
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_stft,
-        # Runs very slowly on slow gradcheck - alternatively reduce input sizes
-        gradcheck_fast_mode=True,
-        supports_forward_ad=True,
-        supports_fwgrad_bwgrad=True,
-        check_batched_forward_grad=False,
-        check_batched_grad=False,
-        check_batched_gradgrad=False,
         supports_out=False,
-        gradcheck_nondet_tol=common_utils.GRADCHECK_NONDET_TOL,
     ),
     opinfo_core.OpInfo(
-        "aten.tensor.bool",
+        "ops.aten.tensor.bool",
         aten_name="tensor.bool",
-        op=torch.ops.aten.tensor.bool,
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_bool,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "aten.tensor.float",
+        "ops.aten.tensor.float",
         aten_name="tensor.float",
-        op=torch.ops.aten.tensor.float,
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_float,
+        supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "aten.tensor.int",
+        "ops.aten.tensor.int",
         aten_name="tensor.int",
-        op=torch.ops.aten.tensor.int,
         dtypes=common_dtype.all_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_tensor_int,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.bernoulli.p",
+        aten_name="bernoulli.p",
+        # dtypes can be a tuple of (torch.float, torch.double).
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_bernoulli_p,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        # Deterministic bernoulli sampling where p is either 0 or 1
+        "ops.aten.bernoulli.p_deterministic",
+        op=torch.ops.aten.bernoulli.p,
+        aten_name="bernoulli.p",
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "unfold_extra",
+        op=lambda x, *args: x.unfold(*args),
+        aten_name="unfold",
+        dtypes=common_dtype.all_types(),
+        sample_inputs_func=sample_inputs_unfold,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.slice_scatter",
+        aten_name="slice_scatter",
+        dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
+        sample_inputs_func=sample_inputs_slice_scatter,
+        supports_out=False,
     ),
 ]

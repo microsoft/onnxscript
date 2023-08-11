@@ -173,8 +173,9 @@ class IRAttributeParameter:
                 "Attribute has no default value. Only attributes with default "
                 "values can be converted to AttributeProto."
             )
-        if version_utils.onnx_older_than("1.14.1"):
-            # Argument 'attr_type' was added after version 1.14.0.
+        if version_utils.onnx_older_than("1.15"):
+            # TODO(after 1.14 is deprecated): Remove this branch.
+            # Argument 'attr_type' was added after version 1.14.
             return helper.make_attribute(self.name, self.default_value)
         # pylint: disable=unexpected-keyword-arg
         return helper.make_attribute(self.name, self.default_value, attr_type=self.type)  # type: ignore[call-arg]
@@ -481,7 +482,7 @@ class IRBuilder:
     def __init__(self):
         self.functions = {}
 
-    def new_function(self, name: str, domain: str = "", register: bool = False):
+    def new_function(self, name: str, domain: str = "", register: bool = False) -> IRFunction:
         if register and (domain, name) in self.functions:
             raise RuntimeError(f"Function '{name}' already exists in domain '{domain}'.")
         function = IRFunction(name, domain)
@@ -523,8 +524,8 @@ class IRBuilder:
         var = IRVar(varname, typeinfo, sourceinfo)
         fn.append_output(var)
 
-    def make_attr(self, attrname: str, attrval: Any) -> IRAttributeValue:
-        return IRAttributeValue(helper.make_attribute(attrname, attrval))
+    def make_attr(self, attrproto: onnx.AttributeProto) -> IRAttributeValue:
+        return IRAttributeValue(attrproto)
 
     def make_attr_ref(self, attrname: str, refname: str, pytype: type) -> IRAttributeValue:
         proto = onnx.AttributeProto()
