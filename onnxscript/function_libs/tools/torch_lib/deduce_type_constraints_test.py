@@ -29,11 +29,7 @@ class TestDeduceTypeConstraints(unittest.TestCase):
         "_aten_unfold_onnx",
         "_aten_embedding_bag_onnx",
     )
-    _SKIP_FUNCTIONS_WITH_NESTED_FUNCTION = (
-        "aten_atleast_1d",
-        "aten_atleast_2d",
-        "aten_vstack",
-    )
+    _SKIP_FUNCTIONS_WITH_NESTED_FUNCTION = ()
 
     @parameterized.parameterized.expand(
         ((op,) for op in torch_lib_onnx_functions_from_registry()),
@@ -46,10 +42,6 @@ class TestDeduceTypeConstraints(unittest.TestCase):
             self.skipTest("Unimplemented: function contains loop or scan node.")
         if onnx_function.name in self._SKIP_FUNCTIONS_WITH_NESTED_FUNCTION:
             self.skipTest("Unimplemented: function contains nested function.")
-        if onnx_function.name == "_attention_scale":
-            self.skipTest(
-                "Bug: generated function_proto is non-SSA. https://github.com/microsoft/onnxscript/issues/848"
-            )
         signature_type_constraint = deduce_type_constraints.deduce_type_constraints(
             onnx_function
         )
