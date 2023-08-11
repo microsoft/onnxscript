@@ -79,7 +79,7 @@ def _should_skip_xfail_test_sample(
             assert decorator_meta.matcher is not None, "Matcher must be defined"
             if not decorator_meta.enabled_if:
                 # Do not skip the test if the decorator meta is not enabled
-                return None, None
+                continue
             if decorator_meta.dtypes is not None and dtype not in decorator_meta.dtypes:
                 # Not applicable for this dtype
                 continue
