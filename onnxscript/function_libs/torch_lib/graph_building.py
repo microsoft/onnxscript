@@ -64,6 +64,9 @@ ValidTorchValueType: TypeAlias = Union[
     None,
 ]
 
+# Be sure to leave ample room for the rest of the proto fields.
+_LARGE_MODEL_SIZE_THRESHOLD = int(2**30 * 1.8)  # 1.8GB
+
 # TODO(justinchuby): Build a context manager to handle source information.
 
 
@@ -700,14 +703,11 @@ class TorchScriptGraph:
             _estimate_tensor_size(tensor) for tensor in self.initializers.values()
         )
 
-        # Treat models > 1GB as large models so that we have ample room
-        # for the rest of the proto fields.
-        large_model = initializers_size > (2**30)
+        large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
 
         export_kwargs: dict[str, Any] = dict(
             initializers=self.initializers if include_initializers else {},
             onnx_opset_version=opset_version,
-            # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
             defer_weight_export=False,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
@@ -718,6 +718,12 @@ class TorchScriptGraph:
             node_attr_to_name={},
         )
 
+        # We decided to cache the model to disk when the model is large.
+        # Alternatively, we could build the ONNX `TensorProto`s in memory
+        # and append them to the model proto.
+        # We did not do it because it is harder to get right (vs. PyTorch's battle-tested
+        # implementation) and creating the `TensorProto`s naively (by converting to numpy)
+        # is slow.
         cache_model_to_disk = include_initializers and large_model
 
         if cache_model_to_disk:
