@@ -326,7 +326,11 @@ def aten_amax(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrU
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMax reduces all dimensions when dim is empty
-    return op.ReduceMax(self, dim, keepdims=keepdim)
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+    else:
+        result = op.ReduceMax(self, dim, keepdims=keepdim)
+    return result
 
 
 @torch_op("aten::amin")
@@ -334,7 +338,11 @@ def aten_amin(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrU
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMin reduces all dimensions when dim is empty
-    return op.ReduceMin(self, dim, keepdims=keepdim)
+    if op.Size(op.Shape(self)) == 0:
+        result = self
+    else:
+        result = op.ReduceMin(self, dim, keepdims=keepdim)
+    return result
 
 
 def aten_aminmax(
@@ -2543,7 +2551,7 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     # The equivalent Torch op with ONNX Equal is aten::eq.
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
-    # ReduceMax does not support bool. So we cast to int64
+    # ReduceMin does not support bool. So we cast to int64
     all_equal = op.ReduceMin(elementwise_equal_int, keepdims=False)
     return op.Cast(all_equal, to=BOOL.dtype)
 
