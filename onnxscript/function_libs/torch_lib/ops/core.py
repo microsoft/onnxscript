@@ -476,6 +476,10 @@ def aten_arange_start_step(
     if dtype == -1:
         result = op.Range(start, end, step)
     elif _range_supported(dtype):
+        if dtype == INT32.dtype:
+            start = op.Floor(op.Cast(start, to=FLOAT.dtype))
+            end = op.Floor(op.Cast(end, to=FLOAT.dtype))
+
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
         step = op.Cast(step, to=dtype)
@@ -3684,17 +3688,23 @@ def aten_linspace(
     else:
         zero = op.Cast(0, to=FLOAT.dtype)
         one = op.Cast(1, to=FLOAT.dtype)
+        steps = op.Cast(steps, to=FLOAT.dtype)
+
+        if dtype in [INT32.dtype, INT64.dtype]:
+            start = op.Floor(op.Cast(start, to=FLOAT.dtype))
+            end = op.Floor(op.Cast(end, to=FLOAT.dtype))
+
         start = op.Cast(start, to=FLOAT.dtype)
         end = op.Cast(end, to=FLOAT.dtype)
-        steps = op.Cast(steps, to=FLOAT.dtype)
 
     range_tensor = op.Range(zero, steps, one)
 
-    start = op.CastLike(start, end)
     step = op.Div(
         op.Sub(end, start),
         op.Sub(steps, one),
     )
+
+    range_tensor = op.CastLike(range_tensor, step)
 
     if dtype == -1 or not _range_supported(dtype):
         return op.Add(op.Mul(range_tensor, step), start)

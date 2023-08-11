@@ -691,7 +691,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     )
     # .xfail(
-    #     dtypes=(torch.int64, torch.int32),
+    #     # dtypes=(torch.int64, torch.int32),
+    #     dtypes=(torch.int64,),
     #     reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
     # )
     .xfail(
@@ -1283,7 +1284,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_arange_start_step,
         trace_only=True,
     )
-    .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
+    # .xfail(dtypes=(torch.int32,), reason="fixme: output shape mismatch in edge cases.")
     .xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
