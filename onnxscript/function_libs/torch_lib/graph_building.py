@@ -63,6 +63,9 @@ ValidTorchValueType: TypeAlias = Union[
     None,
 ]
 
+# Be sure to leave ample room for the rest of the proto fields.
+_LARGE_MODEL_SIZE_THRESHOLD = int(2**30 * 1.8)  # 1.8GB
+
 # TODO(justinchuby): Build a context manager to handle source information.
 
 
@@ -361,6 +364,18 @@ def _create_op_call_in_torch_graph(
         _add_attribute_to_torchscript_node(node, key, value)
 
     return node_ouputs
+
+
+def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
+    """Estimate the size of a tensor in bytes.
+
+    Args:
+        tensor: The tensor to estimate the size of.
+
+    Returns:
+        The estimated size of the tensor in bytes.
+    """
+    return tensor.numel() * tensor.element_size()
 
 
 class TorchScriptGraph:
@@ -741,6 +756,9 @@ class TorchScriptGraph:
         )
 
         try:
+            # Only check the model if it is in memory.
+            # Otherwise the checker and shape_inference will fail because
+            # we cannot serialize the model.
             onnx_model = onnx.shape_inference.infer_shapes(
                 onnx_model, check_type=True, strict_mode=False, data_prop=True
             )
