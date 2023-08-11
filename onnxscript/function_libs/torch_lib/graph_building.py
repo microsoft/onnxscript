@@ -1,9 +1,8 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
 
+import ctypes
 import logging
-import os
-import tempfile
 import typing
 import warnings
 from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
@@ -278,6 +277,27 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph.add_function_call(function, inputs, attributes)
 
 
+def _add_initializers(model_proto: onnx.ModelProto, initializers: Mapping[str, torch.Tensor]):
+    tensor_protos = []
+
+    for name, tensor in initializers.items():
+        tensor = tensor.detach().cpu()
+        raw_data = bytes(
+            (ctypes.c_ubyte * tensor.element_size() * tensor.numel()).from_address(
+                tensor.data_ptr()
+            )
+        )
+        tensor_proto = onnx.helper.make_tensor(
+            name=name,
+            data_type=_type_utils.JitScalarType.from_dtype(tensor.dtype).onnx_type(),
+            dims=tensor.shape,
+            vals=raw_data,
+            raw=True,
+        )
+        tensor_protos.append(tensor_proto)
+    model_proto.graph.initializer.extend(tensor_protos)
+
+
 @runtime_typing.checked
 def _add_attribute_to_torchscript_node(
     node: torch.Node,
@@ -341,18 +361,6 @@ def _create_op_call_in_torch_graph(
         _add_attribute_to_torchscript_node(node, key, value)
 
     return node_ouputs
-
-
-def _estimate_tensor_size(tensor: torch.Tensor) -> int:
-    """Estimate the size of a tensor in bytes.
-
-    Args:
-        tensor: The tensor to estimate the size of.
-
-    Returns:
-        The estimated size of the tensor in bytes.
-    """
-    return tensor.numel() * tensor.element_size()
 
 
 class TorchScriptGraph:
@@ -696,18 +704,14 @@ class TorchScriptGraph:
             # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function_proto.domain] = 1
 
-        initializers_size = sum(
-            _estimate_tensor_size(tensor) for tensor in self.initializers.values()
-        )
-
-        # Treat models > 1GB as large models so that we have ample room
-        # for the rest of the proto fields.
-        large_model = initializers_size > (2**30)
-
-        export_kwargs: dict[str, Any] = dict(
-            initializers=self.initializers if include_initializers else {},
+        (
+            proto,
+            _,
+            _,
+            _,
+        ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+            initializers={},
             onnx_opset_version=opset_version,
-            # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
             defer_weight_export=False,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
@@ -717,34 +721,9 @@ class TorchScriptGraph:
             add_node_names=True,
             node_attr_to_name={},
         )
-
-        cache_model_to_disk = include_initializers and large_model
-
-        if cache_model_to_disk:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                onnx_file_path = os.path.join(temp_dir, "exported_model.onnx")
-                export_kwargs["onnx_file_path"] = onnx_file_path
-                (
-                    proto,
-                    _,
-                    _,
-                    _,
-                ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
-                    **export_kwargs
-                )
-                onnx_model = onnx.load_from_string(proto)
-                onnx.load_external_data_for_model(onnx_model, temp_dir)
-        else:
-            (
-                proto,
-                _,
-                _,
-                _,
-            ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
-                **export_kwargs
-            )
-            onnx_model = onnx.load_from_string(proto)
-
+        onnx_model = onnx.load_from_string(proto)
+        if include_initializers:
+            _add_initializers(onnx_model, self.initializers)
         onnx_model.functions.extend(function_proto_dict.values())
 
         # `_export_onnx` only exports opset_imports that is visible to it. It does not
