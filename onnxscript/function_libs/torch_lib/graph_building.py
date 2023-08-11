@@ -740,4 +740,16 @@ class TorchScriptGraph:
             ]
         )
 
+        try:
+            onnx_model = onnx.shape_inference.infer_shapes(
+                onnx_model, check_type=True, strict_mode=False, data_prop=True
+            )
+            onnx.checker.check_model(onnx_model, full_check=True)
+        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
+            warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
+            logging.debug(
+                "ONNX model:\n%s\n\nTorchScript graph:\n%s",
+                onnxscript.proto2text(onnx_model),
+                self.torch_graph,
+            )
         return onnx_model
