@@ -77,6 +77,9 @@ def _should_skip_xfail_test_sample(
         # Linear search on ops_test_data.SKIP_XFAIL_SUBTESTS. That's fine because the list is small.
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
+            if not decorator_meta.enabled_if:
+                # Do not skip the test if the decorator meta is not enabled
+                return None, None
             if decorator_meta.dtypes is not None and dtype not in decorator_meta.dtypes:
                 # Not applicable for this dtype
                 continue
