@@ -346,7 +346,7 @@ def _create_op_call_in_torch_graph(
     return node_ouputs
 
 
-def _estimate_tensor_size(tensor: torch.Tensor) -> int:
+def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
     """Estimate the size of a tensor in bytes.
 
     Args:
@@ -700,7 +700,7 @@ class TorchScriptGraph:
             unique_custom_domains[function_proto.domain] = 1
 
         initializers_size = sum(
-            _estimate_tensor_size(tensor) for tensor in self.initializers.values()
+            _tensor_rawdata_size(tensor) for tensor in self.initializers.values()
         )
 
         large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
