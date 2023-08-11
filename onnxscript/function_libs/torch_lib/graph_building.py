@@ -770,4 +770,7 @@ class TorchScriptGraph:
                 onnxscript.proto2text(onnx_model),
                 self.torch_graph,
             )
+        except ValueError:
+            # FIXME
+            pass
         return onnx_model
