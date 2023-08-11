@@ -751,6 +751,35 @@ def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
     yield opinfo_core.SampleInput(t, args=(dimension, size, step))
 
 
+def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=requires_grad
+    )
+
+    L = 20
+    cases = (
+        ((L, L, L), (L, L, L,), (0, 0, L, 1)),
+        ((L, L, L), (L // 2, L, L,), (0, L // 2, L, 1)),
+        ((L, L, L), (L // 4, L, L,), (0, L // 2, L, 2)),
+        ((L, L, L), (L, L, L,), (1, 0, L, 1)),
+        ((L, L, L), (L, L // 2, L,), (1, L // 2, L, 1)),
+        ((L, L, L), (L, L // 4, L,), (1, L // 2, L, 2)),
+        ((L, L, L), (L, L, L,), (2, 0, L, 1)),
+        ((L, L, L), (L, L, L // 2,), (2, L // 2, L, 1)),
+        ((L, L, L), (L, L, L // 4,), (2, L // 2, L, 2)),
+        ((L, L, L), (L, L // 2, L,), (1, L // 2, L * 2, 1)),  # end > L
+        ((L, L, L), (L, L, L,), (-2, 0, L, 1)),  # negative dim
+        ((L, L, L), (L, L, L // 4,), (-1, L // 2, L * 2, 2)),  # end > L and negative dim
+    )
+
+    for input_shape, src_shape, args in cases:
+        input_ = make_arg(input_shape)
+        src = make_arg(src_shape)
+        yield opinfo_core.SampleInput(input_, args=(src, *args))
+
+
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
 #    This function should yield SampleInputs.
@@ -928,6 +957,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="unfold",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_unfold,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.slice_scatter",
+        aten_name="slice_scatter",
+        dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
+        sample_inputs_func=sample_inputs_slice_scatter,
         supports_out=False,
     ),
 ]

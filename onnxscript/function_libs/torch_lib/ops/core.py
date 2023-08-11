@@ -6268,6 +6268,10 @@ def aten_slice_scatter(
     # Assert(end-start == shape(src) > 0)
     # Try torch sample to get more information:
     # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
+    # Take (torch.zeros(8, 8), torch.ones(2, 8), 0, 6, 64, 1) as example:
+    # Step 1: get 1D tensor from 0 to dim_size-1, then Slice it using start, end and step.
+    # We cannot use Range(start, end, step) directly as start or end may out of range.
+    # For the example, the output of this step is Slice([0, ..., 7], 6, 64, 1) = [6, 7]
     zero = op.Constant(value_ints=[0])
     one = op.Constant(value_ints=[1])
     self_shape = op.Shape(self)
@@ -6280,9 +6284,19 @@ def aten_slice_scatter(
         zero,
         op.Unsqueeze(step, zero),
     )
-    index_base = op.Unsqueeze(index_base, op.Range(1, op.Size(self_shape) - dim, 1))
-    shape_expand = op.ScatterElements(self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0)
+    # Step 2: Unsqueeze to add 1s preparing for Expand.
+    # Need to handle negative dim here.
+    # For the example above, the result of this step is [[6],[7]].
+    index_base = op.Unsqueeze(
+        index_base, op.Range(1, op.Where(dim < 0, 0, op.Size(self_shape)) - dim, 1)
+    )
+    # Step 3: Expand the indices.
+    # For the example above, it's Expand([[6],[7]], (1, 8)) = [[6,...,6],[7,...,7]].
+    shape_expand = op.ScatterElements(
+        self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0
+    )
     indices = op.Expand(index_base, shape_expand)
+    # Step 4: final ScatterElements.
     return op.ScatterElements(self, indices, src, axis=dim)
 
 
