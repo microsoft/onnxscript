@@ -366,18 +366,6 @@ def _create_op_call_in_torch_graph(
     return node_ouputs
 
 
-def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
-    """Estimate the size of a tensor in bytes.
-
-    Args:
-        tensor: The tensor to estimate the size of.
-
-    Returns:
-        The estimated size of the tensor in bytes.
-    """
-    return tensor.numel() * tensor.element_size()
-
-
 class TorchScriptGraph:
     _LOCAL_FUNCTION_DOMAIN_NAME: Final[str] = "torch_export"
     """The domain name for local functions."""
@@ -737,10 +725,7 @@ class TorchScriptGraph:
             node_attr_to_name={},
         )
         onnx_model = onnx.load_from_string(proto)
-        if include_initializers:
-            _add_initializers(onnx_model, self.initializers)
         onnx_model.functions.extend(function_proto_dict.values())
-
         # `_export_onnx` only exports opset_imports that is visible to it. It does not
         # export opset_imports for nested functions, since it does not have access to
         # them. We manually add them back and merge with existing opset_imports in the
@@ -754,11 +739,10 @@ class TorchScriptGraph:
                 for domain, version in unique_custom_domains.items()
             ]
         )
-
         try:
-            # Only check the model if it is in memory.
-            # Otherwise the checker and shape_inference will fail because
-            # we cannot serialize the model.
+            # Fill in the shape information before adding initializers,
+            # because the initializers may be too large (>2gb) for the model
+            # to fit in the memory.
             onnx_model = onnx.shape_inference.infer_shapes(
                 onnx_model, check_type=True, strict_mode=False, data_prop=True
             )
@@ -770,7 +754,8 @@ class TorchScriptGraph:
                 onnxscript.proto2text(onnx_model),
                 self.torch_graph,
             )
-        except ValueError:
-            # FIXME
-            pass
+
+        if include_initializers:
+            _add_initializers(onnx_model, self.initializers)
+
         return onnx_model
