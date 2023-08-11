@@ -1776,7 +1776,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="sum",
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
     ),
-    TorchLibOpInfo("slice_scatter", core_ops.aten_slice_scatter, trace_only=True),
+    TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("slice", core_ops.aten_slice, trace_only=True),
     TorchLibOpInfo(
         "ops.aten.stft",  # Custom from extra_opinfo
