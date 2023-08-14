@@ -45,6 +45,7 @@ from torch.testing._internal import common_methods_invocations
 from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
@@ -532,10 +533,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
     ),
     TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -550,10 +552,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
     ),
     TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -568,10 +571,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
@@ -1300,6 +1304,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "vstack",
         core_ops.aten_vstack,
     ).xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
@@ -1450,6 +1455,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "hstack",
         core_ops.aten_hstack,
     ).xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo(
