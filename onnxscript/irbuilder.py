@@ -511,7 +511,7 @@ class IRFunction(SpoxFunction):
             graph, opset_imports=opset_imports, functions=functions, **kwargs
         )
 
-    def to_graph_and_functions(
+    def _to_graph_and_functions(
         self, use_default_type: bool = True
     ) -> tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
         """Converts this instance into a `onnx.GraphProto` and a map from
@@ -534,6 +534,18 @@ class IRFunction(SpoxFunction):
             [x.to_value_info(use_default_type) for x in self._inputs],
             [y.to_value_info(use_default_type) for y in self._outputs],
         )
+        return graph, called_functions
+
+    def to_graph_and_functions(
+        self, use_default_type: bool = True
+    ) -> tuple[onnx.GraphProto, dict[str, onnx.FunctionProto]]:
+        built_graph = IRGraph(self.name, self)
+        graph = built_graph.to_onnx()
+        called_functions: dict[str, onnx.FunctionProto] = {}
+        for s in self.stmts:
+            called_functions.update(s.functions)
+        called_functions.update(self.called_functions)
+        #return self._to_graph_and_functions()
         return graph, called_functions
 
     def to_graph_proto(self, use_default_type: bool = True) -> onnx.GraphProto:
@@ -582,80 +594,6 @@ class IRFunction(SpoxFunction):
             setattr(spox_attrs, a.name, value)
         return spox_attrs
 
-    def create_spox_inputs(self, args) -> BaseInputs:
-        spox_inputs = BaseInputs()
-        fields = []
-        for a in args:
-            fields.append((a.name, SpoxVar))
-        spox_inputs.__class__ = make_dataclass('_FuncInputs', fields=fields, bases=(BaseInputs,))
-        f_args = {}
-        for a in args:
-            spox_arg = SpoxArgument(a.type)
-            setattr(spox_inputs, a.name, spox_arg)
-            f_args[a.name] = spox_arg
-        return spox_inputs
-
-    def create_spox_outputs(self, args) -> BaseOutputs:
-        spox_inputs = BaseOutputs()
-        fields = []
-        for a in args:
-            fields.append((a.name, SpoxVar))
-        spox_inputs.__class__ = make_dataclass('_FuncOutputs', fields=fields, bases=(BaseOutputs,))
-        return spox_inputs
-
-    def to_function_proto(self):
-
-        self._to_function_proto()
-
-        spox_fn_inputs = self.create_spox_inputs(self._inputs)
-        spox_fn_outputs = self.create_spox_outputs(self._outputs)
-
-        var_stack = spox_fn_inputs.get_fields()
-        node_stack = {}
-
-        ### CONSTRUCT GRAPH
-        for stmt in self.stmts:
-
-            # create inputs
-            nd_inputs = BaseInputs()
-            fields = [(d.name, SpoxVar) for d in stmt.dependencies]
-            nd_inputs.__class__ = make_dataclass('Inputs', fields=fields, bases=(BaseInputs,))
-            for d in stmt.dependencies:
-                setattr(nd_inputs, d.name, var_stack[d.name])
-
-            # create outputs
-            nd_outputs = BaseOutputs()
-            fields = [(d.name, SpoxVar) for d in stmt.dependents]
-            nd_outputs.__class__ = make_dataclass('Outputs', fields=fields, bases=(BaseOutputs,))
-            for d in stmt.dependents:
-                type_ = SpoxType()._from_onnx(d.typeinfo.to_type_proto())
-                var = SpoxVar(stmt, type_)
-                setattr(nd_outputs, d.name, var)
-                #var_stack[d.name] = var
-
-            spox_node = SpoxNode(stmt.attrs, nd_inputs, nd_outputs)
-            spox_node.op_type = OpType(stmt.callee._name, stmt.callee._opset.domain, stmt.callee._opset.version)
-            for d in stmt.dependents:
-                type_ = SpoxType()._from_onnx(d.typeinfo.to_type_proto())
-                var = SpoxVar(spox_node, type_)
-                setattr(spox_node.outputs, d.name, var)
-                var_stack[d.name] = var
-
-            #spox_node = SpoxNode(stmt.attrs, nd_inputs, nd_outputs)
-            node_stack[stmt.callee.name] = spox_node
-        for o in self._outputs:
-            setattr(spox_fn_outputs, o.name, var_stack[d.name])
-
-        # proto
-        self.func_args = spox_fn_inputs.get_fields()
-        self.func_inputs = spox_fn_inputs
-        self.func_outputs = spox_fn_outputs
-        self.func_attrs = {}
-        self.func_graph = spox._graph.results(**self.func_outputs.get_vars()).with_arguments(
-            *self.func_args.values()
-        ).with_name(self.name)
-        return self.to_onnx_function()
-
     def _to_function_proto(self) -> onnx.FunctionProto:
         """Converts this instance into a `onnx.FunctionProto`.
 
@@ -690,13 +628,110 @@ class IRFunction(SpoxFunction):
             )
         return f
 
-class IRGraph:
-    def __init__(self):
-        self.graph = None
+    def to_function_proto(self):
+        self.func = IRGraph(self.name, self)
+        fn_attrs = self.convert_to_spox_attrs(self._attrs)
+        fn_inputs, fn_outputs = self.func.dcs
 
-    def return_graph(self):
-        # TODO: Move logic from IRFunction to IRGraph
-        return self.graph
+        spox_fn = SpoxFunction(fn_attrs, fn_inputs, fn_outputs)
+        spox_fn.op_type = OpType(
+            self.name, self.domain, self.get_opset_import()
+        )
+        setattr(spox_fn, 'func_inputs', fn_inputs)
+        setattr(spox_fn, 'func_outputs', fn_outputs)
+        setattr(spox_fn, 'func_attrs', dict())
+        setattr(spox_fn, 'func_graph', self.func.graph)
+        #return self._to_function_proto()
+        return spox_fn.to_onnx_function()
+
+
+class IRGraph(SpoxGraph):
+    def __init__(
+        self,
+        name: str,
+        onnx_function: IRFunction,
+        domain: str = "",
+    ):
+        self.graph = None
+        self.fn = onnx_function
+        self.sub_functions = None
+        self.domain = domain
+        self.name = name
+        self.args = []
+        self.results = {}
+        self.dcs = []
+
+        self.build_graph()
+        super().__init__(
+            self.results,
+            _name = self.name,
+            _arguments = tuple(self.args),
+            _extra_opset_req = set(()),
+        )
+
+    def _prepare_inputs_outputs_for_spox(self):
+        """Create dataclasses for spox inputs/outputs"""
+        # Inputs
+        spox_inputs = BaseInputs()
+        fields = [(inp.name, SpoxVar) for inp in self.fn._inputs]
+        spox_inputs.__class__ = make_dataclass('_FuncInputs', fields=fields, bases=(BaseInputs,))
+        for inp in self.fn._inputs:
+            spox_arg = SpoxArgument(inp.type)
+            setattr(spox_inputs, inp.name, spox_arg)
+            self.args.append(spox_arg)
+        # Outputs
+        spox_outputs = BaseOutputs()
+        fields = [(out.name, SpoxVar) for out in self.fn._outputs]
+        spox_outputs.__class__ = make_dataclass('_FuncOutputs', fields=fields, bases=(BaseOutputs,))
+        return spox_inputs, spox_outputs
+
+    def chain_graph_nodes(
+        self,
+        graph_inputs: BaseInputs,
+        graph_outputs: BaseOutputs,
+    ):
+        var_stack = graph_inputs.get_fields()
+        node_stack = {}
+        for stmt in self.fn.stmts:
+            # create inputs
+            nd_inputs = BaseInputs()
+            fields = [(d.name, SpoxVar) for d in stmt.dependencies]
+            nd_inputs.__class__ = make_dataclass('Inputs', fields=fields, bases=(BaseInputs,))
+            for d in stmt.dependencies:
+                setattr(nd_inputs, d.name, var_stack[d.name])
+
+            # create outputs
+            nd_outputs = BaseOutputs()
+            fields = [(d.name, SpoxVar) for d in stmt.dependents]
+            nd_outputs.__class__ = make_dataclass('Outputs', fields=fields, bases=(BaseOutputs,))
+            for d in stmt.dependents:
+                type_ = SpoxType()._from_onnx(d.typeinfo.to_type_proto())
+                var = SpoxVar(stmt, type_)
+                setattr(nd_outputs, d.name, var)
+
+            # fill outputs with _op information
+            spox_node = SpoxNode(stmt.attrs, nd_inputs, nd_outputs)
+            spox_node.op_type = OpType(stmt.callee._name, stmt.callee._opset.domain, stmt.callee._opset.version)
+            for d in stmt.dependents:
+                type_ = SpoxType()._from_onnx(d.typeinfo.to_type_proto())
+                var = SpoxVar(spox_node, type_)
+                setattr(spox_node.outputs, d.name, var)
+                var_stack[d.name] = var
+
+            node_stack[stmt.callee.name] = spox_node
+        for o in self.fn._outputs:
+            setattr(graph_outputs, o.name, var_stack[o.name])
+            self.results[o.name] = var_stack[o.name]
+        self.dcs = [graph_inputs, graph_outputs]
+        return graph_outputs
+
+    def build_graph(self):
+        graph_inputs, graph_outputs = self._prepare_inputs_outputs_for_spox()
+        chained_outs = self.chain_graph_nodes(graph_inputs, graph_outputs)
+        # Build graph object
+        self.graph = spox._graph.results(**chained_outs.get_vars()).with_arguments(
+            *graph_inputs.get_fields().values()
+        ).with_name(self.name)
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
