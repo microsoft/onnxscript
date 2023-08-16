@@ -364,8 +364,8 @@ def op_schema_from_function_ir(
     """Construct an ONNX OpSchema from an IRFunction."""
 
     # Find all distinct types in the inputs and outputs
-    distinct_types = {arg.typeinfo for arg in function_ir.inputs}.union(
-        {arg.typeinfo for arg in function_ir.outputs}
+    distinct_types = {arg.typeinfo for arg in function_ir._inputs}.union(
+        {arg.typeinfo for arg in function_ir._outputs}
     )
     # Create a mapping from type to a unique name
     type_to_constraint = {}
@@ -388,7 +388,7 @@ def op_schema_from_function_ir(
             # TODO(justinchu): Check this is_homogeneous thing
             is_homogeneous=True,
         )
-        for arg in function_ir.inputs
+        for arg in function_ir._inputs
     ]
     formal_outputs = [
         onnx.defs.OpSchema.FormalParameter(
@@ -402,7 +402,7 @@ def op_schema_from_function_ir(
             # TODO(justinchu): Check this is_homogeneous thing
             is_homogeneous=True,
         )
-        for arg in function_ir.outputs
+        for arg in function_ir._outputs
     ]
     return onnx.defs.OpSchema(
         function_ir.name,
@@ -418,7 +418,7 @@ def op_schema_from_function_ir(
                     attr.name,
                     type=onnx.defs.OpSchema.AttrType(attr.type),  # type: ignore[call-arg]
                 )
-                for attr in function_ir.attrs
+                for attr in function_ir._attrs
                 if not attr.has_default
             ],
             *[
@@ -426,7 +426,7 @@ def op_schema_from_function_ir(
                     attr.name,
                     default_value=attr.attr_proto,
                 )
-                for attr in function_ir.attrs
+                for attr in function_ir._attrs
                 if attr.has_default
             ],
         ],
@@ -524,8 +524,8 @@ class OnnxFunction(Op):
 
     def to_model_proto(self, **kwargs):
         """Converts the function into :class:`onnx.ModelProto`."""
-        if self.function_ir.attrs and any(
-            not attr.has_default for attr in self.function_ir.attrs
+        if self.function_ir._attrs and any(
+            not attr.has_default for attr in self.function_ir._attrs
         ):
             raise ValueError(
                 "A function with required attributes cannot be exported as a model."

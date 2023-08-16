@@ -22,8 +22,12 @@ from onnxscript.onnx_types import ONNXType
 from onnxscript.sourceinfo import SourceInfo
 
 from dataclasses import make_dataclass
+import ast
 
 import spox
+from spox._public import argument as SpoxArgument
+
+import spox.opset.ai.onnx.v17 as spox_operators
 from spox._type_system import Type as SpoxType
 from spox._var import Var as SpoxVar
 from spox._attributes import _Ref as SpoxAttrRef
@@ -34,6 +38,11 @@ from spox._node import Node as SpoxNode
 from spox._node import OpType
 from spox._scope import Scope as SpoxScope
 from spox._scope import ScopeSpace
+
+from spox._function import Function as SpoxFunction
+import spox._function
+from spox._graph import Graph as SpoxGraph
+from spox._graph import results as GraphInit
 
 import numpy as np
 
@@ -86,19 +95,32 @@ class IRTypeLike(Protocol):
 class IRVar(SpoxVar):
     """A variable (representing a formal parameter)."""
 
-    def __init__(self, varname: str, typeinfo: IRTypeLike, sourceinfo: SourceInfo) -> None:
-        """Wrap inputs to fit spox class types"""
-        if typeinfo is not None:
-            type_ = SpoxType()._from_onnx(typeinfo.to_type_proto())
-        else:
-            type_ = SpoxType()
-        super().__init__(varname, type_, None)
-
+    def __init__(
+            self, varname: str,
+            typeinfo: IRTypeLike,
+            sourceinfo: SourceInfo,
+            source_op: Optional[SpoxNode] = None,
+        ) -> None:
         if not isinstance(varname, str):
             raise ValueError(f"varname must be a string not {type(varname)!r}.")
         self.name = varname
         self.info = sourceinfo
         self.typeinfo = typeinfo
+
+        """Wrap IRVar and initialize SpoxVar"""
+        if typeinfo is not None:
+            type_ = SpoxType()._from_onnx(typeinfo.to_type_proto())
+        else:
+            type_ = SpoxType()
+        #assert sourceinfo is not None or source_op is not None
+        if sourceinfo and isinstance(sourceinfo.ast_node, ast.arg):
+            node_ = SpoxArgument(type_)
+        else:
+            node_ = None
+        if source_op:
+            node_ = source_op
+        super().__init__(node_, type_, None)
+        self._rename(varname)
 
     def __str__(self):
         return self.name
@@ -236,7 +258,7 @@ class IRStmt(SpoxNode):
         self._attrs = attrs
         self.functions = sub_functions or {}
 
-        # Convert inputs to spox types and initialize spox node instance
+        """Wrap IRStmt and initialize SpoxNode"""
         spox_attrs = self.convert_to_spox_attrs(attrs)
         spox_inputs = self.create_spox_inputs(args)
         spox_outputs = self.create_spox_outputs(result)
@@ -336,13 +358,13 @@ class IRStmt(SpoxNode):
         return [str(x) for x in self.result]
 
 
-class IRFunction:
+class IRFunction(SpoxFunction):
     """Represents a function in the IR."""
 
     def __init__(self, name: str, domain: str = "") -> None:
         self.domain = domain
         self.name = name
-        self.outputs: list[IRVar] = []
+        self._outputs: list[IRVar] = []
         self.stmts: list[IRStmt] = []
         self.called_functions: dict[str, onnx.FunctionProto] = {}
         self.docstring: str = ""
@@ -357,11 +379,11 @@ class IRFunction:
         return [v for stmt in self.stmts for v in stmt.output_names]
 
     @property
-    def inputs(self) -> Sequence[IRVar]:
+    def _inputs(self) -> Sequence[IRVar]:
         return [var for var in self.ordered_inputs_and_attrs if isinstance(var, IRVar)]
 
     @property
-    def attrs(self) -> Sequence[IRAttributeParameter]:
+    def _attrs(self) -> Sequence[IRAttributeParameter]:
         return [
             attr
             for attr in self.ordered_inputs_and_attrs
@@ -369,9 +391,9 @@ class IRFunction:
         ]
 
     def __str__(self):
-        attrs = _format(self.attrs, "<", ", ", ">") if self.attrs else ""
-        inputs = _format([x.typed_str() for x in self.inputs], "(", ", ", ")")
-        outputs = _format([x.typed_str() for x in self.outputs], "(", ", ", ")")
+        attrs = _format(self._attrs, "<", ", ", ">") if self._attrs else ""
+        inputs = _format([x.typed_str() for x in self._inputs], "(", ", ", ")")
+        outputs = _format([x.typed_str() for x in self._outputs], "(", ", ", ")")
         stmts = _format(self.stmts, "\n{\n   ", "\n   ", "\n}\n")
         return f"{self.name} {attrs}{inputs} => {outputs}{stmts}"
 
@@ -385,7 +407,7 @@ class IRFunction:
         self.ordered_inputs_and_attrs.append(name)
 
     def append_output(self, name: IRVar) -> None:
-        self.outputs.append(name)
+        self._outputs.append(name)
 
     def add_attr_parameter(self, attr: IRAttributeParameter) -> None:
         self.ordered_inputs_and_attrs.append(attr)
@@ -509,8 +531,8 @@ class IRFunction:
         graph = helper.make_graph(
             [s.to_node_proto(f"n{i}") for i, s in enumerate(self.stmts)],
             self.name,
-            [x.to_value_info(use_default_type) for x in self.inputs],
-            [y.to_value_info(use_default_type) for y in self.outputs],
+            [x.to_value_info(use_default_type) for x in self._inputs],
+            [y.to_value_info(use_default_type) for y in self._outputs],
         )
         return graph, called_functions
 
@@ -541,7 +563,100 @@ class IRFunction:
                 )
         return func_opset_imports
 
-    def to_function_proto(self) -> onnx.FunctionProto:
+    def convert_to_spox_attrs(self, attrs) -> BaseAttributes:
+        spox_attrs = BaseAttributes()
+        fields = []
+        '''for a in attrs:
+            # TODO: Works for attrs with default_value only
+            # Testing only int64 types for dummy testing
+            fields.append((a.attr_proto.name, AttrInt64))
+        spox_attrs.__class__ = make_dataclass('Attributes', fields=fields, bases=(BaseAttributes,))
+        for a in attrs:
+            setattr(spox_attrs, a.attr_proto.name, IRAttributeValue(a.attr_proto))'''
+        for a in attrs:
+            fields.append((a.name, SpoxAttrRef))
+        spox_attrs.__class__ = make_dataclass('Attributes', fields=fields, bases=(BaseAttributes,))
+        for a in attrs:
+            dummy_tens = AttrInt64(0)
+            value = SpoxAttrRef(dummy_tens, a.name)
+            setattr(spox_attrs, a.name, value)
+        return spox_attrs
+
+    def create_spox_inputs(self, args) -> BaseInputs:
+        spox_inputs = BaseInputs()
+        fields = []
+        for a in args:
+            fields.append((a.name, SpoxVar))
+        spox_inputs.__class__ = make_dataclass('_FuncInputs', fields=fields, bases=(BaseInputs,))
+        f_args = {}
+        for a in args:
+            spox_arg = SpoxArgument(a.type)
+            setattr(spox_inputs, a.name, spox_arg)
+            f_args[a.name] = spox_arg
+        return spox_inputs
+
+    def create_spox_outputs(self, args) -> BaseOutputs:
+        spox_inputs = BaseOutputs()
+        fields = []
+        for a in args:
+            fields.append((a.name, SpoxVar))
+        spox_inputs.__class__ = make_dataclass('_FuncOutputs', fields=fields, bases=(BaseOutputs,))
+        return spox_inputs
+
+    def to_function_proto(self):
+
+        self._to_function_proto()
+
+        spox_fn_inputs = self.create_spox_inputs(self._inputs)
+        spox_fn_outputs = self.create_spox_outputs(self._outputs)
+
+        var_stack = spox_fn_inputs.get_fields()
+        node_stack = {}
+
+        ### CONSTRUCT GRAPH
+        for stmt in self.stmts:
+
+            # create inputs
+            nd_inputs = BaseInputs()
+            fields = [(d.name, SpoxVar) for d in stmt.dependencies]
+            nd_inputs.__class__ = make_dataclass('Inputs', fields=fields, bases=(BaseInputs,))
+            for d in stmt.dependencies:
+                setattr(nd_inputs, d.name, var_stack[d.name])
+
+            # create outputs
+            nd_outputs = BaseOutputs()
+            fields = [(d.name, SpoxVar) for d in stmt.dependents]
+            nd_outputs.__class__ = make_dataclass('Outputs', fields=fields, bases=(BaseOutputs,))
+            for d in stmt.dependents:
+                type_ = SpoxType()._from_onnx(d.typeinfo.to_type_proto())
+                var = SpoxVar(stmt, type_)
+                setattr(nd_outputs, d.name, var)
+                #var_stack[d.name] = var
+
+            spox_node = SpoxNode(stmt.attrs, nd_inputs, nd_outputs)
+            spox_node.op_type = OpType(stmt.callee._name, stmt.callee._opset.domain, stmt.callee._opset.version)
+            for d in stmt.dependents:
+                type_ = SpoxType()._from_onnx(d.typeinfo.to_type_proto())
+                var = SpoxVar(spox_node, type_)
+                setattr(spox_node.outputs, d.name, var)
+                var_stack[d.name] = var
+
+            #spox_node = SpoxNode(stmt.attrs, nd_inputs, nd_outputs)
+            node_stack[stmt.callee.name] = spox_node
+        for o in self._outputs:
+            setattr(spox_fn_outputs, o.name, var_stack[d.name])
+
+        # proto
+        self.func_args = spox_fn_inputs.get_fields()
+        self.func_inputs = spox_fn_inputs
+        self.func_outputs = spox_fn_outputs
+        self.func_attrs = {}
+        self.func_graph = spox._graph.results(**self.func_outputs.get_vars()).with_arguments(
+            *self.func_args.values()
+        ).with_name(self.name)
+        return self.to_onnx_function()
+
+    def _to_function_proto(self) -> onnx.FunctionProto:
         """Converts this instance into a `onnx.FunctionProto`.
 
         Note: Default values for attributes are an experimental feature in ONNX.
@@ -557,13 +672,13 @@ class IRFunction:
             onnx.helper.make_opsetid(domain, version) for domain, version in opsets.items()
         ]
 
-        attribute_names = [attr.name for attr in self.attrs if not attr.has_default]
+        attribute_names = [attr.name for attr in self._attrs if not attr.has_default]
 
         f = helper.make_function(
             self.domain,
             self.name,
-            inputs=[x.name for x in self.inputs],
-            outputs=[y.name for y in self.outputs],
+            inputs=[x.name for x in self._inputs],
+            outputs=[y.name for y in self._outputs],
             nodes=nodes,
             opset_imports=opset_imports,  # TODO
             attributes=attribute_names,
@@ -571,10 +686,17 @@ class IRFunction:
         )
         if hasattr(onnx.FunctionProto, "attribute_proto"):
             f.attribute_proto.extend(
-                [attr.attr_proto for attr in self.attrs if attr.has_default]
+                [attr.attr_proto for attr in self._attrs if attr.has_default]
             )
         return f
 
+class IRGraph:
+    def __init__(self):
+        self.graph = None
+
+    def return_graph(self):
+        # TODO: Move logic from IRFunction to IRGraph
+        return self.graph
 
 # IRBuilder: abstracts out details of the IR in the python-to-IR converter
 
