@@ -577,16 +577,7 @@ class IRFunction(SpoxFunction):
 
     def convert_to_spox_attrs(self, attrs) -> BaseAttributes:
         spox_attrs = BaseAttributes()
-        fields = []
-        '''for a in attrs:
-            # TODO: Works for attrs with default_value only
-            # Testing only int64 types for dummy testing
-            fields.append((a.attr_proto.name, AttrInt64))
-        spox_attrs.__class__ = make_dataclass('Attributes', fields=fields, bases=(BaseAttributes,))
-        for a in attrs:
-            setattr(spox_attrs, a.attr_proto.name, IRAttributeValue(a.attr_proto))'''
-        for a in attrs:
-            fields.append((a.name, SpoxAttrRef))
+        fields = [(a.name, SpoxAttrRef) for a in attrs]
         spox_attrs.__class__ = make_dataclass('Attributes', fields=fields, bases=(BaseAttributes,))
         for a in attrs:
             dummy_tens = AttrInt64(0)
@@ -639,7 +630,7 @@ class IRFunction(SpoxFunction):
         )
         setattr(spox_fn, 'func_inputs', fn_inputs)
         setattr(spox_fn, 'func_outputs', fn_outputs)
-        setattr(spox_fn, 'func_attrs', dict())
+        setattr(spox_fn, 'func_attrs', fn_attrs.get_fields())
         setattr(spox_fn, 'func_graph', self.func.graph)
         #return self._to_function_proto()
         return spox_fn.to_onnx_function()
@@ -677,11 +668,12 @@ class IRGraph(SpoxGraph):
         spox_inputs.__class__ = make_dataclass('_FuncInputs', fields=fields, bases=(BaseInputs,))
         for inp in self.fn._inputs:
             spox_arg = SpoxArgument(inp.type)
+            spox_arg._rename(inp.name)
             setattr(spox_inputs, inp.name, spox_arg)
             self.args.append(spox_arg)
         # Outputs
         spox_outputs = BaseOutputs()
-        fields = [(out.name, SpoxVar) for out in self.fn._outputs]
+        fields = [(out.name+"_", SpoxVar) for out in self.fn._outputs]
         spox_outputs.__class__ = make_dataclass('_FuncOutputs', fields=fields, bases=(BaseOutputs,))
         return spox_inputs, spox_outputs
 
@@ -715,13 +707,14 @@ class IRGraph(SpoxGraph):
             for d in stmt.dependents:
                 type_ = SpoxType()._from_onnx(d.typeinfo.to_type_proto())
                 var = SpoxVar(spox_node, type_)
+                var._rename(d.name)
                 setattr(spox_node.outputs, d.name, var)
                 var_stack[d.name] = var
 
             node_stack[stmt.callee.name] = spox_node
         for o in self.fn._outputs:
-            setattr(graph_outputs, o.name, var_stack[o.name])
-            self.results[o.name] = var_stack[o.name]
+            setattr(graph_outputs, o.name+"_", var_stack[o.name])
+            self.results[o.name+"_"] = var_stack[o.name]
         self.dcs = [graph_inputs, graph_outputs]
         return graph_outputs
 
