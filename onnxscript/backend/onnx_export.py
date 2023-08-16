@@ -27,7 +27,7 @@ from onnxscript.onnx_opset import opset{{ opsets[''] }}
 {% for domain, version in unique_function_domain_version: %}
 {{ domain }}{{ version }} = Opset("{{ domain }}", {{ version }}){% endfor %}
 {% for domain, name, fct in functions: %}
-@script({{ domain }}{{ version }})
+@script({{ domain }}1)
 def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{{
     translate_function_signature(fct['proto'])}}
     {% if fct['proto'].doc_string %}"""
@@ -37,6 +37,7 @@ def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{{
 {{ python_make_node(node, opsets, indent=1) }}{% endfor %}
     return {{ ", ".join(map(rename, fct['proto'].output)) }}
 {% endfor %}
+{% if graph %}
 @script()
 def {{ function_name }}{{translate_sig(graph.input, graph.output)}}
     {% if doc_string %}"""
@@ -45,6 +46,7 @@ def {{ function_name }}{{translate_sig(graph.input, graph.output)}}
 {{ python_make_node_graph(graph, opsets, indent=1) }}
     return {{ rename(graph.output[0]) }}{%
         for o in graph.output[1:]: %}, {{ rename(o) }}{% endfor %}
+{%- endif %}
 '''
 
 
@@ -495,12 +497,6 @@ def export_template(
     Returns:
         python code
     """
-    # unique_function_domain_version
-    unique_function_domain_version = set()
-    if hasattr(model_onnx, "functions"):
-        for f in model_onnx.functions:
-            unique_function_domain_version.add((f.domain, 1))
-    unique_function_domain_version_sorted = sorted(unique_function_domain_version)
 
     if rename:
         variable_names: dict[str, str] = {}
@@ -527,7 +523,6 @@ def export_template(
         "python_make_node": exporter._python_make_node,  # pylint: disable=protected-access
         "python_make_node_graph": exporter._python_make_node_graph,  # pylint: disable=protected-access
         "python_make_node_name": _python_make_node_name,  # pylint: disable=protected-access
-        "unique_function_domain_version": unique_function_domain_version_sorted,
         "rename": rename_variable,
         "translate_sig": _translate_signature,
         "translate_function_signature": exporter.translate_function_signature,
@@ -553,16 +548,25 @@ def export_template(
 
     # functions
     functions = []
-    if hasattr(model_onnx, "functions"):
-        for fct in model_onnx.functions:
-            opsets_fct = {}
-            for oimp in fct.opset_import:
-                opsets_fct[oimp.domain] = oimp.version
-            functions.append((fct.domain, fct.name, {"proto": fct, "opsets": opsets_fct}))
-    context["functions"] = functions
+    unique_function_domain_version = set()
 
-    # node
-    context["graph"] = graph
+    def add_function(f: FunctionProto) -> None:
+        opsets = {}
+        for oimp in f.opset_import:
+            opsets[oimp.domain] = oimp.version
+        functions.append((f.domain, f.name, {"proto": f, "opsets": opsets}))
+        unique_function_domain_version.add((f.domain, 1))
+
+    if hasattr(model_onnx, "functions"):
+        for f in model_onnx.functions:
+            add_function(f)
+    else:
+        assert isinstance(model_onnx, FunctionProto)
+        add_function(model_onnx)
+
+    context["functions"] = functions
+    context["unique_function_domain_version"] = sorted(unique_function_domain_version)
+    context["graph"] = graph if isinstance(graph, onnx.GraphProto) else None
 
     # graph
     context["name"] = name or graph.name
