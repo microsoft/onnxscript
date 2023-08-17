@@ -19,6 +19,7 @@ from torch.onnx import _type_utils
 from typing_extensions import TypeAlias
 import spox
 from spox import _node
+import spox.opset.ai.onnx.v18 as spox_op
 
 import onnxscript
 from onnxscript import evaluator
@@ -360,7 +361,7 @@ class SpoxGraph:
 
     def __init__(self, parent_torch_script_graph: Optional[SpoxGraph] = None):
         # All nodes inside this graph
-        self._nodes: Dict[str, _node.Node] = {}
+        self._nodes: List[_node.Node] = {}
         # The outputs of this graph
         self._outputs: List[SymbolicTensor] = []
         # The inputs of the graph
@@ -440,68 +441,76 @@ class SpoxGraph:
             self._initializers_inputs_from_parent[
                 name
             ] = self._parent_torch_script_graph.add_initializer(name, value)
-            value = self.add_input(name, value.shape, value.dtype)
-            self._initializers_inputs[name] = value
-            return value
+        else:
+            self._initializers[name] = value
 
-        self._initializers[name] = value
-        torch_value = self._torch_graph.addInput(name)
-        torch_value.setType(torch.TensorType.create_from_tensor(value))
-        tensor_value = _wrap_spox_value_to_tensor(torch_value)
-        self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
-        return tensor_value  # type: ignore[return-value]
+        symbolic_tensor = self.add_input(name, value.shape, value.dtype)
+        self._initializers_inputs[name] = symbolic_tensor
+        return symbolic_tensor
 
     @runtime_typing.checked
     def register_outputs(
         self, outputs: Union[SymbolicTensor, Tuple[SymbolicTensor, ...]]
-    ):
+    ) -> None:
         # TODO(justinchuby): We dont need to unwrap the tensors here, because
         # we manage the graph ourselves
         assert isinstance(outputs, SymbolicTensor) or isinstance(
-            outputs, Tuple
+            outputs, tuple
         ), f"outputs must be a SymbolicTensor or Sequence, not {type(outputs)}"
         if isinstance(outputs, tuple):
             self._outputs.extend(outputs)
             return
         self._outputs.append(outputs)
 
-    def _add_constant_to_graph(self, constant) -> torch.Value:
+    def _add_constant_to_graph(self, constant) -> spox.Var:
         # TODO(justinchuby): Figure out how the add constants in spox
-        if constant is None:
-            value = _create_op_call_in_torch_graph(
-                self._torch_graph, "prim::Constant", inputs=(), attributes={}
-            )[0]
-            value.setType(torch.OptionalType.ofTensor())
-            value.setDebugName(_rename_intermediate_value(value.debugName()))
-            return value
+        # if constant is None:
+        #     value = _create_op_call_in_torch_graph(
+        #         self._torch_graph, "prim::Constant", inputs=(), attributes={}
+        #     )[0]
+        #     value.setType(torch.OptionalType.ofTensor())
+        #     value.setDebugName(_rename_intermediate_value(value.debugName()))
+        #     return value
 
-        if isinstance(constant, bool):
-            # Be sure to put bool before int, because bool is a subclass of int
-            constant_tensor = torch.tensor(constant, dtype=torch.bool)
-        elif isinstance(constant, float):
-            constant_tensor = torch.tensor(constant, dtype=torch.float)
-        elif isinstance(constant, int):
-            constant_tensor = torch.tensor(constant, dtype=torch.int64)
+        if isinstance(constant, (bool, float, int)):
+            constant_tensor = spox_op.constant(value=np.array(constant))
         elif isinstance(constant, (tuple, list)) and all(
-            isinstance(val, int) for val in constant
+            isinstance(val, (int, float)) for val in constant
         ):
-            constant_tensor = torch.tensor(constant, dtype=torch.int64)
-        elif isinstance(constant, (tuple, list)) and all(
-            isinstance(val, float) for val in constant
-        ):
-            constant_tensor = torch.tensor(constant, dtype=torch.float)
+            constant_tensor = spox_op.constant(value=np.array(constant))
         else:
             raise TypeError(
                 f"Constant input '{constant}' of type '{type(constant)}' is not supported"
             )
-        value = _create_op_call_in_torch_graph(
-            self._torch_graph,
-            "onnx::Constant",
-            inputs=(),
-            attributes=dict(value=constant_tensor),
-        )[0]
-        value.setDebugName(_rename_intermediate_value(value.debugName()))
-        return value
+        # TODO(justinchuby): Should we store the name of the node here or have
+        # a handle to the node at all? How can we get the underlying node
+        # from the tensor? Or should we create the node ourselves?
+        # TODO(justinchuby): Cannot rename right now because the tensor is not
+        # even in the graph yet?
+        # value.setDebugName(_rename_intermediate_value(value.debugName()))
+        # TODO(justinchuby): Should we return the raw value here or should we
+        # return the SymbolicTensor?
+        return constant_tensor
+
+    @runtime_typing.checked
+    def _create_op_call(
+        self,
+        operator_name: str,
+        inputs: Sequence[spox.Var],
+        attributes: Mapping[str, Any],
+    ) -> Tuple[spox.Var]:
+        # TODO(justinchuby): Create a node using the inputs
+        # Then use the "outputs" of the node to return Vars.
+        # The names of the output can be created dynamically.
+        # We also need to dynamically create the BaseInputs and BaseOutputs
+        # which are dataclasses.
+        # TODO(justinchuby): The Node class is designed to be created declaratively
+        # and is the same concept is an `Op` in onnxscript
+        # TODO(justinchuby):
+        # I don't like how we need to massage dataclasses for inputs and outputs
+        # for it. Ideally we can just say here's the inputs and outputs and the
+        # graph is created
+        ...
 
     @runtime_typing.checked
     def _add_torchscript_op_call(
@@ -527,13 +536,9 @@ class SpoxGraph:
             ):
                 # If all elements in the Sequence are torch.Values we know it
                 # should be a Sequence input in ONNX.
-                input_sequence = _create_op_call_in_torch_graph(
-                    self._torch_graph,
-                    "onnx::SequenceConstruct",
-                    inputs=input,
-                    attributes={},
-                )[0]
+                input_sequence = self._create_op_call("SequenceConstruct", input, {})[0]
                 graph_inputs.append(input_sequence)
+            # TODO(justinchuby): MARK: Tired. I am here
             elif not isinstance(input, torch.Value):
                 graph_inputs.append(self._add_constant_to_graph(input))
             else:
