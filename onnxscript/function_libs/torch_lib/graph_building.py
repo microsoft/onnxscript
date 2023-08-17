@@ -536,6 +536,7 @@ class SpoxGraph:
             ):
                 # If all elements in the Sequence are torch.Values we know it
                 # should be a Sequence input in ONNX.
+                # TODO(justinchuby): Remember to handle the domain as well?
                 input_sequence = self._create_op_call("SequenceConstruct", input, {})[0]
                 graph_inputs.append(input_sequence)
             # TODO(justinchuby): MARK: Tired. I am here
