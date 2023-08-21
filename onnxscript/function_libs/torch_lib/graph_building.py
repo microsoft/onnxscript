@@ -6,7 +6,7 @@ import os
 import tempfile
 import typing
 import warnings
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
