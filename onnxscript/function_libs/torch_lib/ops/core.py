@@ -5342,9 +5342,14 @@ def aten_pdist(self: TensorType, p: float = 2.0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::permute")
+@torch_op("aten::permute", trace_only=True)
 def aten_permute(self: TTensor, dims: Sequence[int]) -> TTensor:
     """permute(Tensor(a) self, int[] dims) -> Tensor(a)"""
+
+    if not dims:
+        return op.Transpose(self)
+    if any(axis < 0 for axis in dims):
+        dims = [axis + len(dims) if axis < 0 else axis for axis in dims]
 
     return op.Transpose(self, perm=dims)
 
