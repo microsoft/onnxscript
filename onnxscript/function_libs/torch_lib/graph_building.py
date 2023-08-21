@@ -6,7 +6,7 @@ import os
 import tempfile
 import typing
 import warnings
-from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -15,7 +15,6 @@ import onnx.defs
 import onnx.helper
 import onnx.shape_inference
 import torch
-from torch.onnx import _type_utils
 from typing_extensions import TypeAlias
 
 import onnxscript
@@ -157,6 +156,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         # TODO: Return numpy dtype
         if self._torch_dtype is not None:
             return self._torch_dtype
+        # Local import to avoid circular dependency
+        from torch.onnx import _type_utils  # pylint: disable=import-outside-toplevel
+
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         )
@@ -180,6 +182,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     @property
     def onnx_dtype(self):
+        # Local import to avoid circular dependency
+        from torch.onnx import _type_utils  # pylint: disable=import-outside-toplevel
+
         return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, _type_utils.JitScalarType.UNDEFINED
         ).onnx_type()
@@ -384,7 +389,10 @@ class TorchScriptGraph:
         self._domain_name: Optional[str] = domain_name
 
         if self._domain_name is None and self._parent_torch_script_graph is not None:
-            raise RuntimeError("Domain name is not set for local function.")
+            raise RuntimeError(
+                "Domain name is not set. It is required because this 'TorchScriptGraph' instance "
+                "is a subgraph that represents an ONNX local function."
+            )
 
     @property
     def torch_graph(self):
