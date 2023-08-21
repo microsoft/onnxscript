@@ -5348,8 +5348,9 @@ def aten_permute(self: TTensor, dims: Sequence[int]) -> TTensor:
 
     if not dims:
         return op.Transpose(self)
-    if any(axis < 0 for axis in dims):
-        dims = [axis + len(dims) if axis < 0 else axis for axis in dims]
+
+    # Handle negative axes
+    dims = [axis + len(dims) if axis < 0 else axis for axis in dims]
 
     return op.Transpose(self, perm=dims)
 
