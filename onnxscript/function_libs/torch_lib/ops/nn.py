@@ -531,7 +531,8 @@ def _aten_gelu_approximate_tanh(self: TReal) -> TReal:
     inner = op.Mul(0.044715, cubed)
     inner = op.Add(self, inner)
     # Prefer explicit graph construction over precomputed constants for clarity.
-    inner = op.Mul(op.Sqrt(op.Div(2.0, _MATH_PI)), inner)
+    two_over_pi = op.CastLike(op.Div(2.0, _MATH_PI), self)
+    inner = op.Mul(op.Sqrt(two_over_pi), inner)
     inner = op.Tanh(inner)
     inner = op.Add(inner, 1)
     inner = op.Mul(self, inner)
