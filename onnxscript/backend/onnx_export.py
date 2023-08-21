@@ -220,9 +220,9 @@ def _python_make_node_name(domain, version, name, node=False):
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
 
-    def __init__(self, use_operators=False, rename_function=None, inline_const=False) -> None:
+    def __init__(self, rename_function, use_operators=False, inline_const=False) -> None:
         self.use_operators = use_operators
-        self._rename_variable = rename_function or _rename_variable
+        self._rename_variable = rename_function
         self.inline_const = inline_const
         self.constants: dict[str, str] = {}
 
@@ -441,7 +441,7 @@ class Exporter:
 
         inputs = [self._rename_variable(x) for x in funproto.input]
         attrs = [attr_sig(x) for x in funproto.attribute]
-        input_and_attrs = ", ".join(inputs + attrs)
+        input_and_attrs = ", ".join(inputs + attrs)  # type: ignore[arg-type]
         if len(funproto.attribute_proto) > 0:
             message = "\n   # Attribute parameters default-values not handled yet."
         else:
@@ -515,7 +515,7 @@ def export_template(
         def rename_variable(name):
             return _rename_variable(name)
 
-    exporter = Exporter(use_operators, rename_variable, inline_const)
+    exporter = Exporter(rename_variable, use_operators, inline_const)
 
     # containers
     context = {

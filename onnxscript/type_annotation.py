@@ -56,7 +56,10 @@ _ATTRTYPE_TO_REPR = {
 
 def onnx_attr_type_to_onnxscript_repr(attr_type: onnx.AttributeProto.AttributeType) -> str:
     if attr_type not in _ATTRTYPE_TO_REPR:
-        raise ValueError("Unsupported attribute type {attr_type}")
+        supported = ", ".join(
+            f"'{onnx.AttributeProto.AttributeType.Name(v)}'" for v in _ATTRTYPE_TO_REPR
+        )
+        raise ValueError(f"Unsupported attribute type {attr_type}: only {supported} allowed.")
     return _ATTRTYPE_TO_REPR[attr_type]
 
 
