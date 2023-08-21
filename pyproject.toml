@@ -36,7 +36,7 @@ onnx = ["py.typed"]
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]
-addopts = "-rfEsX --tb=short --color=yes"
+addopts = "-rsfEX --tb=short --color=yes"
 
 [tool.mypy]
 follow_imports = "silent"   # TODO: Remove when we fix all the mypy errors
