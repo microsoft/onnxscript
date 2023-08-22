@@ -85,7 +85,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         aten_abs = ops.core.aten_abs
         aten_relu = ops.nn.aten_relu
 
-        inner_graph = graph_building.TorchScriptGraph()
+        inner_graph = graph_building.TorchScriptGraph(domain_name="test_domain")
         inner_tracer = graph_building.TorchScriptTracingEvaluator(inner_graph)
 
         x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
@@ -105,7 +105,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         traced = outer_graph.to_model_proto(self.opset_version)
 
         @onnxscript.script(
-            opset=onnxscript.values.Opset("torch_export", 1),
+            opset=onnxscript.values.Opset("test_domain", 1),
             default_opset=op,
         )
         def inner(x: FLOAT[1, 2, 3]):

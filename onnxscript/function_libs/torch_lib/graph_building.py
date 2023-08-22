@@ -6,7 +6,7 @@ import os
 import tempfile
 import typing
 import warnings
-from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -364,10 +364,11 @@ def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
 
 
 class TorchScriptGraph:
-    _LOCAL_FUNCTION_DOMAIN_NAME: Final[str] = "torch_export"
-    """The domain name for local functions."""
-
-    def __init__(self, parent_torch_script_graph: Optional[TorchScriptGraph] = None):
+    def __init__(
+        self,
+        parent_torch_script_graph: Optional[TorchScriptGraph] = None,
+        domain_name: Optional[str] = None,
+    ):
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
         # key: (name, domain)
@@ -384,6 +385,14 @@ class TorchScriptGraph:
         self._sub_torch_script_graphs: Dict[str, TorchScriptGraph] = {}
         # Parent graph. None if this is the top level graph.
         self._parent_torch_script_graph = parent_torch_script_graph
+        # Domain name of the graph. None if this is the top level graph.
+        self._domain_name: Optional[str] = domain_name
+
+        if self._domain_name is None and self._parent_torch_script_graph is not None:
+            raise RuntimeError(
+                "Domain name is not set. It is required because this 'TorchScriptGraph' instance "
+                "is a subgraph that represents an ONNX local function."
+            )
 
     @property
     def torch_graph(self):
@@ -404,6 +413,10 @@ class TorchScriptGraph:
     @property
     def num_outputs(self) -> int:
         return len(list(self._torch_graph.outputs()))
+
+    @property
+    def domain_name(self) -> Optional[str]:
+        return self._domain_name
 
     @runtime_typing.checked
     def add_input(
@@ -577,6 +590,7 @@ class TorchScriptGraph:
         self, opset_version: int
     ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
         function_proto_dict: Dict[Tuple[str, str], onnx.FunctionProto] = {}
+        # Fetch local function protos. E.g., local functions representing module calls.
         for (
             sub_graph_name,
             sub_torch_script_graph,
@@ -584,9 +598,11 @@ class TorchScriptGraph:
             function_proto_dict.update(
                 sub_torch_script_graph.fetch_function_proto_dict(opset_version)
             )
+            domain = sub_torch_script_graph.domain_name
+            assert domain is not None
             name_domain = (
                 sub_graph_name,
-                self._LOCAL_FUNCTION_DOMAIN_NAME,
+                domain,
             )
             assert (
                 name_domain not in function_proto_dict
@@ -594,6 +610,7 @@ class TorchScriptGraph:
             function_proto_dict[name_domain] = sub_torch_script_graph.to_function_proto(
                 opset_version, sub_graph_name
             )
+        # Fetch torchlib function protos.
         for name_domain, function in self._function_store.items():
             function_proto_dict[name_domain] = function.to_function_proto()
         return function_proto_dict
@@ -644,8 +661,10 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         self._sub_torch_script_graphs[name] = sub_torch_script_graph
+        domain_name = sub_torch_script_graph.domain_name
+        assert domain_name is not None
         return self._add_torchscript_op_call(
-            f"{self._LOCAL_FUNCTION_DOMAIN_NAME}::{name}",
+            f"{domain_name}::{name}",
             onnx_inputs=(
                 *onnx_inputs,
                 *sub_torch_script_graph.initializers_inputs_from_parent.values(),
@@ -679,8 +698,11 @@ class TorchScriptGraph:
         onnx_model = onnx.load_from_string(proto)
 
         # Dissect the model proto and transform to function proto.
+        domain = self.domain_name
+        if domain is None:
+            raise RuntimeError("Domain name is not set.")
         onnx_function = onnx.helper.make_function(
-            domain=self._LOCAL_FUNCTION_DOMAIN_NAME,
+            domain=domain,
             fname=function_name,
             inputs=[input.name for input in onnx_model.graph.input],
             outputs=[output.name for output in onnx_model.graph.output],
