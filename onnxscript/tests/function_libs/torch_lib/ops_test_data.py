@@ -1106,14 +1106,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "permute",
         core_ops.aten_permute,
         input_wrangler=_permute_input_wrangler,
-    )
-    .xfail(
-        matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
-        reason="Negative value in perm is not supported",
-    )
-    .xfail(
-        matcher=lambda sample: len(sample.args[0]) == 0,
-        reason="Empty perm is not supported",
+        trace_only=True,
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB

@@ -37,6 +37,12 @@ ONNX models and functions:
 ## Installing ONNX Script
 
 ```bash
+pip install --upgrade onnxscript-preview
+```
+
+### Install for Development
+
+```bash
 pip install onnx onnxruntime pytest
 git clone https://github.com/microsoft/onnxscript
 cd onnxscript
