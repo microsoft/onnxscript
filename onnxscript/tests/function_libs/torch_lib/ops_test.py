@@ -217,6 +217,8 @@ def run_test_output_match(
                     op.name.startswith("split")
                     or op.name.startswith("chunk")
                     or op.name.startswith("unbind")
+                    or op.name
+                    in {"atleast_1d_Sequence", "atleast_2d_Sequence", "atleast_3d_Sequence"}
                 ):
                     # Hack for handling split, chunk and unbind which relies on SplitToSequence op.
                     # Split returns a Sequence that should be treats as a single
