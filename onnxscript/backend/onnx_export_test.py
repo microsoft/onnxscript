@@ -16,6 +16,7 @@ import parameterized
 from onnxruntime.capi import onnxruntime_pybind11_state
 
 import onnxscript
+import onnxscript.testing
 from onnxscript.backend import onnx_backend, onnx_export
 from onnxscript.tests.models import type_double
 
@@ -131,7 +132,26 @@ def exec_main(f, *inputs):
 
 
 class TestOnnxBackEnd(unittest.TestCase):
-    test_folder = pathlib.Path(__file__).parent.parent / "tests" / "onnx_backend_test_code"
+    root_folder = pathlib.Path(__file__).parent.parent
+    test_folder = root_folder / "tests" / "onnx_backend_test_code"
+    temp_folder = root_folder / "tests" / "export"
+
+    def _round_trip_check(self, proto, **export_options):
+        code = onnx_export.export2python(proto, **export_options)
+        map = extract_functions(proto.name, code, TestOnnxBackEnd.temp_folder)
+        result_proto = map[proto.name]
+        onnxscript.testing.assert_isomorphic(proto, result_proto)
+
+    def test_attr_ref(self):
+        """Test functions using attribute-parameters."""
+        op = onnxscript.opset17
+
+        @onnxscript.script()
+        def fun_with_attr_param(X, dtype: int):
+            return op.Cast(X, to=dtype)
+
+        fun_proto = fun_with_attr_param.to_function_proto()
+        self._round_trip_check(fun_proto)
 
     def test_export2python(self):
         proto = type_double.double_abs_subgraph.to_model_proto()
