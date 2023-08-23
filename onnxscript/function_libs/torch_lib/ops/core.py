@@ -2543,7 +2543,7 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     # The equivalent Torch op with ONNX Equal is aten::eq.
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
-    # ReduceMax does not support bool. So we cast to int64
+    # ReduceMin does not support bool. So we cast to int64
     all_equal = op.ReduceMin(elementwise_equal_int, keepdims=False)
     return op.Cast(all_equal, to=BOOL.dtype)
 
@@ -5342,9 +5342,15 @@ def aten_pdist(self: TensorType, p: float = 2.0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::permute")
+@torch_op("aten::permute", trace_only=True)
 def aten_permute(self: TTensor, dims: Sequence[int]) -> TTensor:
     """permute(Tensor(a) self, int[] dims) -> Tensor(a)"""
+
+    if not dims:
+        return op.Transpose(self)
+
+    # Handle negative axes
+    dims = [axis + len(dims) if axis < 0 else axis for axis in dims]
 
     return op.Transpose(self, perm=dims)
 

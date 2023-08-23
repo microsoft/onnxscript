@@ -491,6 +491,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -499,6 +500,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -610,10 +612,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
@@ -800,6 +804,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("maximum", core_ops.aten_maximum).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -826,6 +831,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         variant_name="reduction_with_dim",
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -852,6 +858,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("minimum", core_ops.aten_minimum).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("mm", core_ops.aten_mm),
@@ -1102,14 +1109,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "permute",
         core_ops.aten_permute,
         input_wrangler=_permute_input_wrangler,
-    )
-    .xfail(
-        matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
-        reason="Negative value in perm is not supported",
-    )
-    .xfail(
-        matcher=lambda sample: len(sample.args[0]) == 0,
-        reason="Empty perm is not supported",
+        trace_only=True,
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
@@ -1363,6 +1363,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1376,6 +1377,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1389,6 +1391,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1402,6 +1405,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1418,6 +1422,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -1483,6 +1488,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         variant_name="reduction_with_dim",
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
