@@ -326,11 +326,7 @@ def aten_amax(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrU
     """amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMax reduces all dimensions when dim is empty
-    if op.Size(op.Shape(self)) == 0:
-        result = self
-    else:
-        result = op.ReduceMax(self, dim, keepdims=keepdim)
-    return result
+    return op.ReduceMax(self, dim, keepdims=keepdim)
 
 
 @torch_op("aten::amin")
@@ -338,11 +334,7 @@ def aten_amin(self: TRealOrUInt8, dim: INT64, keepdim: bool = False) -> TRealOrU
     """amin(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"""
 
     # ReduceMin reduces all dimensions when dim is empty
-    if op.Size(op.Shape(self)) == 0:
-        result = self
-    else:
-        result = op.ReduceMin(self, dim, keepdims=keepdim)
-    return result
+    return op.ReduceMin(self, dim, keepdims=keepdim)
 
 
 def aten_aminmax(
