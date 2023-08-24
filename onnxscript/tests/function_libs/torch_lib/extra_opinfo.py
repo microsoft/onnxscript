@@ -762,7 +762,8 @@ def sample_inputs_embedding_bag_padding_idx(op_info, device, dtype, requires_gra
 
     offsets = [
         torch.tensor([0, 2, 3], device=device, dtype=torch.long),
-        # Below case not work for FullGraph mode, guess due to op.While() bug
+        # Below case not work for FullGraph mode, guess due to op.While() bug:
+        # when the initial condition is False, it still excute the loop body once.
         # torch.tensor([0, 0, 2], device=device, dtype=torch.long),
         # torch.tensor([0, 2, 2, 4], device=device, dtype=torch.long),
     ]
