@@ -402,13 +402,6 @@ class TorchScriptGraph:
     def initializers(self) -> Mapping[str, torch.Tensor]:
         return self._initializers
 
-    # NOTE: This setter is used in torch converter when we activate fake mode,
-    #       we need to filter out the initializers that has fake tensor. This
-    #       is because we don't want to introduce fake tensor in onnxscript.
-    @initializers.setter
-    def initializers(self, initializers: Dict[str, torch.Tensor]):
-        self._initializers = initializers
-
     @property
     def initializers_inputs(self) -> Mapping[str, TorchScriptTensor]:
         return self._initializers_inputs
@@ -454,7 +447,9 @@ class TorchScriptGraph:
         return tensor_value  # type: ignore[return-value]
 
     @runtime_typing.checked
-    def add_initializer(self, name: str, value: torch.Tensor) -> TorchScriptTensor:
+    def add_initializer(
+        self, name: str, value: torch.Tensor, save_value_to_default: bool = True
+    ) -> TorchScriptTensor:
         if name in self._initializers_inputs:
             # NOTE: Previously it raises when `name` is already set. This is relaxed
             # because this will be invoked multiple times when submodule is called
@@ -473,14 +468,17 @@ class TorchScriptGraph:
             # to root graph, and add as input to current graph.
             self._initializers_inputs_from_parent[
                 name
-            ] = self._parent_torch_script_graph.add_initializer(name, value)
+            ] = self._parent_torch_script_graph.add_initializer(
+                name, value, save_value_to_default
+            )
             torch_value = self._torch_graph.addInput(name)
             torch_value.setType(torch.TensorType.create_from_tensor(value))
             tensor_value = _wrap_torch_value_to_tensor(torch_value)
             self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
             return tensor_value  # type: ignore[return-value]
-
-        self._initializers[name] = value
+        # NOTE: If an initializer relies on external input, its default value is detached.
+        if save_value_to_default:
+            self._initializers[name] = value
         torch_value = self._torch_graph.addInput(name)
         torch_value.setType(torch.TensorType.create_from_tensor(value))
         tensor_value = _wrap_torch_value_to_tensor(torch_value)
