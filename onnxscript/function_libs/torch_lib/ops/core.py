@@ -2356,7 +2356,6 @@ def _aten_embedding_bag_onnx(
     per_sample_weights: TFloat,
     include_last_offset: bool,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
-
     neg_1 = op.Constant(value_ints=[-1])
     # Assume indices is shape(5,2), indices_1d is shape(10,)
     indices_1d = op.Reshape(indices, neg_1)
@@ -2457,9 +2456,9 @@ def aten_embedding_bag_padding_idx(
     sparse: bool = False,  # pylint: disable=unused-argument
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-    padding_idx: int = None,
+    padding_idx: Optional[int] = None,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
-    """embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False) -> (Tensor, Tensor, Tensor, Tensor)"""
+    """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)"""
     # assert(padding_idx is not None)
 
     if per_sample_weights is None:
@@ -2487,7 +2486,6 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     include_last_offset: bool,
     padding_idx: int,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
-
     neg_1 = op.Constant(value_ints=[-1])
     # Get weight out according to indices,
     # e.g. indices=[3,1,4,5,3] means get weight[[3,1,4,5,3]]
@@ -2575,28 +2573,6 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
         max_indices = op.Expand(0, op.Concat(dim_0, dim_1, axis=0))
 
     return result, offset2bag, bag_size, max_indices
-
-
-
-
-def test_aten_embedding_bag_1d_padding_idx():
-    import numpy as np
-    weight = np.array([[0,0,0,0],[1,1,1,1],[2,2,2,2],[3,3,3,3],[4,4,4,4],[5,5,5,5],[6,6,6,6],[7,7,7,7],[8,8,8,8],[9,9,9,9]])+0.1
-    weight = weight.astype(np.float32)
-    #indices_1d = np.array([[1],[0],[5],[4],[3],[6],[2]]).astype(np.int64)
-    #indices_1d = np.array([1,0,5,4,3,6,2]).astype(np.int64)
-    indices_1d = np.array([2,7,6,4,6]).astype(np.int64)
-    #offsets = np.array([0,2,3]).astype(np.int64)
-    offsets = np.array([0,0,2]).astype(np.int64)
-    padding_idx = -1
-    for mode in (0,):
-        r = aten_embedding_bag_padding_idx(
-            weight, indices_1d, offsets, mode=mode, padding_idx=padding_idx)
-        print(r)
-        r = aten_embedding_bag_padding_idx(weight, indices_1d, offsets, mode=mode, padding_idx=padding_idx, include_last_offset=True)
-        print(r)
-# test_aten_embedding_bag_1d_padding_idx()
-# exit(0)
 
 
 def aten_embedding_dense_backward(

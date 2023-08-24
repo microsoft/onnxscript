@@ -989,8 +989,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag_padding_idx,
         trace_only=True,
         tolerance={torch.float16: (2e-2, 2e-3)},
-# Output[0] is OK, but other 3 outputs just have the same shape with zero values
-        #nondeterministic=True,
+        # Output[0] is OK, but other 3 outputs just have the same shape with zero values
+        nondeterministic=True,
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",

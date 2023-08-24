@@ -762,8 +762,9 @@ def sample_inputs_embedding_bag_padding_idx(op_info, device, dtype, requires_gra
 
     offsets = [
         torch.tensor([0, 2, 3], device=device, dtype=torch.long),
-        #torch.tensor([0, 0, 2], device=device, dtype=torch.long),
-        #torch.tensor([0, 2, 2, 4], device=device, dtype=torch.long),
+        # Below case not work for FullGraph mode, guess due to op.While() bug
+        # torch.tensor([0, 0, 2], device=device, dtype=torch.long),
+        # torch.tensor([0, 2, 2, 4], device=device, dtype=torch.long),
     ]
     for offset in offsets:
         for include_last_offset in (True, False):
@@ -777,7 +778,7 @@ def sample_inputs_embedding_bag_padding_idx(op_info, device, dtype, requires_gra
                     if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
                         continue
 
-                    for padding_idx in (-1,0,1,2,3):
+                    for padding_idx in (-1, 0, 1, 2, 3):
                         # 1-D index tensor
                         indices = make_long_input((S,), low=0, high=M)
                         per_sample_weights = make_per_sample_weight(
