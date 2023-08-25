@@ -2662,7 +2662,7 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     # The equivalent Torch op with ONNX Equal is aten::eq.
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
-    # ReduceMax does not support bool. So we cast to int64
+    # ReduceMin does not support bool. So we cast to int64
     all_equal = op.ReduceMin(elementwise_equal_int, keepdims=False)
     return op.Cast(all_equal, to=BOOL.dtype)
 
@@ -3283,16 +3283,22 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
     @graph()
-    def reshape_to_1d(tensor):
+    def reshape_to_atleast_2d(tensor):
         shape = op.Shape(tensor)
         rank = op.Size(shape)
-        if rank == 0:
-            tensor = op.Reshape(tensor, op.Constant(value_ints=[1]))
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
         return tensor
 
-    tensors_1d = op.SequenceMap(tensors, body=reshape_to_1d)
+    tensors_atleast_2d = op.SequenceMap(tensors, body=reshape_to_atleast_2d)
 
-    return op.ConcatFromSequence(tensors_1d, axis=1, new_axis=0)
+    result = op.ConcatFromSequence(tensors_atleast_2d, axis=1, new_axis=0)
+
+    # hstack expects a non-empty sequence of tensors. So we don't need to check for length
+    rank_1d_or_less = op.Less(op.Size(op.Shape(op.SequenceAt(tensors, 0))), 2)
+    if rank_1d_or_less:
+        result = op.Reshape(result, op.Constant(value_ints=[-1]))
+    return result
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
