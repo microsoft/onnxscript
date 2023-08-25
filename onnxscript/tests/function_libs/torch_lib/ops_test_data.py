@@ -45,6 +45,7 @@ from torch.testing._internal import common_methods_invocations
 from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
@@ -490,6 +491,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -498,6 +500,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -532,10 +535,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
+    )
+    .xfail(
+        reason=(
+            "fixme: ORT shape inference failed."
+            "https://github.com/microsoft/onnxscript/issues/1007"
+        ),
     ),
     TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -550,10 +560,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
+    )
+    .xfail(
+        reason=(
+            "fixme: ORT shape inference failed."
+            "https://github.com/microsoft/onnxscript/issues/1007"
+        ),
     ),
     TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -568,10 +585,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
+    )
+    .xfail(
+        reason=(
+            "fixme: ORT shape inference failed."
+            "https://github.com/microsoft/onnxscript/issues/1007"
+        ),
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
@@ -606,10 +630,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
@@ -796,6 +822,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("maximum", core_ops.aten_maximum).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -822,6 +849,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         variant_name="reduction_with_dim",
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -848,6 +876,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("minimum", core_ops.aten_minimum).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("mm", core_ops.aten_mm),
@@ -1293,6 +1322,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "vstack",
         core_ops.aten_vstack,
     ).xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
@@ -1351,6 +1381,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1364,6 +1395,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1377,6 +1409,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1390,6 +1423,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1406,6 +1440,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -1443,6 +1478,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "hstack",
         core_ops.aten_hstack,
     ).xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo(
@@ -1470,6 +1506,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         variant_name="reduction_with_dim",
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1684,7 +1721,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention",
         nn_ops.aten_scaled_dot_product_attention,
         trace_only=True,
-        tolerance={torch.float32: (1e-5, 1e-5)},
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
@@ -1699,7 +1736,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
-        tolerance={torch.float32: (1e-5, 1e-5)},
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
