@@ -68,7 +68,7 @@ def aten__local_scalar_dense_int(self: IntType) -> INT64:
 
 
 @torch_op("aten::_softmax", trace_only=True)
-def aten__softmax(self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool) -> FLOAT:
+def aten__softmax_half(self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool) -> FLOAT:
     """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
 
     # trace_only because we need to cast conditionally based on half_to_float
