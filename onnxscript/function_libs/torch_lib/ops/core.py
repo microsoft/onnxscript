@@ -2423,21 +2423,18 @@ def _aten_embedding_bag_onnx(
     # Only compute the shape of other 3 outputs, we don't care the value
     if mode == 0:  # sum
         offset2bag = op.Shape(indices, start=0, end=0)  # Generate empty tensor
-        bag_size = op.Expand(0, op.Shape(offsets))
-        max_indices = op.Expand(0, op.Shape(offsets))
+        if op.Equal(include_last_offset, True):
+            bag_size = op.Expand(0, op.Shape(offsets))
+        else:
+            bag_size = op.Expand(0, op.Shape(offsets) - 1)
+        max_indices = op.Expand(0, op.Shape(bag_size))
     elif mode == 1:  # mean
         offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
-        if op.Equal(include_last_offset, True):
-            bag_size = op.Expand(0, op.Shape(offsets) - 1)
-        else:
-            bag_size = op.Expand(0, op.Shape(offsets))
+        bag_size = op.Expand(0, op.Shape(offsets) - 1)
         max_indices = op.Expand(0, op.Shape(bag_size))
     else:  # max
         offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
-        if op.Equal(include_last_offset, True):
-            bag_size = op.Expand(0, op.Shape(offsets) - 1)
-        else:
-            bag_size = op.Expand(0, op.Shape(offsets))
+        bag_size = op.Expand(0, op.Shape(offsets) - 1)
         # shape = (bag_size.dim[0], weight.dim[1])
         dim_0 = op.Shape(bag_size, start=0, end=1)
         dim_1 = op.Shape(weight, start=1, end=2)
@@ -2554,10 +2551,9 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
         offset2bag = op.Expand(0, op.Shape(indices))
         if op.Equal(include_last_offset, True):
             bag_size = op.Expand(0, op.Shape(offsets))
-            max_indices = op.Expand(0, op.Shape(offsets))
         else:
             bag_size = op.Expand(0, op.Shape(offsets) - 1)
-            max_indices = op.Expand(0, op.Shape(offsets) - 1)
+        max_indices = op.Expand(0, op.Shape(bag_size))
     elif mode == 1:  # mean
         offset2bag = op.Expand(0, op.Shape(indices, start=0, end=1))
         bag_size = op.Expand(0, op.Shape(offsets) - 1)
