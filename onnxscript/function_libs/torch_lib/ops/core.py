@@ -67,6 +67,29 @@ def aten__local_scalar_dense_int(self: IntType) -> INT64:
     return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
 
 
+@torch_op("aten::_softmax", trace_only=True)
+def aten__softmax(self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool) -> FLOAT:
+    """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
+
+    # trace_only because we need to cast conditionally based on half_to_float
+    if half_to_float:
+        self = op.Cast(self, to=FLOAT.dtype)
+
+    return aten_softmax_no_dtype(self, dim)
+
+
+@torch_op("aten::_softmax", trace_only=True)
+def aten__softmax(
+    self: TFloatHighPrecision, dim: int, half_to_float: bool
+) -> TFloatHighPrecision:
+    """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
+
+    # trace_only to reuse aten_softmax_no_dtype
+
+    del half_to_float  # Unused
+    return aten_softmax_no_dtype(self, dim)
+
+
 @torch_op("aten::abs")
 def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
@@ -6322,6 +6345,37 @@ def aten_smm(self: TensorType, mat2: TensorType) -> TensorType:
     """smm(Tensor self, Tensor mat2) -> Tensor"""
 
     raise NotImplementedError()
+
+
+@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"))
+def aten_softmax(
+    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
+) -> TFloatOrBFloat16:
+    """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
+
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    result = op.Softmax(self, axis=dim)
+    result = op.Cast(result, to=dtype)
+    if self_is_scalar:  # squeeze to scalar due to input is scalar
+        result = op.Squeeze(result)
+
+    return result
+
+
+@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"))
+def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
+    """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
+
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    result = op.Softmax(self, axis=dim)
+    if self_is_scalar:  # squeeze to scalar due to input is scalar
+        result = op.Squeeze(result)
+
+    return result
 
 
 def aten_sort(
