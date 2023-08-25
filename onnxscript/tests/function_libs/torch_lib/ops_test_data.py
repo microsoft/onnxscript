@@ -1153,23 +1153,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
     TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
     TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
-    TorchLibOpInfo(
-        "round",
-        core_ops.aten_round,
-    )
+    TorchLibOpInfo("round", core_ops.aten_round)
     .xfail(
         variant_name="decimals_0",
-        reason="The op does not support decimals yet",
+        reason="This variant does not accept decimals",
         test_class_name="TestOutputConsistencyEager",
     )
     .xfail(
         variant_name="decimals_3",
-        reason="The op does not support decimals yet",
+        reason="This variant does not accept decimals",
     )
     .xfail(
         variant_name="decimals_neg_3",
-        reason="The op does not support decimals yet",
+        reason="This variant does not accept decimals",
     ),
+    TorchLibOpInfo("round_decimals", core_ops.aten_round_decimals),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
     TorchLibOpInfo(
@@ -1939,6 +1937,7 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
+ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
