@@ -5976,16 +5976,12 @@ def aten_round(self: TFloat) -> TFloat:
 def aten_round_decimals(self: TFloat, decimals: int = 0) -> TFloat:
     """round.decimals(Tensor self, *, int decimals) -> Tensor"""
 
-    if decimals == 0:
-        result = op.Round(self)
-    else:
-        # Scale the input by 10^decimals, round it, and scale it back.
-        ten = op.CastLike(10.0, self)
-        scale = op.Pow(ten, op.CastLike(decimals, self))
-        self_scaled = op.Mul(self, scale)
-        rounded = op.Round(self_scaled)
-        result = op.Div(rounded, scale)
-    return result
+    # Scale the input by 10^decimals, round it, and scale it back.
+    ten = op.CastLike(10.0, self)
+    scale = op.Pow(ten, op.CastLike(decimals, self))
+    self_scaled = op.Mul(self, scale)
+    rounded = op.Round(self_scaled)
+    return op.Div(rounded, scale)
 
 
 def aten_row_indices(self: TensorType) -> TensorType:
