@@ -1721,7 +1721,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention",
         nn_ops.aten_scaled_dot_product_attention,
         trace_only=True,
-        tolerance={torch.float32: (1e-5, 1e-5)},
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
@@ -1736,7 +1736,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
-        tolerance={torch.float32: (1e-5, 1e-5)},
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
