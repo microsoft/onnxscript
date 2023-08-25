@@ -1197,7 +1197,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("sinh", core_ops.aten_sinh),
     TorchLibOpInfo(
         "softmax",
-        special_ops.aten_softmax,
+        core_ops.aten_softmax,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
     ).xfail(
         variant_name="with_dtype",
