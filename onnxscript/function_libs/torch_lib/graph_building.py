@@ -402,6 +402,13 @@ class TorchScriptGraph:
     def initializers(self) -> Mapping[str, torch.Tensor]:
         return self._initializers
 
+    # NOTE: This setter is used in torch converter when we activate fake mode,
+    #       we need to filter out the initializers that has fake tensor. This
+    #       is because we don't want to introduce fake tensor in onnxscript.
+    @initializers.setter
+    def initializers(self, initializers: Dict[str, torch.Tensor]):
+        self._initializers = initializers
+
     @property
     def initializers_inputs(self) -> Mapping[str, TorchScriptTensor]:
         return self._initializers_inputs
@@ -751,7 +758,7 @@ class TorchScriptGraph:
         # We did not do it because it is harder to get right (vs. PyTorch's battle-tested
         # implementation) and creating the `TensorProto`s naively (by converting to numpy)
         # is slow.
-        cache_model_to_disk = include_initializers and large_model
+        cache_model_to_disk = large_model and include_initializers
 
         if cache_model_to_disk:
             with tempfile.TemporaryDirectory() as temp_dir:
