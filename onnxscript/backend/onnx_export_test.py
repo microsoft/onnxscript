@@ -90,7 +90,7 @@ SKIP_TESTS = (
 
 
 def load_function(obj):
-    return ort.InferenceSession(obj.SerializeToString())
+    return ort.InferenceSession(obj.SerializeToString(), providers=("CPUExecutionProvider",))
 
 
 def run_function(obj, *inputs):
@@ -240,7 +240,9 @@ class TestOnnxBackEnd(unittest.TestCase):
                 )
 
         try:
-            session = ort.InferenceSession(proto.SerializeToString())
+            session = ort.InferenceSession(
+                proto.SerializeToString(), providers=("CPUExecutionProvider",)
+            )
         except Exception as e:
             raise AssertionError(
                 f"Unable to load onnx for test {backend_test.name!r}.\n"
