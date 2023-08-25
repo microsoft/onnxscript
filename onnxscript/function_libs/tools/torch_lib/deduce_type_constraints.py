@@ -351,9 +351,9 @@ class TypeConstraintDeducer:
         if node.domain and node.domain != "onnx":
             raise NotImplementedError("Nested function is not supported yet.")
 
-        if node.op_type in ("Loop", "Scan"):
-            # Step into subgraph for more type constraint deduction.
-            raise NotImplementedError("Loop/Scan is not supported yet!")
+        # if node.op_type in ("Loop", "Scan"):
+        #     # Step into subgraph for more type constraint deduction.
+        #     raise NotImplementedError("Loop/Scan is not supported yet!")
 
         # Creating new type constraints from op schema
         op_schema = onnx.defs.get_schema(
