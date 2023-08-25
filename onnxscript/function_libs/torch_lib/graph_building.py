@@ -721,7 +721,9 @@ class TorchScriptGraph:
         return onnx_function
 
     @runtime_typing.checked
-    def to_model_proto(self, opset_version: int) -> onnx.ModelProto:
+    def to_model_proto(
+        self, opset_version: int, include_initializers: bool = True
+    ) -> onnx.ModelProto:
         function_proto_dict: Mapping[
             Tuple[str, str], onnx.FunctionProto
         ] = self.fetch_function_proto_dict(opset_version)
@@ -738,7 +740,7 @@ class TorchScriptGraph:
         large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
 
         export_kwargs: dict[str, Any] = dict(
-            initializers=self.initializers,
+            initializers=self.initializers if include_initializers else {},
             onnx_opset_version=opset_version,
             dynamic_axes={},
             defer_weight_export=False,
@@ -756,7 +758,7 @@ class TorchScriptGraph:
         # We did not do it because it is harder to get right (vs. PyTorch's battle-tested
         # implementation) and creating the `TensorProto`s naively (by converting to numpy)
         # is slow.
-        cache_model_to_disk = large_model
+        cache_model_to_disk = large_model and include_initializers
 
         if cache_model_to_disk:
             with tempfile.TemporaryDirectory() as temp_dir:
