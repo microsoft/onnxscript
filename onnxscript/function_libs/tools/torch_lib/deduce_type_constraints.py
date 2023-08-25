@@ -317,9 +317,9 @@ class TypeConstraintDeducer:
                     self.values[node_output_name].merge_type_constraint(
                         self.values[subgraph_output.name]
                     )
-        elif node.op_type in ("Loop", "Scan"):
-            # Step into subgraph for more type constraint deduction.
-            raise NotImplementedError("Loop/Scan is not supported yet!")
+        # elif node.op_type in ("Loop", "Scan"):
+        #     # Step into subgraph for more type constraint deduction.
+        #     raise NotImplementedError("Loop/Scan is not supported yet!")
         elif node.op_type == "Constant":
             # Constant type is static and can be inferred from attribute.
             # Tighten the type constraint.
