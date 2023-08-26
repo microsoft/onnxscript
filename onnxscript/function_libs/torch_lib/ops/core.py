@@ -6091,6 +6091,18 @@ def aten_round(self: TFloat) -> TFloat:
     return op.Round(self)
 
 
+@torch_op("aten::round.decimals")
+def aten_round_decimals(self: TFloat, decimals: int = 0) -> TFloat:
+    """round.decimals(Tensor self, *, int decimals) -> Tensor"""
+
+    # Scale the input by 10^decimals, round it, and scale it back.
+    ten = op.CastLike(10.0, self)
+    scale = op.Pow(ten, op.CastLike(decimals, self))
+    self_scaled = op.Mul(self, scale)
+    rounded = op.Round(self_scaled)
+    return op.Div(rounded, scale)
+
+
 def aten_row_indices(self: TensorType) -> TensorType:
     """row_indices(Tensor(a) self) -> Tensor(a)"""
 
