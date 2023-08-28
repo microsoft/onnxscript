@@ -458,6 +458,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
+    TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
+    TorchLibOpInfo(
+        "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
+    ).xfail(
+        reason="PyTorch does not implement _softmax for float16 on CPU",
+        dtypes=(torch.float16,),
+    ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
@@ -1939,6 +1946,7 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
+ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
