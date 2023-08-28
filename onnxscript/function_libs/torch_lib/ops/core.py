@@ -2227,6 +2227,27 @@ def aten_div_mode(self: TFloat, other: TFloat, rounding_mode: str) -> TFloat:
     return result
 
 
+@torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
+def aten_div_mode_int(self: TInt, other: TInt, rounding_mode: str) -> TInt:
+    """div.Tensor_mode(Tensor self, Tensor other, *, str? rounding_mode) -> Tensor
+
+    Variant for integer inputs.
+    """
+    # TODO(justinchuby): trace_only=False when we use opset19 which supports string comparison
+    assert rounding_mode in {"trunc", "floor"}
+
+    quotient = op.Div(op.Cast(self, to=FLOAT.dtype), op.Cast(other, to=FLOAT.dtype))
+
+    if rounding_mode == "trunc":
+        # Rounds the results of the division towards zero.
+        # Equivalent to C-style integer division
+        result = aten_trunc(quotient)
+    else:  # rounding_mode == "floor"
+        result = op.Floor(quotient)
+
+    return op.CastLike(result, self)
+
+
 @torch_op("aten::dot")
 def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     """dot(Tensor self, Tensor tensor) -> Tensor"""
@@ -2522,7 +2543,7 @@ def aten_equal(self: TTensor, other: TTensor) -> BOOL:
     # The equivalent Torch op with ONNX Equal is aten::eq.
     elementwise_equal = op.Equal(self, other)
     elementwise_equal_int = op.Cast(elementwise_equal, to=INT64.dtype)
-    # ReduceMax does not support bool. So we cast to int64
+    # ReduceMin does not support bool. So we cast to int64
     all_equal = op.ReduceMin(elementwise_equal_int, keepdims=False)
     return op.Cast(all_equal, to=BOOL.dtype)
 
@@ -3143,16 +3164,22 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
     """hstack(Tensor[] tensors) -> Tensor"""
 
     @graph()
-    def reshape_to_1d(tensor):
+    def reshape_to_atleast_2d(tensor):
         shape = op.Shape(tensor)
         rank = op.Size(shape)
-        if rank == 0:
-            tensor = op.Reshape(tensor, op.Constant(value_ints=[1]))
+        if rank <= 1:
+            tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
         return tensor
 
-    tensors_1d = op.SequenceMap(tensors, body=reshape_to_1d)
+    tensors_atleast_2d = op.SequenceMap(tensors, body=reshape_to_atleast_2d)
 
-    return op.ConcatFromSequence(tensors_1d, axis=1, new_axis=0)
+    result = op.ConcatFromSequence(tensors_atleast_2d, axis=1, new_axis=0)
+
+    # hstack expects a non-empty sequence of tensors. So we don't need to check for length
+    rank_1d_or_less = op.Less(op.Size(op.Shape(op.SequenceAt(tensors, 0))), 2)
+    if rank_1d_or_less:
+        result = op.Reshape(result, op.Constant(value_ints=[-1]))
+    return result
 
 
 def aten_hypot(self: TensorType, other: TensorType) -> TensorType:
@@ -5321,9 +5348,15 @@ def aten_pdist(self: TensorType, p: float = 2.0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::permute")
+@torch_op("aten::permute", trace_only=True)
 def aten_permute(self: TTensor, dims: Sequence[int]) -> TTensor:
     """permute(Tensor(a) self, int[] dims) -> Tensor(a)"""
+
+    if not dims:
+        return op.Transpose(self)
+
+    # Handle negative axes
+    dims = [axis + len(dims) if axis < 0 else axis for axis in dims]
 
     return op.Transpose(self, perm=dims)
 
@@ -5939,6 +5972,18 @@ def aten_round(self: TFloat) -> TFloat:
     return op.Round(self)
 
 
+@torch_op("aten::round.decimals")
+def aten_round_decimals(self: TFloat, decimals: int = 0) -> TFloat:
+    """round.decimals(Tensor self, *, int decimals) -> Tensor"""
+
+    # Scale the input by 10^decimals, round it, and scale it back.
+    ten = op.CastLike(10.0, self)
+    scale = op.Pow(ten, op.CastLike(decimals, self))
+    self_scaled = op.Mul(self, scale)
+    rounded = op.Round(self_scaled)
+    return op.Div(rounded, scale)
+
+
 def aten_row_indices(self: TensorType) -> TensorType:
     """row_indices(Tensor(a) self) -> Tensor(a)"""
 
@@ -6230,7 +6275,7 @@ def aten_slice_copy(
     raise NotImplementedError()
 
 
-@torch_op("aten::slice_scatter", trace_only=True)
+@torch_op("aten::slice_scatter")
 def aten_slice_scatter(
     self: TTensor,
     src: TTensor,
@@ -6247,40 +6292,35 @@ def aten_slice_scatter(
     # Assert(end-start == shape(src) > 0)
     # Try torch sample to get more information:
     # https://pytorch.org/docs/master/generated/torch.slice_scatter.html?highlight=slice_scatter#torch.slice_scatter
-    # e.g. if dim=2, shape=5, permute will be [0,1]+[4]+[2,3]=[0,1,4,2,3]
-    last = len(src.shape)
-    perm = list(range(0, last))
-    perm.insert(dim, perm.pop(-1))
-    return _aten_slice_scatter_onnx(self, src, start, end, step, dim, perm)
-
-
-@torch_op("aten::slice_scatter", private=True)
-def _aten_slice_scatter_onnx(
-    self: TTensor,
-    src: TTensor,
-    start: INT64,
-    end: INT64,
-    step: INT64,
-    dim: int,
-    perm: Sequence[int],
-) -> TTensor:
-    neg_1 = op.Constant(value_ints=[-1])
-    # Get shapes expcept specifide dim
-    # e.g. if dim=2, shape=(2,3,5,7), shape_expand will be (2,3,7,1)
-    src_shape = op.Shape(src)
-    last_dim = op.Reshape(op.Size(src_shape), neg_1)
-    dim_tensor = op.Reshape(op.Constant(value_int=dim), neg_1)
-    shape_before_dim = op.Slice(src_shape, op.Constant(value_ints=[0]), dim_tensor)
-    shape_after_dim = op.Slice(src_shape, op.Add(dim_tensor, 1), last_dim)
-    shape_expand = op.Concat(
-        shape_before_dim, shape_after_dim, op.Constant(value_ints=[1]), axis=0
+    # Take (torch.zeros(8, 8), torch.ones(2, 8), 0, 6, 64, 1) as example:
+    # Step 1: get 1D tensor from 0 to dim_size-1, then Slice it using start, end and step.
+    # We cannot use Range(start, end, step) directly as start or end may out of range.
+    # For the example, the output of this step is Slice([0, ..., 7], 6, 64, 1) = [6, 7]
+    zero = op.Constant(value_ints=[0])
+    one = op.Constant(value_ints=[1])
+    self_shape = op.Shape(self)
+    dim_shape = op.Gather(self_shape, dim, axis=0)
+    index_base = op.Range(0, dim_shape, 1)
+    index_base = op.Slice(
+        index_base,
+        op.Unsqueeze(start, zero),
+        op.Unsqueeze(end, zero),
+        zero,
+        op.Unsqueeze(step, zero),
     )
-    # Generate index but not finalized, need to do transpose later
-    # e.g. [[0,1,2],[0,1,2],[0,1,2]...,[0,1,2]], total count = 2x3x7
-    index_base = op.Range(start, end, step)  # e.g. [0,1,2]
-    index_expand = op.Expand(index_base, shape_expand)
-    indices = op.Transpose(index_expand, perm=perm)
-
+    # Step 2: Unsqueeze to add 1s preparing for Expand.
+    # Need to handle negative dim here.
+    # For the example above, the result of this step is [[6],[7]].
+    index_base = op.Unsqueeze(
+        index_base, op.Range(1, op.Where(dim < 0, 0, op.Size(self_shape)) - dim, 1)
+    )
+    # Step 3: Expand the indices.
+    # For the example above, it's Expand([[6],[7]], (1, 8)) = [[6,...,6],[7,...,7]].
+    shape_expand = op.ScatterElements(
+        self_shape, op.Unsqueeze(op.Constant(value_int=dim), zero), one, axis=0
+    )
+    indices = op.Expand(index_base, shape_expand)
+    # Step 4: final ScatterElements.
     return op.ScatterElements(self, indices, src, axis=dim)
 
 

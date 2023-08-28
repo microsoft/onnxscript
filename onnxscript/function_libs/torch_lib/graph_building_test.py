@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import tempfile
 import unittest
 
 import torch
@@ -11,7 +10,7 @@ import torch
 import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, evaluator
-from onnxscript import opset17 as op
+from onnxscript import opset18 as op
 from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib import graph_building, ops
 
@@ -86,7 +85,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         aten_abs = ops.core.aten_abs
         aten_relu = ops.nn.aten_relu
 
-        inner_graph = graph_building.TorchScriptGraph()
+        inner_graph = graph_building.TorchScriptGraph(domain_name="test_domain")
         inner_tracer = graph_building.TorchScriptTracingEvaluator(inner_graph)
 
         x_tensor = torch.ones((1, 2, 3), dtype=torch.float32)
@@ -106,7 +105,7 @@ class TestTorchScriptTracingEvaluator(unittest.TestCase):
         traced = outer_graph.to_model_proto(self.opset_version)
 
         @onnxscript.script(
-            opset=onnxscript.values.Opset("torch_export", 1),
+            opset=onnxscript.values.Opset("test_domain", 1),
             default_opset=op,
         )
         def inner(x: FLOAT[1, 2, 3]):
@@ -165,14 +164,9 @@ class TestModelSaving(unittest.TestCase):
         model = MLP(input_size, hidden_size, output_size)
         x = torch.randn(batch_size, input_size)
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            os.environ["EXTERNAL_ONNX_INITIALIZER_FOLDER"] = temp_dir
-            torch.onnx.dynamo_export(
-                model,
-                x,
-            )
-            # 3 initializers are saved to files as external data.
-            self.assertEqual(len(os.listdir(temp_dir)), 3)
+        model_proto = torch.onnx.dynamo_export(model, x).model_proto
+        # Assert model is larger than 2GB (~=3GB)
+        self.assertGreater(model_proto.ByteSize(), 2**31)
 
 
 if __name__ == "__main__":

@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 import typing
 import warnings
-from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -14,7 +15,6 @@ import onnx.defs
 import onnx.helper
 import onnx.shape_inference
 import torch
-from torch.onnx import _type_utils
 from typing_extensions import TypeAlias
 
 import onnxscript
@@ -62,6 +62,9 @@ ValidTorchValueType: TypeAlias = Union[
     bool,
     None,
 ]
+
+# Be sure to leave ample room for the rest of the proto fields.
+_LARGE_MODEL_SIZE_THRESHOLD = int(2**30 * 1.8)  # 1.8GB
 
 # TODO(justinchuby): Build a context manager to handle source information.
 
@@ -153,6 +156,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         # TODO: Return numpy dtype
         if self._torch_dtype is not None:
             return self._torch_dtype
+        # Local import to avoid circular dependency
+        from torch.onnx import _type_utils  # pylint: disable=import-outside-toplevel
+
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         )
@@ -176,6 +182,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     @property
     def onnx_dtype(self):
+        # Local import to avoid circular dependency
+        from torch.onnx import _type_utils  # pylint: disable=import-outside-toplevel
+
         return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, _type_utils.JitScalarType.UNDEFINED
         ).onnx_type()
@@ -342,11 +351,24 @@ def _create_op_call_in_torch_graph(
     return node_ouputs
 
 
-class TorchScriptGraph:
-    _LOCAL_FUNCTION_DOMAIN_NAME: Final[str] = "torch_export"
-    """The domain name for local functions."""
+def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
+    """Estimate the size of a tensor in bytes.
 
-    def __init__(self, parent_torch_script_graph: Optional[TorchScriptGraph] = None):
+    Args:
+        tensor: The tensor to estimate the size of.
+
+    Returns:
+        The estimated size of the tensor in bytes.
+    """
+    return tensor.numel() * tensor.element_size()
+
+
+class TorchScriptGraph:
+    def __init__(
+        self,
+        parent_torch_script_graph: Optional[TorchScriptGraph] = None,
+        domain_name: Optional[str] = None,
+    ):
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
         # key: (name, domain)
@@ -363,6 +385,14 @@ class TorchScriptGraph:
         self._sub_torch_script_graphs: Dict[str, TorchScriptGraph] = {}
         # Parent graph. None if this is the top level graph.
         self._parent_torch_script_graph = parent_torch_script_graph
+        # Domain name of the graph. None if this is the top level graph.
+        self._domain_name: Optional[str] = domain_name
+
+        if self._domain_name is None and self._parent_torch_script_graph is not None:
+            raise RuntimeError(
+                "Domain name is not set. It is required because this 'TorchScriptGraph' instance "
+                "is a subgraph that represents an ONNX local function."
+            )
 
     @property
     def torch_graph(self):
@@ -371,6 +401,13 @@ class TorchScriptGraph:
     @property
     def initializers(self) -> Mapping[str, torch.Tensor]:
         return self._initializers
+
+    # NOTE: This setter is used in torch converter when we activate fake mode,
+    #       we need to filter out the initializers that has fake tensor. This
+    #       is because we don't want to introduce fake tensor in onnxscript.
+    @initializers.setter
+    def initializers(self, initializers: Dict[str, torch.Tensor]):
+        self._initializers = initializers
 
     @property
     def initializers_inputs(self) -> Mapping[str, TorchScriptTensor]:
@@ -383,6 +420,10 @@ class TorchScriptGraph:
     @property
     def num_outputs(self) -> int:
         return len(list(self._torch_graph.outputs()))
+
+    @property
+    def domain_name(self) -> Optional[str]:
+        return self._domain_name
 
     @runtime_typing.checked
     def add_input(
@@ -556,6 +597,7 @@ class TorchScriptGraph:
         self, opset_version: int
     ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
         function_proto_dict: Dict[Tuple[str, str], onnx.FunctionProto] = {}
+        # Fetch local function protos. E.g., local functions representing module calls.
         for (
             sub_graph_name,
             sub_torch_script_graph,
@@ -563,9 +605,11 @@ class TorchScriptGraph:
             function_proto_dict.update(
                 sub_torch_script_graph.fetch_function_proto_dict(opset_version)
             )
+            domain = sub_torch_script_graph.domain_name
+            assert domain is not None
             name_domain = (
                 sub_graph_name,
-                self._LOCAL_FUNCTION_DOMAIN_NAME,
+                domain,
             )
             assert (
                 name_domain not in function_proto_dict
@@ -573,6 +617,7 @@ class TorchScriptGraph:
             function_proto_dict[name_domain] = sub_torch_script_graph.to_function_proto(
                 opset_version, sub_graph_name
             )
+        # Fetch torchlib function protos.
         for name_domain, function in self._function_store.items():
             function_proto_dict[name_domain] = function.to_function_proto()
         return function_proto_dict
@@ -623,8 +668,10 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         self._sub_torch_script_graphs[name] = sub_torch_script_graph
+        domain_name = sub_torch_script_graph.domain_name
+        assert domain_name is not None
         return self._add_torchscript_op_call(
-            f"{self._LOCAL_FUNCTION_DOMAIN_NAME}::{name}",
+            f"{domain_name}::{name}",
             onnx_inputs=(
                 *onnx_inputs,
                 *sub_torch_script_graph.initializers_inputs_from_parent.values(),
@@ -658,8 +705,11 @@ class TorchScriptGraph:
         onnx_model = onnx.load_from_string(proto)
 
         # Dissect the model proto and transform to function proto.
+        domain = self.domain_name
+        if domain is None:
+            raise RuntimeError("Domain name is not set.")
         onnx_function = onnx.helper.make_function(
-            domain=self._LOCAL_FUNCTION_DOMAIN_NAME,
+            domain=domain,
             fname=function_name,
             inputs=[input.name for input in onnx_model.graph.input],
             outputs=[output.name for output in onnx_model.graph.output],
@@ -683,15 +733,15 @@ class TorchScriptGraph:
             # TODO(BowenBao): All local function domain versions are hardcoded as 1.
             unique_custom_domains[function_proto.domain] = 1
 
-        (
-            proto,
-            _,
-            _,
-            _,
-        ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+        initializers_size = sum(
+            _tensor_rawdata_size(tensor) for tensor in self.initializers.values()
+        )
+
+        large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
+
+        export_kwargs: dict[str, Any] = dict(
             initializers=self.initializers if include_initializers else {},
             onnx_opset_version=opset_version,
-            # TODO(justinchuby): Figure out how to get the dynamic axes from the inputs
             dynamic_axes={},
             defer_weight_export=False,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
@@ -699,15 +749,42 @@ class TorchScriptGraph:
             keep_initializers_as_inputs=False,
             custom_opsets={},
             add_node_names=True,
-            # TODO(#493): Passing in this instead of reading from env.
-            # User must put the exported model file in the same folder to launch ORT.
-            onnx_file_path=os.path.join(
-                os.getenv("EXTERNAL_ONNX_INITIALIZER_FOLDER", ""), "dummy_model_path.onnx"
-            ),
             node_attr_to_name={},
         )
 
-        onnx_model = onnx.load_from_string(proto)
+        # We decided to cache the model to disk when the model is large.
+        # Alternatively, we could build the ONNX `TensorProto`s in memory
+        # and append them to the model proto.
+        # We did not do it because it is harder to get right (vs. PyTorch's battle-tested
+        # implementation) and creating the `TensorProto`s naively (by converting to numpy)
+        # is slow.
+        cache_model_to_disk = large_model and include_initializers
+
+        if cache_model_to_disk:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                onnx_file_path = os.path.join(temp_dir, "exported_model.onnx")
+                export_kwargs["onnx_file_path"] = onnx_file_path
+                (
+                    proto,
+                    _,
+                    _,
+                    _,
+                ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+                    **export_kwargs
+                )
+                onnx_model = onnx.load_from_string(proto)
+                onnx.load_external_data_for_model(onnx_model, temp_dir)
+        else:
+            (
+                proto,
+                _,
+                _,
+                _,
+            ) = self._torch_graph._export_onnx(  # type: ignore[attr-defined] # pylint: disable=protected-access
+                **export_kwargs
+            )
+            onnx_model = onnx.load_from_string(proto)
+
         onnx_model.functions.extend(function_proto_dict.values())
 
         # `_export_onnx` only exports opset_imports that is visible to it. It does not
@@ -725,10 +802,14 @@ class TorchScriptGraph:
         )
 
         try:
-            onnx_model = onnx.shape_inference.infer_shapes(
-                onnx_model, check_type=True, strict_mode=False, data_prop=True
-            )
-            onnx.checker.check_model(onnx_model, full_check=True)
+            if not cache_model_to_disk:
+                # Only check the model if it is in memory.
+                # Otherwise the checker and shape_inference will fail because
+                # we cannot serialize the model.
+                onnx_model = onnx.shape_inference.infer_shapes(
+                    onnx_model, check_type=True, strict_mode=False, data_prop=True
+                )
+                onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
             logging.debug(
