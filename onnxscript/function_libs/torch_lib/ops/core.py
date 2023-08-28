@@ -6370,7 +6370,8 @@ def aten_softmax(
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.Softmax(self, axis=dim)
     result = op.Cast(result, to=dtype)
-    if self_is_scalar:  # squeeze to scalar due to input is scalar
+    if self_is_scalar:
+        # Convert to scalar when input is scalar
         result = op.Squeeze(result)
 
     return result
@@ -6384,7 +6385,8 @@ def aten_softmax_no_dtype(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.Softmax(self, axis=dim)
-    if self_is_scalar:  # squeeze to scalar due to input is scalar
+    if self_is_scalar:
+        # Convert to scalar when input is scalar
         result = op.Squeeze(result)
 
     return result
