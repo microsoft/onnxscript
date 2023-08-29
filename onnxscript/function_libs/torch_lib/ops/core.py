@@ -7422,9 +7422,9 @@ def _aten_var_mean_onnx(
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
-        numel_float = op.Cast(op.ReduceProd(self_shape, keepdims=False), to=FLOAT.dtype)
+        numel_float = op.CastLike(op.ReduceProd(self_shape, keepdims=False), self)
         mul = op.Mul(var, numel_float)
-        sub = op.Sub(numel_float, correction)
+        sub = op.Sub(numel_float, op.CastLike(correction, self))
         var = op.Div(mul, sub)
 
     return var, mean
