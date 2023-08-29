@@ -1117,11 +1117,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: output 'shape' do not match: torch.Size([0, 1]) != torch.Size([0, 0]).",
     ),
-    TorchLibOpInfo(
-        "normal",
-        core_ops.aten_normal,
-        nondeterministic=True,
-    )
+    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True)
     .skip(
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
@@ -1136,6 +1132,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
         dtypes=(torch.float16,),
         test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        variant_name="number_mean",
+        reason="This variant does not support dtype as an argument",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
