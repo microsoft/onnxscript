@@ -10,3 +10,11 @@ variables:
   ONNX_SCRIPT_RELEASE: 1
 steps:
   - template: _release-template.yml
+  # Test the wheels. This needs to happen after PublishBuildArtifacts
+  # to avoid interference with the artifacts
+  - script: python -m pip install -r requirements-dev.txt
+    displayName: 'Install Python dependencies'
+  - script: python -m pip install dist/*.whl --no-deps
+    displayName: 'Install wheel'
+  - script: python -m pytest -v -n auto
+    displayName: 'Run tests'
