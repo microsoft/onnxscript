@@ -5280,6 +5280,7 @@ def aten_normal_float_float(
 ) -> TensorType:
     """normal.float_float(float mean, float std, SymInt[] size, *, Generator? generator=None, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
+    # Create a dummy tensor for RandomNormalLike to get the shape
     dummy_tensor = op.ConstantOfShape(size)
     result = op.RandomNormalLike(dummy_tensor, mean=mean, scale=std)
     return op.Cast(result, to=dtype)
