@@ -4473,7 +4473,7 @@ def aten_minimum(self: TReal, other: TReal) -> TReal:
 
 
 @torch_op(("aten::minimum", "aten::min.other"))
-def aten_minimum(self: BOOL, other: BOOL) -> BOOL:
+def aten_minimum_bool(self: BOOL, other: BOOL) -> BOOL:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
     return op.And(self, other)

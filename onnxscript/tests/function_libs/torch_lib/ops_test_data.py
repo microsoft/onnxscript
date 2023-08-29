@@ -832,6 +832,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
+    TorchLibOpInfo("maximum_bool", core_ops.aten_maximum_bool),
     TorchLibOpInfo(
         "mean",
         core_ops.aten_mean,
@@ -886,6 +887,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
+    TorchLibOpInfo("minimum_bool", core_ops.aten_minimum_bool),
     TorchLibOpInfo("mm", core_ops.aten_mm),
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
@@ -1910,8 +1912,10 @@ ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode", "div_mode_int"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "maximum", ("maximum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "minimum", ("minimum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
