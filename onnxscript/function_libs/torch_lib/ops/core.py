@@ -5274,6 +5274,15 @@ def aten_normal(
     return result
 
 
+@torch_op("aten::normal.float_float")
+def aten_normal_float_float(mean: float, std: float, size: INT64, dtype: int) -> TensorType:
+    """normal.float_float(float mean, float std, SymInt[] size, *, Generator? generator=None, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
+    dummy_tensor = op.ConstantOfShape(size)
+    result = op.RandomNormalLike(dummy_tensor, mean=mean, scale=std)
+    return op.Cast(result, to=dtype)
+
+
 def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
     """not_equal.Tensor(Tensor self, Tensor other) -> Tensor"""
 
