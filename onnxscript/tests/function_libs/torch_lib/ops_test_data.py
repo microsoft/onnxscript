@@ -1545,6 +1545,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
+    TorchLibOpInfo("multinomial", core_ops.aten_multinomial, nondeterministic=True),
     TorchLibOpInfo(
         # Custom from extra_opinfo
         "ops.aten.max_pool1d",
