@@ -477,13 +477,25 @@ def aten_arange_start_step(
         result = op.Range(start, end, step)
     elif _range_supported(dtype):
         if dtype == INT32.dtype:
-            start = op.Floor(op.Cast(start, to=FLOAT.dtype))
-            end = op.Floor(op.Cast(end, to=FLOAT.dtype))
+            if start < 0:
+                start = op.Cast(start, to=INT32.dtype)
 
-        end = op.Cast(end, to=dtype)
-        start = op.Cast(start, to=dtype)
-        step = op.Cast(step, to=dtype)
-        result = op.Range(start, end, step)
+            if step < 0:
+                start = op.Floor(op.Cast(start, to=FLOAT.dtype))
+                end = op.Cast(end, to=FLOAT.dtype)
+                step = op.Cast(step, to=FLOAT.dtype)
+            else:
+                start = op.Cast(start, to=FLOAT.dtype)
+                end = op.Cast(end, to=FLOAT.dtype)
+                step = op.Cast(step, to=FLOAT.dtype)
+
+            result = op.Cast(op.Range(start, end, step), to=INT32.dtype)
+        else:
+            end = op.Cast(end, to=dtype)
+            start = op.Cast(start, to=dtype)
+            step = op.Cast(step, to=dtype)
+
+            result = op.Range(start, end, step)
     else:
         # Cast input to float if dtype is not supported by Range,
         # because the input dtype may be e.g. bfloat16 / int8 etc.
