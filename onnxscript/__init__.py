@@ -58,7 +58,7 @@ from .onnx_types import (
 
 # isort: on
 
-from .utils import external_tensor, proto2text
+from ._internal.utils import external_tensor, proto2text
 from .values import OnnxFunction, TracedOnnxFunction
 
 try:

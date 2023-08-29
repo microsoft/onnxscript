@@ -23,7 +23,7 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 )
 
 import onnxscript
-from onnxscript import utils
+from onnxscript._internal import utils
 
 
 @dataclasses.dataclass(repr=False, eq=False)
@@ -181,7 +181,7 @@ class OnnxScriptTestCase(unittest.TestCase):
                 }
         try:
             session = ort.InferenceSession(
-                model.SerializeToString(), providers=["CPUExecutionProvider"]
+                model.SerializeToString(), providers=("CPUExecutionProvider",)
             )
         except (Fail, InvalidArgument, InvalidGraph) as e:
             raise AssertionError(f"Unable to load model\n{model}") from e

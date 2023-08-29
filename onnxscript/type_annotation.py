@@ -43,6 +43,26 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
+# Map from ONNX AttributeProto type to its representation (in ONNX Script).
+_ATTRTYPE_TO_REPR = {
+    onnx.AttributeProto.FLOAT: "float",
+    onnx.AttributeProto.INT: "int",
+    onnx.AttributeProto.STRING: "str",
+    onnx.AttributeProto.FLOATS: "Sequence[float]",
+    onnx.AttributeProto.INTS: "Sequence[int]",
+    onnx.AttributeProto.STRINGS: "Sequence[str]",
+}
+
+
+def onnx_attr_type_to_onnxscript_repr(attr_type: onnx.AttributeProto.AttributeType) -> str:
+    if attr_type not in _ATTRTYPE_TO_REPR:
+        supported = ", ".join(
+            f"'{onnx.AttributeProto.AttributeType.Name(v)}'" for v in _ATTRTYPE_TO_REPR
+        )
+        raise ValueError(f"Unsupported attribute type {attr_type}: only {supported} allowed.")
+    return _ATTRTYPE_TO_REPR[attr_type]
+
+
 # A sorted list of all type strings used in an OpSchema
 ALL_TENSOR_TYPE_STRINGS = tuple(
     sorted(tensor_type.to_string() for tensor_type in onnx_types.tensor_type_registry.values())
@@ -80,6 +100,26 @@ def pytype_to_attrtype(
         if elt_type in _LISTTYPE_TO_ATTRTYPE_MAP:
             return _LISTTYPE_TO_ATTRTYPE_MAP[elt_type]
     return None
+
+
+def base_type_is_bool(pytype: TypeAnnotationValue) -> bool:
+    """Returns True if base type of pytype is bool, False otherwise."""
+    pytype = _remove_annotation(pytype)
+    if pytype in _PYTYPE_TO_ATTRTYPE_MAP:
+        return pytype is bool
+    type_constructor = typing.get_origin(pytype)
+    if type_constructor in _LIST_CONSTRUCTORS:
+        element_type = typing.get_args(pytype)[0]
+        return element_type is bool
+    # Remove Optional wrapper if present:
+    if type_constructor is Optional or type_constructor is Union:
+        # In Python < 3.10, Optional[X] is represented as Union[X, type(None)]
+        # so we filter out type(None) if present
+        args = [x for x in typing.get_args(pytype) if x is not type(None)]
+        if len(args) == 1:
+            return base_type_is_bool(args[0])
+
+    return False
 
 
 def _is_tensor_type(typeinfo: TypeAnnotationValue) -> bool:

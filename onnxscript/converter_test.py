@@ -10,6 +10,7 @@ import pathlib
 import sys
 import textwrap
 import types
+import typing
 import unittest
 import warnings
 
@@ -24,13 +25,17 @@ from onnxruntime.capi.onnxruntime_pybind11_state import (
 
 import onnxscript
 import onnxscript.testing
-from onnxscript import FLOAT, INT64, converter, graph, script, tensor
+from onnxscript import BOOL, FLOAT, INT64, converter, graph, script, tensor
 from onnxscript.onnx_opset import opset11 as op11
 from onnxscript.onnx_opset import opset15 as op
 from onnxscript.tests.common import onnx_script_test_case, testutils
 
 TEST_INPUT_DIR = pathlib.Path(__file__).parent / "tests" / "models"
 TEST_OUTPUT_DIR = TEST_INPUT_DIR / "testoutputs"
+
+
+def create_cpu_inference_session(model_bytes: bytes) -> ort.InferenceSession:
+    return ort.InferenceSession(model_bytes, providers=("CPUExecutionProvider",))
 
 
 class TestConverter(testutils.TestBase):
@@ -79,7 +84,7 @@ class TestConverter(testutils.TestBase):
                             fi.write(onnx.helper.printable_graph(fct))
                 if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
-                        ort.InferenceSession(model.SerializeToString())
+                        create_cpu_inference_session(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
                             f"onnxruntime cannot load function {f.name}\n--\n{model}"
@@ -134,7 +139,7 @@ class TestConverter(testutils.TestBase):
 
         onx = test_functions["eager_op"]
         self.assertIn('name: "fmod"', str(onx))
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [0.0, 0.5, -0.5])
         # numpy fmod and operator % disagree on this example
@@ -142,7 +147,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(res.tolist(), [0.0, 0.5, -0.5])
 
         onx = test_functions["eager_abs"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [1, 6, 3])
         res = eager_op.eager_abs(x)
@@ -155,7 +160,7 @@ class TestConverter(testutils.TestBase):
             def square(x):
                 return op.Mul(undefined, x)  # noqa: F821
 
-        self.assertIn("square:3", str(e.exception))
+        self.assertIn("Unbound name: undefined", str(e.exception))
 
     def test_model_generation(self):
         @script()
@@ -347,7 +352,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = ort.InferenceSession(f.SerializeToString())
+        session = create_cpu_inference_session(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
         np.testing.assert_almost_equal(eager_mode, result)
 
@@ -358,7 +363,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = ort.InferenceSession(f.SerializeToString())
+        session = create_cpu_inference_session(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
         np.testing.assert_almost_equal(eager_mode, result)
 
@@ -372,7 +377,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
@@ -392,7 +397,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond_only"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(y.tolist(), [0, 10, -20])
@@ -414,7 +419,7 @@ class TestConverter(testutils.TestBase):
             opset=op, global_names=global_names, source=source, default_opset=op
         )
         try:
-            cvt.top_level_stmt(f_ast)
+            cvt.translate_function_def(f_ast)
         except converter.TranslationError as e:
             if msg not in str(e):
                 raise AssertionError(f"Unable to find {msg!r} in {e!r} in\n{source}") from e
@@ -431,12 +436,12 @@ class TestConverter(testutils.TestBase):
             return r
 
         ast_name = "_ast" if sys.version_info[:2] < (3, 9) else "ast"
-        self.check_failure(f1, f"Left term must be a tuple not <class '{ast_name}.Name'>")
+        self.check_failure(f1, f"Left term must be a tuple not '<class '{ast_name}.Name'>'")
 
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
         model = onnxfn.to_model_proto()
-        session = ort.InferenceSession(model.SerializeToString())
+        session = create_cpu_inference_session(model.SerializeToString())
         input_names = [x.name for x in model.graph.input]
         input_dict = dict(zip(input_names, inputs))
         output = session.run(None, input_dict)[0]
@@ -579,6 +584,92 @@ class TestConverter(testutils.TestBase):
         # The converter should generate distinct names for the two outputs
         outputs = duplicate_output.to_function_proto().output
         self.assertNotEqual(outputs[0], outputs[1])
+
+    def test_bool_attr_promotion(self):
+        @script()
+        def if_then_else(flag: bool, Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: bool, Y, Z):
+            tmp1 = op.Constant(value_int=flag)
+            tmp2 = op.Cast(tmp1, to=BOOL.dtype)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_bool_list_attr_promotion(self):
+        @script()
+        def if_then_else(flag: typing.List[bool], Y, Z):
+            return op.Where(flag, Y, Z)
+
+        @script()
+        def if_then_else_expanded(flag: typing.List[bool], Y, Z):
+            tmp1 = op.Constant(value_ints=flag)
+            tmp2 = op.Cast(tmp1, to=9)
+            return op.Where(tmp2, Y, Z)
+
+        onnxscript.testing.assert_isomorphic(if_then_else, if_then_else_expanded)
+
+    def test_empty_ints_attribute(self):
+        @script()
+        def empty_ints():
+            return op.Constant(value_ints=[])
+
+        expected = np.array([], dtype=np.int64)
+        self.check_run(empty_ints, [], expected)
+
+    def test_empty_floats_attribute(self):
+        @script()
+        def empty_floats():
+            return op.Constant(value_floats=[])
+
+        expected = np.array([], dtype=np.float32)
+        self.check_run(empty_floats, [], expected)
+
+    def test_int_as_tensor_attribute(self):
+        @script()
+        def int_as_tensor():
+            return op.Constant(value=17)
+
+        expected = np.array(17, dtype=np.int64)
+        self.check_run(int_as_tensor, [], expected)
+
+    def test_int_list_as_tensor_attribute(self):
+        @script()
+        def int_list_as_tensor():
+            return op.Constant(value=[13, 17])
+
+        expected = np.array([13, 17], dtype=np.int64).reshape((2,))
+        self.check_run(int_list_as_tensor, [], expected)
+
+    def test_float_as_tensor_attribute(self):
+        @script()
+        def float_as_tensor():
+            return op.Constant(value=17.0)
+
+        expected = np.array([17], dtype=np.float32).reshape(())
+        self.check_run(float_as_tensor, [], expected)
+
+    def test_float_list_as_tensor_attribute(self):
+        @script()
+        def float_list_as_tensor():
+            return op.Constant(value=[13.0, 17.0])
+
+        expected = np.array([13, 17], dtype=np.float32).reshape((2,))
+        self.check_run(float_list_as_tensor, [], expected)
+
+    def test_loop_inside_if(self):
+        @script(default_opset=op)
+        def sum(n: INT64) -> INT64:
+            sum = op.Constant(value=0)
+            if n > 0:
+                for i in range(n):
+                    sum = sum + i
+            return sum
+
+        self.check_run(sum, [np.array(5, dtype=np.int64)], np.array(10, dtype=np.int64))
+        self.check_run(sum, [np.array(-5, dtype=np.int64)], np.array(0, dtype=np.int64))
 
 
 if __name__ == "__main__":

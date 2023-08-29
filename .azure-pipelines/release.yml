@@ -1,0 +1,20 @@
+# Build the release version of the package and publish to artifacts
+
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+variables:
+  CI: 'true'
+  # Set the release environment variable to build a release version of the wheel
+  ONNX_SCRIPT_RELEASE: 1
+steps:
+  - template: _release-template.yml
+  # Test the wheels. This needs to happen after PublishBuildArtifacts
+  # to avoid interference with the artifacts
+  - script: python -m pip install -r requirements-dev.txt
+    displayName: 'Install Python dependencies'
+  - script: python -m pip install dist/*.whl --no-deps
+    displayName: 'Install wheel'
+  - script: python -m pytest -v -n auto
+    displayName: 'Run tests'

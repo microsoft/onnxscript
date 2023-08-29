@@ -15,7 +15,7 @@ from typing import Optional, Sequence
 
 from onnxscript import FLOAT
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TFloatOrBFloat16, TReal
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloatOrBFloat16
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -87,14 +87,14 @@ def aten_special_entr(self: TensorType) -> TensorType:
 
 
 @torch_op(("aten::erf", "aten::special_erf"))
-def aten_special_erf(self: TReal) -> TReal:
+def aten_special_erf(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """erf(Tensor self) -> Tensor"""
 
     return op.Erf(self)
 
 
 @torch_op(("aten::erfc", "aten::special_erfc"))
-def aten_special_erfc(self: TReal) -> TReal:
+def aten_special_erfc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """erfc(Tensor self) -> Tensor"""
 
     return op.Sub(1, op.Erf(self))
@@ -339,23 +339,6 @@ def aten_special_sinc(self: TensorType) -> TensorType:
     """special_sinc(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
-
-
-@torch_op("aten::softmax")
-def aten_special_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
-) -> TFloatOrBFloat16:
-    """special_softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
-
-    self_is_scalar = op.Size(op.Shape(self)) == 0
-    if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    result = op.Softmax(self, axis=dim)
-    result = op.Cast(result, to=dtype)
-    if self_is_scalar:  # squeeze to scalar due to input is scalar
-        result = op.Squeeze(result)
-
-    return result
 
 
 def aten_special_spherical_bessel_j0(x: TensorType) -> TensorType:
