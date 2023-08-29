@@ -458,6 +458,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
+    TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
+    TorchLibOpInfo(
+        "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
+    ).xfail(
+        reason="PyTorch does not implement _softmax for float16 on CPU",
+        dtypes=(torch.float16,),
+    ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
@@ -1014,6 +1021,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nondeterministic=True,
     ),
     TorchLibOpInfo(
+        "ops.aten.embedding_bag.padding_idx",
+        core_ops.aten_embedding_bag_padding_idx,
+        trace_only=True,
+        tolerance={torch.float16: (2e-2, 2e-3)},
+        # Output[0] is OK, but other 3 outputs just have the same shape with zero values
+        nondeterministic=True,
+    ),
+    TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
@@ -1102,11 +1117,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: output 'shape' do not match: torch.Size([0, 1]) != torch.Size([0, 0]).",
     ),
-    TorchLibOpInfo(
-        "normal",
-        core_ops.aten_normal,
-        nondeterministic=True,
-    )
+    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True)
     .skip(
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
@@ -1121,6 +1132,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
         dtypes=(torch.float16,),
         test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        variant_name="number_mean",
+        reason="This variant does not support dtype as an argument",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
@@ -1195,7 +1211,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("sinh", core_ops.aten_sinh),
     TorchLibOpInfo(
         "softmax",
-        special_ops.aten_special_softmax,
+        core_ops.aten_softmax,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
     ).xfail(
         variant_name="with_dtype",
@@ -1900,9 +1916,6 @@ ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_stride
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
-# ops_test_common.duplicate_opinfo(
-#     OPS_DB, "nn.functional.embedding_bag", ("nn.functional.embedding_bag.padding_idx",)
-# )
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
 )
@@ -1937,6 +1950,7 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
+ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
