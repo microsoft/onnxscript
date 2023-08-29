@@ -780,6 +780,34 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(input_, args=(src, *args))
 
 
+def sample_inputs__softmax(
+    op_info,
+    device,
+    dtype,
+    requires_grad,
+    **kwargs,
+):
+    del op_info  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    cases = [
+        ((S,), (0,)),
+        ((S, S), (0,)),
+        ((S, S), (1,)),
+        ((S, S), (-1,)),
+        ((S, M, S), (2,)),
+        ((S, 0, 0), (-1,)),
+    ]
+
+    for (shape, dim), half_to_float in itertools.product(cases, (False,)):
+        # NOTE: softmax with half to float conversion is not supported on CPU
+        # So we don't test it here
+        kwargs = dict(half_to_float=half_to_float)
+        yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
+
+
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
 #    This function should yield SampleInputs.
@@ -964,6 +992,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="slice_scatter",
         dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
         sample_inputs_func=sample_inputs_slice_scatter,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._softmax",
+        aten_name="_softmax",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs__softmax,
         supports_out=False,
     ),
 ]
