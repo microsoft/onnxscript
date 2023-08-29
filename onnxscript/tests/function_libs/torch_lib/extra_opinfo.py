@@ -902,6 +902,21 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(input_, args=(src, *args))
 
 
+def sample_inputs_multinomial_2d(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    cases = [
+        ([3, 10], 3, {}),
+        ([4, 6], 4, dict(replacement=True)),
+        ([5, 8], 5, dict(replacement=False)),
+    ]
+
+    for shape, num_samples, kwargs in cases:
+        t = opinfo_core.make_tensor(
+            shape, dtype=dtype, device=device, low=0, high=None, requires_grad=requires_grad
+        )
+        yield opinfo_core.SampleInput(t, num_samples, **kwargs)
+
+
 def sample_inputs__softmax(
     op_info,
     device,
@@ -1121,6 +1136,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="slice_scatter",
         dtypes=common_dtype.all_types_and(torch.bfloat16, torch.half, torch.bool),
         sample_inputs_func=sample_inputs_slice_scatter,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.multinomial",
+        aten_name="multinomial",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_multinomial_2d,
         supports_out=False,
     ),
     opinfo_core.OpInfo(

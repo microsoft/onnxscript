@@ -4820,15 +4820,16 @@ def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.And(self, other)
 
 
+@torch_op("aten::multinomial")
 def aten_multinomial(
-    self: TensorType,
+    self: TFloat,
     num_samples: int,
-    replacement: bool = False,
-    generator: Optional[str] = None,
-) -> TensorType:
+    replacement: bool = False,  # pylint: disable=unused-argument
+) -> TInt:
     """multinomial(Tensor self, int num_samples, bool replacement=False, *, Generator? generator=None) -> Tensor"""
-
-    raise NotImplementedError()
+    # ONNX multinomial expects log probability
+    log_input = op.Log(self)
+    return op.Multinomial(log_input, dtype=INT64.dtype, sample_size=num_samples)
 
 
 def aten_multiply(self: TensorType, other: TensorType) -> TensorType:
