@@ -1549,14 +1549,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "multinomial",
         core_ops.aten_multinomial,
         nondeterministic=True,
-    ).xfail(
-        matcher=lambda sample: len(sample.input.shape) < 2,
-        reason="onnx spec requires input tensor to have at least 2 dimensions (the first one is batch size)",
-    ),
-    TorchLibOpInfo(
-        "ops.aten.multinomial",
-        core_ops.aten_multinomial,
-        nondeterministic=True,
     ),
     TorchLibOpInfo(
         # Custom from extra_opinfo
