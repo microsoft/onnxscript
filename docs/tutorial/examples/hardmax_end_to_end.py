@@ -43,7 +43,7 @@ def sample_model(X: FLOAT[64, 128], Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOA
 onnx_model = sample_model.to_model_proto()
 
 # Save the ONNX model at a given path
-onnx.save(onnx_model, "sample_mpdel.onnx")
+onnx.save(onnx_model, "sample_model.onnx")
 
 # Check the model
 try:
