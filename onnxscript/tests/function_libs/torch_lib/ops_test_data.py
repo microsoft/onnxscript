@@ -1530,6 +1530,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this ATen overload only supports one tensor as input by design",
     ),
     TorchLibOpInfo(
+        "multinomial",
+        core_ops.aten_multinomial,
+        nondeterministic=True,
+    ).xfail(
+        matcher=lambda sample: len(sample.input.shape) < 2,
+        reason="onnx spec requires input tensor to have at least 2 dimensions (the first one is batch size)",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.multinomial",
+        core_ops.aten_multinomial,
+        nondeterministic=True,
+    ),
+    TorchLibOpInfo(
         # Custom from extra_opinfo
         "ops.aten.max_pool1d",
         nn_ops.aten_max_pool1d,
