@@ -4404,6 +4404,13 @@ def aten_maximum(self: TReal, other: TReal) -> TReal:
     return op.Max(self, other)
 
 
+@torch_op(("aten::maximum", "aten::max.other"))
+def aten_maximum_bool(self: BOOL, other: BOOL) -> BOOL:
+    """maximum(Tensor self, Tensor other) -> Tensor"""
+
+    return op.Or(self, other)
+
+
 @torch_op("aten::mean")
 def aten_mean(self: TReal) -> TReal:
     """mean(Tensor self, *, ScalarType? dtype=None) -> Tensor"""
@@ -4463,6 +4470,13 @@ def aten_minimum(self: TReal, other: TReal) -> TReal:
     """minimum(Tensor self, Tensor other) -> Tensor"""
 
     return op.Min(self, other)
+
+
+@torch_op(("aten::minimum", "aten::min.other"))
+def aten_minimum_bool(self: BOOL, other: BOOL) -> BOOL:
+    """minimum(Tensor self, Tensor other) -> Tensor"""
+
+    return op.And(self, other)
 
 
 def aten_miopen_batch_norm(
