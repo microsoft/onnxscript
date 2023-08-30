@@ -468,7 +468,8 @@ class IRFunction:
             attributes=attribute_names,
             doc_string=self.docstring,
         )
-        if hasattr(onnx.FunctionProto, "attribute_proto"):
+        # In protobuf 4.x fields aren't defined as class attribute so it should check instance attribute instead
+        if hasattr(f, "attribute_proto"):
             f.attribute_proto.extend(
                 [attr.attr_proto for attr in self.attrs if attr.has_default]
             )
