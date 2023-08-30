@@ -12,7 +12,7 @@ from onnxscript.backend import onnx_backend
 
 
 def load_function(obj):
-    return ort.InferenceSession(obj.SerializeToString())
+    return ort.InferenceSession(obj.SerializeToString(), providers=("CPUExecutionProvider",))
 
 
 def run_function(obj, *inputs):

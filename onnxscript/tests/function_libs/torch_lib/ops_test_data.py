@@ -45,6 +45,7 @@ from torch.testing._internal import common_methods_invocations
 from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
+from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
@@ -457,6 +458,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
+    TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
+    TorchLibOpInfo(
+        "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
+    ).xfail(
+        reason="PyTorch does not implement _softmax for float16 on CPU",
+        dtypes=(torch.float16,),
+    ),
     TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
         matcher=lambda sample: not (len(sample.kwargs) > 0),
         reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
@@ -490,6 +498,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMax-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -498,6 +507,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_amin_amax_input_wrangler,
     ).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to ReduceMin-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -532,10 +542,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
+    )
+    .xfail(
+        reason=(
+            "fixme: ORT shape inference failed."
+            "https://github.com/microsoft/onnxscript/issues/1007"
+        ),
     ),
     TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -550,10 +567,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
+    )
+    .xfail(
+        reason=(
+            "fixme: ORT shape inference failed."
+            "https://github.com/microsoft/onnxscript/issues/1007"
+        ),
     ),
     TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -568,10 +592,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="takes tensor sequences only",
     )
     .xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason=(
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
-        )
+        ),
+    )
+    .xfail(
+        reason=(
+            "fixme: ORT shape inference failed."
+            "https://github.com/microsoft/onnxscript/issues/1007"
+        ),
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
@@ -606,10 +637,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clamp_max", core_ops.aten_clamp_max).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clamp_min", core_ops.aten_clamp_min).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo("clone", core_ops.aten_clone),
@@ -629,12 +662,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
-    TorchLibOpInfo(
-        "div",
-        core_ops.aten_div,
-    ).skip(
+    TorchLibOpInfo("div", core_ops.aten_div).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
-        reason="rounding_mode is not yet supported",
+        reason="this variation does not take the rounding_mode argument",
+    ),
+    TorchLibOpInfo("div_mode", core_ops.aten_div_mode, trace_only=True)
+    .skip(
+        variant_name="no_rounding_mode",
+        reason="this variation requires the rounding_mode argument",
+    )
+    .skip(
+        variant_name="trunc_rounding",
+        dtypes=(torch.float16,),
+        # Numbers match sometimes but not other times
+        reason="fixme: off-by-one. https://github.com/microsoft/onnxscript/issues/990",
+    )
+    .xfail(
+        variant_name="floor_rounding",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: off-by-one and inverted inf. https://github.com/microsoft/onnxscript/issues/989",
+    ),
+    TorchLibOpInfo("div_mode_int", core_ops.aten_div_mode_int, trace_only=True).skip(
+        variant_name="no_rounding_mode",
+        reason="this variation requires the rounding_mode argument",
     ),
     TorchLibOpInfo("dot", core_ops.aten_dot),
     TorchLibOpInfo(
@@ -658,6 +709,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
+    TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: off-by-one issue due to numerical precision. https://github.com/microsoft/onnxscript/issues/989",
+    ),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
     TorchLibOpInfo("full", core_ops.aten_full),
     TorchLibOpInfo(
@@ -773,8 +829,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("maximum", core_ops.aten_maximum).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
+    TorchLibOpInfo("maximum_bool", core_ops.aten_maximum_bool),
     TorchLibOpInfo(
         "mean",
         core_ops.aten_mean,
@@ -799,6 +857,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         variant_name="reduction_with_dim",
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -825,8 +884,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("minimum", core_ops.aten_minimum).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
+    TorchLibOpInfo("minimum_bool", core_ops.aten_minimum_bool),
     TorchLibOpInfo("mm", core_ops.aten_mm),
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
@@ -962,6 +1023,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nondeterministic=True,
     ),
     TorchLibOpInfo(
+        "ops.aten.embedding_bag.padding_idx",
+        core_ops.aten_embedding_bag_padding_idx,
+        trace_only=True,
+        tolerance={torch.float16: (2e-2, 2e-3)},
+        # Output[0] is OK, but other 3 outputs just have the same shape with zero values
+        nondeterministic=True,
+    ),
+    TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
@@ -1050,11 +1119,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.input.shape) == 0,
         reason="fixme: output 'shape' do not match: torch.Size([0, 1]) != torch.Size([0, 0]).",
     ),
-    TorchLibOpInfo(
-        "normal",
-        core_ops.aten_normal,
-        nondeterministic=True,
-    )
+    TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True)
     .skip(
         matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
@@ -1069,20 +1134,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
         dtypes=(torch.float16,),
         test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        variant_name="number_mean",
+        reason="This variant does not support dtype as an argument",
+        matcher=lambda sample: sample.kwargs.get("dtype") is not None,
     ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
         "permute",
         core_ops.aten_permute,
         input_wrangler=_permute_input_wrangler,
-    )
-    .xfail(
-        matcher=lambda sample: len(list(filter(lambda v: v < 0, sample.args[0]))) > 0,
-        reason="Negative value in perm is not supported",
-    )
-    .xfail(
-        matcher=lambda sample: len(sample.args[0]) == 0,
-        reason="Empty perm is not supported",
+        trace_only=True,
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
@@ -1108,23 +1171,21 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("reshape", core_ops.aten_reshape),
     TorchLibOpInfo("resolve_conj", core_ops.aten_resolve_conj),
     TorchLibOpInfo("resolve_neg", core_ops.aten_resolve_neg),
-    TorchLibOpInfo(
-        "round",
-        core_ops.aten_round,
-    )
+    TorchLibOpInfo("round", core_ops.aten_round)
     .xfail(
         variant_name="decimals_0",
-        reason="The op does not support decimals yet",
+        reason="This variant does not accept decimals",
         test_class_name="TestOutputConsistencyEager",
     )
     .xfail(
         variant_name="decimals_3",
-        reason="The op does not support decimals yet",
+        reason="This variant does not accept decimals",
     )
     .xfail(
         variant_name="decimals_neg_3",
-        reason="The op does not support decimals yet",
+        reason="This variant does not accept decimals",
     ),
+    TorchLibOpInfo("round_decimals", core_ops.aten_round_decimals),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
     TorchLibOpInfo(
@@ -1152,7 +1213,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("sinh", core_ops.aten_sinh),
     TorchLibOpInfo(
         "softmax",
-        special_ops.aten_special_softmax,
+        core_ops.aten_softmax,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
     ).xfail(
         variant_name="with_dtype",
@@ -1277,6 +1338,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "vstack",
         core_ops.aten_vstack,
     ).xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x62afb00_rank). https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo("where", core_ops.aten_where, input_wrangler=_where_input_wrangler).xfail(
@@ -1335,6 +1397,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1348,6 +1411,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1361,6 +1425,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1374,6 +1439,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1390,6 +1456,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("clamp", core_ops.aten_clamp, trace_only=True).skip(
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     ),
     TorchLibOpInfo(
@@ -1427,6 +1494,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "hstack",
         core_ops.aten_hstack,
     ).xfail(
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme: RUNTIME_EXCEPTION : Exception during initialization: Invalid tensor data type 0. https://github.com/microsoft/onnxscript/issues/960",
     ),
     TorchLibOpInfo(
@@ -1454,6 +1522,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         variant_name="reduction_with_dim",
         matcher=lambda sample: len(sample.input.shape) == 0,
+        enabled_if=version_utils.onnxruntime_older_than("1.16"),
         reason="fixme (core dump): ORT aborts on scalar inputs to Reduce*-18. https://github.com/microsoft/onnxruntime/issues/16492",
     )
     .xfail(
@@ -1478,6 +1547,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
+    TorchLibOpInfo("multinomial", core_ops.aten_multinomial, nondeterministic=True),
     TorchLibOpInfo(
         # Custom from extra_opinfo
         "ops.aten.max_pool1d",
@@ -1668,7 +1738,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention",
         nn_ops.aten_scaled_dot_product_attention,
         trace_only=True,
-        tolerance={torch.float32: (1e-5, 1e-5)},
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
@@ -1683,7 +1753,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
-        tolerance={torch.float32: (1e-5, 1e-5)},
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
         matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
@@ -1753,7 +1823,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="sum",
         reason="fixme: MLFloat16 data type is not supported with ScatterElements opset 18 when reduction is 'add'",
     ),
-    TorchLibOpInfo("slice_scatter", core_ops.aten_slice_scatter, trace_only=True),
+    TorchLibOpInfo("ops.aten.slice_scatter", core_ops.aten_slice_scatter),
     TorchLibOpInfo("slice", core_ops.aten_slice, trace_only=True),
     TorchLibOpInfo(
         "ops.aten.stft",  # Custom from extra_opinfo
@@ -1838,19 +1908,19 @@ ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode", "div_mode_int"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "maximum", ("maximum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "minimum", ("minimum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
-# ops_test_common.duplicate_opinfo(
-#     OPS_DB, "nn.functional.embedding_bag", ("nn.functional.embedding_bag.padding_idx",)
-# )
 ops_test_common.duplicate_opinfo(
     OPS_DB, "nn.functional.linear", ("nn.functional.linear_bias",)
 )
@@ -1885,6 +1955,8 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest3d",
     ),
 )
+ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
+ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))

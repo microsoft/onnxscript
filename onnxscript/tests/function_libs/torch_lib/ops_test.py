@@ -22,6 +22,7 @@ errors.
 """
 from __future__ import annotations
 
+import os
 import unittest
 from typing import Callable, Optional, Sequence, Tuple
 
@@ -36,7 +37,11 @@ from torch.utils import _pytree as pytree
 
 import onnxscript
 import onnxscript.evaluator
-from onnxscript.tests.function_libs.torch_lib import ops_test_common, ops_test_data
+from onnxscript.tests.function_libs.torch_lib import (
+    error_reproduction,
+    ops_test_common,
+    ops_test_data,
+)
 
 # All dtypes will be tested on the generated symbolic functions.
 # complex64 will be flattened to float32.
@@ -72,6 +77,9 @@ def _should_skip_xfail_test_sample(
         # Linear search on ops_test_data.SKIP_XFAIL_SUBTESTS. That's fine because the list is small.
         if decorator_meta.op_name == op_name:
             assert decorator_meta.matcher is not None, "Matcher must be defined"
+            if not decorator_meta.enabled_if:
+                # Do not skip the test if the decorator meta is not enabled
+                continue
             if decorator_meta.dtypes is not None and dtype not in decorator_meta.dtypes:
                 # Not applicable for this dtype
                 continue
@@ -209,6 +217,8 @@ def run_test_output_match(
                     op.name.startswith("split")
                     or op.name.startswith("chunk")
                     or op.name.startswith("unbind")
+                    or op.name
+                    in {"atleast_1d_Sequence", "atleast_2d_Sequence", "atleast_3d_Sequence"}
                 ):
                     # Hack for handling split, chunk and unbind which relies on SplitToSequence op.
                     # Split returns a Sequence that should be treats as a single
@@ -260,6 +270,10 @@ def run_test_output_match(
                             check_device=False,
                         )
                     except AssertionError as e:
+                        if os.environ.get("CREATE_REPRODUCTION_REPORT") == "1":
+                            error_reproduction.create_mismatch_report(
+                                test_name, i, inputs, cpu_sample.kwargs, actual, expected, e
+                            )
                         if len(flattened_torch_outputs) > 1:
                             raise AssertionError(f"Output {j} mismatch") from e
                         raise

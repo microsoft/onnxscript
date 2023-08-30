@@ -35,6 +35,10 @@ TEST_INPUT_DIR = pathlib.Path(__file__).parent / "tests" / "models"
 TEST_OUTPUT_DIR = TEST_INPUT_DIR / "testoutputs"
 
 
+def create_cpu_inference_session(model_bytes: bytes) -> ort.InferenceSession:
+    return ort.InferenceSession(model_bytes, providers=("CPUExecutionProvider",))
+
+
 class TestConverter(testutils.TestBase):
     def validate(self, script):
         if isinstance(script, types.ModuleType):
@@ -81,7 +85,7 @@ class TestConverter(testutils.TestBase):
                             fi.write(onnx.helper.printable_graph(fct))
                 if check_ort and (skip_check_ort is None or f.name not in skip_check_ort):
                     try:
-                        ort.InferenceSession(model.SerializeToString())
+                        create_cpu_inference_session(model.SerializeToString())
                     except (Fail, InvalidGraph, InvalidArgument) as e:
                         raise AssertionError(
                             f"onnxruntime cannot load function {f.name}\n--\n{model}"
@@ -136,7 +140,7 @@ class TestConverter(testutils.TestBase):
 
         onx = test_functions["eager_op"]
         self.assertIn('name: "fmod"', str(onx))
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [0.0, 0.5, -0.5])
         # numpy fmod and operator % disagree on this example
@@ -144,7 +148,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(res.tolist(), [0.0, 0.5, -0.5])
 
         onx = test_functions["eager_abs"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         y = session.run(None, {"X": x})[0]
         self.assertEqual(y.tolist(), [1, 6, 3])
         res = eager_op.eager_abs(x)
@@ -352,7 +356,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = ort.InferenceSession(f.SerializeToString())
+        session = create_cpu_inference_session(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
         np.testing.assert_almost_equal(eager_mode, result)
 
@@ -363,7 +367,7 @@ class TestConverter(testutils.TestBase):
         self.assertEqual(eager_mode.shape, (5, 3))
         self.assertEqual(eager_mode.dtype, np.float32)
 
-        session = ort.InferenceSession(f.SerializeToString())
+        session = create_cpu_inference_session(f.SerializeToString())
         result = session.run(None, {"A": A})[0]
         np.testing.assert_almost_equal(eager_mode, result)
 
@@ -377,7 +381,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         x = np.array([0, 1, 2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(loops_break.loop_range_cond(x).tolist(), [0.0, 46.0, 92.0])
@@ -397,7 +401,7 @@ class TestConverter(testutils.TestBase):
                 f = test_functions[name]
                 self.assertIn('op_type: "Loop"', str(f))
         onx = test_functions["loop_range_cond_only"]
-        session = ort.InferenceSession(onx.SerializeToString())
+        session = create_cpu_inference_session(onx.SerializeToString())
         x = np.array([0, 1, -2], dtype=np.float32)
         y = session.run(None, {"A": x})[0]
         self.assertEqual(y.tolist(), [0, 10, -20])
@@ -441,7 +445,7 @@ class TestConverter(testutils.TestBase):
     def check_run(self, onnxfn, inputs, expected_output):
         # Test by converting to model and running with ORT
         model = onnxfn.to_model_proto()
-        session = ort.InferenceSession(model.SerializeToString())
+        session = create_cpu_inference_session(model.SerializeToString())
         input_names = [x.name for x in model.graph.input]
         input_dict = dict(zip(input_names, inputs))
         output = session.run(None, input_dict)[0]
