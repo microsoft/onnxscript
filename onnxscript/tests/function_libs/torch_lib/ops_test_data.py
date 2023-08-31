@@ -1290,10 +1290,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         or not sample.input.shape,
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
-    TorchLibOpInfo("topk", core_ops.aten_topk).xfail(
-        dtypes=(torch.int64, torch.int32),
-        enabled_if=not ops_test_common.IS_WINDOWS,
-        reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
+    TorchLibOpInfo("topk", core_ops.aten_topk
+        #            ).xfail(
+        # dtypes=(torch.int64, torch.int32),
+        # enabled_if=not ops_test_common.IS_WINDOWS,
+        # reason="fixme: result mismatch. https://github.com/microsoft/onnxscript/issues/853",
     ),
     TorchLibOpInfo("tril", core_ops.aten_tril).xfail(
         dtypes=(torch.int32, torch.bool),
