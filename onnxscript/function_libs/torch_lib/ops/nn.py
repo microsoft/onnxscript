@@ -1673,6 +1673,47 @@ def aten_scaled_dot_product_attention(
     )
 
 
+@torch_op("aten::_scaled_dot_product_flash_attention", trace_only=True)
+def aten_scaled_dot_product_flash_attention(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    return_debug_mask: bool = False,  # pylint: disable=unused-argument
+    scale: Optional[float] = None,
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat, TFloat, INT64, INT64, TFloat]:
+    """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor ouput, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
+
+    One of the implementations of scaled_dot_product_attention.
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    NOTE: Currently, there are three implementations of nn.scaled_dot_product_attention in PyTorch due to optimization.
+    However, it's the same implementation from ONNX perspective.
+
+    """
+    result = aten_scaled_dot_product_attention_bool_mask(
+        query, key, value, dropout_p=dropout_p, is_causal=is_causal, scale=scale
+    )
+
+    # The followings are not comsumed by the graph.
+    logsumexp = op.Expand(0, op.Shape(query))
+    empty_tensor = op.ConstantOfShape([])
+    empty_int = op.Constant(value_int=0)
+
+    return (
+        result,
+        logsumexp,
+        empty_tensor,
+        empty_tensor,
+        empty_int,
+        empty_int,
+        empty_tensor,
+        empty_tensor,
+        empty_tensor,
+    )
+
+
 @torch_op("aten::scaled_dot_product_attention", trace_only=True)
 def aten_scaled_dot_product_attention_bool_mask(
     query: TFloat,

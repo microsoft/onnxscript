@@ -1750,6 +1750,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="dropout is random so the results do not match",
     ),
     TorchLibOpInfo(
+        "nn.functional.scaled_dot_product_attention",
+        nn_ops.aten_scaled_dot_product_flash_attention,
+        trace_only=True,
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
+    ),
+    TorchLibOpInfo(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
