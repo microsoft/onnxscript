@@ -1692,25 +1692,32 @@ def aten_scaled_dot_product_flash_attention(
     However, it's the same implementation from ONNX perspective.
 
     """
-    result = aten_scaled_dot_product_attention_bool_mask(
+    result = aten_scaled_dot_product_attention(
         query, key, value, dropout_p=dropout_p, is_causal=is_causal, scale=scale
     )
 
     # The followings are not comsumed by the graph.
-    logsumexp = op.Expand(0, op.Shape(query))
-    empty_tensor = op.ConstantOfShape([])
+    query_first_three_dims = op.Slice(
+        op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
+    )
+    logsumexp = op.Expand(0.0, query_first_three_dims)
+    # TODO: breaking checker
+    empty_tensor_int = op.Cast(op.ConstantOfShape(op.Constant(value_ints=[])), to=INT64.dtype)
+    empty_tensor_float = op.Cast(
+        op.ConstantOfShape(op.Constant(value_ints=[])), to=FLOAT.dtype
+    )
     empty_int = op.Constant(value_int=0)
 
     return (
         result,
         logsumexp,
-        empty_tensor,
-        empty_tensor,
+        empty_tensor_int,
+        empty_tensor_int,
         empty_int,
         empty_int,
-        empty_tensor,
-        empty_tensor,
-        empty_tensor,
+        empty_tensor_int,
+        empty_tensor_int,
+        empty_tensor_float,
     )
 
 

@@ -941,21 +941,13 @@ def sample_inputs_scaled_dot_product_flash_attention(
     )
     batch, seq_q, seq_kv, num_heads, head_dim = 4, 3, 6, 4, 8
 
-    dim_3_q_shape = (batch, seq_q, head_dim)
-    dim_3_kv_shape = (batch, seq_kv, head_dim)
     dim_4_q_shape = (batch, num_heads, seq_q, head_dim)
     dim_4_kv_shape = (batch, num_heads, seq_kv, head_dim)
 
-    broadcast_tuple = ((num_heads, seq_q, head_dim), (batch, num_heads, seq_kv, head_dim))
-
-    qkv_shapes = [
-        (dim_3_q_shape, dim_3_kv_shape),
-        (dim_4_q_shape, dim_4_kv_shape),
-        broadcast_tuple,
-    ]
+    qkv_shapes = [(dim_4_q_shape, dim_4_kv_shape)]
     samples = []
     for qkv_shape, is_causal, dropout_p in opinfo_core.product(
-        qkv_shapes, [True, False], [0.0, 0.5]
+        qkv_shapes, [True, False], [0.0]
     ):
         shape_q, shape_kv = qkv_shape
         samples.append(
@@ -1186,7 +1178,12 @@ OP_DB: List[opinfo_core.OpInfo] = [
         "ops.aten._scaled_dot_product_flash_attention",
         aten_name="_scaled_dot_product_flash_attention",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        # NOTE: Different from aten::scaled_dot_product_attention, this op doesn't support
+        #       dim<=3 input.
         sample_inputs_func=sample_inputs_scaled_dot_product_flash_attention,
         supports_out=False,
+        supports_forward_ad=False,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
     ),
 ]
