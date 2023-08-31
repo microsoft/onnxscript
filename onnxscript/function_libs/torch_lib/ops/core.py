@@ -2157,12 +2157,21 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::diagonal")
 def aten_diagonal(
     self: TensorType, offset: int = 0, dim1: int = 0, dim2: int = 1
 ) -> TensorType:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), [-1])
+    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), [-1])
+    mask_shape = op.Concat(dim1_size, dim2_size, axis=0)
+    tmp_tensor = op.ConstantOfShape(mask_shape)
+    mask = op.EyeLike(tmp_tensor, k=offset)
+    mask = op.CastLike(mask, self)
+    result = op.Mul(self, mask)
+    result = op.ReduceSum(result, keepdims=False, axes=[0])
+    return result
 
 
 def aten_diagonal_backward(

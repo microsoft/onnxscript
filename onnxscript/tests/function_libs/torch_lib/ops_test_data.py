@@ -662,6 +662,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
+    TorchLibOpInfo("diagonal", core_ops.aten_diagonal)
+    .xfail(
+        dtypes=(torch.bool,),
+        reason="op.Mul() operator not implemented for bool",
+    ),
     TorchLibOpInfo("div", core_ops.aten_div).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="this variation does not take the rounding_mode argument",
