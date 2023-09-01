@@ -2333,14 +2333,7 @@ def aten_embedding_backward(
     raise NotImplementedError()
 
 
-@torch_op(
-    (
-        "aten::embedding_bag",
-        "aten::_embedding_bag",
-        "aten::_embedding_bag_forward_only",
-    ),
-    trace_only=True,
-)
+@torch_op("aten::embedding_bag", trace_only=True)
 def aten_embedding_bag(
     weight: TFloat,
     indices: INT64,
@@ -2466,7 +2459,14 @@ def _aten_embedding_bag_onnx(
     return result, offset2bag, bag_size, max_indices
 
 
-@torch_op("aten::embedding_bag.padding_idx", trace_only=True)
+@torch_op(
+    (
+        "aten::embedding_bag.padding_idx",
+        "aten::_embedding_bag",
+        "aten::_embedding_bag_forward_only",
+    ),
+    trace_only=True
+)
 def aten_embedding_bag_padding_idx(
     weight: TFloat,
     indices: INT64,
