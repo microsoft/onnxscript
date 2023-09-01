@@ -2157,11 +2157,22 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::diagonal")
+@torch_op("aten::diagonal", trace_only=True)
 def aten_diagonal(
-    self: TensorType, offset: int = 0, dim1: int = 0, dim2: int = 1
-) -> TensorType:
+    self: TTensor, offset: int = 0, dim1: int = 0, dim2: int = 1
+) -> TTensor:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
+
+    # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
+
+    self_rank = len(self.shape)
+    perm = list(range(self_rank))
+
+    perm.remove(dim1)
+    perm.remove(dim2)
+    perm.append(dim1)
+    perm.append(dim2)
+    self = op.Transpose(self, perm=perm)
 
     neg_1 = op.Constant(value_ints=[-1])
     dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
@@ -2177,17 +2188,17 @@ def aten_diagonal(
 
     if offset < 0:
         # row + offset
-        len = dim1_size + offset
+        length = dim1_size + offset
         start = op.Constant(value_ints=[0])
     else:  # offset >= 0
         # col - offset
-        len = dim2_size - offset
+        length = dim2_size - offset
         start = op.Reshape(op.Constant(value_int=offset), neg_1)
 
     # max(min(len, min_dim_size), 0)
-    len = op.Max(op.Min(len, min_dim_size), 0)
-    end = start + len
-    result = op.Slice(result, start, end)
+    length = op.Max(op.Min(length, min_dim_size), 0)
+    end = start + length
+    result = op.Slice(result, start, end, axes=[0])
 
     return result
 
