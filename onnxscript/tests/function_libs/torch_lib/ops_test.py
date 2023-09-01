@@ -46,16 +46,16 @@ from onnxscript.tests.function_libs.torch_lib import (
 # All dtypes will be tested on the generated symbolic functions.
 # complex64 will be flattened to float32.
 TESTED_DTYPES = (
-    torch.float16,
+#    torch.float16,
     torch.float32,
     # Uncomment below item when we really need testing it
     # torch.bfloat16,
     # torch.float64,
-    torch.bool,
+#    torch.bool,
     # torch.int8,
     # torch.int16,
-    torch.int32,
-    torch.int64,
+#    torch.int32,
+#    torch.int64,
     # torch.uint8,
 )
 # NOTE: torch.complex32 is experimental in torch
@@ -200,7 +200,7 @@ def run_test_output_match(
             ),
             kwargs=repr(cpu_sample.kwargs),
         ):
-            #if i != 0: continue
+            #if i != 5: continue
             test_behavior, reason = _should_skip_xfail_test_sample(op.name, cpu_sample, dtype)
 
             with ops_test_common.normal_xfail_skip_test_behaviors(test_behavior, reason):

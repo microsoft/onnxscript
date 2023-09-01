@@ -2163,14 +2163,32 @@ def aten_diagonal(
 ) -> TensorType:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
-    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), [-1])
-    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), [-1])
+    neg_1 = op.Constant(value_ints=[-1])
+    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
+    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), neg_1)  # col
     mask_shape = op.Concat(dim1_size, dim2_size, axis=0)
     tmp_tensor = op.ConstantOfShape(mask_shape)
     mask = op.EyeLike(tmp_tensor, k=offset)
     mask = op.CastLike(mask, self)
     result = op.Mul(self, mask)
     result = op.ReduceSum(result, keepdims=False, axes=[0])
+
+    min_dim_size = op.Min(dim1_size, dim2_size)
+
+    if offset < 0:
+        # row + offset
+        len = dim1_size + offset
+        start = op.Constant(value_ints=[0])
+    else:  # offset >= 0
+        # col - offset
+        len = dim2_size - offset
+        start = op.Reshape(op.Constant(value_int=offset), neg_1)
+
+    # max(min(len, min_dim_size), 0)
+    len = op.Max(op.Min(len, min_dim_size), 0)
+    end = start + len
+    result = op.Slice(result, start, end)
+
     return result
 
 
