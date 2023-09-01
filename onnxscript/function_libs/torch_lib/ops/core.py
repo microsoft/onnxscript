@@ -2465,7 +2465,7 @@ def _aten_embedding_bag_onnx(
         "aten::_embedding_bag",
         "aten::_embedding_bag_forward_only",
     ),
-    trace_only=True
+    trace_only=True,
 )
 def aten_embedding_bag_padding_idx(
     weight: TFloat,
