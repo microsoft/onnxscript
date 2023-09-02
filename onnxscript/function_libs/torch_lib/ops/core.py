@@ -2163,17 +2163,22 @@ def aten_diagonal(
 ) -> TTensor:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
-    # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
-
     self_rank = len(self.shape)
+    # If rank=2, then axes=[0]; if rank=3, then axes=[1]
+    axes = [self_rank - 2]
+    # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
     perm = list(range(self_rank))
-
     perm.remove(dim1)
     perm.remove(dim2)
     perm.append(dim1)
     perm.append(dim2)
-    self = op.Transpose(self, perm=perm)
+    return _aten_diagonal_onnx(self, offset, dim1, dim2, perm, axes)
 
+
+@torch_op("aten::diagonal", private=True)
+def _aten_diagonal_onnx(
+    self: TTensor, offset: int, dim1: int, dim2: int, perm: Sequence[int], axes: Sequence[int]
+) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
     dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), neg_1)  # col
@@ -2181,11 +2186,12 @@ def aten_diagonal(
     tmp_tensor = op.ConstantOfShape(mask_shape)
     mask = op.EyeLike(tmp_tensor, k=offset)
     mask = op.CastLike(mask, self)
-    result = op.Mul(self, mask)
-    result = op.ReduceSum(result, keepdims=False, axes=[0])
-
+    self_t = op.Transpose(self, perm=perm)
+    result = op.Mul(self_t, mask)
+    result = op.ReduceSum(result, keepdims=False, axes=axes)
+    # min(row, col)
     min_dim_size = op.Min(dim1_size, dim2_size)
-
+    # We can use a [3x5] tensor and offset=[-6,6] to get below logic
     if offset < 0:
         # row + offset
         length = dim1_size + offset
@@ -2195,10 +2201,10 @@ def aten_diagonal(
         length = dim2_size - offset
         start = op.Reshape(op.Constant(value_int=offset), neg_1)
 
-    # max(min(len, min_dim_size), 0)
+    # max(min(length, min(row, col)), 0)
     length = op.Max(op.Min(length, min_dim_size), 0)
     end = start + length
-    result = op.Slice(result, start, end, axes=[0])
+    result = op.Slice(result, start, end, axes=axes)
 
     return result
 
