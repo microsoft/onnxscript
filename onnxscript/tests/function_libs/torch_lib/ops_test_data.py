@@ -665,7 +665,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True)
     .xfail(
         dtypes=(torch.bool,),
-        reason="op.Mul() operator not implemented for bool",
+        reason="Mul() operator not implemented for bool",
     ),
     TorchLibOpInfo("div", core_ops.aten_div).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,

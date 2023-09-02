@@ -2158,9 +2158,7 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
 
 
 @torch_op("aten::diagonal", trace_only=True)
-def aten_diagonal(
-    self: TTensor, offset: int = 0, dim1: int = 0, dim2: int = 1
-) -> TTensor:
+def aten_diagonal(self: TTensor, offset: int = 0, dim1: int = 0, dim2: int = 1) -> TTensor:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
     self_rank = len(self.shape)

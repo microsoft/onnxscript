@@ -46,16 +46,16 @@ from onnxscript.tests.function_libs.torch_lib import (
 # All dtypes will be tested on the generated symbolic functions.
 # complex64 will be flattened to float32.
 TESTED_DTYPES = (
-#    torch.float16,
+    torch.float16,
     torch.float32,
     # Uncomment below item when we really need testing it
     # torch.bfloat16,
     # torch.float64,
-#    torch.bool,
+    torch.bool,
     # torch.int8,
     # torch.int16,
-#    torch.int32,
-#    torch.int64,
+    torch.int32,
+    torch.int64,
     # torch.uint8,
 )
 # NOTE: torch.complex32 is experimental in torch
