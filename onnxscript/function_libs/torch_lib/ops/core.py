@@ -484,6 +484,28 @@ def aten_arange_start(
     return result
 
 
+@torch_op("aten::arange.start_step", private=True)
+def _aten_arange_start_step_onnx(
+    start: TRealUnlessFloat16OrInt8,
+    end: TRealUnlessFloat16OrInt8,
+    step: TRealUnlessFloat16OrInt8
+) -> Tuple[FLOAT, FLOAT, FLOAT]:
+
+    zero = op.Cast(0.0, to=FLOAT.dtype)
+    start = op.Cast(start, to=FLOAT.dtype)
+
+    if start < zero:
+        start = op.Cast(op.Cast(start, to=INT32.dtype), to=FLOAT.dtype)
+
+    step = op.Cast(step, to=FLOAT.dtype)
+    if step < zero:
+        start = op.Floor(start)
+
+    end = op.Cast(end, to=FLOAT.dtype)
+
+    return (start, end, step)
+
+
 @torch_op("aten::arange.start_step", trace_only=True)
 def aten_arange_start_step(
     start: TRealUnlessFloat16OrInt8,
@@ -499,10 +521,14 @@ def aten_arange_start_step(
     if dtype == -1:
         result = op.Range(start, end, step)
     elif _range_supported(dtype):
-        end = op.Cast(end, to=dtype)
-        start = op.Cast(start, to=dtype)
-        step = op.Cast(step, to=dtype)
-        result = op.Range(start, end, step)
+        if dtype == INT32.dtype:
+            start, end, step = _aten_arange_start_step_onnx(start, end, step)
+            result = op.Cast(op.Range(start, end, step), to=dtype)
+        else:
+            end = op.Cast(end, to=dtype)
+            start = op.Cast(start, to=dtype)
+            step = op.Cast(step, to=dtype)
+            result = op.Range(start, end, step)
     else:
         # Cast input to float if dtype is not supported by Range,
         # because the input dtype may be e.g. bfloat16 / int8 etc.

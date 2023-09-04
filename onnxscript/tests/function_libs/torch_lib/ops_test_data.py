@@ -1353,10 +1353,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     )
     .xfail(
-        dtypes=(torch.int32,),
-        reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
-    )
-    .xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
@@ -1364,10 +1360,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start",
         core_ops.aten_arange_start,
         trace_only=True,
-    )
-    .xfail(
-        dtypes=(torch.int32,),
-        reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
     )
     .skip(
         matcher=lambda sample: len(sample.args) != 1,
