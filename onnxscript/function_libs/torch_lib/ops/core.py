@@ -488,9 +488,8 @@ def aten_arange_start(
 def _aten_arange_start_step_onnx(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
-    step: TRealUnlessFloat16OrInt8
+    step: TRealUnlessFloat16OrInt8,
 ) -> Tuple[FLOAT, FLOAT, FLOAT]:
-
     zero = op.Cast(0.0, to=FLOAT.dtype)
     start = op.Cast(start, to=FLOAT.dtype)
 

@@ -1351,8 +1351,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start_step",
         core_ops.aten_arange_start_step,
         trace_only=True,
-    )
-    .xfail(
+    ).xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
@@ -1360,8 +1359,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start",
         core_ops.aten_arange_start,
         trace_only=True,
-    )
-    .skip(
+    ).skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
