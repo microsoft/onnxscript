@@ -1679,11 +1679,11 @@ def aten_scaled_dot_product_attention(
 def _aten_scaled_dot_product_flash_attention_fillin_empty_outputs(
     query: TFloat,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
-    # The followings are not comsumed by the graph.
     query_first_three_dims = op.Slice(
         op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
     )
     logsumexp = op.Expand(0.0, query_first_three_dims)
+    # TODO: Eliminate `make_tensor` usage when ORT supports empty tensor.
     empty_tensor_int = op.Cast(
         op.ConstantOfShape(
             op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
