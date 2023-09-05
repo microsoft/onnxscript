@@ -489,12 +489,13 @@ def _aten_arange_start_step_onnx(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
     step: TRealUnlessFloat16OrInt8,
+    dtype: int,
 ) -> Tuple[FLOAT, FLOAT, FLOAT]:
     zero = op.Cast(0.0, to=FLOAT.dtype)
     start = op.Cast(start, to=FLOAT.dtype)
 
     if start < zero:
-        start = op.Cast(op.Cast(start, to=INT32.dtype), to=FLOAT.dtype)
+        start = op.Cast(op.Cast(start, to=dtype), to=FLOAT.dtype)
 
     step = op.Cast(step, to=FLOAT.dtype)
     if step < zero:
@@ -520,8 +521,8 @@ def aten_arange_start_step(
     if dtype == -1:
         result = op.Range(start, end, step)
     elif _range_supported(dtype):
-        if dtype == INT32.dtype:
-            start, end, step = _aten_arange_start_step_onnx(start, end, step)
+        if dtype in [INT16.dtype, INT32.dtype]:
+            start, end, step = _aten_arange_start_step_onnx(start, end, step, dtype)
             result = op.Cast(op.Range(start, end, step), to=dtype)
         else:
             end = op.Cast(end, to=dtype)
@@ -533,9 +534,13 @@ def aten_arange_start_step(
         # because the input dtype may be e.g. bfloat16 / int8 etc.
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
-        end = op.Cast(end, to=FLOAT.dtype)
-        start = op.Cast(start, to=FLOAT.dtype)
-        step = op.Cast(step, to=FLOAT.dtype)
+        if dtype == INT8.dtype:
+            start, end, step = _aten_arange_start_step_onnx(start, end, step, dtype)
+        else:
+            end = op.Cast(end, to=FLOAT.dtype)
+            start = op.Cast(start, to=FLOAT.dtype)
+            step = op.Cast(step, to=FLOAT.dtype)
+
         result = op.Cast(op.Range(start, end, step), to=dtype)
 
     return result
