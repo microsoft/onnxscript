@@ -17,6 +17,8 @@ from __future__ import annotations
 import math
 from typing import Optional, Sequence, Tuple
 
+import onnx
+
 from onnxscript import FLOAT, INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
@@ -1673,6 +1675,29 @@ def aten_scaled_dot_product_attention(
     )
 
 
+@torch_op("aten::_scaled_dot_product_flash_attention", private=True)
+def _aten_scaled_dot_product_flash_attention_fillin_empty_outputs(
+    query: TFloat,
+) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+    # The followings are not comsumed by the graph.
+    query_first_three_dims = op.Slice(
+        op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
+    )
+    logsumexp = op.Expand(0.0, query_first_three_dims)
+    empty_tensor_int = op.Cast(
+        op.ConstantOfShape(
+            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
+        ),
+        to=INT64.dtype,
+    )
+    empty_tensor_float = op.ConstantOfShape(
+        op.Constant(value=onnx.helper.make_tensor("Empty_FLOATS", INT64.dtype, [0], []))
+    )
+    empty_int = op.Constant(value_int=0)
+
+    return logsumexp, empty_tensor_int, empty_int, empty_tensor_float
+
+
 @torch_op("aten::_scaled_dot_product_flash_attention", trace_only=True)
 def aten_scaled_dot_product_flash_attention(
     query: TFloat,
@@ -1697,16 +1722,12 @@ def aten_scaled_dot_product_flash_attention(
     )
 
     # The followings are not comsumed by the graph.
-    query_first_three_dims = op.Slice(
-        op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
-    )
-    logsumexp = op.Expand(0.0, query_first_three_dims)
-    # TODO: breaking checker
-    empty_tensor_int = op.Cast(op.ConstantOfShape(op.Constant(value_ints=[])), to=INT64.dtype)
-    empty_tensor_float = op.Cast(
-        op.ConstantOfShape(op.Constant(value_ints=[])), to=FLOAT.dtype
-    )
-    empty_int = op.Constant(value_int=0)
+    (
+        logsumexp,
+        empty_tensor_int,
+        empty_int,
+        empty_tensor_float,
+    ) = _aten_scaled_dot_product_flash_attention_fillin_empty_outputs(query)
 
     return (
         result,
