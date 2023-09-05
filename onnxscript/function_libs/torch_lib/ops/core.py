@@ -2337,7 +2337,7 @@ def aten_embedding_backward(
 def aten_embedding_bag(
     weight: TFloat,
     indices: INT64,
-    offsets: INT64 = None,  # Could be None accotding to the doc, go 2d branch
+    offsets: Optional[INT64] = None,  # Could be None accotding to the doc, go 2d branch
     scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
     mode: int = 1,  # [0,1,2] indicate ["sum", "mean", "max"], default is "mean"
     sparse: bool = False,  # pylint: disable=unused-argument
@@ -2470,7 +2470,7 @@ def _aten_embedding_bag_onnx(
 def aten_embedding_bag_padding_idx(
     weight: TFloat,
     indices: INT64,
-    offsets: INT64 = None,  # Could be None according to the doc, go 2d branch
+    offsets: Optional[INT64] = None,  # Could be None according to the doc, go 2d branch
     scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
     mode: int = 1,  # [0,1,2] indicate ["sum", "mean", "max"], default is "mean"
     sparse: bool = False,  # pylint: disable=unused-argument
@@ -2479,7 +2479,9 @@ def aten_embedding_bag_padding_idx(
     padding_idx: Optional[int] = None,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
     """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)"""
-    # assert(padding_idx is not None)
+    assert (
+        padding_idx is not None
+    ), "padding_idx must not be None. This is likely a dispatcher error"
 
     if per_sample_weights is None:
         per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
