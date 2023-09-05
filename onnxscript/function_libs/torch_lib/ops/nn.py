@@ -1678,7 +1678,7 @@ def aten_scaled_dot_product_attention(
 @torch_op("aten::_scaled_dot_product_flash_attention", private=True)
 def _aten_scaled_dot_product_flash_attention_fillin_empty_outputs(
     query: TFloat,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
+) -> Tuple[FLOAT, INT64, INT64, FLOAT]:
     query_first_three_dims = op.Slice(
         op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
     )
@@ -1707,8 +1707,8 @@ def aten_scaled_dot_product_flash_attention(
     is_causal: bool = False,
     return_debug_mask: bool = False,  # pylint: disable=unused-argument
     scale: Optional[float] = None,
-) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat, TFloat, INT64, INT64, TFloat]:
-    """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor ouput, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
+) -> Tuple[TFloat, FLOAT, INT64, INT64, INT64, INT64, INT64, INT64, FLOAT]:
+    """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor output, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
 
     One of the implementations of scaled_dot_product_attention.
     Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
