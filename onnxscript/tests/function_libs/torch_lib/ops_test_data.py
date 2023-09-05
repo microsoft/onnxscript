@@ -547,12 +547,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
         ),
-    )
-    .xfail(
-        reason=(
-            "fixme: ORT shape inference failed."
-            "https://github.com/microsoft/onnxscript/issues/1007"
-        ),
+    # )
+    # .xfail(
+    #     reason=(
+    #         "fixme: ORT shape inference failed."
+    #         "https://github.com/microsoft/onnxscript/issues/1007"
+    #     ),
     ),
     TorchLibOpInfo("atleast_2d", core_ops.aten_atleast_2d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -572,12 +572,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             "fixme: [ONNXRuntimeError] : 1 : FAIL : This is an invalid model. Error: Duplicate definition of name (_0x9370ed0_rank)."
             "https://github.com/microsoft/onnxscript/issues/960"
         ),
-    )
-    .xfail(
-        reason=(
-            "fixme: ORT shape inference failed."
-            "https://github.com/microsoft/onnxscript/issues/1007"
-        ),
+    # )
+    # .xfail(
+    #     reason=(
+    #         "fixme: ORT shape inference failed."
+    #         "https://github.com/microsoft/onnxscript/issues/1007"
+    #     ),
     ),
     TorchLibOpInfo("atleast_3d", core_ops.aten_atleast_3d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
