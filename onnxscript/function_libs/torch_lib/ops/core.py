@@ -2333,20 +2333,13 @@ def aten_embedding_backward(
     raise NotImplementedError()
 
 
-@torch_op(
-    (
-        "aten::embedding_bag",
-        "aten::_embedding_bag",
-        "aten::_embedding_bag_forward_only",
-    ),
-    trace_only=True,
-)
+@torch_op("aten::embedding_bag", trace_only=True)
 def aten_embedding_bag(
     weight: TFloat,
     indices: INT64,
-    offsets: INT64 = None,  # Could be None accotding to the doc, go 2d branch
+    offsets: INT64,
     scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
-    mode: int = 1,  # [0,1,2] indicate ["sum", "mean", "max"], default is "mean"
+    mode: int = 0,  # [0,1,2] indicate ["sum", "mean", "max"]
     sparse: bool = False,  # pylint: disable=unused-argument
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
@@ -2466,20 +2459,33 @@ def _aten_embedding_bag_onnx(
     return result, offset2bag, bag_size, max_indices
 
 
-@torch_op("aten::embedding_bag.padding_idx", trace_only=True)
+@torch_op(
+    (
+        "aten::embedding_bag.padding_idx",
+        "aten::_embedding_bag",
+        "aten::_embedding_bag_forward_only",
+    ),
+    trace_only=True,
+)
 def aten_embedding_bag_padding_idx(
     weight: TFloat,
     indices: INT64,
-    offsets: INT64 = None,  # Could be None according to the doc, go 2d branch
+    offsets: INT64,
     scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
-    mode: int = 1,  # [0,1,2] indicate ["sum", "mean", "max"], default is "mean"
+    mode: int = 0,  # [0,1,2] indicate ["sum", "mean", "max"]
     sparse: bool = False,  # pylint: disable=unused-argument
     per_sample_weights: Optional[TFloat] = None,
     include_last_offset: bool = False,
-    padding_idx: Optional[int] = None,
+    padding_idx: int = -1,
 ) -> Tuple[TFloat, TFloat, TFloat, TFloat]:
-    """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)"""
-    # assert(padding_idx is not None)
+    """embedding_bag.padding_idx(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq, int mode, bool sparse, Tensor? per_sample_weights, bool include_last_offset, int? padding_idx) -> (Tensor, Tensor, Tensor, Tensor)
+
+    We add default values for the attributes to accommodate _embedding_bag as well:
+    _embedding_bag(Tensor weight, Tensor indices, Tensor offsets, bool scale_grad_by_freq=False, int mode=0, bool sparse=False, Tensor? per_sample_weights=None, bool include_last_offset=False, int padding_idx=-1)
+    """
+    assert (
+        padding_idx is not None
+    ), "padding_idx must not be None. This is likely a dispatcher error"
 
     if per_sample_weights is None:
         per_sample_weights = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(indices))
