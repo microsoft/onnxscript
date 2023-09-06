@@ -450,7 +450,8 @@ class Exporter:
         if hasattr(proto, "opset_import"):
             text = self.translate_opset_imports(proto.opset_import)
             if isinstance(proto, FunctionProto):
-                text += self.translate_opset_import(proto.domain, 1)
+                if not any(x.domain == proto.domain for x in proto.opset_import):
+                    text += self.translate_opset_import(proto.domain, 1)
             return text
         return ""
 
