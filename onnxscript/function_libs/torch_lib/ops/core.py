@@ -7533,7 +7533,7 @@ def aten_view_as_complex_copy(self: TTensor) -> TTensor:
     return op.Identity(self)
 
 
-@torch_op("aten::view_as_real")
+@torch_op("aten::view_as_real", complex=True)
 def aten_view_as_real(self: TTensor) -> TTensor:
     """view_as_real(Tensor(a) self) -> Tensor(a)"""
 
@@ -7542,7 +7542,7 @@ def aten_view_as_real(self: TTensor) -> TTensor:
     return op.Identity(self)
 
 
-@torch_op("aten::view_as_real_copy")
+@torch_op("aten::view_as_real_copy", complex=True)
 def aten_view_as_real_copy(self: TTensor) -> TTensor:
     """view_as_real_copy(Tensor self) -> Tensor"""
 
