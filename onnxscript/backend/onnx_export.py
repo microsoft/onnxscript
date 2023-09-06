@@ -432,21 +432,22 @@ class Exporter:
         ]
         return "".join(text)
 
+    def translate_opset_import(self, domain: str, version: int) -> str:
+        if (domain == "") or (domain == "ai.onnx"):
+            return f"from onnxscript.onnx_opset import opset{version}\n"
+        else:
+            varname = self.make_opset_name(domain, version)
+            return f"{varname} = Opset('{domain}', {version})\n"
+
     def translate_opset_imports(self, opset_imports: Sequence[onnx.OperatorSetIdProto]) -> str:
-        text = ""
-        for imported in opset_imports:
-            if (imported.domain == "") or (imported.domain == "ai.onnx"):
-                text += f"from onnxscript.onnx_opset import opset{imported.version}\n"
-            else:
-                varname = self.make_opset_name(imported.domain, imported.version)
-                text += f"{varname} = Opset('{imported.domain}', {imported.version})\n"
-        if text:
-            text += "\n"
-        return text
+        return "".join([self.translate_opset_import(x.domain, x.version) for x in opset_imports])
 
     def translate_opset_imports_of(self, proto: ModelProto | FunctionProto | GraphProto ) -> str:
         if hasattr(proto, "opset_import"):
-            return self.translate_opset_imports(proto.opset_import)
+            text = self.translate_opset_imports(proto.opset_import)
+            if isinstance(proto, FunctionProto):
+                text += self.translate_opset_import(proto.domain, 1)
+            return text
         return ""
 
     def translate_function_signature(self, funproto: onnx.FunctionProto) -> str:
