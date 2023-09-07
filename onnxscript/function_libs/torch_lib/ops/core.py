@@ -507,7 +507,7 @@ def _adjust_args_for_arange_int_dtype(
     step = op.Cast(step, to=FLOAT.dtype)
 
     if start < zero:
-        start = op.Cast(op.Cast(start, to=dtype), to=FLOAT.dtype)
+        start = op.Ceil(start)
 
     if step < zero:
         start = op.Floor(start)
