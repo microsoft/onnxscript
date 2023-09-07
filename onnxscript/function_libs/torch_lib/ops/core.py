@@ -521,7 +521,7 @@ def aten_arange_start_step(
     if dtype == -1:
         result = op.Range(start, end, step)
     elif _range_supported(dtype):
-        if dtype in [INT16.dtype, INT32.dtype]:
+        if dtype in (INT16.dtype, INT32.dtype):
             start, end, step = _aten_arange_start_step_onnx(start, end, step, dtype)
             result = op.Cast(op.Range(start, end, step), to=dtype)
         else:
