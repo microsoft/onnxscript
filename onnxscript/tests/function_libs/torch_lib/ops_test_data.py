@@ -1740,6 +1740,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="dropout is random so the results do not match",
     ),
     TorchLibOpInfo(
+        "ops.aten._scaled_dot_product_flash_attention",
+        nn_ops.aten_scaled_dot_product_flash_attention,
+        trace_only=True,
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
+        # Output[0] is OK, but other outputs just have the same shape with zero values
+        nondeterministic=True,
+    ).skip(
+        enabled_if=version_utils.torch_older_than("2.1"),
+        reason="The operator is not supported in older version.",
+    ),
+    TorchLibOpInfo(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
