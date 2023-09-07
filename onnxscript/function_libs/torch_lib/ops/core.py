@@ -498,9 +498,7 @@ def _adjust_args_for_arange_int_dtype(
     start: TRealUnlessFloat16OrInt8,
     end: TRealUnlessFloat16OrInt8,
     step: TRealUnlessFloat16OrInt8,
-    dtype: int,
 ) -> Tuple[FLOAT, FLOAT, FLOAT]:
-
     zero = op.Cast(0.0, to=FLOAT.dtype)
     start = op.Cast(start, to=FLOAT.dtype)
     end = op.Cast(end, to=FLOAT.dtype)
