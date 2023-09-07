@@ -531,7 +531,7 @@ def aten_arange_start_step(
         # PyTorch arange op handles these integral types differently from INT64,
         # so we have to adjust these arguments accordingly.
         # https://github.com/pytorch/pytorch/blob/121cfb60c0817816fcbe2190303b7f6d05c77cf3/torch/_refs/__init__.py#L4794
-        start, end, step = _adjust_args_for_arange_int_dtype(start, end, step, dtype)
+        start, end, step = _adjust_args_for_arange_int_dtype(start, end, step)
         result = op.Cast(op.Range(start, end, step), to=dtype)
     elif dtype == INT64.dtype:
         end = op.Cast(end, to=dtype)
