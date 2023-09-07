@@ -37,7 +37,7 @@ ONNX models and functions:
 ## Installing ONNX Script
 
 ```bash
-pip install --upgrade onnxscript-preview
+pip install --upgrade onnxscript
 ```
 
 ### Install for Development

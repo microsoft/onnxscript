@@ -425,6 +425,15 @@ def _range_supported(dtype: int) -> bool:
     }
 
 
+def _integral_to_be_adjusted(dtype: int) -> bool:
+    """Returns true if the dtype is special integral handled by torch."""
+    return dtype in {
+        INT8.dtype,
+        INT16.dtype,
+        INT32.dtype,
+    }
+
+
 @torch_op("aten::arange", trace_only=True)
 def aten_arange(end: Union[DOUBLE, FLOAT, INT16, INT32, INT64], dtype: int = -1) -> TensorType:
     """arange(Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
@@ -484,6 +493,26 @@ def aten_arange_start(
     return result
 
 
+@torch_op("aten::arange.start_step", private=True)
+def _adjust_args_for_arange_int_dtype(
+    start: TRealUnlessFloat16OrInt8,
+    end: TRealUnlessFloat16OrInt8,
+    step: TRealUnlessFloat16OrInt8,
+) -> Tuple[FLOAT, FLOAT, FLOAT]:
+    zero = op.Cast(0.0, to=FLOAT.dtype)
+    start = op.Cast(start, to=FLOAT.dtype)
+    end = op.Cast(end, to=FLOAT.dtype)
+    step = op.Cast(step, to=FLOAT.dtype)
+
+    if start < zero:
+        start = op.Ceil(start)
+
+    if step < zero:
+        start = op.Floor(start)
+
+    return (start, end, step)
+
+
 @torch_op("aten::arange.start_step", trace_only=True)
 def aten_arange_start_step(
     start: TRealUnlessFloat16OrInt8,
@@ -498,14 +527,20 @@ def aten_arange_start_step(
 
     if dtype == -1:
         result = op.Range(start, end, step)
-    elif _range_supported(dtype):
+    elif _integral_to_be_adjusted(dtype):
+        # PyTorch arange op handles these integral types differently from INT64,
+        # so we have to adjust these arguments accordingly.
+        # https://github.com/pytorch/pytorch/blob/121cfb60c0817816fcbe2190303b7f6d05c77cf3/torch/_refs/__init__.py#L4794
+        start, end, step = _adjust_args_for_arange_int_dtype(start, end, step)
+        result = op.Cast(op.Range(start, end, step), to=dtype)
+    elif dtype == INT64.dtype:
         end = op.Cast(end, to=dtype)
         start = op.Cast(start, to=dtype)
         step = op.Cast(step, to=dtype)
         result = op.Range(start, end, step)
     else:
         # Cast input to float if dtype is not supported by Range,
-        # because the input dtype may be e.g. bfloat16 / int8 etc.
+        # because the input dtype may be e.g. bfloat16,
         # which Range does not support. The output type is ensured because the output
         # is casted to the specified dtype.
         end = op.Cast(end, to=FLOAT.dtype)
