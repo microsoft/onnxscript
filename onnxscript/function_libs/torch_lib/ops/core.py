@@ -1158,45 +1158,96 @@ def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
 @torch_op("aten::bitwise_right_shift")
 def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    negative = op.Less(self, 0)
     self = op.Cast(self, to=UINT16.dtype)
     other = op.Cast(other, to=UINT16.dtype)
 
-    result = op.BitShift(self, other, direction="RIGHT")
-
-    return op.Cast(result, to=INT16.dtype)
+    # Simulate signed bitshift with unsigned bitshift
+    # Clear the lower bits for the mask by shifting right then left
+    mask = op.BitShift(
+        op.Cast(op.Constant(value_int=0xFFFF), to=UINT16.dtype), other, direction="LEFT"
+    )
+    mask = op.BitShift(mask, other, direction="RIGHT")
+    mask = op.BitwiseNot(mask)
+    # Do unsigned shift
+    shifted = op.BitShift(self, other, direction="RIGHT")
+    negative_shifted = op.BitwiseOr(shifted, mask)
+    # Fill in the upper bits with the mask if the sign bit was set
+    return op.Where(
+        negative, op.Cast(negative_shifted, to=INT16.dtype), op.Cast(shifted, to=INT16.dtype)
+    )
 
 
 @torch_op("aten::bitwise_right_shift")
 def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    negative = op.Less(self, 0)
     self = op.Cast(self, to=UINT32.dtype)
     other = op.Cast(other, to=UINT32.dtype)
 
-    result = op.BitShift(self, other, direction="RIGHT")
-
-    return op.Cast(result, to=INT32.dtype)
+    # Simulate signed bitshift with unsigned bitshift
+    # Clear the lower bits for the mask by shifting right then left
+    mask = op.BitShift(
+        op.Cast(op.Constant(value_int=0xFFFFFFFF), to=UINT32.dtype), other, direction="LEFT"
+    )
+    mask = op.BitShift(mask, other, direction="RIGHT")
+    mask = op.BitwiseNot(mask)
+    # Do unsigned shift
+    shifted = op.BitShift(self, other, direction="RIGHT")
+    negative_shifted = op.BitwiseOr(shifted, mask)
+    # Fill in the upper bits with the mask if the sign bit was set
+    return op.Where(
+        negative, op.Cast(negative_shifted, to=INT32.dtype), op.Cast(shifted, to=INT32.dtype)
+    )
 
 
 @torch_op("aten::bitwise_right_shift")
 def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    negative = op.Less(self, 0)
     self = op.Cast(self, to=UINT64.dtype)
     other = op.Cast(other, to=UINT64.dtype)
 
-    result = op.BitShift(self, other, direction="RIGHT")
-
-    return op.Cast(result, to=INT64.dtype)
+    # Simulate signed bitshift with unsigned bitshift
+    # Clear the lower bits for the mask by shifting right then left
+    mask = op.BitShift(
+        # 0xFFFFFFFFFFFFFFFF
+        op.Cast(op.Constant(value_int=-1), to=UINT64.dtype),
+        other,
+        direction="LEFT",
+    )
+    mask = op.BitShift(mask, other, direction="RIGHT")
+    mask = op.BitwiseNot(mask)
+    # Do unsigned shift
+    shifted = op.BitShift(self, other, direction="RIGHT")
+    negative_shifted = op.BitwiseOr(shifted, mask)
+    # Fill in the upper bits with the mask if the sign bit was set
+    return op.Where(
+        negative, op.Cast(negative_shifted, to=INT64.dtype), op.Cast(shifted, to=INT64.dtype)
+    )
 
 
 @torch_op("aten::bitwise_right_shift")
 def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    negative = op.Less(self, 0)
     self = op.Cast(self, to=UINT8.dtype)
     other = op.Cast(other, to=UINT8.dtype)
 
-    result = op.BitShift(self, other, direction="RIGHT")
-
-    return op.Cast(result, to=INT8.dtype)
+    # Simulate signed bitshift with unsigned bitshift
+    # Clear the lower bits for the mask by shifting right then left
+    mask = op.BitShift(
+        op.Cast(op.Constant(value_int=0xFF), to=UINT8.dtype), other, direction="LEFT"
+    )
+    mask = op.BitShift(mask, other, direction="RIGHT")
+    mask = op.BitwiseNot(mask)
+    # Do unsigned shift
+    shifted = op.BitShift(self, other, direction="RIGHT")
+    negative_shifted = op.BitwiseOr(shifted, mask)
+    # Fill in the upper bits with the mask if the sign bit was set
+    return op.Where(
+        negative, op.Cast(negative_shifted, to=INT8.dtype), op.Cast(shifted, to=INT8.dtype)
+    )
 
 
 @torch_op(
