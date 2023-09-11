@@ -1091,6 +1091,7 @@ def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
 @torch_op("aten::bitwise_left_shift")
 def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # assert other >= 0
     self = op.Cast(self, to=UINT16.dtype)
     other = op.Cast(other, to=UINT16.dtype)
 
@@ -1102,6 +1103,7 @@ def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
 @torch_op("aten::bitwise_left_shift")
 def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # assert other >= 0
     self = op.Cast(self, to=UINT32.dtype)
     other = op.Cast(other, to=UINT32.dtype)
 
@@ -1113,6 +1115,7 @@ def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
 @torch_op("aten::bitwise_left_shift")
 def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # assert other >= 0
     self = op.Cast(self, to=UINT64.dtype)
     other = op.Cast(other, to=UINT64.dtype)
 
@@ -1124,6 +1127,7 @@ def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
 @torch_op("aten::bitwise_left_shift")
 def aten_bitwise_left_shift_int8(self: INT8, other: INT8) -> INT8:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # assert other >= 0
     self = op.Cast(self, to=UINT8.dtype)
     other = op.Cast(other, to=UINT8.dtype)
 
