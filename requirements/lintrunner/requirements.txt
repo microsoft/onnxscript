@@ -1,7 +1,7 @@
 # This file is auto updated by dependabot
 lintrunner-adapters>=0.8.0
 # RUFF, RUFF-FIX
-ruff==0.0.287
+ruff==0.0.288
 # MYPY
 mypy==1.5.1
 types-PyYAML==6.0.12.11
