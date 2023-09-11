@@ -1177,7 +1177,7 @@ def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
     shifted = op.BitShift(self, other, direction="RIGHT")
     # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
-    # Fill in the upper bits with the mask if the sign bit was set
+    # Choose the shifted value based on the sign bit
     return op.Where(
         negative, op.Cast(negative_shifted, to=INT16.dtype), op.Cast(shifted, to=INT16.dtype)
     )
@@ -1201,7 +1201,7 @@ def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
     shifted = op.BitShift(self, other, direction="RIGHT")
     # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
-    # Fill in the upper bits with the mask if the sign bit was set
+    # Choose the shifted value based on the sign bit
     return op.Where(
         negative, op.Cast(negative_shifted, to=INT32.dtype), op.Cast(shifted, to=INT32.dtype)
     )
@@ -1228,7 +1228,7 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
     shifted = op.BitShift(self, other, direction="RIGHT")
     # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
-    # Fill in the upper bits with the mask if the sign bit was set
+    # Choose the shifted value based on the sign bit
     return op.Where(
         negative, op.Cast(negative_shifted, to=INT64.dtype), op.Cast(shifted, to=INT64.dtype)
     )
@@ -1252,7 +1252,7 @@ def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
     shifted = op.BitShift(self, other, direction="RIGHT")
     # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
-    # Fill in the upper bits with the mask if the sign bit was set
+    # Choose the shifted value based on the sign bit
     return op.Where(
         negative, op.Cast(negative_shifted, to=INT8.dtype), op.Cast(shifted, to=INT8.dtype)
     )
