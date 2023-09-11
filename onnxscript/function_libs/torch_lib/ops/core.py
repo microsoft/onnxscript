@@ -24,10 +24,10 @@ from onnxscript import (
     INT16,
     INT32,
     INT64,
+    UINT8,
     UINT16,
     UINT32,
     UINT64,
-    UINT8,
     graph,
 )
 from onnxscript.function_libs.torch_lib.registration import torch_op
@@ -3230,7 +3230,6 @@ def aten_getitem(self: Sequence[TTensor], i: INT64) -> TTensor:
     return op.SequenceAt(self, i)
 
 
-
 @torch_op("aten::grid_sampler", trace_only=True)
 def aten_grid_sampler(
     input: TTensor,
@@ -3366,6 +3365,7 @@ def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
     #    T,    T,    F
 
     return op.And(self, op.Not(other))
+
 
 def aten_hamming_window(window_length: int) -> TensorType:
     """hamming_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
@@ -4074,6 +4074,7 @@ def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
 
     return op.Or(other, op.Not(self))
 
+
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
     """lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor"""
 
@@ -4364,6 +4365,7 @@ def aten_lt(self: TReal, other: TReal) -> BOOL:
 
     return op.Less(self, other)
 
+
 @torch_op(("aten::lt", "aten::lt.Scalar", "aten::less"))
 def aten_lt_bool(self: BOOL, other: BOOL) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -4375,6 +4377,7 @@ def aten_lt_bool(self: BOOL, other: BOOL) -> BOOL:
     #    T,    T,    F
 
     return op.And(other, op.Not(self))
+
 
 def aten_lu_solve(self: TensorType, LU_data: TensorType, LU_pivots: TensorType) -> TensorType:
     """lu_solve(Tensor self, Tensor LU_data, Tensor LU_pivots) -> Tensor"""

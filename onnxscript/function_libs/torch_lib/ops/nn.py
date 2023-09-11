@@ -1097,10 +1097,11 @@ def aten_max_unpool3d(
     raise NotImplementedError()
 
 
-def aten_mish(self: TensorType) -> TensorType:
+@torch_op("aten::mish")
+def aten_mish(self: TFloat) -> TFloat:
     """mish(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Mish(self)
 
 
 def aten_mish_backward(grad_output: TensorType, self: TensorType) -> TensorType:
