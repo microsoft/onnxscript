@@ -24,6 +24,9 @@ from onnxscript import (
     INT16,
     INT32,
     INT64,
+    UINT16,
+    UINT32,
+    UINT64,
     UINT8,
     graph,
 )
@@ -1086,10 +1089,47 @@ def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
 
 
 @torch_op("aten::bitwise_left_shift")
-def aten_bitwise_left_shift(self: TInt, other: TInt) -> TInt:
+def aten_bitwise_left_shift_int16(self: INT16, other: INT16) -> INT16:
     """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT16.dtype)
+    other = op.Cast(other, to=UINT16.dtype)
 
-    return op.BitShift(self, other, direction="LEFT")
+    result = op.BitShift(self, other, direction="LEFT")
+
+    return op.Cast(result, to=INT16.dtype)
+
+
+@torch_op("aten::bitwise_left_shift")
+def aten_bitwise_left_shift_int32(self: INT32, other: INT32) -> INT32:
+    """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT32.dtype)
+    other = op.Cast(other, to=UINT32.dtype)
+
+    result = op.BitShift(self, other, direction="LEFT")
+
+    return op.Cast(result, to=INT32.dtype)
+
+
+@torch_op("aten::bitwise_left_shift")
+def aten_bitwise_left_shift_int64(self: INT64, other: INT64) -> INT64:
+    """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT64.dtype)
+    other = op.Cast(other, to=UINT64.dtype)
+
+    result = op.BitShift(self, other, direction="LEFT")
+
+    return op.Cast(result, to=INT64.dtype)
+
+
+@torch_op("aten::bitwise_left_shift")
+def aten_bitwise_left_shift_int8(self: INT8, other: INT8) -> INT8:
+    """bitwise_left_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT8.dtype)
+    other = op.Cast(other, to=UINT8.dtype)
+
+    result = op.BitShift(self, other, direction="LEFT")
+
+    return op.Cast(result, to=INT8.dtype)
 
 
 @torch_op("aten::bitwise_not")
@@ -1116,10 +1156,47 @@ def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
 
 
 @torch_op("aten::bitwise_right_shift")
-def aten_bitwise_right_shift(self: TInt, other: TInt) -> TInt:
+def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
     """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT16.dtype)
+    other = op.Cast(other, to=UINT16.dtype)
 
-    return op.BitShift(self, other, direction="RIGHT")
+    result = op.BitShift(self, other, direction="RIGHT")
+
+    return op.Cast(result, to=INT16.dtype)
+
+
+@torch_op("aten::bitwise_right_shift")
+def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
+    """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT32.dtype)
+    other = op.Cast(other, to=UINT32.dtype)
+
+    result = op.BitShift(self, other, direction="RIGHT")
+
+    return op.Cast(result, to=INT32.dtype)
+
+
+@torch_op("aten::bitwise_right_shift")
+def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
+    """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT64.dtype)
+    other = op.Cast(other, to=UINT64.dtype)
+
+    result = op.BitShift(self, other, direction="RIGHT")
+
+    return op.Cast(result, to=INT64.dtype)
+
+
+@torch_op("aten::bitwise_right_shift")
+def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
+    """bitwise_right_shift.Tensor(Tensor self, Tensor other) -> Tensor"""
+    self = op.Cast(self, to=UINT8.dtype)
+    other = op.Cast(other, to=UINT8.dtype)
+
+    result = op.BitShift(self, other, direction="RIGHT")
+
+    return op.Cast(result, to=INT8.dtype)
 
 
 @torch_op(
@@ -2999,10 +3076,15 @@ def aten_fmod(self: TRealOrUInt8, other: TRealOrUInt8) -> TRealOrUInt8:
     return op.Mod(self, other, fmod=1)
 
 
-def aten_frac(self: TensorType) -> TensorType:
-    """frac(Tensor self) -> Tensor"""
+@torch_op("aten::frac")
+def aten_frac(self: TFloat) -> TFloat:
+    """frac(Tensor self) -> Tensor
 
-    raise NotImplementedError()
+    Computes the fractional portion of each element in input.
+    """
+
+    # https://pytorch.org/docs/stable/generated/torch.frac.html
+    return op.Sub(self, op.Mul(op.Floor(op.Abs(self)), op.Sign(self)))
 
 
 def aten_frexp(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -3110,11 +3192,24 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::ge", "aten::ge.Tensor", "aten::ge.Scalar"))
+@torch_op(("aten::ge", "aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal"))
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.GreaterOrEqual(self, other)
+
+
+@torch_op(("aten::ge", "aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal"))
+def aten_ge_bool(self: BOOL, other: BOOL) -> BOOL:
+    """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    # self, other, self >= other
+    #    F,    F,    T
+    #    F,    T,    F
+    #    T,    F,    T
+    #    T,    T,    T
+
+    return op.Or(self, op.Not(other))
 
 
 def aten_geqrf(self: TensorType) -> tuple[TensorType, TensorType]:
@@ -3134,19 +3229,6 @@ def aten_ger(self: TensorType, vec2: TensorType) -> TensorType:
 def aten_getitem(self: Sequence[TTensor], i: INT64) -> TTensor:
     return op.SequenceAt(self, i)
 
-
-@torch_op("aten::greater")
-def aten_greater(self: TReal, other: TReal) -> BOOL:
-    """greater.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    return op.Greater(self, other)
-
-
-@torch_op("aten::greater_equal")
-def aten_greater_equal(self: TReal, other: TReal) -> BOOL:
-    """greater_equal.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    return op.GreaterOrEqual(self, other)
 
 
 @torch_op("aten::grid_sampler", trace_only=True)
@@ -3267,14 +3349,23 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-@torch_op(("aten::gt", "aten::gt.Scalar"))
+@torch_op(("aten::gt", "aten::gt.Scalar", "aten::greater"))
 def aten_gt(self: TReal, other: TReal) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    # TODO(justinchuby): Input spec: non bool tensor
-    # Boolean inputs can be pre-casted by policy
     return op.Greater(self, other)
 
+
+@torch_op(("aten::gt", "aten::gt.Scalar", "aten::greater"))
+def aten_gt_bool(self: BOOL, other: BOOL) -> BOOL:
+    """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
+    # self, other, self > other
+    #    F,    F,    F
+    #    F,    T,    F
+    #    T,    F,    T
+    #    T,    T,    F
+
+    return op.And(self, op.Not(other))
 
 def aten_hamming_window(window_length: int) -> TensorType:
     """hamming_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
@@ -3971,20 +4062,20 @@ def aten_le(self: TReal, other: TReal) -> BOOL:
     return op.LessOrEqual(self, other)
 
 
+@torch_op(("aten::le", "aten::le.Tensor", "aten::less_equal"))
+def aten_le_bool(self: BOOL, other: BOOL) -> BOOL:
+    """le.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    # self, other, self <= other
+    #    F,    F,    T
+    #    F,    T,    T
+    #    T,    F,    F
+    #    T,    T,    T
+
+    return op.Or(other, op.Not(self))
+
 def aten_lerp(self: TensorType, end: TensorType, weight: TensorType) -> TensorType:
     """lerp.Tensor(Tensor self, Tensor end, Tensor weight) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_less(self: TensorType, other: TensorType) -> TensorType:
-    """less.Tensor(Tensor self, Tensor other) -> Tensor"""
-
-    raise NotImplementedError()
-
-
-def aten_less_equal(self: TensorType, other: TensorType) -> TensorType:
-    """less_equal.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     raise NotImplementedError()
 
@@ -4163,6 +4254,8 @@ def aten_logical_not(self: BOOL) -> BOOL:
         "aten::bitwise_or.Tensor",
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
+        "aten::add",
+        "aten::add.Tensor",
     )
 )
 def aten_logical_or(self: BOOL, other: BOOL) -> BOOL:
@@ -4265,14 +4358,23 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::lt", "aten::lt.Scalar"))
+@torch_op(("aten::lt", "aten::lt.Scalar", "aten::less"))
 def aten_lt(self: TReal, other: TReal) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
-    # TODO(justinchuby): Input spec: non bool tensor
-    # Boolean inputs can be pre-casted by policy
     return op.Less(self, other)
 
+@torch_op(("aten::lt", "aten::lt.Scalar", "aten::less"))
+def aten_lt_bool(self: BOOL, other: BOOL) -> BOOL:
+    """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    # self, other, self < other
+    #    F,    F,    F
+    #    F,    T,    T
+    #    T,    F,    F
+    #    T,    T,    F
+
+    return op.And(other, op.Not(self))
 
 def aten_lu_solve(self: TensorType, LU_data: TensorType, LU_pivots: TensorType) -> TensorType:
     """lu_solve(Tensor self, Tensor LU_data, Tensor LU_pivots) -> Tensor"""
