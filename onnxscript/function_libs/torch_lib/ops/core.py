@@ -1162,15 +1162,16 @@ def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
     self = op.Cast(self, to=UINT16.dtype)
     other = op.Cast(other, to=UINT16.dtype)
 
-    # Simulate signed bitshift with unsigned bitshift
-    # Clear the lower bits for the mask by shifting right then left
+    # Simulate arithmetic shift using logical shift
+    # Clear the lower bits of an all one mask to create the mask to simulate the sign bit shifting
     mask = op.BitShift(
         op.Cast(op.Constant(value_int=0xFFFF), to=UINT16.dtype), other, direction="LEFT"
     )
     mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
-    # Do unsigned shift
+    # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
+    # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
     # Fill in the upper bits with the mask if the sign bit was set
     return op.Where(
@@ -1185,15 +1186,16 @@ def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
     self = op.Cast(self, to=UINT32.dtype)
     other = op.Cast(other, to=UINT32.dtype)
 
-    # Simulate signed bitshift with unsigned bitshift
-    # Clear the lower bits for the mask by shifting right then left
+    # Simulate arithmetic shift using logical shift
+    # Clear the lower bits of an all one mask to create the mask to simulate the sign bit shifting
     mask = op.BitShift(
         op.Cast(op.Constant(value_int=0xFFFFFFFF), to=UINT32.dtype), other, direction="LEFT"
     )
     mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
-    # Do unsigned shift
+    # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
+    # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
     # Fill in the upper bits with the mask if the sign bit was set
     return op.Where(
@@ -1208,8 +1210,8 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
     self = op.Cast(self, to=UINT64.dtype)
     other = op.Cast(other, to=UINT64.dtype)
 
-    # Simulate signed bitshift with unsigned bitshift
-    # Clear the lower bits for the mask by shifting right then left
+    # Simulate arithmetic shift using logical shift
+    # Clear the lower bits of an all one mask to create the mask to simulate the sign bit shifting
     mask = op.BitShift(
         # 0xFFFFFFFFFFFFFFFF
         op.Cast(op.Constant(value_int=-1), to=UINT64.dtype),
@@ -1218,8 +1220,9 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
     )
     mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
-    # Do unsigned shift
+    # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
+    # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
     # Fill in the upper bits with the mask if the sign bit was set
     return op.Where(
@@ -1234,15 +1237,16 @@ def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
     self = op.Cast(self, to=UINT8.dtype)
     other = op.Cast(other, to=UINT8.dtype)
 
-    # Simulate signed bitshift with unsigned bitshift
-    # Clear the lower bits for the mask by shifting right then left
+    # Simulate arithmetic shift using logical shift
+    # Clear the lower bits of an all one mask to create the mask to simulate the sign bit shifting
     mask = op.BitShift(
         op.Cast(op.Constant(value_int=0xFF), to=UINT8.dtype), other, direction="LEFT"
     )
     mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
-    # Do unsigned shift
+    # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
+    # Compute the arithmetic shifted value assuming the sign bit was set
     negative_shifted = op.BitwiseOr(shifted, mask)
     # Fill in the upper bits with the mask if the sign bit was set
     return op.Where(
