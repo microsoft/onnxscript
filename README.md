@@ -1,7 +1,7 @@
-
-----
-
 # ONNX Script
+
+[![CI](https://github.com/microsoft/onnxscript/actions/workflows/main.yaml/badge.svg)](https://github.com/microsoft/onnxscript/actions/workflows/main.yaml)
+[![Dev Release](https://aiinfra.visualstudio.com/ONNX%20Converters/_apis/build/status%2Fonnxscript-release-dev?branchName=main&label=Dev%20Release)](https://aiinfra.visualstudio.com/ONNX%20Converters/_build/latest?definitionId=1258&branchName=main)
 
 ONNX Script enables developers to naturally author ONNX functions and
 models using a subset of Python. ONNX Script is:
