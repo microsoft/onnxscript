@@ -1169,9 +1169,8 @@ def aten_bitwise_right_shift_int16(self: INT16, other: INT16) -> INT16:
     # Simulate arithmetic shift using logical shift
     # Clear the lower bits of an all one mask to create the mask to simulate the sign bit shifting
     mask = op.BitShift(
-        op.Cast(op.Constant(value_int=0xFFFF), to=UINT16.dtype), other, direction="LEFT"
+        op.Cast(op.Constant(value_int=0xFFFF), to=UINT16.dtype), other, direction="RIGHT"
     )
-    mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
     # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
@@ -1193,9 +1192,8 @@ def aten_bitwise_right_shift_int32(self: INT32, other: INT32) -> INT32:
     # Simulate arithmetic shift using logical shift
     # Clear the lower bits of an all one mask to create the mask to simulate the sign bit shifting
     mask = op.BitShift(
-        op.Cast(op.Constant(value_int=0xFFFFFFFF), to=UINT32.dtype), other, direction="LEFT"
+        op.Cast(op.Constant(value_int=0xFFFFFFFF), to=UINT32.dtype), other, direction="RIGHT"
     )
-    mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
     # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
@@ -1220,9 +1218,8 @@ def aten_bitwise_right_shift_int64(self: INT64, other: INT64) -> INT64:
         # 0xFFFFFFFFFFFFFFFF
         op.Cast(op.Constant(value_int=-1), to=UINT64.dtype),
         other,
-        direction="LEFT",
+        direction="RIGHT",
     )
-    mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
     # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
@@ -1244,9 +1241,8 @@ def aten_bitwise_right_shift_int8(self: INT8, other: INT8) -> INT8:
     # Simulate arithmetic shift using logical shift
     # Clear the lower bits of an all one mask to create the mask to simulate the sign bit shifting
     mask = op.BitShift(
-        op.Cast(op.Constant(value_int=0xFF), to=UINT8.dtype), other, direction="LEFT"
+        op.Cast(op.Constant(value_int=0xFF), to=UINT8.dtype), other, direction="RIGHT"
     )
-    mask = op.BitShift(mask, other, direction="RIGHT")
     mask = op.BitwiseNot(mask)
     # Do logical shift
     shifted = op.BitShift(self, other, direction="RIGHT")
