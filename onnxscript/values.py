@@ -480,7 +480,7 @@ class OnnxFunction(Op):
         instructions="use '.name' instead",
     )
     def opname(self) -> str:
-        # NOTE: This is a temporary alias for backward compatibility for PyTorch 2.0.
+        # NOTE: This is a temporary alias for backward compatibility with PyTorch 2.0.
         # TODO: Remove this in onnxscript 0.3.
         return self.name
 
