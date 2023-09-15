@@ -8,11 +8,11 @@
 
 import functools
 import textwrap
-from typing import Callable, TypeVar
 import warnings
-
+from typing import Callable, TypeVar
 
 T = TypeVar("T")
+
 
 def deprecated(since: str, removed_in: str, instructions: str) -> Callable[[T], T]:
     """Marks functions as deprecated.
