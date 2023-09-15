@@ -18,7 +18,7 @@ import onnx.defs
 
 from onnxscript import converter as converter_module
 from onnxscript import irbuilder, sourceinfo, type_annotation
-from onnxscript._internal import ast_utils
+from onnxscript._internal import ast_utils, deprecation
 
 _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
     onnx.defs.OpSchema.AttrType.FLOAT: float,
@@ -472,6 +472,17 @@ class OnnxFunction(Op):
         self.kwargs = kwargs
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
         self._op_schema: Optional[onnx.defs.OpSchema] = None
+
+    @property
+    @deprecation.deprecated(
+        since="0.1",
+        removed_in="0.3",
+        instructions="use '.name' instead",
+    )
+    def opname(self) -> str:
+        # NOTE: This is a temporary alias for backward compatibility for PyTorch 2.0.
+        # TODO: Remove this in onnxscript 0.3.
+        return self.name
 
     @property
     def op_schema(self) -> Optional[onnx.defs.OpSchema]:
