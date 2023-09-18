@@ -1033,14 +1033,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag,
         tolerance={torch.float16: (1e-2, 1e-2)},
         trace_only=True,
-        compare_shape_only_for_output=(1,2,3),
+        compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",
         core_ops.aten_embedding_bag_padding_idx,
         trace_only=True,
         tolerance={torch.float16: (1e-2, 1e-2)},
-        compare_shape_only_for_output=(1,2,3),
+        compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(
         "nn.functional.embedding",
