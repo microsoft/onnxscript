@@ -2330,8 +2330,13 @@ def aten_diagonal(self: TTensor, offset: int = 0, dim1: int = 0, dim2: int = 1) 
 
     self_rank = len(self.shape)
     # If rank=2, then axes=[0]; if rank=3, then axes=[1]
+    # This is because computing diagonal sum is one the dim2
     axes = [self_rank - 2]
+
+    # perm is used to transpose the tensor to make dim1 and dim2 as the last 2 dims
     # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
+    # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
+    # [0,1,2] -> [0,1,2] when dim1=1 and dim2=2
     perm = list(range(self_rank))
     perm.remove(dim1)
     perm.remove(dim2)
@@ -2356,7 +2361,26 @@ def _aten_diagonal_onnx(
     result = op.ReduceSum(result, keepdims=False, axes=axes)
     # min(row, col)
     min_dim_size = op.Min(dim1_size, dim2_size)
-    # We can use a [3x5] tensor and offset=[-6,6] to get below logic
+    # take 2 tensors as example:
+    # one is 3x5 in size, min_dim_size = 3, dim1_size = 3
+    # the other is 5x3 in size, min_dim_size = 3, dim1_size = 5
+    '''
+    3 rows x 5 cols     5 rows x 3 cols
+    offset  diagonal    offset  diagonal
+    ----------------    ----------------
+    -4      0           -6      0
+    -3      0           -5      0
+    -2      1           -4      1
+    -1      2           -3      2
+    0       3           -2      3
+    1       3           -1      3
+    2       3           0       3
+    3       2           1       2
+    4       1           2       1
+    5       0           3       0
+    6       0           4       0
+    '''
+    # From above table, we can get below logic
     if offset < 0:
         # row + offset
         length = dim1_size + offset
