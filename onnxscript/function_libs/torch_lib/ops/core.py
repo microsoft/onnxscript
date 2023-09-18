@@ -2380,7 +2380,7 @@ def _aten_diagonal_onnx(
     5       0           3       0
     6       0           4       0
     '''
-    # From above table, we can get the below logic
+    # From above table, we can get the logic below
     if offset < 0:
         # row + offset
         length = dim1_size + offset
