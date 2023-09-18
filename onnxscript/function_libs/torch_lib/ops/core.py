@@ -2364,22 +2364,21 @@ def _aten_diagonal_onnx(
     # take 2 tensors as example:
     # one is 3x5 in size, min_dim_size = 3, dim1_size = 3
     # the other is 5x3 in size, min_dim_size = 3, dim1_size = 5
-    '''
-    3 rows x 5 cols     5 rows x 3 cols
-    offset  diagonal    offset  diagonal
-    ----------------    ----------------
-    -4      0           -6      0
-    -3      0           -5      0
-    -2      1           -4      1
-    -1      2           -3      2
-    0       3           -2      3
-    1       3           -1      3
-    2       3           0       3
-    3       2           1       2
-    4       1           2       1
-    5       0           3       0
-    6       0           4       0
-    '''
+    # 3 rows x 5 cols     5 rows x 3 cols
+    # offset  diagonal    offset  diagonal
+    # ----------------    ----------------
+    # -4      0           -6      0
+    # -3      0           -5      0
+    # -2      1           -4      1
+    # -1      2           -3      2
+    # 0       3           -2      3
+    # 1       3           -1      3
+    # 2       3           0       3
+    # 3       2           1       2
+    # 4       1           2       1
+    # 5       0           3       0
+    # 6       0           4       0
+
     # From above table, we can get the logic below
     if offset < 0:
         # row + offset
