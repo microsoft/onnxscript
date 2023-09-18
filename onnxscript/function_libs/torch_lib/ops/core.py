@@ -2332,13 +2332,13 @@ def aten_diagonal(self: TTensor, offset: int = 0, dim1: int = 0, dim2: int = 1) 
     # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
     # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
     # [0,1,2] -> [0,1,2] when dim1=1 and dim2=2
+    self_rank = len(self.shape)
     perm = list(range(self_rank))
     perm.remove(dim1)
     perm.remove(dim2)
     perm.append(dim1)
     perm.append(dim2)
 
-    self_rank = len(self.shape)
     # If rank=2, then axes=[0]; if rank=3, then axes=[1]
     # This is because computing diagonal sum is on dim2 after transpose by perm
     axes = [self_rank - 2]
@@ -2406,13 +2406,13 @@ def aten_diagonal_bool(self: BOOL, offset: int = 0, dim1: int = 0, dim2: int = 1
     # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
     # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
     # [0,1,2] -> [0,1,2] when dim1=1 and dim2=2
+    self_rank = len(self.shape)
     perm = list(range(self_rank))
     perm.remove(dim1)
     perm.remove(dim2)
     perm.append(dim1)
     perm.append(dim2)
 
-    self_rank = len(self.shape)
     # If rank=2, then axes=[0]; if rank=3, then axes=[1]
     # This is because computing diagonal sum is on dim2 after transpose by perm
     axes = [self_rank - 2]
