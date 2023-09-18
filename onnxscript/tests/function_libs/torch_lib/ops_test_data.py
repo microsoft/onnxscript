@@ -674,10 +674,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
-    TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True).xfail(
-        dtypes=(torch.bool,),
-        reason="Mul operator not implemented for bool, add overload function for bool below.",
-    ),
+    TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True),
     TorchLibOpInfo("diagonal_bool", core_ops.aten_diagonal_bool, trace_only=True),
     TorchLibOpInfo("div", core_ops.aten_div).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
