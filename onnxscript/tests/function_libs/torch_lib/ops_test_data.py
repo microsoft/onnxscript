@@ -616,6 +616,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nondeterministic=True,
     ),
     TorchLibOpInfo("ops.aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
+    TorchLibOpInfo("bitwise_and", core_ops.aten_bitwise_and),
+    TorchLibOpInfo("bitwise_left_shift_int16", core_ops.aten_bitwise_left_shift_int16),
+    TorchLibOpInfo("bitwise_left_shift_int32", core_ops.aten_bitwise_left_shift_int32),
+    TorchLibOpInfo("bitwise_left_shift_int64", core_ops.aten_bitwise_left_shift_int64),
+    TorchLibOpInfo("bitwise_left_shift_int8", core_ops.aten_bitwise_left_shift_int8),
+    TorchLibOpInfo("bitwise_not", core_ops.aten_bitwise_not),
+    TorchLibOpInfo("bitwise_or", core_ops.aten_bitwise_or),
+    TorchLibOpInfo("bitwise_right_shift_int16", core_ops.aten_bitwise_right_shift_int16),
+    TorchLibOpInfo("bitwise_right_shift_int32", core_ops.aten_bitwise_right_shift_int32),
+    TorchLibOpInfo("bitwise_right_shift_int64", core_ops.aten_bitwise_right_shift_int64),
+    TorchLibOpInfo("bitwise_right_shift_int8", core_ops.aten_bitwise_right_shift_int8),
+    TorchLibOpInfo("bitwise_xor", core_ops.aten_bitwise_xor),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
     TorchLibOpInfo("cat", core_ops.aten_cat).skip(
@@ -719,6 +731,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: off-by-one issue due to numerical precision. https://github.com/microsoft/onnxscript/issues/989",
     ),
     TorchLibOpInfo("fmod", core_ops.aten_fmod),
+    TorchLibOpInfo("frac", core_ops.aten_frac),
     TorchLibOpInfo("full", core_ops.aten_full),
     TorchLibOpInfo(
         "full_like_dtype",
@@ -736,9 +749,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("gather", core_ops.aten_gather),
     TorchLibOpInfo("ge", core_ops.aten_ge),
-    # TorchLibOpInfo("greater_equal", core_ops.aten_greater_equal),  # no test case in OPS_DB
-    # TorchLibOpInfo("greater", core_ops.aten_greater),  # no test case in OPS_DB
+    TorchLibOpInfo("ge_bool", core_ops.aten_ge_bool),
     TorchLibOpInfo("gt", core_ops.aten_gt),
+    TorchLibOpInfo("gt_bool", core_ops.aten_gt_bool),
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
     TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index, trace_only=True),
@@ -794,10 +807,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
-    TorchLibOpInfo(
-        "log10",
-        core_ops.aten_log10,
-    ),
+    TorchLibOpInfo("le_bool", core_ops.aten_le_bool),
+    TorchLibOpInfo("log10", core_ops.aten_log10),
     TorchLibOpInfo("log1p", core_ops.aten_log1p),
     TorchLibOpInfo(
         "log_softmax",
@@ -809,16 +820,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
-    TorchLibOpInfo(
-        "log2",
-        core_ops.aten_log2,
-    ),
+    TorchLibOpInfo("log2", core_ops.aten_log2),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
     TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
     TorchLibOpInfo("logsumexp", core_ops.aten_logsumexp),
     TorchLibOpInfo("lt", core_ops.aten_lt),
+    TorchLibOpInfo("lt_bool", core_ops.aten_lt_bool),
     TorchLibOpInfo("masked_fill", core_ops.aten_masked_fill).xfail(
         dtypes=(torch.bool,),
         reason="fixme: ORT does not have an implementation for Where with bool inputs.",
@@ -855,8 +864,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("mH", core_ops.aten_mH),
     TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True, trace_only=True),
-    TorchLibOpInfo("mT", core_ops.aten_mT),
-    TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
     .skip(
         variant_name="reduction_with_dim",
@@ -893,6 +900,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("minimum_bool", core_ops.aten_minimum_bool),
     TorchLibOpInfo("mm", core_ops.aten_mm),
+    TorchLibOpInfo("mT", core_ops.aten_mT),
+    TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("mul", core_ops.aten_mul),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
     TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
@@ -1046,6 +1055,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_log_sigmoid,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (8e-2, 4e-4)},
     ),
+    TorchLibOpInfo("nn.functional.mish", nn_ops.aten_mish),
     TorchLibOpInfo(
         "nn.functional.nll_loss_weight",
         nn_ops.aten_nll_loss_weight,
@@ -1355,12 +1365,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start_step",
         core_ops.aten_arange_start_step,
         trace_only=True,
-    )
-    .xfail(
-        dtypes=(torch.int32,),
-        reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
-    )
-    .xfail(
+    ).xfail(
         matcher=lambda sample: len(sample.args) != 2,
         reason="arange_start_step overload takes three arguments (input, start, step)",
     ),
@@ -1368,12 +1373,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "arange_start",
         core_ops.aten_arange_start,
         trace_only=True,
-    )
-    .xfail(
-        dtypes=(torch.int32,),
-        reason="fixme: output shape mismatch in edge cases. https://github.com/microsoft/onnxscript/issues/974",
-    )
-    .skip(
+    ).skip(
         matcher=lambda sample: len(sample.args) != 1,
         reason="arange_start overload takes two arguments (input, start)",
     ),
@@ -1754,6 +1754,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="dropout is random so the results do not match",
     ),
     TorchLibOpInfo(
+        "ops.aten._scaled_dot_product_flash_attention",
+        nn_ops.aten_scaled_dot_product_flash_attention,
+        trace_only=True,
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
+        # Output[0] is OK, but other outputs just have the same shape with zero values
+        nondeterministic=True,
+    ).skip(
+        enabled_if=version_utils.torch_older_than("2.1"),
+        reason="The operator is not supported in older version.",
+    ),
+    TorchLibOpInfo(
         "nn.functional.scaled_dot_product_attention_bool_mask",
         nn_ops.aten_scaled_dot_product_attention_bool_mask,
         trace_only=True,
@@ -1910,11 +1921,35 @@ ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
 ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
+ops_test_common.duplicate_opinfo(
+    OPS_DB,
+    "bitwise_left_shift",
+    (
+        "bitwise_left_shift_int8",
+        "bitwise_left_shift_int16",
+        "bitwise_left_shift_int32",
+        "bitwise_left_shift_int64",
+    ),
+)
+ops_test_common.duplicate_opinfo(
+    OPS_DB,
+    "bitwise_right_shift",
+    (
+        "bitwise_right_shift_int8",
+        "bitwise_right_shift_int16",
+        "bitwise_right_shift_int32",
+        "bitwise_right_shift_int64",
+    ),
+)
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode", "div_mode_int"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "ge", ("ge_bool",))
+ops_test_common.duplicate_opinfo(OPS_DB, "gt", ("gt_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "index_put", ("index_put_bool",))
+ops_test_common.duplicate_opinfo(OPS_DB, "le", ("le_bool",))
+ops_test_common.duplicate_opinfo(OPS_DB, "lt", ("lt_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "max", ("max_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "maximum", ("maximum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))

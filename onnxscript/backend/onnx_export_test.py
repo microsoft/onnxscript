@@ -17,6 +17,7 @@ from onnxruntime.capi import onnxruntime_pybind11_state
 
 import onnxscript
 import onnxscript.testing
+import onnxscript.values
 from onnxscript.backend import onnx_backend, onnx_export
 from onnxscript.tests.models import type_double
 
@@ -136,7 +137,8 @@ class TestOnnxBackEnd(unittest.TestCase):
     test_folder = root_folder / "tests" / "onnx_backend_test_code"
     temp_folder = root_folder / "tests" / "export"
 
-    def _round_trip_check(self, proto, **export_options):
+    def _round_trip_check(self, script_function, **export_options):
+        proto = script_function.to_function_proto()
         code = onnx_export.export2python(proto, **export_options)
         map = extract_functions(proto.name, code, TestOnnxBackEnd.temp_folder)
         result_proto = map[proto.name]
@@ -150,8 +152,18 @@ class TestOnnxBackEnd(unittest.TestCase):
         def fun_with_attr_param(X, dtype: int):
             return op.Cast(X, to=dtype)
 
-        fun_proto = fun_with_attr_param.to_function_proto()
-        self._round_trip_check(fun_proto)
+        self._round_trip_check(fun_with_attr_param)
+
+    def test_qualified_domain(self):
+        """Test use of qualified domain name."""
+        op = onnxscript.opset17
+        custom_opset = onnxscript.values.Opset("my.domain.com", 1)
+
+        @onnxscript.script(custom_opset)
+        def twice(X):
+            return op.Add(X, X)
+
+        self._round_trip_check(twice)
 
     def test_export2python(self):
         proto = type_double.double_abs_subgraph.to_model_proto()
