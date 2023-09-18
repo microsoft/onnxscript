@@ -2328,11 +2328,6 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
 def aten_diagonal(self: TTensor, offset: int = 0, dim1: int = 0, dim2: int = 1) -> TTensor:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
-    self_rank = len(self.shape)
-    # If rank=2, then axes=[0]; if rank=3, then axes=[1]
-    # This is because computing diagonal sum is one the dim2
-    axes = [self_rank - 2]
-
     # perm is used to transpose the tensor to make dim1 and dim2 as the last 2 dims
     # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
     # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
@@ -2342,6 +2337,12 @@ def aten_diagonal(self: TTensor, offset: int = 0, dim1: int = 0, dim2: int = 1) 
     perm.remove(dim2)
     perm.append(dim1)
     perm.append(dim2)
+
+    self_rank = len(self.shape)
+    # If rank=2, then axes=[0]; if rank=3, then axes=[1]
+    # This is because computing diagonal sum is on dim2 after transpose by perm
+    axes = [self_rank - 2]
+
     return _aten_diagonal_onnx(self, offset, dim1, dim2, perm, axes)
 
 
@@ -2401,11 +2402,6 @@ def _aten_diagonal_onnx(
 def aten_diagonal_bool(self: BOOL, offset: int = 0, dim1: int = 0, dim2: int = 1) -> BOOL:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
-    self_rank = len(self.shape)
-    # If rank=2, then axes=[0]; if rank=3, then axes=[1]
-    # This is because computing diagonal sum is one the dim2
-    axes = [self_rank - 2]
-
     # perm is used to transpose the tensor to make dim1 and dim2 as the last 2 dims
     # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
     # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
@@ -2415,6 +2411,12 @@ def aten_diagonal_bool(self: BOOL, offset: int = 0, dim1: int = 0, dim2: int = 1
     perm.remove(dim2)
     perm.append(dim1)
     perm.append(dim2)
+
+    self_rank = len(self.shape)
+    # If rank=2, then axes=[0]; if rank=3, then axes=[1]
+    # This is because computing diagonal sum is on dim2 after transpose by perm
+    axes = [self_rank - 2]
+
     return _aten_diagonal_bool_onnx(self, offset, dim1, dim2, perm, axes)
 
 
