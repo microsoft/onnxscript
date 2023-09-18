@@ -676,8 +676,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
     TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True).xfail(
         dtypes=(torch.bool,),
-        reason="Mul() operator not implemented for bool",
+        reason="Mul operator not implemented for bool, add overload function for bool below.",
     ),
+    TorchLibOpInfo("diagonal_bool", core_ops.aten_diagonal_bool, trace_only=True),
     TorchLibOpInfo("div", core_ops.aten_div).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="this variation does not take the rounding_mode argument",
@@ -1943,6 +1944,7 @@ ops_test_common.duplicate_opinfo(
 )
 ops_test_common.duplicate_opinfo(OPS_DB, "cat", ("concat", "concatenate"))
 ops_test_common.duplicate_opinfo(OPS_DB, "clone", ("lift_fresh_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "diagonal", ("diagonal_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "div", ("div_mode", "div_mode_int"))
 ops_test_common.duplicate_opinfo(OPS_DB, "full_like", ("full_like_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "ge", ("ge_bool",))
