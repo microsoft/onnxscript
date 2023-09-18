@@ -2324,12 +2324,154 @@ def aten_diagflat(self: TensorType, offset: int = 0) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_diagonal(
-    self: TensorType, offset: int = 0, dim1: int = 0, dim2: int = 1
-) -> TensorType:
+@torch_op("aten::diagonal", trace_only=True)
+def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) -> TReal:
     """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
 
-    raise NotImplementedError()
+    # perm is used to transpose the tensor to make dim1 and dim2 as the last 2 dims
+    # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
+    # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
+    # [0,1,2] -> [0,1,2] when dim1=1 and dim2=2
+    self_rank = len(self.shape)
+    perm = list(range(self_rank))
+    perm.remove(dim1)
+    perm.remove(dim2)
+    perm.append(dim1)
+    perm.append(dim2)
+
+    # If rank=2, then axes=[0]; if rank=3, then axes=[1]
+    # This is because computing diagonal sum is on dim2 after transpose by perm
+    axes = [self_rank - 2]
+
+    return _aten_diagonal_onnx(self, offset, dim1, dim2, perm, axes)
+
+
+@torch_op("aten::diagonal", private=True)
+def _aten_diagonal_onnx(
+    self: TTensor, offset: int, dim1: int, dim2: int, perm: Sequence[int], axes: Sequence[int]
+) -> TTensor:
+    neg_1 = op.Constant(value_ints=[-1])
+    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
+    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), neg_1)  # col
+    mask_shape = op.Concat(dim1_size, dim2_size, axis=0)
+    tmp_tensor = op.ConstantOfShape(mask_shape)
+    mask = op.EyeLike(tmp_tensor, k=offset)
+    mask = op.CastLike(mask, self)
+    self_t = op.Transpose(self, perm=perm)
+    result = op.Mul(self_t, mask)
+    result = op.ReduceSum(result, keepdims=False, axes=axes)
+    # min(row, col)
+    min_dim_size = op.Min(dim1_size, dim2_size)
+    # take 2 tensors as example:
+    # one is 3x5 in size, min_dim_size = 3, dim1_size = 3
+    # the other is 5x3 in size, min_dim_size = 3, dim1_size = 5
+    # 3 rows x 5 cols     5 rows x 3 cols
+    # offset  diagonal    offset  diagonal
+    # ----------------    ----------------
+    # -4      0           -6      0
+    # -3      0           -5      0
+    # -2      1           -4      1
+    # -1      2           -3      2
+    # 0       3           -2      3
+    # 1       3           -1      3
+    # 2       3           0       3
+    # 3       2           1       2
+    # 4       1           2       1
+    # 5       0           3       0
+    # 6       0           4       0
+
+    # From above table, we can get the logic below
+    if offset < 0:
+        # row + offset
+        length = dim1_size + offset
+        start = op.Constant(value_ints=[0])
+    else:  # offset >= 0
+        # col - offset
+        length = dim2_size - offset
+        start = op.Reshape(op.Constant(value_int=offset), neg_1)
+
+    # max(min(length, min(row, col)), 0)
+    length = op.Max(op.Min(length, min_dim_size), 0)
+    end = start + length
+    result = op.Slice(result, start, end, axes=axes)
+
+    return result
+
+
+@torch_op("aten::diagonal", trace_only=True)
+def aten_diagonal_bool(self: BOOL, offset: int = 0, dim1: int = 0, dim2: int = 1) -> BOOL:
+    """diagonal(Tensor(a) self, int offset=0, int dim1=0, int dim2=1) -> Tensor(a)"""
+
+    # perm is used to transpose the tensor to make dim1 and dim2 as the last 2 dims
+    # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
+    # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
+    # [0,1,2] -> [0,1,2] when dim1=1 and dim2=2
+    self_rank = len(self.shape)
+    perm = list(range(self_rank))
+    perm.remove(dim1)
+    perm.remove(dim2)
+    perm.append(dim1)
+    perm.append(dim2)
+
+    # If rank=2, then axes=[0]; if rank=3, then axes=[1]
+    # This is because computing diagonal sum is on dim2 after transpose by perm
+    axes = [self_rank - 2]
+
+    return _aten_diagonal_bool_onnx(self, offset, dim1, dim2, perm, axes)
+
+
+@torch_op("aten::diagonal", private=True)
+def _aten_diagonal_bool_onnx(
+    self: BOOL, offset: int, dim1: int, dim2: int, perm: Sequence[int], axes: Sequence[int]
+) -> BOOL:
+    neg_1 = op.Constant(value_ints=[-1])
+    dim1_size = op.Reshape(op.Gather(op.Shape(self), dim1), neg_1)  # row
+    dim2_size = op.Reshape(op.Gather(op.Shape(self), dim2), neg_1)  # col
+    mask_shape = op.Concat(dim1_size, dim2_size, axis=0)
+    tmp_tensor = op.ConstantOfShape(mask_shape)
+    mask = op.EyeLike(tmp_tensor, k=offset)
+    self_int = op.Cast(self, to=INT64.dtype)
+    mask_int = op.Cast(mask, to=INT64.dtype)
+    self_int_t = op.Transpose(self_int, perm=perm)
+    result = op.Mul(self_int_t, mask_int)
+    result = op.ReduceSum(result, keepdims=False, axes=axes)
+    # min(row, col)
+    min_dim_size = op.Min(dim1_size, dim2_size)
+    # take 2 tensors as example:
+    # one is 3x5 in size, min_dim_size = 3, dim1_size = 3
+    # the other is 5x3 in size, min_dim_size = 3, dim1_size = 5
+    # 3 rows x 5 cols     5 rows x 3 cols
+    # offset  diagonal    offset  diagonal
+    # ----------------    ----------------
+    # -4      0           -6      0
+    # -3      0           -5      0
+    # -2      1           -4      1
+    # -1      2           -3      2
+    # 0       3           -2      3
+    # 1       3           -1      3
+    # 2       3           0       3
+    # 3       2           1       2
+    # 4       1           2       1
+    # 5       0           3       0
+    # 6       0           4       0
+
+    # From above table, we can get the logic below
+    if offset < 0:
+        # row + offset
+        length = dim1_size + offset
+        start = op.Constant(value_ints=[0])
+    else:  # offset >= 0
+        # col - offset
+        length = dim2_size - offset
+        start = op.Reshape(op.Constant(value_int=offset), neg_1)
+
+    # max(min(length, min(row, col)), 0)
+    length = op.Max(op.Min(length, min_dim_size), 0)
+    end = start + length
+    result = op.Slice(result, start, end, axes=axes)
+    result = op.Cast(result, to=BOOL.dtype)
+
+    return result
 
 
 def aten_diagonal_backward(
