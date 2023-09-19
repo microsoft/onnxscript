@@ -79,7 +79,7 @@ class TorchLibOpInfo:
     nondeterministic: bool = False
     # Whether to compare the shape only for the output[index]
     # For example: (1,2) means compare value for output[0] and shape for output[1] and [2]
-    # Maybe can combine with nondeterminstic setting
+    # We may be able to combine this with the nondeterminstic option
     compare_shape_only_for_output: tuple[int] = ()
     # Whether the function is designed for complex inputs
     complex: bool = False
@@ -2010,8 +2010,8 @@ NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
 
 COMPARE_SHAPE_ONLY_OPS: dict[
     str,
-    tuple,
-] = {info.op_info_name: info.compare_shape_only_for_output for info in TESTED_TORCHLIB_OPS}
+    set,
+] = {info.op_info_name: set(info.compare_shape_only_for_output) for info in TESTED_TORCHLIB_OPS}
 
 TORCHLIB_OPINFO_MAPPING: dict[
     str,
