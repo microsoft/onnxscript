@@ -2014,7 +2014,9 @@ NONDETERMINISTIC_OPS: frozenset[str] = frozenset(
 COMPARE_SHAPE_ONLY_OPS: dict[
     str,
     set,
-] = {info.op_info_name: set(info.compare_shape_only_for_output) for info in TESTED_TORCHLIB_OPS}
+] = {
+    info.op_info_name: set(info.compare_shape_only_for_output) for info in TESTED_TORCHLIB_OPS
+}
 
 TORCHLIB_OPINFO_MAPPING: dict[
     str,
