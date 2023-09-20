@@ -3590,10 +3590,15 @@ def aten_hardshrink_backward(
     raise NotImplementedError()
 
 
-def aten_heaviside(self: TensorType, values: TensorType) -> TensorType:
+@torch_op("aten::heaviside")
+def aten_heaviside(self: TReal, values: TReal) -> TReal:
     """heaviside(Tensor self, Tensor values) -> Tensor"""
 
-    raise NotImplementedError()
+    zero = op.CastLike(0, self)
+    one = op.CastLike(1, self)
+    intermediate = op.Where(op.Less(self, zero), zero, one)
+
+    return op.Where(op.Equal(self, zero), values, intermediate)
 
 
 def aten_hinge_embedding_loss(
