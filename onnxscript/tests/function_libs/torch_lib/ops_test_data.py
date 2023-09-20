@@ -235,6 +235,17 @@ def _dropout_input_wrangler(
     return args, kwargs
 
 
+def _embedding_bag_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "mode" in kwargs:
+        mode_vals = ["sum", "mean", "max"]
+        value = kwargs["mode"]
+        idx = mode_vals.index(value)
+        kwargs["mode"] = idx
+    return args, kwargs
+
+
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -1031,11 +1042,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
     TorchLibOpInfo(
-        "ops.aten.embedding_bag",
+        "nn.functional.embedding_bag",
         core_ops.aten_embedding_bag,
+        input_wrangler=_embedding_bag_input_wrangler,
         tolerance={torch.float16: (1e-2, 1e-2)},
         trace_only=True,
         compare_shape_only_for_output=(1, 2, 3),
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("padding_idx") is not None
+        or sample.kwargs.get("max_norm") is not None
+        or sample.kwargs.get("norm_type") is not None,
+        reason="this overload only support none padding_idx, max_norm and norm_type in kwargs",
     ),
     TorchLibOpInfo(
         "ops.aten.embedding_bag.padding_idx",

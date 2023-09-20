@@ -2646,7 +2646,7 @@ def aten_embedding_backward(
 def aten_embedding_bag(
     weight: TFloat,
     indices: INT64,
-    offsets: INT64,
+    offsets: INT64 = None,
     scale_grad_by_freq: bool = False,  # pylint: disable=unused-argument
     mode: int = 0,  # [0,1,2] indicate ["sum", "mean", "max"]
     sparse: bool = False,  # pylint: disable=unused-argument
@@ -2658,18 +2658,54 @@ def aten_embedding_bag(
     # assert(rank(indices) in [1,2])
     # assert(rank(offsets) == 1)
     # assert(op.Size(per_sample_weights) == op.Size(indices))
-    if per_sample_weights is None:
-        # Set per_sample_weights to 1.0, because cannot check 'None' in ONNX-Script
-        # Size of persample_weights is the same as indices, and should be 1d tensor
-        indices_1d = op.Reshape(indices, [-1])
-        per_sample_weights = op.Expand(1, op.Shape(indices_1d))
-        # Dtype of per_sample_weights is the same as weight
-        per_sample_weights = op.CastLike(per_sample_weights, weight)
+    # if per_sample_weights is None:
+    #     # Set per_sample_weights to 1.0, because cannot check 'None' in ONNX-Script
+    #     # Size of persample_weights is the same as indices, and should be 1d tensor
+    #     indices_1d = op.Reshape(indices, [-1])
+    #     per_sample_weights = op.Expand(1, op.Shape(indices_1d))
+    #     # Dtype of per_sample_weights is the same as weight
+    #     per_sample_weights = op.CastLike(per_sample_weights, weight)
 
-    result, offset2bag, bag_size, max_indices = _aten_embedding_bag_onnx(
-        weight, indices, offsets, mode, per_sample_weights, include_last_offset
-    )
-    return result, offset2bag, bag_size, max_indices
+    if offsets is None:
+        if per_sample_weights is None:
+            # Set per_sample_weights to 1.0, because cannot check 'None' in ONNX-Script
+            # Size of persample_weights is the same as indices, and should be 1d tensor
+            per_sample_weights = op.Expand(1, op.Shape(indices))
+            per_sample_weights = op.CastLike(per_sample_weights, weight)
+        result = _aten_embedding_bag_2d_onnx(weight, indices, mode, per_sample_weights)
+    else:
+        if per_sample_weights is None:
+            # Set per_sample_weights to 1.0, because cannot check 'None' in ONNX-Script
+            # Size of persample_weights is the same as indices, and should be 1d tensor
+            indices_1d = op.Reshape(indices, [-1])
+            per_sample_weights = op.Expand(1, op.Shape(indices_1d))
+            # Dtype of per_sample_weights is the same as weight
+            per_sample_weights = op.CastLike(per_sample_weights, weight)
+        result, offset2bag, bag_size, max_indices = _aten_embedding_bag_onnx(
+            weight, indices, offsets, mode, per_sample_weights, include_last_offset
+        )
+    return result  #, offset2bag, bag_size, max_indices
+
+
+@torch_op("aten::embedding_bag", private=True)
+def _aten_embedding_bag_2d_onnx(
+    weight: TFloat,
+    indices: INT64,
+    mode: int,
+    per_sample_weights: TFloat,
+) -> TFloat:
+    # Get weight out according to indices
+    new_weight = op.Gather(weight, indices)
+    new_weight = op.Mul(new_weight, op.Unsqueeze(per_sample_weights, axes=2))
+    if mode == 1:  # mean
+        result = op.ReduceMean(new_weight, axes=[1], keepdims=False)
+    elif mode == 2:  # max
+        result = op.ReduceMax(new_weight, axes=[1], keepdims=False)
+    else:  # sum
+        # assert(mode == 0)
+        result = op.ReduceSum(new_weight, axes=[1], keepdims=False)
+
+    return result
 
 
 @torch_op("aten::embedding_bag", private=True)

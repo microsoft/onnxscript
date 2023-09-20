@@ -657,13 +657,9 @@ def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs)
     for offset in offsets:
         for include_last_offset in (True, False):
             for generate_per_sample_weight in (True, False):
-                for mode in (
-                    0,
-                    1,
-                    2,
-                ):  # ('sum', 'mean', 'max')
+                for mode in ('sum', 'mean', 'max'):
                     # per_sample_weights only support mode='sum'
-                    if generate_per_sample_weight and mode in (1, 2):  # ('mean', 'max'):
+                    if generate_per_sample_weight and mode in ("mean", "max"):
                         continue
 
                     # 1-D index tensor
@@ -699,7 +695,7 @@ def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs)
                         },
                     )
 
-                    if mode != 2:  # "max" mode in 2-D index tensor make aten func crash
+                    if mode != "max":  # "max" mode in 2-D index tensor make aten func crash
                         # 2-D index tensor
                         indices = make_long_input((S, S), low=0, high=M)
                         per_sample_weights = make_per_sample_weight(
@@ -1003,13 +999,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs_col2im,
         supports_out=False,
     ),
-    opinfo_core.OpInfo(
-        "ops.aten.embedding_bag",
-        aten_name="embedding_bag",
-        dtypes=common_dtype.floating_types_and_half(),
-        sample_inputs_func=sample_inputs_embedding_bag,
-        supports_out=False,
-    ),
+    # opinfo_core.OpInfo(
+    #     "ops.aten.embedding_bag",
+    #     aten_name="embedding_bag",
+    #     dtypes=common_dtype.floating_types_and_half(),
+    #     sample_inputs_func=sample_inputs_embedding_bag,
+    #     supports_out=False,
+    # ),
     opinfo_core.OpInfo(
         "ops.aten.embedding_bag.padding_idx",
         aten_name="embedding_bag.padding_idx",
