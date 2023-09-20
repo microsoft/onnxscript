@@ -999,13 +999,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs_col2im,
         supports_out=False,
     ),
-    # opinfo_core.OpInfo(
-    #     "ops.aten.embedding_bag",
-    #     aten_name="embedding_bag",
-    #     dtypes=common_dtype.floating_types_and_half(),
-    #     sample_inputs_func=sample_inputs_embedding_bag,
-    #     supports_out=False,
-    # ),
+    opinfo_core.OpInfo(
+        "ops.aten.embedding_bag",
+        aten_name="embedding_bag",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_embedding_bag,
+        supports_out=False,
+    ),
     opinfo_core.OpInfo(
         "ops.aten.embedding_bag.padding_idx",
         aten_name="embedding_bag.padding_idx",

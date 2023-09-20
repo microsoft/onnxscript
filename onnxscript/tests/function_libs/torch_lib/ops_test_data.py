@@ -1042,8 +1042,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
     TorchLibOpInfo(
-        #"ops.aten.embedding_bag",
-        "nn.functional.embedding_bag",
+        "ops.aten.embedding_bag",  # same as nn.functional.embedding_bag() but has 4 outputs
         core_ops.aten_embedding_bag,
         input_wrangler=_embedding_bag_input_wrangler,
         tolerance={torch.float16: (1e-2, 1e-2)},
