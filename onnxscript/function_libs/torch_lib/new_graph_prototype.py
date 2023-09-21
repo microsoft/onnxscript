@@ -5,16 +5,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
-
-import numpy as np
-import onnx.helper
-from onnx import TensorProto
-
-from onnxscript import onnx_opset
-from onnxscript._internal import autocast
-
-from typing import Any, Mapping, Optional, Sequence, List, Dict, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -22,23 +13,23 @@ import onnx.checker
 import onnx.defs
 import onnx.helper
 import onnx.shape_inference
+import torch
+from onnx import TensorProto
 from typing_extensions import TypeAlias
 
 import onnxscript
-from onnxscript import evaluator
-from onnxscript._internal import param_manipulation, runtime_typing
-
-import dataclasses
+from onnxscript import evaluator, onnx_opset
+from onnxscript._internal import autocast, param_manipulation, runtime_typing
 
 __all__ = [
     "Graph",
-    "TorchScriptTracingEvaluator",
+    "GraphEvaluator",
 ]
 
 
 ValidArgumentType: TypeAlias = Union[
-    "TorchScriptTensor",
-    Sequence["TorchScriptTensor"],
+    "Tensor",
+    Sequence["Tensor"],
     Sequence[float],
     Sequence[int],
     str,
@@ -48,8 +39,8 @@ ValidArgumentType: TypeAlias = Union[
     None,
 ]
 ValidInputType: TypeAlias = Union[
-    "TorchScriptTensor",
-    Sequence["TorchScriptTensor"],
+    "Tensor",
+    Sequence["Tensor"],
     Sequence[float],
     Sequence[int],
     str,
@@ -71,20 +62,64 @@ ValidTorchValueType: TypeAlias = Union[
 ]
 
 
+# TODO(titaiwang): Should we make Tensor datacalss?
 class Tensor:
     """An implementation of ONNX Tensors, based on a wrapper around numpy arrays.
     Serves to define overloaded ops with an ONNX/ONNXScript semantics.
     """
 
-    def __init__(self, nparray: Optional[np.ndarray], opset=None):
+    def __init__(
+        self,
+        name: str = "",
+        nparray: Optional[np.ndarray] = None,
+        shape: Optional[tuple[int, ...]] = None,
+        dtype: Optional[np.dtype] = None,
+        opset=None,
+        onnx_type: str = "",
+    ):
         if nparray is not None and not isinstance(nparray, np.ndarray):
             raise TypeError(
                 f"Unexpected type {type(nparray)}. It must be a numpy array or None."
             )
-
+        self._name = name
         self._nparray = nparray
+        self._shape = shape or nparray.shape
+        self._dtype = dtype or nparray.dtype
         # FIXME(justinhuby): Create a better way to determine the opset version
         self._opset: Any = opset or onnx_opset.opset18
+        self._onnx_type = onnx_type
+
+    # NOTE: Optional tensor
+    @staticmethod
+    def empty() -> Tensor:
+        return Tensor(name="")
+
+    def to_value_info(self) -> onnx.ValueInfoProto:
+        # TODO: support more types?
+        if self.onnx_type == "tensot_type":
+            return onnx.helper.make_tensor_value_info(self.name, self.onnx_dtype, self.shape)
+        if self.onnx_type == "sequence_type":
+            return onnx.helper.make_tensor_sequence_value_info(
+                self.name, self.onnx_dtype, self.shape
+            )
+        if self.onnx_type == "optional_type":
+            # NOTE: no `make_optional_value_info` API
+            optional_type_proto = onnx.helper.make_optional_type_proto(self.onnx_dtype)
+            return onnx.helper.make_value_info(self.name, optional_type_proto)
+        return onnx.helper.make_empty_value_info(self.name)
+
+    @property
+    def onnx_type(self):
+        return self._onnx_type
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    # TODO(titaiwang): better name?
+    @property
+    def is_fake(self) -> bool:
+        return self._nparray is None
 
     @property
     def value(self) -> np.ndarray:
@@ -93,20 +128,20 @@ class Tensor:
         return self._nparray
 
     @property
-    def rank(self) -> int:
-        return len(self.value.shape)
-
-    @property
     def is_scalar(self) -> bool:
         return self.rank == 0
 
     @property
     def shape(self) -> tuple[int, ...]:
-        return self.value.shape
+        return self._shape
+
+    @property
+    def rank(self) -> int:
+        return len(self.shape)
 
     @property
     def dtype(self) -> np.dtype:
-        return self.value.dtype
+        return self._dtype
 
     @property
     def onnx_dtype(self) -> int:
@@ -284,35 +319,93 @@ class Tensor:
     def __gt__(self, other):
         return self._opset.Greater(self, other)
 
+
 ###################################################################################################
 
 
-@dataclasses.dataclass(frozen=True, eq=True)
 class Node:
+    def __init__(
+        self,
+        namespace: Optional[str],
+        op_name: Optional[str],
+        inputs: Sequence[ValidInputType],
+        attributes: Mapping[str, ValidTorchValueType],
+        n_outputs: int,
+        function: Optional[onnxscript.OnnxFunction] = None,
+    ):
+        if not (namespace and op_name) or function is not None:
+            raise ValueError(
+                "Either provide namespace and op_name, or provide a function, but not both."
+            )
+        if function is None and not (namespace and op_name):
+            raise ValueError("Either provide namespace and op_name, or provide a function.")
 
-    function: Optional[onnxscript.OnnxFunction] = None
-    namespace: str
-    op_name: str
-    inputs: Sequence[ValidInputType]
-    attributes: Mapping[str, ValidTorchValueType]
-    # TODO(titaiwang): define better outputs or only use "number of outputs"
-    n_outputs: int
-    # TODO(titaiwang): Will this work?
-    is_function: bool = function is not None
+        self._namespace = namespace
+        self._op_name = op_name
+        self._inputs = inputs
+        self._attributes = attributes
+        self._n_outputs = n_outputs
+        self._function = function
+        self._is_function = function is not None
+
+    def to_node_proto(self):
+        onnx_node = onnx.helper.make_node(
+            self.op_name,
+            inputs=[t.name for t in self.inputs],
+            outputs=[t.name for t in self.outputs],
+            domain=self.domain,
+            **self.attributes,  # TODO: check if this works
+        )
+        return onnx_node
+
+    @property
+    def is_function(self) -> bool:
+        return self._is_function
+
+    @property
+    def namespace(self) -> Optional[str]:
+        return self._namespace
+
+    @property
+    def op_name(self) -> Optional[str]:
+        return self._op_name
+
+    @property
+    def function(self) -> Optional[onnxscript.OnnxFunction]:
+        return self._function
 
     @classmethod
-    def from_op_schema(cls, op_schema: onnx.defs.OpSchema, inputs, attributes, n_outputs) -> Node:
+    def from_op_schema(
+        cls, op_schema: onnx.defs.OpSchema, inputs, attributes, n_outputs
+    ) -> Node:
         namespace = op_schema.domain
         op_name = op_schema.name
-        return cls(function=None, namespace=namespace, op_name=op_name, inputs=inputs, attributes=attributes, outputs=n_outputs)
+        return cls(
+            function=None,
+            namespace=namespace,
+            op_name=op_name,
+            inputs=inputs,
+            attributes=attributes,
+            n_outputs=n_outputs,
+        )
 
     @classmethod
-    def from_function(cls, onnx_function: onnxscript.OnnxFunction, inputs, attributes, n_outputs) -> Node:
+    def from_function(
+        cls, onnx_function: onnxscript.OnnxFunction, inputs, attributes, n_outputs
+    ) -> Node:
         namespace = onnx_function.function_ir.domain
         op_name = onnx_function.name
-        return cls(function=onnx_function, namespace=namespace, op_name=op_name, inputs=inputs, attributes=attributes, outputs=n_outputs)
+        return cls(
+            function=onnx_function,
+            namespace=namespace,
+            op_name=op_name,
+            inputs=inputs,
+            attributes=attributes,
+            n_outputs=n_outputs,
+        )
 
 
+# TODO(titaiwang): How we deal with subgraph?
 class Graph:
     def __init__(self) -> None:
         # All the functions used, deduplicated by name
@@ -321,20 +414,66 @@ class Graph:
         self._nodes: List[Node] = []
         self._inputs: List[Tensor] = []
         self._outputs: List[Tensor] = []
+        # TODO: what are these two string for?
+        self._doc_string: str = ""
+        self._name: str = ""
 
+    # TODO(titaiwang): Should we not expose Node?
+    # if function and op_schema can be alinged, we can just use op_schema
+    @runtime_typing.checked
     def add_node(self, node: Node):
         if node.is_function:
             identifier = (node.op_name, node.namespace)
             self._function_store[identifier] = node.function
         self._nodes.append(node)
 
+    # TODO(titaiwang): Should we not expose Tensor?
+    # NOTE: We don't need `add_initializer` because we can just use `add_input`
+    # for constant tensors
+    @runtime_typing.checked
     def add_input(self, tensor: Tensor):
         self._inputs.append(tensor)
-    
+
+    @runtime_typing.checked
     def add_output(self, tensor: Tensor):
         self._outputs.append(tensor)
-    
-        
+
+    def _to_onnx_graph(self) -> onnx.GraphProto:
+        # convert tensor to tensor value info according to the onnx_type
+        input_value_infos = [tensor.to_value_info() for tensor in self._inputs]
+        output_value_infos = [tensor.to_value_info() for tensor in self._outputs]
+        # convert node to node proto
+        node_value_infos = [node.to_node_proto() for node in self._nodes]
+        # convert graph to graph proto
+        graph_proto = onnx.helper.make_graph(
+            nodes=node_value_infos,
+            name=self._name,
+            inputs=input_value_infos,
+            outputs=output_value_infos,
+            initializer=[],  # TODO: support initializer
+            doc_string=self._doc_string,
+        )
+        # convert graph proto to model proto
+        return onnx.helper.make_model(graph_proto)
+
+    def to_onnx_model(self) -> onnx.ModelProto:
+        graph_proto = self._to_onnx_graph()
+        model_proto = onnx.helper.make_model(
+            graph_proto,
+            producer_name="",  # TODO
+            doc_string="",  # TODO
+            functions=list(self._function_store.values()),
+            opset_imports=18,  # TODO
+            ir_version=0,  # TODO
+        )
+        return model_proto
+
+    # TODO(titaiwang)
+    @runtime_typing.checked
+    def from_onnx(self, model: onnx.ModelProto):
+        pass
+
+
 class GraphEvaluator(evaluator.Evaluator):
     """An onnxscript Evaluator that captures the graph into torchscript."""
 
@@ -345,9 +484,9 @@ class GraphEvaluator(evaluator.Evaluator):
     def graph(self) -> Graph:
         return self._graph
 
-    def eval(self, op_schema, inputs, attributes):
-        n_outputs = evaluator.compute_num_outputs(op_schema, inputs, attributes)
-        node = Node.from_op_schema(op_schema, inputs, attributes, n_outputs)
+    def eval(self, schema, inputs, attributes):
+        n_outputs = evaluator.compute_num_outputs(schema, inputs, attributes)
+        node = Node.from_op_schema(schema, inputs, attributes, n_outputs)
         return self._graph.add_node(node)
 
     @runtime_typing.checked
@@ -374,5 +513,7 @@ class GraphEvaluator(evaluator.Evaluator):
                 # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
                 attributes[name] = float(value)
         # NOTE: Initialize node
-        node = Node.from_function(function, inputs, attributes, outputs=len(function.function_ir.outputs))
+        node = Node.from_function(
+            function, inputs, attributes, n_outputs=len(function.function_ir.outputs)
+        )
         return self._graph.add_node(node)
