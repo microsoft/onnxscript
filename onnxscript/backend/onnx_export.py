@@ -4,14 +4,15 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import numpy
 import onnx
-from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
+from onnx import FunctionProto, GraphProto, ModelProto, TensorProto, ValueInfoProto
 from onnx.helper import make_node
 
 import onnxscript.onnx_types
+import onnxscript.type_annotation
 
 _template_python = '''
 import numpy
@@ -22,14 +23,11 @@ from onnxscript.values import Opset
 {% if unique_types %}
 from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
 {%- endif %}
-from onnxscript.onnx_opset import opset{{ opsets[''] }}
-{% for domain, version in unique_function_domain_version: %}
-{{ domain }}{{ version }} = Opset("{{ domain }}", {{ version }}){% endfor %}
+{{translate_opset_imports_of(main_model)}}
 {% for domain, name, fct in functions: %}
-@script({{ domain }}{{ version }})
-def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
-    ", ".join(map(rename, fct['proto'].input)) }}):
-    # attributes are missing
+@script({{make_opset_name(domain, 1)}})
+def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{{
+    translate_function_signature(fct['proto'])}}
     {% if fct['proto'].doc_string %}"""
     {{ fct['proto'].doc_string }}
     """{%- endif %}
@@ -37,6 +35,7 @@ def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}({{
 {{ python_make_node(node, opsets, indent=1) }}{% endfor %}
     return {{ ", ".join(map(rename, fct['proto'].output)) }}
 {% endfor %}
+{% if graph %}
 @script()
 def {{ function_name }}{{translate_sig(graph.input, graph.output)}}
     {% if doc_string %}"""
@@ -45,6 +44,7 @@ def {{ function_name }}{{translate_sig(graph.input, graph.output)}}
 {{ python_make_node_graph(graph, opsets, indent=1) }}
     return {{ rename(graph.output[0]) }}{%
         for o in graph.output[1:]: %}, {{ rename(o) }}{% endfor %}
+{%- endif %}
 '''
 
 
@@ -164,6 +164,10 @@ def _to_str(s):
     return s
 
 
+def _is_attribute_ref(attr: onnx.AttributeProto) -> bool:
+    return attr.HasField("ref_attr_name") and attr.ref_attr_name != ""
+
+
 def _attribute_value(attr: onnx.AttributeProto):
     if attr.type == onnx.AttributeProto.FLOAT:
         return attr.f
@@ -195,34 +199,40 @@ def _attribute_value(attr: onnx.AttributeProto):
     raise NotImplementedError(f"Unable to return a value for attribute {attr!r}.")
 
 
-def _python_make_node_name(domain, version, name, node=False):
-    name = _rename_variable(name)
-    if node:
-        if version is None:
-            version = 1
-        if not isinstance(version, int):
-            raise TypeError(
-                f"version must be an integer not {version!r} for domain={domain!r} "
-                f"and name={name!r}."
-            )
-        if domain == "":
-            return f"opset{version}.{name}"
-        return f"{domain.replace('.', '_')}{version}.{name}"
-    return name
-
-
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
 
-    def __init__(self, use_operators=False, rename_function=None, inline_const=False) -> None:
+    def __init__(self, rename_function, use_operators=False, inline_const=False) -> None:
         self.use_operators = use_operators
-        self._rename_variable = rename_function or _rename_variable
+        self._rename_variable = rename_function
         self.inline_const = inline_const
         self.constants: dict[str, str] = {}
 
     def _rename_variable_s(self, name):
         """Renames all names equal to a python keyword."""
         return str(self._rename_variable(name))
+
+    def _rename_domain(self, domain: str) -> str:
+        if domain == "":
+            return "opset"
+        return domain.replace(".", "_")
+
+    def make_opset_name(self, domain, version):
+        return f"{self._rename_domain(domain)}{version}"
+
+    def _python_make_node_name(self, domain, version, name, node=False):
+        name = _rename_variable(name)
+        if node:
+            if version is None:
+                version = 1
+            if not isinstance(version, int):
+                raise TypeError(
+                    f"version must be an integer not {version!r} for domain={domain!r} "
+                    f"and name={name!r}."
+                )
+            opset = self.make_opset_name(domain, version)
+            return f"{opset}.{name}"
+        return name
 
     def _python_make_node_graph(self, graph, opsets, indent=0, output_names=None):
         """Translates a GraphProto into python."""
@@ -254,6 +264,9 @@ class Exporter:
     def _python_make_node_make_attribute_str(self, node):
         attributes = []
         for at in node.attribute:
+            if _is_attribute_ref(at):
+                attributes.append((at.name, at.ref_attr_name))
+                continue
             value = _attribute_value(at)
             if isinstance(value, str):
                 attributes.append((at.name, f"{value!r}"))
@@ -394,7 +407,7 @@ class Exporter:
                 f"{sindent}{self._rename_variable(node.output[0])} = "
                 f"{(f' {ops[node.op_type]} ').join(map(self.lookup, node.input))}"
             )
-        name = _python_make_node_name(
+        name = self._python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True
         )
         attributes_str = self._python_make_node_make_attribute_str(node)
@@ -418,6 +431,74 @@ class Exporter:
             ")",
         ]
         return "".join(text)
+
+    def translate_opset_import(self, domain: str, version: int) -> str:
+        if domain in {"", "ai.onnx"}:
+            return f"from onnxscript.onnx_opset import opset{version}\n"
+        else:
+            varname = self.make_opset_name(domain, version)
+            return f"{varname} = Opset('{domain}', {version})\n"
+
+    def translate_opset_imports(self, opset_imports: Sequence[onnx.OperatorSetIdProto]) -> str:
+        return "".join(
+            [self.translate_opset_import(x.domain, x.version) for x in opset_imports]
+        )
+
+    def translate_opset_imports_of(
+        self, proto: ModelProto | FunctionProto | GraphProto
+    ) -> str:
+        if hasattr(proto, "opset_import"):
+            text = self.translate_opset_imports(proto.opset_import)
+            if isinstance(proto, FunctionProto):
+                if not any(x.domain == proto.domain for x in proto.opset_import):
+                    text += self.translate_opset_import(proto.domain, 1)
+            return text
+        return ""
+
+    def translate_function_signature(self, funproto: onnx.FunctionProto) -> str:
+        """Generate signature for FunctionProto."""
+        type_map = _attribute_param_types(funproto)
+
+        def attr_sig(attr_name: str) -> str:
+            name = self._rename_variable(attr_name)
+            # A default type of INT is used for attribute parameters that are never used.
+            type = type_map.get(attr_name, onnx.AttributeProto.INT)
+            typerep = onnxscript.type_annotation.onnx_attr_type_to_onnxscript_repr(type)
+            return f"{name}: {typerep}"
+
+        inputs = [self._rename_variable(x) for x in funproto.input]
+        attrs = [attr_sig(x) for x in funproto.attribute]
+        input_and_attrs = ", ".join(inputs + attrs)  # type: ignore[arg-type]
+        if len(funproto.attribute_proto) > 0:
+            message = "\n   # Attribute parameters default-values not handled yet."
+        else:
+            message = ""
+        return f"({input_and_attrs}):{message}"
+
+
+def _attribute_param_types(
+    funproto: onnx.FunctionProto,
+) -> dict[str, onnx.AttributeProto.AttributeType]:
+    """Compute mapping from (names of) attribute parameters of function to their types."""
+    type_map = {}
+
+    def visit_node(node: onnx.NodeProto) -> None:
+        for attr in node.attribute:
+            if _is_attribute_ref(attr):
+                type_map[attr.ref_attr_name] = attr.type
+            elif attr.type == onnx.AttributeProto.GRAPH:
+                visit_graph(attr.g)
+            elif attr.type == onnx.AttributeProto.GRAPHS:
+                for graph in attr.graphs:
+                    visit_graph(graph)
+
+    def visit_graph(graph: onnx.GraphProto) -> None:
+        for node in graph.node:
+            visit_node(node)
+
+    for node in funproto.node:
+        visit_node(node)
+    return type_map
 
 
 def export_template(
@@ -443,12 +524,6 @@ def export_template(
     Returns:
         python code
     """
-    # unique_function_domain_version
-    unique_function_domain_version = set()
-    if hasattr(model_onnx, "functions"):
-        for f in model_onnx.functions:
-            unique_function_domain_version.add((f.domain, 1))
-    unique_function_domain_version_sorted = sorted(unique_function_domain_version)
 
     if rename:
         variable_names: dict[str, str] = {}
@@ -467,17 +542,20 @@ def export_template(
         def rename_variable(name):
             return _rename_variable(name)
 
-    exporter = Exporter(use_operators, rename_variable, inline_const)
+    exporter = Exporter(rename_variable, use_operators, inline_const)
 
     # containers
     context = {
         "main_model": model_onnx,
         "python_make_node": exporter._python_make_node,  # pylint: disable=protected-access
         "python_make_node_graph": exporter._python_make_node_graph,  # pylint: disable=protected-access
-        "python_make_node_name": _python_make_node_name,  # pylint: disable=protected-access
-        "unique_function_domain_version": unique_function_domain_version_sorted,
+        "python_make_node_name": exporter._python_make_node_name,  # pylint: disable=protected-access
         "rename": rename_variable,
         "translate_sig": _translate_signature,
+        "translate_function_signature": exporter.translate_function_signature,
+        "translate_opset_imports_of": exporter.translate_opset_imports_of,
+        "hasattr": hasattr,
+        "make_opset_name": exporter.make_opset_name,
     }
 
     # opset
@@ -500,16 +578,25 @@ def export_template(
 
     # functions
     functions = []
-    if hasattr(model_onnx, "functions"):
-        for fct in model_onnx.functions:
-            opsets_fct = {}
-            for oimp in fct.opset_import:
-                opsets_fct[oimp.domain] = oimp.version
-            functions.append((fct.domain, fct.name, {"proto": fct, "opsets": opsets_fct}))
-    context["functions"] = functions
+    unique_function_domain_version = set()
 
-    # node
-    context["graph"] = graph
+    def add_function(f: FunctionProto) -> None:
+        opsets = {}
+        for oimp in f.opset_import:
+            opsets[oimp.domain] = oimp.version
+        functions.append((f.domain, f.name, {"proto": f, "opsets": opsets}))
+        unique_function_domain_version.add((f.domain, 1))
+
+    if hasattr(model_onnx, "functions"):
+        for f in model_onnx.functions:
+            add_function(f)
+    else:
+        assert isinstance(model_onnx, FunctionProto)
+        add_function(model_onnx)
+
+    context["functions"] = functions
+    context["unique_function_domain_version"] = sorted(unique_function_domain_version)
+    context["graph"] = graph if isinstance(graph, onnx.GraphProto) else None
 
     # graph
     context["name"] = name or graph.name
@@ -527,7 +614,7 @@ def export_template(
 
     template = Template(template)
     final = template.render(
-        enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, **context
+        enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, list=list, **context
     )
 
     final += "\n"

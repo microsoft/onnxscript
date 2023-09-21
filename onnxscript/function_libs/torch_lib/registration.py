@@ -64,6 +64,9 @@ class Registry:
     def items(self) -> Generator[tuple[str, OverloadedFunction], None, None]:
         yield from self._registry.items()
 
+    def values(self) -> Generator[OverloadedFunction, None, None]:
+        yield from self._registry.values()
+
 
 # Default registry
 default_registry = Registry()

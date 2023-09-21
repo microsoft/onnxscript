@@ -44,7 +44,7 @@ onnx.checker.check_model(model)
 # And finally, we can use *onnxruntime* to compute the outputs
 # based on this model, using the standard onnxruntime API.
 
-sess = InferenceSession(model.SerializeToString())
+sess = InferenceSession(model.SerializeToString(), providers=("CPUExecutionProvider",))
 
 X = np.array([[0, 1, 2]], dtype=np.float32).T
 Y = np.array([[0.1, 1.2, 2.3]], dtype=np.float32).T

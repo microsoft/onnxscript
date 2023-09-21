@@ -93,6 +93,7 @@ dmypy.json
 
 # Generated files
 onnxscript/tests/models/testoutputs/*
+onnxscript/tests/export/*
 docs/auto_examples/*
 onnxscript/tests/mylib.onnxlib
 **/onnx_backend_test_code/**

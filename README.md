@@ -1,7 +1,11 @@
-
-----
-
 # ONNX Script
+
+[![CI](https://github.com/microsoft/onnxscript/actions/workflows/main.yaml/badge.svg)](https://github.com/microsoft/onnxscript/actions/workflows/main.yaml)
+[![Dev Release](https://aiinfra.visualstudio.com/ONNX%20Converters/_apis/build/status%2Fonnxscript-release-dev?branchName=main&label=Dev%20Release)](https://aiinfra.visualstudio.com/ONNX%20Converters/_build/latest?definitionId=1258&branchName=main)
+[![PyPI - Version](https://img.shields.io/pypi/v/onnxscript.svg)](https://pypi.org/project/onnxscript)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/onnxscript.svg)](https://pypi.org/project/onnxscript)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ONNX Script enables developers to naturally author ONNX functions and
 models using a subset of Python. ONNX Script is:
@@ -35,6 +39,12 @@ ONNX models and functions:
   Note that the runtime is intended to help understand and debug function definitions. Performance is not a goal here.
 
 ## Installing ONNX Script
+
+```bash
+pip install --upgrade onnxscript
+```
+
+### Install for Development
 
 ```bash
 pip install onnx onnxruntime pytest
@@ -97,7 +107,7 @@ def sample_model(X: FLOAT[64, 128], Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOA
 onnx_model = sample_model.to_model_proto()
 
 # Save the ONNX model at a given path
-onnx.save(onnx_model, "sample_mpdel.onnx")
+onnx.save(onnx_model, "sample_model.onnx")
 
 # Check the model
 try:
