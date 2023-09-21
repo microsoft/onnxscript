@@ -83,8 +83,8 @@ class Tensor:
             )
         self._name = name
         self._nparray = nparray
-        self._shape = shape or nparray.shape
-        self._dtype = dtype or nparray.dtype
+        self._shape = nparray.shape if nparray is not None else shape
+        self._dtype = nparray.dtype if nparray is not None else dtype
         # FIXME(justinhuby): Create a better way to determine the opset version
         self._opset: Any = opset or onnx_opset.opset18
         self._onnx_type = onnx_type
@@ -407,13 +407,15 @@ class Node:
 
 # TODO(titaiwang): How we deal with subgraph?
 class Graph:
-    def __init__(self) -> None:
+    def __init__(self, producer_name="pytorch") -> None:
         # All the functions used, deduplicated by name
         # key: (name, domain)
         self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
         self._nodes: List[Node] = []
         self._inputs: List[Tensor] = []
         self._outputs: List[Tensor] = []
+        self._initializer: List[Tensor] = []
+        self._producer_name: str = producer_name
         # TODO: what are these two string for?
         self._doc_string: str = ""
         self._name: str = ""
@@ -438,10 +440,39 @@ class Graph:
     def add_output(self, tensor: Tensor):
         self._outputs.append(tensor)
 
+    # TODO(titaiwang): this function is not friendly to users when
+    # they want to build the graph from scratch, as they need to
+    # manually set the value to initializers, so we need another
+    # method to get all initializers from the graph `self.initializers`
+    @runtime_typing.checked
+    def add_initializer(self, tensor: Tensor, name: str):
+        pass
+
+    def _get_constant_tensors(self) -> Dict[str, Tensor]:
+        input_const = [tensor for tensor in self._inputs if not tensor.is_fake]
+        output_const = [tensor for tensor in self._outputs if not tensor.is_fake]
+        node_related_const = [
+            tensor
+            for node in self._nodes
+            for tensor in (node.inputs + node.outputs)
+            if not tensor.is_fake
+        ]
+        return {
+            tensor.name: tensor for tensor in input_const + output_const + node_related_const
+        }
+
+    @property
+    def initializers(self) -> List[Tensor]:
+        return self._initializer or self._get_constant_tensors()
+
     def _to_onnx_graph(self) -> onnx.GraphProto:
         # convert tensor to tensor value info according to the onnx_type
         input_value_infos = [tensor.to_value_info() for tensor in self._inputs]
         output_value_infos = [tensor.to_value_info() for tensor in self._outputs]
+        # convert initializer
+        initializer = [
+            constant_tensor.to_value_int() for constant_tensor in self.initializers.values()
+        ]
         # convert node to node proto
         node_value_infos = [node.to_node_proto() for node in self._nodes]
         # convert graph to graph proto
@@ -450,21 +481,20 @@ class Graph:
             name=self._name,
             inputs=input_value_infos,
             outputs=output_value_infos,
-            initializer=[],  # TODO: support initializer
+            initializer=initializer,
             doc_string=self._doc_string,
         )
-        # convert graph proto to model proto
-        return onnx.helper.make_model(graph_proto)
+        return graph_proto
 
-    def to_onnx_model(self) -> onnx.ModelProto:
+    def to_onnx_model(self, opset_version: int) -> onnx.ModelProto:
         graph_proto = self._to_onnx_graph()
         model_proto = onnx.helper.make_model(
             graph_proto,
-            producer_name="",  # TODO
+            producer_name=self._producer_name,
             doc_string="",  # TODO
             functions=list(self._function_store.values()),
-            opset_imports=18,  # TODO
-            ir_version=0,  # TODO
+            opset_imports=opset_version,
+            ir_version=8,  # TODO
         )
         return model_proto
 
