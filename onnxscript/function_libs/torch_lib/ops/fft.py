@@ -54,7 +54,9 @@ def _fftn_onnx(
     transformed = op.Unsqueeze(self, axes=[0])
     # transformed = self
     for dim_ in dims:
-        dim_ = dim_ + 1  # Add 1 to account for the batch dimension
+        if dim_ >= 0:
+            # Add 1 to account for the batch dimension when counting axes from the left
+            dim_ = dim_ + 1
         transformed = op.DFT(transformed, axis=dim_, inverse=inverse, onesided=onesided)
     # Remove the batch dimension
     transformed = op.Squeeze(transformed, axes=[0])
@@ -93,6 +95,10 @@ def aten__fft_c2c(
     # NOTE: trace_only because we need to negate forward
     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
     # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
+    self_rank = len(self.shape)
+    # ONNX DFT input assumes the last dimension is the complex dimension.
+    # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
+    dim = [d - 1 if d < 0 else d for d in dim]
     return _fftn_onnx(self, dim, normalization, inverse=not forward, onesided=False)
 
 
@@ -110,6 +116,10 @@ def aten__fft_c2r(
 
     # TODO(justinchuby): Figure out what last_dim_size does
 
+    self_rank = len(self.shape)
+    # ONNX DFT input assumes the last dimension is the complex dimension.
+    # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
+    dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
     transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False)
     # Take only the real part
     real_part = op.Slice(transformed, axes=[-1], starts=[0], ends=[1])
@@ -130,6 +140,11 @@ def aten__fft_r2c(
     signal = op.Unsqueeze(self, axes=[-1])
     # No need to fill the imaginary part because ONNX DFT accepts real inputs
     # https://onnx.ai/onnx/operators/onnx__DFT.html#inputs
+
+    self_rank = len(self.shape)
+    # ONNX DFT input assumes the last dimension is the complex dimension.
+    # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
+    dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
 
     return _fftn_onnx(signal, dim, normalization, inverse=False, onesided=onesided)
 
