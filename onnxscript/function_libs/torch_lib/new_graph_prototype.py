@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import abc
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -14,6 +13,7 @@ import onnx.checker
 import onnx.defs
 import onnx.helper
 import onnx.shape_inference
+import torch
 from typing_extensions import TypeAlias
 
 import onnxscript
@@ -24,12 +24,13 @@ from onnxscript._internal import param_manipulation, runtime_typing
 __all__ = [
     "Graph",
     "GraphEvaluator",
+    "GraphTensor",
 ]
 
 
 ValidArgumentType: TypeAlias = Union[
-    "Tensor",
-    Sequence["Tensor"],
+    "GraphTensor",
+    Sequence["GraphTensor"],
     Sequence[float],
     Sequence[int],
     str,
@@ -40,57 +41,69 @@ ValidArgumentType: TypeAlias = Union[
 ]
 
 
-# TODO(titaiwang): Should we make onnxscript.Tensor a subclass of a
-# more general Tensor class? In this Tensor, we expect it to have
-# a name, shape, dtype, and value. The value is optional, and
-# if it is not set, then it is a "fake" tensor.
-class Tensor(onnxscript_tensor.Tensor):
+class GraphTensor(onnxscript_tensor.Tensor):
     """An implementation of ONNX Tensors, based on a wrapper around numpy arrays.
     Serves to define overloaded ops with an ONNX/ONNXScript semantics.
     """
 
     def __init__(
         self,
-        name: str = "",
-        nparray: Optional[np.ndarray] = None,
-        shape: Optional[tuple[int, ...]] = None,
-        dtype: Optional[np.dtype] = None,
+        torch_tensor: torch.Tensor,
+        name: str,
         opset=None,
-        onnx_type: str = "",
+        onnx_type: str = "tensor_type",
     ):
-        super().__init__(nparray=nparray)
-        if nparray is not None and not isinstance(nparray, np.ndarray):
-            raise TypeError(
-                f"Unexpected type {type(nparray)}. It must be a numpy array or None."
-            )
+        super().__init__(None)
         self._name = name
-        self._nparray = nparray
-        self._shape = nparray.shape if nparray is not None else shape
-        self._dtype = nparray.dtype if nparray is not None else dtype
+        self._torch_tensor = torch_tensor
+        self._shape: tuple[int, ...] = torch_tensor.shape
+        self._dtype: torch.dtype = torch_tensor.dtype
         # FIXME(justinhuby): Create a better way to determine the opset version
         self._opset: Any = opset or onnx_opset.opset18
+
+        # TODO: Type class?
+        # NOTE: This is used to determine the type of the tensor
+        # when we convert it to onnx graph
+        if onnx_type not in {"tensor_type", "sequence_type", "optional_type"}:
+            raise ValueError(
+                f"Invalid onnx type: {onnx_type}, must be one of the three: tensor_type, sequence_type, optional_type"
+            )
         self._onnx_type = onnx_type
 
-    # NOTE: Optional tensor
-    @staticmethod
-    def empty() -> Tensor:
-        return Tensor(name="")
+    def to_tensor_proto(self):
+        pass
 
     def to_value_info(self) -> onnx.ValueInfoProto:
         # TODO: support more types?
         if self.onnx_type == "tensot_type":
-            return onnx.helper.make_tensor_value_info(self.name, self.onnx_dtype, self.shape)  # type: ignore[arg-type]
+            return onnx.helper.make_tensor_value_info(self.name, self.onnx_dtype, self.shape)
         if self.onnx_type == "sequence_type":
             return onnx.helper.make_tensor_sequence_value_info(
-                self.name, self.onnx_dtype, self.shape  # type: ignore[arg-type]
+                self.name, self.onnx_dtype, self.shape
             )
         if self.onnx_type == "optional_type":
             # NOTE: no `make_optional_value_info` API
-            optional_type_proto = onnx.helper.make_optional_type_proto(
-                onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[self.dtype]  # type: ignore[arg-type]
-            )
+            element_type = onnx.helper.make_tensor_type(self.onnx_dtype, self.shape)
+            optional_type_proto = onnx.helper.make_optional_type_proto(element_type)
             return onnx.helper.make_value_info(self.name, optional_type_proto)
         return onnx.helper.make_empty_tensor_value_info(self.name)
+
+    # TODO: better way to find out if it's a fake tensor?
+    @property
+    def is_fake(self) -> bool:
+        from torch._subclasses import (  # pylint: disable=import-outside-toplevel
+            fake_tensor,
+        )
+
+        return isinstance(self._torch_tensor, fake_tensor.FakeTensor)
+
+    @property
+    def np_dtype(self) -> np.dtype:
+        from torch.onnx._internal.fx import (  # pylint: disable=import-outside-toplevel
+            type_utils,
+        )
+
+        return type_utils.from_torch_dtype_to_numpy_dtype(self.dtype)
 
     @property
     def onnx_type(self) -> str:
@@ -100,33 +113,26 @@ class Tensor(onnxscript_tensor.Tensor):
     def name(self) -> str:
         return self._name
 
-    # TODO(titaiwang): better name?
     @property
-    def is_fake(self) -> bool:
-        return self._nparray is None
+    def value(self) -> torch.Tensor:  # type: ignore[override]
+        return self._torch_tensor
 
     @property
-    def value(self) -> np.ndarray:
-        if self._nparray is None:
-            raise ValueError("Tensor does not have a value.")
-        return self._nparray
-
-    @property
-    def shape(self) -> tuple[int, ...] | None:  # type: ignore[override]
+    def shape(self) -> tuple[int, ...]:
         return self._shape
 
     @property
     def rank(self) -> int:
-        return len(self.shape) if self.shape is not None else 0
+        return len(self.shape)
 
     @property
-    def dtype(self) -> np.dtype | None:  # type: ignore[override]
+    def dtype(self) -> torch.dtype:  # type: ignore[override]
         return self._dtype
 
     @property
-    def onnx_dtype(self) -> int | None:  # type: ignore[override]
+    def onnx_dtype(self) -> int:
         return (
-            onnx.helper.np_dtype_to_tensor_dtype(self.dtype)
+            onnx.helper.np_dtype_to_tensor_dtype(self.np_dtype)
             if self.dtype is not None
             else None
         )
@@ -135,79 +141,36 @@ class Tensor(onnxscript_tensor.Tensor):
 ###################################################################################################
 
 
-class OpNode:
+class Node:
     def __init__(
         self,
         namespace: str,
         op_name: str,
-        inputs: List[Tensor],
+        inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
         n_outputs: int,
     ):
+        self._inputs = inputs
+        self._n_outputs = n_outputs
+        self._attributes = attributes
         self._namespace = namespace
         self._op_name = op_name
-        self._inputs = inputs
-        self._attributes = attributes
-        self._n_outputs = n_outputs
-
-
-class FunctionNode:
-    def __init__(
-        self,
-        function: onnxscript.OnnxFunction,
-        inputs: List[Tensor],
-        attributes: Dict[str, ValidArgumentType],
-        n_outputs: int,
-    ):
-        self._function = function
-        self._inputs = inputs
-        self._attributes = attributes
-        self._n_outputs = n_outputs
-        self.namespace = function.function_ir.domain
-        self.op_name = function.name
 
     @property
-    def function(self) -> onnxscript.OnnxFunction:
-        return self._function
-
-
-class ModuleNode:
-    def __init__(self, subgraph: Graph, inputs: List[Tensor], n_outputs: int, name: str):
-        self._subgraph = subgraph
-        self._inputs = inputs
-        self._n_outputs = n_outputs
-        self.namespace = subgraph.domain_name
-        self.op_name = name
-        self._attributes: Dict[str, ValidArgumentType] = {}
-
-    @property
-    def module(self) -> Graph:
-        return self._subgraph
-
-
-class Node(abc.ABC):
-    def __init__(self):
-        self._inputs: List[Tensor] = []
-        self._outputs: List[Tensor] = []
-        self._attributes: Dict[str, ValidArgumentType] = {}
-        self._domain: str = ""
-        self._op_name: str = ""
-
-    @property
-    def inputs(self) -> List[Tensor]:
+    def inputs(self) -> List[GraphTensor]:
         return self._inputs
 
     @property
-    def outputs(self) -> List[Tensor]:
-        return self._outputs
+    def n_outputs(self) -> int:
+        return self._n_outputs
 
     @property
     def attributes(self) -> Dict[str, ValidArgumentType]:
         return self._attributes
 
     @property
-    def domain(self) -> str:
-        return self._domain
+    def namespace(self) -> str:
+        return self._namespace
 
     @property
     def op_name(self) -> str:
@@ -217,17 +180,19 @@ class Node(abc.ABC):
         onnx_node = onnx.helper.make_node(
             self.op_name,
             inputs=[t.name for t in self.inputs],
-            outputs=[t.name for t in self.outputs],
-            domain=self.domain,
-            **self.attributes,  # TODO: check if this works
+            outputs=[t.name for t in self.outputs],  # TODO: output names
+            domain=self.namespace,
         )
+        # TODO: process value?
+        for k, v in self.attributes.items():
+            onnx_node.attribute.append(onnx.helper.make_attribute(k, v))
         return onnx_node
 
     @classmethod
     def from_op_schema(
         cls,
         op_schema: onnx.defs.OpSchema,
-        inputs: List[Tensor],
+        inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
         n_outputs: int,
     ) -> OpNode:
@@ -245,7 +210,7 @@ class Node(abc.ABC):
     def from_function(
         cls,
         onnx_function: onnxscript.OnnxFunction,
-        inputs: List[Tensor],
+        inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
         n_outputs: int,
     ) -> FunctionNode:
@@ -257,13 +222,63 @@ class Node(abc.ABC):
         )
 
     @classmethod
-    def from_module(cls, subgraph: Graph, name: str, inputs: List[Tensor]) -> ModuleNode:
+    def from_module(cls, subgraph: Graph, name: str, inputs: List[GraphTensor]) -> ModuleNode:
         return ModuleNode(
             subgraph=subgraph,
             inputs=inputs,
             n_outputs=len(subgraph.outputs),
             name=name,
         )
+
+
+class OpNode(Node):
+    def __init__(
+        self,
+        namespace: str,
+        op_name: str,
+        inputs: List[GraphTensor],
+        attributes: Dict[str, ValidArgumentType],
+        n_outputs: int,
+    ):
+        super().__init__(namespace, op_name, inputs, attributes, n_outputs)
+
+
+class FunctionNode(Node):
+    def __init__(
+        self,
+        function: onnxscript.OnnxFunction,
+        inputs: List[GraphTensor],
+        attributes: Dict[str, ValidArgumentType],
+        n_outputs: int,
+    ):
+        super().__init__(
+            namespace=function.function_ir.domain,
+            op_name=function.name,
+            inputs=inputs,
+            attributes=attributes,
+            n_outputs=n_outputs,
+        )
+        self._function = function
+
+    @property
+    def function(self) -> onnxscript.OnnxFunction:
+        return self._function
+
+
+class ModuleNode(Node):
+    def __init__(self, subgraph: Graph, inputs: List[GraphTensor], n_outputs: int, name: str):
+        super().__init__(
+            namespace=subgraph.domain_name,  # type: ignore[arg-type]
+            op_name=name,
+            inputs=inputs,
+            attributes={},
+            n_outputs=n_outputs,
+        )
+        self._subgraph = subgraph
+
+    @property
+    def module(self) -> Graph:
+        return self._subgraph
 
 
 # TODO(titaiwang): How we deal with subgraph?
@@ -278,18 +293,18 @@ class Graph:
         # key: (name, domain)
         self._function_store: Dict[Tuple[str, str], onnxscript.OnnxFunction] = {}
         self._nodes: List[Node] = []
-        self._inputs: List[Tensor] = []
-        self._outputs: List[Tensor] = []
-        self._initializers: Dict[str, Tensor] = {}
+        self._inputs: List[GraphTensor] = []
+        self._outputs: List[GraphTensor] = []
+        self._initializers: Dict[str, GraphTensor] = {}
         self._producer_name: str = producer_name
         # TODO: what are these two string for?
         self._doc_string: str = ""
         self._name: str = ""
         # NOTE: below are used by splitting subgraphs
         # Mapping from intializer name to input(ensor).
-        self._initializers_inputs: Dict[str, Tensor] = {}
+        self._initializers_inputs: Dict[str, GraphTensor] = {}
         # Mapping from intializer name to input(TorchScriptTensor) from parent graph.
-        self._initializers_inputs_from_parent: Dict[str, Tensor] = {}
+        self._initializers_inputs_from_parent: Dict[str, GraphTensor] = {}
         # Mapping from model local function type name to function graph.
         # Local function type name is expected to be unique. Converter creates
         # a unique name and a unique function graph for every module call.
@@ -310,12 +325,24 @@ class Graph:
         return self._producer_name
 
     @property
-    def outputs(self) -> List[Tensor]:
+    def outputs(self) -> List[GraphTensor]:
         return self._outputs
 
     @property
     def domain_name(self) -> Optional[str]:
         return self._domain_name
+
+    @property
+    def inputs(self) -> List[GraphTensor]:
+        return self._inputs
+
+    @property
+    def nodes(self) -> List[Node]:
+        return self._nodes
+
+    @property
+    def doc_string(self) -> str:
+        return self._doc_string
 
     @runtime_typing.checked
     def add_node(self, node: Node):
@@ -330,11 +357,11 @@ class Graph:
     # NOTE: We don't need `add_initializer` because we can just use `add_input`
     # for constant tensors
     @runtime_typing.checked
-    def add_input(self, tensor: Tensor):
+    def add_input(self, tensor: GraphTensor):
         self._inputs.append(tensor)
 
     @runtime_typing.checked
-    def add_output(self, tensor: Tensor):
+    def add_output(self, tensor: GraphTensor):
         self._outputs.append(tensor)
 
     # TODO(titaiwang): this function is not friendly to users when
@@ -342,7 +369,7 @@ class Graph:
     # manually set the value to initializers, so we need another
     # method to get all initializers from the graph `self.initializers`
     @runtime_typing.checked
-    def add_initializer(self, name: str, value: Tensor):
+    def add_initializer(self, name: str, value: GraphTensor):
         if name in self._initializers_inputs:
             # NOTE: Previously it raises when `name` is already set. This is relaxed
             # because this will be invoked multiple times when submodule is called
@@ -367,13 +394,13 @@ class Graph:
         self.add_input(value)
         self._initializers_inputs[name] = value
 
-    def _get_constant_tensors(self) -> Dict[str, Tensor]:
+    def _get_constant_tensors(self) -> Dict[str, GraphTensor]:
         input_const = [tensor for tensor in self._inputs if not tensor.is_fake]
         output_const = [tensor for tensor in self._outputs if not tensor.is_fake]
         node_related_const = [
             tensor
             for node in self._nodes
-            for tensor in (node.inputs + node.outputs)
+            for tensor in (node.inputs + node.outputs)  # TODO: outputs?
             if not tensor.is_fake
         ]
         return {
@@ -381,11 +408,11 @@ class Graph:
         }
 
     @property
-    def initializers(self) -> Dict[str, Tensor]:
-        return self._initializer or self._get_constant_tensors()
+    def initializers(self) -> Dict[str, GraphTensor]:
+        return self._initializers or self._get_constant_tensors()
 
     @runtime_typing.checked
-    def _fetch_function_proto_dict(
+    def fetch_function_proto_dict(
         self, opset_version: int
     ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
         function_proto_dict: Dict[Tuple[str, str], onnx.FunctionProto] = {}
@@ -395,7 +422,7 @@ class Graph:
             sub_torch_script_graph,
         ) in self._sub_torch_script_graphs.items():
             function_proto_dict.update(
-                sub_torch_script_graph._fetch_function_proto_dict(opset_version)
+                sub_torch_script_graph.fetch_function_proto_dict(opset_version)
             )
             domain = sub_torch_script_graph.domain_name
             assert domain is not None
@@ -406,16 +433,30 @@ class Graph:
             assert (
                 name_domain not in function_proto_dict
             ), f"Sub graph name already exists. {name_domain}"
-            function_proto_dict[name_domain] = sub_torch_script_graph.to_function_proto(
-                opset_version, sub_graph_name
+            # module nodes are not added to the graph, so we need to add them here
+            function_proto_dict[name_domain] = sub_torch_script_graph._to_onnx_function(
+                sub_graph_name
             )
         # Fetch torchlib function protos.
         for name_domain, function in self._function_store.items():
             function_proto_dict[name_domain] = function.to_function_proto()
         return function_proto_dict
 
-    def _to_onnx_function(self, opset_version: int, name: str) -> onnx.FunctionProto:
-        pass
+    def _to_onnx_function(self, name: str) -> onnx.FunctionProto:
+        domain = self.domain_name
+        if domain is None:
+            raise RuntimeError("Domain name is not set.")
+        onnx_function = onnx.helper.make_function(
+            domain=domain,
+            fname=name,
+            inputs=[input.name for input in self.inputs],
+            outputs=[output.name for output in self.outputs],
+            nodes=self.node,
+            opset_imports=self.opset_import,
+            doc_string=self.doc_string,
+        )
+        # TODO: onnx.checker.check_function(onnx_function)?
+        return onnx_function
 
     def _to_onnx_graph(self) -> onnx.GraphProto:
         # convert tensor to tensor value info according to the onnx_type
@@ -423,7 +464,7 @@ class Graph:
         output_value_infos = [tensor.to_value_info() for tensor in self._outputs]
         # convert initializer
         initializer = [
-            constant_tensor.to_value_info() for constant_tensor in self.initializers.values()
+            constant_tensor.to_tensor_proto() for constant_tensor in self.initializers.values()
         ]
         # convert node to node proto
         node_value_infos = [node.to_node_proto() for node in self._nodes]
@@ -443,7 +484,7 @@ class Graph:
 
         function_proto_dict: Mapping[
             Tuple[str, str], onnx.FunctionProto
-        ] = self._fetch_function_proto_dict(opset_version)
+        ] = self.fetch_function_proto_dict(opset_version)
 
         unique_custom_domains: Dict[str, int] = {}
         for function_proto in function_proto_dict.values():
