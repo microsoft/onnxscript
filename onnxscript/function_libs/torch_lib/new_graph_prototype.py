@@ -19,7 +19,7 @@ from typing_extensions import TypeAlias
 import onnxscript
 from onnxscript import evaluator, onnx_opset
 from onnxscript import tensor as onnxscript_tensor
-from onnxscript._internal import param_manipulation, runtime_typing
+from onnxscript._internal import runtime_typing
 
 __all__ = [
     "Graph",
@@ -83,7 +83,7 @@ class GraphTensor(onnxscript_tensor.Tensor):
             )
         if self.onnx_type == "optional_type":
             # NOTE: no `make_optional_value_info` API
-            element_type = onnx.helper.make_tensor_type(self.onnx_dtype, self.shape)
+            element_type = onnx.helper.make_tensor_type_proto(self.onnx_dtype, self.shape)
             optional_type_proto = onnx.helper.make_optional_type_proto(element_type)
             return onnx.helper.make_value_info(self.name, optional_type_proto)
         return onnx.helper.make_empty_tensor_value_info(self.name)
@@ -148,10 +148,10 @@ class Node:
         op_name: str,
         inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
-        n_outputs: int,
+        outputs: List[GraphTensor],
     ):
         self._inputs = inputs
-        self._n_outputs = n_outputs
+        self._outputs = outputs
         self._attributes = attributes
         self._namespace = namespace
         self._op_name = op_name
@@ -161,8 +161,8 @@ class Node:
         return self._inputs
 
     @property
-    def n_outputs(self) -> int:
-        return self._n_outputs
+    def outputs(self) -> List[GraphTensor]:
+        return self._outputs
 
     @property
     def attributes(self) -> Dict[str, ValidArgumentType]:
@@ -194,16 +194,13 @@ class Node:
         op_schema: onnx.defs.OpSchema,
         inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
-        n_outputs: int,
+        outputs: List[GraphTensor],
     ) -> OpNode:
-        namespace = op_schema.domain
-        op_name = op_schema.name
         return OpNode(
-            namespace=namespace,
-            op_name=op_name,
+            opschema=op_schema,
             inputs=inputs,
             attributes=attributes,
-            n_outputs=n_outputs,
+            outputs=outputs,
         )
 
     @classmethod
@@ -212,13 +209,13 @@ class Node:
         onnx_function: onnxscript.OnnxFunction,
         inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
-        n_outputs: int,
+        outputs: List[GraphTensor],
     ) -> FunctionNode:
         return FunctionNode(
             function=onnx_function,
             inputs=inputs,
             attributes=attributes,
-            n_outputs=n_outputs,
+            outputs=outputs,
         )
 
     @classmethod
@@ -226,7 +223,7 @@ class Node:
         return ModuleNode(
             subgraph=subgraph,
             inputs=inputs,
-            n_outputs=len(subgraph.outputs),
+            outputs=subgraph.outputs,
             name=name,
         )
 
@@ -234,13 +231,22 @@ class Node:
 class OpNode(Node):
     def __init__(
         self,
-        namespace: str,
-        op_name: str,
+        opschema: onnx.defs.OpSchema,
         inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
-        n_outputs: int,
+        outputs: List[GraphTensor],
     ):
-        super().__init__(namespace, op_name, inputs, attributes, n_outputs)
+        super().__init__(
+            namespace=opschema.domain,
+            op_name=opschema.name,
+            inputs=inputs,
+            attributes=attributes,
+            outputs=outputs,
+        )
+        self._opschema = opschema
+
+    def opschema(self) -> onnx.defs.OpSchema:
+        return self._opschema
 
 
 class FunctionNode(Node):
@@ -249,14 +255,14 @@ class FunctionNode(Node):
         function: onnxscript.OnnxFunction,
         inputs: List[GraphTensor],
         attributes: Dict[str, ValidArgumentType],
-        n_outputs: int,
+        outputs: List[GraphTensor],
     ):
         super().__init__(
             namespace=function.function_ir.domain,
             op_name=function.name,
             inputs=inputs,
             attributes=attributes,
-            n_outputs=n_outputs,
+            outputs=outputs,
         )
         self._function = function
 
@@ -266,13 +272,15 @@ class FunctionNode(Node):
 
 
 class ModuleNode(Node):
-    def __init__(self, subgraph: Graph, inputs: List[GraphTensor], n_outputs: int, name: str):
+    def __init__(
+        self, subgraph: Graph, inputs: List[GraphTensor], outputs: List[GraphTensor], name: str
+    ):
         super().__init__(
             namespace=subgraph.domain_name,  # type: ignore[arg-type]
             op_name=name,
             inputs=inputs,
             attributes={},
-            n_outputs=n_outputs,
+            outputs=outputs,
         )
         self._subgraph = subgraph
 
@@ -281,13 +289,13 @@ class ModuleNode(Node):
         return self._subgraph
 
 
-# TODO(titaiwang): How we deal with subgraph?
 class Graph:
     def __init__(
         self,
         producer_name="pytorch",
         parent_graph: Optional[Graph] = None,
         domain_name: Optional[str] = None,
+        opset_version: int = 18,
     ) -> None:
         # All the functions used, deduplicated by name
         # key: (name, domain)
@@ -297,6 +305,7 @@ class Graph:
         self._outputs: List[GraphTensor] = []
         self._initializers: Dict[str, GraphTensor] = {}
         self._producer_name: str = producer_name
+        self._opset_version: int = opset_version
         # TODO: what are these two string for?
         self._doc_string: str = ""
         self._name: str = ""
@@ -319,6 +328,10 @@ class Graph:
                 "Domain name is not set. It is required because this 'TorchScriptGraph' instance "
                 "is a subgraph that represents an ONNX local function."
             )
+
+    @property
+    def opset_version(self) -> int:
+        return self._opset_version
 
     @property
     def producer_name(self) -> str:
@@ -412,18 +425,14 @@ class Graph:
         return self._initializers or self._get_constant_tensors()
 
     @runtime_typing.checked
-    def fetch_function_proto_dict(
-        self, opset_version: int
-    ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
+    def fetch_function_proto_dict(self) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
         function_proto_dict: Dict[Tuple[str, str], onnx.FunctionProto] = {}
         # Fetch local function protos. E.g., local functions representing module calls.
         for (
             sub_graph_name,
             sub_torch_script_graph,
         ) in self._sub_torch_script_graphs.items():
-            function_proto_dict.update(
-                sub_torch_script_graph.fetch_function_proto_dict(opset_version)
-            )
+            function_proto_dict.update(sub_torch_script_graph.fetch_function_proto_dict())
             domain = sub_torch_script_graph.domain_name
             assert domain is not None
             name_domain = (
@@ -434,7 +443,7 @@ class Graph:
                 name_domain not in function_proto_dict
             ), f"Sub graph name already exists. {name_domain}"
             # module nodes are not added to the graph, so we need to add them here
-            function_proto_dict[name_domain] = sub_torch_script_graph._to_onnx_function(
+            function_proto_dict[name_domain] = sub_torch_script_graph.to_onnx_function(
                 sub_graph_name
             )
         # Fetch torchlib function protos.
@@ -442,8 +451,9 @@ class Graph:
             function_proto_dict[name_domain] = function.to_function_proto()
         return function_proto_dict
 
-    def _to_onnx_function(self, name: str) -> onnx.FunctionProto:
+    def to_onnx_function(self, name: str) -> onnx.FunctionProto:
         domain = self.domain_name
+        node_value_infos = [node.to_node_proto() for node in self._nodes]
         if domain is None:
             raise RuntimeError("Domain name is not set.")
         onnx_function = onnx.helper.make_function(
@@ -451,8 +461,10 @@ class Graph:
             fname=name,
             inputs=[input.name for input in self.inputs],
             outputs=[output.name for output in self.outputs],
-            nodes=self.node,
-            opset_imports=self.opset_import,
+            nodes=node_value_infos,
+            opset_imports=[
+                onnx.helper.make_opsetid(domain, self.opset_version)
+            ],  # TODO: correct?
             doc_string=self.doc_string,
         )
         # TODO: onnx.checker.check_function(onnx_function)?
@@ -475,16 +487,16 @@ class Graph:
             inputs=input_value_infos,
             outputs=output_value_infos,
             initializer=initializer,
-            doc_string=self._doc_string,
+            doc_string=self.doc_string,
         )
         return graph_proto
 
-    def to_onnx_model(self, opset_version: int) -> onnx.ModelProto:
+    def to_onnx_model(self) -> onnx.ModelProto:
         graph_proto = self._to_onnx_graph()
 
         function_proto_dict: Mapping[
             Tuple[str, str], onnx.FunctionProto
-        ] = self.fetch_function_proto_dict(opset_version)
+        ] = self.fetch_function_proto_dict()
 
         unique_custom_domains: Dict[str, int] = {}
         for function_proto in function_proto_dict.values():
@@ -494,10 +506,8 @@ class Graph:
         model_proto = onnx.helper.make_model(
             graph_proto,
             producer_name=self._producer_name,
-            doc_string="",  # TODO
+            doc_string=self.doc_string,
             functions=list(function_proto_dict.values()),
-            opset_imports=opset_version,
-            ir_version=8,  # TODO
         )
 
         # TODO: Do we still need this after using onnx.helper api?
@@ -528,6 +538,10 @@ class Graph:
 
 
 # TODO: Deprecate and use `add_node` instead?
+# Evaluator is used to evaluate the graph and add nodes to the graph
+# Do we want to keep this UX? One of the blocks is that we need to
+# define outputs AFTER we define the node, which is not intuitive.
+# If we do, we need to support n_outputs in the Node class.
 class GraphEvaluator(evaluator.Evaluator):
     """An onnxscript Evaluator that captures the graph into torchscript."""
 
@@ -538,36 +552,36 @@ class GraphEvaluator(evaluator.Evaluator):
     def graph(self) -> Graph:
         return self._graph
 
-    def eval(self, schema, inputs, attributes):
-        n_outputs = evaluator.compute_num_outputs(schema, inputs, attributes)
-        node = Node.from_op_schema(schema, inputs, attributes, n_outputs)
-        return self._graph.add_node(node)
+    # def eval(self, schema, inputs, attributes):
+    #     n_outputs = evaluator.compute_num_outputs(schema, inputs, attributes)
+    #     node = Node.from_op_schema(schema, inputs, attributes, outputs)
+    #     return self._graph.add_node(node)
 
-    @runtime_typing.checked
-    def eval_function(  # type: ignore[override]
-        self,
-        function: onnxscript.OnnxFunction,
-        args: Sequence[ValidArgumentType],
-        kwargs: Mapping[str, ValidArgumentType],
-    ):
-        # args/kwargs are TorchScriptTensor/python built-in based
-        param_schemas = function.param_schemas()
-        (
-            inputs,
-            attributes,
-        ) = param_manipulation.separate_input_attributes_from_arguments(
-            param_schemas, args, kwargs, fill_defaults=True, allow_extra_kwargs=True
-        )
-        name_to_schema = {param.name: param for param in param_schemas}
-        # TODO(titaiwang): DO we still need this?
-        for name, value in attributes.items():
-            param = name_to_schema[name]
-            # Cast int to float if needed
-            if param.type in {float, "float"}:
-                # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
-                attributes[name] = float(value)
-        # NOTE: Initialize node
-        node = Node.from_function(
-            function, inputs, attributes, n_outputs=len(function.function_ir.outputs)
-        )
-        return self._graph.add_node(node)
+    # @runtime_typing.checked
+    # def eval_function(  # type: ignore[override]
+    #     self,
+    #     function: onnxscript.OnnxFunction,
+    #     args: Sequence[ValidArgumentType],
+    #     kwargs: Mapping[str, ValidArgumentType],
+    # ):
+    #     # args/kwargs are TorchScriptTensor/python built-in based
+    #     param_schemas = function.param_schemas()
+    #     (
+    #         inputs,
+    #         attributes,
+    #     ) = param_manipulation.separate_input_attributes_from_arguments(
+    #         param_schemas, args, kwargs, fill_defaults=True, allow_extra_kwargs=True
+    #     )
+    #     name_to_schema = {param.name: param for param in param_schemas}
+    #     # TODO(titaiwang): DO we still need this?
+    #     for name, value in attributes.items():
+    #         param = name_to_schema[name]
+    #         # Cast int to float if needed
+    #         if param.type in {float, "float"}:
+    #             # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
+    #             attributes[name] = float(value)
+    #     # NOTE: Initialize node
+    #     node = Node.from_function(
+    #         function, inputs, attributes, outputs=function.function_ir.outputs
+    #     )
+    #     return self._graph.add_node(node)
