@@ -85,7 +85,7 @@ def aten__log_softmax_half(
 
 @torch_op("aten::_log_softmax")
 def aten__log_softmax(
-    self: TFloatHighPrecision, dim: int, half_to_float: bool
+    self: TFloatHighPrecision, dim: int, half_to_float: bool  # pylint: disable=unused-argument
 ) -> TFloatHighPrecision:
     """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
 
