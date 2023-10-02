@@ -70,6 +70,34 @@ def aten__local_scalar_dense_int(self: IntType) -> INT64:
     return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
 
 
+@torch_op("aten::_log_softmax", trace_only=True)
+def aten__log_softmax_half(
+    self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool
+) -> FLOAT:
+    """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
+
+    # trace_only because we need to cast conditionally based on half_to_float
+    if half_to_float:
+        self = op.Cast(self, to=FLOAT.dtype)
+
+    return aten__log_softmax(self, dim, half_to_float)
+
+
+@torch_op("aten::_log_softmax")
+def aten__log_softmax(
+    self: TFloatHighPrecision, dim: int, half_to_float: bool
+) -> TFloatHighPrecision:
+    """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
+
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    result = op.LogSoftmax(self, axis=dim)
+    if self_is_scalar:  # squeeze to scalar due to input is scalar
+        result = op.Squeeze(result)
+    return result
+
+
 @torch_op("aten::_softmax", trace_only=True)
 def aten__softmax_half(self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool) -> FLOAT:
     """_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
