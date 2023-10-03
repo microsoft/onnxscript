@@ -1197,7 +1197,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     ),
     opinfo_core.OpInfo(
         "ops.aten._log_softmax",
-        op=torch.ops.aten._log_softmax,
+        op=torch.ops.aten._log_softmax,  # pylint: disable=protected-access
         aten_name="_log_softmax",
         dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=sample_inputs__log_softmax,
@@ -1205,7 +1205,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
     ),
     opinfo_core.OpInfo(
         "ops.aten._softmax",
-        op=torch.ops.aten._softmax,
+        op=torch.ops.aten._softmax,  # pylint: disable=protected-access
         aten_name="_softmax",
         dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=sample_inputs__softmax,
