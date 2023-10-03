@@ -462,10 +462,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
-    TorchLibOpInfo("ops.aten._log_softmax", core_ops.aten__log_softmax, trace_only=True),
-    TorchLibOpInfo(
-        "ops.aten._log_softmax_half", core_ops.aten__log_softmax_half, trace_only=True
-    ).xfail(
+    TorchLibOpInfo("ops.aten._log_softmax", core_ops.aten__log_softmax),
+    TorchLibOpInfo("ops.aten._log_softmax_half", core_ops.aten__log_softmax_half).xfail(
         reason="PyTorch does not implement _log_softmax for float16 on CPU",
         dtypes=(torch.float16,),
     ),
