@@ -462,6 +462,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
+    TorchLibOpInfo("ops.aten._log_softmax", core_ops.aten__log_softmax),
+    TorchLibOpInfo(
+        "ops.aten._log_softmax_half", core_ops.aten__log_softmax_half, trace_only=True
+    ).xfail(
+        reason="PyTorch does not implement _log_softmax for float16 on CPU",
+        dtypes=(torch.float16,),
+    ),
     TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
     TorchLibOpInfo(
         "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
@@ -1996,6 +2003,9 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest2d",
         "nn.functional.upsample_nearest3d",
     ),
+)
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
 )
 ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))

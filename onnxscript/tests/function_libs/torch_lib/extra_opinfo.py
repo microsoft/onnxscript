@@ -902,6 +902,34 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(input_, args=(src, *args))
 
 
+def sample_inputs__log_softmax(
+    op_info,
+    device,
+    dtype,
+    requires_grad,
+    **kwargs,
+):
+    del op_info  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    cases = [
+        ((S,), (0,)),
+        ((S, S), (0,)),
+        ((S, S), (1,)),
+        ((S, S), (-1,)),
+        ((S, M, S), (2,)),
+        ((S, 0, 0), (-1,)),
+    ]
+
+    for (shape, dim), half_to_float in itertools.product(cases, (False,)):
+        # NOTE: softmax with half to float conversion is not supported on CPU
+        # So we don't test it here
+        kwargs = dict(half_to_float=half_to_float)
+        yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
+
+
 def sample_inputs__softmax(
     op_info,
     device,
@@ -1168,7 +1196,16 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten._log_softmax",
+        op=torch.ops.aten._log_softmax,  # pylint: disable=protected-access
+        aten_name="_log_softmax",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs__log_softmax,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten._softmax",
+        op=torch.ops.aten._softmax,  # pylint: disable=protected-access
         aten_name="_softmax",
         dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=sample_inputs__softmax,
