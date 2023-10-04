@@ -352,7 +352,7 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     """all.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
 
     if not dim:
-        return _aten_all_keep_dims(self, keepdim)
+        return aten_all_dims_empty_dim(self, keepdim)
     for d in dim:
         self = aten_all_dim(self, d, keepdim)
     return self
@@ -478,7 +478,7 @@ def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
 
     if not dim:
-        return _aten_any_keep_dims(self, keepdim)
+        return aten_any_dims_empty_dim(self, keepdim)
     for d in dim:
         self = aten_any_dim(self, d, keepdim)
     return self
