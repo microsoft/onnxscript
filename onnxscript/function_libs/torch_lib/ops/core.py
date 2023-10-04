@@ -349,7 +349,7 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
 
 @torch_op("aten::all.dims", trace_only=True)
 def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
-    """all.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+    """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
 
     if not dim:
         return aten_all_dims_empty_dim(self, keepdim)
@@ -360,7 +360,7 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
 
 @torch_op("aten::all.dims")
 def aten_all_dims_empty_dim(self: TTensor, keepdims: bool) -> BOOL:
-    """all.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+    """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
 
     # dim is None and thus not supplied
 
