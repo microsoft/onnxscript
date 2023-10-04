@@ -347,9 +347,22 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
-@torch_op("aten::all.dims", private=True)
-def _aten_all_keep_dims(self: TTensor, keepdims: bool) -> BOOL:
-    """Private implementation for when keepdims is True."""
+@torch_op("aten::all.dims", trace_only=True)
+def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """all.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return _aten_all_keep_dims(self, keepdim)
+    for d in dim:
+        self = aten_all_dim(self, d, keepdim)
+    return self
+
+
+@torch_op("aten::all.dims")
+def aten_all_dims_empty_dim(self: TTensor, keepdims: bool) -> BOOL:
+    """all.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    # dim is None and thus not supplied
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
@@ -360,17 +373,6 @@ def _aten_all_keep_dims(self: TTensor, keepdims: bool) -> BOOL:
         all_true = op.ReduceMin(self_int, keepdims=keepdims)
         result = op.Cast(all_true, to=BOOL.dtype)
     return result
-
-
-@torch_op("aten::all.dims", trace_only=True)
-def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
-    """all.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
-
-    if not dim:
-        return _aten_all_keep_dims(self, keepdim)
-    for d in dim:
-        self = aten_all_dim(self, d, keepdim)
-    return self
 
 
 @torch_op("aten::allclose")
@@ -471,9 +473,22 @@ def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
-@torch_op("aten::any.dims", private=True)
-def _aten_any_keep_dims(self: TTensor, keepdims: bool) -> BOOL:
-    """Private implementation for when keepdims is True."""
+@torch_op("aten::any.dims", trace_only=True)
+def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return _aten_any_keep_dims(self, keepdim)
+    for d in dim:
+        self = aten_any_dim(self, d, keepdim)
+    return self
+
+
+@torch_op("aten::any.dims")
+def aten_any_dims_empty_dim(self: TTensor, keepdims: bool) -> BOOL:
+    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    # dim is None and thus not supplied
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
@@ -484,17 +499,6 @@ def _aten_any_keep_dims(self: TTensor, keepdims: bool) -> BOOL:
         any_true = op.ReduceMax(self_int, keepdims=keepdims)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
-
-
-@torch_op("aten::any.dims", trace_only=True)
-def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
-    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
-
-    if not dim:
-        return _aten_any_keep_dims(self, keepdim)
-    for d in dim:
-        self = aten_any_dim(self, d, keepdim)
-    return self
 
 
 def _range_supported(dtype: int) -> bool:
