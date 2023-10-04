@@ -347,6 +347,32 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
+@torch_op("aten::all.dims", private=True)
+def _aten_all_keep_dims(self: TTensor, keepdims: bool) -> BOOL:
+    """Private implementation for when keepdims is True."""
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        all_true = op.ReduceMin(self_int, keepdims=keepdims)
+        result = op.Cast(all_true, to=BOOL.dtype)
+    return result
+
+
+@torch_op("aten::all.dims", trace_only=True)
+def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """all.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return _aten_all_keep_dims(self, keepdim)
+    for d in dim:
+        self = aten_all_dim(self, d, keepdim)
+    return self
+
+
 @torch_op("aten::allclose")
 def aten_allclose(
     self: TReal,
