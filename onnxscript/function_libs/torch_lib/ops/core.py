@@ -471,6 +471,32 @@ def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
+@torch_op("aten::any.dims", private=True)
+def _aten_any_keep_dims(self: TTensor, keepdims: bool) -> BOOL:
+    """Private implementation for when keepdims is True."""
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        any_true = op.ReduceMax(self_int, keepdims=keepdims)
+        result = op.Cast(any_true, to=BOOL.dtype)
+    return result
+
+
+@torch_op("aten::any.dims", trace_only=True)
+def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return _aten_any_keep_dims(self, keepdim)
+    for d in dim:
+        self = aten_any_dim(self, d, keepdim)
+    return self
+
+
 def _range_supported(dtype: int) -> bool:
     """Returns true if the dtype is supported by the ONNX Range op."""
     return dtype in {
