@@ -621,19 +621,19 @@ def parse_input_output_type(onnx_type: str) -> cg.TypeRef:
         )
 
     default_value_map = {
-        "BOOL": bool(),
-        "FLOAT": float(),
-        "FLOAT16": float(),
-        "BFLOAT16": float(),
-        "DOUBLE": float(),
-        "INT8": int(),
-        "INT16": int(),
-        "INT32": int(),
-        "INT64": int(),
-        "UINT8": int(),
-        "UINT16": int(),
-        "UINT32": int(),
-        "UINT64": int(),
+        "BOOL": bool(),  # noqa: UP018
+        "FLOAT": float(),  # noqa: UP018
+        "FLOAT16": float(),  # noqa: UP018
+        "BFLOAT16": float(),  # noqa: UP018
+        "DOUBLE": float(),  # noqa: UP018
+        "INT8": int(),  # noqa: UP018
+        "INT16": int(),  # noqa: UP018
+        "INT32": int(),  # noqa: UP018
+        "INT64": int(),  # noqa: UP018
+        "UINT8": int(),  # noqa: UP018
+        "UINT16": int(),  # noqa: UP018
+        "UINT32": int(),  # noqa: UP018
+        "UINT64": int(),  # noqa: UP018
         "COMPLEX64": complex(),
         "COMPLEX128": complex(),
     }

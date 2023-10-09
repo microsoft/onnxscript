@@ -28,6 +28,7 @@ class TestDeduceTypeConstraints(unittest.TestCase):
         "_aten_as_strided_onnx",
         "_aten_unfold_onnx",
         "_aten_embedding_bag_onnx",
+        "_aten_embedding_bag_1d_padding_idx_onnx",
     )
     _SKIP_FUNCTIONS_WITH_NESTED_FUNCTION = ()
 
