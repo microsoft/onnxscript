@@ -1162,7 +1162,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
-    TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand),
+    TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
     TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
     TorchLibOpInfo(
         "ops.aten.rand_like__dtype", core_ops.aten_rand_like_dtype, nondeterministic=True
@@ -1187,7 +1187,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: Shape inference error",
     ),
-    TorchLibOpInfo("ops.aten.randn_like", core_ops.aten_randn, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.randn_like", core_ops.aten_randn_like, nondeterministic=True),
     TorchLibOpInfo(
         "ops.aten.randn_like_dtype", core_ops.aten_randn_like_dtype, nondeterministic=True
     ),

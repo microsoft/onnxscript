@@ -519,9 +519,6 @@ def sample_inputs_native_dropout(
 def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
 
-    make_arg = functools.partial(
-        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
-    )
     shapes = (
         (M,),
         (S, S),
@@ -529,7 +526,7 @@ def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
     )
 
     for shape in shapes:
-        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
+        yield opinfo_core.SampleInput(shape, kwargs=dict(dtype=dtype))
 
 
 def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
@@ -574,7 +571,7 @@ def sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
         ((), {}),
         ((S, S), {}),
         ((0, S, 0), {}),
-        ((S,),),
+        ((S,), {}),
     ]
     for shape, kwargs in inputs:
         t = torch_testing.make_tensor(
@@ -654,9 +651,10 @@ def sample_inputs_randint_like_low_dtype_dtype(self, device, dtype, requires_gra
 
 def sample_inputs_randn(op, device, dtype, requires_grad, **kwargs):
     del op  # Unused
+    del device  # Unused
     del requires_grad  # Unused
 
-    shapes = ([M], [S, S])
+    shapes = ((M,), (S, S))
 
     for shape in shapes:
         yield opinfo_core.SampleInput(input=shape, kwargs=dict(dtype=dtype))
