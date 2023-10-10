@@ -658,6 +658,7 @@ def sample_inputs_randn(op, device, dtype, requires_grad, **kwargs):
     del op  # Unused
     del device  # Unused
     del requires_grad  # Unused
+    del kwargs  # Unused
 
     shapes = ((M,), (S, S))
 
