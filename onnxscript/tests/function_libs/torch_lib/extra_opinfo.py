@@ -518,6 +518,9 @@ def sample_inputs_native_dropout(
 
 def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
+    del device  # Unused
+    del requires_grad  # Unused
+    del kwargs  # Unused
 
     shapes = (
         (M,),
@@ -531,6 +534,7 @@ def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
 
 def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
+    del kwargs  # Unused
 
     make_arg = functools.partial(
         torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
@@ -547,6 +551,7 @@ def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
 
 def sample_inputs_rand_like_dtype(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
+    del kwargs  # Unused
 
     make_arg = functools.partial(
         torch_testing.make_tensor,
