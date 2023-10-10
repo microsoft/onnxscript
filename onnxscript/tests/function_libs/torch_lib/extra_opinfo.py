@@ -598,6 +598,7 @@ def sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
         )
         yield opinfo_core.SampleInput(t, **kwargs)
 
+
 def sample_inputs_randint(self, device, dtype, requires_grad, **kwargs):
     high = 10
 
@@ -630,9 +631,7 @@ def sample_inputs_randint_like_dtype(self, device, dtype, requires_grad, **kwarg
 
     for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
         # With low and high
-        yield opinfo_core.SampleInput(
-            sample.input, high, *sample.args, **sample.kwargs
-        )
+        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
 
 
 def sample_inputs_randint_like_low_dtype(self, device, dtype, requires_grad, **kwargs):
@@ -650,9 +649,7 @@ def sample_inputs_randint_like_low_dtype_dtype(self, device, dtype, requires_gra
 
     for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
         # With low and high
-        yield opinfo_core.SampleInput(
-            sample.input, low, high, *sample.args, **sample.kwargs
-        )
+        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
 
 
 def sample_inputs_randn(op, device, dtype, requires_grad, **kwargs):
@@ -1346,6 +1343,28 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="randint_like.low_dtype",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_randint_like_low_dtype_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn",
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_randn,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn_like",
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_like_fns,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn_like_dtype",
+        op=torch.ops.aten.randn_like,
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_like_fns_dtype,
         supports_out=False,
     ),
     # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
