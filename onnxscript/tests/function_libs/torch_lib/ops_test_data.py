@@ -333,14 +333,6 @@ def _nonzero_input_wrangler(
     return args, kwargs
 
 
-def _randn_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the size argument as attribute list[int]
-    kwargs["size"] = args.pop(0).tolist()
-    return args, kwargs
-
-
 def _permute_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
