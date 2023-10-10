@@ -516,6 +516,109 @@ def sample_inputs_native_dropout(
         yield opinfo_core.SampleInput(make_arg(case), p=p, train=training)
 
 
+def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
+    def op_info  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
+
+
+def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
+    def op_info  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(make_arg(shape))
+
+
+def sample_inputs_rand_like_dtype(op_info, device, dtype, requires_grad, **kwargs):
+    def op_info  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=torch.float32, requires_grad=requires_grad
+    )
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
+
+
+def sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+    inputs = [
+        ((), {}),
+        ((S, S), {}),
+        ((0, S, 0), {}),
+        ((S,), {'dtype': dtype}),
+        # Hard-code some dtypes/devices. We want to test cases where the
+        # (dtype, device) is different from the input's (dtype, device)
+        ((S,), {'dtype': torch.double}),
+        ((S,), ),
+
+    ]
+    for shape, kwargs in inputs:
+        t = torch_testing.make_tensor(shape, dtype=dtype, device=device,
+                        low=None, high=None,
+                        requires_grad=requires_grad)
+        yield opinfo_core.SampleInput(t, **kwargs)
+
+
+def sample_inputs_randint(self, device, dtype, requires_grad, **kwargs):
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With high
+        yield opinfo_core.SampleInput(high, sample.input.shape, *sample.args, **sample.kwargs)
+
+def sample_inputs_randint_low(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(low, high, sample.input.shape, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_like(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With high
+        yield SampleInput(
+            sample.input,
+            high,
+            *sample.args,
+            **sample.kwargs)
+        # With low and high
+        yield SampleInput(
+            get_independent_tensor(sample.input),
+            low,
+            high,
+            *sample.args,
+            **sample.kwargs)
+
+
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
