@@ -352,14 +352,14 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
 
     if not dim:
-        return aten_all_dims_empty_dim(self, keepdim)
+        return aten_all_dims_no_dim(self, keepdim)
     for d in dim:
         self = aten_all_dim(self, d, keepdim)
     return self
 
 
 @torch_op("aten::all.dims")
-def aten_all_dims_empty_dim(self: TTensor, keepdims: bool) -> BOOL:
+def aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
 
     # dim is None and thus not supplied
@@ -478,14 +478,14 @@ def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
 
     if not dim:
-        return aten_any_dims_empty_dim(self, keepdim)
+        return aten_any_dims_no_dim(self, keepdim)
     for d in dim:
         self = aten_any_dim(self, d, keepdim)
     return self
 
 
 @torch_op("aten::any.dims")
-def aten_any_dims_empty_dim(self: TTensor, keepdims: bool) -> BOOL:
+def aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
 
     # dim is None and thus not supplied
