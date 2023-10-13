@@ -347,6 +347,34 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
+@torch_op("aten::all.dims", trace_only=True)
+def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return aten_all_dims_no_dim(self, keepdim)
+    for d in dim:
+        self = aten_all_dim(self, d, keepdim)
+    return self
+
+
+@torch_op("aten::all.dims")
+def aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
+    """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
+
+    # dim is None and thus not supplied
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        all_true = op.ReduceMin(self_int, keepdims=keepdims)
+        result = op.Cast(all_true, to=BOOL.dtype)
+    return result
+
+
 @torch_op("aten::allclose")
 def aten_allclose(
     self: TReal,
@@ -441,6 +469,34 @@ def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
         # Change dim from int to INT64[1]
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         any_true = op.ReduceMax(self_int, dims, keepdims=keepdim)
+        result = op.Cast(any_true, to=BOOL.dtype)
+    return result
+
+
+@torch_op("aten::any.dims", trace_only=True)
+def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return aten_any_dims_no_dim(self, keepdim)
+    for d in dim:
+        self = aten_any_dim(self, d, keepdim)
+    return self
+
+
+@torch_op("aten::any.dims")
+def aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
+    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    # dim is None and thus not supplied
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        any_true = op.ReduceMax(self_int, keepdims=keepdims)
         result = op.Cast(any_true, to=BOOL.dtype)
     return result
 
