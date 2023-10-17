@@ -9,6 +9,6 @@ types-PyYAML==6.0.12.11
 black==23.9.1
 isort==5.12.0
 # PYLINT
-pylint==2.17.6
+pylint==3.0.1
 # EDITORCONFIG-CHECKER
 editorconfig-checker==2.7.3
