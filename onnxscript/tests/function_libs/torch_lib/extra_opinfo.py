@@ -516,6 +516,19 @@ def sample_inputs_native_dropout(
         yield opinfo_core.SampleInput(make_arg(case), p=p, train=training)
 
 
+def sample_inputs_normal_tensor_tensor(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del requires_grad
+    del kwargs
+    make_arg = functools.partial(torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False)
+    samples = (
+        ((S, S), (S, S)),
+        ((S, S, S), (S, S, S)),
+    )
+    for mean, std in samples:
+        yield opinfo_core.SampleInput(make_arg(mean), make_arg(std))
+
+
 def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # Unused
     del device  # Unused
@@ -1260,6 +1273,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="native_group_norm",
         dtypes=common_dtype.floating_and_complex_types_and(torch.half, torch.bfloat16),
         sample_inputs_func=sample_inputs_native_group_norm,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.normal.Tensor_Tensor",
+        aten_name="normal.Tensor_Tensor",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_normal_tensor_tensor,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
