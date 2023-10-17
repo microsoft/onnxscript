@@ -5832,13 +5832,13 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
     raise NotImplementedError()
 
 
-@torch_op("aten::normal")
+@torch_op(("aten::normal", "aten::normal_functional"))
 def aten_normal(
     self: TTensor,
     mean: float = 0.0,
     std: float = 1.0,
 ) -> TFloat:  # type: ignore[type-var]
-    # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
+    """normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
@@ -5858,6 +5858,15 @@ def aten_normal_float_float(
     dummy_tensor = op.ConstantOfShape(size)
     result = op.RandomNormalLike(dummy_tensor, mean=mean, scale=std)
     return op.Cast(result, to=dtype)
+
+
+@torch_op(("aten::normal.float_Tensor", "aten::normal.Tensor_float", "aten::normal.Tensor_Tensor"))
+def aten_normal_tensor_float(mean: TFloat, std: TFloat) -> TFloat:
+    """normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor"""
+
+    sampled = op.RandomNormalLike(mean, mean=0.0, scale=1.0)
+    # Transform the distribution to the mean and std
+    return op.Add(op.Mul(mean, sampled), std)
 
 
 def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
