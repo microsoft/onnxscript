@@ -1156,6 +1156,24 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
     ),
     TorchLibOpInfo(
+        "ops.aten.normal.float_Tensor",
+        core_ops.aten_normal_float_tensor,
+        nondeterministic=True,
+    ).xfail(
+        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.normal.Tensor_float",
+        core_ops.aten_normal_tensor_float,
+        nondeterministic=True,
+    ).xfail(
+        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    TorchLibOpInfo(
         "ops.aten.normal.Tensor_Tensor",
         core_ops.aten_normal_tensor_tensor,
         nondeterministic=True,

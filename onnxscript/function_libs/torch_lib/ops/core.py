@@ -5860,9 +5860,26 @@ def aten_normal_float_float(
     return op.Cast(result, to=dtype)
 
 
-@torch_op(
-    ("aten::normal.float_Tensor", "aten::normal.Tensor_float", "aten::normal.Tensor_Tensor")
-)
+@torch_op("aten::normal.float_Tensor")
+def aten_normal_float_tensor(mean: FLOAT, std: TFloat) -> TFloat:
+    """normal.float_Tensor(float mean, Tensor std, *, Generator? generator=None) -> Tensor"""
+
+    mean_casted = op.CastLike(mean, std)
+    sampled = op.RandomNormalLike(mean_casted, mean=0.0, scale=1.0)
+    # Transform the distribution to the mean and std
+    return op.Add(op.Mul(mean_casted, sampled), std)
+
+
+@torch_op("aten::normal.Tensor_float")
+def aten_normal_tensor_float(mean: TFloat, std: FLOAT) -> TFloat:
+    """normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor"""
+
+    sampled = op.RandomNormalLike(mean, mean=0.0, scale=1.0)
+    # Transform the distribution to the mean and std
+    return op.Add(op.Mul(mean, sampled), op.CastLike(std, sampled))
+
+
+@torch_op("aten::normal.Tensor_Tensor")
 def aten_normal_tensor_tensor(mean: TFloat, std: TFloat) -> TFloat:
     """normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor"""
 
