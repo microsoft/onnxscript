@@ -86,8 +86,7 @@ class TorchLibOpInfo:
     # The acceptable tolerance of the inference result difference between PyTorch and ORT.
     # Format: {dtype: (rtol, atol)}.
     # For example: {torch.float16: (1e-3, 1e-3)}
-    tolerance: dict[torch.dtype, tuple[float, float]
-                    ] = dataclasses.field(default_factory=dict)
+    tolerance: dict[torch.dtype, tuple[float, float]] = dataclasses.field(default_factory=dict)
     # Expected skips or fails for the test and/or subtests
     skips_or_fails: list[ops_test_common.DecorateMeta] = dataclasses.field(
         default_factory=list
@@ -462,8 +461,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="PyTorch does not implement _log_softmax for float16 on CPU",
         dtypes=(torch.float16,),
     ),
-    TorchLibOpInfo("ops.aten._softmax",
-                   core_ops.aten__softmax, trace_only=True),
+    TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
     TorchLibOpInfo(
         "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
     ).xfail(
@@ -486,13 +484,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("abs", core_ops.aten_abs_complex, complex=True),
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
-    TorchLibOpInfo("add", core_ops.aten_add, tolerance={
-                   torch.float16: (1e-3, 1e-3)}),
-    TorchLibOpInfo("addbmm", core_ops.aten_addbmm,
-                   tolerance={torch.float32: (2e-5, 2e-5)}),
+    TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
+    TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
-    TorchLibOpInfo("addcmul", core_ops.aten_addcmul,
-                   tolerance={torch.float16: (4e-3, 3e-3)}),
+    TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
     TorchLibOpInfo("addmm", core_ops.aten_addmm),
     TorchLibOpInfo("addmv", core_ops.aten_addmv),
     TorchLibOpInfo(
@@ -613,8 +608,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
     ),
     TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
-    TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli,
-                   nondeterministic=True),
+    TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
     TorchLibOpInfo(
         # This string is a unique ID. In extra_opinfo.py, we
         # also define test data for this ID with
@@ -624,27 +618,18 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         # Skip comparison for the output of this op because it is a random tensor.
         nondeterministic=True,
     ),
-    TorchLibOpInfo("ops.aten.bernoulli.p_deterministic",
-                   core_ops.aten_bernoulli_p),
+    TorchLibOpInfo("ops.aten.bernoulli.p_deterministic", core_ops.aten_bernoulli_p),
     TorchLibOpInfo("bitwise_and", core_ops.aten_bitwise_and),
-    TorchLibOpInfo("bitwise_left_shift_int16",
-                   core_ops.aten_bitwise_left_shift_int16),
-    TorchLibOpInfo("bitwise_left_shift_int32",
-                   core_ops.aten_bitwise_left_shift_int32),
-    TorchLibOpInfo("bitwise_left_shift_int64",
-                   core_ops.aten_bitwise_left_shift_int64),
-    TorchLibOpInfo("bitwise_left_shift_int8",
-                   core_ops.aten_bitwise_left_shift_int8),
+    TorchLibOpInfo("bitwise_left_shift_int16", core_ops.aten_bitwise_left_shift_int16),
+    TorchLibOpInfo("bitwise_left_shift_int32", core_ops.aten_bitwise_left_shift_int32),
+    TorchLibOpInfo("bitwise_left_shift_int64", core_ops.aten_bitwise_left_shift_int64),
+    TorchLibOpInfo("bitwise_left_shift_int8", core_ops.aten_bitwise_left_shift_int8),
     TorchLibOpInfo("bitwise_not", core_ops.aten_bitwise_not),
     TorchLibOpInfo("bitwise_or", core_ops.aten_bitwise_or),
-    TorchLibOpInfo("bitwise_right_shift_int16",
-                   core_ops.aten_bitwise_right_shift_int16),
-    TorchLibOpInfo("bitwise_right_shift_int32",
-                   core_ops.aten_bitwise_right_shift_int32),
-    TorchLibOpInfo("bitwise_right_shift_int64",
-                   core_ops.aten_bitwise_right_shift_int64),
-    TorchLibOpInfo("bitwise_right_shift_int8",
-                   core_ops.aten_bitwise_right_shift_int8),
+    TorchLibOpInfo("bitwise_right_shift_int16", core_ops.aten_bitwise_right_shift_int16),
+    TorchLibOpInfo("bitwise_right_shift_int32", core_ops.aten_bitwise_right_shift_int32),
+    TorchLibOpInfo("bitwise_right_shift_int64", core_ops.aten_bitwise_right_shift_int64),
+    TorchLibOpInfo("bitwise_right_shift_int8", core_ops.aten_bitwise_right_shift_int8),
     TorchLibOpInfo("bitwise_xor", core_ops.aten_bitwise_xor),
     TorchLibOpInfo("bmm", core_ops.aten_bmm),
     TorchLibOpInfo("broadcast_to", core_ops.aten_broadcast_to),
@@ -685,8 +670,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
     TorchLibOpInfo("conj", core_ops.aten_conj),
-    TorchLibOpInfo("conj", core_ops.aten_conj_complex,
-                   complex=True, trace_only=True),
+    TorchLibOpInfo("conj", core_ops.aten_conj_complex, complex=True, trace_only=True),
     TorchLibOpInfo("constant_pad_nd", core_ops.aten_constant_pad_nd),
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
@@ -694,8 +678,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cross", core_ops.aten_cross),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
     TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True),
-    TorchLibOpInfo("diagonal_bool", core_ops.aten_diagonal_bool,
-                   trace_only=True),
+    TorchLibOpInfo("diagonal_bool", core_ops.aten_diagonal_bool, trace_only=True),
     TorchLibOpInfo("div", core_ops.aten_div).skip(
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="this variation does not take the rounding_mode argument",
@@ -741,8 +724,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
     TorchLibOpInfo("fill", core_ops.aten_fill),
-    TorchLibOpInfo("flip", core_ops.aten_flip,
-                   input_wrangler=_flip_input_wrangler),
+    TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
     TorchLibOpInfo("floor_divide", core_ops.aten_floor_divide).xfail(
         dtypes=(torch.float16,),
@@ -773,8 +755,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("gt_bool", core_ops.aten_gt_bool),
     # TorchLibOpInfo("is_same_size", core_ops.aten_is_same_size),  # no test case in OPS_DB
     # TorchLibOpInfo("is_nonzero", core_ops.aten_is_nonzero),  # no test case in OPS_DB
-    TorchLibOpInfo("ops.aten.index.Tensor",
-                   core_ops.aten_index, trace_only=True),
+    TorchLibOpInfo("ops.aten.index.Tensor", core_ops.aten_index, trace_only=True),
     TorchLibOpInfo(
         "index_put_bool",
         core_ops.aten_index_put_bool,
@@ -833,8 +814,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "log_softmax",
         special_ops.aten_special_log_softmax,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4),
-                   torch.float16: (4e-4, 6e-3)},
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (4e-4, 6e-3)},
     ).xfail(
         variant_name="with_dtype",
         dtypes=(torch.float16,),
@@ -885,8 +865,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload can accept 2 inputs:(self, dim)",
     ),
     TorchLibOpInfo("mH", core_ops.aten_mH),
-    TorchLibOpInfo("mH", core_ops.aten_mH_complex,
-                   complex=True, trace_only=True),
+    TorchLibOpInfo("mH", core_ops.aten_mH_complex, complex=True, trace_only=True),
     TorchLibOpInfo("min_dim", core_ops.aten_min_dim)
     .skip(
         variant_name="reduction_with_dim",
@@ -1047,8 +1026,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_dropout,
         input_wrangler=_dropout_input_wrangler,
     ).skip(
-        matcher=lambda sample: len(
-            sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
+        matcher=lambda sample: len(sample.kwargs) == 0 or sample.kwargs.get("p", 0.0) > 0.0,
         reason="dropout is random so the result not match",
     ),
     TorchLibOpInfo("nn.functional.elu", nn_ops.aten_elu),
@@ -1076,8 +1054,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.logsigmoid",
         nn_ops.aten_log_sigmoid,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4),
-                   torch.float16: (8e-2, 4e-4)},
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (8e-2, 4e-4)},
     ),
     TorchLibOpInfo("nn.functional.mish", nn_ops.aten_mish),
     TorchLibOpInfo(
@@ -1101,8 +1078,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_reflection_pad2d,
         input_wrangler=_reflection_pad2d_input_wrangler,
     ).skip(
-        matcher=lambda sample: not (
-            len(sample.args) > 1 and sample.args[1] == "reflect"),
+        matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "reflect"),
         reason="this Aten overload need args[1] == 'reflect' for pad mode",
     ),
     TorchLibOpInfo(
@@ -1124,8 +1100,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_replication_pad2d,
         input_wrangler=_replication_pad2d_input_wrangler,
     ).skip(
-        matcher=lambda sample: not (
-            len(sample.args) > 1 and sample.args[1] == "replicate"),
+        matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
         reason="this Aten overload need args[1] == 'replicate' for pad mode",
     ),
     TorchLibOpInfo(
@@ -1161,8 +1136,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("normal", core_ops.aten_normal, nondeterministic=True)
     .skip(
-        matcher=lambda sample: len(
-            sample.args) > 0 and not isinstance(sample.args[0], float),
+        matcher=lambda sample: len(sample.args) > 0 and not isinstance(sample.args[0], float),
         reason="ORT only accept float type for args[0] 'mean'",
     )
     .xfail(
@@ -1181,8 +1155,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="This variant does not support dtype as an argument",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
     ),
-    TorchLibOpInfo("ops.aten.normal.Tensor_Tensor",
-                   core_ops.aten_normal_tensor_tensor, nondeterministic=True),
+    TorchLibOpInfo(
+        "ops.aten.normal.Tensor_Tensor",
+        core_ops.aten_normal_tensor_tensor,
+        nondeterministic=True,
+    ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
         "permute",
@@ -1192,17 +1169,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
     TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
-    TorchLibOpInfo("ops.aten.rand_like",
-                   core_ops.aten_rand_like, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
     TorchLibOpInfo(
         "ops.aten.rand_like__dtype", core_ops.aten_rand_like_dtype, nondeterministic=True
     ),
-    TorchLibOpInfo("ops.aten.randint", core_ops.aten_randint,
-                   nondeterministic=True),
-    TorchLibOpInfo("ops.aten.randint.low",
-                   core_ops.aten_randint_low, nondeterministic=True),
-    TorchLibOpInfo("ops.aten.randint_like",
-                   core_ops.aten_randint_like, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.randint", core_ops.aten_randint, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.randint.low", core_ops.aten_randint_low, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.randint_like", core_ops.aten_randint_like, nondeterministic=True),
     TorchLibOpInfo(
         "ops.aten.randint_like__dtype", core_ops.aten_randint_like_dtype, nondeterministic=True
     ),
@@ -1220,8 +1193,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: Shape inference error",
     ),
-    TorchLibOpInfo("ops.aten.randn_like",
-                   core_ops.aten_randn_like, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.randn_like", core_ops.aten_randn_like, nondeterministic=True),
     TorchLibOpInfo(
         "ops.aten.randn_like_dtype", core_ops.aten_randn_like_dtype, nondeterministic=True
     ),
@@ -1281,8 +1253,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "softmax",
         core_ops.aten_softmax,
-        tolerance={torch.float32: (3.7e-5, 1.8e-4),
-                   torch.float16: (3e-4, 4e-4)},
+        tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
     ).xfail(
         variant_name="with_dtype",
         dtypes=(torch.float16,),
@@ -1328,8 +1299,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "squeeze_dim",
         core_ops.aten_squeeze_dim,
     ).skip(
-        matcher=lambda sample: not (
-            len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
     TorchLibOpInfo(
@@ -1401,8 +1371,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("view_as_complex", core_ops.aten_view_as_complex),
     TorchLibOpInfo("view_as_complex_copy", core_ops.aten_view_as_complex_copy),
     TorchLibOpInfo("view_as_real", core_ops.aten_view_as_real, complex=True),
-    TorchLibOpInfo("view_as_real_copy",
-                   core_ops.aten_view_as_real_copy, complex=True),
+    TorchLibOpInfo("view_as_real_copy", core_ops.aten_view_as_real_copy, complex=True),
     TorchLibOpInfo("view_copy", core_ops.aten_view_copy),
     TorchLibOpInfo(
         "vstack",
@@ -1608,8 +1577,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) > 0,
         reason="this ATen overload only supports one tensor as input by design",
     ),
-    TorchLibOpInfo("multinomial", core_ops.aten_multinomial,
-                   nondeterministic=True),
+    TorchLibOpInfo("multinomial", core_ops.aten_multinomial, nondeterministic=True),
     TorchLibOpInfo(
         # Custom from extra_opinfo
         "ops.aten.max_pool1d",
@@ -1630,8 +1598,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="empty_strides",
         reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2]). https://github.com/microsoft/onnxscript/issues/975",
     ),
-    TorchLibOpInfo("native_batch_norm",
-                   core_ops.aten_native_batch_norm, trace_only=True),
+    TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
         core_ops.aten_native_group_norm,
@@ -1653,8 +1620,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     )
     .xfail(
-        matcher=lambda sample: (
-            len(sample.args) > 5 and sample.args[5] is not None)
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
         or (sample.kwargs.get("divisor_override") is not None),
         reason="ONNX doesn't support divisor_override argument",
     )
@@ -1674,8 +1640,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_avg_pool_input_wrangler,
         trace_only=True,
     ).xfail(
-        matcher=lambda sample: (
-            len(sample.args) > 5 and sample.args[5] is not None)
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
         or (sample.kwargs.get("divisor_override") is not None),
         reason="ONNX doesn't support divisor_override argument",
     ),
@@ -1686,8 +1651,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     )
     .xfail(
-        matcher=lambda sample: (
-            len(sample.args) > 5 and sample.args[5] is not None)
+        matcher=lambda sample: (len(sample.args) > 5 and sample.args[5] is not None)
         or (sample.kwargs.get("divisor_override") is not None),
         reason="ONNX doesn't support divisor_override argument",
     )
@@ -1807,8 +1771,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
-        matcher=lambda sample: (
-            attn_mask := sample.kwargs.get("attn_mask")) is not None
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype == torch.bool,
         reason="this overload takes a non-boolean mask",
     )
@@ -1834,8 +1797,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         tolerance={torch.float32: (3e-4, 1.5e-5)},
     )
     .skip(
-        matcher=lambda sample: (
-            attn_mask := sample.kwargs.get("attn_mask")) is not None
+        matcher=lambda sample: (attn_mask := sample.kwargs.get("attn_mask")) is not None
         and attn_mask.dtype != torch.bool,
         reason="this overload takes a boolean mask",
     )
@@ -1971,8 +1933,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .skip(
         # Don't accept input[1]=bool and 'correction' must be in kwargs
-        matcher=lambda sample: len(
-            sample.args) > 0 or "correction" not in sample.kwargs,
+        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
     ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
@@ -1980,16 +1941,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "arange", ("arange_start", "arange_start_step"))
+ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "atleast_1d", ("atleast_1d_Sequence",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_1d", ("atleast_1d_Sequence",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_2d", ("atleast_2d_Sequence",))
+ops_test_common.duplicate_opinfo(OPS_DB, "atleast_3d", ("atleast_3d_Sequence",))
 ops_test_common.duplicate_opinfo(
     OPS_DB,
     "bitwise_left_shift",
@@ -2026,8 +1983,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "mean", ("mean_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "min", ("min_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "minimum", ("minimum_bool",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_empty", ("new_empty_dtype",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
+ops_test_common.duplicate_opinfo(OPS_DB, "new_empty_strided", ("new_empty_strided_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_full", ("new_full_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_ones", ("new_ones_dtype",))
 ops_test_common.duplicate_opinfo(OPS_DB, "new_zeros", ("new_zeros_dtype",))
@@ -2068,16 +2024,12 @@ ops_test_common.duplicate_opinfo(
 ops_test_common.duplicate_opinfo(
     OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
 )
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
+ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "view_as_complex", ("view_as_complex_copy",))
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "view_as_real", ("view_as_real_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
+ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 
 # MARK: End edits here
 
@@ -2228,10 +2180,8 @@ for op in PRIMS_OPS_WITH_OP_INFO:
 
 # Duplicate cases where the prims op name is different from the torch op name
 ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "i0", "bessel_i0")
-ops_test_common.duplicate_opinfo_for_prims(
-    OPS_DB, "special.bessel_j0", "bessel_j0")
-ops_test_common.duplicate_opinfo_for_prims(
-    OPS_DB, "special.bessel_j1", "bessel_j1")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j0", "bessel_j0")
+ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.bessel_j1", "bessel_j1")
 ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.erfcx", "erfcx")
 ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i0e", "bessel_i0e")
 ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.i1", "bessel_i1")
@@ -2242,12 +2192,10 @@ ops_test_common.duplicate_opinfo_for_prims(
 )
 ops_test_common.duplicate_opinfo_for_prims(OPS_DB, "special.zeta", "zeta")
 
-OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(
-    meta.op_name for meta in SKIP_XFAIL_SUBTESTS)
+OP_WITH_SKIPPED_XFAIL_SUBTESTS = frozenset(meta.op_name for meta in SKIP_XFAIL_SUBTESTS)
 ALL_OPS_IN_DB = frozenset(op_info.name for op_info in OPS_DB)
 # Assert all ops in OPINFO_FUNCTION_MAPPING are in the OPS_DB
-assert TESTED_OPS.issubset(
-    ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
+assert TESTED_OPS.issubset(ALL_OPS_IN_DB), f"{TESTED_OPS - ALL_OPS_IN_DB} not in OPS_DB"
 assert NONDETERMINISTIC_OPS.issubset(
     TESTED_OPS
 ), f"{NONDETERMINISTIC_OPS - TESTED_OPS} not in TESTED_OPS"
