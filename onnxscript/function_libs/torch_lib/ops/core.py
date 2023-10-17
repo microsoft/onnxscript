@@ -5860,7 +5860,9 @@ def aten_normal_float_float(
     return op.Cast(result, to=dtype)
 
 
-@torch_op(("aten::normal.float_Tensor", "aten::normal.Tensor_float", "aten::normal.Tensor_Tensor"))
+@torch_op(
+    ("aten::normal.float_Tensor", "aten::normal.Tensor_float", "aten::normal.Tensor_Tensor")
+)
 def aten_normal_tensor_tensor(mean: TFloat, std: TFloat) -> TFloat:
     """normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor"""
 

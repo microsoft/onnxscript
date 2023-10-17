@@ -520,7 +520,9 @@ def sample_inputs_normal_tensor_tensor(op_info, device, dtype, requires_grad, **
     del op_info
     del requires_grad
     del kwargs
-    make_arg = functools.partial(torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False)
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False
+    )
     samples = (
         ((S, S), (S, S)),
         ((S, S, S), (S, S, S)),
