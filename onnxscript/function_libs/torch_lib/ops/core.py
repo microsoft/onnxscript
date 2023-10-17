@@ -5861,7 +5861,7 @@ def aten_normal_float_float(
 
 
 @torch_op(("aten::normal.float_Tensor", "aten::normal.Tensor_float", "aten::normal.Tensor_Tensor"))
-def aten_normal_tensor_float(mean: TFloat, std: TFloat) -> TFloat:
+def aten_normal_tensor_tensor(mean: TFloat, std: TFloat) -> TFloat:
     """normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor"""
 
     sampled = op.RandomNormalLike(mean, mean=0.0, scale=1.0)
