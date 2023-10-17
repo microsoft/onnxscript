@@ -526,7 +526,7 @@ def sample_inputs_normal_tensor_tensor(op_info, device, dtype, requires_grad, **
         ((S, S, S), (S, S, S)),
     )
     for mean, std in samples:
-        yield opinfo_core.SampleInput(make_arg(mean), make_arg(std))
+        yield opinfo_core.SampleInput(make_arg(mean), make_arg(std, low=0.0))
 
 
 def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
