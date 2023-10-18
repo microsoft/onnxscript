@@ -5867,7 +5867,7 @@ def aten_normal_float_tensor(mean: FLOAT, std: TFloat) -> TFloat:
     mean_casted = op.CastLike(mean, std)
     sampled = op.RandomNormalLike(mean_casted, mean=0.0, scale=1.0)
     # Transform the distribution to the mean and std
-    return op.Add(op.Mul(mean_casted, sampled), std)
+    return op.Add(op.Mul(std, sampled), mean_casted)
 
 
 @torch_op("aten::normal.Tensor_float")
@@ -5876,7 +5876,7 @@ def aten_normal_tensor_float(mean: TFloat, std: FLOAT) -> TFloat:
 
     sampled = op.RandomNormalLike(mean, mean=0.0, scale=1.0)
     # Transform the distribution to the mean and std
-    return op.Add(op.Mul(mean, sampled), op.CastLike(std, sampled))
+    return op.Add(op.Mul(op.CastLike(std, sampled), sampled), mean)
 
 
 @torch_op("aten::normal.Tensor_Tensor")
@@ -5885,7 +5885,7 @@ def aten_normal_tensor_tensor(mean: TFloat, std: TFloat) -> TFloat:
 
     sampled = op.RandomNormalLike(mean, mean=0.0, scale=1.0)
     # Transform the distribution to the mean and std
-    return op.Add(op.Mul(mean, sampled), std)
+    return op.Add(op.Mul(std, sampled), mean)
 
 
 def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
