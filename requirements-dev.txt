@@ -14,7 +14,7 @@ sphinx-gallery
 sphinx>=6
 
 # Torch lib
-beartype
+beartype!=0.16.0
 
 # Testing
 expecttest

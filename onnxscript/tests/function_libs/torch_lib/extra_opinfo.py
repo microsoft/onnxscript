@@ -516,6 +516,201 @@ def sample_inputs_native_dropout(
         yield opinfo_core.SampleInput(make_arg(case), p=p, train=training)
 
 
+def sample_inputs_normal_tensor_float(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del requires_grad
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False
+    )
+    samples = (
+        ((S, S), 0.0),
+        ((S, S, S), 4.2),
+    )
+    for mean, std in samples:
+        yield opinfo_core.SampleInput(make_arg(mean), std)
+
+
+def sample_inputs_normal_float_tensor(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del requires_grad
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False
+    )
+    samples = (
+        (4.2, (S, S)),
+        (-2.0, (S, S, S)),
+    )
+    for mean, std in samples:
+        yield opinfo_core.SampleInput(mean, make_arg(std, low=0.0))
+
+
+def sample_inputs_normal_tensor_tensor(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del requires_grad
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False
+    )
+    samples = (
+        ((S, S), (S, S)),
+        ((S, S, S), (S, S, S)),
+    )
+    for mean, std in samples:
+        yield opinfo_core.SampleInput(make_arg(mean), make_arg(std, low=0.0))
+
+
+def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del device  # Unused
+    del requires_grad  # Unused
+    del kwargs  # Unused
+
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(shape, kwargs=dict(dtype=dtype))
+
+
+def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(make_arg(shape))
+
+
+def sample_inputs_rand_like_dtype(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=torch.float32,
+        requires_grad=requires_grad,
+    )
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
+
+
+def sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+    del self  # Unused
+
+    inputs = [
+        ((), {}),
+        ((S, S), {}),
+        ((0, S, 0), {}),
+        ((S,), {}),
+    ]
+    for shape, kwargs in inputs:
+        t = torch_testing.make_tensor(
+            shape, dtype=dtype, device=device, low=None, high=None, requires_grad=requires_grad
+        )
+        yield opinfo_core.SampleInput(t, **kwargs)
+
+
+def sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
+    del self  # Unused
+
+    inputs = [
+        ((S,), {"dtype": dtype}),
+        # Hard-code some dtypes/devices. We want to test cases where the
+        # (dtype, device) is different from the input's (dtype, device)
+        ((S,), {"dtype": torch.double}),
+    ]
+    for shape, kwargs in inputs:
+        t = torch_testing.make_tensor(
+            shape, dtype=dtype, device=device, low=None, high=None, requires_grad=requires_grad
+        )
+        yield opinfo_core.SampleInput(t, **kwargs)
+
+
+def sample_inputs_randint(self, device, dtype, requires_grad, **kwargs):
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With high
+        yield opinfo_core.SampleInput(high, sample.input.shape, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_low(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(
+            low, high, sample.input.shape, *sample.args, **sample.kwargs
+        )
+
+
+def sample_inputs_randint_like(self, device, dtype, requires_grad, **kwargs):
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With high
+        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_like_dtype(self, device, dtype, requires_grad, **kwargs):
+    high = 10
+
+    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_like_low_dtype(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_like_low_dtype_dtype(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randn(op, device, dtype, requires_grad, **kwargs):
+    del op  # Unused
+    del device  # Unused
+    del requires_grad  # Unused
+    del kwargs  # Unused
+
+    shapes = ((M,), (S, S))
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(input=shape, kwargs=dict(dtype=dtype))
+
+
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -902,6 +1097,34 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(input_, args=(src, *args))
 
 
+def sample_inputs__log_softmax(
+    op_info,
+    device,
+    dtype,
+    requires_grad,
+    **kwargs,
+):
+    del op_info  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    cases = [
+        ((S,), (0,)),
+        ((S, S), (0,)),
+        ((S, S), (1,)),
+        ((S, S), (-1,)),
+        ((S, M, S), (2,)),
+        ((S, 0, 0), (-1,)),
+    ]
+
+    for (shape, dim), half_to_float in itertools.product(cases, (False,)):
+        # NOTE: softmax with half to float conversion is not supported on CPU
+        # So we don't test it here
+        kwargs = dict(half_to_float=half_to_float)
+        yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
+
+
 def sample_inputs__softmax(
     op_info,
     device,
@@ -928,6 +1151,50 @@ def sample_inputs__softmax(
         # So we don't test it here
         kwargs = dict(half_to_float=half_to_float)
         yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
+
+
+def sample_inputs_scaled_dot_product_flash_attention(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info
+    del kwargs
+
+    make = opinfo_core.partial(
+        opinfo_core.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    batch, seq_q, seq_kv, num_heads, head_dim = 4, 3, 6, 4, 8
+
+    dim_4_q_shape = (batch, num_heads, seq_q, head_dim)
+    dim_4_kv_shape = (batch, num_heads, seq_kv, head_dim)
+
+    qkv_shapes = [(dim_4_q_shape, dim_4_kv_shape)]
+    samples = []
+    for qkv_shape, is_causal, dropout_p in opinfo_core.product(
+        qkv_shapes, [True, False], [0.0]
+    ):
+        shape_q, shape_kv = qkv_shape
+        samples.append(
+            opinfo_core.SampleInput(
+                make(shape_q),
+                make(shape_kv),
+                make(shape_kv),
+                is_causal=is_causal,
+                dropout_p=dropout_p,
+            )
+        )
+
+    # Add an attn_mask
+    samples.append(
+        opinfo_core.SampleInput(
+            make((batch, num_heads, seq_q, head_dim)),
+            make((batch, num_heads, seq_kv, head_dim)),
+            make((batch, num_heads, seq_kv, head_dim)),
+            is_causal=False,
+            dropout_p=0.0,
+        )
+    )
+
+    yield from samples
 
 
 # NOTE: How to create an OpInfo:
@@ -1041,6 +1308,27 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.normal.float_Tensor",
+        aten_name="normal.Tensor_Tensor",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_normal_float_tensor,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.normal.Tensor_float",
+        aten_name="normal.Tensor_Tensor",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_normal_tensor_float,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.normal.Tensor_Tensor",
+        aten_name="normal.Tensor_Tensor",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_normal_tensor_tensor,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "nn.functional.max_pool1d_with_indices",
         aten_name="max_pool1d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
@@ -1059,6 +1347,94 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool3d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.rand",
+        aten_name="rand",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_rand,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.rand_like",
+        aten_name="rand_like",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_rand_like,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.rand_like__dtype",
+        op=torch.ops.aten.rand_like,
+        aten_name="rand_like",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_rand_like_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint",
+        aten_name="randint",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint.low",
+        aten_name="randint.low",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_low,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like",
+        aten_name="randint_like",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like__dtype",
+        op=torch.ops.aten.randint_like,
+        aten_name="randint_like",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like.low_dtype",
+        aten_name="randint_like.low_dtype",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like_low_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like.low_dtype__dtype",
+        op=torch.ops.aten.randint_like.low_dtype,
+        aten_name="randint_like.low_dtype",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like_low_dtype_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn",
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_randn,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn_like",
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_like_fns,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn_like_dtype",
+        op=torch.ops.aten.randn_like,
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_like_fns_dtype,
         supports_out=False,
     ),
     # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
@@ -1124,10 +1500,31 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten._log_softmax",
+        op=torch.ops.aten._log_softmax,  # pylint: disable=protected-access
+        aten_name="_log_softmax",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs__log_softmax,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten._softmax",
+        op=torch.ops.aten._softmax,  # pylint: disable=protected-access
         aten_name="_softmax",
         dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=sample_inputs__softmax,
         supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._scaled_dot_product_flash_attention",
+        aten_name="_scaled_dot_product_flash_attention",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        # NOTE: Different from aten::scaled_dot_product_attention, this op doesn't support
+        #       dim<=3 input.
+        sample_inputs_func=sample_inputs_scaled_dot_product_flash_attention,
+        supports_out=False,
+        supports_forward_ad=False,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
     ),
 ]
