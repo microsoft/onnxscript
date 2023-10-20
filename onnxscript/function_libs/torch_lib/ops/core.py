@@ -591,8 +591,8 @@ def _adjust_args_for_arange_int_dtype(
     end = op.Cast(end, to=FLOAT.dtype)
     step = op.Cast(step, to=FLOAT.dtype)
 
-    start = op.Where(op.Less(start, zero), start, op.Ceil(start))
-    start = op.Where(op.Less(step, zero), start, op.Floor(start))
+    start = op.Where(op.Less(start, zero), op.Ceil(start), start)
+    start = op.Where(op.Less(step, zero), op.Floor(start), start)
 
     return (start, end, step)
 
