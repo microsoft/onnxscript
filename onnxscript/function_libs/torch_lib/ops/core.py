@@ -2852,28 +2852,56 @@ def _aten_embedding_bag_onnx(
 
 def test_embedding_bag_onnx():
     import numpy as np
+    # https://github.com/microsoft/onnxscript/issues/1056
+    # sample=7
     weight = np.array(
-        [[-6.5664,  6.6250,  7.0664, -3.7344,  0.6152],
-         [ 4.1484, -3.7266,  3.4805, -6.2422, -2.8047],
-         [ 4.2734, -4.1562, -8.2344, -7.4688,  5.2734],
-         [-1.5381,  5.9492, -4.2812, -1.5732, -8.3672],
-         [-2.1719,  8.0469, -7.9883, -0.4219, -2.3633],
-         [ 6.2305,  8.9844,  7.4453,  3.7891, -5.0625],
-         [-1.5293, -8.1328,  8.6484,  1.5557, -2.3633],
-         [-1.9951, -3.2070,  1.2920, -1.0020, -5.2812],
-         [ 2.5312,  8.4453,  2.3281, -2.8750, -3.3828],
-         [-4.2188, -4.2266, -2.7246, -6.8555, -7.6719]], dtype=np.float16)
-    indices = np.array([4, 9, 3, 0, 3], dtype=np.int64)
-    offsets = np.array([0, 3], dtype=np.int64)
+        [[ 1.9951, -1.1777, -3.7695, -3.3125,  8.5078],
+         [-3.9648, -3.2617,  4.5430, -6.7500,  1.1953],
+         [ 1.8193, -4.9297,  8.3438,  1.2217,  0.0352],
+         [-5.2812, -5.9414, -0.7295,  2.4785, -3.8496],
+         [ 7.2070, -0.1582,  3.8047,  1.9248, -1.8018]],
+         dtype=np.float16)
+    indices = np.array([2, 3, 1, 4, 3, 0], dtype=np.int64)
+    offsets = np.array([0, 3, 6], dtype=np.int64)
     mode = 0 # sum
-    per_sample_weights = np.array([-2.2930,  6.2148,  3.1562,  0.0791,  6.3555], dtype=np.float16)
-    result, offset2bag, bag_size, max_indices = aten_embedding_bag(weight, indices, offsets, mode=mode, per_sample_weights=per_sample_weights)
+    include_last_offset = True
+    #per_sample_weights = np.array([-2.2930,  6.2148,  3.1562,  0.0791,  6.3555], dtype=np.float16)
+    result, offset2bag, bag_size, max_indices = aten_embedding_bag(weight, indices, offsets, mode=mode, include_last_offset=include_last_offset)
+    print("result from onnx-script:")
     print(result)
     print(offset2bag)
     print(bag_size)
     print(max_indices)
 
 def test_embedding_bag_aten():
+    import torch as t
+
+    weight = t.tensor(
+        [[ 1.9951, -1.1777, -3.7695, -3.3125,  8.5078],
+         [-3.9648, -3.2617,  4.5430, -6.7500,  1.1953],
+         [ 1.8193, -4.9297,  8.3438,  1.2217,  0.0352],
+         [-5.2812, -5.9414, -0.7295,  2.4785, -3.8496],
+         [ 7.2070, -0.1582,  3.8047,  1.9248, -1.8018]],
+         dtype=t.float16)
+
+    indices = t.tensor([2, 3, 1, 4, 3, 0],
+         dtype=t.int64)
+
+    mode = 0
+
+    offsets = t.tensor([0, 3, 6], dtype=t.int64)
+    mode = 0 # sum
+    include_last_offset = True
+    #per_sample_weights = t.tensor([-2.2930,  6.2148,  3.1562,  0.0791,  6.3555], dtype=t.float16)
+
+    result, offset2bag, bag_size, max_indices = t.ops.aten.embedding_bag(weight, indices, offsets, mode=mode, include_last_offset=include_last_offset)
+    print("result from aten:")
+    print(result)
+    print(offset2bag)
+    print(bag_size)
+    print(max_indices)
+
+def test_embedding_bag_nn_function():
     import torch as t
     weight = t.tensor(
         [[-6.5664,  6.6250,  7.0664, -3.7344,  0.6152],
@@ -2890,14 +2918,14 @@ def test_embedding_bag_aten():
     offsets = t.tensor([0, 3], dtype=t.int64)
     mode = 0 # sum
     per_sample_weights = t.tensor([-2.2930,  6.2148,  3.1562,  0.0791,  6.3555], dtype=t.float16)
-    result, offset2bag, bag_size, max_indices = t.ops.aten.embedding_bag(weight, indices, offsets, mode=mode, per_sample_weights=per_sample_weights)
+    result = t.nn.functional.embedding_bag(indices, weight, offsets=offsets, mode="sum", per_sample_weights=per_sample_weights)
+    print("result from nn.functional:")
     print(result)
-    print(offset2bag)
-    print(bag_size)
-    print(max_indices)
+
 
 test_embedding_bag_onnx()
 test_embedding_bag_aten()
+#test_embedding_bag_nn_function()
 
 exit(0)
 
