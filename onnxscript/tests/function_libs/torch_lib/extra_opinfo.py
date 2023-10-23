@@ -839,9 +839,13 @@ def sample_inputs_embedding_renorm(op_info, device, dtype, requires_grad, **kwar
 
     for max_norm in (0.5, 1.0, 5.0):
         for norm_type in (0.8, 1.0, 2.0, 2.5):
-            idx = make_long_input((6, ), low=0, high=S)
+            idx = make_long_input((6,), low=0, high=S)
             weights = make_input((S, S)) * 2
-            yield common_methods_invocations.SampleInput(weights, args=(idx,), kwargs={"max_norm": max_norm, "norm_type": norm_type},)
+            yield common_methods_invocations.SampleInput(
+                weights,
+                args=(idx,),
+                kwargs={"max_norm": max_norm, "norm_type": norm_type},
+            )
 
 
 def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):

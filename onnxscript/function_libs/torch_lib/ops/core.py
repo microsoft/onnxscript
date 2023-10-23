@@ -3001,7 +3001,9 @@ def aten_embedding_dense_backward(
 
 
 @torch_op("aten::embedding_renorm", trace_only=True)
-def aten_embedding_renorm(weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0) -> TFloat:
+def aten_embedding_renorm(
+    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
+) -> TFloat:
     """aten_embedding_renorm(Tensor weight, Tensor indices, float max_norm, float norm_type) -> Tensor"""
 
     unique_indices = op.Unique(indices)
@@ -3016,7 +3018,9 @@ def aten_embedding_renorm(weight: TFloat, indices: INT64, max_norm: float, norm_
 
 
 @torch_op("aten::embedding_renorm", private=True)
-def aten_embedding_renorm_onnx(weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0) -> TFloat:
+def aten_embedding_renorm_onnx(
+    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
+) -> TFloat:
     partial_weight = op.Gather(weight, indices)
     # partial_weight_norm = sum(|w|^p)^(1/p)
     if norm_type == 1.0:
@@ -3040,7 +3044,9 @@ def aten_embedding_renorm_onnx(weight: TFloat, indices: INT64, max_norm: float, 
     scales = op.Div(max_norm, partial_weight_norm_)
     partial_weight_renorm = op.Mul(partial_weight, scales)
     # Set values to renormed values where weight_norm > max_norm, but keep the original values where weight_norm <= max_norm
-    partial_weight_renorm = op.Where(op.Greater(partial_weight_norm, max_norm), partial_weight_renorm, partial_weight)
+    partial_weight_renorm = op.Where(
+        op.Greater(partial_weight_norm, max_norm), partial_weight_renorm, partial_weight
+    )
     value = op.ScatterND(weight, op.Unsqueeze(indices, [1]), partial_weight_renorm)
     return value
 
