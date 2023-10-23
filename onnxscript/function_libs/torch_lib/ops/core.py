@@ -3004,7 +3004,7 @@ def aten_embedding_dense_backward(
 def aten_embedding_renorm(
     weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
 ) -> TFloat:
-    """aten_embedding_renorm(Tensor weight, Tensor indices, float max_norm, float norm_type) -> Tensor"""
+    """embedding_renorm(Tensor weight, Tensor indices, float max_norm, float norm_type) -> Tensor"""
 
     unique_indices = op.Unique(indices)
     unique_indices_Y = op.SequenceAt(unique_indices, 0)
