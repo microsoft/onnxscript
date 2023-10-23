@@ -1044,6 +1044,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(
+        "ops.aten.embedding_renorm",
+        core_ops.aten_embedding_renorm,
+        tolerance={torch.float16: (1e-2, 1e-2)},
+        trace_only=True,
+        compare_shape_only_for_output=(1, 2, 3),
+    ),
+    TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
