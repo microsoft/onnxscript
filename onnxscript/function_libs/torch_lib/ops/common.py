@@ -22,10 +22,6 @@ class CommonOpset(onnxscript.values.Opset):
 
 common_opset = CommonOpset()
 
-# TODO(justinchuby): How does onnxscript know what an op is a function?
-# Or do we need onnxscript to support calling functions from a different module?
-
-
 @onnxscript.script(common_opset)
 def Rank(input: tensor_typing.TTensor) -> INT64:
     """Take the rank of the input tensor."""
