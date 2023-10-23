@@ -22,6 +22,7 @@ class CommonOpset(onnxscript.values.Opset):
 
 common_opset = CommonOpset()
 
+
 @onnxscript.script(common_opset)
 def Rank(input: tensor_typing.TTensor) -> INT64:
     """Take the rank of the input tensor."""
