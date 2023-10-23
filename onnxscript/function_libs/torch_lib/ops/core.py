@@ -30,6 +30,7 @@ from onnxscript import (
     UINT64,
     graph,
 )
+from onnxscript.function_libs.torch_lib.ops.common import common_opset
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -48,7 +49,6 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
-from onnxscript.function_libs.torch_lib.ops.common import common_opset
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808

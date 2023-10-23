@@ -728,7 +728,6 @@ class TorchScriptGraph:
             opset_imports=onnx_model.opset_import,
             doc_string=onnx_model.doc_string,
         )
-        # TODO: onnx.checker.check_function(onnx_function)?
         return onnx_function
 
     @runtime_typing.checked
@@ -811,6 +810,13 @@ class TorchScriptGraph:
                 onnx.helper.make_opsetid(domain, version)
                 for domain, version in unique_custom_domains.items()
             ]
+        )
+        # Include the library shared opset domain
+        # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
+        onnx_model.opset_import.append(
+            onnx.helper.make_opsetid(
+                common_ops.common_opset.domain, common_ops.common_opset.version
+            )
         )
 
         try:
