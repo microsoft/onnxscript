@@ -21,6 +21,7 @@ import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
 from onnxscript._internal import param_manipulation, runtime_typing
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 
 __all__ = [
     "TorchScriptTensor",
@@ -361,6 +362,16 @@ def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
         The estimated size of the tensor in bytes.
     """
     return tensor.numel() * tensor.element_size()
+
+
+def _shared_functions() -> list[onnx.FunctionProto]:
+    """Hack to always include the share ops."""
+
+    # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
+    return [
+        common_ops.Rank.to_function_proto(),
+        common_ops.IsScalar.to_function_proto(),
+    ]
 
 
 class TorchScriptGraph:
@@ -786,6 +797,7 @@ class TorchScriptGraph:
             onnx_model = onnx.load_from_string(proto)
 
         onnx_model.functions.extend(function_proto_dict.values())
+        onnx_model.functions.extend(_shared_functions())
 
         # `_export_onnx` only exports opset_imports that is visible to it. It does not
         # export opset_imports for nested functions, since it does not have access to

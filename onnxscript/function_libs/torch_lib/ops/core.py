@@ -48,6 +48,7 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+from onnxscript.function_libs.torch_lib.ops.common import common_opset
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
@@ -320,8 +321,7 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
+    if common_opset.IsScalar(self):
         result = op.Cast(self, to=BOOL.dtype)
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
