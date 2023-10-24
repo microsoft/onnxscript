@@ -30,7 +30,7 @@ from onnxscript import (
     UINT64,
     graph,
 )
-from onnxscript.function_libs.torch_lib.ops.common import common_opset
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -53,6 +53,8 @@ from onnxscript.onnx_types import TensorType
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
+IsScalar = common_ops.IsScalar
+Rank = common_ops.Rank
 
 
 @torch_op("aten::_local_scalar_dense")
@@ -321,7 +323,7 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
-    if common_opset.IsScalar(self):
+    if IsScalar(self):
         result = op.Cast(self, to=BOOL.dtype)
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)

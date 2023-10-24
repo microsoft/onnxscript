@@ -30,9 +30,7 @@ class TestDeduceTypeConstraints(unittest.TestCase):
         "_aten_embedding_bag_onnx",
         "_aten_embedding_bag_1d_padding_idx_onnx",
     )
-    _SKIP_FUNCTIONS_WITH_NESTED_FUNCTION = (
-        "aten_all",
-    )
+    _SKIP_FUNCTIONS_WITH_NESTED_FUNCTION = ("aten_all",)
 
     @parameterized.parameterized.expand(
         ((op,) for op in torch_lib_onnx_functions_from_registry()),
