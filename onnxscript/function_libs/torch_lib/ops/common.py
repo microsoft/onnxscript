@@ -13,10 +13,10 @@ class CommonOpset(onnxscript.values.Opset):
     def __new__(cls):
         return onnxscript.values.Opset.__new__(cls, DOMAIN, 1)
 
-    def Rank(self, x: tensor_typing.TTensor) -> INT64:
+    def Rank(self, input: tensor_typing.TTensor) -> INT64:
         return Rank(x)
 
-    def IsScalar(self, x: tensor_typing.TTensor) -> BOOL:
+    def IsScalar(self, input: tensor_typing.TTensor) -> BOOL:
         return IsScalar(x)
 
 
