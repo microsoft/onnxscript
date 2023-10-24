@@ -3000,6 +3000,57 @@ def aten_embedding_dense_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::embedding_renorm", trace_only=True)
+def aten_embedding_renorm(
+    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
+) -> TFloat:
+    """embedding_renorm(Tensor weight, Tensor indices, float max_norm, float norm_type) -> Tensor"""
+
+    unique_indices = op.Unique(indices)
+    unique_indices_Y = op.SequenceAt(unique_indices, 0)
+    # using _onnx private function because op.SrquenceAt(unique_indices, 0) cannot pass module checker
+    # The error message is:
+    # onnx.onnx_cpp2py_export.shape_inference.InferenceError:
+    # [ShapeInferenceError] Shape inference error(s): (op_type:aten_embedding_renorm,
+    # node name: aten_embedding_renorm_0): [ShapeInferenceError] (op_type:SequenceAt,
+    # node name: n2): input_sequence typestr: S, has unsupported type: tensor(int64)
+    return aten_embedding_renorm_onnx(weight, unique_indices_Y, max_norm, norm_type)
+
+
+@torch_op("aten::embedding_renorm", private=True)
+def aten_embedding_renorm_onnx(
+    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
+) -> TFloat:
+    partial_weight = op.Gather(weight, indices)
+    # partial_weight_norm = sum(|w|^p)^(1/p)
+    if norm_type == 1.0:
+        # This is not necessary, but op.ReduceL1 is faster than function list in 'else'
+        partial_weight_norm = op.ReduceL1(partial_weight, axes=[1], keepdims=True)
+    elif norm_type == 2.0:
+        # This is not necessary, but op.ReduceL2 is faster than function list in 'else'
+        partial_weight_norm = op.ReduceL2(partial_weight, axes=[1], keepdims=True)
+    else:
+        # Abs -> Pow -> ReduceSum -> Pow -> Pow
+        partial_weight_abs = op.Abs(partial_weight)
+        partial_weight_pow = op.Pow(partial_weight_abs, op.Constant(value_float=norm_type))
+        partial_weight_norm = op.ReduceSum(partial_weight_pow, axes=[1], keepdims=True)
+        pow_value = op.CastLike(1.0 / norm_type, weight)
+        partial_weight_norm = op.Pow(partial_weight_norm, pow_value)
+
+    max_norm = op.CastLike(op.Constant(value_float=max_norm), weight)
+    # This is to avoid weight is zero
+    err = op.CastLike(op.Constant(value_float=1e-7), weight)
+    partial_weight_norm_ = op.Add(partial_weight_norm, err)
+    scales = op.Div(max_norm, partial_weight_norm_)
+    partial_weight_renorm = op.Mul(partial_weight, scales)
+    # Set values to renormed values where weight_norm > max_norm, but keep the original values where weight_norm <= max_norm
+    partial_weight_renorm = op.Where(
+        op.Greater(partial_weight_norm, max_norm), partial_weight_renorm, partial_weight
+    )
+    value = op.ScatterND(weight, op.Unsqueeze(indices, [1]), partial_weight_renorm)
+    return value
+
+
 def aten_embedding_sparse_backward(
     grad: TensorType,
     indices: TensorType,

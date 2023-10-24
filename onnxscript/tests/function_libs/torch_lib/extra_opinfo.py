@@ -818,6 +818,36 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
+def sample_inputs_embedding_renorm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    def make_input(shape):
+        return common_methods_invocations.make_tensor(
+            shape, device=device, dtype=dtype, requires_grad=requires_grad
+        )
+
+    def make_long_input(shape, *, low, high, noncontiguous=False):
+        return common_methods_invocations.make_tensor(
+            shape,
+            device=device,
+            dtype=torch.long,
+            low=low,
+            high=high,
+            noncontiguous=noncontiguous,
+        )
+
+    for max_norm in (0.5, 1.0, 5.0):
+        for norm_type in (0.8, 1.0, 2.0, 2.5):
+            idx = make_long_input((6,), low=0, high=S)
+            weights = make_input((S, S)) * 2
+            yield common_methods_invocations.SampleInput(
+                weights,
+                args=(idx,),
+                kwargs={"max_norm": max_norm, "norm_type": norm_type},
+            )
+
+
 def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -1238,6 +1268,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="embedding_bag.padding_idx",
         dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=sample_inputs_embedding_bag_padding_idx,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.embedding_renorm",
+        aten_name="embedding_renorm",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_embedding_renorm,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
