@@ -7,6 +7,7 @@ from types import FunctionType
 from typing import Any, Callable, Generator, Optional
 
 import onnxscript
+from onnxscript.function_libs.torch_lib import _constants
 
 # Regex that will match "<namespace>::<op_name>[.<overload>]"
 _QUALIFIED_OPERATOR_NAME_REGEX = re.compile(
@@ -119,7 +120,7 @@ def torch_op(
         func: FunctionType,
     ) -> onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction:
         # Compile the function
-        custom_opset = onnxscript.values.Opset(domain="pkg.onnxscript.torch_lib", version=1)
+        custom_opset = onnxscript.values.Opset(domain=_constants.DOMAIN, version=1)
 
         processed_func: onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction
         if trace_only:
