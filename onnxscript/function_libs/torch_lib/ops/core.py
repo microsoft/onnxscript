@@ -246,8 +246,7 @@ def aten_addmm(
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
-    result = op.Add(scaled_self, scaled_mat1_mat2)
-    return result
+    return op.Add(scaled_self, scaled_mat1_mat2)
 
 
 @torch_op("aten::addmm")
