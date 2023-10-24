@@ -282,6 +282,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
             param = name_to_schema[name]
             # Cast int to float if needed
             if param.type in {float, "float"}:
+                print(name, param.type)
                 # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
                 attributes[name] = float(value)
         return self._graph.add_function_call(function, inputs, attributes)

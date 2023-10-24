@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple, TypeVar, Union
 
 from onnxscript import (
     BFLOAT16,
@@ -49,6 +49,19 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+TRealUnlessFloat32 = TypeVar(
+    "TRealUnlessFloat32",
+    bound=Union[
+        BFLOAT16,
+        FLOAT16,
+        DOUBLE,
+        INT8,
+        INT16,
+        INT32,
+        INT64,
+    ],
+)
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
@@ -222,14 +235,42 @@ def aten_addcmul(
 
 @torch_op("aten::addmm")
 def aten_addmm(
-    self: TReal, mat1: TReal, mat2: TReal, beta: float = 1.0, alpha: float = 1.0
-) -> TReal:
+    self: TRealUnlessFloat32,
+    mat1: TRealUnlessFloat32,
+    mat2: TRealUnlessFloat32,
+    beta: float = 1.0,
+    alpha: float = 1.0,
+) -> TRealUnlessFloat32:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     mat1_mat2 = op.MatMul(mat1, mat2)
     scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
     scaled_self = op.Mul(self, beta)
-    return op.Add(scaled_self, scaled_mat1_mat2)
+    result = op.Add(scaled_self, scaled_mat1_mat2)
+    return result
+
+
+@torch_op("aten::addmm")
+def aten_addmm_gemm(
+    self: FLOAT, mat1: FLOAT, mat2: FLOAT, beta: float = 1.0, alpha: float = 1.0
+) -> FLOAT:
+    """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+
+    # A special case when rank of mat1 and mat2 are 2, we can use Gemm instead of MatMul
+    # We expect the if branches to be folded away by optimization passes
+    # TODO(#1110): Handle Gemm with a graph rewriting pass instead of hard coding the branching logic here
+    use_gemm = op.And(
+        op.Equal(Rank(mat1), op.Constant(value_int=2)),
+        op.Equal(Rank(mat2), op.Constant(value_int=2)),
+    )
+    if use_gemm:
+        result = op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
+    else:
+        mat1_mat2 = op.MatMul(mat1, mat2)
+        scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
+        scaled_self = op.Mul(self, beta)
+        result = op.Add(scaled_self, scaled_mat1_mat2)
+    return result
 
 
 @torch_op("aten::addmv")
@@ -5235,7 +5276,6 @@ def aten_mm(
 ) -> TRealUnlessInt16OrInt8:
     """mm(Tensor self, Tensor mat2) -> Tensor"""
 
-    # TODO(justinchuby): Specify type conversion for uint8/int8/int16
     return op.MatMul(self, mat2)
 
 
