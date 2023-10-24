@@ -22,4 +22,4 @@ def Rank(input: tensor_typing.TTensor) -> INT64:
 def IsScalar(input: tensor_typing.TTensor) -> BOOL:
     """Return whether the input has rank 0, or is a scalar."""
 
-    return op.Size(op.Shape(input)) == 0
+    return op.Equal(op.Size(op.Shape(input)), op.Constant(value_int=0))
