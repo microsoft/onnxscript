@@ -23,7 +23,7 @@ def _load_boolean_flag(
         this_will: A string that describes what this flag will do.
         deprecated: Whether this flag is deprecated.
     """
-    state = os.getenv(name) == 1
+    state = os.getenv(name) == "1"
     if state:
         if deprecated:
             logger.error(
