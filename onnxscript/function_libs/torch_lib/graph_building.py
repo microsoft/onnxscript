@@ -750,7 +750,6 @@ class TorchScriptGraph:
 
         large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
 
-        # TODO(justinchuby): If initializers is empty, do we still know which ones are initializers? Should we use the defer_weight_export argument?
         export_kwargs: dict[str, Any] = dict(
             initializers=self.initializers
             if include_initializers and not _flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS
