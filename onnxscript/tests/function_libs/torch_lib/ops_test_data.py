@@ -488,8 +488,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
-    TorchLibOpInfo("addmm", core_ops.aten_addmm),
-    TorchLibOpInfo("addmm_gemm", core_ops.aten_addmm_gemm).xfail(
+    TorchLibOpInfo("addmm", core_ops.aten_addmm).xfail(
         "decomposed",
         reason=(
             "The float attributes alpha/beta come in as int in the test cases, which breaks"
@@ -497,6 +496,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         ),
         test_class_name="TestOutputConsistencyEager",
     ),
+    TorchLibOpInfo("addmm_int", core_ops.aten_addmm_int),
     TorchLibOpInfo("addmv", core_ops.aten_addmv),
     TorchLibOpInfo(
         "addr",
@@ -1976,7 +1976,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
-ops_test_common.duplicate_opinfo(OPS_DB, "addmm", ("addmm_gemm",))
+ops_test_common.duplicate_opinfo(OPS_DB, "addmm", ("addmm_int",))
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))

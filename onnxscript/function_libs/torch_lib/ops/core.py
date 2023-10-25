@@ -230,6 +230,19 @@ def aten_addmm(
     return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
+@torch_op("aten::addmm")
+def aten_addmm_int(
+    self: TInt, mat1: TInt, mat2: TInt, beta: float = 1.0, alpha: float = 1.0
+) -> TInt:
+    """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
+
+    mat1_mat2 = op.MatMul(mat1, mat2)
+    # NOTE: The following Mul should be optimized away by a pass when alpha and beta are 1.0
+    scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
+    scaled_self = op.Mul(self, beta)
+    return op.Add(scaled_self, scaled_mat1_mat2)
+
+
 @torch_op("aten::addmv")
 def aten_addmv(
     self: TReal, mat: TReal, vec: TReal, beta: float = 1.0, alpha: float = 1.0
