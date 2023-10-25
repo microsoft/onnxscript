@@ -488,7 +488,24 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
-    TorchLibOpInfo("addmm", core_ops.aten_addmm),
+    TorchLibOpInfo("addmm", core_ops.aten_addmm)
+    .xfail(
+        "decomposed",
+        reason=(
+            "The float attributes alpha/beta come in as int in the test cases, which breaks"
+            "eager mode. We don't need to care about this as long as the full graph tests pass"
+        ),
+        test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        dtypes=(torch.int16, torch.int32, torch.int64),
+        reason="ONNX Runtime does not support int inputs to Gemm",
+    )
+    .xfail(
+        "decomposed",
+        dtypes=(torch.int16, torch.int32, torch.int64),
+        reason="ONNX Runtime does not support int inputs to Gemm",
+    ),
     TorchLibOpInfo("addmv", core_ops.aten_addmv),
     TorchLibOpInfo(
         "addr",
@@ -1042,6 +1059,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding_bag_padding_idx,
         trace_only=True,
         tolerance={torch.float16: (1e-2, 1e-2)},
+        compare_shape_only_for_output=(1, 2, 3),
+    ),
+    TorchLibOpInfo(
+        "ops.aten.embedding_renorm",
+        core_ops.aten_embedding_renorm,
+        tolerance={torch.float16: (1e-2, 1e-2)},
+        trace_only=True,
         compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(

@@ -21,6 +21,8 @@ import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
 from onnxscript._internal import param_manipulation, runtime_typing
+from onnxscript.function_libs.torch_lib import _flags
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 
 __all__ = [
     "TorchScriptTensor",
@@ -361,6 +363,16 @@ def _tensor_rawdata_size(tensor: torch.Tensor) -> int:
         The estimated size of the tensor in bytes.
     """
     return tensor.numel() * tensor.element_size()
+
+
+def _shared_functions() -> list[onnx.FunctionProto]:
+    """Hack to always include the share ops."""
+
+    # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
+    return [
+        common_ops.Rank.to_function_proto(),
+        common_ops.IsScalar.to_function_proto(),
+    ]
 
 
 class TorchScriptGraph:
@@ -717,7 +729,6 @@ class TorchScriptGraph:
             opset_imports=onnx_model.opset_import,
             doc_string=onnx_model.doc_string,
         )
-        # TODO: onnx.checker.check_function(onnx_function)?
         return onnx_function
 
     @runtime_typing.checked
@@ -740,13 +751,15 @@ class TorchScriptGraph:
         large_model = initializers_size > _LARGE_MODEL_SIZE_THRESHOLD
 
         export_kwargs: dict[str, Any] = dict(
-            initializers=self.initializers if include_initializers else {},
+            initializers=self.initializers
+            if include_initializers and not _flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS
+            else {},
             onnx_opset_version=opset_version,
             dynamic_axes={},
             defer_weight_export=False,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
             strip_doc_string=False,
-            keep_initializers_as_inputs=False,
+            keep_initializers_as_inputs=_flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS,
             custom_opsets={},
             add_node_names=True,
             node_attr_to_name={},
@@ -786,6 +799,7 @@ class TorchScriptGraph:
             onnx_model = onnx.load_from_string(proto)
 
         onnx_model.functions.extend(function_proto_dict.values())
+        onnx_model.functions.extend(_shared_functions())
 
         # `_export_onnx` only exports opset_imports that is visible to it. It does not
         # export opset_imports for nested functions, since it does not have access to
@@ -799,6 +813,13 @@ class TorchScriptGraph:
                 onnx.helper.make_opsetid(domain, version)
                 for domain, version in unique_custom_domains.items()
             ]
+        )
+        # Include the library shared opset domain
+        # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
+        onnx_model.opset_import.append(
+            onnx.helper.make_opsetid(
+                common_ops.common_opset.domain, common_ops.common_opset.version
+            )
         )
 
         try:
