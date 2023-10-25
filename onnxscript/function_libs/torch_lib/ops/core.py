@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Optional, Sequence, Tuple, TypeVar, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
 from onnxscript import (
     BFLOAT16,
@@ -49,19 +49,6 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
 )
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
-
-TRealUnlessFloat32 = TypeVar(
-    "TRealUnlessFloat32",
-    bound=Union[
-        BFLOAT16,
-        FLOAT16,
-        DOUBLE,
-        INT8,
-        INT16,
-        INT32,
-        INT64,
-    ],
-)
 
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
@@ -235,12 +222,8 @@ def aten_addcmul(
 
 @torch_op("aten::addmm")
 def aten_addmm(
-    self: TRealUnlessFloat32,
-    mat1: TRealUnlessFloat32,
-    mat2: TRealUnlessFloat32,
-    beta: float = 1.0,
-    alpha: float = 1.0,
-) -> TRealUnlessFloat32:
+    self: TInt, mat1: TInt, mat2: TInt, beta: float = 1.0, alpha: float = 1.0
+) -> TInt:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     mat1_mat2 = op.MatMul(mat1, mat2)
@@ -251,8 +234,8 @@ def aten_addmm(
 
 @torch_op("aten::addmm")
 def aten_addmm_gemm(
-    self: FLOAT, mat1: FLOAT, mat2: FLOAT, beta: float = 1.0, alpha: float = 1.0
-) -> FLOAT:
+    self: TFloat, mat1: TFloat, mat2: TFloat, beta: float = 1.0, alpha: float = 1.0
+) -> TFloat:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
     # A special case when rank of mat1 and mat2 are 2, we can use Gemm instead of MatMul
