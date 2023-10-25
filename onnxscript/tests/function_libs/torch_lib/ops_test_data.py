@@ -488,14 +488,23 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
-    TorchLibOpInfo("addmm", core_ops.aten_addmm),
-    TorchLibOpInfo("addmm_gemm", core_ops.aten_addmm_gemm).xfail(
+    TorchLibOpInfo("addmm", core_ops.aten_addmm)
+    .xfail(
         "decomposed",
         reason=(
             "The float attributes alpha/beta come in as int in the test cases, which breaks"
             "eager mode. We don't need to care about this as long as the full graph tests pass"
         ),
         test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        dtypes=(torch.int16, torch.int32, torch.int64),
+        reason="ONNX Runtime does not support int inputs to Gemm",
+    )
+    .xfail(
+        "decomposed",
+        dtypes=(torch.int16, torch.int32, torch.int64),
+        reason="ONNX Runtime does not support int inputs to Gemm",
     ),
     TorchLibOpInfo("addmv", core_ops.aten_addmv),
     TorchLibOpInfo(
@@ -1976,7 +1985,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
-ops_test_common.duplicate_opinfo(OPS_DB, "addmm", ("addmm_gemm",))
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
