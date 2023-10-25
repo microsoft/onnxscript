@@ -11,7 +11,6 @@ import onnxscript
 import onnxscript.testing
 from onnxscript import FLOAT, evaluator
 from onnxscript import opset18 as op
-from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib import graph_building, ops
 
 
