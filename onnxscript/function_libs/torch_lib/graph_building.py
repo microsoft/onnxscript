@@ -20,8 +20,9 @@ from typing_extensions import TypeAlias
 import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
-from onnxscript._internal import param_manipulation, runtime_typing, flags
+from onnxscript._internal import param_manipulation, runtime_typing
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
+from onnxscript.function_libs.torch_lib import _flags
 
 __all__ = [
     "TorchScriptTensor",
@@ -751,13 +752,13 @@ class TorchScriptGraph:
 
         # TODO(justinchuby): If initializers is empty, do we still know which ones are initializers? Should we use the defer_weight_export argument?
         export_kwargs: dict[str, Any] = dict(
-            initializers=self.initializers if include_initializers or flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS else {},
+            initializers=self.initializers if include_initializers or _flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS else {},
             onnx_opset_version=opset_version,
             dynamic_axes={},
             defer_weight_export=False,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
             strip_doc_string=False,
-            keep_initializers_as_inputs=not flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS,
+            keep_initializers_as_inputs=not _flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS,
             custom_opsets={},
             add_node_names=True,
             node_attr_to_name={},
