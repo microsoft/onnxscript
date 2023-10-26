@@ -252,7 +252,10 @@ def run_test_output_match(
                         else torch.tensor(torch_output)
                     )
 
-                    if op.name in ops_test_data.NONDETERMINISTIC_OPS:
+                    if (
+                        op.name in ops_test_data.NONDETERMINISTIC_OPS
+                        or j in ops_test_data.COMPARE_SHAPE_ONLY_OPS[op.name]
+                    ):
                         # Check shape and dtype only for ops that are known to be
                         # nondeterministic
                         test_suite.assertEqual(actual.shape, expected.shape)

@@ -13,7 +13,7 @@ COMMON_TEST_DEPENDENCIES = (
     "jinja2",
     "numpy==1.23.5",
     "typing_extensions",
-    "beartype",
+    "beartype!=0.16.0",
     "types-PyYAML",
     "expecttest",
     "hypothesis",
@@ -26,9 +26,9 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest!=7.1.0",
     "pyyaml",
 )
-ONNX = "onnx==1.14.0"
-ONNX_RUNTIME = "onnxruntime==1.15.0"
-PYTORCH = "torch==2.0.1"
+ONNX = "onnx==1.14.1"
+ONNX_RUNTIME = "onnxruntime==1.16.1"
+PYTORCH = "torch==2.1.0"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",

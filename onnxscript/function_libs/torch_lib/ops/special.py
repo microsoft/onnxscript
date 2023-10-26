@@ -209,7 +209,7 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::log_softmax")
+@torch_op(("aten::log_softmax", "aten::special_log_softmax"))
 def aten_special_log_softmax(
     self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
 ) -> TFloatOrBFloat16:
@@ -339,23 +339,6 @@ def aten_special_sinc(self: TensorType) -> TensorType:
     """special_sinc(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
-
-
-@torch_op("aten::softmax")
-def aten_special_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
-) -> TFloatOrBFloat16:
-    """special_softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
-
-    self_is_scalar = op.Size(op.Shape(self)) == 0
-    if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    result = op.Softmax(self, axis=dim)
-    result = op.Cast(result, to=dtype)
-    if self_is_scalar:  # squeeze to scalar due to input is scalar
-        result = op.Squeeze(result)
-
-    return result
 
 
 def aten_special_spherical_bessel_j0(x: TensorType) -> TensorType:

@@ -28,8 +28,8 @@ class TestDeduceTypeConstraints(unittest.TestCase):
         "_aten_as_strided_onnx",
         "_aten_unfold_onnx",
         "_aten_embedding_bag_onnx",
+        "_aten_embedding_bag_1d_padding_idx_onnx",
     )
-    _SKIP_FUNCTIONS_WITH_NESTED_FUNCTION = ()
 
     @parameterized.parameterized.expand(
         ((op,) for op in torch_lib_onnx_functions_from_registry()),
@@ -40,11 +40,13 @@ class TestDeduceTypeConstraints(unittest.TestCase):
     ):
         if onnx_function.name in self._SKIP_FUNCTIONS_WITH_LOOP_OR_SCAN:
             self.skipTest("Unimplemented: function contains loop or scan node.")
-        if onnx_function.name in self._SKIP_FUNCTIONS_WITH_NESTED_FUNCTION:
-            self.skipTest("Unimplemented: function contains nested function.")
-        signature_type_constraint = deduce_type_constraints.deduce_type_constraints(
-            onnx_function
-        )
+        try:
+            signature_type_constraint = deduce_type_constraints.deduce_type_constraints(
+                onnx_function
+            )
+        except NotImplementedError as e:
+            if "Nested function" in str(e):
+                self.skipTest("Unimplemented: function contains nested function.")
         logger.info(
             "Original signature: %s%s",
             onnx_function.name,
