@@ -47,6 +47,7 @@ from typing_extensions import Self
 
 from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
+from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
@@ -450,6 +451,13 @@ def _where_input_wrangler(
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
+    TorchLibOpInfo(
+        "ops.aten._fft_c2c",  # Custom from extra_opinfo
+        fft_ops.aten__fft_c2c,
+        tolerance={torch.complex64: (3e-3, 1.8e-4)},
+        trace_only=True,
+        complex=True,
+    ),
     TorchLibOpInfo(
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
