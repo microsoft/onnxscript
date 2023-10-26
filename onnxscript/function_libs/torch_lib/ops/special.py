@@ -209,7 +209,7 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::log_softmax")
+@torch_op(("aten::log_softmax", "aten::special_log_softmax"))
 def aten_special_log_softmax(
     self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
 ) -> TFloatOrBFloat16:

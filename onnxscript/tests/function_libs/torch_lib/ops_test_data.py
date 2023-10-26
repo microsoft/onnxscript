@@ -334,14 +334,6 @@ def _nonzero_input_wrangler(
     return args, kwargs
 
 
-def _randn_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Make the size argument as attribute list[int]
-    kwargs["size"] = args.pop(0).tolist()
-    return args, kwargs
-
-
 def _permute_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -470,6 +462,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
+    TorchLibOpInfo("ops.aten._log_softmax", core_ops.aten__log_softmax),
+    TorchLibOpInfo(
+        "ops.aten._log_softmax_half", core_ops.aten__log_softmax_half, trace_only=True
+    ).xfail(
+        reason="PyTorch does not implement _log_softmax for float16 on CPU",
+        dtypes=(torch.float16,),
+    ),
     TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
     TorchLibOpInfo(
         "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
@@ -497,7 +496,24 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
-    TorchLibOpInfo("addmm", core_ops.aten_addmm),
+    TorchLibOpInfo("addmm", core_ops.aten_addmm)
+    .xfail(
+        "decomposed",
+        reason=(
+            "The float attributes alpha/beta come in as int in the test cases, which breaks"
+            "eager mode. We don't need to care about this as long as the full graph tests pass"
+        ),
+        test_class_name="TestOutputConsistencyEager",
+    )
+    .xfail(
+        dtypes=(torch.int16, torch.int32, torch.int64),
+        reason="ONNX Runtime does not support int inputs to Gemm",
+    )
+    .xfail(
+        "decomposed",
+        dtypes=(torch.int16, torch.int32, torch.int64),
+        reason="ONNX Runtime does not support int inputs to Gemm",
+    ),
     TorchLibOpInfo("addmv", core_ops.aten_addmv),
     TorchLibOpInfo(
         "addr",
@@ -845,7 +861,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "matmul",
         core_ops.aten_matmul,
-        tolerance={torch.float32: (2e-5, 2e-5)},  # Windows requires a more relaxed tolerance
+        # Windows requires a more relaxed tolerance
+        tolerance={torch.float32: (2e-5, 2e-5)},
     ).skip(
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
@@ -1053,6 +1070,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(
+        "ops.aten.embedding_renorm",
+        core_ops.aten_embedding_renorm,
+        tolerance={torch.float16: (1e-2, 1e-2)},
+        trace_only=True,
+        compare_shape_only_for_output=(1, 2, 3),
+    ),
+    TorchLibOpInfo(
         "nn.functional.embedding",
         core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
@@ -1163,6 +1187,33 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="This variant does not support dtype as an argument",
         matcher=lambda sample: sample.kwargs.get("dtype") is not None,
     ),
+    TorchLibOpInfo(
+        "ops.aten.normal.float_Tensor",
+        core_ops.aten_normal_float_tensor,
+        nondeterministic=True,
+    ).xfail(
+        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.normal.Tensor_float",
+        core_ops.aten_normal_tensor_float,
+        nondeterministic=True,
+    ).xfail(
+        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.normal.Tensor_Tensor",
+        core_ops.aten_normal_tensor_tensor,
+        nondeterministic=True,
+    ).xfail(
+        reason="ORT fails on a cast node it inserts for float16. https://github.com/microsoft/onnxruntime/issues/16449",
+        dtypes=(torch.float16,),
+        test_class_name="TestOutputConsistencyEager",
+    ),
     TorchLibOpInfo("ones", core_ops.aten_ones),
     TorchLibOpInfo(
         "permute",
@@ -1171,15 +1222,34 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ),
     TorchLibOpInfo("pow", core_ops.aten_pow),
-    # TorchLibOpInfo("rand", core_ops.aten_rand),  # no test case in OPS_DB
+    TorchLibOpInfo("ops.aten.rand", core_ops.aten_rand, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.rand_like", core_ops.aten_rand_like, nondeterministic=True),
     TorchLibOpInfo(
-        "randn",
-        core_ops.aten_randn,
-        input_wrangler=_randn_input_wrangler,
+        "ops.aten.rand_like__dtype", core_ops.aten_rand_like_dtype, nondeterministic=True
+    ),
+    TorchLibOpInfo("ops.aten.randint", core_ops.aten_randint, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.randint.low", core_ops.aten_randint_low, nondeterministic=True),
+    TorchLibOpInfo("ops.aten.randint_like", core_ops.aten_randint_like, nondeterministic=True),
+    TorchLibOpInfo(
+        "ops.aten.randint_like__dtype", core_ops.aten_randint_like_dtype, nondeterministic=True
+    ),
+    TorchLibOpInfo(
+        "ops.aten.randint_like.low_dtype",
+        core_ops.aten_randint_like_low_dtype,
         nondeterministic=True,
-    ).xfail(
+    ),
+    TorchLibOpInfo(
+        "ops.aten.randint_like.low_dtype__dtype",
+        core_ops.aten_randint_like_low_dtype_dtype,
+        nondeterministic=True,
+    ),
+    TorchLibOpInfo("ops.aten.randn", core_ops.aten_randn, nondeterministic=True).xfail(
         dtypes=(torch.float16,),
         reason="fixme: Shape inference error",
+    ),
+    TorchLibOpInfo("ops.aten.randn_like", core_ops.aten_randn_like, nondeterministic=True),
+    TorchLibOpInfo(
+        "ops.aten.randn_like_dtype", core_ops.aten_randn_like_dtype, nondeterministic=True
     ),
     TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
     TorchLibOpInfo(
@@ -2004,6 +2074,9 @@ ops_test_common.duplicate_opinfo(
         "nn.functional.upsample_nearest2d",
         "nn.functional.upsample_nearest3d",
     ),
+)
+ops_test_common.duplicate_opinfo(
+    OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
 )
 ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))

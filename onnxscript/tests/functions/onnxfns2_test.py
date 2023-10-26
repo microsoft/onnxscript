@@ -16,10 +16,8 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         self.run_onnx_test(
             onnxfns2.ReduceSumSquare,
             keepdims=default_keepdims,
-            # default attributes are not supported yet.
             skip_test_names=[
-                "test_reduce_sum_square_default_axes_keepdims_example",
-                "test_reduce_sum_square_default_axes_keepdims_random",
+                "test_reduce_sum_square_empty_set",
             ],
         )
 
@@ -29,10 +27,8 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         self.run_onnx_test(
             onnxfns2.ReduceL1,
             keepdims=default_keepdims,
-            # default attributes are not supported yet.
             skip_test_names=[
-                "test_reduce_l1_default_axes_keepdims_example",
-                "test_reduce_l1_default_axes_keepdims_random",
+                "test_reduce_l1_empty_set",
             ],
         )
 
@@ -42,10 +38,8 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         self.run_onnx_test(
             onnxfns2.ReduceL2,
             keepdims=default_keepdims,
-            # default attributes are not supported yet.
             skip_test_names=[
-                "test_reduce_l2_default_axes_keepdims_example",
-                "test_reduce_l2_default_axes_keepdims_random",
+                "test_reduce_l2_empty_set",
             ],
         )
 
@@ -55,8 +49,9 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         self.run_onnx_test(
             onnxfns2.ReduceLogSum,
             keepdims=default_keepdims,
-            # default attributes are not supported yet.
-            skip_test_names=["test_reduce_log_sum_default"],
+            skip_test_names=[
+                "test_reduce_log_sum_empty_set",
+            ],
         )
 
     def test_onnxfns_reduce_log_sum_exp(self):
@@ -65,10 +60,8 @@ class TestOnnxFns(onnx_script_test_case.OnnxScriptTestCase):
         self.run_onnx_test(
             onnxfns2.ReduceLogSumExp,
             keepdims=default_keepdims,
-            # default attributes are not supported yet.
             skip_test_names=[
-                "test_reduce_log_sum_exp_default_axes_keepdims_example",
-                "test_reduce_log_sum_exp_default_axes_keepdims_random",
+                "test_reduce_log_sum_exp_empty_set",
             ],
         )
 

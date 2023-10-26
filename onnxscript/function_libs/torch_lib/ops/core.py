@@ -30,6 +30,7 @@ from onnxscript import (
     UINT64,
     graph,
 )
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -52,6 +53,8 @@ from onnxscript.onnx_types import TensorType
 _INT64_MAX = 9223372036854775807
 _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
+IsScalar = common_ops.IsScalar
+Rank = common_ops.Rank
 
 
 @torch_op("aten::_local_scalar_dense")
@@ -68,6 +71,34 @@ def aten__local_scalar_dense_int(self: IntType) -> INT64:
 
     # Return the first element in tensor as a scalar.
     return op.Cast(op.Gather(op.Reshape(self, [-1]), 0), to=INT64.dtype)
+
+
+@torch_op("aten::_log_softmax", trace_only=True)
+def aten__log_softmax_half(
+    self: Union[FLOAT16, BFLOAT16], dim: int, half_to_float: bool
+) -> FLOAT:
+    """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
+
+    # trace_only because we need to cast conditionally based on half_to_float
+    if half_to_float:
+        self = op.Cast(self, to=FLOAT.dtype)
+
+    return aten__log_softmax(self, dim, half_to_float)
+
+
+@torch_op("aten::_log_softmax")
+def aten__log_softmax(
+    self: TFloatHighPrecision, dim: int, half_to_float: bool  # pylint: disable=unused-argument
+) -> TFloatHighPrecision:
+    """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
+
+    self_is_scalar = op.Size(op.Shape(self)) == 0
+    if self_is_scalar:
+        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
+    result = op.LogSoftmax(self, axis=dim)
+    if self_is_scalar:  # squeeze to scalar due to input is scalar
+        result = op.Squeeze(result)
+    return result
 
 
 @torch_op("aten::_softmax", trace_only=True)
@@ -195,10 +226,11 @@ def aten_addmm(
 ) -> TReal:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    mat1_mat2 = op.MatMul(mat1, mat2)
-    scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
-    scaled_self = op.Mul(self, beta)
-    return op.Add(scaled_self, scaled_mat1_mat2)
+    # NOTE: ONNX Runtime does not support int inputs to Gemm as of 1.16.
+    # To support int inputs, consider an overriding implementation that casts to float and back.
+
+    # addmm only accepts 2d tensors: https://pytorch.org/docs/stable/generated/torch.addmm.html
+    return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
 @torch_op("aten::addmv")
@@ -292,8 +324,7 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
 def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
+    if IsScalar(self):
         result = op.Cast(self, to=BOOL.dtype)
     else:
         self_bool = op.Cast(self, to=BOOL.dtype)
@@ -315,6 +346,34 @@ def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
         self_int = op.Cast(self_bool, to=INT64.dtype)
         dims = op.Reshape(dim, op.Constant(value_ints=[-1]))
         all_true = op.ReduceMin(self_int, dims, keepdims=keepdim)
+        result = op.Cast(all_true, to=BOOL.dtype)
+    return result
+
+
+@torch_op("aten::all.dims", trace_only=True)
+def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return aten_all_dims_no_dim(self, keepdim)
+    for d in dim:
+        self = aten_all_dim(self, d, keepdim)
+    return self
+
+
+@torch_op("aten::all.dims")
+def aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
+    """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
+
+    # dim is None and thus not supplied
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        all_true = op.ReduceMin(self_int, keepdims=keepdims)
         result = op.Cast(all_true, to=BOOL.dtype)
     return result
 
@@ -417,6 +476,34 @@ def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     return result
 
 
+@torch_op("aten::any.dims", trace_only=True)
+def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False) -> BOOL:
+    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    if not dim:
+        return aten_any_dims_no_dim(self, keepdim)
+    for d in dim:
+        self = aten_any_dim(self, d, keepdim)
+    return self
+
+
+@torch_op("aten::any.dims")
+def aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
+    """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
+
+    # dim is None and thus not supplied
+
+    self_rank = op.Size(op.Shape(self))
+    if self_rank == 0:
+        result = op.Cast(self, to=BOOL.dtype)
+    else:
+        self_bool = op.Cast(self, to=BOOL.dtype)
+        self_int = op.Cast(self_bool, to=INT64.dtype)
+        any_true = op.ReduceMax(self_int, keepdims=keepdims)
+        result = op.Cast(any_true, to=BOOL.dtype)
+    return result
+
+
 def _range_supported(dtype: int) -> bool:
     """Returns true if the dtype is supported by the ONNX Range op."""
     return dtype in {
@@ -507,11 +594,8 @@ def _adjust_args_for_arange_int_dtype(
     end = op.Cast(end, to=FLOAT.dtype)
     step = op.Cast(step, to=FLOAT.dtype)
 
-    if start < zero:
-        start = op.Ceil(start)
-
-    if step < zero:
-        start = op.Floor(start)
+    start = op.Where(op.Less(start, zero), op.Ceil(start), start)
+    start = op.Where(op.Less(step, zero), op.Floor(start), start)
 
     return (start, end, step)
 
@@ -2919,6 +3003,57 @@ def aten_embedding_dense_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::embedding_renorm", trace_only=True)
+def aten_embedding_renorm(
+    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
+) -> TFloat:
+    """embedding_renorm(Tensor weight, Tensor indices, float max_norm, float norm_type) -> Tensor"""
+
+    unique_indices = op.Unique(indices)
+    unique_indices_Y = op.SequenceAt(unique_indices, 0)
+    # using _onnx private function because op.SrquenceAt(unique_indices, 0) cannot pass module checker
+    # The error message is:
+    # onnx.onnx_cpp2py_export.shape_inference.InferenceError:
+    # [ShapeInferenceError] Shape inference error(s): (op_type:aten_embedding_renorm,
+    # node name: aten_embedding_renorm_0): [ShapeInferenceError] (op_type:SequenceAt,
+    # node name: n2): input_sequence typestr: S, has unsupported type: tensor(int64)
+    return aten_embedding_renorm_onnx(weight, unique_indices_Y, max_norm, norm_type)
+
+
+@torch_op("aten::embedding_renorm", private=True)
+def aten_embedding_renorm_onnx(
+    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
+) -> TFloat:
+    partial_weight = op.Gather(weight, indices)
+    # partial_weight_norm = sum(|w|^p)^(1/p)
+    if norm_type == 1.0:
+        # This is not necessary, but op.ReduceL1 is faster than function list in 'else'
+        partial_weight_norm = op.ReduceL1(partial_weight, axes=[1], keepdims=True)
+    elif norm_type == 2.0:
+        # This is not necessary, but op.ReduceL2 is faster than function list in 'else'
+        partial_weight_norm = op.ReduceL2(partial_weight, axes=[1], keepdims=True)
+    else:
+        # Abs -> Pow -> ReduceSum -> Pow -> Pow
+        partial_weight_abs = op.Abs(partial_weight)
+        partial_weight_pow = op.Pow(partial_weight_abs, op.Constant(value_float=norm_type))
+        partial_weight_norm = op.ReduceSum(partial_weight_pow, axes=[1], keepdims=True)
+        pow_value = op.CastLike(1.0 / norm_type, weight)
+        partial_weight_norm = op.Pow(partial_weight_norm, pow_value)
+
+    max_norm = op.CastLike(op.Constant(value_float=max_norm), weight)
+    # This is to avoid weight is zero
+    err = op.CastLike(op.Constant(value_float=1e-7), weight)
+    partial_weight_norm_ = op.Add(partial_weight_norm, err)
+    scales = op.Div(max_norm, partial_weight_norm_)
+    partial_weight_renorm = op.Mul(partial_weight, scales)
+    # Set values to renormed values where weight_norm > max_norm, but keep the original values where weight_norm <= max_norm
+    partial_weight_renorm = op.Where(
+        op.Greater(partial_weight_norm, max_norm), partial_weight_renorm, partial_weight
+    )
+    value = op.ScatterND(weight, op.Unsqueeze(indices, [1]), partial_weight_renorm)
+    return value
+
+
 def aten_embedding_sparse_backward(
     grad: TensorType,
     indices: TensorType,
@@ -5101,7 +5236,6 @@ def aten_mm(
 ) -> TRealUnlessInt16OrInt8:
     """mm(Tensor self, Tensor mat2) -> Tensor"""
 
-    # TODO(justinchuby): Specify type conversion for uint8/int8/int16
     return op.MatMul(self, mat2)
 
 
@@ -5748,13 +5882,13 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
     raise NotImplementedError()
 
 
-@torch_op("aten::normal")
+@torch_op(("aten::normal", "aten::normal_functional"))
 def aten_normal(
     self: TTensor,
     mean: float = 0.0,
     std: float = 1.0,
 ) -> TFloat:  # type: ignore[type-var]
-    # normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor
+    """normal_functional(Tensor self, float mean=0, float std=1, *, Generator? generator=None) -> Tensor"""
 
     self_rank = op.Size(op.Shape(self))
     if self_rank == 0:
@@ -5774,6 +5908,34 @@ def aten_normal_float_float(
     dummy_tensor = op.ConstantOfShape(size)
     result = op.RandomNormalLike(dummy_tensor, mean=mean, scale=std)
     return op.Cast(result, to=dtype)
+
+
+@torch_op("aten::normal.float_Tensor")
+def aten_normal_float_tensor(mean: FLOAT, std: TFloat) -> TFloat:
+    """normal.float_Tensor(float mean, Tensor std, *, Generator? generator=None) -> Tensor"""
+
+    mean_casted = op.CastLike(mean, std)
+    sampled = op.RandomNormalLike(mean_casted, mean=0.0, scale=1.0)
+    # Transform the distribution to the mean and std
+    return op.Add(op.Mul(std, sampled), mean_casted)
+
+
+@torch_op("aten::normal.Tensor_float")
+def aten_normal_tensor_float(mean: TFloat, std: FLOAT) -> TFloat:
+    """normal.Tensor_float(Tensor mean, float std=1, *, Generator? generator=None) -> Tensor"""
+
+    sampled = op.RandomNormalLike(mean, mean=0.0, scale=1.0)
+    # Transform the distribution to the mean and std
+    return op.Add(op.Mul(op.CastLike(std, sampled), sampled), mean)
+
+
+@torch_op("aten::normal.Tensor_Tensor")
+def aten_normal_tensor_tensor(mean: TFloat, std: TFloat) -> TFloat:
+    """normal.Tensor_Tensor(Tensor mean, Tensor std, *, Generator? generator=None) -> Tensor"""
+
+    sampled = op.RandomNormalLike(mean, mean=0.0, scale=1.0)
+    # Transform the distribution to the mean and std
+    return op.Add(op.Mul(std, sampled), mean)
 
 
 def aten_not_equal(self: TensorType, other: TensorType) -> TensorType:
@@ -6204,47 +6366,138 @@ def aten_rad2deg(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::rand")
-def aten_rand(size: Sequence[int], dtype: int = 1) -> TReal:
+def aten_rand(size: INT64, dtype: int = FLOAT.dtype) -> TReal:
     """rand(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.RandomUniform(shape=size, dtype=dtype)
+    shaper = op.ConstantOfShape(size)
+    return op.RandomUniformLike(shaper, dtype=dtype)
 
 
-def aten_rand_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::rand_like")
+def aten_rand_like(self: TFloat) -> TFloat:
     """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomUniformLike(self)
 
 
-def aten_randint(high: int, size: INT64) -> TensorType:
-    """randint(int high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+@torch_op("aten::rand_like")
+def aten_rand_like_dtype(self: TensorType, dtype: int) -> TensorType:
+    """rand_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomUniformLike(self, dtype=dtype)
 
 
-def aten_randint_like(
-    self: TensorType, high: int, memory_format: Optional[str] = None
+@torch_op("aten::randint")
+def aten_randint(high: INT64, size: INT64, dtype: int = INT64.dtype) -> TensorType:
+    """randint(SymInt high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
+
+    shaper = op.ConstantOfShape(size)
+    rand = op.RandomUniformLike(shaper)
+    # Scale to [0, high] first
+    rand_scaled = op.Mul(rand, op.CastLike(high, rand))
+    # Round to ints
+    rand_int = op.Floor(rand_scaled)
+    return op.Cast(rand_int, to=dtype)
+
+
+@torch_op("aten::randint.low")
+def aten_randint_low(
+    low: INT64, high: INT64, size: INT64, dtype: int = INT64.dtype
 ) -> TensorType:
-    """randint_like(Tensor self, int high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+    """randint.low(SymInt low, SymInt high, SymInt[] size, *, ScalarType? dtype=long, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    raise NotImplementedError()
+    shaper = op.ConstantOfShape(size)
+    rand = op.RandomUniformLike(shaper)
+    # Translate to [low, high] first
+    high = op.Cast(high, to=FLOAT.dtype)
+    low = op.Cast(low, to=FLOAT.dtype)
+    rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
+    # Round to ints
+    rand_int = op.Floor(rand_translated)
+    return op.Cast(rand_int, to=dtype)
+
+
+@torch_op("aten::randint_like")
+def aten_randint_like(self: TensorType, high: INT64) -> IntType:
+    """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float)
+    # Scale to [0, high] first
+    rand_scaled = op.Mul(rand, op.CastLike(high, rand))
+    # Round to ints
+    rand_int = op.Floor(rand_scaled)
+    return op.CastLike(rand_int, self)
+
+
+@torch_op("aten::randint_like")
+def aten_randint_like_dtype(self: TensorType, high: INT64, dtype: int) -> TensorType:
+    """randint_like(Tensor self, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float)
+    # Scale to [0, high] first
+    rand_scaled = op.Mul(rand, op.CastLike(high, rand))
+    # Round to ints
+    rand_int = op.Floor(rand_scaled)
+    return op.Cast(rand_int, to=dtype)
+
+
+@torch_op("aten::randint_like.low_dtype")
+def aten_randint_like_low_dtype(self: TensorType, low: INT64, high: INT64) -> IntType:
+    """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor
+
+    This is the TorchLib overload for aten::randint_like.low_dtype when dtype is None.
+    """
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float)
+    # Translate to [low, high] first
+    high = op.Cast(high, to=FLOAT.dtype)
+    low = op.Cast(low, to=FLOAT.dtype)
+    rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
+    # Round to ints
+    rand_int = op.Floor(rand_translated)
+    return op.CastLike(rand_int, self)
+
+
+@torch_op("aten::randint_like.low_dtype")
+def aten_randint_like_low_dtype_dtype(
+    self: TensorType, low: INT64, high: INT64, dtype: int
+) -> TensorType:
+    """randint_like.low_dtype(Tensor self, SymInt low, SymInt high, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+
+    self_float = op.Cast(self, to=FLOAT.dtype)
+    rand = op.RandomUniformLike(self_float)
+    # Translate to [low, high] first
+    high = op.Cast(high, to=FLOAT.dtype)
+    low = op.Cast(low, to=FLOAT.dtype)
+    rand_translated = op.Add(op.Mul(rand, op.Sub(high, low)), low)
+    # Round to ints
+    rand_int = op.Floor(rand_translated)
+    return op.Cast(rand_int, to=dtype)
 
 
 @torch_op("aten::randn")
-def aten_randn(
-    size: Sequence[int],
-    dtype: int = 1,
-    requires_grad: bool = False,  # pylint: disable=unused-argument
-) -> TReal:
+def aten_randn(size: INT64, dtype: int = FLOAT.dtype) -> TReal:
     """randn(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.RandomNormal(dtype=dtype, shape=size)
+    shaper = op.ConstantOfShape(size)
+    return op.RandomNormalLike(shaper, dtype=dtype)
 
 
-def aten_randn_like(self: TensorType, memory_format: Optional[str] = None) -> TensorType:
+@torch_op("aten::randn_like")
+def aten_randn_like(self: TFloat) -> TFloat:
     """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.RandomNormalLike(self)
+
+
+@torch_op("aten::randn_like")
+def aten_randn_like_dtype(self: TensorType, dtype: int) -> TensorType:
+    """randn_like(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"""
+
+    return op.RandomNormalLike(self, dtype=dtype)
 
 
 def aten_randperm(n: int) -> TensorType:
