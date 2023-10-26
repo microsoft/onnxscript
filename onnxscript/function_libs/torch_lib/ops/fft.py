@@ -41,16 +41,19 @@ def _fftn_onnx_normalization(
     # Reference https://pytorch.org/docs/stable/generated/torch.fft.fftn.html#torch.fft.fftn
     # Reference https://github.com/pytorch/pytorch/blob/d090c18fcaaba6e1b5cb474a89058cf6081c8275/torch/_refs/fft.py#L42
     if normalization == 1:
+        # "forward" - normalize by 1/n
         if forward:
             result = op.Div(transformed, op.Sqrt(total_sample_count))
         else:
             result = op.Mul(transformed, op.Sqrt(total_sample_count))
     elif normalization == 2:
+        # "ortho" - normalize by 1/sqrt(n)
         if forward:
             result = op.Div(transformed, total_sample_count)
         else:
             result = transformed
     else:
+        # "backward" - no normalization
         if forward:
             result = transformed
         else:
