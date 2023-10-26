@@ -226,10 +226,11 @@ def aten_addmm(
 ) -> TReal:
     """addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"""
 
-    mat1_mat2 = op.MatMul(mat1, mat2)
-    scaled_mat1_mat2 = op.Mul(mat1_mat2, alpha)
-    scaled_self = op.Mul(self, beta)
-    return op.Add(scaled_self, scaled_mat1_mat2)
+    # NOTE: ONNX Runtime does not support int inputs to Gemm as of 1.16.
+    # To support int inputs, consider an overriding implementation that casts to float and back.
+
+    # addmm only accepts 2d tensors: https://pytorch.org/docs/stable/generated/torch.addmm.html
+    return op.Gemm(mat1, mat2, self, alpha=alpha, beta=beta)
 
 
 @torch_op("aten::addmv")
@@ -5210,7 +5211,6 @@ def aten_mm(
 ) -> TRealUnlessInt16OrInt8:
     """mm(Tensor self, Tensor mat2) -> Tensor"""
 
-    # TODO(justinchuby): Specify type conversion for uint8/int8/int16
     return op.MatMul(self, mat2)
 
 
