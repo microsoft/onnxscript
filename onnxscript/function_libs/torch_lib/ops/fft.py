@@ -91,7 +91,7 @@ def _fftn_onnx(
     # The 0-th dimension in ONNX DFT-17 is the batch dimension. We need to add a new
     # dimension at the beginning to represent the batch dimension.
     transformed = op.Unsqueeze(self, axes=[0])
-    # transformed = self
+
     for dim_ in dims:
         if dim_ >= 0:
             # Add 1 to account for the batch dimension when counting axes from the left
@@ -115,7 +115,7 @@ def aten__fft_c2c(
     # NOTE: trace_only because we need to negate forward
     # NOTE: SymInt dim is not support because DFT-17 needs a static axis
     # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
-    self_rank = len(self.shape)
+
     # ONNX DFT input assumes the last dimension is the complex dimension.
     # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
     dim = [d - 1 if d < 0 else d for d in dim]
