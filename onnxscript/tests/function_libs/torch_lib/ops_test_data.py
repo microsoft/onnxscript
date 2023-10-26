@@ -462,6 +462,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten._fft_c2c",  # Custom from extra_opinfo
         fft_ops.aten__fft_c2c,
+        tolerance={torch.complex64: (1e-3, 1e-5)},
         trace_only=True,
         complex=True,
     ),

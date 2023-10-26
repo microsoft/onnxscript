@@ -22,6 +22,45 @@ from onnxscript.onnx_types import TensorType
 
 @torch_op(
     ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
+    private=True,
+    complex=True,
+)
+def _fftn_onnx_normalization(
+    self,
+    transformed: TFloat,
+    normalization: int,
+    forward: bool,
+    dims: Sequence[int],
+) -> TFloat:
+    # Obtain the total_sample_count (n) for normalization
+    self_shape = op.Shape(self)
+    total_sample_count = op.ReduceProd(self_shape[dims], keepdims=0)
+    total_sample_count = op.CastLike(total_sample_count, transformed)
+
+    # Normalize the result
+    # Reference https://pytorch.org/docs/stable/generated/torch.fft.fftn.html#torch.fft.fftn
+    # Reference https://github.com/pytorch/pytorch/blob/d090c18fcaaba6e1b5cb474a89058cf6081c8275/torch/_refs/fft.py#L42
+    if normalization == 1:
+        if forward:
+            result = op.Div(transformed, op.Sqrt(total_sample_count))
+        else:
+            result = op.Mul(transformed, op.Sqrt(total_sample_count))
+    elif normalization == 2:
+        if forward:
+            result = op.Div(transformed, total_sample_count)
+        else:
+            result = transformed
+    else:
+        if forward:
+            result = transformed
+        else:
+            result = op.Mul(transformed, total_sample_count)
+
+    return result
+
+
+@torch_op(
+    ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
     trace_only=True,
     private=True,
     complex=True,
@@ -61,26 +100,7 @@ def _fftn_onnx(
     # Remove the batch dimension
     transformed = op.Squeeze(transformed, axes=[0])
 
-    # Obtain the total_sample_count (n) for normalization
-    total_sample_count = op.Constant(value_int=1)
-    self_shape = op.Shape(self)
-    for dim_ in dims:
-        total_sample_count = op.Mul(total_sample_count, self_shape[dim_])
-
-    total_sample_count = op.CastLike(total_sample_count, transformed)
-    # Normalize the result
-    # Reference https://pytorch.org/docs/stable/generated/torch.fft.fftn.html#torch.fft.fftn
-    if normalization == 1:
-        # forward - normalize by 1/2
-        result = op.Div(transformed, total_sample_count)
-    elif normalization == 2:
-        # backward - no normalization
-        result = transformed
-    else:  # normalization == 3:
-        # ortho - normalize by 1/sqrt(n)
-        result = op.Div(transformed, op.Sqrt(total_sample_count))
-
-    return result
+    return _fftn_onnx_normalization(self, transformed, normalization, not inverse, dims)
 
 
 @torch_op("aten::_fft_c2c", trace_only=True, complex=True)
