@@ -578,6 +578,201 @@ def sample_inputs_native_dropout(
         yield opinfo_core.SampleInput(make_arg(case), p=p, train=training)
 
 
+def sample_inputs_normal_tensor_float(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del requires_grad
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False
+    )
+    samples = (
+        ((S, S), 0.0),
+        ((S, S, S), 4.2),
+    )
+    for mean, std in samples:
+        yield opinfo_core.SampleInput(make_arg(mean), std)
+
+
+def sample_inputs_normal_float_tensor(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del requires_grad
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False
+    )
+    samples = (
+        (4.2, (S, S)),
+        (-2.0, (S, S, S)),
+    )
+    for mean, std in samples:
+        yield opinfo_core.SampleInput(mean, make_arg(std, low=0.0))
+
+
+def sample_inputs_normal_tensor_tensor(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del requires_grad
+    del kwargs
+    make_arg = functools.partial(
+        torch_testing.make_tensor, dtype=dtype, device=device, requires_grad=False
+    )
+    samples = (
+        ((S, S), (S, S)),
+        ((S, S, S), (S, S, S)),
+    )
+    for mean, std in samples:
+        yield opinfo_core.SampleInput(make_arg(mean), make_arg(std, low=0.0))
+
+
+def sample_inputs_rand(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del device  # Unused
+    del requires_grad  # Unused
+    del kwargs  # Unused
+
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(shape, kwargs=dict(dtype=dtype))
+
+
+def sample_inputs_rand_like(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(make_arg(shape))
+
+
+def sample_inputs_rand_like_dtype(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info  # Unused
+    del kwargs  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor,
+        device=device,
+        dtype=torch.float32,
+        requires_grad=requires_grad,
+    )
+    shapes = (
+        (M,),
+        (S, S),
+        (S, S, S),
+    )
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(make_arg(shape), kwargs=dict(dtype=dtype))
+
+
+def sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+    del self  # Unused
+
+    inputs = [
+        ((), {}),
+        ((S, S), {}),
+        ((0, S, 0), {}),
+        ((S,), {}),
+    ]
+    for shape, kwargs in inputs:
+        t = torch_testing.make_tensor(
+            shape, dtype=dtype, device=device, low=None, high=None, requires_grad=requires_grad
+        )
+        yield opinfo_core.SampleInput(t, **kwargs)
+
+
+def sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
+    del self  # Unused
+
+    inputs = [
+        ((S,), {"dtype": dtype}),
+        # Hard-code some dtypes/devices. We want to test cases where the
+        # (dtype, device) is different from the input's (dtype, device)
+        ((S,), {"dtype": torch.double}),
+    ]
+    for shape, kwargs in inputs:
+        t = torch_testing.make_tensor(
+            shape, dtype=dtype, device=device, low=None, high=None, requires_grad=requires_grad
+        )
+        yield opinfo_core.SampleInput(t, **kwargs)
+
+
+def sample_inputs_randint(self, device, dtype, requires_grad, **kwargs):
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With high
+        yield opinfo_core.SampleInput(high, sample.input.shape, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_low(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(
+            low, high, sample.input.shape, *sample.args, **sample.kwargs
+        )
+
+
+def sample_inputs_randint_like(self, device, dtype, requires_grad, **kwargs):
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With high
+        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_like_dtype(self, device, dtype, requires_grad, **kwargs):
+    high = 10
+
+    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(sample.input, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_like_low_dtype(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randint_like_low_dtype_dtype(self, device, dtype, requires_grad, **kwargs):
+    low = 2
+    high = 10
+
+    for sample in sample_inputs_like_fns_dtype(self, device, dtype, requires_grad, **kwargs):
+        # With low and high
+        yield opinfo_core.SampleInput(sample.input, low, high, *sample.args, **sample.kwargs)
+
+
+def sample_inputs_randn(op, device, dtype, requires_grad, **kwargs):
+    del op  # Unused
+    del device  # Unused
+    del requires_grad  # Unused
+    del kwargs  # Unused
+
+    shapes = ((M,), (S, S))
+
+    for shape in shapes:
+        yield opinfo_core.SampleInput(input=shape, kwargs=dict(dtype=dtype))
+
+
 def sample_inputs_stft(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -683,6 +878,36 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             )
             yield opinfo_core.SampleInput(t, args=(p,))
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
+
+
+def sample_inputs_embedding_renorm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    def make_input(shape):
+        return common_methods_invocations.make_tensor(
+            shape, device=device, dtype=dtype, requires_grad=requires_grad
+        )
+
+    def make_long_input(shape, *, low, high, noncontiguous=False):
+        return common_methods_invocations.make_tensor(
+            shape,
+            device=device,
+            dtype=torch.long,
+            low=low,
+            high=high,
+            noncontiguous=noncontiguous,
+        )
+
+    for max_norm in (0.5, 1.0, 5.0):
+        for norm_type in (0.8, 1.0, 2.0, 2.5):
+            idx = make_long_input((6,), low=0, high=S)
+            weights = make_input((S, S)) * 2
+            yield common_methods_invocations.SampleInput(
+                weights,
+                args=(idx,),
+                kwargs={"max_norm": max_norm, "norm_type": norm_type},
+            )
 
 
 def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):
@@ -964,6 +1189,34 @@ def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs)
         yield opinfo_core.SampleInput(input_, args=(src, *args))
 
 
+def sample_inputs__log_softmax(
+    op_info,
+    device,
+    dtype,
+    requires_grad,
+    **kwargs,
+):
+    del op_info  # Unused
+
+    make_arg = functools.partial(
+        torch_testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    cases = [
+        ((S,), (0,)),
+        ((S, S), (0,)),
+        ((S, S), (1,)),
+        ((S, S), (-1,)),
+        ((S, M, S), (2,)),
+        ((S, 0, 0), (-1,)),
+    ]
+
+    for (shape, dim), half_to_float in itertools.product(cases, (False,)):
+        # NOTE: softmax with half to float conversion is not supported on CPU
+        # So we don't test it here
+        kwargs = dict(half_to_float=half_to_float)
+        yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
+
+
 def sample_inputs__softmax(
     op_info,
     device,
@@ -1087,6 +1340,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.embedding_renorm",
+        aten_name="embedding_renorm",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_embedding_renorm,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "nn.functional.conv3d",
         aten_name="conv3d",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
@@ -1154,6 +1414,27 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.normal.float_Tensor",
+        aten_name="normal.Tensor_Tensor",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_normal_float_tensor,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.normal.Tensor_float",
+        aten_name="normal.Tensor_Tensor",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_normal_tensor_float,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.normal.Tensor_Tensor",
+        aten_name="normal.Tensor_Tensor",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_normal_tensor_tensor,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "nn.functional.max_pool1d_with_indices",
         aten_name="max_pool1d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
@@ -1172,6 +1453,94 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool3d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.rand",
+        aten_name="rand",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_rand,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.rand_like",
+        aten_name="rand_like",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_rand_like,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.rand_like__dtype",
+        op=torch.ops.aten.rand_like,
+        aten_name="rand_like",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_rand_like_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint",
+        aten_name="randint",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint.low",
+        aten_name="randint.low",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_low,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like",
+        aten_name="randint_like",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like__dtype",
+        op=torch.ops.aten.randint_like,
+        aten_name="randint_like",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like.low_dtype",
+        aten_name="randint_like.low_dtype",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like_low_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randint_like.low_dtype__dtype",
+        op=torch.ops.aten.randint_like.low_dtype,
+        aten_name="randint_like.low_dtype",
+        dtypes=common_dtype.integral_types(),
+        sample_inputs_func=sample_inputs_randint_like_low_dtype_dtype,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn",
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_randn,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn_like",
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_like_fns,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.randn_like_dtype",
+        op=torch.ops.aten.randn_like,
+        aten_name="randn",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_like_fns_dtype,
         supports_out=False,
     ),
     # NOTE: torch.STFT has pre-padding and it's not supported by aten::stft
@@ -1237,7 +1606,16 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten._log_softmax",
+        op=torch.ops.aten._log_softmax,  # pylint: disable=protected-access
+        aten_name="_log_softmax",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs__log_softmax,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten._softmax",
+        op=torch.ops.aten._softmax,  # pylint: disable=protected-access
         aten_name="_softmax",
         dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=sample_inputs__softmax,
