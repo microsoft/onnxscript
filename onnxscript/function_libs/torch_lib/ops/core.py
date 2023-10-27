@@ -5432,6 +5432,10 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
     raise NotImplementedError()
 
 
+# NOTE: https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1501-L1510
+# _native_batch_norm_legit_no_training and _native_batch_norm_legit are meant to
+# replace native_batch_norm within unknown time period.
+# TODO: Refactor this after native_batch_norm is deprecated.
 @torch_op("aten::_native_batch_norm_legit_no_training", trace_only=True)
 def aten_native_batch_norm_no_training(
     input: TFloat,
