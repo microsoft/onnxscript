@@ -5432,7 +5432,28 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
     raise NotImplementedError()
 
 
-@torch_op("aten::native_batch_norm", trace_only=True)
+# NOTE: https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1501-L1510
+# _native_batch_norm_legit_no_training and _native_batch_norm_legit are meant to
+# replace native_batch_norm within unknown time period.
+# TODO: Refactor this after native_batch_norm is deprecated.
+@torch_op("aten::_native_batch_norm_legit_no_training", trace_only=True)
+def aten_native_batch_norm_no_training(
+    input: TFloat,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    running_mean: Optional[TFloat] = None,
+    running_var: Optional[TFloat] = None,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    """_native_batch_norm_legit_no_training(Tensor input, Tensor? weight, Tensor? bias, Tensor running_mean, Tensor running_var, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
+
+    return aten_native_batch_norm(
+        input, weight, bias, running_mean, running_var, False, momentum, eps
+    )
+
+
+@torch_op(("aten::native_batch_norm", "aten::_native_batch_norm_legit"), trace_only=True)
 def aten_native_batch_norm(
     input: TFloat,
     weight: Optional[TFloat] = None,
