@@ -852,6 +852,13 @@ def aten_asinh(self: TFloat) -> TFloat:
     return op.Asinh(self)
 
 
+@torch_op("aten::_assert_async.msg")
+def aten_assert_async(self: TTensor) -> TTensor:
+    """_assert_async.msg(Tensor self, str assert_msg) -> ()"""
+
+    return op.Identity(self)
+
+
 @torch_op("aten::atan")
 def aten_atan(self: TFloat) -> TFloat:
     """atan(Tensor self) -> Tensor"""
