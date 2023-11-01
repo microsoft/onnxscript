@@ -853,7 +853,9 @@ def aten_asinh(self: TFloat) -> TFloat:
 
 
 @torch_op("aten::_assert_async.msg")
-def aten_assert_async(self: TTensor) -> TTensor:
+def aten_assert_async(
+    self: TTensor, assert_msg: str = ""
+) -> TTensor:  # pylint: disable=unused-argument`
     """_assert_async.msg(Tensor self, str assert_msg) -> ()"""
 
     return op.Identity(self)
