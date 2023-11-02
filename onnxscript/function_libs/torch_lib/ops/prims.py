@@ -19,6 +19,9 @@ from onnxscript.function_libs.torch_lib.tensor_typing import TReal, TTensor
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import COMPLEX64, COMPLEX128, DOUBLE, FLOAT, TensorType
 
+COMPLEX64_TYPE = COMPLEX64.dtype
+COMPLEX128_TYPE = COMPLEX128.dtype
+
 
 def prims_abs(self: TensorType) -> TensorType:
     """abs(Tensor self) -> Tensor"""
@@ -220,14 +223,14 @@ def prims_conj_physical(self: TensorType) -> TensorType:
 def prims_convert_element_type(a: TReal, dtype: int) -> TReal:
     """convert_element_type(Tensor a, ScalarType dtype) -> Tensor"""
 
-    if dtype == COMPLEX128.dtype:
+    if dtype == COMPLEX128_TYPE:
         # Cast to the real representation of the complex type
         casted = op.Cast(a, to=DOUBLE.dtype)
         # Create a complex number
         real_part = op.Unsqueeze(casted, axes=[-1])
         imag_part = op.Expand(op.Cast(0.0, to=DOUBLE.dtype), op.Shape(casted))
         result = op.Concat(real_part, imag_part, axis=-1)
-    elif dtype == COMPLEX64.dtype:
+    elif dtype == COMPLEX64_TYPE:
         # Cast to the real representation of the complex type
         casted = op.Cast(a, to=FLOAT.dtype)
         # Create a complex number
