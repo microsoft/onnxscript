@@ -15,7 +15,7 @@ from typing import Optional, Sequence
 
 from onnxscript import INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TReal, TTensor
+from onnxscript.function_libs.torch_lib.tensor_typing import RealType, TTensor
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import COMPLEX64, COMPLEX128, DOUBLE, FLOAT, TensorType
 
@@ -220,7 +220,7 @@ def prims_conj_physical(self: TensorType) -> TensorType:
 
 
 @torch_op("prims::convert_element_type")
-def prims_convert_element_type(a: TReal, dtype: int) -> TensorType:
+def prims_convert_element_type(a: RealType, dtype: int) -> RealType:
     """convert_element_type(Tensor a, ScalarType dtype) -> Tensor"""
 
     if dtype == COMPLEX128_TYPE:
