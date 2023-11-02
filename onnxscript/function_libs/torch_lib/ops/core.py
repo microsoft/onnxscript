@@ -3003,28 +3003,14 @@ def aten_embedding_dense_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::embedding_renorm", trace_only=True)
+@torch_op("aten::embedding_renorm")
 def aten_embedding_renorm(
     weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
 ) -> TFloat:
     """embedding_renorm(Tensor weight, Tensor indices, float max_norm, float norm_type) -> Tensor"""
 
-    unique_indices = op.Unique(indices)
-    unique_indices_Y = op.SequenceAt(unique_indices, 0)
-    # using _onnx private function because op.SrquenceAt(unique_indices, 0) cannot pass module checker
-    # The error message is:
-    # onnx.onnx_cpp2py_export.shape_inference.InferenceError:
-    # [ShapeInferenceError] Shape inference error(s): (op_type:aten_embedding_renorm,
-    # node name: aten_embedding_renorm_0): [ShapeInferenceError] (op_type:SequenceAt,
-    # node name: n2): input_sequence typestr: S, has unsupported type: tensor(int64)
-    return aten_embedding_renorm_onnx(weight, unique_indices_Y, max_norm, norm_type)
-
-
-@torch_op("aten::embedding_renorm", private=True)
-def aten_embedding_renorm_onnx(
-    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
-) -> TFloat:
-    partial_weight = op.Gather(weight, indices)
+    unique_indices, _, _, _ = op.Unique(indices)
+    partial_weight = op.Gather(weight, unique_indices)
     # partial_weight_norm = sum(|w|^p)^(1/p)
     if norm_type == 1.0:
         # This is not necessary, but op.ReduceL1 is faster than function list in 'else'
@@ -3050,7 +3036,7 @@ def aten_embedding_renorm_onnx(
     partial_weight_renorm = op.Where(
         op.Greater(partial_weight_norm, max_norm), partial_weight_renorm, partial_weight
     )
-    value = op.ScatterND(weight, op.Unsqueeze(indices, [1]), partial_weight_renorm)
+    value = op.ScatterND(weight, op.Unsqueeze(unique_indices, [1]), partial_weight_renorm)
     return value
 
 
