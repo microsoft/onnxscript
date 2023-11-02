@@ -80,8 +80,8 @@ class TorchLibOpInfo:
     nondeterministic: bool = False
     # Whether to compare the shape only for the output[index]
     # For example: (1,2) means compare value for output[0] and shape for output[1] and [2]
-    # We may be able to combine this with the nondeterminstic option
-    compare_shape_only_for_output: tuple[int] = ()
+    # We may be able to combine this with the nondeterministic option
+    compare_shape_only_for_output: tuple[int, ...] = ()
     # Whether the function is designed for complex inputs
     complex: bool = False
     # The acceptable tolerance of the inference result difference between PyTorch and ORT.
@@ -1073,7 +1073,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.embedding_renorm",
         core_ops.aten_embedding_renorm,
         tolerance={torch.float16: (1e-2, 1e-2)},
-        trace_only=True,
         compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(
