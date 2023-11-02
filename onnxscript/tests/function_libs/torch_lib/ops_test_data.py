@@ -81,7 +81,7 @@ class TorchLibOpInfo:
     # Whether to compare the shape only for the output[index]
     # For example: (1,2) means compare value for output[0] and shape for output[1] and [2]
     # We may be able to combine this with the nondeterminstic option
-    compare_shape_only_for_output: tuple[int] = ()
+    compare_shape_only_for_output: tuple[int, ...] = ()
     # Whether the function is designed for complex inputs
     complex: bool = False
     # The acceptable tolerance of the inference result difference between PyTorch and ORT.
