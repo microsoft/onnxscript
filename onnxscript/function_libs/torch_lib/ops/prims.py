@@ -15,16 +15,9 @@ from typing import Optional, Sequence
 
 from onnxscript import INT64
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TTensor
+from onnxscript.function_libs.torch_lib.tensor_typing import TReal, TTensor
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import (
-    COMPLEX64,
-    COMPLEX128,
-    DOUBLE,
-    FLOAT,
-    TensorType,
-    TReal,
-)
+from onnxscript.onnx_types import COMPLEX64, COMPLEX128, DOUBLE, FLOAT, TensorType
 
 
 def prims_abs(self: TensorType) -> TensorType:
