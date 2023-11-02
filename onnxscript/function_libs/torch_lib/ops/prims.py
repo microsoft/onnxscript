@@ -220,7 +220,7 @@ def prims_conj_physical(self: TensorType) -> TensorType:
 
 
 @torch_op("prims::convert_element_type")
-def prims_convert_element_type(a: TReal, dtype: int) -> TReal:
+def prims_convert_element_type(a: TReal, dtype: int) -> TensorType:
     """convert_element_type(Tensor a, ScalarType dtype) -> Tensor"""
 
     if dtype == COMPLEX128_TYPE:
