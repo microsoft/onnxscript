@@ -228,14 +228,14 @@ def prims_convert_element_type(a: TReal, dtype: int) -> TReal:
         casted = op.Cast(a, to=DOUBLE.dtype)
         # Create a complex number
         real_part = op.Unsqueeze(casted, axes=[-1])
-        imag_part = op.Expand(op.Cast(0.0, to=DOUBLE.dtype), op.Shape(casted))
+        imag_part = op.Expand(op.Cast(0.0, to=DOUBLE.dtype), op.Shape(real_part))
         result = op.Concat(real_part, imag_part, axis=-1)
     elif dtype == COMPLEX64_TYPE:
         # Cast to the real representation of the complex type
         casted = op.Cast(a, to=FLOAT.dtype)
         # Create a complex number
         real_part = op.Unsqueeze(casted, axes=[-1])
-        imag_part = op.Expand(0.0, op.Shape(casted))
+        imag_part = op.Expand(0.0, op.Shape(real_part))
         result = op.Concat(real_part, imag_part, axis=-1)
     else:
         # Cast to real numbers
