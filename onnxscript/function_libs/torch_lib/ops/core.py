@@ -5423,7 +5423,7 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
 # replace native_batch_norm within unknown time period.
 # TODO: Refactor this after native_batch_norm is deprecated.
 @torch_op("aten::_native_batch_norm_legit_no_training", trace_only=True)
-def aten_native_batch_norm_no_training(
+def aten__native_batch_norm_no_training(
     input: TFloat,
     weight: Optional[TFloat] = None,
     bias: Optional[TFloat] = None,
