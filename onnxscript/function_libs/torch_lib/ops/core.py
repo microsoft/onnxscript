@@ -2692,12 +2692,14 @@ def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::einsum", trace_only=True)
 def aten_einsum(
-    equation: str, tensors: Sequence[TensorType], path: Optional[int] = None
-) -> TensorType:
+    equation: str, tensors: Sequence[TReal], path: Optional[int] = None
+) -> TReal:
     """einsum(str equation, Tensor[] tensors, *, int[]? path=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # Use trace_only to unpack the `tensors` sequence
+    return op.Einsum(*tensors, equation=equation)
 
 
 @torch_op("aten::embedding")
