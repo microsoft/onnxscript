@@ -736,6 +736,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_empty_input_wrangler,
         nondeterministic=True,
     ),
+    TorchLibOpInfo("einsum", core_ops.aten_einsum, trace_only=True),
     # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
     TorchLibOpInfo("eq", core_ops.aten_eq),
     TorchLibOpInfo("equal", core_ops.aten_equal),
