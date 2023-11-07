@@ -745,9 +745,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "einsum", core_ops.aten_einsum, trace_only=True, input_wrangler=_einsum_input_wrangler
-    ).xfail(
+    )
+    .xfail(
         reason="fixme: PyTorch produces int64 output with int32 input",
         dtypes=(torch.int32,),
+    )
+    .xfail(
+        reason="fixme: ONNX shape inference fails: https://github.com/onnx/onnx/issues/5739",
+        matcher=lambda sample: sample.args[0] == "...ik, ...j -> ij",
     ),
     # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
     TorchLibOpInfo("eq", core_ops.aten_eq),
