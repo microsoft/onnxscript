@@ -2693,7 +2693,11 @@ def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
 
 
 @torch_op("aten::einsum", trace_only=True)
-def aten_einsum(equation: str, tensors: Sequence[TReal], path: Optional[int] = None) -> TReal:
+def aten_einsum(
+    equation: str,
+    tensors: Sequence[TReal],
+    path: Optional[int] = None,  # pylint: disable=unused-argument
+) -> TReal:
     """einsum(str equation, Tensor[] tensors, *, int[]? path=None) -> Tensor"""
 
     # Use trace_only to unpack the `tensors` sequence
