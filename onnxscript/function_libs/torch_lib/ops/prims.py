@@ -219,10 +219,12 @@ def prims_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("prims::convert_element_type")
+@torch_op("prims::convert_element_type", trace_only=True)
 def prims_convert_element_type(a: RealType, dtype: int) -> RealType:
     """convert_element_type(Tensor a, ScalarType dtype) -> Tensor"""
 
+    # Set trace_only=True because different if branches return different dtypes
+    # which is not supported in an ONNX function
     if dtype == COMPLEX128_TYPE:
         # Cast to the real representation of the complex type
         casted = op.Cast(a, to=DOUBLE.dtype)

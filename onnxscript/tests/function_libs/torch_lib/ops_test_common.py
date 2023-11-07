@@ -460,7 +460,8 @@ def graph_executor(
                 input.value = arg
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
-            elif isinstance(arg, Sequence):
+            elif isinstance(arg, (list, tuple)):
+                # str is also a sequence but we do not want to treat it as a tensor
                 sequence_input = []
                 for j, subarg in enumerate(arg):
                     if isinstance(subarg, np.ndarray):
