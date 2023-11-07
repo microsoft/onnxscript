@@ -7747,6 +7747,32 @@ def aten_transpose(self, dim0: int, dim1: int):
     return result
 
 
+@torch_op(("aten::transpose", "aten::transpose.int"), trace_only=True, complex=True)
+def aten_transpose_complex(self, dim0: int, dim1: int):
+    """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
+
+    # Use trace only to construct the prem attribute in Transpose
+    self_rank = len(self.shape)  # type: ignore[attr-defined]
+
+    if self_rank == 0:
+        result = self
+    else:
+        # Python code, change when onnxscript supports this
+        # Handle when dim0 or dim1 is negative. ONNX uses the last axis to
+        # represent to complex axis so we need to move the dim one axis toward the start.
+        if dim0 < 0:
+            dim0 = dim0 - 1
+        if dim1 < 0:
+            dim1 = dim1 - 1
+        dims = list(range(self_rank))
+        dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
+        # Python code ends
+
+        result = op.Transpose(self, perm=dims)
+
+    return result
+
+
 def aten_triangular_solve(
     self: TensorType,
     A: TensorType,
