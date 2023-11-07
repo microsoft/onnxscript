@@ -236,6 +236,13 @@ def _dropout_input_wrangler(
     return args, kwargs
 
 
+def _einsum_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Swap the equation and tensors to revert the special handling in the OpInfo
+    return [args[1], args[0]], kwargs
+
+
 def _embedding_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -736,7 +743,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_empty_input_wrangler,
         nondeterministic=True,
     ),
-    TorchLibOpInfo("einsum", core_ops.aten_einsum, trace_only=True),
+    TorchLibOpInfo(
+        "einsum", core_ops.aten_einsum, trace_only=True, input_wrangler=_einsum_input_wrangler
+    ).xfail(
+        reason="fixme: PyTorch produces int64 output with int32 input",
+        dtypes=(torch.int32,),
+    ),
     # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
     TorchLibOpInfo("eq", core_ops.aten_eq),
     TorchLibOpInfo("equal", core_ops.aten_equal),
