@@ -47,6 +47,7 @@ from typing_extensions import Self
 
 from onnxscript._internal import version_utils
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
+from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
@@ -79,8 +80,8 @@ class TorchLibOpInfo:
     nondeterministic: bool = False
     # Whether to compare the shape only for the output[index]
     # For example: (1,2) means compare value for output[0] and shape for output[1] and [2]
-    # We may be able to combine this with the nondeterminstic option
-    compare_shape_only_for_output: tuple[int] = ()
+    # We may be able to combine this with the nondeterministic option
+    compare_shape_only_for_output: tuple[int, ...] = ()
     # Whether the function is designed for complex inputs
     complex: bool = False
     # The acceptable tolerance of the inference result difference between PyTorch and ORT.
@@ -233,6 +234,13 @@ def _dropout_input_wrangler(
         kwargs["train"] = kwargs["training"]
         kwargs.pop("training")
     return args, kwargs
+
+
+def _einsum_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    # Swap the equation and tensors to revert the special handling in the OpInfo
+    return [args[1], args[0]], kwargs
 
 
 def _embedding_input_wrangler(
@@ -450,6 +458,13 @@ def _where_input_wrangler(
 # Ops to be tested for numerical consistency between onnx and pytorch
 # Find the names of the OpInfos in torch/testing/_internal/common_methods_invocations.py
 TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
+    TorchLibOpInfo(
+        "ops.aten._fft_c2c",  # Custom from extra_opinfo
+        fft_ops.aten__fft_c2c,
+        tolerance={torch.complex64: (3e-3, 1.8e-4)},
+        trace_only=True,
+        complex=True,
+    ),
     TorchLibOpInfo(
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
@@ -727,6 +742,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_empty,
         input_wrangler=_empty_input_wrangler,
         nondeterministic=True,
+    ),
+    TorchLibOpInfo(
+        "einsum", core_ops.aten_einsum, trace_only=True, input_wrangler=_einsum_input_wrangler
+    )
+    .xfail(
+        reason="fixme: PyTorch produces int64 output with int32 input",
+        dtypes=(torch.int32,),
+    )
+    .xfail(
+        reason="fixme: ONNX shape inference fails: https://github.com/onnx/onnx/issues/5739",
+        matcher=lambda sample: sample.args[0] == "...ik, ...j -> ij",
     ),
     # TorchLibOpInfo("empty_strided", core_ops.aten_empty_strided),  # empty_strided is not in OPS_DB
     TorchLibOpInfo("eq", core_ops.aten_eq),
@@ -1065,7 +1091,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.embedding_renorm",
         core_ops.aten_embedding_renorm,
         tolerance={torch.float16: (1e-2, 1e-2)},
-        trace_only=True,
         compare_shape_only_for_output=(1, 2, 3),
     ),
     TorchLibOpInfo(
@@ -1940,6 +1965,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.tensor.int", core_ops.aten_tensor_int
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose, trace_only=True),
+    TorchLibOpInfo(
+        "transpose", core_ops.aten_transpose_complex, trace_only=True, complex=True
+    ),
     TorchLibOpInfo(
         "var_mean",
         core_ops.aten_var_mean,

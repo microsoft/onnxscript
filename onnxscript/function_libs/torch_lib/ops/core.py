@@ -2672,12 +2672,16 @@ def aten_dstack(tensors: Sequence[TensorType]) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::einsum", trace_only=True)
 def aten_einsum(
-    equation: str, tensors: Sequence[TensorType], path: Optional[int] = None
-) -> TensorType:
+    equation: str,
+    tensors: Sequence[TReal],
+    path: Optional[int] = None,  # pylint: disable=unused-argument
+) -> TReal:
     """einsum(str equation, Tensor[] tensors, *, int[]? path=None) -> Tensor"""
 
-    raise NotImplementedError()
+    # Use trace_only to unpack the `tensors` sequence
+    return op.Einsum(*tensors, equation=equation)
 
 
 @torch_op("aten::embedding")
@@ -2983,28 +2987,14 @@ def aten_embedding_dense_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::embedding_renorm", trace_only=True)
+@torch_op("aten::embedding_renorm")
 def aten_embedding_renorm(
     weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
 ) -> TFloat:
     """embedding_renorm(Tensor weight, Tensor indices, float max_norm, float norm_type) -> Tensor"""
 
-    unique_indices = op.Unique(indices)
-    unique_indices_Y = op.SequenceAt(unique_indices, 0)
-    # using _onnx private function because op.SrquenceAt(unique_indices, 0) cannot pass module checker
-    # The error message is:
-    # onnx.onnx_cpp2py_export.shape_inference.InferenceError:
-    # [ShapeInferenceError] Shape inference error(s): (op_type:aten_embedding_renorm,
-    # node name: aten_embedding_renorm_0): [ShapeInferenceError] (op_type:SequenceAt,
-    # node name: n2): input_sequence typestr: S, has unsupported type: tensor(int64)
-    return aten_embedding_renorm_onnx(weight, unique_indices_Y, max_norm, norm_type)
-
-
-@torch_op("aten::embedding_renorm", private=True)
-def aten_embedding_renorm_onnx(
-    weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
-) -> TFloat:
-    partial_weight = op.Gather(weight, indices)
+    unique_indices, _, _, _ = op.Unique(indices)
+    partial_weight = op.Gather(weight, unique_indices)
     # partial_weight_norm = sum(|w|^p)^(1/p)
     if norm_type == 1.0:
         # This is not necessary, but op.ReduceL1 is faster than function list in 'else'
@@ -3030,7 +3020,7 @@ def aten_embedding_renorm_onnx(
     partial_weight_renorm = op.Where(
         op.Greater(partial_weight_norm, max_norm), partial_weight_renorm, partial_weight
     )
-    value = op.ScatterND(weight, op.Unsqueeze(indices, [1]), partial_weight_renorm)
+    value = op.ScatterND(weight, op.Unsqueeze(unique_indices, [1]), partial_weight_renorm)
     return value
 
 
@@ -5403,7 +5393,28 @@ def aten_narrow_copy(self: TensorType, dim: int, start: INT64, length: INT64) ->
     raise NotImplementedError()
 
 
-@torch_op("aten::native_batch_norm", trace_only=True)
+# NOTE: https://github.com/pytorch/pytorch/blob/a44f8894fa6d973693aab44a3dda079a168b05c1/torch/_decomp/decompositions.py#L1501-L1510
+# _native_batch_norm_legit_no_training and _native_batch_norm_legit are meant to
+# replace native_batch_norm within unknown time period.
+# TODO: Refactor this after native_batch_norm is deprecated.
+@torch_op("aten::_native_batch_norm_legit_no_training", trace_only=True)
+def aten__native_batch_norm_no_training(
+    input: TFloat,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    running_mean: Optional[TFloat] = None,
+    running_var: Optional[TFloat] = None,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    """_native_batch_norm_legit_no_training(Tensor input, Tensor? weight, Tensor? bias, Tensor running_mean, Tensor running_var, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
+
+    return aten_native_batch_norm(
+        input, weight, bias, running_mean, running_var, False, momentum, eps
+    )
+
+
+@torch_op(("aten::native_batch_norm", "aten::_native_batch_norm_legit"), trace_only=True)
 def aten_native_batch_norm(
     input: TFloat,
     weight: Optional[TFloat] = None,
@@ -7709,6 +7720,32 @@ def aten_transpose(self, dim0: int, dim1: int):
     return result
 
 
+@torch_op(("aten::transpose", "aten::transpose.int"), trace_only=True, complex=True)
+def aten_transpose_complex(self, dim0: int, dim1: int):
+    """transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"""
+
+    # Use trace only to construct the prem attribute in Transpose
+    self_rank = len(self.shape)  # type: ignore[attr-defined]
+
+    if self_rank == 0:
+        result = self
+    else:
+        # Python code, change when onnxscript supports this
+        # Handle when dim0 or dim1 is negative. ONNX uses the last axis to
+        # represent to complex axis so we need to move the dim one axis toward the start.
+        if dim0 < 0:
+            dim0 = dim0 - 1
+        if dim1 < 0:
+            dim1 = dim1 - 1
+        dims = list(range(self_rank))
+        dims[dim0], dims[dim1] = dims[dim1], dims[dim0]
+        # Python code ends
+
+        result = op.Transpose(self, perm=dims)
+
+    return result
+
+
 def aten_triangular_solve(
     self: TensorType,
     A: TensorType,
@@ -7977,16 +8014,15 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
 
 @torch_op("aten::var_mean.dim", trace_only=True)
 def aten_var_mean_dim(
-    self: TReal, dim: Optional[int], unbiased: bool = True, keepdim: bool = False
+    self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
     """var_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
 
-    # Although dim is Optional in signature, but we assume it must has value for this overload
+    # Although dim is Optional in signature, but we assume it must have value for this overload
     # Assert(dim is not None)
-    if isinstance(dim, Tuple):
-        dim_tensor = op.Constant(value_ints=dim)
-    else:
-        dim_tensor = op.Constant(value_int=dim)
+    if isinstance(dim, int):
+        dim = (dim,)
+    dim_tensor = op.Constant(value_ints=dim)
     return _aten_var_mean_dim_onnx(
         self, dim_tensor, correction=float(unbiased), keepdim=keepdim
     )
@@ -8007,10 +8043,9 @@ def aten_var_mean_correction(
     if dim is None:
         var, mean = _aten_var_mean_onnx(self, correction, keepdim)
     else:
-        if isinstance(dim, Tuple):
-            dim_tensor = op.Constant(value_ints=dim)
-        else:
-            dim_tensor = op.Constant(value_int=dim)
+        if isinstance(dim, int):
+            dim = (dim,)
+        dim_tensor = op.Constant(value_ints=dim)
         var, mean = _aten_var_mean_dim_onnx(self, dim_tensor, correction, keepdim)
     return var, mean
 
