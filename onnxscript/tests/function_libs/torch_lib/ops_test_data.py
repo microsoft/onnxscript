@@ -1966,6 +1966,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),  # Custom from extra_opinfo
     TorchLibOpInfo("transpose", core_ops.aten_transpose, trace_only=True),
     TorchLibOpInfo(
+        "transpose", core_ops.aten_transpose_complex, trace_only=True, complex=True
+    ),
+    TorchLibOpInfo(
         "var_mean",
         core_ops.aten_var_mean,
         trace_only=True,
