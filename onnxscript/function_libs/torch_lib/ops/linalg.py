@@ -345,11 +345,7 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_0_1 = op.CastLike(self_bool, self)
         result = op.ReduceSum(self_0_1, keepdims=False)
-    # TODO(microsoft/onnxruntime#18338): Enable when ONNX Runtime is fixed
-    # elif ord == 1.0:
-    #     result = op.ReduceL1(self, keepdims=keepdim)
-    # elif ord == 2.0:
-    #     result = op.ReduceL2(self, keepdims=keepdim)
+    # TODO(microsoft/onnxruntime#18338): Use ReduceL1/L2 when ONNX Runtime is fixed
     else:
         ord_float = op.CastLike(ord, self)
         self_pow = op.Pow(self, ord_float)
