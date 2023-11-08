@@ -2046,7 +2046,7 @@ def aten_convolution_overrideable(
     raise NotImplementedError()
 
 
-@torch_op("aten::copy")
+@torch_op(("aten::copy", "aten::_to_copy"))
 def aten_copy(
     self: TTensor, src: TTensor, non_blocking: bool = False  # pylint: disable=unused-argument
 ) -> TTensor:
@@ -5461,8 +5461,22 @@ def aten__native_batch_norm_no_training(
         input, weight, bias, running_mean, running_var, False, momentum, eps
     )
 
+@torch_op("aten::_native_batch_norm_legit.no_stats", trace_only=True)
+def aten__native_batch_norm_no_stats(
+    input: TFloat,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    training: bool = False,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    """_native_batch_norm_legit.no_stats(Tensor input, Tensor? weight, Tensor? bias, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
-@torch_op(("aten::native_batch_norm", "aten::_native_batch_norm_legit"), trace_only=True)
+    return aten_native_batch_norm(
+        input, weight, bias, None, None, training, momentum, eps
+    )
+
+@torch_op(("aten::native_batch_norm", "aten::_native_batch_norm_legit", "aten::_native_batch_norm_legit_functional"), trace_only=True)
 def aten_native_batch_norm(
     input: TFloat,
     weight: Optional[TFloat] = None,
