@@ -7261,6 +7261,15 @@ def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
     return result
 
 
+@torch_op("aten::squeeze.dim", complex=True, trace_only=True)
+def aten_squeeze_dim_complex(self: TTensor, dim: int) -> TTensor:
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = dim - 1
+
+    return aten_squeeze_dim(self, dim)
+
+
 def aten_squeeze_copy(self: TensorType) -> TensorType:
     """squeeze_copy(Tensor self) -> Tensor"""
 
