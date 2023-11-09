@@ -821,6 +821,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
     TorchLibOpInfo("lift_fresh_copy", core_ops.aten_lift_fresh_copy),
+    TorchLibOpInfo("linalg.det", linalg_ops.aten_linalg_det),
     TorchLibOpInfo(
         "linalg.vector_norm",
         linalg_ops.aten_linalg_vector_norm,
@@ -1369,6 +1370,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "squeeze_dim",
         core_ops.aten_squeeze_dim,
+    ).skip(
+        matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="this Aten overload only support one tensor as input and one int as args by design",
+    ),
+    TorchLibOpInfo(
+        "squeeze_dim",
+        core_ops.aten_squeeze_dim_complex,
+        complex=True,
+        trace_only=True,
     ).skip(
         matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
         reason="this Aten overload only support one tensor as input and one int as args by design",

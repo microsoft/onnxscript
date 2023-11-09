@@ -2378,12 +2378,6 @@ def aten_dense_dim(self: TensorType) -> int:
     raise NotImplementedError()
 
 
-def aten_det(self: TensorType) -> TensorType:
-    """det(Tensor self) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::detach")
 def aten_detach(self: TensorType) -> TensorType:
     """detach(Tensor(a) self) -> Tensor(a)"""
@@ -7273,6 +7267,15 @@ def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
             result = op.Squeeze(self, dims)
 
     return result
+
+
+@torch_op("aten::squeeze.dim", complex=True, trace_only=True)
+def aten_squeeze_dim_complex(self: TTensor, dim: int) -> TTensor:
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = dim - 1
+
+    return aten_squeeze_dim(self, dim)
 
 
 def aten_squeeze_copy(self: TensorType) -> TensorType:
