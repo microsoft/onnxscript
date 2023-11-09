@@ -2378,12 +2378,6 @@ def aten_dense_dim(self: TensorType) -> int:
     raise NotImplementedError()
 
 
-def aten_det(self: TensorType) -> TensorType:
-    """det(Tensor self) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::detach")
 def aten_detach(self: TensorType) -> TensorType:
     """detach(Tensor(a) self) -> Tensor(a)"""
