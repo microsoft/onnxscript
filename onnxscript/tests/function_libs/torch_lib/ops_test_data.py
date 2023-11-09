@@ -708,6 +708,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cos", core_ops.aten_cos),
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross),
+    TorchLibOpInfo("linalg.det", linalg_ops.aten_linalg_det),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
     TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True),
     TorchLibOpInfo("diagonal_bool", core_ops.aten_diagonal_bool, trace_only=True),

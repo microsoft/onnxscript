@@ -46,10 +46,11 @@ def aten_linalg_cross(self: TensorType, other: TensorType, dim: int = -1) -> Ten
     raise NotImplementedError()
 
 
-def aten_linalg_det(A: TensorType) -> TensorType:
+@torch_op(("aten::linalg_det", "aten::det"))
+def aten_linalg_det(A: TFloat) -> TFloat:
     """linalg_det(Tensor A) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Det(A)
 
 
 def aten_linalg_diagonal(
