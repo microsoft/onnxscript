@@ -1153,11 +1153,12 @@ def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
         requires_grad=requires_grad,
         **kwargs,
     )
-    dimension = 1
-    size = 2
-    step = 2
-    # target_end = (3 - 2) // 2 + 1 = 1
-    yield opinfo_core.SampleInput(t, args=(dimension, size, step))
+    for dimension, size, step in [
+        (1, 2, 2),
+        (-1, 2, 2),
+        (-2, 2, 2),
+    ]:
+        yield opinfo_core.SampleInput(t, args=(dimension, size, step))
 
 
 def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
@@ -1637,8 +1638,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "unfold_extra",
-        op=lambda x, *args: x.unfold(*args),
+        "ops.aten.unfold",
         aten_name="unfold",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_unfold,
