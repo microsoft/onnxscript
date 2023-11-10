@@ -184,7 +184,6 @@ def run_test_output_match(
 
     # Obtain the tolerance for the op
     rtol, atol = torchlib_op_info.get_tolerance(dtype)
-
     for i, cpu_sample in enumerate(samples):
         inputs = (cpu_sample.input, *cpu_sample.args)
         # Provide the repr to subtest because tensors are not serializable in parallel test runs
