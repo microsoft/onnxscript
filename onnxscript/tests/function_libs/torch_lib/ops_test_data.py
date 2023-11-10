@@ -1687,6 +1687,20 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
     TorchLibOpInfo(
+        "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "ops.aten._native_batch_norm_legit.no_stats",
+        core_ops.aten__native_batch_norm_no_stats,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten._native_batch_norm_legit_functional",
+        core_ops.aten__native_batch_norm_legit_functional,
+        trace_only=True,
+        compare_shape_only_for_output=(3, 4),
+    ),
+    TorchLibOpInfo(
         "ops.aten.native_group_norm",
         core_ops.aten_native_group_norm,
         trace_only=True,
