@@ -5570,7 +5570,7 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=training,
     )
-    # NOTE: mean and var are ommited in inference mode
+    # NOTE: mean and var are ommitted in inference mode
     # Cannot return 2 dup output, so have to do twice with different variable name
     empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
     empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
@@ -5578,7 +5578,7 @@ def _aten_native_batch_norm_inference_onnx(
 
 
 # TODO: This op is using duplicated code from aten_native_batch_norm,
-#       need to refactor it later.
+#       need to refactor it later. https://github.com/microsoft/onnxscript/issues/1125
 # NOTE: This op is invoked by PyTorch Functionalization, and not in
 # native_functions.yaml, It can be found in torch/_decomp/decompositions.py
 @torch_op("aten::_native_batch_norm_legit_functional", trace_only=True)
