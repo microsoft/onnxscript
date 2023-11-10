@@ -500,7 +500,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
     TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
-    TorchLibOpInfo("add", core_ops.aten_add_complex, complex=True),
+    TorchLibOpInfo("add", core_ops.aten_add_complex, complex=True, trace_only=True),
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
@@ -1303,7 +1303,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("round_decimals", core_ops.aten_round_decimals),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
-    TorchLibOpInfo("rsub", core_ops.aten_rsub_complex, complex=True),
+    TorchLibOpInfo("rsub", core_ops.aten_rsub_complex, complex=True, trace_only=True),
     TorchLibOpInfo(
         "scalar_tensor",
         core_ops.aten_scalar_tensor,
@@ -1397,7 +1397,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("sub", core_ops.aten_sub),
-    TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True),
+    TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True, trace_only=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
     TorchLibOpInfo(
         "t",
