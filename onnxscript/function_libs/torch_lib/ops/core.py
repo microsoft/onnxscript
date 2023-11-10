@@ -135,9 +135,9 @@ def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
 def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
-    self_real = op.Gather(self, 0, axis=-1)
+    self_real = op.Slice(self, [0], [1], axes=[-1])
     # self_imag = self[..., 1]
-    self_imag = op.Gather(self, 1, axis=-1)
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
     real_pow = op.Pow(self_real, 2)
     imag_pow = op.Pow(self_imag, 2)
     real_plus_imag = op.Add(real_pow, imag_pow)
@@ -2628,6 +2628,39 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
     # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
+
+@torch_op(
+    (
+        "aten::div",
+        "aten::div.Tensor",
+        "aten::div.Scalar",
+        "aten::divide",
+        "aten::true_divide",
+        "_operator::truediv",
+    )
+)
+def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
+    """div.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    # Complex division. PyTorch type promotion ensures both arguments are complex numbers
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
+    other_real = op.Slice(other, [0], [1], axes=[-1])
+    other_imag = op.Slice(other, [1], [2], axes=[-1])
+
+    # Complex division
+    # (a + bi) / (c + di) = (ac + bd) / (c^2 + d^2) + (bc - ad) / (c^2 + d^2)i
+    # https://mathworld.wolfram.com/ComplexDivision.html
+    real = op.Div(
+        op.Add(op.Mul(self_real, other_real), op.Mul(self_imag, other_imag)),
+        op.Add(op.Mul(other_real, other_real), op.Mul(other_imag, other_imag)),
+    )
+    imag = op.Div(
+        op.Sub(op.Mul(self_imag, other_real), op.Mul(self_real, other_imag)),
+        op.Add(op.Mul(other_real, other_real), op.Mul(other_imag, other_imag)),
+    )
+
+    return op.Concat(real, imag, axis=-1)
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
