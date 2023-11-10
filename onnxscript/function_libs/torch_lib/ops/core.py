@@ -2659,14 +2659,13 @@ def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
     # Complex division
     # (a + bi) / (c + di) = (ac + bd) / (c^2 + d^2) + (bc - ad) / (c^2 + d^2)i
     # https://mathworld.wolfram.com/ComplexDivision.html
-    real = op.Div(
-        op.Add(op.Mul(self_real, other_real), op.Mul(self_imag, other_imag)),
-        op.Add(op.Mul(other_real, other_real), op.Mul(other_imag, other_imag)),
-    )
-    imag = op.Div(
-        op.Sub(op.Mul(self_imag, other_real), op.Mul(self_real, other_imag)),
-        op.Add(op.Mul(other_real, other_real), op.Mul(other_imag, other_imag)),
-    )
+    ac = op.Mul(self_real, other_real)
+    bd = op.Mul(self_imag, other_imag)
+    bc = op.Mul(self_imag, other_real)
+    ad = op.Mul(self_real, other_imag)
+    denominator = op.Add(op.Mul(other_real, other_real), op.Mul(other_imag, other_imag))
+    real = op.Div(ac + bd, denominator)
+    imag = op.Div(bc - ad, denominator)
 
     return op.Concat(real, imag, axis=-1)
 
