@@ -5577,7 +5577,8 @@ def _aten_native_batch_norm_inference_onnx(
 
 
 # NOTE: This op is invoked by PyTorch Functionalization, and not in
-# native_functions.yaml. It can be found in torch/_decomp/decompositions.py
+# native_functions.yaml, so it can only be tested within converter test.
+# It can be found in torch/_decomp/decompositions.py
 @torch_op("aten::_native_batch_norm_legit_functional", trace_only=True)
 def aten__native_batch_norm_functional(
     input: TFloat,
@@ -5651,7 +5652,9 @@ def _aten_native_batch_norm_training_functional_onnx(
     rstd = op.Div(1.0, op.Sqrt(var + eps))
     # Get mean again with size = [1, C]
     mean = op.ReduceMean(input, axes, keepdims=False)
-
+    # NOTE: Fixed to be FLOAT dtype
+    running_mean = op.Cast(running_mean, to=FLOAT.dtype)
+    running_var = op.Cast(running_var, to=FLOAT.dtype)
     return norm, mean, rstd, running_mean, running_var
 
 
