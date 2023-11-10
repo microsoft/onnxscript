@@ -5570,12 +5570,15 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=training,
     )
+    # NOTE: mean and var are ommited in inference mode
     # Cannot return 2 dup output, so have to do twice with different variable name
     empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
     empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
     return norm, empty_mean, empty_var
 
 
+# TODO: This op is using duplicated code from aten_native_batch_norm,
+#       need to refactor it later.
 # NOTE: This op is invoked by PyTorch Functionalization, and not in
 # native_functions.yaml, It can be found in torch/_decomp/decompositions.py
 @torch_op("aten::_native_batch_norm_legit_functional", trace_only=True)
@@ -5610,18 +5613,24 @@ def aten__native_batch_norm_legit_functional(
     # Have to split to 2 private functions, because training_function return 3 outputs
     # While inference_function return 1 output
     if training is True:
-        norm, mean, var, new_mean, new_var = _aten_native_batch_norm_training_functional_onnx(
+        norm, mean, var, new_mean, new_var = _aten__native_batch_norm_training_functional_onnx(
             input, weight, bias, running_mean, running_var, axes, training, momentum, eps
         )
     else:
-        norm, mean, var, new_mean, new_var = _aten_native_batch_norm_inference_functional_onnx(
+        (
+            norm,
+            mean,
+            var,
+            new_mean,
+            new_var,
+        ) = _aten__native_batch_norm_inference_functional_onnx(
             input, weight, bias, running_mean, running_var, training, momentum, eps
         )
     return norm, mean, var, new_mean, new_var
 
 
 @torch_op("aten::_native_batch_norm_legit_functional", private=True)
-def _aten_native_batch_norm_training_functional_onnx(
+def _aten__native_batch_norm_training_functional_onnx(
     input: TFloat,
     weight: TFloat,
     bias: TFloat,
@@ -5658,7 +5667,7 @@ def _aten_native_batch_norm_training_functional_onnx(
 
 
 @torch_op("aten::_native_batch_norm_legit_functional", private=True)
-def _aten_native_batch_norm_inference_functional_onnx(
+def _aten__native_batch_norm_inference_functional_onnx(
     input: TFloat,
     weight: TFloat,
     bias: TFloat,
@@ -5679,6 +5688,7 @@ def _aten_native_batch_norm_inference_functional_onnx(
         momentum=momentum,
         training_mode=training,
     )
+    # NOTE: mean and var are ommited in inference mode
     # Cannot return 2 dup output, so have to do twice with different variable name
     empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
     empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
