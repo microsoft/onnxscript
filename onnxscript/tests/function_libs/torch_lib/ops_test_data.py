@@ -2116,9 +2116,6 @@ ops_test_common.duplicate_opinfo(
 ops_test_common.duplicate_opinfo(
     OPS_DB, "ops.aten._log_softmax", ("ops.aten._log_softmax_half",)
 )
-ops_test_common.duplicate_opinfo(
-    OPS_DB, "ops.aten._native_batch_norm_legit", ("ops.aten._native_batch_norm_functional",)
-)
 ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softmax_half",))
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
