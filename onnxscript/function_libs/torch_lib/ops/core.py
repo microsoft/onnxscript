@@ -5570,7 +5570,7 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=training,
     )
-    # NOTE: mean and var are ommitted in inference mode
+    # NOTE: mean and var are omitted in inference mode
     # Cannot return 2 dup output, so have to do twice with different variable name
     empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
     empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
