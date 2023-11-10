@@ -135,13 +135,13 @@ def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
 def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
-    self_real = op.Gather(self, 0, axis=-1)
+    self_real = op.Slice(self, [0], [1], axes=[-1])
     # self_imag = self[..., 1]
-    self_imag = op.Gather(self, 1, axis=-1)
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
     real_pow = op.Pow(self_real, 2)
     imag_pow = op.Pow(self_imag, 2)
     real_plus_imag = op.Add(real_pow, imag_pow)
-    return op.Sqrt(real_plus_imag)
+    return op.Squeeze(op.Sqrt(real_plus_imag), axes=[-1])
 
 
 @torch_op("aten::acos")
@@ -165,6 +165,13 @@ def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
     return op.Add(self, other)
+
+
+@torch_op(("aten::add", "aten::add.Tensor", "_operator::add"), trace_only=True, complex=True)
+def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+    """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+
+    return aten_add(self, other, alpha=alpha)
 
 
 @torch_op("aten::addbmm")
@@ -2628,6 +2635,39 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
     # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
+
+
+@torch_op(
+    (
+        "aten::div",
+        "aten::div.Tensor",
+        "aten::div.Scalar",
+        "aten::divide",
+        "aten::true_divide",
+        "_operator::truediv",
+    )
+)
+def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
+    """div.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    # Complex division. PyTorch type promotion ensures both arguments are complex numbers
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
+    other_real = op.Slice(other, [0], [1], axes=[-1])
+    other_imag = op.Slice(other, [1], [2], axes=[-1])
+
+    # Complex division
+    # (a + bi) / (c + di) = (ac + bd) / (c^2 + d^2) + (bc - ad) / (c^2 + d^2)i
+    # https://mathworld.wolfram.com/ComplexDivision.html
+    ac = op.Mul(self_real, other_real)
+    bd = op.Mul(self_imag, other_imag)
+    bc = op.Mul(self_imag, other_real)
+    ad = op.Mul(self_real, other_imag)
+    denominator = op.Add(op.Mul(other_real, other_real), op.Mul(other_imag, other_imag))
+    real = op.Div(ac + bd, denominator)
+    imag = op.Div(bc - ad, denominator)
+
+    return op.Concat(real, imag, axis=-1)
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
@@ -5304,8 +5344,7 @@ def aten_msort(self: TensorType) -> TensorType:
 @torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"))
 def aten_mul(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
-    # FIXME(titaiwang): get rid of this when we have type_promotion
-    other = op.CastLike(other, self)
+
     return op.Mul(self, other)
 
 
@@ -5317,6 +5356,29 @@ def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     # since different ONNX operators are used based on different data types.
 
     return op.And(self, other)
+
+
+@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"))
+def aten_mul_complex(self: TReal, other: TReal) -> TReal:
+    """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
+    other_real = op.Slice(other, [0], [1], axes=[-1])
+    other_imag = op.Slice(other, [1], [2], axes=[-1])
+
+    # Complex multiplication
+    # (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
+
+    ac = op.Mul(self_real, other_real)
+    bd = op.Mul(self_imag, other_imag)
+    ad = op.Mul(self_real, other_imag)
+    bc = op.Mul(self_imag, other_real)
+
+    real = op.Sub(ac, bd)
+    imag = op.Add(ad, bc)
+
+    return op.Concat(real, imag, axis=-1)
 
 
 @torch_op("aten::multinomial")
@@ -6967,10 +7029,15 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 @torch_op(("aten::rsub", "aten::rsub.Scalar"))
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    # FIXME(titaiwang): get rid of this when we have type_promotion
-    other = op.CastLike(other, self)
-    alpha = op.CastLike(alpha, self)
+
     return op.Sub(other, op.Mul(self, alpha))
+
+
+@torch_op(("aten::rsub", "aten::rsub.Scalar"), trace_only=True, complex=True)
+def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+    """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+
+    return aten_rsub(self, other, alpha)
 
 
 @torch_op("aten::scalar_tensor")
@@ -7563,7 +7630,7 @@ def aten_stft(
     return result
 
 
-@torch_op(("aten::sub", "aten::sub.Tensor", "_operator::sub"))
+@torch_op(("aten::sub", "aten::sub.Tensor", "aten::subtract", "_operator::sub"))
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     alpha = op.CastLike(alpha, other)
@@ -7572,10 +7639,15 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Sub(self, other)
 
 
-def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1.0) -> TensorType:
-    """subtract.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+@torch_op(
+    ("aten::sub", "aten::sub.Tensor", "aten::subtract", "_operator::sub"),
+    trace_only=True,
+    complex=True,
+)
+def aten_sub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+    """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
-    raise NotImplementedError()
+    return aten_sub(self, other, alpha=alpha)
 
 
 @torch_op(("aten::sum", "aten::sum.dim_IntList"), trace_only=True)

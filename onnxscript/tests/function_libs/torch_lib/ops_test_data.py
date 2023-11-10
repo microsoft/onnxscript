@@ -500,6 +500,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
     TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
+    TorchLibOpInfo("add", core_ops.aten_add_complex, complex=True, trace_only=True),
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
@@ -715,6 +716,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="this variation does not take the rounding_mode argument",
     ),
+    TorchLibOpInfo("true_divide", core_ops.aten_div),
+    TorchLibOpInfo("true_divide", core_ops.aten_div_complex, complex=True),
     TorchLibOpInfo("div_mode", core_ops.aten_div_mode, trace_only=True)
     .skip(
         variant_name="no_rounding_mode",
@@ -949,6 +952,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mT", core_ops.aten_mT),
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("mul", core_ops.aten_mul),
+    TorchLibOpInfo("mul", core_ops.aten_mul_complex, complex=True),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
     TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
     TorchLibOpInfo("ne", core_ops.aten_ne),
@@ -1299,6 +1303,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("round_decimals", core_ops.aten_round_decimals),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
+    TorchLibOpInfo("rsub", core_ops.aten_rsub_complex, complex=True, trace_only=True),
     TorchLibOpInfo(
         "scalar_tensor",
         core_ops.aten_scalar_tensor,
@@ -1392,6 +1397,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("sub", core_ops.aten_sub),
+    TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True, trace_only=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
     TorchLibOpInfo(
         "t",
