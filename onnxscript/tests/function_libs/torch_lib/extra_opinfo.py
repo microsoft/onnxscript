@@ -1690,6 +1690,16 @@ OP_DB: List[opinfo_core.OpInfo] = [
         sample_inputs_func=sample_inputs__native_batch_norm_legit,
     ),
     opinfo_core.OpInfo(
+        "ops.aten._native_batch_norm_legit_functional",
+        aten_name="_native_batch_norm_legit_functional",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.float16, torch.bfloat16),
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        assert_jit_shape_analysis=True,
+        sample_inputs_func=sample_inputs__native_batch_norm_legit,
+    ),
+    opinfo_core.OpInfo(
         "ops.aten._native_batch_norm_legit.no_stats",
         aten_name="_native_batch_norm_legit.no_stats",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),

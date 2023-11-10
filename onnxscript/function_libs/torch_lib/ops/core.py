@@ -5577,10 +5577,9 @@ def _aten_native_batch_norm_inference_onnx(
 
 
 # NOTE: This op is invoked by PyTorch Functionalization, and not in
-# native_functions.yaml, so it can only be tested within converter test.
-# It can be found in torch/_decomp/decompositions.py
+# native_functions.yaml, It can be found in torch/_decomp/decompositions.py
 @torch_op("aten::_native_batch_norm_legit_functional", trace_only=True)
-def aten__native_batch_norm_functional(
+def aten__native_batch_norm_legit_functional(
     input: TFloat,
     weight: Optional[TFloat] = None,
     bias: Optional[TFloat] = None,
@@ -5683,7 +5682,7 @@ def _aten_native_batch_norm_inference_functional_onnx(
     # Cannot return 2 dup output, so have to do twice with different variable name
     empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
     empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
-    return norm, empty_mean, empty_var, empty_mean, empty_var
+    return norm, empty_mean, empty_var, running_mean, running_var
 
 
 def aten_native_batch_norm_backward(
