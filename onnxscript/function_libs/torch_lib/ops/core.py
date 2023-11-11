@@ -7051,9 +7051,7 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
-def aten_scalar_tensor_sym_number(
-    s: Union[FLOAT, INT32, BOOL], dtype: int = FLOAT.dtype
-) -> TTensor:
+def aten_scalar_tensor_sym_number(s: RealType, dtype: int = FLOAT.dtype) -> TTensor:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # Set trace_only=True because different if branches return different dtypes
