@@ -14,13 +14,11 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import INT64
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import RealType, TTensor
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import COMPLEX64, COMPLEX128, DOUBLE, FLOAT, TensorType
-
-COMPLEX64_TYPE = COMPLEX64.dtype
-COMPLEX128_TYPE = COMPLEX128.dtype
 
 
 def prims_abs(self: TensorType) -> TensorType:
@@ -225,25 +223,7 @@ def prims_convert_element_type(a: RealType, dtype: int) -> RealType:
 
     # Set trace_only=True because different if branches return different dtypes
     # which is not supported in an ONNX function
-    if dtype == COMPLEX128_TYPE:
-        # Cast to the real representation of the complex type
-        casted = op.Cast(a, to=DOUBLE.dtype)
-        # Create a complex number
-        real_part = op.Unsqueeze(casted, axes=[-1])
-        imag_part = op.Expand(op.Cast(0.0, to=DOUBLE.dtype), op.Shape(real_part))
-        result = op.Concat(real_part, imag_part, axis=-1)
-    elif dtype == COMPLEX64_TYPE:
-        # Cast to the real representation of the complex type
-        casted = op.Cast(a, to=FLOAT.dtype)
-        # Create a complex number
-        real_part = op.Unsqueeze(casted, axes=[-1])
-        imag_part = op.Expand(0.0, op.Shape(real_part))
-        result = op.Concat(real_part, imag_part, axis=-1)
-    else:
-        # Cast to real numbers
-        result = op.Cast(a, to=dtype)
-
-    return result
+    return common_ops.cast_to(a, dtype)
 
 
 def prims_copy_strided(a: TensorType, stride: INT64) -> TensorType:
