@@ -8115,6 +8115,9 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     if self_rank == 0:
         result = op.Unsqueeze(self, 0)
     else:
+        # Handle negative dimension
+        if dimension < 0:
+            dimension = dimension + self_rank
         dim_size = self.shape[dimension]
         target_end = (dim_size - size) // step + 1
         if target_end >= 1:  # the rank of final reuslt will be self_rank + 1
