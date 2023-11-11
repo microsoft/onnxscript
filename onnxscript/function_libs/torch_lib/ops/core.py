@@ -7042,7 +7042,7 @@ def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
-def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # Set trace_only=True because different if branches return different dtypes
@@ -7051,7 +7051,7 @@ def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: 
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
-def aten_scalar_tensor_sym_number(s: RealType, dtype: int = FLOAT.dtype) -> TTensor:
+def aten_scalar_tensor_sym_number(s: RealType, dtype: int = FLOAT.dtype) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # Set trace_only=True because different if branches return different dtypes
