@@ -2645,7 +2645,8 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
         "aten::divide",
         "aten::true_divide",
         "_operator::truediv",
-    )
+    ),
+    complex=True,
 )
 def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
     """div.Tensor(Tensor self, Tensor other) -> Tensor"""
@@ -5358,7 +5359,7 @@ def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     return op.And(self, other)
 
 
-@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"))
+@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"), complex=True)
 def aten_mul_complex(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
 
