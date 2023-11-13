@@ -8364,6 +8364,15 @@ def aten_view(self: TTensor, size: IntType) -> TTensor:
     return op.Reshape(self, size)
 
 
+@torch_op("aten::view", complex=True)
+def aten_view_complex(self: TTensor, size: IntType) -> TTensor:
+    """view(Tensor(a) self, SymInt[] size) -> Tensor(a)"""
+
+    size = op.Cast(size, to=INT64.dtype)  # Reshape only support INT64 as second input
+    complex_size = op.Concat(size, op.Constant(value_ints=[2]), axis=0)
+    return op.Reshape(self, complex_size)
+
+
 @torch_op("aten::view_as")
 def aten_view_as(self: TTensor, other: TTensor2) -> TTensor:
     """view_as(Tensor(a) self, Tensor other) -> Tensor(a)"""
