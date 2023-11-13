@@ -2072,10 +2072,9 @@ def aten__to_copy(
     """_to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor"""
 
     if dtype == -1:
-        self = op.Identity(self)
+        return op.Identity(self)
     else:
-        self = op.Cast(self, to=dtype)
-    return self
+        return common_ops.cast_to(self, dtype=dtype)
 
 
 def aten_copysign(self: TensorType, other: TensorType) -> TensorType:
