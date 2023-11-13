@@ -1215,11 +1215,12 @@ def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
         requires_grad=requires_grad,
         **kwargs,
     )
-    dimension = 1
-    size = 2
-    step = 2
-    # target_end = (3 - 2) // 2 + 1 = 1
-    yield opinfo_core.SampleInput(t, args=(dimension, size, step))
+    for dimension, size, step in [
+        (1, 2, 2),
+        (-1, 2, 2),
+        (-2, 2, 2),
+    ]:
+        yield opinfo_core.SampleInput(t, args=(dimension, size, step))
 
 
 def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
@@ -1349,6 +1350,52 @@ def sample_inputs_scaled_dot_product_flash_attention(
     )
 
     yield from samples
+
+
+# NOTE: In `_native_batch_norm_legit` tests, it generates two kinds of args:
+# 1. (input, weight, bias, running_mean, running_var, training, momentum, eps)
+# 2. (input, weight, bias, training, momentum, eps)
+# which requires two function signatures to take the inputs, that's why we have
+# two sample_inputs functions here instead.
+def sample_inputs__native_batch_norm_legit(op_info, device, dtype, requires_grad, **kwargs):
+    samples = common_methods_invocations.sample_inputs_batch_norm(
+        op_info, device, dtype, requires_grad, **kwargs
+    )
+    for sample in samples:
+        # torch.native_batch_norm does not support 0 numel tensors
+        # IndexError: Dimension out of range (expected to be in range of [-1, 0], but got 1)
+        if sample.input.numel() == 0:
+            continue
+        args = sample.args
+        training = sample.kwargs.get("training", True)
+        momentum = sample.kwargs.get("momentum", 0.5)
+        eps = sample.kwargs.get("eps", 1e-5)
+        if args[0] is not None and args[1] is not None:
+            yield opinfo_core.SampleInput(
+                sample.input,
+                args=(args[2], args[3], args[0], args[1], training, momentum, eps),
+            )
+
+
+def sample_inputs__native_batch_norm_legit_no_stats(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    samples = common_methods_invocations.sample_inputs_batch_norm(
+        op_info, device, dtype, requires_grad, **kwargs
+    )
+    for sample in samples:
+        # torch.native_batch_norm does not support 0 numel tensors
+        # IndexError: Dimension out of range (expected to be in range of [-1, 0], but got 1)
+        if sample.input.numel() == 0:
+            continue
+        args = sample.args
+        training = sample.kwargs.get("training", True)
+        momentum = sample.kwargs.get("momentum", 0.5)
+        eps = sample.kwargs.get("eps", 1e-5)
+        if args[0] is not None and args[1] is None:
+            yield opinfo_core.SampleInput(
+                sample.input, args=(args[2], args[3], training, momentum, eps)
+            )
 
 
 # NOTE: How to create an OpInfo:
@@ -1660,8 +1707,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "unfold_extra",
-        op=lambda x, *args: x.unfold(*args),
+        "ops.aten.unfold",
         aten_name="unfold",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_unfold,
@@ -1701,5 +1747,35 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_forward_ad=False,
         supports_fwgrad_bwgrad=True,
         check_batched_forward_grad=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._native_batch_norm_legit",
+        aten_name="_native_batch_norm_legit",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.float16, torch.bfloat16),
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        assert_jit_shape_analysis=True,
+        sample_inputs_func=sample_inputs__native_batch_norm_legit,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._native_batch_norm_legit_functional",
+        aten_name="_native_batch_norm_legit_functional",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.float16, torch.bfloat16),
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        assert_jit_shape_analysis=True,
+        sample_inputs_func=sample_inputs__native_batch_norm_legit,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._native_batch_norm_legit.no_stats",
+        aten_name="_native_batch_norm_legit.no_stats",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.float16, torch.bfloat16),
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        assert_jit_shape_analysis=True,
+        sample_inputs_func=sample_inputs__native_batch_norm_legit_no_stats,
     ),
 ]
