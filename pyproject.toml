@@ -112,6 +112,7 @@ select = [
     "E", # pycodestyle
     "F", # Pyflakes
     "G", # flake8-logging-format
+    "I", # isort
     "ISC", # flake8-implicit-str-concat
     "N", # pep8-naming
     "NPY", # modern numpy
@@ -143,7 +144,7 @@ ignore = [
     "UP006", # keep-runtime-typing
     "UP007", # keep-runtime-typing
 ]
-line-length = 120
+line-length = 95
 ignore-init-module-imports = true
 
 [tool.ruff.per-file-ignores]
