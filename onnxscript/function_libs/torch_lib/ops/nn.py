@@ -20,6 +20,7 @@ from typing import Optional, Sequence, Tuple
 import onnx
 
 from onnxscript import FLOAT, INT64
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -33,6 +34,7 @@ from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import BOOL, TensorType
 
 _MATH_PI = math.pi
+Rank = common_ops.Rank
 
 
 @torch_op("aten::aten_adaptive_avg_pool1d")
@@ -42,7 +44,7 @@ def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     # assert output_size == [1]
     # TODO(justinchuby): Specify input constraints
 
-    if op.Size(op.Shape(self)) == 2:
+    if Rank(self) == 2:
         # Unbatched case
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         pooled = op.GlobalAveragePool(self)
@@ -60,7 +62,7 @@ def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     # assert output_size == [1, 1]
     # TODO(justinchuby): Specify input constraints
 
-    if op.Size(op.Shape(self)) == 3:
+    if Rank(self) == 3:
         # Unbatched case
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         pooled = op.GlobalAveragePool(self)
@@ -78,7 +80,7 @@ def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
     # assert output_size == [1, 1, 1]
     # TODO(justinchuby): Specify input constraints
 
-    if op.Size(op.Shape(self)) == 4:
+    if Rank(self) == 4:
         # Unbatched case
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         pooled = op.GlobalAveragePool(self)
@@ -864,8 +866,8 @@ def _aten_max_pool_onnx(
     ceil_mode: bool,
     unbatched_rank: int,
 ) -> TFloatOrUInt8:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == unbatched_rank:  # C,H,W -> N,C,H,W and N=1
+    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     pool_result, _ = op.MaxPool(
@@ -877,7 +879,7 @@ def _aten_max_pool_onnx(
         strides=strides,
     )
 
-    if self_rank == unbatched_rank:
+    if self_rank_is_unbatched_rank:
         pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
 
     return pool_result
@@ -999,8 +1001,8 @@ def _aten_max_pool_with_indices_onnx(
     n_dims_zero: Sequence[int],
     n_dims_axes: Sequence[int],
 ) -> Tuple[TFloatOrUInt8, INT64]:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == unbatched_rank:
+    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    if self_rank_is_unbatched_rank:
         self = op.Unsqueeze(self, axes=0)
 
     pool_result, indices = op.MaxPool(
@@ -1055,7 +1057,7 @@ def _aten_max_pool_with_indices_onnx(
     delta = op.Slice(flatten_indices, axes=axes, starts=starts, ends=ends)
     indices = op.Sub(indices, delta)
 
-    if self_rank == unbatched_rank:
+    if self_rank_is_unbatched_rank:
         pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
         indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
 
@@ -1227,8 +1229,8 @@ def aten_nll_loss(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    rank_self = op.Size(op.Shape(self))
-    if rank_self == 1:  # self rank should be at least 2
+    self_rank_is_1 = Rank(self) == 1
+    if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     rank_target = op.Size(op.Shape(target))
@@ -1248,7 +1250,7 @@ def aten_nll_loss(
             self, target, ignore_index=ignore_index, reduction="sum"
         )
 
-    if rank_self == 1:
+    if self_rank_is_1:
         result = op.Squeeze(result)
 
     return result
@@ -1264,8 +1266,8 @@ def aten_nll_loss_weight(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    rank_self = op.Size(op.Shape(self))
-    if rank_self == 1:  # self rank should be at least 2
+    self_rank_is_1 = Rank(self) == 1
+    if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     rank_target = op.Size(op.Shape(target))
@@ -1285,7 +1287,7 @@ def aten_nll_loss_weight(
             self, target, weight, ignore_index=ignore_index, reduction="sum"
         )
 
-    if rank_self == 1:
+    if self_rank_is_1:
         result = op.Squeeze(result)
 
     return result
@@ -1415,7 +1417,7 @@ def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     zero = op.Constant(value_ints=[0])
     # [0] * (rank * 2 - len(padding))
-    rank = op.Size(op.Shape(self))
+    rank = Rank(self)
     zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
     zeros = op.Expand(zero, zero_count)
     # list(padding[:]) + [0] * (dim * 2 - len(padding))
@@ -1494,7 +1496,7 @@ def aten_replication_pad2d(self: TTensor, padding: INT64) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     zero = op.Constant(value_ints=[0])
     # [0] * (rank * 2 - len(padding))
-    rank = op.Size(op.Shape(self))
+    rank = Rank(self)
     zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
     zeros = op.Expand(zero, zero_count)
     # list(padding[:]) + [0] * (dim * 2 - len(padding))
@@ -1530,7 +1532,7 @@ def aten_replication_pad3d(self: TTensor, padding: INT64) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     zero = op.Constant(value_ints=[0])
     # [0] * (rank * 2 - len(padding))
-    rank = op.Size(op.Shape(self))
+    rank = Rank(self)
     zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
     zeros = op.Expand(zero, zero_count)
     # list(padding[:]) + [0] * (dim * 2 - len(padding))
