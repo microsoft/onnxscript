@@ -1548,10 +1548,11 @@ def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
 
     self_size = op.Size(self)
     max_shape = op.Shape(max_)
+    max_rank = op.Size(max_shape)
     if self_size == 0:
         result = op.Expand(self, max_shape)
     else:
-        if IsScalar(max_):
+        if max_rank == 0:
             max_ = op.CastLike(max_, self)
             result = op.Clip(self, None, max_)
         else:
@@ -1566,10 +1567,11 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 
     self_size = op.Size(self)
     min_shape = op.Shape(min_)
+    min_rank = op.Size(min_shape)
     if self_size == 0:
         result = op.Expand(self, min_shape)
     else:
-        if IsScalar(min_):
+        if min_rank == 0:
             min_ = op.CastLike(min_, self)
             result = op.Clip(self, min_, None)
         else:
