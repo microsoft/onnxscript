@@ -21,9 +21,8 @@ from typing import (
 import onnx
 
 import onnxscript
-from onnxscript import irbuilder, onnx_types, sourceinfo
+from onnxscript import irbuilder, onnx_types, sourceinfo, values
 from onnxscript import type_annotation as ta
-from onnxscript import values
 from onnxscript._internal import analysis, ast_utils, autocast, param_manipulation
 
 PY_VERSION_GE_39 = ast_utils.PY_VERSION_GE_39
