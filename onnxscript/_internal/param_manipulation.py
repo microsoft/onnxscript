@@ -61,8 +61,7 @@ def separate_input_attributes_from_arguments(
             else:
                 onnx_attributes[param.name] = kwargs[param.name]
         elif (
-            param.is_attribute
-            and param.default is not values._EmptyDefault  # pylint: disable=protected-access
+            param.is_attribute and param.default is not values._EmptyDefault  # pylint: disable=protected-access
         ):
             # User did not provide the attribute
             if fill_defaults:
