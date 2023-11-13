@@ -124,7 +124,7 @@ def aten__softmax(
     return aten_softmax_no_dtype(self, dim)
 
 
-@torch_op("aten::abs")
+@torch_op(("aten::abs", "_operator::abs"))
 def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
 
@@ -135,13 +135,13 @@ def aten_abs(self: TRealOrUInt8) -> TRealOrUInt8:
 def aten_abs_complex(self: TRealOrUInt8) -> TRealOrUInt8:
     """abs(Tensor self) -> Tensor"""
     # self_real = self[..., 0]
-    self_real = op.Gather(self, 0, axis=-1)
+    self_real = op.Slice(self, [0], [1], axes=[-1])
     # self_imag = self[..., 1]
-    self_imag = op.Gather(self, 1, axis=-1)
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
     real_pow = op.Pow(self_real, 2)
     imag_pow = op.Pow(self_imag, 2)
     real_plus_imag = op.Add(real_pow, imag_pow)
-    return op.Sqrt(real_plus_imag)
+    return op.Squeeze(op.Sqrt(real_plus_imag), axes=[-1])
 
 
 @torch_op("aten::acos")
@@ -158,13 +158,20 @@ def aten_acosh(self: TFloat) -> TFloat:
     return op.Acosh(self)
 
 
-@torch_op(("aten::add", "aten::add.Tensor"))
+@torch_op(("aten::add", "aten::add.Tensor", "_operator::add"))
 def aten_add(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     # TODO(microsoft/onnxruntime#15977): Improve fp16 precision
     alpha = op.CastLike(alpha, other)
     other = op.Mul(other, alpha)
     return op.Add(self, other)
+
+
+@torch_op(("aten::add", "aten::add.Tensor", "_operator::add"), trace_only=True, complex=True)
+def aten_add_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+    """add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+
+    return aten_add(self, other, alpha=alpha)
 
 
 @torch_op("aten::addbmm")
@@ -1148,6 +1155,7 @@ def aten_binomial(
         "aten::bitwise_and.Tensor",
         "aten::bitwise_and.Scalar",
         "aten::bitwise_and.Scalar_Tensor",
+        "_operator::and_",
     )
 )
 def aten_bitwise_and(self: TInt, other: TInt) -> TInt:
@@ -1219,6 +1227,7 @@ def aten_bitwise_not(self: TInt) -> TInt:
         "aten::bitwise_or.Tensor",
         "aten::bitwise_or.Scalar",
         "aten::bitwise_or.Scalar_Tensor",
+        "_operator::or_",
     )
 )
 def aten_bitwise_or(self: TInt, other: TInt) -> TInt:
@@ -1426,6 +1435,13 @@ def aten_ceil(self: TFloat) -> TFloat:
     """ceil(Tensor self) -> Tensor"""
 
     return op.Ceil(self)
+
+
+@torch_op("math::ceil")
+def python_math_ceil(self: TFloat) -> TInt:
+    """ceil(Tensor self) -> Tensor"""
+    ceil = op.Ceil(self)
+    return op.Cast(ceil, to=INT64.dtype)
 
 
 def aten_chain_matmul(matrices: Sequence[TensorType]) -> TensorType:
@@ -2028,6 +2044,20 @@ def aten_copy(
     return self
 
 
+@torch_op("aten::_to_copy", trace_only=True)
+def aten__to_copy(
+    self: TTensor,
+    dtype: int = -1,
+    non_blocking: bool = False,  # pylint: disable=unused-argument
+) -> TTensor:
+    """_to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor"""
+
+    if dtype == -1:
+        return op.Identity(self)
+    else:
+        return common_ops.cast_to(self, dtype=dtype)
+
+
 def aten_copysign(self: TensorType, other: TensorType) -> TensorType:
     """copysign.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -2350,12 +2380,6 @@ def aten_dense_dim(self: TensorType) -> int:
     raise NotImplementedError()
 
 
-def aten_det(self: TensorType) -> TensorType:
-    """det(Tensor self) -> Tensor"""
-
-    raise NotImplementedError()
-
-
 @torch_op("aten::detach")
 def aten_detach(self: TensorType) -> TensorType:
     """detach(Tensor(a) self) -> Tensor(a)"""
@@ -2598,6 +2622,7 @@ def aten_dist(self: TensorType, other: TensorType, p: float = 2.0) -> TensorType
         "aten::div.Scalar_mode",
         "aten::divide",
         "aten::true_divide",
+        "_operator::truediv",
     )
 )
 def aten_div(self: TFloat, other: TFloat) -> TFloat:
@@ -2605,6 +2630,40 @@ def aten_div(self: TFloat, other: TFloat) -> TFloat:
 
     # Int inputs will be promoted to float by PyTorch
     return op.Div(self, other)
+
+
+@torch_op(
+    (
+        "aten::div",
+        "aten::div.Tensor",
+        "aten::div.Scalar",
+        "aten::divide",
+        "aten::true_divide",
+        "_operator::truediv",
+    ),
+    complex=True,
+)
+def aten_div_complex(self: TFloat, other: TFloat) -> TFloat:
+    """div.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    # Complex division. PyTorch type promotion ensures both arguments are complex numbers
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
+    other_real = op.Slice(other, [0], [1], axes=[-1])
+    other_imag = op.Slice(other, [1], [2], axes=[-1])
+
+    # Complex division
+    # (a + bi) / (c + di) = (ac + bd) / (c^2 + d^2) + (bc - ad) / (c^2 + d^2)i
+    # https://mathworld.wolfram.com/ComplexDivision.html
+    ac = op.Mul(self_real, other_real)
+    bd = op.Mul(self_imag, other_imag)
+    bc = op.Mul(self_imag, other_real)
+    ad = op.Mul(self_real, other_imag)
+    denominator = op.Add(op.Mul(other_real, other_real), op.Mul(other_imag, other_imag))
+    real = op.Div(ac + bd, denominator)
+    imag = op.Div(bc - ad, denominator)
+
+    return op.Concat(real, imag, axis=-1)
 
 
 @torch_op(("aten::div.Tensor_mode", "aten::div.Scalar_mode"), trace_only=True)
@@ -3352,7 +3411,14 @@ def aten_floor(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     return op.Floor(self)
 
 
-@torch_op("aten::floor_divide")
+@torch_op("math::floor")
+def python_math_floor(self: TFloatOrBFloat16) -> TInt:
+    """floor(Tensor self) -> Tensor"""
+    floor = op.Floor(self)
+    return op.Cast(floor, to=INT64.dtype)
+
+
+@torch_op(("aten::floor_divide", "_operator::floordiv"))
 def aten_floor_divide(self: TFloat, other: TFloat) -> TFloat:
     """floor_divide(Tensor self, Tensor other) -> Tensor"""
 
@@ -3494,7 +3560,9 @@ def aten_gcd(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::ge", "aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal"))
+@torch_op(
+    ("aten::ge", "aten::ge.Tensor", "aten::ge.Scalar", "aten::greater_equal", "_operator::ge")
+)
 def aten_ge(self: TReal, other: TReal) -> BOOL:
     """ge.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -3650,7 +3718,7 @@ def aten_gru_cell(
     raise NotImplementedError()
 
 
-@torch_op(("aten::gt", "aten::gt.Scalar", "aten::greater"))
+@torch_op(("aten::gt", "aten::gt.Scalar", "aten::greater", "_operator::gt"))
 def aten_gt(self: TReal, other: TReal) -> BOOL:
     """gt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -4358,7 +4426,7 @@ def aten_ldexp(self: TensorType, other: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::le", "aten::le.Tensor"))
+@torch_op(("aten::le", "aten::le.Tensor", "_operator::le"))
 def aten_le(self: TReal, other: TReal) -> BOOL:
     """le.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -4661,7 +4729,7 @@ def aten_lstm_mps_backward(
     raise NotImplementedError()
 
 
-@torch_op(("aten::lt", "aten::lt.Scalar", "aten::less"))
+@torch_op(("aten::lt", "aten::lt.Scalar", "aten::less", "_operator::lt"))
 def aten_lt(self: TReal, other: TReal) -> BOOL:
     """lt.Tensor(Tensor self, Tensor other) -> Tensor"""
 
@@ -5263,11 +5331,10 @@ def aten_msort(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::mul", "aten::mul.Tensor"))
+@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"))
 def aten_mul(self: TReal, other: TReal) -> TReal:
     """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
-    # FIXME(titaiwang): get rid of this when we have type_promotion
-    other = op.CastLike(other, self)
+
     return op.Mul(self, other)
 
 
@@ -5279,6 +5346,29 @@ def aten_mul_bool(self: BOOL, other: BOOL) -> BOOL:
     # since different ONNX operators are used based on different data types.
 
     return op.And(self, other)
+
+
+@torch_op(("aten::mul", "aten::mul.Tensor", "_operator::mul"), complex=True)
+def aten_mul_complex(self: TReal, other: TReal) -> TReal:
+    """mul.Tensor(Tensor self, Tensor other) -> Tensor"""
+
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
+    other_real = op.Slice(other, [0], [1], axes=[-1])
+    other_imag = op.Slice(other, [1], [2], axes=[-1])
+
+    # Complex multiplication
+    # (a + bi) * (c + di) = (ac - bd) + (ad + bc)i
+
+    ac = op.Mul(self_real, other_real)
+    bd = op.Mul(self_imag, other_imag)
+    ad = op.Mul(self_real, other_imag)
+    bc = op.Mul(self_imag, other_real)
+
+    real = op.Sub(ac, bd)
+    imag = op.Add(ad, bc)
+
+    return op.Concat(real, imag, axis=-1)
 
 
 @torch_op("aten::multinomial")
@@ -5414,6 +5504,20 @@ def aten__native_batch_norm_no_training(
     )
 
 
+@torch_op("aten::_native_batch_norm_legit.no_stats", trace_only=True)
+def aten__native_batch_norm_no_stats(
+    input: TFloat,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    training: bool = False,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
+) -> Tuple[TFloat, TFloat, TFloat]:
+    """_native_batch_norm_legit.no_stats(Tensor input, Tensor? weight, Tensor? bias, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
+
+    return aten_native_batch_norm(input, weight, bias, None, None, training, momentum, eps)
+
+
 @torch_op(("aten::native_batch_norm", "aten::_native_batch_norm_legit"), trace_only=True)
 def aten_native_batch_norm(
     input: TFloat,
@@ -5514,10 +5618,129 @@ def _aten_native_batch_norm_inference_onnx(
         momentum=momentum,
         training_mode=training,
     )
+    # NOTE: mean and var are omitted in inference mode
     # Cannot return 2 dup output, so have to do twice with different variable name
-    empty_mean = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
-    empty_var = op.Cast(op.Shape(input, start=0, end=0), to=FLOAT.dtype)
+    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
+    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
     return norm, empty_mean, empty_var
+
+
+# TODO: This op is using duplicated code from aten_native_batch_norm,
+#       need to refactor it later. https://github.com/microsoft/onnxscript/issues/1125
+# NOTE: This op is invoked by PyTorch Functionalization, and not in
+# native_functions.yaml, It can be found in torch/_decomp/decompositions.py
+@torch_op("aten::_native_batch_norm_legit_functional", trace_only=True)
+def aten__native_batch_norm_legit_functional(
+    input: TFloat,
+    weight: Optional[TFloat] = None,
+    bias: Optional[TFloat] = None,
+    running_mean: Optional[TFloat] = None,
+    running_var: Optional[TFloat] = None,
+    training: bool = False,
+    momentum: float = 0.9,
+    eps: float = 1e-05,
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+    if weight is None:  # Set to 1.0 as default
+        weight = op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2))
+
+    if bias is None:  # Set to 0.0 as default
+        bias = op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2))
+
+    axes = list(range(len(input.shape)))
+    axes.pop(1)
+    axes = op.Constant(value_ints=axes)
+    if running_mean is None:  # Using input mean
+        running_mean = op.Squeeze(op.ReduceMean(input, axes))
+
+    if running_var is None:  # Using input var
+        mean = op.ReduceMean(input, axes)
+        input_sub_mean = op.Sub(input, mean)
+        sqr_input_sub_mean = op.Mul(input_sub_mean, input_sub_mean)
+        running_var = op.Squeeze(op.ReduceMean(sqr_input_sub_mean, axes))
+
+    # Have to split to 2 private functions, because training_function return 3 outputs
+    # While inference_function return 1 output
+    if training is True:
+        norm, mean, var, new_mean, new_var = _aten__native_batch_norm_training_functional_onnx(
+            input, weight, bias, running_mean, running_var, axes, training, momentum, eps
+        )
+    else:
+        (
+            norm,
+            mean,
+            var,
+            new_mean,
+            new_var,
+        ) = _aten__native_batch_norm_inference_functional_onnx(
+            input, weight, bias, running_mean, running_var, training, momentum, eps
+        )
+    return norm, mean, var, new_mean, new_var
+
+
+@torch_op("aten::_native_batch_norm_legit_functional", private=True)
+def _aten__native_batch_norm_training_functional_onnx(
+    input: TFloat,
+    weight: TFloat,
+    bias: TFloat,
+    running_mean: TFloat,
+    running_var: TFloat,
+    axes: INT64,
+    training: bool,
+    momentum: float,
+    eps: float,
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+    # Assert(training is True)
+    norm, running_mean, running_var = op.BatchNormalization(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
+    )
+    # Compute var and rstd
+    mean = op.ReduceMean(input, axes)
+    input_sub_mean = op.Sub(input, mean)
+    sqr = op.Mul(input_sub_mean, input_sub_mean)
+    var = op.ReduceMean(sqr, axes, keepdims=False)
+    rstd = op.Div(1.0, op.Sqrt(var + eps))
+    # Get mean again with size = [1, C]
+    mean = op.ReduceMean(input, axes, keepdims=False)
+    # NOTE: Fixed to be FLOAT dtype
+    running_mean = op.Cast(running_mean, to=FLOAT.dtype)
+    running_var = op.Cast(running_var, to=FLOAT.dtype)
+    return norm, mean, rstd, running_mean, running_var
+
+
+@torch_op("aten::_native_batch_norm_legit_functional", private=True)
+def _aten__native_batch_norm_inference_functional_onnx(
+    input: TFloat,
+    weight: TFloat,
+    bias: TFloat,
+    running_mean: TFloat,
+    running_var: TFloat,
+    training: bool,
+    momentum: float,
+    eps: float,
+) -> Tuple[TFloat, TFloat, TFloat, TFloat, TFloat]:
+    # Assert(training is False)
+    norm = op.BatchNormalization(
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        epsilon=eps,
+        momentum=momentum,
+        training_mode=training,
+    )
+    # NOTE: mean and var are ommited in inference mode
+    # Cannot return 2 dup output, so have to do twice with different variable name
+    empty_mean = op.CastLike(op.Shape(input, start=0, end=0), norm)
+    empty_var = op.CastLike(op.Shape(input, start=0, end=0), norm)
+    return norm, empty_mean, empty_var, running_mean, running_var
 
 
 def aten_native_batch_norm_backward(
@@ -5710,14 +5933,14 @@ def aten_native_norm(self: TensorType, p: float = 2.0) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::ne", "aten::ne.Scalar", "aten::ne.Tensor"))
+@torch_op(("aten::ne", "aten::ne.Scalar", "aten::ne.Tensor", "_operator::ne"))
 def aten_ne(self: TReal, other: TReal) -> BOOL:
     """ne.Tensor(Tensor self, Tensor other) -> Tensor"""
 
     return op.Not(op.Equal(self, other))
 
 
-@torch_op("aten::neg")
+@torch_op(("aten::neg", "_operator::neg"))
 def aten_neg(self: TReal) -> TReal:
     """neg(Tensor self) -> Tensor"""
 
@@ -6096,7 +6319,9 @@ def aten_positive(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::pow", "aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar"))
+@torch_op(
+    ("aten::pow", "aten::pow.Tensor_Tensor", "aten::pow.Tensor_Scalar", "_operator::pow")
+)
 def aten_pow(self: TReal, exponent: TTensor) -> TReal:
     """pow(Tensor self, Tensor exponent) -> Tensor"""
 
@@ -6789,26 +7014,33 @@ def aten_rsqrt(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 @torch_op(("aten::rsub", "aten::rsub.Scalar"))
 def aten_rsub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
-    # FIXME(titaiwang): get rid of this when we have type_promotion
-    other = op.CastLike(other, self)
-    alpha = op.CastLike(alpha, self)
+
     return op.Sub(other, op.Mul(self, alpha))
 
 
-@torch_op("aten::scalar_tensor")
-def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> TTensor:  # type: ignore[type-var]
+@torch_op(("aten::rsub", "aten::rsub.Scalar"), trace_only=True, complex=True)
+def aten_rsub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+    """rsub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+
+    return aten_rsub(self, other, alpha)
+
+
+@torch_op("aten::scalar_tensor", trace_only=True)
+def aten_scalar_tensor(s: float, dtype: int = FLOAT.dtype) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.Cast(s, to=dtype)
+    # Set trace_only=True because different if branches return different dtypes
+    # which is not supported in an ONNX function
+    return common_ops.cast_to(s, dtype=dtype)
 
 
-@torch_op("aten::scalar_tensor")
-def aten_scalar_tensor_sym_number(
-    s: Union[FLOAT, INT32, BOOL], dtype: int = FLOAT.dtype
-) -> TTensor:
+@torch_op("aten::scalar_tensor", trace_only=True)
+def aten_scalar_tensor_sym_number(s: RealType, dtype: int = FLOAT.dtype) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    return op.Cast(s, to=dtype)
+    # Set trace_only=True because different if branches return different dtypes
+    # which is not supported in an ONNX function
+    return common_ops.cast_to(s, dtype=dtype)
 
 
 @torch_op("aten::scatter_add")
@@ -7210,6 +7442,15 @@ def aten_squeeze_dim(self: TTensor, dim: int) -> TTensor:
     return result
 
 
+@torch_op("aten::squeeze.dim", complex=True, trace_only=True)
+def aten_squeeze_dim_complex(self: TTensor, dim: int) -> TTensor:
+    if dim < 0:
+        # Account for the complex dimension in ONNX
+        dim = dim - 1
+
+    return aten_squeeze_dim(self, dim)
+
+
 def aten_squeeze_copy(self: TensorType) -> TensorType:
     """squeeze_copy(Tensor self) -> Tensor"""
 
@@ -7375,7 +7616,7 @@ def aten_stft(
     return result
 
 
-@torch_op(("aten::sub", "aten::sub.Tensor"))
+@torch_op(("aten::sub", "aten::sub.Tensor", "aten::subtract", "_operator::sub"))
 def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
     alpha = op.CastLike(alpha, other)
@@ -7384,10 +7625,15 @@ def aten_sub(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
     return op.Sub(self, other)
 
 
-def aten_subtract(self: TensorType, other: TensorType, alpha: float = 1.0) -> TensorType:
-    """subtract.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
+@torch_op(
+    ("aten::sub", "aten::sub.Tensor", "aten::subtract", "_operator::sub"),
+    trace_only=True,
+    complex=True,
+)
+def aten_sub_complex(self: TReal, other: TReal, alpha: float = 1.0) -> TReal:
+    """sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"""
 
-    raise NotImplementedError()
+    return aten_sub(self, other, alpha=alpha)
 
 
 @torch_op(("aten::sum", "aten::sum.dim_IntList"), trace_only=True)
@@ -7855,6 +8101,9 @@ def aten_unfold(self: TTensor, dimension: int, size: int, step: int) -> TTensor:
     if self_rank == 0:
         result = op.Unsqueeze(self, 0)
     else:
+        # Handle negative dimension
+        if dimension < 0:
+            dimension = dimension + self_rank
         dim_size = self.shape[dimension]
         target_end = (dim_size - size) // step + 1
         if target_end >= 1:  # the rank of final reuslt will be self_rank + 1

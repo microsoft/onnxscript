@@ -500,6 +500,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("acos", core_ops.aten_acos),
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
     TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
+    TorchLibOpInfo("add", core_ops.aten_add_complex, complex=True, trace_only=True),
     TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
@@ -715,6 +716,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.kwargs.get("rounding_mode") is not None,
         reason="this variation does not take the rounding_mode argument",
     ),
+    TorchLibOpInfo("true_divide", core_ops.aten_div),
+    TorchLibOpInfo("true_divide", core_ops.aten_div_complex, complex=True),
     TorchLibOpInfo("div_mode", core_ops.aten_div_mode, trace_only=True)
     .skip(
         variant_name="no_rounding_mode",
@@ -821,6 +824,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("isneginf", core_ops.aten_isneginf),
     TorchLibOpInfo("isposinf", core_ops.aten_isposinf),
     TorchLibOpInfo("lift_fresh_copy", core_ops.aten_lift_fresh_copy),
+    TorchLibOpInfo("linalg.det", linalg_ops.aten_linalg_det),
     TorchLibOpInfo(
         "linalg.vector_norm",
         linalg_ops.aten_linalg_vector_norm,
@@ -948,6 +952,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("mT", core_ops.aten_mT),
     TorchLibOpInfo("mT", core_ops.aten_mT_complex, complex=True),
     TorchLibOpInfo("mul", core_ops.aten_mul),
+    TorchLibOpInfo("mul", core_ops.aten_mul_complex, complex=True),
     TorchLibOpInfo("narrow", core_ops.aten_narrow),
     TorchLibOpInfo("ops.aten.native_dropout", core_ops.aten_native_dropout),
     TorchLibOpInfo("ne", core_ops.aten_ne),
@@ -1298,10 +1303,19 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("round_decimals", core_ops.aten_round_decimals),
     TorchLibOpInfo("rsqrt", core_ops.aten_rsqrt),
     TorchLibOpInfo("rsub", core_ops.aten_rsub),
+    TorchLibOpInfo("rsub", core_ops.aten_rsub_complex, complex=True, trace_only=True),
     TorchLibOpInfo(
         "scalar_tensor",
         core_ops.aten_scalar_tensor,
         input_wrangler=_scalar_tensor_input_wrangler,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "scalar_tensor",
+        core_ops.aten_scalar_tensor,
+        input_wrangler=_scalar_tensor_input_wrangler,
+        trace_only=True,
+        complex=True,
     ),
     TorchLibOpInfo(
         "scatter_add",
@@ -1374,6 +1388,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support one tensor as input and one int as args by design",
     ),
     TorchLibOpInfo(
+        "squeeze_dim",
+        core_ops.aten_squeeze_dim_complex,
+        complex=True,
+        trace_only=True,
+    ).skip(
+        matcher=lambda sample: not (len(sample.args) > 0 and isinstance(sample.args[0], int)),
+        reason="this Aten overload only support one tensor as input and one int as args by design",
+    ),
+    TorchLibOpInfo(
         "squeeze",
         core_ops.aten_squeeze,
     ).skip(
@@ -1382,6 +1405,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
     TorchLibOpInfo("sub", core_ops.aten_sub),
+    TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True, trace_only=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
     TorchLibOpInfo(
         "t",
@@ -1435,7 +1459,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Logic not implemented for size 0 inputs in op.Reshape",
     ),
     TorchLibOpInfo("unfold", core_ops.aten_unfold, trace_only=True),
-    TorchLibOpInfo("unfold_extra", core_ops.aten_unfold, trace_only=True),
+    TorchLibOpInfo("ops.aten.unfold", core_ops.aten_unfold, trace_only=True),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
     TorchLibOpInfo("view", core_ops.aten_view),
     TorchLibOpInfo("view_as", core_ops.aten_view_as),
@@ -1670,6 +1694,20 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2]). https://github.com/microsoft/onnxscript/issues/975",
     ),
     TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
+    TorchLibOpInfo(
+        "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
+    ),
+    TorchLibOpInfo(
+        "ops.aten._native_batch_norm_legit.no_stats",
+        core_ops.aten__native_batch_norm_no_stats,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten._native_batch_norm_legit_functional",
+        core_ops.aten__native_batch_norm_legit_functional,
+        trace_only=True,
+        compare_shape_only_for_output=(3, 4),
+    ),
     TorchLibOpInfo(
         "ops.aten.native_group_norm",
         core_ops.aten_native_group_norm,
