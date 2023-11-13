@@ -459,6 +459,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         complex=True,
     ),
     TorchLibOpInfo(
+        "ops.aten._fft_r2c",  # Custom from extra_opinfo
+        fft_ops.aten__fft_r2c,
+        tolerance={torch.float64: (2e-6, 2e-6), torch.float32: (3e-3, 3e-5)},
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
