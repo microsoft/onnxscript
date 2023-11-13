@@ -14,10 +14,13 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import BOOL, FLOAT, INT64
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+IsScalar = common_ops.IsScalar
 
 
 def aten_linalg_cholesky(self: TensorType, upper: bool = False) -> TensorType:
@@ -332,8 +335,8 @@ def aten_linalg_vector_norm(
 
 @torch_op("aten::linalg_vector_norm", private=True)
 def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool) -> TFloat:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
+    self_is_scalar = IsScalar(self)
+    if self_is_scalar:
         self = op.Unsqueeze(self, axes=[0])
 
     self = op.Abs(self)
@@ -352,7 +355,7 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
         self_pow = op.Pow(self, ord_float)
         result = op.Pow(op.ReduceSum(self_pow, keepdims=keepdim), op.Div(1.0, ord_float))
 
-    if self_rank == 0:
+    if self_is_scalar:
         result = op.Squeeze(result)
 
     return result
@@ -362,8 +365,8 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
 def _aten_linalg_vector_norm_onnx(
     self: TFloat, ord: float, dim: INT64, keepdim: bool
 ) -> TFloat:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
+    self_is_scalar = IsScalar(self)
+    if self_is_scalar:
         self = op.Unsqueeze(self, axes=[0])
 
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
@@ -386,7 +389,7 @@ def _aten_linalg_vector_norm_onnx(
         self_pow = op.Pow(self, ord_float)
         result = op.Pow(op.ReduceSum(self_pow, dim, keepdims=keepdim), op.Div(1.0, ord_float))
 
-    if self_rank == 0:
+    if self_is_scalar:
         result = op.Squeeze(result)
 
     return result
