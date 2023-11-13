@@ -897,7 +897,9 @@ def aten_atleast_1d_sequence(self: Sequence[TTensor]) -> TTensor:
 
     @graph()
     def reshape_to_1d(tensor):
-        if IsScalar(self):
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank == 0:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1]))
         return tensor
 
@@ -919,7 +921,9 @@ def aten_atleast_2d_sequence(self: Sequence[TTensor]) -> TTensor:
 
     @graph()
     def reshape_to_2d(tensor):
-        if Rank(tensor) <= 1:
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
         return tensor
 
@@ -944,7 +948,8 @@ def aten_atleast_3d_sequence(self: Sequence[TTensor]) -> TTensor:
 
     @graph()
     def reshape_to_3d(tensor):
-        rank = Rank(tensor)
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
         if rank <= 1:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1, 1]))
         elif rank == 2:
@@ -3814,7 +3819,9 @@ def aten_hstack(tensors: Sequence[TTensor]) -> TTensor:
 
     @graph()
     def reshape_to_atleast_2d(tensor):
-        if Rank(tensor) <= 1:
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
         return tensor
 
@@ -4053,7 +4060,7 @@ def aten_index_put_bool(
         new_ind_t = op.Transpose(new_ind)
 
         # values must have same rank with input(self)
-        if Rank(values) < Rank(self):  # type: ignore[operator]
+        if op.Size(op.Shape(values)) < op.Size(op.Shape(self)):  # type: ignore[operator]
             values = op.Unsqueeze(values, op.Constant(value_ints=[0]))
 
         if op.Cast(accumulate, to=BOOL.dtype):
@@ -8415,7 +8422,9 @@ def aten_vstack(tensors: Sequence[TTensor]) -> TTensor:
     # the function self contained
     @graph()
     def reshape_to_2d(tensor):
-        if Rank(tensor) <= 1:
+        shape = op.Shape(tensor)
+        rank = op.Size(shape)
+        if rank <= 1:
             tensor = op.Reshape(tensor, op.Constant(value_ints=[1, -1]))
         return tensor
 
