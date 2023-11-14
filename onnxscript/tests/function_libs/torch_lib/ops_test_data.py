@@ -1998,7 +1998,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.tensor.bool", core_ops.aten_tensor_bool
     ),  # Custom from extra_opinfo
     TorchLibOpInfo(
-        "ops.aten.tensor.float", core_ops.aten_tensor_float  # Custom from extra_opinfo
+        "ops.aten.tensor.float",
+        core_ops.aten_tensor_float,  # Custom from extra_opinfo
     ),
     TorchLibOpInfo(
         "ops.aten.tensor.int", core_ops.aten_tensor_int

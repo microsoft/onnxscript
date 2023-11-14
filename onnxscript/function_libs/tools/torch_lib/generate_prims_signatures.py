@@ -12,11 +12,8 @@ import logging
 import os
 import re
 import textwrap
-from pathlib import Path
 from typing import Any, Dict, List, Sequence
 
-import black
-import isort
 import torch
 import torchgen.gen
 import torchgen.model
@@ -319,15 +316,6 @@ def main(args: argparse.Namespace) -> None:
             )
             py_module.accept(cg.PythonWriter(f))
 
-    # Format the generated files so that they pass linting.
-    # line_length=95 is to match the lintrunner rules.
-    isort.file(output_path)
-    black.format_file_in_place(
-        Path(output_path),
-        fast=True,
-        mode=black.Mode(line_length=95),
-        write_back=black.WriteBack.YES,
-    )
     print("Done.")
 
 

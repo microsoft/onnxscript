@@ -88,7 +88,9 @@ def aten__log_softmax_half(
 
 @torch_op("aten::_log_softmax")
 def aten__log_softmax(
-    self: TFloatHighPrecision, dim: int, half_to_float: bool  # pylint: disable=unused-argument
+    self: TFloatHighPrecision,
+    dim: int,
+    half_to_float: bool,  # pylint: disable=unused-argument
 ) -> TFloatHighPrecision:
     """_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor"""
 
@@ -1582,7 +1584,8 @@ def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
 
 @torch_op("aten::clone")
 def aten_clone(
-    self: TTensor, memory_format: str = ""  # pylint: disable=unused-argument
+    self: TTensor,
+    memory_format: str = "",  # pylint: disable=unused-argument
 ) -> TTensor:
     """clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"""
 
@@ -1717,7 +1720,8 @@ def aten_constant_pad_nd(self: TTensor, pad: INT64, value: float = 0.0) -> TTens
 
 @torch_op("aten::contiguous")
 def aten_contiguous(
-    self: TTensor, memory_format: str = "contiguous_format"  # pylint: disable=unused-argument
+    self: TTensor,
+    memory_format: str = "contiguous_format",  # pylint: disable=unused-argument
 ) -> TTensor:
     """contiguous(Tensor(a) self, *, MemoryFormat memory_format=contiguous_format) -> Tensor(a)"""
 
@@ -2043,7 +2047,9 @@ def aten_convolution_overrideable(
 
 @torch_op("aten::copy")
 def aten_copy(
-    self: TTensor, src: TTensor, non_blocking: bool = False  # pylint: disable=unused-argument
+    self: TTensor,
+    src: TTensor,
+    non_blocking: bool = False,  # pylint: disable=unused-argument
 ) -> TTensor:
     """copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor"""
 
@@ -3145,7 +3151,8 @@ def aten_empty_quantized(
 
 @torch_op("aten::empty_strided")
 def aten_empty_strided(
-    size: INT64, stride: INT64  # pylint: disable=unused-argument
+    size: INT64,
+    stride: INT64,  # pylint: disable=unused-argument
 ) -> TTensor:  # type: ignore[type-var]
     # empty_strided(SymInt[] size, SymInt[] stride, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
 
