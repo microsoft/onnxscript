@@ -234,6 +234,7 @@ def _prepare_data_for_fft_ops(device, dtype, requires_grad=False):
 
     return oned_tensor, nd_tensor
 
+
 def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
     del self  # Unused
     oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
