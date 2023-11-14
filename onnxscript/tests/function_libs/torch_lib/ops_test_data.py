@@ -1314,6 +1314,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "scalar_tensor",
         core_ops.aten_scalar_tensor,
         input_wrangler=_scalar_tensor_input_wrangler,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "scalar_tensor",
+        core_ops.aten_scalar_tensor,
+        input_wrangler=_scalar_tensor_input_wrangler,
+        trace_only=True,
+        complex=True,
     ),
     TorchLibOpInfo(
         "scatter_add",
@@ -1460,6 +1468,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("ops.aten.unfold", core_ops.aten_unfold, trace_only=True),
     TorchLibOpInfo("unsqueeze", core_ops.aten_unsqueeze),
     TorchLibOpInfo("view", core_ops.aten_view),
+    TorchLibOpInfo("view", core_ops.aten_view_complex, complex=True),
     TorchLibOpInfo("view_as", core_ops.aten_view_as),
     TorchLibOpInfo("view_as_complex", core_ops.aten_view_as_complex),
     TorchLibOpInfo("view_as_complex_copy", core_ops.aten_view_as_complex_copy),
@@ -1995,7 +2004,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.tensor.bool", core_ops.aten_tensor_bool
     ),  # Custom from extra_opinfo
     TorchLibOpInfo(
-        "ops.aten.tensor.float", core_ops.aten_tensor_float  # Custom from extra_opinfo
+        "ops.aten.tensor.float",
+        core_ops.aten_tensor_float,  # Custom from extra_opinfo
     ),
     TorchLibOpInfo(
         "ops.aten.tensor.int", core_ops.aten_tensor_int

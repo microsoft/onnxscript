@@ -200,7 +200,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 def _unwrap_tensor_to_torch_value(
     value: Union[
         ValidArgumentType, Mapping[str, ValidArgumentType], Sequence[ValidArgumentType]
-    ]
+    ],
 ) -> Union[
     ValidTorchValueType,
     Dict[str, ValidTorchValueType],
