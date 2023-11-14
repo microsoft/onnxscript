@@ -10,13 +10,13 @@ import logging
 import types
 import typing
 from enum import IntFlag
-from typing import (
+from typing import (  # type: ignore[attr-defined]
     Any,
     ClassVar,
     Optional,
     Protocol,
     Sequence,
-    _GenericAlias,  # type: ignore[attr-defined]
+    _GenericAlias,
 )
 
 import onnx
