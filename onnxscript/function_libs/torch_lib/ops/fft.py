@@ -97,8 +97,7 @@ def _fftn_onnx(
 
     new_dims = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dims]
 
-    loop_count = len(new_dims) - 1
-    for i in range(loop_count):
+    for dim in new_dims[:-1]:
         transformed = op.DFT(transformed, axis=new_dims[i], inverse=inverse, onesided=False)
 
     if onesided:
