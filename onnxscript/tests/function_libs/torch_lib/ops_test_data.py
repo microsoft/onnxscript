@@ -1059,6 +1059,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: RuntimeError: ORT inference error GlobalAveragePool. https://github.com/microsoft/onnxruntime/issues/16449",
     ),
     TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
+    TorchLibOpInfo("nn.functional.celu_upcasted", nn_ops.aten_celu_upcasted),
     TorchLibOpInfo(
         "nn.functional.cross_entropy",
         # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
@@ -2120,6 +2121,11 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
+)
+ops_test_common.duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.celu",
+    ("nn.functional.celu_upcasted",),
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB,
