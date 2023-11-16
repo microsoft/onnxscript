@@ -2049,10 +2049,13 @@ def aten_soft_margin_loss_backward(
     raise NotImplementedError()
 
 
-def aten_softplus(self: TensorType, beta: float = 1.0, threshold: float = 20.0) -> TensorType:
+@torch_op("aten::softplus")
+def aten_softplus(self: TFloat, beta: float = 1.0, threshold: float = 20.0) -> TFloat:
     """softplus(Tensor self, Scalar beta=1, Scalar threshold=20) -> Tensor"""
 
-    raise NotImplementedError()
+    self_scaled = self * beta
+    softplus = op.Softplus(self_scaled) / beta
+    return op.Where(self_scaled > threshold, self, softplus)
 
 
 def aten_softplus_backward(

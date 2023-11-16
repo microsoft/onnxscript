@@ -1346,6 +1346,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
     ),
+    TorchLibOpInfo("nn.functional.softplus", nn_ops.aten_softplus).xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16449",
+        test_class_name="TestOutputConsistencyEager",
+    ),
     TorchLibOpInfo(
         "split_with_sizes",
         core_ops.aten_split_with_sizes,
