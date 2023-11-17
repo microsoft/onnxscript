@@ -25,15 +25,7 @@ from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
 {%- endif %}
 {{translate_opset_imports_of(main_model)}}
 {% for domain, name, fct in functions: %}
-@script({{make_opset_name(domain, 1)}})
-def {{ python_make_node_name(fct['proto'].domain, 1, fct['proto'].name) }}{{
-    translate_function_signature(fct['proto'])}}
-    {% if fct['proto'].doc_string %}"""
-    {{ fct['proto'].doc_string }}
-    """{%- endif %}
-    {%- for node in fct['proto'].node: %}
-{{ python_make_node(node, opsets, indent=1) }}{% endfor %}
-    return {{ ", ".join(map(rename, fct['proto'].output)) }}
+{{translate_function(fct["proto"])}}
 {% endfor %}
 {% if graph %}
 @script()
@@ -198,6 +190,33 @@ def _attribute_value(attr: onnx.AttributeProto):
     # - onnx.AttributeProto.TYPE_PROTOS
     raise NotImplementedError(f"Unable to return a value for attribute {attr!r}.")
 
+def _update_names_used_in_graph(names: set[str], graph: GraphProto) -> None:
+    """Returns the names used in a graph."""
+    names.update(x.name for x in graph.input)
+    names.update(x.name for x in graph.output)
+    names.update(x.name for x in graph.initializer)
+    for node in graph.node:
+        _update_names_used_in_node(names, node)
+
+def _update_names_used_in_node(names: set[str], node: onnx.NodeProto) -> None:
+    names.update(node.input)
+    names.update(node.output)
+    for attr in node.attribute:
+        if attr.HasField("g"):
+            _update_names_used_in_graph(names, attr.g)
+        for g in attr.graphs:
+            _update_names_used_in_graph(names, g)
+
+def _update_names_used_in_function(names: set[str], fun: FunctionProto) -> None:
+    names.update(fun.input)
+    names.update(fun.output)
+    for node in fun.node:
+        _update_names_used_in_node(names, node)
+
+def _names_used_in_function(fun: FunctionProto) -> set[str]:
+    names = set()
+    _update_names_used_in_function(names, fun)
+    return names
 
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
@@ -207,11 +226,25 @@ class Exporter:
         self._rename_variable = rename_function
         self.inline_const = inline_const
         self.constants: dict[str, str] = {}
+        self._attr_renaming: dict[str, str] = {}  # For current function.
+        self._names_used: set[str] = set()  # For current function.
 
     def _rename_variable_s(self, name):
         """Renames all names equal to a python keyword."""
         return str(self._rename_variable(name))
 
+    def _rename_attr_parameter(self, name):
+        """Renames an attribute parameter."""
+        if name in self._attr_renaming:
+            return self._attr_renaming[name]
+        counter = 0
+        candidate = name
+        while candidate in self._names_used:
+            candidate = f"{name}_attr_{counter}"
+        self._attr_renaming[name] = candidate
+        self._names_used.add(candidate)
+        return candidate
+    
     def _rename_domain(self, domain: str) -> str:
         if domain == "":
             return "opset"
@@ -265,7 +298,8 @@ class Exporter:
         attributes = []
         for at in node.attribute:
             if _is_attribute_ref(at):
-                attributes.append((at.name, at.ref_attr_name))
+                ref_attr_name = self._attr_renaming[at.ref_attr_name]
+                attributes.append((at.name, ref_attr_name))
                 continue
             value = _attribute_value(at)
             if isinstance(value, str):
@@ -460,7 +494,7 @@ class Exporter:
         type_map = _attribute_param_types(funproto)
 
         def attr_sig(attr_name: str) -> str:
-            name = self._rename_variable(attr_name)
+            name = self._rename_attr_parameter(attr_name)
             # A default type of INT is used for attribute parameters that are never used.
             type = type_map.get(attr_name, onnx.AttributeProto.INT)
             typerep = onnxscript.type_annotation.onnx_attr_type_to_onnxscript_repr(type)
@@ -474,6 +508,28 @@ class Exporter:
         else:
             message = ""
         return f"({input_and_attrs}):{message}"
+
+    def translate_function(self, funproto: onnx.FunctionProto) -> str:
+        """Generate python code for FunctionProto."""
+        self._attr_renaming = {}
+        used_proto_names = _names_used_in_function(funproto)
+        renamed_names_used = [self._rename_variable(x) for x in used_proto_names]
+        self._names_used = set(renamed_names_used)
+        result = []
+        def add_line(line: str) -> None:
+            result.append(line)
+        opset_name = self.make_opset_name(funproto.domain, 1)
+        add_line(f"@script({opset_name})")
+        fun_name = self._python_make_node_name(funproto.domain, 1, funproto.name)
+        fun_sig = self.translate_function_signature(funproto)
+        add_line(f"def {fun_name}{fun_sig}")
+        if funproto.doc_string:
+            add_line(f'    """{funproto.doc_string}"""')
+        for node in funproto.node:
+            add_line(self._python_make_node(node, self.opsets, indent=1))
+        return_values = ", ".join(self._rename_variable(x) for x in funproto.output)
+        add_line(f"    return {return_values}")
+        return "\n".join(result)
 
 
 def _attribute_param_types(
@@ -553,6 +609,7 @@ def export_template(
         "rename": rename_variable,
         "translate_sig": _translate_signature,
         "translate_function_signature": exporter.translate_function_signature,
+        "translate_function": exporter.translate_function,
         "translate_opset_imports_of": exporter.translate_opset_imports_of,
         "hasattr": hasattr,
         "make_opset_name": exporter.make_opset_name,
@@ -564,6 +621,7 @@ def export_template(
         for oimp in model_onnx.opset_import:
             opsets[oimp.domain] = oimp.version
         context["opsets"] = opsets
+        exporter.opsets = opsets
 
     graph = model_onnx.graph if hasattr(model_onnx, "graph") else model_onnx
 
