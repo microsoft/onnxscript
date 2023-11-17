@@ -2048,13 +2048,12 @@ def aten_convolution_overrideable(
 @torch_op("aten::copy")
 def aten_copy(
     self: TTensor,
-    src: TTensor,
+    src: TTensor2,
     non_blocking: bool = False,  # pylint: disable=unused-argument
 ) -> TTensor:
     """copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor"""
 
-    self = op.Identity(src)
-    return self
+    return op.CastLike(src, self)
 
 
 @torch_op("aten::_to_copy", trace_only=True)
