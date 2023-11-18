@@ -103,17 +103,13 @@ def run_function(obj, *inputs):
     return got
 
 
-def write_functions(name: str, content: str, test_folder: pathlib.Path):
-    """Write the content into a file and import all OnnxFunctions from it."""
+def extract_functions(name: str, content: str, test_folder: pathlib.Path):
     if not test_folder.exists():
         test_folder.mkdir(exist_ok=True, parents=True)
         init = test_folder / "__init__.py"
         init.touch(exist_ok=True)
     file = test_folder / f"{name}.py"
     file.write_text(content, encoding="utf-8")
-
-def extract_functions(name: str, content: str, test_folder: pathlib.Path):
-    write_functions(name, content, test_folder)
     import_name = f"onnxscript.tests.{test_folder.parts[-1]}.{name}"
     try:
         mod = importlib.import_module(import_name)
