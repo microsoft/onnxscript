@@ -168,7 +168,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             return Z
 
         self._round_trip_check(fun_with_double_attr_promotion)
-        
+
     def test_qualified_domain(self):
         """Test use of qualified domain name."""
         op = onnxscript.opset17

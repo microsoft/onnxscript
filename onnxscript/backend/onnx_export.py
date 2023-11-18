@@ -190,6 +190,7 @@ def _attribute_value(attr: onnx.AttributeProto):
     # - onnx.AttributeProto.TYPE_PROTOS
     raise NotImplementedError(f"Unable to return a value for attribute {attr!r}.")
 
+
 def _update_names_used_in_graph(names: set[str], graph: GraphProto) -> None:
     """Returns the names used in a graph."""
     names.update(x.name for x in graph.input)
@@ -197,6 +198,7 @@ def _update_names_used_in_graph(names: set[str], graph: GraphProto) -> None:
     names.update(x.name for x in graph.initializer)
     for node in graph.node:
         _update_names_used_in_node(names, node)
+
 
 def _update_names_used_in_node(names: set[str], node: onnx.NodeProto) -> None:
     names.update(node.input)
@@ -207,16 +209,19 @@ def _update_names_used_in_node(names: set[str], node: onnx.NodeProto) -> None:
         for g in attr.graphs:
             _update_names_used_in_graph(names, g)
 
+
 def _update_names_used_in_function(names: set[str], fun: FunctionProto) -> None:
     names.update(fun.input)
     names.update(fun.output)
     for node in fun.node:
         _update_names_used_in_node(names, node)
 
+
 def _names_used_in_function(fun: FunctionProto) -> set[str]:
     names = set()
     _update_names_used_in_function(names, fun)
     return names
+
 
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
@@ -231,6 +236,7 @@ class Exporter:
 
     def _handle_attrname_conflict(self, renamer):
         """Add ref-attr-name-conflict handling logic to renaming function."""
+
         def new_renamer(name):
             new_name = renamer(name)
             if new_name not in self._attr_renaming:
@@ -246,7 +252,8 @@ class Exporter:
                 counter += 1
             self._attr_renaming[new_name] = candidate
             self._names_used.add(candidate)
-            return candidate            
+            return candidate
+
         return new_renamer
 
     def _rename_variable_s(self, name):
@@ -262,7 +269,9 @@ class Exporter:
         return f"{self._rename_domain(domain)}{version}"
 
     def _python_make_node_name(self, domain, version, name, node=False):
-        name = _rename_variable(name)  # TODO: Is this a typo? Is it supposed to be self._rename_variable(name)?
+        name = _rename_variable(
+            name
+        )  # TODO: Is this a typo? Is it supposed to be self._rename_variable(name)?
         if node:
             if version is None:
                 version = 1
@@ -524,8 +533,10 @@ class Exporter:
         renamed_names_used = [self._rename_variable(x) for x in used_proto_names]
         self._names_used = set(renamed_names_used)
         result = []
+
         def add_line(line: str) -> None:
             result.append(line)
+
         opset_name = self.make_opset_name(funproto.domain, 1)
         add_line(f"@script({opset_name})")
         fun_name = self._python_make_node_name(funproto.domain, 1, funproto.name)
