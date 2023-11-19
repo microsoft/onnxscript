@@ -14,7 +14,6 @@ from onnx.helper import make_node
 import onnxscript.onnx_types
 import onnxscript.type_annotation
 
-
 kwlist = {
     "False",
     "None",
@@ -76,7 +75,7 @@ def _get_const_repr(const_node):
     return None
 
 
-def _rename_variable(name: ValueInfoProto | str) -> Optional[str]:
+def _cleanup_variable_name(name: ValueInfoProto | str) -> Optional[str]:
     """Converts given name into a valid python variable names.
     Handles names that clash with python keywords and common issues seen in ONNX models:
     * Identifiers like "5" (that do not start with an alpha character)
@@ -103,6 +102,23 @@ def _rename_variable(name: ValueInfoProto | str) -> Optional[str]:
     return "".join([rename_char(c) for c in name])
 
 
+def _make_short_name_mapper():
+    """Returns a renamer used to create short new names  (like v0, v1, ...) for variables."""
+    variable_names: dict[str, str] = {}
+
+    def renamer(name):
+        # TODO: simplify this. No need to use _cleanup_variable_name?
+        var_name = _cleanup_variable_name(name)
+        if var_name in variable_names:
+            return variable_names[var_name]
+        new_name = f"v{len(variable_names) + 1}"
+        assert var_name is not None  # TODO(rama): This looks suspect.
+        variable_names[var_name] = new_name
+        return new_name
+
+    return renamer
+
+
 def _translate_type(onnx_type):
     """Converts a onnx type into a type defined by *onnxscript*."""
     return onnxscript.onnx_types.onnx_type_to_onnxscript_repr(onnx_type)
@@ -114,10 +130,10 @@ def _translate_signature(inputs, outputs):
     def input_sig(inp: ValueInfoProto | str):
         if isinstance(inp, ValueInfoProto):
             # GraphProto inputs/outputs are ValueInfoProto
-            return f"{_rename_variable(inp.name)}: {_translate_type(inp.type)}"
+            return f"{_cleanup_variable_name(inp.name)}: {_translate_type(inp.type)}"
 
         # FunctionProto inputs/outputs are just strings
-        return _rename_variable(inp)
+        return _cleanup_variable_name(inp)
 
     result = f"({', '.join([input_sig(x) for x in inputs])})"
     if outputs and isinstance(outputs[0], ValueInfoProto):
@@ -201,8 +217,14 @@ def _names_used_in_function(fun: FunctionProto) -> set[str]:
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
 
-    def __init__(self, rename_function, use_operators=False, inline_const=False) -> None:
+    def __init__(
+        self, rename: bool, use_operators: bool = False, inline_const: bool = False
+    ) -> None:
         self.use_operators = use_operators
+        if rename:
+            rename_function = _make_short_name_mapper()
+        else:
+            rename_function = _cleanup_variable_name
         self._rename_variable = self._handle_attrname_conflict(rename_function)
         self.inline_const = inline_const
         self.constants: dict[str, str] = {}
@@ -244,7 +266,7 @@ class Exporter:
         return f"{self._rename_domain(domain)}{version}"
 
     def _python_make_node_name(self, domain, version, name, node=False):
-        name = _rename_variable(
+        name = _cleanup_variable_name(
             name
         )  # TODO: Is this a typo? Is it supposed to be self._rename_variable(name)?
         if node:
@@ -535,10 +557,11 @@ class Exporter:
             opsets[imported.domain] = imported.version
 
         result: list[str] = []
+
         def add(line: str) -> None:
             result.append(line)
-        
-        add(f"@script()")
+
+        add("@script()")
         add(f"def {function_name}{_translate_signature(graph.input, graph.output)}")
         doc = graph.doc_string
         if doc:
@@ -546,9 +569,11 @@ class Exporter:
         add(self._python_make_node_graph(graph, opsets, indent=1))
         return_values = ", ".join(self._rename_variable(x) for x in graph.output)
         add(f"    return {return_values}")
-        return "\n".join(result)               
-    
-    def import_onnx_types(self, proto: onnx.ModelProto | onnx.GraphProto | onnx.FunctionProto) -> str:
+        return "\n".join(result)
+
+    def import_onnx_types(
+        self, proto: onnx.ModelProto | onnx.GraphProto | onnx.FunctionProto
+    ) -> str:
         """Generate import statements for types used in the graph."""
         if isinstance(proto, ModelProto):
             graph_or_function = proto.graph
@@ -566,8 +591,9 @@ class Exporter:
             return "from onnxscript.onnx_types import " + ", ".join(used_types)
         return ""
 
-    def export (self, proto: onnx.ModelProto | onnx.FunctionProto, function_name: str) -> str:
+    def export(self, proto: onnx.ModelProto | onnx.FunctionProto, function_name: str) -> str:
         result: list[str] = []
+
         def add(line: str) -> None:
             result.append(line)
 
@@ -599,6 +625,7 @@ class Exporter:
 
         return final
 
+
 def _attribute_param_types(
     funproto: onnx.FunctionProto,
 ) -> dict[str, onnx.AttributeProto.AttributeType]:
@@ -622,50 +649,6 @@ def _attribute_param_types(
     for node in funproto.node:
         visit_node(node)
     return type_map
-
-
-def _export(
-    proto: onnx.ModelProto | onnx.FunctionProto,
-    name=None,
-    function_name="main_function",
-    use_operators=False,
-    rename=False,
-    inline_const: bool = False,
-):
-    """Exports an ONNX model into onnxscript code.
-
-    Args:
-        proto: an ONNX model or a function  
-        name: to overwrite onnx name
-        function_name: main function name in the code
-        use_operators: use Python operators.
-        rename: rename variable name to get shorter names
-        inline_const: replace ONNX constants inline if compact
-
-    Returns:
-        python code
-    """
-
-    if rename:
-        variable_names: dict[str, str] = {}
-
-        def rename_variable(name):
-            var_name = _rename_variable(name)
-            if var_name in variable_names:
-                return variable_names[var_name]
-            new_name = f"v{len(variable_names) + 1}"
-            assert var_name is not None  # TODO(rama): This looks suspect.
-            variable_names[var_name] = new_name
-            return new_name
-
-    else:
-
-        def rename_variable(name):
-            return _rename_variable(name)
-
-    exporter = Exporter(rename_variable, use_operators, inline_const)
-
-    return exporter.export(proto, function_name)
 
 
 def export2python(
@@ -716,12 +699,6 @@ def export2python(
 
     if not isinstance(model_onnx, (ModelProto, FunctionProto)):
         raise TypeError(f"The function expects a ModelProto not {type(model_onnx)!r}.")
-    code = _export(
-        model_onnx,
-        name=name,
-        function_name=function_name,
-        use_operators=use_operators,
-        rename=rename,
-        inline_const=inline_const,
-    )
-    return code
+
+    exporter = Exporter(rename, use_operators, inline_const)
+    return exporter.export(model_onnx, function_name)
