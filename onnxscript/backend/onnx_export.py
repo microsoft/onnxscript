@@ -528,7 +528,7 @@ class Exporter:
         add_line(f"    return {return_values}")
         return "\n".join(result)
 
-    def translate_graph(self, model: onnx.ModelProto, function_name: str, doc: str) -> str:
+    def translate_graph(self, model: onnx.ModelProto, function_name: str) -> str:
         graph = model.graph
         opsets = {}
         for imported in model.opset_import:
@@ -540,13 +540,64 @@ class Exporter:
         
         add(f"@script()")
         add(f"def {function_name}{_translate_signature(graph.input, graph.output)}")
+        doc = graph.doc_string
         if doc:
             add(f'    """{doc}"""')
         add(self._python_make_node_graph(graph, opsets, indent=1))
         return_values = ", ".join(self._rename_variable(x) for x in graph.output)
         add(f"    return {return_values}")
         return "\n".join(result)               
-     
+    
+    def import_onnx_types(self, proto: onnx.ModelProto | onnx.GraphProto | onnx.FunctionProto) -> str:
+        """Generate import statements for types used in the graph."""
+        if isinstance(proto, ModelProto):
+            graph_or_function = proto.graph
+        else:
+            graph_or_function = proto
+        used_types: set[str] = set()
+        for t in list(graph_or_function.input) + list(graph_or_function.output):
+            if hasattr(t, "type"):
+                ts = _translate_type(t.type)
+                its = ts.split("[", maxsplit=1)[0]
+                used_types.add(its)
+        # TODO: handle types in nested graphs.
+        used_types = sorted(used_types)
+        if used_types:
+            return "from onnxscript.onnx_types import " + ", ".join(used_types)
+        return ""
+
+    def export (self, proto: onnx.ModelProto | onnx.FunctionProto, function_name: str) -> str:
+        result: list[str] = []
+        def add(line: str) -> None:
+            result.append(line)
+
+        # Generic imports.
+        add("import numpy")
+        add("from onnx import TensorProto")
+        add("from onnx.helper import make_tensor")
+        add("from onnxscript import script, external_tensor")
+        add("from onnxscript.values import Opset")
+        add(self.import_onnx_types(proto))
+
+        if isinstance(proto, ModelProto):
+            translated_functions = [self.translate_function(f) for f in proto.functions]
+            translated_functions.append(self.translate_graph(proto, function_name))
+        else:
+            assert isinstance(proto, FunctionProto)
+            # TODO: use function_name?
+            translated_functions = [self.translate_function(proto)]
+
+        # TODO: unique_function_domain_version.add((f.domain, 1))
+        add(self.translate_opset_imports_of(proto))
+        result.extend(translated_functions)
+
+        add("")
+        final = "\n".join(result)
+
+        if "\nreturn" in final:
+            raise SyntaxError(f"The produced code is wrong.\n{final}")
+
+        return final
 
 def _attribute_param_types(
     funproto: onnx.FunctionProto,
@@ -614,50 +665,7 @@ def _export(
 
     exporter = Exporter(rename_variable, use_operators, inline_const)
 
-    graph = proto.graph if hasattr(proto, "graph") else proto
-
-    # types
-    unique_types = set()
-    for t in list(graph.input) + list(graph.output):
-        if hasattr(t, "type"):
-            ts = _translate_type(t.type)
-            its = ts.split("[", maxsplit=1)[0]
-            unique_types.add(its)
-    unique_types = sorted(unique_types)
-
-    result: list[str] = []
-    def add(line: str) -> None:
-        result.append(line)
-
-    # Generic imports.
-    add("import numpy")
-    add("from onnx import TensorProto")
-    add("from onnx.helper import make_tensor")
-    add("from onnxscript import script, external_tensor")
-    add("from onnxscript.values import Opset")
-
-    # Import required onnxscript types
-    if unique_types:
-        add("from onnxscript.onnx_types import " + ", ".join(unique_types))
-
-    if isinstance(proto, ModelProto):
-        translated_functions = [exporter.translate_function(f) for f in proto.functions]
-        translated_functions.append(exporter.translate_graph(proto, function_name, graph.doc_string))
-    else:
-        assert isinstance(proto, FunctionProto)
-        translated_functions = [exporter.translate_function(proto)]
-
-    # TODO: unique_function_domain_version.add((f.domain, 1))
-    add(exporter.translate_opset_imports_of(proto))
-    result.extend(translated_functions)
-
-    add("")
-    final = "\n".join(result)
-
-    if "\nreturn" in final:
-        raise SyntaxError(f"The produced code is wrong.\n{final}")
-
-    return final
+    return exporter.export(proto, function_name)
 
 
 def export2python(
