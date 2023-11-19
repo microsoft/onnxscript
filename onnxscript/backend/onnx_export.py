@@ -218,7 +218,7 @@ def _update_names_used_in_function(names: set[str], fun: FunctionProto) -> None:
 
 
 def _names_used_in_function(fun: FunctionProto) -> set[str]:
-    names = set()
+    names: set[str] = set()
     _update_names_used_in_function(names, fun)
     return names
 
@@ -231,8 +231,9 @@ class Exporter:
         self._rename_variable = self._handle_attrname_conflict(rename_function)
         self.inline_const = inline_const
         self.constants: dict[str, str] = {}
-        self._attr_renaming: dict[str, str] = {}  # For current function.
+        self._attr_renaming: dict[str, str | None] = {}  # For current function.
         self._names_used: set[str] = set()  # For current function.
+        self.opsets: dict[str, int] = {}
 
     def _handle_attrname_conflict(self, renamer):
         """Add ref-attr-name-conflict handling logic to renaming function."""
