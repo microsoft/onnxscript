@@ -560,7 +560,7 @@ class Exporter:
         add(f"def {function_name}{_translate_signature(graph.input, graph.output)}")
         if doc:
             add(f'    """{doc}"""')
-        self._python_make_node_graph(graph, self.opsets, indent=1)
+        add(self._python_make_node_graph(graph, self.opsets, indent=1))
         return_values = ", ".join(self._rename_variable(x) for x in graph.output)
         add(f"    return {return_values}")
         return "\n".join(result)               
@@ -722,10 +722,10 @@ def export_template(
 
     if unique_types:
         add("from onnxscript.onnx_types import " + ", ".join(unique_types))
-    exporter.translate_opset_imports_of(model_onnx)
+    add(exporter.translate_opset_imports_of(model_onnx))
     for domain, name, fct in functions:
         add(exporter.translate_function(fct["proto"]))
-    if graph:
+    if isinstance(graph, onnx.GraphProto) :
         add(exporter.translate_graph(graph, function_name, context["doc_string"]))
 
     final = "\n".join(result)
