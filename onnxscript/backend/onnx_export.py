@@ -551,6 +551,20 @@ class Exporter:
         add_line(f"    return {return_values}")
         return "\n".join(result)
 
+    def translate_graph(self, graph: onnx.GraphProto, function_name: str, doc: str) -> str:
+        result: list[str] = []
+        def add(line: str) -> None:
+            result.append(line)
+        
+        add(f"@script()")
+        add(f"def {function_name}{_translate_signature(graph.input, graph.output)}")
+        if doc:
+            add(f'    """{doc}"""')
+        self._python_make_node_graph(graph, self.opsets, indent=1)
+        return_values = ", ".join(self._rename_variable(x) for x in graph.output)
+        add(f"    return {return_values}")
+        return "\n".join(result)               
+     
 
 def _attribute_param_types(
     funproto: onnx.FunctionProto,
@@ -652,7 +666,8 @@ def export_template(
             ts = _translate_type(t.type)
             its = ts.split("[", maxsplit=1)[0]
             unique_types.add(its)
-    context["unique_types"] = sorted(unique_types)
+    unique_types = sorted(unique_types)
+    context["unique_types"] = unique_types
 
     # functions
     functions = []
@@ -686,15 +701,34 @@ def export_template(
 
     # First rendering to detect any unused or replaced initializer.
     # pylint: disable=import-outside-toplevel
-    from jinja2 import Template  # delayed import
+    # from jinja2 import Template  # delayed import
 
     # pylint: enable=import-outside-toplevel
 
-    template = Template(template)
-    final = template.render(
-        enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, list=list, **context
-    )
+    # template = Template(template)
+    # final = template.render(
+    #     enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, list=list, **context
+    # )
 
+    result: list[str] = []
+    def add(line: str) -> None:
+        result.append(line)
+    
+    add("import numpy")
+    add("from onnx import TensorProto")
+    add("from onnx.helper import make_tensor")
+    add("from onnxscript import script, external_tensor")
+    add("from onnxscript.values import Opset")
+
+    if unique_types:
+        add("from onnxscript.onnx_types import " + ", ".join(unique_types))
+    exporter.translate_opset_imports_of(model_onnx)
+    for domain, name, fct in functions:
+        add(exporter.translate_function(fct["proto"]))
+    if graph:
+        add(exporter.translate_graph(graph, function_name, context["doc_string"]))
+
+    final = "\n".join(result)
     final += "\n"
     if "\nreturn" in final:
         raise SyntaxError(f"The produced code is wrong.\n{final}")
