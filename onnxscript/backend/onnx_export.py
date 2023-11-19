@@ -14,31 +14,6 @@ from onnx.helper import make_node
 import onnxscript.onnx_types
 import onnxscript.type_annotation
 
-_template_python = '''
-import numpy
-from onnx import TensorProto
-from onnx.helper import make_tensor
-from onnxscript import script, external_tensor
-from onnxscript.values import Opset
-{% if unique_types %}
-from onnxscript.onnx_types import {{ ", ".join(unique_types) }}
-{%- endif %}
-{{translate_opset_imports_of(main_model)}}
-{% for domain, name, fct in functions: %}
-{{translate_function(fct["proto"])}}
-{% endfor %}
-{% if graph %}
-@script()
-def {{ function_name }}{{translate_sig(graph.input, graph.output)}}
-    {% if doc_string %}"""
-    {{ doc_string }}
-    """{%- endif %}
-{{ python_make_node_graph(graph, opsets, indent=1) }}
-    return {{ rename(graph.output[0]) }}{%
-        for o in graph.output[1:]: %}, {{ rename(o) }}{% endfor %}
-{%- endif %}
-'''
-
 
 kwlist = {
     "False",
@@ -233,7 +208,6 @@ class Exporter:
         self.constants: dict[str, str] = {}
         self._attr_renaming: dict[str, str | None] = {}  # For current function.
         self._names_used: set[str] = set()  # For current function.
-        self.opsets: dict[str, int] = {}
 
     def _handle_attrname_conflict(self, renamer):
         """Add ref-attr-name-conflict handling logic to renaming function."""
@@ -529,6 +503,9 @@ class Exporter:
 
     def translate_function(self, funproto: onnx.FunctionProto) -> str:
         """Generate python code for FunctionProto."""
+        opsets = {}
+        for imported in funproto.opset_import:
+            opsets[imported.domain] = imported.version
         self._attr_renaming = {}
         used_proto_names = _names_used_in_function(funproto)
         renamed_names_used = [self._rename_variable(x) for x in used_proto_names]
@@ -546,12 +523,17 @@ class Exporter:
         if funproto.doc_string:
             add_line(f'    """{funproto.doc_string}"""')
         for node in funproto.node:
-            add_line(self._python_make_node(node, self.opsets, indent=1))
+            add_line(self._python_make_node(node, opsets, indent=1))
         return_values = ", ".join(self._rename_variable(x) for x in funproto.output)
         add_line(f"    return {return_values}")
         return "\n".join(result)
 
-    def translate_graph(self, graph: onnx.GraphProto, function_name: str, doc: str) -> str:
+    def translate_graph(self, model: onnx.ModelProto, function_name: str, doc: str) -> str:
+        graph = model.graph
+        opsets = {}
+        for imported in model.opset_import:
+            opsets[imported.domain] = imported.version
+
         result: list[str] = []
         def add(line: str) -> None:
             result.append(line)
@@ -560,7 +542,7 @@ class Exporter:
         add(f"def {function_name}{_translate_signature(graph.input, graph.output)}")
         if doc:
             add(f'    """{doc}"""')
-        add(self._python_make_node_graph(graph, self.opsets, indent=1))
+        add(self._python_make_node_graph(graph, opsets, indent=1))
         return_values = ", ".join(self._rename_variable(x) for x in graph.output)
         add(f"    return {return_values}")
         return "\n".join(result)               
@@ -591,20 +573,18 @@ def _attribute_param_types(
     return type_map
 
 
-def export_template(
-    model_onnx,
-    template,
+def _export(
+    proto: onnx.ModelProto | onnx.FunctionProto,
     name=None,
     function_name="main_function",
     use_operators=False,
     rename=False,
     inline_const: bool = False,
 ):
-    """Exports an ONNX model into a code based on a template.
+    """Exports an ONNX model into onnxscript code.
 
     Args:
-        model_onnx: string or ONNX graph
-        template: exporting template
+        proto: an ONNX model or a function  
         name: to overwrite onnx name
         function_name: main function name in the code
         use_operators: use Python operators.
@@ -634,30 +614,7 @@ def export_template(
 
     exporter = Exporter(rename_variable, use_operators, inline_const)
 
-    # containers
-    context = {
-        "main_model": model_onnx,
-        "python_make_node": exporter._python_make_node,  # pylint: disable=protected-access
-        "python_make_node_graph": exporter._python_make_node_graph,  # pylint: disable=protected-access
-        "python_make_node_name": exporter._python_make_node_name,  # pylint: disable=protected-access
-        "rename": rename_variable,
-        "translate_sig": _translate_signature,
-        "translate_function_signature": exporter.translate_function_signature,
-        "translate_function": exporter.translate_function,
-        "translate_opset_imports_of": exporter.translate_opset_imports_of,
-        "hasattr": hasattr,
-        "make_opset_name": exporter.make_opset_name,
-    }
-
-    # opset
-    if hasattr(model_onnx, "opset_import"):
-        opsets = {}
-        for oimp in model_onnx.opset_import:
-            opsets[oimp.domain] = oimp.version
-        context["opsets"] = opsets
-        exporter.opsets = opsets
-
-    graph = model_onnx.graph if hasattr(model_onnx, "graph") else model_onnx
+    graph = proto.graph if hasattr(proto, "graph") else proto
 
     # types
     unique_types = set()
@@ -667,69 +624,36 @@ def export_template(
             its = ts.split("[", maxsplit=1)[0]
             unique_types.add(its)
     unique_types = sorted(unique_types)
-    context["unique_types"] = unique_types
-
-    # functions
-    functions = []
-    unique_function_domain_version = set()
-
-    def add_function(f: FunctionProto) -> None:
-        opsets = {}
-        for oimp in f.opset_import:
-            opsets[oimp.domain] = oimp.version
-        functions.append((f.domain, f.name, {"proto": f, "opsets": opsets}))
-        unique_function_domain_version.add((f.domain, 1))
-
-    if hasattr(model_onnx, "functions"):
-        for f in model_onnx.functions:
-            add_function(f)
-    else:
-        assert isinstance(model_onnx, FunctionProto)
-        add_function(model_onnx)
-
-    context["functions"] = functions
-    context["unique_function_domain_version"] = sorted(unique_function_domain_version)
-    context["graph"] = graph if isinstance(graph, onnx.GraphProto) else None
-
-    # graph
-    context["name"] = name or graph.name
-    context["function_name"] = function_name
-    if hasattr(model_onnx, "graph"):
-        context["doc_string"] = model_onnx.doc_string
-    else:
-        context["doc_string"] = ""
-
-    # First rendering to detect any unused or replaced initializer.
-    # pylint: disable=import-outside-toplevel
-    # from jinja2 import Template  # delayed import
-
-    # pylint: enable=import-outside-toplevel
-
-    # template = Template(template)
-    # final = template.render(
-    #     enumerate=enumerate, sorted=sorted, len=len, repr=repr, map=map, list=list, **context
-    # )
 
     result: list[str] = []
     def add(line: str) -> None:
         result.append(line)
-    
+
+    # Generic imports.
     add("import numpy")
     add("from onnx import TensorProto")
     add("from onnx.helper import make_tensor")
     add("from onnxscript import script, external_tensor")
     add("from onnxscript.values import Opset")
 
+    # Import required onnxscript types
     if unique_types:
         add("from onnxscript.onnx_types import " + ", ".join(unique_types))
-    add(exporter.translate_opset_imports_of(model_onnx))
-    for domain, name, fct in functions:
-        add(exporter.translate_function(fct["proto"]))
-    if isinstance(graph, onnx.GraphProto) :
-        add(exporter.translate_graph(graph, function_name, context["doc_string"]))
 
+    if isinstance(proto, ModelProto):
+        translated_functions = [exporter.translate_function(f) for f in proto.functions]
+        translated_functions.append(exporter.translate_graph(proto, function_name, graph.doc_string))
+    else:
+        assert isinstance(proto, FunctionProto)
+        translated_functions = [exporter.translate_function(proto)]
+
+    # TODO: unique_function_domain_version.add((f.domain, 1))
+    add(exporter.translate_opset_imports_of(proto))
+    result.extend(translated_functions)
+
+    add("")
     final = "\n".join(result)
-    final += "\n"
+
     if "\nreturn" in final:
         raise SyntaxError(f"The produced code is wrong.\n{final}")
 
@@ -784,9 +708,8 @@ def export2python(
 
     if not isinstance(model_onnx, (ModelProto, FunctionProto)):
         raise TypeError(f"The function expects a ModelProto not {type(model_onnx)!r}.")
-    code = export_template(
+    code = _export(
         model_onnx,
-        template=_template_python,
         name=name,
         function_name=function_name,
         use_operators=use_operators,
