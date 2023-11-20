@@ -104,14 +104,12 @@ def run_function(obj, *inputs):
 
 
 def extract_functions(name: str, content: str, test_folder: pathlib.Path):
-    """Write the content into a file and import all OnnxFunctions from it."""
     if not test_folder.exists():
         test_folder.mkdir(exist_ok=True, parents=True)
         init = test_folder / "__init__.py"
         init.touch(exist_ok=True)
     file = test_folder / f"{name}.py"
     file.write_text(content, encoding="utf-8")
-
     import_name = f"onnxscript.tests.{test_folder.parts[-1]}.{name}"
     try:
         mod = importlib.import_module(import_name)
@@ -137,6 +135,12 @@ class TestOnnxBackEnd(unittest.TestCase):
     test_folder = root_folder / "tests" / "onnx_backend_test_code"
     temp_folder = root_folder / "tests" / "export"
 
+    def _proto_to_os_and_back(self, proto: onnxscript.FunctionProto, **export_options):
+        """Convert a proto to onnxscript code and convert it back to a proto."""
+        code = onnx_export.export2python(proto, **export_options)
+        map = extract_functions(proto.name, code, TestOnnxBackEnd.temp_folder)
+        return map[proto.name]
+
     def _round_trip_check(self, script_function, **export_options):
         proto = script_function.to_function_proto()
         code = onnx_export.export2python(proto, **export_options)
@@ -153,6 +157,17 @@ class TestOnnxBackEnd(unittest.TestCase):
             return op.Cast(X, to=dtype)
 
         self._round_trip_check(fun_with_attr_param)
+
+    def test_double_attr_val_promotion(self):
+        op = onnxscript.opset17
+
+        @onnxscript.script()
+        def fun_with_double_attr_promotion(X, dtype: int):
+            Y = op.Add(X, dtype)
+            Z = op.Add(Y, dtype)
+            return Z
+
+        self._round_trip_check(fun_with_double_attr_promotion)
 
     def test_qualified_domain(self):
         """Test use of qualified domain name."""
