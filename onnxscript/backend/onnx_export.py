@@ -586,9 +586,9 @@ class Exporter:
                 its = ts.split("[", maxsplit=1)[0]
                 used_types.add(its)
         # TODO: handle types in nested graphs.
-        used_types = sorted(used_types)
-        if used_types:
-            return "from onnxscript.onnx_types import " + ", ".join(used_types)
+        sorted_types = sorted(used_types)
+        if sorted_types:
+            return "from onnxscript.onnx_types import " + ", ".join(sorted_types)
         return ""
 
     def export(self, proto: onnx.ModelProto | onnx.FunctionProto, function_name: str) -> str:
