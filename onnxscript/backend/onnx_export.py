@@ -262,7 +262,7 @@ class Exporter:
             return "opset"
         return domain.replace(".", "_")
 
-    def make_opset_name(self, domain, version):
+    def _make_opset_name(self, domain, version):
         return f"{self._rename_domain(domain)}{version}"
 
     def _python_make_node_name(self, domain, version, name, node=False):
@@ -277,7 +277,7 @@ class Exporter:
                     f"version must be an integer not {version!r} for domain={domain!r} "
                     f"and name={name!r}."
                 )
-            opset = self.make_opset_name(domain, version)
+            opset = self._make_opset_name(domain, version)
             return f"{opset}.{name}"
         return name
 
@@ -406,7 +406,7 @@ class Exporter:
         """Translates a node Scan into python."""
         raise NotImplementedError()
 
-    def lookup(self, var):
+    def _lookup(self, var):
         if var in self.constants:
             return self.constants[var]
 
@@ -452,7 +452,7 @@ class Exporter:
         if self.use_operators and node.op_type in ops:
             return (
                 f"{sindent}{self._rename_variable(node.output[0])} = "
-                f"{(f' {ops[node.op_type]} ').join(map(self.lookup, node.input))}"
+                f"{(f' {ops[node.op_type]} ').join(map(self._lookup, node.input))}"
             )
         name = self._python_make_node_name(
             node.domain, opsets[node.domain], node.op_type, node=True
@@ -473,36 +473,36 @@ class Exporter:
             " = ",
             name,
             "(",
-            ", ".join(map(self.lookup, node.input)),
+            ", ".join(map(self._lookup, node.input)),
             attributes_str,
             ")",
         ]
         return "".join(text)
 
-    def translate_opset_import(self, domain: str, version: int) -> str:
+    def _translate_opset_import(self, domain: str, version: int) -> str:
         if domain in {"", "ai.onnx"}:
             return f"from onnxscript.onnx_opset import opset{version}\n"
         else:
-            varname = self.make_opset_name(domain, version)
+            varname = self._make_opset_name(domain, version)
             return f"{varname} = Opset('{domain}', {version})\n"
 
-    def translate_opset_imports(self, opset_imports: Sequence[onnx.OperatorSetIdProto]) -> str:
+    def _translate_opset_imports(self, opset_imports: Sequence[onnx.OperatorSetIdProto]) -> str:
         return "".join(
-            [self.translate_opset_import(x.domain, x.version) for x in opset_imports]
+            [self._translate_opset_import(x.domain, x.version) for x in opset_imports]
         )
 
-    def translate_opset_imports_of(
+    def _translate_opset_imports_of(
         self, proto: ModelProto | FunctionProto | GraphProto
     ) -> str:
         if hasattr(proto, "opset_import"):
-            text = self.translate_opset_imports(proto.opset_import)
+            text = self._translate_opset_imports(proto.opset_import)
             if isinstance(proto, FunctionProto):
                 if not any(x.domain == proto.domain for x in proto.opset_import):
-                    text += self.translate_opset_import(proto.domain, 1)
+                    text += self._translate_opset_import(proto.domain, 1)
             return text
         return ""
 
-    def translate_function_signature(self, funproto: onnx.FunctionProto) -> str:
+    def _translate_function_signature(self, funproto: onnx.FunctionProto) -> str:
         """Generate signature for FunctionProto."""
         type_map = _attribute_param_types(funproto)
 
@@ -523,7 +523,7 @@ class Exporter:
             message = ""
         return f"({input_and_attrs}):{message}"
 
-    def translate_function(self, funproto: onnx.FunctionProto) -> str:
+    def _translate_function(self, funproto: onnx.FunctionProto) -> str:
         """Generate python code for FunctionProto."""
         opsets = {}
         for imported in funproto.opset_import:
@@ -537,10 +537,10 @@ class Exporter:
         def add_line(line: str) -> None:
             result.append(line)
 
-        opset_name = self.make_opset_name(funproto.domain, 1)
+        opset_name = self._make_opset_name(funproto.domain, 1)
         add_line(f"@script({opset_name})")
         fun_name = self._python_make_node_name(funproto.domain, 1, funproto.name)
-        fun_sig = self.translate_function_signature(funproto)
+        fun_sig = self._translate_function_signature(funproto)
         add_line(f"def {fun_name}{fun_sig}")
         if funproto.doc_string:
             add_line(f'    """{funproto.doc_string}"""')
@@ -550,7 +550,7 @@ class Exporter:
         add_line(f"    return {return_values}")
         return "\n".join(result)
 
-    def translate_graph(self, model: onnx.ModelProto, function_name: str) -> str:
+    def _translate_graph(self, model: onnx.ModelProto, function_name: str) -> str:
         graph = model.graph
         opsets = {}
         for imported in model.opset_import:
@@ -571,7 +571,7 @@ class Exporter:
         add(f"    return {return_values}")
         return "\n".join(result)
 
-    def import_onnx_types(
+    def _import_onnx_types(
         self, proto: onnx.ModelProto | onnx.GraphProto | onnx.FunctionProto
     ) -> str:
         """Generate import statements for types used in the graph."""
@@ -603,18 +603,18 @@ class Exporter:
         add("from onnx.helper import make_tensor")
         add("from onnxscript import script, external_tensor")
         add("from onnxscript.values import Opset")
-        add(self.import_onnx_types(proto))
+        add(self._import_onnx_types(proto))
 
         if isinstance(proto, ModelProto):
-            translated_functions = [self.translate_function(f) for f in proto.functions]
-            translated_functions.append(self.translate_graph(proto, function_name))
+            translated_functions = [self._translate_function(f) for f in proto.functions]
+            translated_functions.append(self._translate_graph(proto, function_name))
         else:
             assert isinstance(proto, FunctionProto)
             # TODO: use function_name?
-            translated_functions = [self.translate_function(proto)]
+            translated_functions = [self._translate_function(proto)]
 
         # TODO: unique_function_domain_version.add((f.domain, 1))
-        add(self.translate_opset_imports_of(proto))
+        add(self._translate_opset_imports_of(proto))
         result.extend(translated_functions)
 
         add("")
@@ -694,6 +694,7 @@ def export2python(
     """
     del opset  # unused
     del verbose  # unused
+    del name  # unused
     if isinstance(model_onnx, str):
         model_onnx = onnx.load(model_onnx)
 
