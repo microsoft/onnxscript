@@ -190,6 +190,68 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
+def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
+    # Adapted from https://github.com/pytorch/pytorch/blob/01069ad4be449f376cf88a56d842b8eb50f6e9b6/torch/testing/_internal/opinfo/core.py#L2448C1-L2541C79
+    is_fp16_or_chalf = dtype in (torch.complex32, torch.half)
+    if not is_fp16_or_chalf:
+        nd_tensor = functools.partial(
+            opinfo_core.make_tensor,
+            (S, S + 1, S + 2),
+            device=device,
+            dtype=dtype,
+            requires_grad=requires_grad,
+        )
+        oned_tensor = functools.partial(
+            opinfo_core.make_tensor,
+            (31,),
+            device=device,
+            dtype=dtype,
+            requires_grad=requires_grad,
+        )
+    else:
+        low = None
+        high = None
+        shapes = ((2, 8, 9), (33,))
+
+        nd_tensor = functools.partial(
+            opinfo_core.make_tensor,
+            shapes[0],
+            device=device,
+            low=low,
+            high=high,
+            dtype=dtype,
+            requires_grad=requires_grad,
+        )
+        oned_tensor = functools.partial(
+            opinfo_core.make_tensor,
+            shapes[1],
+            device=device,
+            low=low,
+            high=high,
+            dtype=dtype,
+            requires_grad=requires_grad,
+        )
+
+    for normalization, forward in itertools.product((0, 1, 2), (True, False)):
+        # 1-D
+        yield opinfo_core.SampleInput(
+            oned_tensor(), dim=(0,), normalization=normalization, forward=forward
+        )
+        # N-D
+        for dim in [
+            (0,),
+            (1,),
+            (2,),
+            (1, 2),
+            (0, 1),
+            (0, 1, 2),
+        ]:
+            yield opinfo_core.SampleInput(
+                nd_tensor(), dim=dim, normalization=normalization, forward=forward
+            )
+
+
 def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # unused
     del kwargs
@@ -818,6 +880,36 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
+def sample_inputs_embedding_renorm(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    def make_input(shape):
+        return common_methods_invocations.make_tensor(
+            shape, device=device, dtype=dtype, requires_grad=requires_grad
+        )
+
+    def make_long_input(shape, *, low, high, noncontiguous=False):
+        return common_methods_invocations.make_tensor(
+            shape,
+            device=device,
+            dtype=torch.long,
+            low=low,
+            high=high,
+            noncontiguous=noncontiguous,
+        )
+
+    for max_norm in (0.5, 1.0, 5.0):
+        for norm_type in (0.8, 1.0, 2.0, 2.5):
+            idx = make_long_input((6,), low=0, high=S)
+            weights = make_input((S, S)) * 2
+            yield common_methods_invocations.SampleInput(
+                weights,
+                args=(idx,),
+                kwargs={"max_norm": max_norm, "norm_type": norm_type},
+            )
+
+
 def sample_inputs_embedding_bag(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
@@ -1061,11 +1153,12 @@ def sample_inputs_unfold(op_info, device, dtype, requires_grad, **kwargs):
         requires_grad=requires_grad,
         **kwargs,
     )
-    dimension = 1
-    size = 2
-    step = 2
-    # target_end = (3 - 2) // 2 + 1 = 1
-    yield opinfo_core.SampleInput(t, args=(dimension, size, step))
+    for dimension, size, step in [
+        (1, 2, 2),
+        (-1, 2, 2),
+        (-2, 2, 2),
+    ]:
+        yield opinfo_core.SampleInput(t, args=(dimension, size, step))
 
 
 def sample_inputs_slice_scatter(op_info, device, dtype, requires_grad, **kwargs):
@@ -1197,6 +1290,52 @@ def sample_inputs_scaled_dot_product_flash_attention(
     yield from samples
 
 
+# NOTE: In `_native_batch_norm_legit` tests, it generates two kinds of args:
+# 1. (input, weight, bias, running_mean, running_var, training, momentum, eps)
+# 2. (input, weight, bias, training, momentum, eps)
+# which requires two function signatures to take the inputs, that's why we have
+# two sample_inputs functions here instead.
+def sample_inputs__native_batch_norm_legit(op_info, device, dtype, requires_grad, **kwargs):
+    samples = common_methods_invocations.sample_inputs_batch_norm(
+        op_info, device, dtype, requires_grad, **kwargs
+    )
+    for sample in samples:
+        # torch.native_batch_norm does not support 0 numel tensors
+        # IndexError: Dimension out of range (expected to be in range of [-1, 0], but got 1)
+        if sample.input.numel() == 0:
+            continue
+        args = sample.args
+        training = sample.kwargs.get("training", True)
+        momentum = sample.kwargs.get("momentum", 0.5)
+        eps = sample.kwargs.get("eps", 1e-5)
+        if args[0] is not None and args[1] is not None:
+            yield opinfo_core.SampleInput(
+                sample.input,
+                args=(args[2], args[3], args[0], args[1], training, momentum, eps),
+            )
+
+
+def sample_inputs__native_batch_norm_legit_no_stats(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    samples = common_methods_invocations.sample_inputs_batch_norm(
+        op_info, device, dtype, requires_grad, **kwargs
+    )
+    for sample in samples:
+        # torch.native_batch_norm does not support 0 numel tensors
+        # IndexError: Dimension out of range (expected to be in range of [-1, 0], but got 1)
+        if sample.input.numel() == 0:
+            continue
+        args = sample.args
+        training = sample.kwargs.get("training", True)
+        momentum = sample.kwargs.get("momentum", 0.5)
+        eps = sample.kwargs.get("eps", 1e-5)
+        if args[0] is not None and args[1] is None:
+            yield opinfo_core.SampleInput(
+                sample.input, args=(args[2], args[3], training, momentum, eps)
+            )
+
+
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
 #    This function should yield SampleInputs.
@@ -1212,6 +1351,13 @@ def sample_inputs_scaled_dot_product_flash_attention(
 #    To avoid name duplication, it is possible to rename the OpInfo and specify
 #    the `op` field explicitly.
 OP_DB: List[opinfo_core.OpInfo] = [
+    opinfo_core.OpInfo(
+        "ops.aten._fft_c2c",
+        aten_name="_fft_c2c",
+        dtypes=common_dtype.complex_types(),
+        sample_inputs_func=sample_inputs__fft_c2c,
+        supports_out=False,
+    ),
     opinfo_core.OpInfo(
         "ops.aten._local_scalar_dense",
         aten_name="_local_scalar_dense",
@@ -1238,6 +1384,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="embedding_bag.padding_idx",
         dtypes=common_dtype.floating_types_and_half(),
         sample_inputs_func=sample_inputs_embedding_bag_padding_idx,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.embedding_renorm",
+        aten_name="embedding_renorm",
+        dtypes=common_dtype.floating_types_and_half(),
+        sample_inputs_func=sample_inputs_embedding_renorm,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -1485,8 +1638,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "unfold_extra",
-        op=lambda x, *args: x.unfold(*args),
+        "ops.aten.unfold",
         aten_name="unfold",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_unfold,
@@ -1526,5 +1678,35 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_forward_ad=False,
         supports_fwgrad_bwgrad=True,
         check_batched_forward_grad=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._native_batch_norm_legit",
+        aten_name="_native_batch_norm_legit",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.float16, torch.bfloat16),
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        assert_jit_shape_analysis=True,
+        sample_inputs_func=sample_inputs__native_batch_norm_legit,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._native_batch_norm_legit_functional",
+        aten_name="_native_batch_norm_legit_functional",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.float16, torch.bfloat16),
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        assert_jit_shape_analysis=True,
+        sample_inputs_func=sample_inputs__native_batch_norm_legit,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._native_batch_norm_legit.no_stats",
+        aten_name="_native_batch_norm_legit.no_stats",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.float16, torch.bfloat16),
+        supports_forward_ad=True,
+        supports_fwgrad_bwgrad=True,
+        assert_jit_shape_analysis=True,
+        sample_inputs_func=sample_inputs__native_batch_norm_legit_no_stats,
     ),
 ]

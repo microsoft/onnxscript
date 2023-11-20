@@ -14,8 +14,9 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import INT64
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
-from onnxscript.function_libs.torch_lib.tensor_typing import TTensor
+from onnxscript.function_libs.torch_lib.tensor_typing import RealType, TTensor
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
 
@@ -216,11 +217,13 @@ def prims_conj_physical(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("prims::convert_element_type")
-def prims_convert_element_type(a: TensorType, dtype: int) -> TensorType:
+@torch_op("prims::convert_element_type", trace_only=True)
+def prims_convert_element_type(a: RealType, dtype: int) -> RealType:
     """convert_element_type(Tensor a, ScalarType dtype) -> Tensor"""
 
-    return op.Cast(a, to=dtype)
+    # Set trace_only=True because different if branches return different dtypes
+    # which is not supported in an ONNX function
+    return common_ops.cast_to(a, dtype)
 
 
 def prims_copy_strided(a: TensorType, stride: INT64) -> TensorType:

@@ -14,10 +14,13 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from onnxscript import BOOL, FLOAT, INT64
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+IsScalar = common_ops.IsScalar
 
 
 def aten_linalg_cholesky(self: TensorType, upper: bool = False) -> TensorType:
@@ -46,10 +49,11 @@ def aten_linalg_cross(self: TensorType, other: TensorType, dim: int = -1) -> Ten
     raise NotImplementedError()
 
 
-def aten_linalg_det(A: TensorType) -> TensorType:
+@torch_op(("aten::linalg_det", "aten::det"))
+def aten_linalg_det(A: TFloat) -> TFloat:
     """linalg_det(Tensor A) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Det(A)
 
 
 def aten_linalg_diagonal(
@@ -331,8 +335,8 @@ def aten_linalg_vector_norm(
 
 @torch_op("aten::linalg_vector_norm", private=True)
 def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool) -> TFloat:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
+    self_is_scalar = IsScalar(self)
+    if self_is_scalar:
         self = op.Unsqueeze(self, axes=[0])
 
     self = op.Abs(self)
@@ -345,12 +349,13 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_0_1 = op.CastLike(self_bool, self)
         result = op.ReduceSum(self_0_1, keepdims=False)
+    # TODO(microsoft/onnxruntime#18338): Use ReduceL1/L2 when ONNX Runtime is fixed
     else:
         ord_float = op.CastLike(ord, self)
         self_pow = op.Pow(self, ord_float)
         result = op.Pow(op.ReduceSum(self_pow, keepdims=keepdim), op.Div(1.0, ord_float))
 
-    if self_rank == 0:
+    if self_is_scalar:
         result = op.Squeeze(result)
 
     return result
@@ -360,8 +365,8 @@ def _aten_linalg_vector_norm_no_dim_onnx(self: TFloat, ord: float, keepdim: bool
 def _aten_linalg_vector_norm_onnx(
     self: TFloat, ord: float, dim: INT64, keepdim: bool
 ) -> TFloat:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == 0:
+    self_is_scalar = IsScalar(self)
+    if self_is_scalar:
         self = op.Unsqueeze(self, axes=[0])
 
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
@@ -375,12 +380,16 @@ def _aten_linalg_vector_norm_onnx(
         self_bool = op.Cast(self, to=BOOL.dtype)
         self_0_1 = op.CastLike(self_bool, self)
         result = op.ReduceSum(self_0_1, dim, keepdims=keepdim)
+    elif ord == 1.0:
+        result = op.ReduceL1(self, dim, keepdims=keepdim)
+    elif ord == 2.0:
+        result = op.ReduceL2(self, dim, keepdims=keepdim)
     else:
         ord_float = op.CastLike(ord, self)
         self_pow = op.Pow(self, ord_float)
         result = op.Pow(op.ReduceSum(self_pow, dim, keepdims=keepdim), op.Div(1.0, ord_float))
 
-    if self_rank == 0:
+    if self_is_scalar:
         result = op.Squeeze(result)
 
     return result
