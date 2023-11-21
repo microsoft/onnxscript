@@ -93,8 +93,6 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
     def __init__(
         self,
         value: torch.Value,
-        shape: Optional[torch.Size] = None,
-        dtype: Optional[torch.dtype] = None,
     ):
         super().__init__(None)
         self._torch_value: torch.Value = value
@@ -161,7 +159,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         # Normalize torch symbolic dimension size to str.
         torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
         self._shape = tuple(
-            str(dim.node) if isinstance(dim, torch_sym_types) else dim for dim in shape
+            str(dim.node) if isinstance(dim, torch_sym_types) else dim for dim in shape  # type: ignore[union-attr]
         )
         # jit api does not support assigning symbolic shapes,
         # hence symbols are replaced as None.
@@ -641,7 +639,7 @@ class TorchScriptGraph:
             self._value_to_tensor[result[0]] = tensor
             return tensor
         tensors = tuple(TorchScriptTensor(v) for v in result)
-        self._value_to_tensor.update({v: t for v, t in zip(result, tensors)})
+        self._value_to_tensor.update(dict(zip(result, tensors)))
         for tensor in tensors:
             tensor.name = _rename_intermediate_value(tensor.name)
         return tensors
@@ -813,14 +811,14 @@ class TorchScriptGraph:
         graph serialization to onnx model proto. Such info is not retrievable at this point.
         """
         named_value_info = {}
-        for torch_value, onnxscript_tensor in self._value_to_tensor.items():
+        for torch_value, tensor in self._value_to_tensor.items():
             name = torch_value.debugName()
             if prefix:
                 name = f"{prefix}/{name}"
             named_value_info[name] = onnx.helper.make_tensor_value_info(
                 name,
-                onnxscript_tensor.onnx_dtype.value,
-                onnxscript_tensor.shape,
+                tensor.onnx_dtype.value,
+                tensor.shape,
             )
         for name, sub_graph in self._sub_torch_script_graphs.items():
             named_value_info.update(
