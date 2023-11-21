@@ -183,7 +183,7 @@ def _attribute_value(attr: onnx.AttributeProto):
 
 
 def _update_names_used_in_graph(names: set[str], graph: GraphProto) -> None:
-    """Returns the names used in a graph."""
+    """Adds the names used in a graph to given set."""
     names.update(x.name for x in graph.input)
     names.update(x.name for x in graph.output)
     names.update(x.name for x in graph.initializer)
