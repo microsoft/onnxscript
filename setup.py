@@ -23,7 +23,9 @@ if os.environ.get("ONNX_SCRIPT_RELEASE") != "1":
     date = datetime.date.today().strftime("%Y%m%d")
     version = f"{version}.dev{date}"
 
-    commit_hash_cmd = subprocess.run(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE, check=False)
+    commit_hash_cmd = subprocess.run(
+        ["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE, check=False
+    )
     if commit_hash_cmd.returncode == 0:
         project_urls[
             "Commit"
