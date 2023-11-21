@@ -5842,8 +5842,8 @@ def _aten_native_group_norm_onnx(
     # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need [0,group,-1]
     shape_input = op.Concat(op.Constant(value_ints=[0]), group_tensor, neg_1, axis=0)
     input_reshaped = op.Reshape(input, shape_input)
-    weight_inst_norm = op.Expand(op.Constant(value_floats=[1.0]), group_tensor)
-    bias_inst_norm = op.Expand(op.Constant(value_floats=[0.0]), group_tensor)
+    weight_inst_norm = op.Expand(op.CastLike(1.0, input), group_tensor)
+    bias_inst_norm = op.Expand(op.CastLike(0.0, input), group_tensor)
     norm = op.InstanceNormalization(
         input_reshaped, weight_inst_norm, bias_inst_norm, epsilon=eps
     )
