@@ -208,6 +208,14 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         """The symbolic Value in torch.Graph."""
         return self._torch_value
 
+    def value_info(self) -> Optional[onnx.ValueInfoProto]:
+        try:
+            dtype = self.onnx_dtype.value
+        except torch.onnx.errors.OnnxExporterError:
+            return None
+
+        return onnx.helper.make_tensor_value_info(self.name, dtype, self.shape)
+
 
 @runtime_typing.checked
 def _unwrap_tensor_to_torch_value(
@@ -683,9 +691,8 @@ class TorchScriptGraph:
             if input not in self._value_to_tensor:
                 raise RuntimeError(f"Input '{input.debugName()}' has no type.")
             tensor = self._value_to_tensor[input]
-            value_info = onnx.helper.make_tensor_value_info(
-                input.debugName(), tensor.onnx_dtype.value, tensor.shape
-            )
+            if (value_info := tensor.value_info()) is None:
+                continue
             for i, input_info in enumerate(onnx_model.graph.input):
                 if input_info.name == input.debugName():
                     onnx_model.graph.input.insert(i, value_info)
@@ -697,9 +704,8 @@ class TorchScriptGraph:
             if output not in self._value_to_tensor:
                 raise RuntimeError(f"Output '{output.debugName()}' has no type.")
             tensor = self._value_to_tensor[output]
-            value_info = onnx.helper.make_tensor_value_info(
-                output.debugName(), tensor.onnx_dtype.value, tensor.shape
-            )
+            if (value_info := tensor.value_info()) is None:
+                continue
             for i, output_info in enumerate(onnx_model.graph.output):
                 if output_info.name == output.debugName():
                     onnx_model.graph.output.insert(i, value_info)
@@ -802,18 +808,11 @@ class TorchScriptGraph:
         named_value_info = {}
         for torch_value, tensor in self._value_to_tensor.items():
             name = torch_value.debugName()
-            if tensor.onnx_dtype.value == onnx.TensorProto.UNDEFINED:
-                # Skip undefined dtype tensors.
-                # These are tensors missing dtype & shape. E.g. nodes created by torchlib
-                # trace_only=True ops.
+            if (value_info := tensor.value_info()) is None:
                 continue
             if prefix:
                 name = f"{prefix}/{name}"
-            named_value_info[name] = onnx.helper.make_tensor_value_info(
-                name,
-                tensor.onnx_dtype.value,
-                tensor.shape,
-            )
+            named_value_info[name] = value_info
         for name, sub_graph in self._sub_torch_script_graphs.items():
             named_value_info.update(
                 sub_graph.generate_function_value_info_proto(
