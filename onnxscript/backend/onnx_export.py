@@ -486,7 +486,9 @@ class Exporter:
             varname = self._make_opset_name(domain, version)
             return f"{varname} = Opset('{domain}', {version})\n"
 
-    def _translate_opset_imports(self, opset_imports: Sequence[onnx.OperatorSetIdProto]) -> str:
+    def _translate_opset_imports(
+        self, opset_imports: Sequence[onnx.OperatorSetIdProto]
+    ) -> str:
         return "".join(
             [self._translate_opset_import(x.domain, x.version) for x in opset_imports]
         )
