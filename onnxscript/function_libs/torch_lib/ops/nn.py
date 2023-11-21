@@ -351,7 +351,9 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
 
 
 @torch_op("aten::celu")
-def aten_celu_type_promoted(self: TFloatUnlessFloat32, alpha: float = 1.0) -> TFloatUnlessFloat32:
+def aten_celu_type_promoted(
+    self: TFloatUnlessFloat32, alpha: float = 1.0
+) -> TFloatUnlessFloat32:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
     self_upcasted = op.Cast(self, to=FLOAT.dtype)
