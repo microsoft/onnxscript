@@ -159,7 +159,8 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         # Normalize torch symbolic dimension size to str.
         torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
         self._shape = tuple(
-            str(dim.node) if isinstance(dim, torch_sym_types) else dim for dim in shape  # type: ignore[union-attr]
+            str(dim.node) if isinstance(dim, torch_sym_types) else dim  # type: ignore[union-attr]
+            for dim in shape
         )
         # jit api does not support assigning symbolic shapes,
         # hence symbols are replaced as None.
@@ -536,7 +537,9 @@ class TorchScriptGraph:
 
         torch_value = self._torch_graph.addInput(name)
         torch_value.setType(torch.TensorType.create_from_tensor(value))
-        tensor_value = _wrap_torch_value_to_tensor(torch_value, shape=value.shape, dtype=value.dtype)
+        tensor_value = _wrap_torch_value_to_tensor(
+            torch_value, shape=value.shape, dtype=value.dtype
+        )
         if isinstance(tensor_value, TorchScriptTensor):
             self._value_to_tensor[torch_value] = tensor_value
         self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
