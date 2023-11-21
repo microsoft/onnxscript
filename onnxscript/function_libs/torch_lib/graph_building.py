@@ -240,7 +240,7 @@ def _wrap_torch_value_to_tensor(
         torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]
     ],
     *,
-    shape: Optional[Tuple[int | str | None, ...]] = None,
+    shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
     dtype: Optional[torch.dtype] = None,
 ) -> Union[
     ValidArgumentType,
@@ -474,7 +474,7 @@ class TorchScriptGraph:
     def add_input(
         self,
         input_name: Optional[str],
-        shape: Optional[Union[torch.Size, Tuple[int | str | None, ...]]] = None,
+        shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
         dtype: Optional[torch.dtype] = None,
     ) -> TorchScriptTensor:
         if input_name is None:
