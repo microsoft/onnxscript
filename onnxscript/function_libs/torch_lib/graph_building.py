@@ -709,19 +709,6 @@ class TorchScriptGraph:
         # Remove existing static/incomplete value info.
         del onnx_model.graph.value_info[:]
 
-        # Replace value info for nodes in top level graph
-        for node in self.torch_graph.nodes():
-            for output in node.outputs():
-                if output not in self._value_to_tensor:
-                    continue
-                tensor = self._value_to_tensor[output]
-                value_info = onnx.helper.make_tensor_value_info(
-                    output.debugName(), tensor.onnx_dtype.value, tensor.shape
-                )
-                existing_value_info[value_info.name] = value_info
-
-        onnx_model.graph.value_info.extend(existing_value_info.values())
-
         # Insert value info for nodes within nested function calls.
         # NOTE: This is an experimental feature, since in official ONNX spec, nodes
         # within FunctionProto to have value info. https://github.com/onnx/onnx/issues/5487
@@ -731,7 +718,9 @@ class TorchScriptGraph:
         # nn.Modules exported by dynamo exporter have unique call sites, their function
         # op_type name can serve to form the unique identifier for value info.
         function_value_infos = self.generate_function_value_info_proto()
-        onnx_model.graph.value_info.extend(function_value_infos.values())
+        # Override existing value info for nodes in top level graph.
+        existing_value_info.update(function_value_infos)
+        onnx_model.graph.value_info.extend(existing_value_info.values())
 
         return onnx_model
 
@@ -813,6 +802,11 @@ class TorchScriptGraph:
         named_value_info = {}
         for torch_value, tensor in self._value_to_tensor.items():
             name = torch_value.debugName()
+            if tensor.onnx_dtype.value == onnx.TensorProto.UNDEFINED:
+                # Skip undefined dtype tensors.
+                # These are tensors missing dtype & shape. E.g. nodes created by torchlib
+                # trace_only=True ops.
+                continue
             if prefix:
                 name = f"{prefix}/{name}"
             named_value_info[name] = onnx.helper.make_tensor_value_info(
