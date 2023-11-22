@@ -214,7 +214,8 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
             dtype = self.onnx_dtype.value
         except torch.onnx.errors.OnnxExporterError:
             return None
-
+        if dtype == onnx.TensorProto.UNDEFINED:
+            return None
         return onnx.helper.make_tensor_value_info(self.name, dtype, self.shape)
 
 
