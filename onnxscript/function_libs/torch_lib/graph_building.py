@@ -298,13 +298,25 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
             if schema.name == "CastLike":
                 assert len(inputs) == 2
                 # Skip CastLike if the input and output types are the same
-                if (
-                    inputs[0] is not None
-                    and inputs[1] is not None
-                    and inputs[0].dtype == inputs[1].dtype
-                    and inputs[1].dtype is not None
-                ):
-                    return inputs[0]
+                src_input = inputs[0]
+                target_input = inputs[1]
+                dtypes_available = (
+                    isinstance(src_input, TorchScriptTensor)
+                    and isinstance(target_input, TorchScriptTensor)
+                    and src_input.dtype is not None
+                    and target_input.dtype is not None
+                )
+                if dtypes_available:
+                    if src_input.dtype == target_input.dtype:
+                        # Same type. No cast needed
+                        return src_input
+                    else:
+                        # Create a Cast node
+                        return self._graph.add_op_call(
+                            onnx.defs.get_schema("Cast"),
+                            (src_input,),
+                            {"to": target_input.onnx_dtype},
+                        )
         return self._graph.add_op_call(schema, inputs, attributes)
 
     @runtime_typing.checked
@@ -325,7 +337,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                     if args[0].rank is not None:
                         return args[0].rank == 0
                     else:
-                        # Fall to call the function
+                        # Fall to call add_function_call
                         pass
                 else:
                     # Python constants are scalars
@@ -339,7 +351,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
                     if args[0].rank is not None:
                         return args[0].rank
                     else:
-                        # Fall to call the function
+                        # Fall to call add_function_call
                         pass
                 else:
                     # Python constants are scalars

@@ -268,9 +268,11 @@ def aten_addr(
     # https://github.com/pytorch/pytorch/blob/51664489ba6f6b2343bbec9af9ca99185e2a5dbc/aten/src/ATen/native/cpu/LinearAlgebraKernel.cpp#L53-L54
     # When beta == 0, values in self should be ignored,
     # nans and infs in self should not propagate.
+    alpha = op.CastLike(alpha, outer)
     if beta == 0.0:
         result = op.Mul(alpha, outer)
     else:
+        beta = op.CastLike(beta, outer)
         result = op.Add(op.Mul(beta, self), op.Mul(alpha, outer))
 
     return result
