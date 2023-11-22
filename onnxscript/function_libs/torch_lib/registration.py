@@ -99,7 +99,6 @@ def torch_op(
     trace_only: bool = False,
     private: bool = False,
     complex: bool = False,
-    traceable: bool = False,
 ) -> Callable[[FunctionType], onnxscript.OnnxFunction | onnxscript.values.TracedOnnxFunction]:
     """Register a torch op.
 
@@ -113,7 +112,6 @@ def torch_op(
         private: Whether the function is private (not directly exposed). It should
             be true for all functions with names starting with "_".
         complex: Whether the function expects complex-valued inputs.
-        traceable: Whether the function can be traced.
     """
     if registry is None:
         registry = default_registry
@@ -130,7 +128,6 @@ def torch_op(
         else:
             assert isinstance(func, FunctionType)
             processed_func = onnxscript.script(opset=custom_opset)(func)
-            processed_func.experimental_traceable = traceable
 
         assert registry is not None
         for name_ in _check_and_normalize_names(name):
