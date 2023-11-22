@@ -31,6 +31,8 @@ jobs:
           - py310-torch-nightly
           - py310-onnx-weekly
           - py310-ort-nightly
+          - py311-ort-nightly
+          - py310-experimental-torchlib-tracing
         include:
           - name: py310
             python-version: "3.10"
@@ -50,6 +52,12 @@ jobs:
           - name: py310-ort-nightly
             python-version: "3.10"
             nox-tag: test-ort-nightly
+          - name: py311-ort-nightly
+            python-version: "3.11"
+            nox-tag: test-ort-nightly
+          - name: py310-experimental-torchlib-tracing
+            python-version: "3.10"
+            nox-tag: test-experimental-torchlib-tracing
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
