@@ -11,7 +11,7 @@ nox.options.error_on_missing_interpreters = False
 
 COMMON_TEST_DEPENDENCIES = (
     "jinja2",
-    "numpy==1.24.0",
+    "numpy==1.24.4",
     "typing_extensions",
     "beartype!=0.16.0",
     "types-PyYAML",
