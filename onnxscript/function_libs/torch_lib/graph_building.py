@@ -265,7 +265,7 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
             if schema.name == "CastLike":
                 assert len(inputs) == 2
                 # Skip CastLike if the input and output types are the same
-                if inputs[0].dtype == inputs[1].dtype is not None:
+                if inputs[0].dtype == inputs[1].dtype and inputs[1].dtype is not None:
                     return inputs[0]
         return self._graph.add_op_call(schema, inputs, attributes)
 
