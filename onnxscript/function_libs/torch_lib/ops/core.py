@@ -86,7 +86,7 @@ def aten__log_softmax_half(
     return aten__log_softmax(self, dim, half_to_float)
 
 
-@torch_op("aten::_log_softmax")
+@torch_op("aten::_log_softmax", traceable=True)
 def aten__log_softmax(
     self: TFloatHighPrecision,
     dim: int,
@@ -251,7 +251,7 @@ def aten_addmv(
     return op.Add(op.Mul(self, beta), op.Mul(op.MatMul(mat, vec), alpha))
 
 
-@torch_op("aten::addr")
+@torch_op("aten::addr", traceable=True)
 def aten_addr(
     self: TReal, vec1: TReal, vec2: TReal, beta: float = 1.0, alpha: float = 1.0
 ) -> TReal:
@@ -329,7 +329,7 @@ def aten_align_to(self: TensorType, names: Sequence[str]) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::all")
+@torch_op("aten::all", traceable=True)
 def aten_all(self: TTensor) -> BOOL:
     """all(Tensor self) -> Tensor"""
 
@@ -343,7 +343,7 @@ def aten_all(self: TTensor) -> BOOL:
     return result
 
 
-@torch_op("aten::all.dim")
+@torch_op("aten::all.dim", traceable=True)
 def aten_all_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """all.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
@@ -369,7 +369,7 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     return self
 
 
-@torch_op("aten::all.dims")
+@torch_op("aten::all.dims", traceable=True)
 def aten_all_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     """all.dims(Tensor self, int[]? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -449,7 +449,7 @@ def aten_angle(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::any")
+@torch_op("aten::any", traceable=True)
 def aten_any(self: TTensor) -> BOOL:
     """any(Tensor self) -> Tensor"""
 
@@ -464,7 +464,7 @@ def aten_any(self: TTensor) -> BOOL:
     return result
 
 
-@torch_op("aten::any.dim")
+@torch_op("aten::any.dim", traceable=True)
 def aten_any_dim(self: TTensor, dim: int, keepdim: bool = False) -> BOOL:
     """any.dim(Tensor self, int dim, bool keepdim=False) -> Tensor"""
 
@@ -492,7 +492,7 @@ def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     return self
 
 
-@torch_op("aten::any.dims")
+@torch_op("aten::any.dims", traceable=True)
 def aten_any_dims_no_dim(self: TTensor, keepdims: bool) -> BOOL:
     """any.dims(Tensor self, int[1]? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -684,7 +684,7 @@ def aten_arctanh(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::argmax")
+@torch_op("aten::argmax", traceable=True)
 def aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -697,7 +697,7 @@ def aten_argmax(self: Union[RealType, UINT8], keepdim: bool = False) -> INT64:
     return result
 
 
-@torch_op("aten::argmax")
+@torch_op("aten::argmax", traceable=True)
 def aten_argmax_dim(self: Union[RealType, UINT8], dim: int, keepdim: bool = False) -> INT64:
     """argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"""
 
@@ -1563,7 +1563,7 @@ def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::clamp_min")
+@torch_op("aten::clamp_min", traceable=True)
 def aten_clamp_min(self: TReal, min_: TReal) -> TReal:
     """clamp_min(Tensor self, Tensor min) -> Tensor"""
 
@@ -1942,7 +1942,7 @@ def aten_convolution(
     return result
 
 
-@torch_op("aten::convolution", private=True)
+@torch_op("aten::convolution", private=True, traceable=True)
 def _aten_convolution_onnx(
     input: TFloat,
     weight: TFloat,
