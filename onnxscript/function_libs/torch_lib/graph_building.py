@@ -265,22 +265,24 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
             if schema.name == "CastLike":
                 assert len(inputs) == 2
                 # Skip CastLike if the input and output types are the same
+                src_input = inputs[0]
+                target_input = inputs[1]
                 dtypes_available = (
-                    inputs[0] is not None
-                    and inputs[1] is not None
-                    and inputs[0].dtype is not None
-                    and inputs[1].dtype is not None
+                    isinstance(src_input, TorchScriptTensor)
+                    and isinstance(target_input, TorchScriptTensor)
+                    and src_input.dtype is not None
+                    and target_input.dtype is not None
                 )
                 if dtypes_available:
-                    if inputs[0].dtype == inputs[1].dtype:
+                    if src_input.dtype == target_input.dtype:
                         # Same type. No cast needed
-                        return inputs[0]
+                        return src_input
                     else:
                         # Create a Cast node
                         return self._graph.add_op_call(
                             onnx.defs.get_schema("Cast"),
-                            (inputs[0],),
-                            {"to": inputs[1].onnx_dtype},
+                            (src_input,),
+                            {"to": target_input.onnx_dtype},
                         )
         return self._graph.add_op_call(schema, inputs, attributes)
 
