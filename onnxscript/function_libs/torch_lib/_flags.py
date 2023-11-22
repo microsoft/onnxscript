@@ -39,7 +39,3 @@ EXPERIMENTAL_INITIALIZERS_AS_INPUTS: bool = _load_boolean_flag(
     "TORCHLIB_EXPERIMENTAL_INITIALIZERS_AS_INPUTS",
     this_will="make initializers as inputs to the model graph",
 )
-EXPERIMENTAL_PREFER_TRACING: bool = _load_boolean_flag(
-    "TORCHLIB_EXPERIMENTAL_PREFER_TRACING",
-    this_will="trace all traceable functions to fold if branches and collapse constant expressions",
-)
