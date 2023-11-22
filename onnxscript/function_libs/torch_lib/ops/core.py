@@ -884,7 +884,7 @@ def aten_atanh(self: TFloat) -> TFloat:
     return op.Atanh(self)
 
 
-@torch_op("aten::atleast_1d")
+@torch_op("aten::atleast_1d", traceable=True)
 def aten_atleast_1d(self: TTensor) -> TTensor:
     """atleast_1d(Tensor self) -> Tensor"""
 
@@ -932,7 +932,7 @@ def aten_atleast_2d_sequence(self: Sequence[TTensor]) -> TTensor:
     return op.SequenceMap(self, body=reshape_to_2d)
 
 
-@torch_op("aten::atleast_3d")
+@torch_op("aten::atleast_3d", traceable=True)
 def aten_atleast_3d(self: TTensor) -> TTensor:
     """atleast_3d(Tensor self) -> Tensor"""
 
@@ -1544,7 +1544,7 @@ def aten_clamp(self: TReal, min: Optional[TReal] = None, max: Optional[TReal] = 
     return clamped
 
 
-@torch_op("aten::clamp_max")
+@torch_op("aten::clamp_max", traceable=True)
 def aten_clamp_max(self: TReal, max_: TReal) -> TReal:
     """clamp_max(Tensor self, Tensor max) -> Tensor"""
 
@@ -2362,7 +2362,7 @@ def aten_cumsum(
     return _aten_cumsum_onnx(cast, dim)
 
 
-@torch_op("aten::cumsum", private=True)
+@torch_op("aten::cumsum", private=True, traceable=True)
 def _aten_cumsum_onnx(
     self: TRealUnlessInt16OrInt8, dim: Union[INT32, INT64]
 ) -> TRealUnlessInt16OrInt8:
@@ -2447,7 +2447,7 @@ def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) ->
     return _aten_diagonal_onnx(self, offset, dim1, dim2, perm, axes)
 
 
-@torch_op("aten::diagonal", private=True)
+@torch_op("aten::diagonal", private=True, traceable=True)
 def _aten_diagonal_onnx(
     self: TTensor, offset: int, dim1: int, dim2: int, perm: Sequence[int], axes: Sequence[int]
 ) -> TTensor:
@@ -2723,7 +2723,7 @@ def aten_dot(self: TFloat, tensor: TFloat) -> TFloat:
     return op.MatMul(self, tensor)
 
 
-@torch_op("aten::dropout")
+@torch_op("aten::dropout", traceable=True)
 def aten_dropout(input: TFloat, p: FLOAT, train: BOOL) -> TFloat:
     """dropout(Tensor input, float p, bool train) -> Tensor"""
 
@@ -3058,7 +3058,7 @@ def aten_embedding_dense_backward(
     raise NotImplementedError()
 
 
-@torch_op("aten::embedding_renorm")
+@torch_op("aten::embedding_renorm", traceable=True)
 def aten_embedding_renorm(
     weight: TFloat, indices: INT64, max_norm: float, norm_type: float = 2.0
 ) -> TFloat:
@@ -3537,7 +3537,7 @@ def aten_fused_moving_avg_obs_fake_quant(
     raise NotImplementedError()
 
 
-@torch_op("aten::gather")
+@torch_op("aten::gather", traceable=True)
 def aten_gather(
     self: TReal,
     dim: int,
@@ -4094,7 +4094,7 @@ def aten_index_reduce(
     raise NotImplementedError()
 
 
-@torch_op("aten::index_select")
+@torch_op("aten::index_select", traceable=True)
 def aten_index_select(self: TTensor, dim: int, index: IntType) -> TTensor:
     """index_select(Tensor self, int dim, Tensor index) -> Tensor"""
 
@@ -4577,7 +4577,7 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
     return op.Div(op.Log(summation), op.CastLike(op.Log(2.0), self))
 
 
-@torch_op("aten::logcumsumexp")
+@torch_op("aten::logcumsumexp", traceable=True)
 def aten_logcumsumexp(self: TFloatOrBFloat16, dim: int) -> TFloatOrBFloat16:
     """logcumsumexp(Tensor self, int dim) -> Tensor"""
 
@@ -4689,7 +4689,7 @@ def aten_logspace(start: float, end: float, steps: int, base: float = 10.0) -> T
     raise NotImplementedError()
 
 
-@torch_op("aten::logsumexp")
+@torch_op("aten::logsumexp", traceable=True)
 def aten_logsumexp(self: TFloat, dim: INT64, keepdim: int = False) -> TFloat:
     """logsumexp(Tensor self, int[1] dim, bool keepdim=False) -> Tensor"""
 
@@ -4911,7 +4911,7 @@ def aten_max(self: TReal) -> TReal:
     return result
 
 
-@torch_op("aten::max.dim")
+@torch_op("aten::max.dim", traceable=True)
 def aten_max_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, INT64]:
     """max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
 
@@ -4947,7 +4947,7 @@ def aten_mean(self: TReal) -> TReal:
     return op.Squeeze(result)
 
 
-@torch_op("aten::mean.dim")
+@torch_op("aten::mean.dim", traceable=True)
 def aten_mean_dim(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     """mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"""
 
@@ -4979,7 +4979,7 @@ def aten_min(self: TReal) -> TReal:
     return op.ReduceMin(self, keepdims=False)
 
 
-@torch_op("aten::min.dim")
+@torch_op("aten::min.dim", traceable=True)
 def aten_min_dim(self: TReal, dim: int, keepdim: bool = False) -> Tuple[TReal, TInt]:
     """min.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)"""
     if IsScalar(self):
@@ -5472,7 +5472,7 @@ def aten_nansum(
     raise NotImplementedError()
 
 
-@torch_op("aten::narrow")
+@torch_op("aten::narrow", traceable=True)
 def aten_narrow(self: TTensor, dim: INT64, start: INT64, length: INT64) -> TTensor:
     """narrow(Tensor(a) self, int dim, SymInt start, SymInt length) -> Tensor(a)"""
 
@@ -6099,7 +6099,7 @@ def aten_norm_except_dim(v: TensorType, pow: int = 2, dim: int = 0) -> TensorTyp
     raise NotImplementedError()
 
 
-@torch_op(("aten::normal", "aten::normal_functional"))
+@torch_op(("aten::normal", "aten::normal_functional"), traceable=True)
 def aten_normal(
     self: TTensor,
     mean: float = 0.0,
@@ -7669,7 +7669,7 @@ def aten_sum_dim_IntList(
     return result
 
 
-@torch_op("aten::sum", private=True)
+@torch_op("aten::sum", private=True, traceable=True)
 def _aten_sum_dim_onnx(self: TReal, dim: INT64, keepdim: bool = False) -> TReal:
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
