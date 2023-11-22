@@ -95,3 +95,20 @@ def test_ort_nightly(session):
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
+
+
+@nox.session(tags=["test-experimental-torchlib-tracing"])
+def test_experimental_torchlib_tracing(session):
+    """Test TorchLib with the experimental TORCHLIB_EXPERIMENTAL_PREFER_TRACING flag on."""
+    session.install(
+        *COMMON_TEST_DEPENDENCIES, PYTORCH, ONNX, *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES
+    )
+    session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
+    session.install(".", "--no-deps")
+    session.run("pip", "list")
+    session.run(
+        "pytest",
+        "onnxscript/tests/function_libs/torch_lib/ops_test.py",
+        *session.posargs,
+        env={"TORCHLIB_EXPERIMENTAL_PREFER_TRACING": "1"},
+    )
