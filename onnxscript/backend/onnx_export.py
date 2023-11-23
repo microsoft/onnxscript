@@ -552,11 +552,12 @@ class Exporter:
         add_line(f"    return {return_values}")
         return "\n".join(result)
 
-    def _translate_graph(self, model: onnx.ModelProto, function_name: str) -> str:
+    def _translate_graph(self, model: onnx.ModelProto, function_name: Optional[str]) -> str:
         graph = model.graph
         opsets = {}
         for imported in model.opset_import:
             opsets[imported.domain] = imported.version
+        function_name = function_name or _cleanup_variable_name(graph.name)
 
         result: list[str] = []
 
@@ -593,7 +594,9 @@ class Exporter:
             return "from onnxscript.onnx_types import " + ", ".join(sorted_types)
         return ""
 
-    def export(self, proto: onnx.ModelProto | onnx.FunctionProto, function_name: str) -> str:
+    def export(
+        self, proto: onnx.ModelProto | onnx.FunctionProto, function_name: Optional[str]
+    ) -> str:
         result: list[str] = []
 
         def add(line: str) -> None:
@@ -612,7 +615,6 @@ class Exporter:
             translated_functions.append(self._translate_graph(proto, function_name))
         else:
             assert isinstance(proto, FunctionProto)
-            # TODO: use function_name?
             translated_functions = [self._translate_function(proto)]
 
         # TODO: unique_function_domain_version.add((f.domain, 1))
@@ -655,22 +657,15 @@ def _attribute_param_types(
 
 def export2python(
     model_onnx,
-    opset=None,
-    verbose=True,
-    name=None,
-    rename=False,
-    function_name="main",
-    use_operators=False,
+    function_name: Optional[str] = None,
+    rename: bool = False,
+    use_operators: bool = False,
     inline_const: bool = False,
 ):
     """Exports an ONNX model to the *python* syntax.
 
     Args:
         model_onnx: string or ONNX graph
-        opset: opset to export to (None to select the one from the
-            graph)
-        verbose: inserts prints
-        name: to overwrite onnx name
         rename: rename the names to get shorter names
         function_name: main function name
         use_operators: use Python operators.
@@ -694,9 +689,6 @@ def export2python(
         code = export2python(onx)
         print(code)
     """
-    del opset  # unused
-    del verbose  # unused
-    del name  # unused
     if isinstance(model_onnx, str):
         model_onnx = onnx.load(model_onnx)
 
