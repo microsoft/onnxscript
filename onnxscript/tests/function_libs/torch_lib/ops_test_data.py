@@ -471,21 +471,41 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("ops.aten._log_softmax", core_ops.aten__log_softmax),
     TorchLibOpInfo(
-        "ops.aten._log_softmax_half", core_ops.aten__log_softmax_half, trace_only=True
-    ).xfail(
+        "ops.aten._log_softmax_half",
+        core_ops.aten__log_softmax_half,
+        trace_only=True,
+        tolerance={torch.float16: (1e-3, 1e-3)},
+    )
+    .xfail(
         reason="PyTorch does not implement _log_softmax for float16 on CPU",
         dtypes=(torch.float16,),
+        enabled_if=version_utils.torch_older_than("2.2"),
+    )
+    .xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo("ops.aten._softmax", core_ops.aten__softmax, trace_only=True),
-    TorchLibOpInfo(
-        "ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True
-    ).xfail(
+    TorchLibOpInfo("ops.aten._softmax_half", core_ops.aten__softmax_half, trace_only=True)
+    .xfail(
         reason="PyTorch does not implement _softmax for float16 on CPU",
         dtypes=(torch.float16,),
+        enabled_if=version_utils.torch_older_than("2.2"),
+    )
+    .xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
-    TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
-        matcher=lambda sample: not (len(sample.kwargs) > 0),
-        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    TorchLibOpInfo("all_dim", core_ops.aten_all_dim).skip(
+        matcher=lambda sample: not (len(sample.kwargs) > 0)
+        or isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design. dim must be an integer",
+    ),
+    TorchLibOpInfo("all_dims", core_ops.aten_all_dims, trace_only=True).skip(
+        matcher=lambda sample: not isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this overload requires dim to be a tuple",
     ),
     TorchLibOpInfo("allclose", core_ops.aten_allclose),
     TorchLibOpInfo(
@@ -501,7 +521,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("acosh", core_ops.aten_acosh),
     TorchLibOpInfo("add", core_ops.aten_add, tolerance={torch.float16: (1e-3, 1e-3)}),
     TorchLibOpInfo("add", core_ops.aten_add_complex, complex=True, trace_only=True),
-    TorchLibOpInfo("addbmm", core_ops.aten_addbmm, tolerance={torch.float32: (2e-5, 2e-5)}),
+    TorchLibOpInfo(
+        "addbmm",
+        core_ops.aten_addbmm,
+        tolerance={torch.float32: (2e-5, 2e-5), torch.float16: (2e-1, 2e-2)},
+    ),
     TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
     TorchLibOpInfo("addmm", core_ops.aten_addmm)
@@ -522,7 +546,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int16, torch.int32, torch.int64),
         reason="ONNX Runtime does not support int inputs to Gemm",
     ),
-    TorchLibOpInfo("addmv", core_ops.aten_addmv),
+    TorchLibOpInfo("addmv", core_ops.aten_addmv, tolerance={torch.float16: (1e-3, 1e-2)}),
     TorchLibOpInfo(
         "addr",
         core_ops.aten_addr,
@@ -557,8 +581,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "any_dim",
         core_ops.aten_any_dim,
     ).skip(
-        matcher=lambda sample: not (len(sample.kwargs) > 0),
-        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+        matcher=lambda sample: not (len(sample.kwargs) > 0)
+        or isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design. dim must be an integer",
+    ),
+    TorchLibOpInfo("any_dims", core_ops.aten_any_dims, trace_only=True).skip(
+        matcher=lambda sample: not isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this overload requires dim to be a tuple",
     ),
     TorchLibOpInfo("asin", core_ops.aten_asin),
     TorchLibOpInfo("asinh", core_ops.aten_asinh),
@@ -640,7 +669,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
             "https://github.com/microsoft/onnxscript/issues/1007"
         ),
     ),
-    TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm),
+    TorchLibOpInfo("baddbmm", core_ops.aten_baddbmm, tolerance={torch.float16: (1e-3, 1e-2)}),
     TorchLibOpInfo("bernoulli", core_ops.aten_bernoulli, nondeterministic=True),
     TorchLibOpInfo(
         # This string is a unique ID. In extra_opinfo.py, we
@@ -846,6 +875,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
     )
     .xfail(
+        variant_name="tensor_overload",
+        dtypes=(torch.int64, torch.int32, torch.float16),
+        reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
+        enabled_if=not version_utils.torch_older_than("2.2"),
+    )
+    .xfail(
         dtypes=(torch.float16,),
         reason="op 'Range' doesn't support float16.",
     )
@@ -861,17 +896,35 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "log_softmax",
         special_ops.aten_special_log_softmax,
+        trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (4e-4, 6e-3)},
-    ).xfail(
+    )
+    .xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
         variant_name="with_dtype",
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .skip(
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: LogSoftMax does not support empty tensor as input",
+    )
+    .skip(
+        variant_name="with_dtype",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: LogSoftMax does not support empty tensor as input",
     ),
     TorchLibOpInfo("log2", core_ops.aten_log2),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
-    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
+    TorchLibOpInfo(
+        "logcumsumexp", core_ops.aten_logcumsumexp, tolerance={torch.float16: (1e-2, 1e-1)}
+    ),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
     TorchLibOpInfo("logsumexp", core_ops.aten_logsumexp),
     TorchLibOpInfo("lt", core_ops.aten_lt),
@@ -884,7 +937,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "matmul",
         core_ops.aten_matmul,
         # Windows requires a more relaxed tolerance
-        tolerance={torch.float32: (2e-5, 2e-5)},
+        tolerance={torch.float32: (2e-5, 2e-5), torch.float16: (2e-3, 2e-2)},
     ).skip(
         matcher=lambda sample: torch.numel(sample.input) == 0,
         reason="values of matmul of [m, 0] and [0, n] matrices are undefined",
@@ -1339,12 +1392,28 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "softmax",
         core_ops.aten_softmax,
+        trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4), torch.float16: (3e-4, 4e-4)},
-    ).xfail(
+    )
+    .xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .xfail(
         variant_name="with_dtype",
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
+    )
+    .skip(
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: SoftMax does not support empty tensor as input",
+    )
+    .skip(
+        variant_name="with_dtype",
+        matcher=lambda sample: len(sample.input.shape) == 0,
+        reason="fixme: SoftMax does not support empty tensor as input",
     ),
     TorchLibOpInfo("nn.functional.softplus", nn_ops.aten_softplus).xfail(
         dtypes=(torch.float16,),
@@ -1700,7 +1769,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="empty_strides",
         reason="fixme: 'shape' do not match: torch.Size([2, 3, 4, 3]) != torch.Size([2, 3, 4, 2]). https://github.com/microsoft/onnxscript/issues/975",
     ),
-    TorchLibOpInfo("native_batch_norm", core_ops.aten_native_batch_norm, trace_only=True),
+    TorchLibOpInfo(
+        "native_batch_norm",
+        core_ops.aten_native_batch_norm,
+        trace_only=True,
+        tolerance={torch.float16: (9e-3, 7e-4)},
+    ),
     TorchLibOpInfo(
         "ops.aten._native_batch_norm_legit", core_ops.aten_native_batch_norm, trace_only=True
     ),
@@ -1719,9 +1793,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.native_group_norm",
         core_ops.aten_native_group_norm,
         trace_only=True,
+        tolerance={torch.float16: (1e-2, 7e-3)},
     ).xfail(
         dtypes=(torch.float16,),
         reason="fixme: 'GroupNormKernelImpl' not implemented for 'Half' in nightly and weekly",
+        enabled_if=version_utils.torch_older_than("2.2"),
     ),
     TorchLibOpInfo(
         "native_layer_norm",
@@ -1809,7 +1885,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) != 1,
         reason="this overload is implemented for bias=None",
     ),
-    TorchLibOpInfo("nn.functional.linear_bias", nn_ops.aten_linear_bias).skip(
+    TorchLibOpInfo(
+        "nn.functional.linear_bias",
+        nn_ops.aten_linear_bias,
+        tolerance={torch.float16: (2e-1, 4e-4)},
+    ).skip(
         # input: input, args: weight, bias; so len(args) == 2 means bias is provided
         matcher=lambda sample: len(sample.args) != 2,
         reason="this overload is implemented for bias!=None",
@@ -2059,8 +2139,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
-ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
-ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))
+ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim", "any_dims"))
 ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))

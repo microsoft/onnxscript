@@ -161,6 +161,10 @@ def add_decorate_info(
     ops_mapping = {(info.name, info.variant_test_name): info for info in all_opinfos}
     for decorate_meta in skip_or_xfails:
         opinfo = ops_mapping.get((decorate_meta.op_name, decorate_meta.variant_name))
+        if opinfo is None and not decorate_meta.enabled_if:
+            # If the OpInfo doesn't exist and it is not enabled, we skip the OpInfo
+            # because it could be an OpInfo that is in torch-nightly but not older versions.
+            continue
         assert (
             opinfo is not None
         ), f"Couldn't find OpInfo for {decorate_meta}. Did you need to specify variant_name?"
