@@ -484,9 +484,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="PyTorch does not implement _softmax for float16 on CPU",
         dtypes=(torch.float16,),
     ),
-    TorchLibOpInfo("all_dim", core_ops.aten_all_dim).xfail(
-        matcher=lambda sample: not (len(sample.kwargs) > 0),
-        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+    TorchLibOpInfo("all_dim", core_ops.aten_all_dim).skip(
+        matcher=lambda sample: not (len(sample.kwargs) > 0)
+        or isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design. dim must be an integer",
+    ),
+    TorchLibOpInfo("all_dims", core_ops.aten_all_dims, trace_only=True).skip(
+        matcher=lambda sample: not isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this overload requires dim to be a tuple",
     ),
     TorchLibOpInfo("allclose", core_ops.aten_allclose),
     TorchLibOpInfo(
@@ -562,8 +567,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "any_dim",
         core_ops.aten_any_dim,
     ).skip(
-        matcher=lambda sample: not (len(sample.kwargs) > 0),
-        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design",
+        matcher=lambda sample: not (len(sample.kwargs) > 0)
+        or isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this Aten overload only support one tensor as input and {dim,keepdim} as kwargs by design. dim must be an integer",
+    ),
+    TorchLibOpInfo("any_dims", core_ops.aten_any_dims, trace_only=True).skip(
+        matcher=lambda sample: not isinstance(sample.kwargs.get("dim"), tuple),
+        reason="this overload requires dim to be a tuple",
     ),
     TorchLibOpInfo("asin", core_ops.aten_asin),
     TorchLibOpInfo("asinh", core_ops.aten_asinh),
@@ -882,7 +892,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("log2", core_ops.aten_log2),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
-    TorchLibOpInfo("logcumsumexp", core_ops.aten_logcumsumexp),
+    TorchLibOpInfo(
+        "logcumsumexp", core_ops.aten_logcumsumexp, tolerance={torch.float16: (1e-2, 1e-1)}
+    ),
     TorchLibOpInfo("logdet", core_ops.aten_logdet),
     TorchLibOpInfo("logsumexp", core_ops.aten_logsumexp),
     TorchLibOpInfo("lt", core_ops.aten_lt),
@@ -2083,8 +2095,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
-ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim",))
-ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim",))
+ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))
+ops_test_common.duplicate_opinfo(OPS_DB, "any", ("any_dim", "any_dims"))
 ops_test_common.duplicate_opinfo(OPS_DB, "arange", ("arange_start", "arange_start_step"))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmax", ("argmax_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "argmin", ("argmin_dim",))

@@ -367,7 +367,9 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     if not dim:
         return aten_all_dims_no_dim(self, keepdim)
     for d in dim:
-        self = aten_all_dim(self, d, keepdim)
+        self = aten_all_dim(self, d, keepdim=True)
+    if not keepdim:
+        self = op.Squeeze(self, list(dim))
     return self
 
 
@@ -490,7 +492,9 @@ def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     if not dim:
         return aten_any_dims_no_dim(self, keepdim)
     for d in dim:
-        self = aten_any_dim(self, d, keepdim)
+        self = aten_any_dim(self, d, keepdim=True)
+    if not keepdim:
+        self = op.Squeeze(self, list(dim))
     return self
 
 
