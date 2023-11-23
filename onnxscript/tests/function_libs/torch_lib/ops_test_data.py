@@ -854,7 +854,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="tensor_overload",
         dtypes=(torch.int64, torch.int32, torch.float16),
         reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
-        enabled_if=not version_utils.torch_older_than("2.1"),
+        enabled_if=not version_utils.torch_older_than("2.2"),
     )
     .xfail(
         dtypes=(torch.float16,),
