@@ -1065,6 +1065,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: RuntimeError: ORT inference error GlobalAveragePool. https://github.com/microsoft/onnxruntime/issues/16449",
     ),
     TorchLibOpInfo("nn.functional.celu", nn_ops.aten_celu),
+    TorchLibOpInfo("nn.functional.celu_type_promoted", nn_ops.aten_celu_type_promoted),
     TorchLibOpInfo(
         "nn.functional.cross_entropy",
         # use cross_entropy as test case instead of cross_entropy_loss (not in OPS_DB)
@@ -1350,6 +1351,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.float16,),
         reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
         test_class_name="TestOutputConsistencyFullGraph",
+    ),
+    TorchLibOpInfo("nn.functional.softplus", nn_ops.aten_softplus).xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16449",
+        test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
         "split_with_sizes",
@@ -2126,6 +2132,11 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.scaled_dot_product_attention",
     ("nn.functional.scaled_dot_product_attention_bool_mask",),
+)
+ops_test_common.duplicate_opinfo(
+    OPS_DB,
+    "nn.functional.celu",
+    ("nn.functional.celu_type_promoted",),
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB,

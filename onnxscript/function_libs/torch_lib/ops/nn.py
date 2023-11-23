@@ -15,11 +15,11 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, TypeVar, Union
 
 import onnx
 
-from onnxscript import FLOAT, INT64
+from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
@@ -31,10 +31,13 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TTensor,
 )
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import BOOL, TensorType
+from onnxscript.onnx_types import TensorType
 
 _MATH_PI = math.pi
 Rank = common_ops.Rank
+
+# All float types but float32
+TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
 @torch_op("aten::aten_adaptive_avg_pool1d")
@@ -345,6 +348,16 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
+
+
+@torch_op("aten::celu")
+def aten_celu_type_promoted(
+    self: TFloatUnlessFloat32, alpha: float = 1.0
+) -> TFloatUnlessFloat32:
+    """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
+
+    self_upcasted = op.Cast(self, to=FLOAT.dtype)
+    return op.CastLike(op.Celu(self_upcasted, alpha=alpha), self)
 
 
 @torch_op("aten::col2im", trace_only=True)
@@ -2038,10 +2051,13 @@ def aten_soft_margin_loss_backward(
     raise NotImplementedError()
 
 
-def aten_softplus(self: TensorType, beta: float = 1.0, threshold: float = 20.0) -> TensorType:
+@torch_op("aten::softplus")
+def aten_softplus(self: TFloat, beta: float = 1.0, threshold: float = 20.0) -> TFloat:
     """softplus(Tensor self, Scalar beta=1, Scalar threshold=20) -> Tensor"""
 
-    raise NotImplementedError()
+    self_scaled = self * beta
+    softplus = op.Softplus(self_scaled) / beta
+    return op.Where(self_scaled > threshold, self, softplus)
 
 
 def aten_softplus_backward(
