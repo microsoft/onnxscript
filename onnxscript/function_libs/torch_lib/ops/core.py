@@ -7345,17 +7345,16 @@ def aten_smm(self: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"))
-def aten_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
-) -> TFloatOrBFloat16:
+@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"), trace_only=True)
+def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrBFloat16:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.Softmax(self, axis=dim)
-    result = op.Cast(result, to=dtype)
+    if dtype != -1:
+        result = op.Cast(result, to=dtype)
     if self_is_scalar:
         # Convert to scalar when input is scalar
         result = op.Squeeze(result)
