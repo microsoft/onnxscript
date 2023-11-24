@@ -258,9 +258,9 @@ class Exporter:
         return str(self._rename_variable(name))
 
     def _rename_domain(self, domain: str) -> str:
-        if domain == "":
-            return "opset"
-        return domain.replace(".", "_")
+        if domain == "" or domain == "ai.onnx":
+            return "opset"  #  TODO: Need checks to avoid name conflicts.
+        return _cleanup_variable_name(domain)
 
     def _make_opset_name(self, domain, version):
         return f"{self._rename_domain(domain)}{version}"
@@ -557,7 +557,8 @@ class Exporter:
         opsets = {}
         for imported in model.opset_import:
             opsets[imported.domain] = imported.version
-        function_name = function_name or _cleanup_variable_name(graph.name)
+        if function_name is None:
+            function_name = _cleanup_variable_name(graph.name)
 
         result: list[str] = []
 
