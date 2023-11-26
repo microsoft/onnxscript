@@ -8260,12 +8260,47 @@ def aten_vander(
 
     raise NotImplementedError()
 
-
-def aten_var(self: TensorType, unbiased: bool = True) -> TensorType:
+@torch_op("aten::var", trace_only=True)
+def aten_var(self: TReal, unbiased: bool = True) -> TReal:
     """var(Tensor self, bool unbiased=True) -> Tensor"""
 
-    raise NotImplementedError()
+    # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
+    # If not this case, should be explicitly set correction value according to unbiased value
+    return _aten_var_onnx(self, correction=float(unbiased), keepdim=False)
 
+@torch_op("aten::var.dim", trace_only=True)
+def aten_var(
+    self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False
+) -> TReal:
+    """var(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> Tensor"""
+
+    if isinstance(dim, int):
+        dim = (dim,)
+    dim_tensor = op.Constant(value_ints=dim)
+    return _aten_var_dim_onnx(
+        self, dim_tensor, correction=float(unbiased), keepdim=keepdim
+    )
+
+@torch_op("aten::var.correction", trace_only=True)
+def aten_var_correction(
+    self: TReal,
+    dim: Optional[int] = None,
+    correction: Optional[float] = None,
+    keepdim: bool = False,
+) -> Tuple[TReal, TReal]:
+    """var.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> Tensor"""
+
+    if correction is None:
+        correction = 1.0
+
+    if dim is None:
+        var = _aten_var_onnx(self, correction, keepdim)
+    else:
+        if isinstance(dim, int):
+            dim = (dim,)
+        dim_tensor = op.Constant(value_ints=dim)
+        var = _aten_var_dim_onnx(self, dim_tensor, correction, keepdim)
+    return var
 
 @torch_op("aten::var_mean", trace_only=True)
 def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
@@ -8355,6 +8390,20 @@ def _aten_var_mean_dim_onnx(
 
     return var, mean
 
+@torch_op("aten::var", private=True)
+def _aten_var_onnx(
+    self: TReal, correction: float, keepdim: bool = False
+) -> TReal:
+    var, _ = _aten_var_mean_onnx(self, correction, keepdim)
+    return var
+
+
+@torch_op("aten::var.dim", private=True)
+def _aten_var_dim_onnx(
+    self: TReal, dim: INT64, correction: float, keepdim: bool = False
+) -> TReal:
+    var, _ = _aten_var_mean_dim_onnx(self, dim, correction, keepdim)
+    return var
 
 def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
     """vdot(Tensor self, Tensor other) -> Tensor"""
