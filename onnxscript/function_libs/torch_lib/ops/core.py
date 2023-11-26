@@ -6918,6 +6918,37 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
                 dim = dims[i]
                 result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
             return result
+        
+@torch_op("aten::roll", trace_only=True, complex=True)
+def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
+    """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
+
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
+
+    self_rank = len(self.shape)
+    if self_rank == 0:
+        return self
+    elif self.shape[0] == 0:  # empty tensor
+        return self
+    else:
+        if isinstance(dims, tuple) and len(dims) == 0:  # Empty list
+            # assert isinstance(shifts, int)
+            shift_real = _aten_roll_shift_no_dim_onnx(self_real, shifts)
+            shift_imag = _aten_roll_shift_no_dim_onnx(self_imag, shifts)
+
+            result = op.Concat(shift_real, shift_imag, axis=-1)
+            
+        else:
+            # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
+            for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
+                shift = op.Gather(shifts, i, axis=0)
+                dim = dims[i]
+                self_real = _aten_roll_shift_and_dim_onnx(self_real, shift, dim)
+                self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shift, dim)
+            
+            result = op.Concat(self_real, self_imag, axis=-1)
+        return result
 
 
 @torch_op("aten::roll", private=True)
