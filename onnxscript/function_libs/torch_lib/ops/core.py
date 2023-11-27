@@ -4578,9 +4578,10 @@ def aten_logaddexp(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrB
 @torch_op("aten::logaddexp2")
 def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """logaddexp2(Tensor self, Tensor other) -> Tensor"""
-    summation = op.Add(op.Pow(2.0, self), op.Pow(2.0, other))
+    two = op.CastLike(2.0, self)
+    summation = op.Add(op.Pow(two, self), op.Pow(two, other))
 
-    return op.Div(op.Log(summation), op.CastLike(op.Log(2.0), self))
+    return op.Div(op.Log(summation), op.Log(two))
 
 
 @torch_op("aten::logcumsumexp", traceable=True)
@@ -4675,10 +4676,12 @@ def _aten_logit_onnx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 
 @torch_op("aten::logit", private=True)
 def _aten_logit_clamp_onnx(self: TFloatOrBFloat16, eps: float) -> TFloatOrBFloat16:
-    temporary_self = op.Where(self <= 1.0 - eps, self, 1.0 - eps)
+    eps = op.CastLike(eps, self)
+    one = op.CastLike(1.0, self)
+    temporary_self = op.Where(self <= one - eps, self, one - eps)
     z = op.Where(temporary_self < eps, eps, temporary_self)
 
-    return op.Log(op.Div(z, op.Sub(1.0, z)))
+    return op.Log(op.Div(z, op.Sub(one, z)))
 
 
 @torch_op("aten::logit", trace_only=True)

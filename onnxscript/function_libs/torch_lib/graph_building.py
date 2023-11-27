@@ -873,6 +873,7 @@ class TorchScriptGraph:
                 continue
             if prefix:
                 name = f"{prefix}/{name}"
+            value_info.name = name
             named_value_info[name] = value_info
         for name, sub_graph in self._sub_torch_script_graphs.items():
             named_value_info.update(
