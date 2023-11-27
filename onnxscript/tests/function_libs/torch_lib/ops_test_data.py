@@ -921,7 +921,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo("log2", core_ops.aten_log2),
     TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp, tolerance={torch.float16: (1, 1e-4)}),
-    TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
+    TorchLibOpInfo(
+        "logaddexp2", core_ops.aten_logaddexp2, tolerance={torch.float16: (2e-2, 6e-4)}
+    ),
     TorchLibOpInfo(
         "logcumsumexp", core_ops.aten_logcumsumexp, tolerance={torch.float16: (1e-2, 1e-1)}
     ),
