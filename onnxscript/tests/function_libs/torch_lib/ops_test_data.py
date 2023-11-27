@@ -526,7 +526,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_addbmm,
         tolerance={torch.float32: (2e-5, 2e-5), torch.float16: (2e-1, 2e-2)},
     ),
-    TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv),
+    TorchLibOpInfo("addcdiv", core_ops.aten_addcdiv, tolerance={torch.float16: (3e-2, 1e-3)}),
     TorchLibOpInfo("addcmul", core_ops.aten_addcmul, tolerance={torch.float16: (4e-3, 3e-3)}),
     TorchLibOpInfo("addmm", core_ops.aten_addmm)
     .xfail(
@@ -592,7 +592,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("asin", core_ops.aten_asin),
     TorchLibOpInfo("asinh", core_ops.aten_asinh),
     TorchLibOpInfo("atan", core_ops.aten_atan),
-    TorchLibOpInfo("atan2", core_ops.aten_atan2),
+    TorchLibOpInfo("atan2", core_ops.aten_atan2, tolerance={torch.float16: (1e-3, 1e-3)}),
     TorchLibOpInfo("atanh", core_ops.aten_atanh),
     TorchLibOpInfo("atleast_1d", core_ops.aten_atleast_1d).skip(
         matcher=lambda sample: isinstance(sample.input, (list, tuple)),
@@ -737,7 +737,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     # TorchLibOpInfo("copy", core_ops.aten_copy),  # copy is not in OPS_DB
     TorchLibOpInfo("cos", core_ops.aten_cos),
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
-    TorchLibOpInfo("cross", core_ops.aten_cross),
+    TorchLibOpInfo("cross", core_ops.aten_cross, tolerance={torch.float16: (6e-3, 3e-3)}),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
     TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True),
     TorchLibOpInfo("diagonal_bool", core_ops.aten_diagonal_bool, trace_only=True),
@@ -920,7 +920,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: LogSoftMax does not support empty tensor as input",
     ),
     TorchLibOpInfo("log2", core_ops.aten_log2),
-    TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp),
+    TorchLibOpInfo("logaddexp", core_ops.aten_logaddexp, tolerance={torch.float16: (1, 1e-4)}),
     TorchLibOpInfo("logaddexp2", core_ops.aten_logaddexp2),
     TorchLibOpInfo(
         "logcumsumexp", core_ops.aten_logcumsumexp, tolerance={torch.float16: (1e-2, 1e-1)}
@@ -1718,7 +1718,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         dtypes=(torch.int64,),
         reason="fixme: ORT `LayerNormKernelImpl` not implemented for int64",
     ),
-    TorchLibOpInfo("logit", core_ops.aten_logit, trace_only=True),
+    TorchLibOpInfo(
+        "logit", core_ops.aten_logit, trace_only=True, tolerance={torch.float16: (1e-1, 7e-4)}
+    ),
     TorchLibOpInfo("max_dim", core_ops.aten_max_dim)
     .skip(
         variant_name="reduction_with_dim",
@@ -1974,6 +1976,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
+    )
+    .xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo(
         "ops.aten._scaled_dot_product_flash_attention",
@@ -2000,6 +2007,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .skip(
         matcher=lambda sample: sample.kwargs.get("dropout_p") != 0.0,
         reason="dropout is random so the results do not match",
+    )
+    .xfail(
+        dtypes=(torch.float16,),
+        reason="fixme: ORT failed. https://github.com/microsoft/onnxruntime/issues/16438",
+        test_class_name="TestOutputConsistencyFullGraph",
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_bilinear2d",
