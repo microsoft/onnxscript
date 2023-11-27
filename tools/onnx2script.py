@@ -6,7 +6,7 @@
 """
 onnx2script.py
 
-This module provides a script to convert ONNX model files to Python scripts using the onnxscript library. 
+This module provides a script to convert ONNX model files to Python scripts using the onnxscript library.
 
 Usage:
     python onnx2script.py <input_file> [-o output_file] [-v]
