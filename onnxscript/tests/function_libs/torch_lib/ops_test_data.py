@@ -1879,7 +1879,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="String padding is not accepted by aten::conv2d",
     ),
     TorchLibOpInfo(
-        "nn.functional.conv3d",
+        "ops.aten.conv3d",
         core_ops.aten_conv3d,
         trace_only=True,
         tolerance={torch.float32: (3.7e-5, 1.8e-4)},
