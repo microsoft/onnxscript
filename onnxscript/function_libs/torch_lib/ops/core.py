@@ -365,7 +365,9 @@ def aten_all_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     if not dim:
         return aten_all_dims_no_dim(self, keepdim)
     for d in dim:
-        self = aten_all_dim(self, d, keepdim)
+        self = aten_all_dim(self, d, keepdim=True)
+    if not keepdim:
+        self = op.Squeeze(self, list(dim))
     return self
 
 
@@ -488,7 +490,9 @@ def aten_any_dims(self: TTensor, dim: Sequence[int] = (), keepdim: bool = False)
     if not dim:
         return aten_any_dims_no_dim(self, keepdim)
     for d in dim:
-        self = aten_any_dim(self, d, keepdim)
+        self = aten_any_dim(self, d, keepdim=True)
+    if not keepdim:
+        self = op.Squeeze(self, list(dim))
     return self
 
 
@@ -4572,9 +4576,10 @@ def aten_logaddexp(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrB
 @torch_op("aten::logaddexp2")
 def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """logaddexp2(Tensor self, Tensor other) -> Tensor"""
-    summation = op.Add(op.Pow(2.0, self), op.Pow(2.0, other))
+    two = op.CastLike(2.0, self)
+    summation = op.Add(op.Pow(two, self), op.Pow(two, other))
 
-    return op.Div(op.Log(summation), op.CastLike(op.Log(2.0), self))
+    return op.Div(op.Log(summation), op.Log(two))
 
 
 @torch_op("aten::logcumsumexp")
@@ -4669,10 +4674,12 @@ def _aten_logit_onnx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 
 @torch_op("aten::logit", private=True)
 def _aten_logit_clamp_onnx(self: TFloatOrBFloat16, eps: float) -> TFloatOrBFloat16:
-    temporary_self = op.Where(self <= 1.0 - eps, self, 1.0 - eps)
+    eps = op.CastLike(eps, self)
+    one = op.CastLike(1.0, self)
+    temporary_self = op.Where(self <= one - eps, self, one - eps)
     z = op.Where(temporary_self < eps, eps, temporary_self)
 
-    return op.Log(op.Div(z, op.Sub(1.0, z)))
+    return op.Log(op.Div(z, op.Sub(one, z)))
 
 
 @torch_op("aten::logit", trace_only=True)
@@ -5842,8 +5849,8 @@ def _aten_native_group_norm_onnx(
     # 0 in the shape list keeps dimension value unchanged, for InstanceNorm need [0,group,-1]
     shape_input = op.Concat(op.Constant(value_ints=[0]), group_tensor, neg_1, axis=0)
     input_reshaped = op.Reshape(input, shape_input)
-    weight_inst_norm = op.Expand(op.Constant(value_floats=[1.0]), group_tensor)
-    bias_inst_norm = op.Expand(op.Constant(value_floats=[0.0]), group_tensor)
+    weight_inst_norm = op.Expand(op.CastLike(1.0, input), group_tensor)
+    bias_inst_norm = op.Expand(op.CastLike(0.0, input), group_tensor)
     norm = op.InstanceNormalization(
         input_reshaped, weight_inst_norm, bias_inst_norm, epsilon=eps
     )
@@ -7339,17 +7346,16 @@ def aten_smm(self: TensorType, mat2: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"))
-def aten_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
-) -> TFloatOrBFloat16:
+@torch_op(("aten::softmax", "aten::softmax.int", "aten::special_softmax"), trace_only=True)
+def aten_softmax(self: TFloatOrBFloat16, dim: int, dtype: int = -1) -> TFloatOrBFloat16:
     """softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
 
     self_is_scalar = IsScalar(self)
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.Softmax(self, axis=dim)
-    result = op.Cast(result, to=dtype)
+    if dtype != -1:
+        result = op.Cast(result, to=dtype)
     if self_is_scalar:
         # Convert to scalar when input is scalar
         result = op.Squeeze(result)

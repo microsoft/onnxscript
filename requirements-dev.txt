@@ -30,4 +30,4 @@ torch>=1.13
 
 # Lint
 lintrunner>=0.10.7
-lintrunner_adapters>=0.8.0
+lintrunner_adapters>=0.12.0
