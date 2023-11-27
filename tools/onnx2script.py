@@ -3,6 +3,23 @@
 # Licensed under the MIT License.
 # --------------------------------------------------------------------------
 
+"""
+onnx2script.py
+
+This module provides a script to convert ONNX model files to Python scripts using the onnxscript library. 
+
+Usage:
+    python onnx2script.py <input_file> [-o output_file] [-v]
+
+Arguments:
+    input_file: The ONNX model file to convert.
+    -o, --output: The output file name. If not provided, the output will be named after the input file with a .py extension.
+    -v, --verbose: Enables verbose mode. This suppresses the use of overloaded operators and inline constants.
+
+Example:
+    python onnx2script.py model.onnx -o model.py -v
+"""
+
 import argparse
 import os
 from typing import Optional
@@ -34,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument("input", help="ONNX model file to convert")
     parser.add_argument("-o", "--output", help="Output file name")
     parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose mode", default=False
+        "-v", "--verbose", action="store_true", help="Verbose mode, suppresses use of overloaded operators and inline constants", default=False
     )
 
     args = parser.parse_args()
