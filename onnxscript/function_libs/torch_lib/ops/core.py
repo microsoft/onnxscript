@@ -4579,7 +4579,7 @@ def aten_logaddexp2(self: TFloatOrBFloat16, other: TFloatOrBFloat16) -> TFloatOr
     two = op.CastLike(2.0, self)
     summation = op.Add(op.Pow(two, self), op.Pow(two, other))
 
-    return op.Div(op.Log(summation), op.Log(two), self)
+    return op.Div(op.Log(summation), op.Log(two))
 
 
 @torch_op("aten::logcumsumexp")
