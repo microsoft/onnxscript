@@ -6920,7 +6920,7 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
             return result
         
 @torch_op("aten::roll", trace_only=True, complex=True)
-def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
+def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
     self_real = op.Slice(self, [0], [1], axes=[-1])
@@ -8292,16 +8292,17 @@ def aten_vander(
     raise NotImplementedError()
 
 @torch_op("aten::var", trace_only=True)
-def aten_var(self: TReal, unbiased: bool = True) -> TReal:
+def aten_var(self: TReal, unbiased: Optional[bool] = True) -> TReal:
     """var(Tensor self, bool unbiased=True) -> Tensor"""
 
     # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
     # If not this case, should be explicitly set correction value according to unbiased value
-    return _aten_var_onnx(self, correction=float(unbiased), keepdim=False)
+    return _aten_var_onnx(self, correction=float(unbiased), keepdim=False), float(unbiased)
+    # return float(unbiased)
 
 @torch_op("aten::var.dim", trace_only=True)
-def aten_var(
-    self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False
+def aten_var_dim(
+    self: TReal, dim: int, unbiased: Optional[bool] = True, keepdim: Optional[bool] = False
 ) -> TReal:
     """var(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> Tensor"""
 
@@ -8425,7 +8426,18 @@ def _aten_var_mean_dim_onnx(
 def _aten_var_onnx(
     self: TReal, correction: float, keepdim: bool = False
 ) -> TReal:
-    var, _ = _aten_var_mean_onnx(self, correction, keepdim)
+    mean = op.ReduceMean(self, keepdims=keepdim)
+    sub_mean = op.Sub(self, mean)
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction > 0.0:
+        self_shape = op.Shape(self)
+        numel_float = op.CastLike(op.ReduceProd(self_shape, keepdims=False), self)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_float, op.CastLike(correction, self))
+        var = op.Div(mul, sub)
+
     return var
 
 
@@ -8433,7 +8445,21 @@ def _aten_var_onnx(
 def _aten_var_dim_onnx(
     self: TReal, dim: INT64, correction: float, keepdim: bool = False
 ) -> TReal:
-    var, _ = _aten_var_mean_dim_onnx(self, dim, correction, keepdim)
+    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+    # Computer mean and var
+    mean = op.ReduceMean(self, dim, keepdims=keepdim)
+    sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=True))
+    sqr_mean = op.Mul(sub_mean, sub_mean)
+    var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
+    # Adjust var according to correction value
+    if correction > 0.0:
+        self_shape = op.Shape(self)
+        dim_size = op.Gather(self_shape, dim, axis=0)
+        numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=False), self)
+        mul = op.Mul(var, numel_float)
+        sub = op.Sub(numel_float, correction)
+        var = op.Div(mul, sub)
+
     return var
 
 def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
