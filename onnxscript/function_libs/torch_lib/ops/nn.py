@@ -1391,10 +1391,18 @@ def aten_pad_sequence(
     raise NotImplementedError()
 
 
+@torch_op("aten::reflection_pad1d")
 def aten_reflection_pad1d(self: TensorType, padding: INT64) -> TensorType:
     """reflection_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    # assert len(padding) == 2
+    zeros = op.Constant(value_ints=[0, 0])
+    padding_onnx = op.Concat(zeros, padding, axis=0)
+    padding_onnx = op.Reshape(padding_onnx, op.Constant(value_ints=[2, 2]))
+    padding_onnx = op.Transpose(padding_onnx, perm=[1, 0])
+    padding_onnx = op.Reshape(padding_onnx, op.Constant(value_ints=[-1]))
+
+    return op.Pad(self, padding_onnx, mode="reflect")
 
 
 def aten_reflection_pad1d_backward(
