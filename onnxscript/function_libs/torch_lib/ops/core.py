@@ -2914,7 +2914,6 @@ def _aten_embedding_bag_onnx(
 @torch_op(
     (
         "aten::embedding_bag.padding_idx",
-        "aten::_embedding_bag",
         "aten::_embedding_bag_forward_only",
     ),
     trace_only=True,
