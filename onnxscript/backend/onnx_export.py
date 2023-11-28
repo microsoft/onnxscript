@@ -397,8 +397,13 @@ class Exporter:
             )
         rows.append(
             self._python_make_node_graph(
-                body, opsets, indent=indent + 1, output_names=node.output
+                body, opsets, indent=indent + 1, output_names=node.input[2:]
             )
+        )
+        # TODO: This doesn't handle scan-outputs yet.
+        rows.extend(
+            f"{sindent}{self._rename_variable(to)} = {self._rename_variable(frm)}"
+            for to, frm in zip(node.output, node.input[2:])
         )
         return "\n".join(rows)
 
