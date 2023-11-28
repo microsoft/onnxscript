@@ -69,7 +69,7 @@ def sample_inputs_conv3d(op_info, device, dtype, requires_grad, **kwargs):
             (32,),
             {
                 "stride": (3, 3, 3),
-                "padding": 2,
+                "padding": (2, 2, 2),
                 "dilation": (1, 1, 1),
                 "groups": 1,
             },
@@ -1430,7 +1430,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "nn.functional.conv3d",
+        "ops.aten.conv3d",
         aten_name="conv3d",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_conv3d,
