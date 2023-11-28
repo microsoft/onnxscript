@@ -51,7 +51,11 @@ if __name__ == "__main__":
     parser.add_argument("input", help="ONNX model file to convert")
     parser.add_argument("-o", "--output", help="Output file name")
     parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Verbose mode, suppresses use of overloaded operators and inline constants", default=False
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose mode, suppresses use of overloaded operators and inline constants",
+        default=False
     )
 
     args = parser.parse_args()
