@@ -1349,7 +1349,9 @@ def sample_inputs_reflection_pad1d(
         ((8, 9), (1, 0)),
     )
 
-    make_inp = opinfo_core.partial(torch.testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)
+    make_inp = opinfo_core.partial(
+        torch.testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
 
     for shape, pad in cases:
         yield opinfo_core.SampleInput(make_inp(shape), args=(pad,))

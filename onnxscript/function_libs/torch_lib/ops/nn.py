@@ -1413,11 +1413,7 @@ def aten_reflection_pad1d(self: TFloat, padding: INT64) -> TFloat:
     start = op.Slice(padding, [0], [1], axes=[0])
     end = op.Slice(padding, [1], [2], axes=[0])
     padding_onnx = op.Concat(
-        op.Constant(value_ints=[0]),
-        start,
-        op.Constant(value_ints=[0]),
-        end,
-        axis=0
+        op.Constant(value_ints=[0]), start, op.Constant(value_ints=[0]), end, axis=0
     )
     return op.Pad(self, padding_onnx, mode="reflect")
 
