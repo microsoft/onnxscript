@@ -1344,9 +1344,9 @@ def sample_inputs_reflection_pad1d(
 
     cases: tuple = (  # ignore
         ((2, 3), (1, 2)),
-        # ((4, 5), (0, 1)),
-        # ((6, 7), (1, 1)),
-        # ((8, 9), (1, 0)),
+        ((4, 5), (0, 1)),
+        ((6, 7), (1, 1)),
+        ((8, 9), (1, 0)),
     )
 
     make_inp = opinfo_core.partial(torch.testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad)

@@ -1405,16 +1405,20 @@ def aten_pad_sequence(
 
 
 @torch_op("aten::reflection_pad1d")
-def aten_reflection_pad1d(self: TensorType, padding: INT64) -> TensorType:
+def aten_reflection_pad1d(self: TFloat, padding: INT64) -> TFloat:
     """reflection_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
     # assert len(padding) == 2
-    zeros = op.Constant(value_ints=[0, 0])
-    padding_onnx = op.Concat(zeros, padding, axis=0)
-    padding_onnx = op.Reshape(padding_onnx, op.Constant(value_ints=[2, 2]))
-    padding_onnx = op.Transpose(padding_onnx, perm=[1, 0])
-    padding_onnx = op.Reshape(padding_onnx, op.Constant(value_ints=[-1]))
-
+    # Input of padding argument should be [x,y], need change to onnx format [0, x, 0, y]
+    start = op.Slice(padding, [0], [1], axes=[0])
+    end = op.Slice(padding, [1], [2], axes=[0])
+    padding_onnx = op.Concat(
+        op.Constant(value_ints=[0]),
+        start,
+        op.Constant(value_ints=[0]),
+        end,
+        axis=0
+    )
     return op.Pad(self, padding_onnx, mode="reflect")
 
 
