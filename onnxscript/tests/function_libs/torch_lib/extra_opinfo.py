@@ -1365,9 +1365,7 @@ def sample_inputs__native_batch_norm_legit_no_stats(
             )
 
 
-def sample_inputs_reflection_pad1d(
-    op_info, device, dtype, requires_grad, **kwargs
-):
+def sample_inputs_reflection_pad1d(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del kwargs
 
