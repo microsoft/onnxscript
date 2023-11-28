@@ -1365,6 +1365,25 @@ def sample_inputs__native_batch_norm_legit_no_stats(
             )
 
 
+def sample_inputs_reflection_pad1d(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    cases: tuple = (  # ignore
+        ((2, 3), (1, 2)),
+        ((4, 5), (0, 1)),
+        ((6, 7), (1, 1)),
+        ((8, 9), (1, 0)),
+    )
+
+    make_inp = opinfo_core.partial(
+        torch.testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    for shape, pad in cases:
+        yield opinfo_core.SampleInput(make_inp(shape), args=(pad,))
+
+
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
 #    This function should yield SampleInputs.
@@ -1441,6 +1460,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="convolution",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_convolution,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.reflection_pad1d",
+        aten_name="ops.aten.reflection_pad1d",
+        dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
+        sample_inputs_func=sample_inputs_reflection_pad1d,
         supports_out=False,
     ),
     opinfo_core.OpInfo(

@@ -1196,6 +1196,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload doesn't accept weight as kwargs",
     ),
     TorchLibOpInfo(
+        "ops.aten.reflection_pad1d",
+        nn_ops.aten_reflection_pad1d,
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="Torch not implement reflection_pad1d for int64.",
+    ),
+    TorchLibOpInfo(
         "nn.functional.reflection_pad2d",
         nn_ops.aten_reflection_pad2d,
         input_wrangler=_reflection_pad2d_input_wrangler,
