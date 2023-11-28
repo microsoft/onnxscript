@@ -2147,8 +2147,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "var",
         core_ops.aten_var,
         trace_only=True,
-    )
-    .xfail(
+    ).xfail(
         # kwargs must be empty
         matcher=lambda sample: len(sample.kwargs) > 0,
         reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
@@ -2169,8 +2168,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "var_correction",
         core_ops.aten_var_correction,
         trace_only=True,
-    )
-    .skip(
+    ).skip(
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",

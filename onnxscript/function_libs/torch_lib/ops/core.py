@@ -8292,6 +8292,7 @@ def aten_vander(
 
     raise NotImplementedError()
 
+
 @torch_op("aten::var", trace_only=True)
 def aten_var(self: TReal, unbiased: Optional[bool] = True) -> TReal:
     """var(Tensor self, bool unbiased=True) -> Tensor"""
@@ -8300,6 +8301,7 @@ def aten_var(self: TReal, unbiased: Optional[bool] = True) -> TReal:
     # If not this case, should be explicitly set correction value according to unbiased value
     return _aten_var_onnx(self, correction=float(unbiased), keepdim=False)
     # return float(unbiased)
+
 
 @torch_op("aten::var.dim", trace_only=True)
 def aten_var_dim(
@@ -8310,14 +8312,8 @@ def aten_var_dim(
     if isinstance(dim, int):
         dim = (dim,)
     dim_tensor = op.Constant(value_ints=dim)
-    return _aten_var_dim_onnx(
-        self, dim_tensor, correction=float(unbiased), keepdim=keepdim
-    )
+    return _aten_var_dim_onnx(self, dim_tensor, correction=float(unbiased), keepdim=keepdim)
 
-@torch_op("aten::var.correction", trace_only=True)
-def aten_var_connection(self: TFloat, dim: Optional[int] = None, correction: Optional[float] = None, keepdim = False):
-    """var.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> Tensor"""
-    ...
 
 @torch_op("aten::var.correction", trace_only=True)
 def aten_var_correction(
@@ -8339,6 +8335,7 @@ def aten_var_correction(
         dim_tensor = op.Constant(value_ints=dim)
         var = _aten_var_dim_onnx(self, dim_tensor, correction, keepdim)
     return var
+
 
 @torch_op("aten::var_mean", trace_only=True)
 def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
@@ -8428,10 +8425,9 @@ def _aten_var_mean_dim_onnx(
 
     return var, mean
 
+
 @torch_op("aten::var", private=True)
-def _aten_var_onnx(
-    self: TReal, correction: float, keepdim: bool = False
-) -> TReal:
+def _aten_var_onnx(self: TReal, correction: float, keepdim: bool = False) -> TReal:
     mean = op.ReduceMean(self, keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
     sqr_mean = op.Mul(sub_mean, sub_mean)
@@ -8466,6 +8462,7 @@ def _aten_var_dim_onnx(
         var = op.Div(mul, sub)
 
     return var
+
 
 def aten_vdot(self: TensorType, other: TensorType) -> TensorType:
     """vdot(Tensor self, Tensor other) -> Tensor"""
