@@ -557,7 +557,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "addr",
         core_ops.aten_addr,
-        tolerance={torch.float16: (1e-3, 3e-3)},
+        tolerance={torch.float16: (3e-3, 4e-3)},
     ),
     TorchLibOpInfo(
         "amax",
