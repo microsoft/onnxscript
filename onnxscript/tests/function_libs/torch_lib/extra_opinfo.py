@@ -190,21 +190,20 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
-def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
-    del self  # Unused
+def _prepare_data_for_fft_ops(device, dtype, requires_grad=False):
     # Adapted from https://github.com/pytorch/pytorch/blob/01069ad4be449f376cf88a56d842b8eb50f6e9b6/torch/testing/_internal/opinfo/core.py#L2448C1-L2541C79
     is_fp16_or_chalf = dtype in (torch.complex32, torch.half)
     if not is_fp16_or_chalf:
-        nd_tensor = functools.partial(
+        oned_tensor = functools.partial(
             opinfo_core.make_tensor,
-            (S, S + 1, S + 2),
+            (31,),
             device=device,
             dtype=dtype,
             requires_grad=requires_grad,
         )
-        oned_tensor = functools.partial(
+        nd_tensor = functools.partial(
             opinfo_core.make_tensor,
-            (31,),
+            (S, S + 1, S + 2),
             device=device,
             dtype=dtype,
             requires_grad=requires_grad,
@@ -214,15 +213,6 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
         high = None
         shapes = ((2, 8, 9), (33,))
 
-        nd_tensor = functools.partial(
-            opinfo_core.make_tensor,
-            shapes[0],
-            device=device,
-            low=low,
-            high=high,
-            dtype=dtype,
-            requires_grad=requires_grad,
-        )
         oned_tensor = functools.partial(
             opinfo_core.make_tensor,
             shapes[1],
@@ -232,6 +222,22 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
             dtype=dtype,
             requires_grad=requires_grad,
         )
+        nd_tensor = functools.partial(
+            opinfo_core.make_tensor,
+            shapes[0],
+            device=device,
+            low=low,
+            high=high,
+            dtype=dtype,
+            requires_grad=requires_grad,
+        )
+
+    return oned_tensor, nd_tensor
+
+
+def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
 
     for normalization, forward in itertools.product((0, 1, 2), (True, False)):
         # 1-D
@@ -249,6 +255,29 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
         ]:
             yield opinfo_core.SampleInput(
                 nd_tensor(), dim=dim, normalization=normalization, forward=forward
+            )
+
+
+def sample_inputs__fft_r2c(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
+
+    for normalization, one_sided in itertools.product((0, 1, 2), (True, True)):
+        # 1-D
+        yield opinfo_core.SampleInput(
+            oned_tensor(), dim=(0,), normalization=normalization, onesided=one_sided
+        )
+        # N-D
+        for dim in [
+            (0,),
+            (1,),
+            (2,),
+            (1, 2),
+            (0, 1),
+            (0, 1, 2),
+        ]:
+            yield opinfo_core.SampleInput(
+                nd_tensor(), dim=dim, normalization=normalization, onesided=one_sided
             )
 
 
@@ -1356,6 +1385,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="_fft_c2c",
         dtypes=common_dtype.complex_types(),
         sample_inputs_func=sample_inputs__fft_c2c,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._fft_r2c",
+        aten_name="_fft_r2c",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs__fft_r2c,
         supports_out=False,
     ),
     opinfo_core.OpInfo(

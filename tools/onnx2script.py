@@ -55,7 +55,7 @@ if __name__ == "__main__":
         "--verbose",
         action="store_true",
         help="Verbose mode, suppresses use of overloaded operators and inline constants",
-        default=False
+        default=False,
     )
 
     args = parser.parse_args()
