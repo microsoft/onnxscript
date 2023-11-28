@@ -6918,7 +6918,8 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
                 dim = dims[i]
                 result = _aten_roll_shift_and_dim_onnx(result, shift, dim)
             return result
-        
+
+
 @torch_op("aten::roll", trace_only=True, complex=True)
 def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
@@ -6938,7 +6939,7 @@ def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) ->
             shift_imag = _aten_roll_shift_no_dim_onnx(self_imag, shifts)
 
             result = op.Concat(shift_real, shift_imag, axis=-1)
-            
+
         else:
             # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
             for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
@@ -6946,7 +6947,7 @@ def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) ->
                 dim = dims[i]
                 self_real = _aten_roll_shift_and_dim_onnx(self_real, shift, dim)
                 self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shift, dim)
-            
+
             result = op.Concat(self_real, self_imag, axis=-1)
         return result
 
@@ -8297,7 +8298,7 @@ def aten_var(self: TReal, unbiased: Optional[bool] = True) -> TReal:
 
     # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
     # If not this case, should be explicitly set correction value according to unbiased value
-    return _aten_var_onnx(self, correction=float(unbiased), keepdim=False), float(unbiased)
+    return _aten_var_onnx(self, correction=float(unbiased), keepdim=False)
     # return float(unbiased)
 
 @torch_op("aten::var.dim", trace_only=True)
@@ -8314,12 +8315,17 @@ def aten_var_dim(
     )
 
 @torch_op("aten::var.correction", trace_only=True)
+def aten_var_connection(self: TFloat, dim: Optional[int] = None, correction: Optional[float] = None, keepdim = False):
+    """var.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> Tensor"""
+    ...
+
+@torch_op("aten::var.correction", trace_only=True)
 def aten_var_correction(
     self: TReal,
     dim: Optional[int] = None,
     correction: Optional[float] = None,
     keepdim: bool = False,
-) -> Tuple[TReal, TReal]:
+) -> TReal:
     """var.correction(Tensor self, int[1]? dim=None, *, Scalar? correction=None, bool keepdim=False) -> Tensor"""
 
     if correction is None:
@@ -8447,7 +8453,6 @@ def _aten_var_dim_onnx(
 ) -> TReal:
     dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
     # Computer mean and var
-    mean = op.ReduceMean(self, dim, keepdims=keepdim)
     sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=True))
     sqr_mean = op.Mul(sub_mean, sub_mean)
     var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
