@@ -479,6 +479,9 @@ class OnnxFunction(Op):
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
         self._op_schema: Optional[onnx.defs.OpSchema] = None
 
+        # Experimental fields
+        self.experimental_traceable = False
+
     @property
     @deprecation.deprecated(
         since="0.1",
