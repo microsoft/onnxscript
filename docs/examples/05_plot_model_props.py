@@ -15,9 +15,10 @@ be specified in this fashion.
 # %%
 # First, we define the implementation of a square-loss function in onnxscript.
 
-from onnxscript import FLOAT
+import onnx
+
+from onnxscript import FLOAT, script
 from onnxscript import opset15 as op
-from onnxscript import script
 
 
 @script(ir_version=7, producer_name="OnnxScript", producer_version="0.1")

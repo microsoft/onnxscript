@@ -14,9 +14,8 @@ import numpy as np
 import onnx
 from onnxruntime import InferenceSession
 
-from onnxscript import FLOAT
+from onnxscript import FLOAT, script
 from onnxscript import opset15 as op
-from onnxscript import script
 
 
 @script()
