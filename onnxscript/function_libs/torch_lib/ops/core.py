@@ -8283,18 +8283,13 @@ def aten_var_mean(self: TReal, unbiased: bool = True) -> Tuple[TReal, TReal]:
 
 @torch_op("aten::var_mean.dim", trace_only=True)
 def aten_var_mean_dim(
-    self: TReal, dim: int, unbiased: bool = True, keepdim: bool = False
+    self: TReal, dim: Sequence[int], unbiased: bool = True, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
     """var_mean.dim(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> (Tensor, Tensor)"""
 
     # Although dim is Optional in signature, but we assume it must have value for this overload
     # Assert(dim is not None)
-    if isinstance(dim, int):
-        dim = (dim,)
-    dim_tensor = op.Constant(value_ints=dim)
-    return _aten_var_mean_dim_onnx(
-        self, dim_tensor, correction=float(unbiased), keepdim=keepdim
-    )
+    return _aten_var_mean_dim_onnx(self, dims=dim, correction=float(unbiased), keepdim=keepdim)
 
 
 @torch_op("aten::var_mean.correction", trace_only=True)
@@ -8310,12 +8305,11 @@ def aten_var_mean_correction(
         correction = 1.0
 
     if dim is None:
-        var, mean = _aten_var_mean_onnx(self, correction, keepdim)
+        var, mean = _aten_var_mean_onnx(self, correction=correction, keepdim=keepdim)
     else:
-        if isinstance(dim, int):
-            dim = (dim,)
-        dim_tensor = op.Constant(value_ints=dim)
-        var, mean = _aten_var_mean_dim_onnx(self, dim_tensor, correction, keepdim)
+        var, mean = _aten_var_mean_dim_onnx(
+            self, dims=dim, correction=correction, keepdim=keepdim
+        )
     return var, mean
 
 
@@ -8341,18 +8335,18 @@ def _aten_var_mean_onnx(
 
 @torch_op("aten::var_mean.dim", private=True)
 def _aten_var_mean_dim_onnx(
-    self: TReal, dim: INT64, correction: float, keepdim: bool = False
+    self: TReal, dims: Sequence[int], correction: float, keepdim: bool = False
 ) -> Tuple[TReal, TReal]:
-    dim = op.Reshape(dim, op.Constant(value_ints=[-1]))
+    dims = op.Reshape(dims, op.Constant(value_ints=[-1]))
     # Computer mean and var
-    mean = op.ReduceMean(self, dim, keepdims=keepdim)
-    sub_mean = op.Sub(self, op.ReduceMean(self, dim, keepdims=True))
+    mean = op.ReduceMean(self, dims, keepdims=keepdim)
+    sub_mean = op.Sub(self, op.ReduceMean(self, dims, keepdims=True))
     sqr_mean = op.Mul(sub_mean, sub_mean)
-    var = op.ReduceMean(sqr_mean, dim, keepdims=keepdim)
+    var = op.ReduceMean(sqr_mean, dims, keepdims=keepdim)
     # Adjust var according to correction value
     if correction > 0.0:
         self_shape = op.Shape(self)
-        dim_size = op.Gather(self_shape, dim, axis=0)
+        dim_size = op.Gather(self_shape, dims, axis=0)
         numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=False), self)
         mul = op.Mul(var, numel_float)
         sub = op.Sub(numel_float, correction)

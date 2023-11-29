@@ -368,6 +368,8 @@ def _onnxscript_to_numpy_value(v):
         return v.value
     if isinstance(v, list):
         return [_onnxscript_to_numpy_value(x) for x in v]
+    if isinstance(v, tuple):
+        return np.array(v)
     if v is None:
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
