@@ -379,14 +379,32 @@ class Exporter:
         body = node.attribute[0].g
         sindent = "    " * indent
         n_iter = self._rename_variable(node.input[0])
-        cond = self._rename_variable(node.input[1])
+
+
+        use_loop_cond = True
+        cond_in = body.input[1].name
+        cond_out = body.output[0].name
+        for n in body.node:
+            if len(n.output) == 1 and n.output[0] == cond_out:
+                if n.domain in {"", "ai.onnx"} and n.op_type == "Identity" and len(n.input) == 1 and n.input[0] == cond_in:
+                    use_loop_cond = False
+                    break
+
+        if len(node.input) > 1 and node.input[1] != "":
+            cond = self._rename_variable(node.input[1])
+        else:
+            # Generate a new variable for the condition:
+            cond = cond_out  # TODO: clean this up
+            if use_loop_cond:
+                rows.append(f"{sindent}{self._rename_variable(cond)} = True")
+
         # v_initial = node.input[2]
         rows = []
-        if n_iter and not cond:
+        if n_iter and not use_loop_cond:
             rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
-        elif not n_iter and cond:
+        elif not n_iter and use_loop_cond:
             rows.append(f"{sindent}while {cond}:")
-        elif n_iter and cond:
+        elif n_iter and use_loop_cond:
             rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
             rows.append(f"{sindent}    if not {cond}:")
             rows.append(f"{sindent}        break")
@@ -397,7 +415,7 @@ class Exporter:
             )
         rows.append(
             self._python_make_node_graph(
-                body, opsets, indent=indent + 1, output_names=node.input[2:]
+                body, opsets, indent=indent + 1, output_names=[cond] + node.input[2:]
             )
         )
         # TODO: This doesn't handle scan-outputs yet.
