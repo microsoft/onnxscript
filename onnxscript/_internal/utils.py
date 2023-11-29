@@ -14,16 +14,6 @@ from onnx import FunctionProto, ModelProto, TensorProto, ValueInfoProto
 
 from onnxscript import tensor
 
-# print utility unavailable in ONNX 1.12 or earlier:
-# pylint: disable=unused-import, ungrouped-imports
-try:
-    from onnx.printer import to_text as proto2text
-except ImportError:
-
-    def proto2text(_: Any) -> str:  # type: ignore[misc]
-        return "<print utility unavailable>"
-
-
 # pylint: enable=unused-import, ungrouped-imports
 
 

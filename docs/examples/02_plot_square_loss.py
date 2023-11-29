@@ -16,7 +16,7 @@ from onnxruntime import InferenceSession
 
 from onnxscript import FLOAT
 from onnxscript import opset15 as op
-from onnxscript import proto2text, script
+from onnxscript import script
 
 
 @script()
@@ -32,7 +32,7 @@ model = square_loss.to_model_proto()
 
 # %%
 # Let's see what the generated model looks like.
-print(proto2text(model))
+print(onnx.printer.to_text(model))
 
 # %%
 # We can run shape-inference and type-check the model using the standard ONNX API.
