@@ -4504,7 +4504,9 @@ def aten_linear_backward(
 
 
 @torch_op("aten::linspace", trace_only=True)
-def aten_linspace(start: TFloat, end: TFloat, steps: int, dtype: int = FLOAT.dtype) -> TensorType:
+def aten_linspace(
+    start: TFloat, end: TFloat, steps: int, dtype: int = FLOAT.dtype
+) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
     # Reference: https://github.com/pytorch/pytorch/blob/b35ca2cb941b5ba90858322810ca85c31e4541fd/torch/_refs/__init__.py#L4896
@@ -4514,12 +4516,13 @@ def aten_linspace(start: TFloat, end: TFloat, steps: int, dtype: int = FLOAT.dty
         return aten_full(op.Constant(value_ints=[steps]), start, dtype=dtype)
 
     rg = aten_arange_start(0, steps, dtype=dtype)
-    start = op.Cast(start, to=FLOAT.dtype)
-    end = op.Cast(end, to=FLOAT.dtype)
-    steps_float = op.Cast(steps, to=FLOAT.dtype)
-    one = op.Constant(value_float=1.0)
-    two = op.Constant(value_float=2.0)
-    step = op.Div(op.Sub(end, start), op.Constant(value_float=float(steps - 1)))
+    start = op.Cast(start, to=dtype)
+    end = op.Cast(end, to=dtype)
+    steps_float = op.Cast(steps, to=dtype)
+    one = op.Cast(1.0, to=dtype)
+    two = op.Cast(2.0, to=dtype)
+    steps_minus_1 = op.Cast(steps - 1, to=dtype)
+    step = op.Div(op.Sub(end, start), steps_minus_1)
     result = op.Where(
         rg < op.Div(steps_float, two),
         start + step * rg,
@@ -4527,7 +4530,6 @@ def aten_linspace(start: TFloat, end: TFloat, steps: int, dtype: int = FLOAT.dty
     )
 
     return op.Cast(result, to=dtype)
-
 
 
 @torch_op("aten::log")
