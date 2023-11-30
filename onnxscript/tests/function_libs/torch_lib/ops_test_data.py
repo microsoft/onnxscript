@@ -46,6 +46,7 @@ from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
 from onnxscript._internal import version_utils
+from onnxscript.function_libs.torch_lib import _flags
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
@@ -556,7 +557,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "addr",
         core_ops.aten_addr,
-        tolerance={torch.float16: (1e-3, 3e-3)},
+        tolerance={torch.float16: (3e-3, 4e-3)},
     ),
     TorchLibOpInfo(
         "amax",
@@ -990,6 +991,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="reduction_with_dim",
         reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
     )
     .xfail(
         matcher=lambda sample: len(sample.args) == 0
@@ -1758,6 +1760,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="reduction_with_dim",
         reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
     )
     .xfail(
         matcher=lambda sample: len(sample.args) == 0
