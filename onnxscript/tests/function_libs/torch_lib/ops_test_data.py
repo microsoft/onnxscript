@@ -876,6 +876,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linspace",
         core_ops.aten_linspace,
         trace_only=True,
+        tolerance={torch.float16: (2e-2, 2e-3)},
     )
     .xfail(
         dtypes=(torch.int64, torch.int32),
@@ -883,17 +884,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         variant_name="tensor_overload",
-        dtypes=(torch.int64, torch.int32, torch.float16),
+        dtypes=(torch.int64, torch.int32),
         reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
         enabled_if=not version_utils.torch_older_than("2.2"),
-    )
-    .xfail(
-        dtypes=(torch.float16,),
-        reason="op 'Range' doesn't support float16.",
-    )
-    .skip(
-        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
-        reason="aten::linspace with steps=1 is not supported by its definition.",
     ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
