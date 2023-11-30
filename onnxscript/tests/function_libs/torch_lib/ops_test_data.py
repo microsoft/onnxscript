@@ -2076,6 +2076,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_roll_input_wrangler,
     ),
     TorchLibOpInfo(
+        "roll",
+        core_ops.aten_roll_complex,
+        input_wrangler=_roll_input_wrangler,
+        trace_only=True,
+        complex=True,
+    ),
+    TorchLibOpInfo(
         "scatter_reduce",
         core_ops.aten_scatter_reduce,
         input_wrangler=_scatter_reduce_input_wrangler,
@@ -2164,6 +2171,36 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "var_mean_correction",
         core_ops.aten_var_mean_correction,
+        trace_only=True,
+    ).skip(
+        # Don't accept input[1]=bool and 'correction' must be in kwargs
+        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
+        reason="this Aten overload only support when correction attribute exists",
+    ),
+    TorchLibOpInfo(
+        "var",
+        core_ops.aten_var,
+        trace_only=True,
+    ).xfail(
+        # kwargs must be empty
+        matcher=lambda sample: len(sample.kwargs) > 0,
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
+    ),
+    TorchLibOpInfo(
+        "var_dim",
+        core_ops.aten_var_dim,
+        trace_only=True,
+    ).xfail(
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None
+        ),
+        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
+    ),
+    TorchLibOpInfo(
+        "var_correction",
+        core_ops.aten_var_correction,
         trace_only=True,
     ).skip(
         # Don't accept input[1]=bool and 'correction' must be in kwargs
@@ -2267,6 +2304,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softma
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "var", ("var_dim", "var_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 

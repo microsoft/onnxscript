@@ -1038,7 +1038,7 @@ class TorchScriptGraph:
             warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
             logging.debug(
                 "ONNX model:\n%s\n\nTorchScript graph:\n%s",
-                onnxscript.proto2text(onnx_model),
+                onnx.printer.to_text(onnx_model),
                 self.torch_graph,
             )
         return onnx_model

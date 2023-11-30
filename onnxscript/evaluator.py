@@ -484,7 +484,7 @@ def _call_ort(
         raise EagerModeError(
             f"Unable to create onnxruntime InferenceSession "
             f"for executing {schema.domain}.{schema.name} op "
-            f"with onnx model\n{utils.proto2text(model)}"
+            f"with onnx model\n{onnx.printer.to_text(model)}"
         ) from e
 
     try:

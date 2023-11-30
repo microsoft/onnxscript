@@ -8,7 +8,6 @@ include_patterns = [
     '**/*.pyi',
 ]
 exclude_patterns = [
-    'docs/**',
     'onnxscript/tests/models/**',
 ]
 command = [
