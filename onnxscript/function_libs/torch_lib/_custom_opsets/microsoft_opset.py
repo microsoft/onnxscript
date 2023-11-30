@@ -12,19 +12,20 @@ from onnxscript.onnx_types import (
 )
 from onnxscript.values import Op, Opset
 
-DOMAIN = "com.microsoft"
+_DOMAIN = "com.microsoft"
+_VERSION = 1
 
 
 class MicrosoftOpset(Opset):
     def __new__(cls):
-        return Opset.__new__(cls, DOMAIN, 1)
+        return Opset.__new__(cls, _DOMAIN, _VERSION)
 
     T_Inverse = TypeVar("T_Inverse", FLOAT16, FLOAT, DOUBLE)
 
     inverse_schema = onnx.defs.OpSchema(
         "Inverse",
-        DOMAIN,
-        1,
+        _DOMAIN,
+        _VERSION,
         inputs=(
             onnx.defs.OpSchema.FormalParameter(
                 "X",
