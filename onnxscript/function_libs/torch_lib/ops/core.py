@@ -4523,13 +4523,11 @@ def aten_linspace(
     two = op.Cast(2.0, to=dtype)
     steps_minus_1 = op.Cast(steps - 1, to=dtype)
     step = op.Div(op.Sub(end, start), steps_minus_1)
-    result = op.Where(
+    return op.Where(
         rg < op.Div(steps_float, two),
         start + step * rg,
         end - step * (steps_float - one - rg),
     )
-
-    return op.Cast(result, to=dtype)
 
 
 @torch_op("aten::log")
