@@ -853,6 +853,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support tensor(int) as args",
     ),
     TorchLibOpInfo("index_select", core_ops.aten_index_select),
+    TorchLibOpInfo("pinverse", core_ops.aten_inverse),
     TorchLibOpInfo("isclose", core_ops.aten_isclose),
     TorchLibOpInfo("isfinite", core_ops.aten_isfinite),
     TorchLibOpInfo("isinf", core_ops.aten_isinf),

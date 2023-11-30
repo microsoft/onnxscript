@@ -4170,10 +4170,12 @@ def aten_int_repr(self: TensorType) -> TensorType:
 
 
 @torch_op("aten::inverse")
-def aten_inverse(self: TensorType) -> TensorType:
+def aten_inverse(self: TFloat) -> TFloat:
     """inverse(Tensor self) -> Tensor"""
 
-    return microsoft_opset.Inv(self)
+    # TODO(justinchuby): Use ONNX Inverse when available
+
+    return microsoft_opset.Inverse(self)
 
 
 def aten_is_coalesced(self: TensorType) -> bool:
