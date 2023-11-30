@@ -6929,12 +6929,12 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
 def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor:
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
-    self_real = op.Slice(self, [0], [1], axes=[-1])
-    self_imag = op.Slice(self, [1], [2], axes=[-1])
-
     self_rank = len(self.shape)
     if self_rank == 0:
         return self
+
+    self_real = op.Slice(self, [0], [1], axes=[-1])
+    self_imag = op.Slice(self, [1], [2], axes=[-1])
     elif self.shape[0] == 0:  # empty tensor
         return self
     else:
