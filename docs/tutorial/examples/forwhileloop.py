@@ -6,7 +6,7 @@ from onnxscript import script
 def sumprod_break(x, N):
     sum = op.Identity(x)
     prod = op.Identity(x)
-    for i in range(N):
+    for _ in range(N):
         sum = sum + x
         prod = prod * x
         cond = op.ReduceSum(prod) > 1e7
