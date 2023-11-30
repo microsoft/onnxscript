@@ -890,11 +890,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     .xfail(
         dtypes=(torch.float16,),
         reason="op 'Range' doesn't support float16.",
-    )
-    .skip(
-        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
-        reason="aten::linspace with steps=1 is not supported by its definition.",
     ),
+    # .skip(
+    #     matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
+    #     reason="aten::linspace with steps=1 is not supported by its definition.",
+    # ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
     TorchLibOpInfo("le_bool", core_ops.aten_le_bool),
