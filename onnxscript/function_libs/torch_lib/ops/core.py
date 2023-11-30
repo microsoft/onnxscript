@@ -8413,7 +8413,7 @@ def _aten_var_mean_dim_onnx(
         dim_size = op.Gather(self_shape, dim, axis=0)
         numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=False), self)
         mul = op.Mul(var, numel_float)
-        sub = op.Sub(numel_float, correction)
+        sub = op.Sub(numel_float, op.CastLike(correction, self))
         var = op.Div(mul, sub)
 
     return var, mean
@@ -8451,7 +8451,7 @@ def _aten_var_dim_onnx(
         dim_size = op.Gather(self_shape, dim, axis=0)
         numel_float = op.CastLike(op.ReduceProd(dim_size, keepdims=False), self)
         mul = op.Mul(var, numel_float)
-        sub = op.Sub(numel_float, correction)
+        sub = op.Sub(numel_float, op.CastLike(correction, self))
         var = op.Div(mul, sub)
 
     return var
