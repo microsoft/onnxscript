@@ -4505,39 +4505,29 @@ def aten_linear_backward(
 
 @torch_op("aten::linspace", trace_only=True)
 def aten_linspace(
-    start: TRealUnlessFloat16OrInt8, end: TRealUnlessFloat16OrInt8, steps: int, dtype: int = -1
+    start: TFloat, end: TFloat, steps: int, dtype: int = FLOAT.dtype
 ) -> TensorType:
     """linspace(Scalar start, Scalar end, int steps, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
 
-    if dtype == -1:
-        zero = op.CastLike(0.0, steps)
-        one = op.CastLike(1.0, steps)
-    elif _range_supported(dtype):
-        zero = op.Cast(0, to=dtype)
-        one = op.Cast(1, to=dtype)
-        start = op.Cast(start, to=dtype)
-        end = op.Cast(end, to=dtype)
-        steps = op.Cast(steps, to=dtype)
-    else:
-        # Cast input to float if dtype is not supported by Range,
-        # because the input dtype may be e.g. bfloat16 / int8 etc.
-        # which Range does not support. The output type is ensured because the output
-        # is casted to the specified dtype.
-        zero = op.Cast(0.0, to=FLOAT.dtype)
-        one = op.Cast(1.0, to=FLOAT.dtype)
-        start = op.Cast(start, to=FLOAT.dtype)
-        end = op.Cast(end, to=FLOAT.dtype)
-        steps = op.Cast(steps, to=FLOAT.dtype)
+    # Reference: https://github.com/pytorch/pytorch/blob/b35ca2cb941b5ba90858322810ca85c31e4541fd/torch/_refs/__init__.py#L4896
+    if steps == 0:
+        return aten_full(op.Constant(value_ints=[0]), 0.0, dtype=dtype)
+    if steps == 1:
+        return aten_full(op.Constant(value_ints=[steps]), start, dtype=dtype)
 
-    range_tensor = op.Range(zero, steps, one)
-
-    start = op.CastLike(start, end)
-    step = op.Div(
-        op.Sub(end, start),
-        op.Sub(steps, one),
+    rg = aten_arange_start(0, steps, dtype=dtype)
+    start = op.Cast(start, to=dtype)
+    end = op.Cast(end, to=dtype)
+    steps_float = op.Cast(steps, to=dtype)
+    one = op.Cast(1.0, to=dtype)
+    two = op.Cast(2.0, to=dtype)
+    steps_minus_1 = op.Cast(steps - 1, to=dtype)
+    step = op.Div(op.Sub(end, start), steps_minus_1)
+    return op.Where(
+        rg < op.Div(steps_float, two),
+        start + step * rg,
+        end - step * (steps_float - one - rg),
     )
-
-    return op.Add(op.Mul(range_tensor, step), start)
 
 
 @torch_op("aten::log")
