@@ -43,6 +43,26 @@ _LISTTYPE_TO_ATTRTYPE_MAP = {
 
 _LIST_CONSTRUCTORS = frozenset([list, typing.List, typing.Sequence, collections.abc.Sequence])
 
+# Map from ONNX AttributeProto type to its representation (in ONNX Script).
+_ATTRTYPE_TO_REPR = {
+    onnx.AttributeProto.FLOAT: "float",
+    onnx.AttributeProto.INT: "int",
+    onnx.AttributeProto.STRING: "str",
+    onnx.AttributeProto.FLOATS: "Sequence[float]",
+    onnx.AttributeProto.INTS: "Sequence[int]",
+    onnx.AttributeProto.STRINGS: "Sequence[str]",
+}
+
+
+def onnx_attr_type_to_onnxscript_repr(attr_type: onnx.AttributeProto.AttributeType) -> str:
+    if attr_type not in _ATTRTYPE_TO_REPR:
+        supported = ", ".join(
+            f"'{onnx.AttributeProto.AttributeType.Name(v)}'" for v in _ATTRTYPE_TO_REPR
+        )
+        raise ValueError(f"Unsupported attribute type {attr_type}: only {supported} allowed.")
+    return _ATTRTYPE_TO_REPR[attr_type]
+
+
 # A sorted list of all type strings used in an OpSchema
 ALL_TENSOR_TYPE_STRINGS = tuple(
     sorted(tensor_type.to_string() for tensor_type in onnx_types.tensor_type_registry.values())
@@ -205,9 +225,7 @@ def pytype_to_type_strings(pytype: TypeAnnotationValue) -> list[str]:
     if isinstance(pytype, typing.TypeVar):
         constraints = pytype.__constraints__
         if constraints:
-            return pytype_to_type_strings(
-                Union.__getitem__(constraints)
-            )  # pylint: disable=unnecessary-dunder-call
+            return pytype_to_type_strings(Union.__getitem__(constraints))  # pylint: disable=unnecessary-dunder-call
         bound = pytype.__bound__
         if bound is None:
             return list(ALL_TENSOR_TYPE_STRINGS)

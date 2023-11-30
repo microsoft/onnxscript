@@ -13,7 +13,170 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from onnxscript import INT64
+from onnxscript.function_libs.torch_lib.registration import torch_op
+from onnxscript.function_libs.torch_lib.tensor_typing import TFloat
+from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+
+@torch_op(
+    ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
+    private=True,
+    complex=True,
+)
+def _fftn_onnx_normalization(
+    self,
+    transformed: TFloat,
+    normalization: int,
+    forward: bool,
+    dims: Sequence[int],
+) -> TFloat:
+    # Obtain the total_sample_count (n) for normalization
+    self_shape = op.Shape(self)
+    total_sample_count = op.ReduceProd(self_shape[dims], keepdims=0)
+    total_sample_count = op.CastLike(total_sample_count, transformed)
+
+    # Normalize the result
+    # Reference https://pytorch.org/docs/stable/generated/torch.fft.fftn.html#torch.fft.fftn
+    # Reference https://github.com/pytorch/pytorch/blob/d090c18fcaaba6e1b5cb474a89058cf6081c8275/torch/_refs/fft.py#L42
+    if normalization == 1:
+        # "forward" - normalize by 1/n
+        if forward:
+            result = op.Div(transformed, op.Sqrt(total_sample_count))
+        else:
+            result = op.Mul(transformed, op.Sqrt(total_sample_count))
+    elif normalization == 2:
+        # "ortho" - normalize by 1/sqrt(n)
+        if forward:
+            result = op.Div(transformed, total_sample_count)
+        else:
+            result = transformed
+    else:
+        # "backward" - no normalization
+        if forward:
+            result = transformed
+        else:
+            result = op.Mul(transformed, total_sample_count)
+
+    return result
+
+
+@torch_op(
+    ("aten::_fft_c2c", "aten::_fft_c2r", "aten::_fft_r2c"),
+    trace_only=True,
+    private=True,
+    complex=True,
+)
+def _fftn_onnx(
+    self: TFloat, dims: Sequence[int], normalization: int, inverse: bool, onesided: bool
+) -> TFloat:
+    """Standard complex to complex or real to complex FFT (forward or backward).
+
+    This is a private shared function for implementing the various FFT functions.
+
+    Args:
+        self: The input tensor.
+        dims: The dimensions to apply FFT.
+        normalization: The normalization mode.
+        inverse: Whether to compute the inverse FFT.
+        onesided: Whether to compute the one-sided FFT, which retains only the
+            positive frequencies.
+
+    Returns:
+        The transformed tensor.
+    """
+
+    # NOTE: trace_only because we need to process each dimension in a loop
+    # NOTE: SymInt dim is not support because DFT-17 needs a static axis
+    # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
+
+    # The 0-th dimension in ONNX DFT-17 is the batch dimension. We need to add a new
+    # dimension at the beginning to represent the batch dimension.
+    transformed = op.Unsqueeze(self, axes=[0])
+
+    # Add 1 to account for the batch dimension when counting axes from the left
+    new_dims = [dim_ + 1 if dim_ >= 0 else dim_ for dim_ in dims]
+
+    for dim in new_dims[:-1]:
+        transformed = op.DFT(transformed, axis=dim, inverse=inverse, onesided=False)
+
+    # Torch computers one-sided FFT on the last dimension only.
+    if onesided:
+        transformed = op.DFT(transformed, axis=new_dims[-1], inverse=inverse, onesided=True)
+    else:
+        transformed = op.DFT(transformed, axis=new_dims[-1], inverse=inverse, onesided=False)
+
+    # Remove the batch dimension
+    transformed = op.Squeeze(transformed, axes=[0])
+
+    return _fftn_onnx_normalization(self, transformed, normalization, not inverse, dims)
+
+
+@torch_op("aten::_fft_c2c", trace_only=True, complex=True)
+def aten__fft_c2c(
+    self: TFloat, dim: Sequence[int], normalization: int, forward: bool
+) -> TFloat:
+    """_fft_c2c(Tensor self, SymInt[] dim, int normalization, bool forward) -> Tensor
+
+    Standard complex to complex FFT (forward or backward).
+    """
+
+    # NOTE: trace_only because we need to negate forward
+    # NOTE: SymInt dim is not support because DFT-17 needs a static axis
+    # TODO(justinchuby): Make dim dynamic and remove trace_only when ONNX provides support
+
+    # ONNX DFT input assumes the last dimension is the complex dimension.
+    # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
+    dim = [d - 1 if d < 0 else d for d in dim]
+    return _fftn_onnx(self, dim, normalization, inverse=not forward, onesided=False)
+
+
+@torch_op("aten::_fft_c2r", trace_only=True, complex=True)
+def aten__fft_c2r(
+    self: TFloat,
+    dim: Sequence[int],
+    normalization: int,
+    last_dim_size: INT64,  # pylint: disable=unused-argument
+) -> TFloat:
+    """_fft_c2r(Tensor self, int[] dim, int normalization, SymInt last_dim_size) -> Tensor
+
+    Complex to real inverse FFT.
+    """
+
+    # TODO(justinchuby): Figure out what last_dim_size does
+
+    self_rank = len(self.shape)
+    # ONNX DFT input assumes the last dimension is the complex dimension.
+    # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
+    dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
+    transformed = _fftn_onnx(self, dim, normalization, inverse=True, onesided=False)
+    # Take only the real part
+    real_part = op.Slice(transformed, axes=[-1], starts=[0], ends=[1])
+
+    return op.Squeeze(real_part, axes=[-1])
+
+
+@torch_op("aten::_fft_r2c", trace_only=True)
+def aten__fft_r2c(
+    self: TFloat, dim: Sequence[int], normalization: int, onesided: bool
+) -> TFloat:
+    """_fft_r2c(Tensor self, int[] dim, int normalization, bool onesided) -> Tensor
+
+    Real to complex forward FFT.
+    """
+
+    # Add a new dimension at the end
+    signal = op.Unsqueeze(self, axes=[-1])
+    # No need to fill the imaginary part because ONNX DFT accepts real inputs
+    # https://onnx.ai/onnx/operators/onnx__DFT.html#inputs
+
+    self_rank = len(self.shape)
+    # ONNX DFT input assumes the last dimension is the complex dimension.
+    # Thus dim=-1 in PyTorch is dim=-2 in ONNX.
+    dim = [(d - 1) + self_rank if d < 0 else d for d in dim]
+
+    return _fftn_onnx(signal, dim, normalization, inverse=False, onesided=onesided)
 
 
 def aten_fft_fft(

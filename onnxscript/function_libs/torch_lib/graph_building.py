@@ -5,7 +5,7 @@ import ctypes
 import logging
 import typing
 import warnings
-from typing import Any, Dict, Final, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import onnx
@@ -14,13 +14,14 @@ import onnx.defs
 import onnx.helper
 import onnx.shape_inference
 import torch
-from torch.onnx import _type_utils
 from typing_extensions import TypeAlias
 
 import onnxscript
 from onnxscript import evaluator
 from onnxscript import tensor as onnxscript_tensor
 from onnxscript._internal import param_manipulation, runtime_typing
+from onnxscript.function_libs.torch_lib import _flags
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 
 __all__ = [
     "TorchScriptTensor",
@@ -85,11 +86,14 @@ def _rename_intermediate_value(name: str) -> str:
 class TorchScriptTensor(onnxscript_tensor.Tensor):
     """A onnxscript tensor that wraps a torchscript Value."""
 
-    def __init__(self, value: torch.Value):
+    def __init__(
+        self,
+        value: torch.Value,
+    ):
         super().__init__(None)
         self._torch_value: torch.Value = value
         self._concrete_value: Optional[np.ndarray] = None
-        self._shape: Optional[Tuple[int | None, ...]] = None
+        self._shape: Optional[Tuple[int | str | None, ...]] = None
         self._torch_dtype: Optional[torch.dtype] = None
         self._name: Optional[str] = None
         self._is_complex: bool = False
@@ -120,6 +124,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     @property  # type: ignore[override]
     def rank(self) -> int | None:
+        if self._shape is not None:
+            return len(self._shape)
+
         value_type = self._torch_value.type()
         if value_type is None:
             return None
@@ -127,7 +134,7 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return value_type.dim()
 
     @property  # type: ignore[override]
-    def shape(self) -> Tuple[int | None, ...] | None:
+    def shape(self) -> Tuple[int | str | None, ...] | None:
         if self._shape is not None:
             return self._shape
 
@@ -144,15 +151,26 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         return tuple(shape)
 
     @shape.setter
-    def shape(self, shape: Tuple[int | None, ...]):
-        self._shape = shape
-        self._torch_value.setType(self._torch_value.type().with_sizes(list(shape)))
+    def shape(self, shape: Union[torch.Size, Tuple[int | str | None, ...]]):
+        # Normalize torch symbolic dimension size to str.
+        torch_sym_types = (torch.SymInt, torch.SymFloat, torch.SymBool)
+        self._shape = tuple(
+            str(dim.node) if isinstance(dim, torch_sym_types) else dim  # type: ignore[union-attr]
+            for dim in shape
+        )
+        # jit api does not support assigning symbolic shapes,
+        # hence symbols are replaced as None.
+        jit_shape = tuple(dim if isinstance(dim, int) else None for dim in shape)
+        self._torch_value.setType(self._torch_value.type().with_sizes(list(jit_shape)))
 
     @property  # type: ignore[override]
     def dtype(self) -> torch.dtype | None:
         # TODO: Return numpy dtype
         if self._torch_dtype is not None:
             return self._torch_dtype
+        # Local import to avoid circular dependency
+        from torch.onnx import _type_utils  # pylint: disable=import-outside-toplevel
+
         torch_dtype = _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, default=_type_utils.JitScalarType.UNDEFINED
         )
@@ -176,6 +194,9 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
 
     @property
     def onnx_dtype(self):
+        # Local import to avoid circular dependency
+        from torch.onnx import _type_utils  # pylint: disable=import-outside-toplevel
+
         return _type_utils.JitScalarType.from_value(  # type: ignore[attr-defined]
             self._torch_value, _type_utils.JitScalarType.UNDEFINED
         ).onnx_type()
@@ -184,12 +205,21 @@ class TorchScriptTensor(onnxscript_tensor.Tensor):
         """The symbolic Value in torch.Graph."""
         return self._torch_value
 
+    def value_info(self) -> Optional[onnx.ValueInfoProto]:
+        try:
+            dtype = self.onnx_dtype.value
+        except torch.onnx.errors.OnnxExporterError:
+            return None
+        if dtype == onnx.TensorProto.UNDEFINED:
+            return None
+        return onnx.helper.make_tensor_value_info(self.name, dtype, self.shape)
+
 
 @runtime_typing.checked
 def _unwrap_tensor_to_torch_value(
     value: Union[
         ValidArgumentType, Mapping[str, ValidArgumentType], Sequence[ValidArgumentType]
-    ]
+    ],
 ) -> Union[
     ValidTorchValueType,
     Dict[str, ValidTorchValueType],
@@ -212,7 +242,12 @@ def _unwrap_tensor_to_torch_value(
 
 @runtime_typing.checked
 def _wrap_torch_value_to_tensor(
-    value: Union[torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]]
+    value: Union[
+        torch.Value, Mapping[str, ValidTorchValueType], Sequence[ValidTorchValueType]
+    ],
+    *,
+    shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
+    dtype: Optional[torch.dtype] = None,
 ) -> Union[
     ValidArgumentType,
     Dict[str, ValidArgumentType],
@@ -221,7 +256,12 @@ def _wrap_torch_value_to_tensor(
 ]:
     """Wrap torch.Value to TorchScriptTensor."""
     if isinstance(value, torch.Value):
-        return TorchScriptTensor(value)
+        tensor = TorchScriptTensor(value)
+        if shape is not None:
+            tensor.shape = shape
+        if dtype is not None:
+            tensor.dtype = dtype
+        return tensor
     if isinstance(value, dict):
         return {k: _wrap_torch_value_to_tensor(v) for k, v in value.items()}  # type: ignore[misc,return-value]
     if isinstance(value, list):
@@ -250,6 +290,29 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph
 
     def eval(self, schema, inputs, attributes):
+        if _flags.EXPERIMENTAL_PREFER_TRACING:
+            if schema.name == "CastLike":
+                assert len(inputs) == 2
+                # Skip CastLike if the input and output types are the same
+                src_input = inputs[0]
+                target_input = inputs[1]
+                dtypes_available = (
+                    isinstance(src_input, TorchScriptTensor)
+                    and isinstance(target_input, TorchScriptTensor)
+                    and src_input.dtype is not None
+                    and target_input.dtype is not None
+                )
+                if dtypes_available:
+                    if src_input.dtype == target_input.dtype:
+                        # Same type. No cast needed
+                        return src_input
+                    else:
+                        # Create a Cast node
+                        return self._graph.add_op_call(
+                            onnx.defs.get_schema("Cast"),
+                            (src_input,),
+                            {"to": target_input.onnx_dtype},
+                        )
         return self._graph.add_op_call(schema, inputs, attributes)
 
     @runtime_typing.checked
@@ -259,6 +322,40 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         args: Sequence[ValidArgumentType],
         kwargs: Mapping[str, ValidArgumentType],
     ):
+        if _flags.EXPERIMENTAL_PREFER_TRACING:
+            # Special cases for handling IsScalar and Rank
+            if function.name == "IsScalar":
+                if len(args) != 1:
+                    raise TypeError(
+                        f"Expected 1 positional argument for function '{function}', got {len(args)}."
+                    )
+                if isinstance(args[0], TorchScriptTensor):
+                    if args[0].rank is not None:
+                        return args[0].rank == 0
+                    else:
+                        # Fall to call add_function_call
+                        pass
+                else:
+                    # Python constants are scalars
+                    return True
+            if function.name == "Rank":
+                if len(args) != 1:
+                    raise TypeError(
+                        f"Expected 1 positional argument for function '{function}', got {len(args)}."
+                    )
+                if isinstance(args[0], TorchScriptTensor):
+                    if args[0].rank is not None:
+                        return args[0].rank
+                    else:
+                        # Fall to call add_function_call
+                        pass
+                else:
+                    # Python constants are scalars
+                    return 0
+            elif function.experimental_traceable:
+                # Trace the function call instead of adding the function as a node
+                return function.function(*args, **kwargs)
+
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = function.param_schemas()
         (
@@ -368,11 +465,22 @@ def _create_op_call_in_torch_graph(
     return node_ouputs
 
 
-class TorchScriptGraph:
-    _LOCAL_FUNCTION_DOMAIN_NAME: Final[str] = "torch_export"
-    """The domain name for local functions."""
+def _shared_functions() -> list[onnx.FunctionProto]:
+    """Hack to always include the share ops."""
 
-    def __init__(self, parent_torch_script_graph: Optional[TorchScriptGraph] = None):
+    # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
+    return [
+        common_ops.Rank.to_function_proto(),
+        common_ops.IsScalar.to_function_proto(),
+    ]
+
+
+class TorchScriptGraph:
+    def __init__(
+        self,
+        parent_torch_script_graph: Optional[TorchScriptGraph] = None,
+        domain_name: Optional[str] = None,
+    ):
         self._torch_graph = torch.Graph()
         # All the functions used, deduplicated by name
         # key: (name, domain)
@@ -389,6 +497,24 @@ class TorchScriptGraph:
         self._sub_torch_script_graphs: Dict[str, TorchScriptGraph] = {}
         # Parent graph. None if this is the top level graph.
         self._parent_torch_script_graph = parent_torch_script_graph
+        # Domain name of the graph. None if this is the top level graph.
+        self._domain_name: Optional[str] = domain_name
+        # Mapping from `torch.Value` to `TorchScriptTensor`.
+        # Because `torch.Value` does not provide API to set and retrieve symbolic shapes,
+        # and because `TorchScriptTensor` is not accessible through the `torch.Graph` graph,
+        # this mapping is used to keep track of the `TorchScriptTensor` associated with
+        # `torch.Value`.
+        # `TorchScriptTensor` records dtype and symbolic shapes.
+        # This info is later serialized as `ValueInfoProto` inside ONNX, to
+        # provide shape and dtype information for nodes within nested function calls.
+        # https://github.com/onnx/onnx/issues/5487
+        self._value_to_tensor: Dict[torch.Value, TorchScriptTensor] = {}
+
+        if self._domain_name is None and self._parent_torch_script_graph is not None:
+            raise RuntimeError(
+                "Domain name is not set. It is required because this 'TorchScriptGraph' instance "
+                "is a subgraph that represents an ONNX local function."
+            )
 
     @property
     def torch_graph(self):
@@ -397,6 +523,13 @@ class TorchScriptGraph:
     @property
     def initializers(self) -> Mapping[str, torch.Tensor]:
         return self._initializers
+
+    # NOTE: This setter is used in torch converter when we activate fake mode,
+    #       we need to filter out the initializers that has fake tensor. This
+    #       is because we don't want to introduce fake tensor in onnxscript.
+    @initializers.setter
+    def initializers(self, initializers: Dict[str, torch.Tensor]):
+        self._initializers = initializers
 
     @property
     def initializers_inputs(self) -> Mapping[str, TorchScriptTensor]:
@@ -410,11 +543,15 @@ class TorchScriptGraph:
     def num_outputs(self) -> int:
         return len(list(self._torch_graph.outputs()))
 
+    @property
+    def domain_name(self) -> Optional[str]:
+        return self._domain_name
+
     @runtime_typing.checked
     def add_input(
         self,
         input_name: Optional[str],
-        shape: Optional[Union[torch.Size, Sequence[Union[int, str, None]]]] = None,
+        shape: Optional[Union[torch.Size, Tuple[Union[int, str, None], ...]]] = None,
         dtype: Optional[torch.dtype] = None,
     ) -> TorchScriptTensor:
         if input_name is None:
@@ -435,7 +572,11 @@ class TorchScriptGraph:
                     [dim if isinstance(dim, int) else None for dim in shape]  # type: ignore[union-attr]
                 )
             )
-        tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        tensor_value = _wrap_torch_value_to_tensor(torch_value, shape=shape, dtype=dtype)
+        if isinstance(tensor_value, TorchScriptTensor):
+            # NOTE: Only track value that maps to tensor.
+            # Value that maps to Sequence/Dict of tensors is not tracked.
+            self._value_to_tensor[torch_value] = tensor_value
         return tensor_value  # type: ignore[return-value]
 
     @runtime_typing.checked
@@ -459,16 +600,16 @@ class TorchScriptGraph:
             self._initializers_inputs_from_parent[
                 name
             ] = self._parent_torch_script_graph.add_initializer(name, value)
-            torch_value = self._torch_graph.addInput(name)
-            torch_value.setType(torch.TensorType.create_from_tensor(value))
-            tensor_value = _wrap_torch_value_to_tensor(torch_value)
-            self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
-            return tensor_value  # type: ignore[return-value]
+        else:
+            self._initializers[name] = value
 
-        self._initializers[name] = value
         torch_value = self._torch_graph.addInput(name)
         torch_value.setType(torch.TensorType.create_from_tensor(value))
-        tensor_value = _wrap_torch_value_to_tensor(torch_value)
+        tensor_value = _wrap_torch_value_to_tensor(
+            torch_value, shape=value.shape, dtype=value.dtype
+        )
+        if isinstance(tensor_value, TorchScriptTensor):
+            self._value_to_tensor[torch_value] = tensor_value
         self._initializers_inputs[name] = tensor_value  # type: ignore[assignment]
         return tensor_value  # type: ignore[return-value]
 
@@ -568,11 +709,16 @@ class TorchScriptGraph:
             n_outputs=n_outputs,
         )
         assert result, "Expected at least one output from ONNX op call."
+        # NOTE: TorchScriptTensor is created here, however neither dtype nor shape is
+        # set. It is expected that exporter will modify the tensor being returned and
+        # set these info.
         if len(result) == 1:
             tensor = TorchScriptTensor(result[0])
             tensor.name = _rename_intermediate_value(tensor.name)
+            self._value_to_tensor[result[0]] = tensor
             return tensor
         tensors = tuple(TorchScriptTensor(v) for v in result)
+        self._value_to_tensor.update(dict(zip(result, tensors)))
         for tensor in tensors:
             tensor.name = _rename_intermediate_value(tensor.name)
         return tensors
@@ -582,6 +728,7 @@ class TorchScriptGraph:
         self, opset_version: int
     ) -> Mapping[Tuple[str, str], onnx.FunctionProto]:
         function_proto_dict: Dict[Tuple[str, str], onnx.FunctionProto] = {}
+        # Fetch local function protos. E.g., local functions representing module calls.
         for (
             sub_graph_name,
             sub_torch_script_graph,
@@ -589,9 +736,11 @@ class TorchScriptGraph:
             function_proto_dict.update(
                 sub_torch_script_graph.fetch_function_proto_dict(opset_version)
             )
+            domain = sub_torch_script_graph.domain_name
+            assert domain is not None
             name_domain = (
                 sub_graph_name,
-                self._LOCAL_FUNCTION_DOMAIN_NAME,
+                domain,
             )
             assert (
                 name_domain not in function_proto_dict
@@ -599,9 +748,58 @@ class TorchScriptGraph:
             function_proto_dict[name_domain] = sub_torch_script_graph.to_function_proto(
                 opset_version, sub_graph_name
             )
+        # Fetch torchlib function protos.
         for name_domain, function in self._function_store.items():
             function_proto_dict[name_domain] = function.to_function_proto()
         return function_proto_dict
+
+    @runtime_typing.checked
+    def _override_with_symbolic_value_info_proto(self, onnx_model: onnx.ModelProto):
+        existing_value_info = {info.name: info for info in onnx_model.graph.value_info}
+
+        # Override value_info for top level graph inputs.
+        for input in self.torch_graph.inputs():
+            if input not in self._value_to_tensor:
+                raise RuntimeError(f"Input '{input.debugName()}' has no type.")
+            tensor = self._value_to_tensor[input]
+            if (value_info := tensor.value_info()) is None:
+                continue
+            for i, input_info in enumerate(onnx_model.graph.input):
+                if input_info.name == input.debugName():
+                    onnx_model.graph.input.insert(i, value_info)
+                    onnx_model.graph.input.remove(input_info)
+                    break
+
+        # Override value_info for top level graph outputs.
+        for output in self.torch_graph.outputs():
+            if output not in self._value_to_tensor:
+                raise RuntimeError(f"Output '{output.debugName()}' has no type.")
+            tensor = self._value_to_tensor[output]
+            if (value_info := tensor.value_info()) is None:
+                continue
+            for i, output_info in enumerate(onnx_model.graph.output):
+                if output_info.name == output.debugName():
+                    onnx_model.graph.output.insert(i, value_info)
+                    onnx_model.graph.output.remove(output_info)
+                    break
+
+        # Remove existing static/incomplete value info.
+        del onnx_model.graph.value_info[:]
+
+        # Insert value info for nodes within nested function calls.
+        # NOTE: This is an experimental feature, since in official ONNX spec, nodes
+        # within FunctionProto to have value info. https://github.com/onnx/onnx/issues/5487
+        # The names for value info are generated uniquely to be retrievable based on
+        # the call site and call stack.
+        # The naming strategy is subject to change. Since all local functions representing
+        # nn.Modules exported by dynamo exporter have unique call sites, their function
+        # op_type name can serve to form the unique identifier for value info.
+        function_value_infos = self.generate_function_value_info_proto()
+        # Override existing value info for nodes in top level graph.
+        existing_value_info.update(function_value_infos)
+        onnx_model.graph.value_info.extend(existing_value_info.values())
+
+        return onnx_model
 
     @runtime_typing.checked
     def add_op_call(
@@ -649,8 +847,10 @@ class TorchScriptGraph:
         onnx_inputs: Sequence[ValidInputType],
     ) -> Union[TorchScriptTensor, Tuple[TorchScriptTensor, ...]]:
         self._sub_torch_script_graphs[name] = sub_torch_script_graph
+        domain_name = sub_torch_script_graph.domain_name
+        assert domain_name is not None
         return self._add_torchscript_op_call(
-            f"{self._LOCAL_FUNCTION_DOMAIN_NAME}::{name}",
+            f"{domain_name}::{name}",
             onnx_inputs=(
                 *onnx_inputs,
                 *sub_torch_script_graph.initializers_inputs_from_parent.values(),
@@ -658,6 +858,40 @@ class TorchScriptGraph:
             onnx_attributes={},
             n_outputs=sub_torch_script_graph.num_outputs,
         )
+
+    @runtime_typing.checked
+    def generate_function_value_info_proto(
+        self, prefix: str = ""
+    ) -> Mapping[str, onnx.ValueInfoProto]:
+        """Unique naming strategies
+
+            {function1_op_type}/{function2_op_type}/.../{value_name}
+
+        As long as function op_type has unique call site, this is safe.
+
+        Preferably, the following is better
+
+            {node1_name}/{node2_name}/.../{value_name}
+
+        However, node name is an optional field generated on the fly during torchscript
+        graph serialization to onnx model proto. Such info is not retrievable at this point.
+        """
+        named_value_info = {}
+        for torch_value, tensor in self._value_to_tensor.items():
+            name = torch_value.debugName()
+            if (value_info := tensor.value_info()) is None:
+                continue
+            if prefix:
+                name = f"{prefix}/{name}"
+            value_info.name = name
+            named_value_info[name] = value_info
+        for name, sub_graph in self._sub_torch_script_graphs.items():
+            named_value_info.update(
+                sub_graph.generate_function_value_info_proto(
+                    f"{prefix}/{name}" if prefix else name
+                )
+            )
+        return named_value_info
 
     @runtime_typing.checked
     def to_function_proto(self, opset_version: int, function_name: str) -> onnx.FunctionProto:
@@ -684,8 +918,11 @@ class TorchScriptGraph:
         onnx_model = onnx.load_from_string(proto)
 
         # Dissect the model proto and transform to function proto.
+        domain = self.domain_name
+        if domain is None:
+            raise RuntimeError("Domain name is not set.")
         onnx_function = onnx.helper.make_function(
-            domain=self._LOCAL_FUNCTION_DOMAIN_NAME,
+            domain=domain,
             fname=function_name,
             inputs=[input.name for input in onnx_model.graph.input],
             outputs=[output.name for output in onnx_model.graph.output],
@@ -693,7 +930,6 @@ class TorchScriptGraph:
             opset_imports=onnx_model.opset_import,
             doc_string=onnx_model.doc_string,
         )
-        # TODO: onnx.checker.check_function(onnx_function)?
         return onnx_function
 
     @runtime_typing.checked
@@ -721,13 +957,17 @@ class TorchScriptGraph:
             defer_weight_export=False,
             operator_export_type=torch.onnx.OperatorExportTypes.ONNX,
             strip_doc_string=False,
-            keep_initializers_as_inputs=False,
+            keep_initializers_as_inputs=_flags.EXPERIMENTAL_INITIALIZERS_AS_INPUTS,
             custom_opsets={},
             add_node_names=True,
             node_attr_to_name={},
         )
         onnx_model = onnx.load_from_string(proto)
         onnx_model.functions.extend(function_proto_dict.values())
+        onnx_model.functions.extend(_shared_functions())
+
+        # Override value_infos with symbolic shapes.
+        onnx_model = self._override_with_symbolic_value_info_proto(onnx_model)
         # `_export_onnx` only exports opset_imports that is visible to it. It does not
         # export opset_imports for nested functions, since it does not have access to
         # them. We manually add them back and merge with existing opset_imports in the
@@ -741,6 +981,13 @@ class TorchScriptGraph:
                 for domain, version in unique_custom_domains.items()
             ]
         )
+        # Include the library shared opset domain
+        # TODO: Remove after https://github.com/microsoft/onnxscript/issues/834 is fixed
+        onnx_model.opset_import.append(
+            onnx.helper.make_opsetid(
+                common_ops.common_opset.domain, common_ops.common_opset.version
+            )
+        )
         try:
             # Fill in the shape information before adding initializers,
             # because the initializers may be too large (>2gb) for the model
@@ -753,7 +1000,7 @@ class TorchScriptGraph:
             warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
             logging.debug(
                 "ONNX model:\n%s\n\nTorchScript graph:\n%s",
-                onnxscript.proto2text(onnx_model),
+                onnx.printer.to_text(onnx_model),
                 self.torch_graph,
             )
 

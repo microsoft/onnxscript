@@ -1,9 +1,8 @@
 import onnx
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript import FLOAT
+from onnxscript import FLOAT, script
 from onnxscript import opset15 as op
-from onnxscript import script
 
 
 # We use the script decorator to indicate that
@@ -43,7 +42,7 @@ def sample_model(X: FLOAT[64, 128], Wt: FLOAT[128, 10], Bias: FLOAT[10]) -> FLOA
 onnx_model = sample_model.to_model_proto()
 
 # Save the ONNX model at a given path
-onnx.save(onnx_model, "sample_mpdel.onnx")
+onnx.save(onnx_model, "sample_model.onnx")
 
 # Check the model
 try:

@@ -13,11 +13,13 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from onnxscript import FLOAT
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import TFloatOrBFloat16
 from onnxscript.onnx_opset import opset18 as op
 from onnxscript.onnx_types import TensorType
+
+IsScalar = common_ops.IsScalar
 
 
 def aten_special_airy_ai(x: TensorType) -> TensorType:
@@ -209,17 +211,18 @@ def aten_special_log_ndtr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-@torch_op("aten::log_softmax")
+@torch_op(("aten::log_softmax", "aten::special_log_softmax"), trace_only=True)
 def aten_special_log_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
+    self: TFloatOrBFloat16, dim: int, dtype: int = -1
 ) -> TFloatOrBFloat16:
     """special_log_softmax(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"""
 
-    self_is_scalar = op.Size(op.Shape(self)) == 0
+    self_is_scalar = IsScalar(self)
     if self_is_scalar:
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
     result = op.LogSoftmax(self, axis=dim)
-    result = op.Cast(result, to=dtype)
+    if dtype != -1:
+        result = op.Cast(result, to=dtype)
     if self_is_scalar:  # squeeze to scalar due to input is scalar
         result = op.Squeeze(result)
     return result
@@ -339,23 +342,6 @@ def aten_special_sinc(self: TensorType) -> TensorType:
     """special_sinc(Tensor self) -> Tensor"""
 
     raise NotImplementedError()
-
-
-@torch_op("aten::softmax")
-def aten_special_softmax(
-    self: TFloatOrBFloat16, dim: int, dtype: int = FLOAT.dtype
-) -> TFloatOrBFloat16:
-    """special_softmax(Tensor self, int dim, ScalarType? dtype=None) -> Tensor"""
-
-    self_is_scalar = op.Size(op.Shape(self)) == 0
-    if self_is_scalar:
-        self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
-    result = op.Softmax(self, axis=dim)
-    result = op.Cast(result, to=dtype)
-    if self_is_scalar:  # squeeze to scalar due to input is scalar
-        result = op.Squeeze(result)
-
-    return result
 
 
 def aten_special_spherical_bessel_j0(x: TensorType) -> TensorType:

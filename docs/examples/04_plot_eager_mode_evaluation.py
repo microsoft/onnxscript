@@ -12,15 +12,12 @@ The example below illustrates this. We first define an *onnxscript* function:
 """
 import numpy as np
 
-from onnxscript import FLOAT
+from onnxscript import FLOAT, script
 from onnxscript import opset15 as op
-from onnxscript import script
 
 
 @script()
-def linear(
-    A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]
-) -> FLOAT["N", "M"]:  # noqa: F821
+def linear(A: FLOAT["N", "K"], W: FLOAT["K", "M"], Bias: FLOAT["M"]) -> FLOAT["N", "M"]:  # noqa: F821
     T1 = op.MatMul(A, W)
     T2 = op.Add(T1, Bias)
     Y = op.Relu(T2)

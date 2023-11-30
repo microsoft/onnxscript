@@ -15,9 +15,12 @@
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, TypeVar, Union
 
-from onnxscript import FLOAT, INT64
+import onnx
+
+from onnxscript import BFLOAT16, BOOL, DOUBLE, FLOAT, FLOAT16, INT64
+from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
     IntType,
@@ -28,9 +31,13 @@ from onnxscript.function_libs.torch_lib.tensor_typing import (
     TTensor,
 )
 from onnxscript.onnx_opset import opset18 as op
-from onnxscript.onnx_types import BOOL, TensorType
+from onnxscript.onnx_types import TensorType
 
 _MATH_PI = math.pi
+Rank = common_ops.Rank
+
+# All float types but float32
+TFloatUnlessFloat32 = TypeVar("TFloatUnlessFloat32", bound=Union[BFLOAT16, FLOAT16, DOUBLE])
 
 
 @torch_op("aten::aten_adaptive_avg_pool1d")
@@ -40,7 +47,7 @@ def aten_adaptive_avg_pool1d(self: TFloat, output_size: INT64[1]) -> TFloat:
     # assert output_size == [1]
     # TODO(justinchuby): Specify input constraints
 
-    if op.Size(op.Shape(self)) == 2:
+    if Rank(self) == 2:
         # Unbatched case
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         pooled = op.GlobalAveragePool(self)
@@ -58,7 +65,7 @@ def aten_adaptive_avg_pool2d(self: TFloat, output_size: INT64[2]) -> TFloat:
     # assert output_size == [1, 1]
     # TODO(justinchuby): Specify input constraints
 
-    if op.Size(op.Shape(self)) == 3:
+    if Rank(self) == 3:
         # Unbatched case
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         pooled = op.GlobalAveragePool(self)
@@ -76,7 +83,7 @@ def aten_adaptive_avg_pool3d(self: TFloat, output_size: INT64[3]) -> TFloat:
     # assert output_size == [1, 1, 1]
     # TODO(justinchuby): Specify input constraints
 
-    if op.Size(op.Shape(self)) == 4:
+    if Rank(self) == 4:
         # Unbatched case
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
         pooled = op.GlobalAveragePool(self)
@@ -341,6 +348,16 @@ def aten_celu(self: FLOAT, alpha: float = 1.0) -> FLOAT:
     """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
 
     return op.Celu(self, alpha=alpha)  # op.Celu only support float32
+
+
+@torch_op("aten::celu")
+def aten_celu_type_promoted(
+    self: TFloatUnlessFloat32, alpha: float = 1.0
+) -> TFloatUnlessFloat32:
+    """celu(Tensor self, Scalar alpha=1.0) -> Tensor"""
+
+    self_upcasted = op.Cast(self, to=FLOAT.dtype)
+    return op.CastLike(op.Celu(self_upcasted, alpha=alpha), self)
 
 
 @torch_op("aten::col2im", trace_only=True)
@@ -862,8 +879,8 @@ def _aten_max_pool_onnx(
     ceil_mode: bool,
     unbatched_rank: int,
 ) -> TFloatOrUInt8:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == unbatched_rank:  # C,H,W -> N,C,H,W and N=1
+    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    if self_rank_is_unbatched_rank:  # C,H,W -> N,C,H,W and N=1
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     pool_result, _ = op.MaxPool(
@@ -875,7 +892,7 @@ def _aten_max_pool_onnx(
         strides=strides,
     )
 
-    if self_rank == unbatched_rank:
+    if self_rank_is_unbatched_rank:
         pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
 
     return pool_result
@@ -997,8 +1014,8 @@ def _aten_max_pool_with_indices_onnx(
     n_dims_zero: Sequence[int],
     n_dims_axes: Sequence[int],
 ) -> Tuple[TFloatOrUInt8, INT64]:
-    self_rank = op.Size(op.Shape(self))
-    if self_rank == unbatched_rank:
+    self_rank_is_unbatched_rank = Rank(self) == unbatched_rank
+    if self_rank_is_unbatched_rank:
         self = op.Unsqueeze(self, axes=0)
 
     pool_result, indices = op.MaxPool(
@@ -1053,7 +1070,7 @@ def _aten_max_pool_with_indices_onnx(
     delta = op.Slice(flatten_indices, axes=axes, starts=starts, ends=ends)
     indices = op.Sub(indices, delta)
 
-    if self_rank == unbatched_rank:
+    if self_rank_is_unbatched_rank:
         pool_result = op.Squeeze(pool_result, op.Constant(value_ints=[0]))
         indices = op.Squeeze(indices, op.Constant(value_ints=[0]))
 
@@ -1095,10 +1112,11 @@ def aten_max_unpool3d(
     raise NotImplementedError()
 
 
-def aten_mish(self: TensorType) -> TensorType:
+@torch_op("aten::mish")
+def aten_mish(self: TFloat) -> TFloat:
     """mish(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Mish(self)
 
 
 def aten_mish_backward(grad_output: TensorType, self: TensorType) -> TensorType:
@@ -1224,8 +1242,8 @@ def aten_nll_loss(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    rank_self = op.Size(op.Shape(self))
-    if rank_self == 1:  # self rank should be at least 2
+    self_rank_is_1 = Rank(self) == 1
+    if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     rank_target = op.Size(op.Shape(target))
@@ -1245,7 +1263,7 @@ def aten_nll_loss(
             self, target, ignore_index=ignore_index, reduction="sum"
         )
 
-    if rank_self == 1:
+    if self_rank_is_1:
         result = op.Squeeze(result)
 
     return result
@@ -1261,8 +1279,8 @@ def aten_nll_loss_weight(
 ) -> TFloat:
     """nll_loss(Tensor self, Tensor target, Tensor? weight=None, int reduction=Mean, SymInt ignore_index=-100) -> Tensor"""
 
-    rank_self = op.Size(op.Shape(self))
-    if rank_self == 1:  # self rank should be at least 2
+    self_rank_is_1 = Rank(self) == 1
+    if self_rank_is_1:  # self rank should be at least 2
         self = op.Unsqueeze(self, op.Constant(value_ints=[0]))
 
     rank_target = op.Size(op.Shape(target))
@@ -1282,7 +1300,7 @@ def aten_nll_loss_weight(
             self, target, weight, ignore_index=ignore_index, reduction="sum"
         )
 
-    if rank_self == 1:
+    if self_rank_is_1:
         result = op.Squeeze(result)
 
     return result
@@ -1386,10 +1404,18 @@ def aten_pad_sequence(
     raise NotImplementedError()
 
 
-def aten_reflection_pad1d(self: TensorType, padding: INT64) -> TensorType:
+@torch_op("aten::reflection_pad1d")
+def aten_reflection_pad1d(self: TFloat, padding: INT64) -> TFloat:
     """reflection_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    # assert len(padding) == 2
+    # Input of padding argument should be [x,y], need change to onnx format [0, x, 0, y]
+    start = op.Slice(padding, [0], [1], axes=[0])
+    end = op.Slice(padding, [1], [2], axes=[0])
+    padding_onnx = op.Concat(
+        op.Constant(value_ints=[0]), start, op.Constant(value_ints=[0]), end, axis=0
+    )
+    return op.Pad(self, padding_onnx, mode="reflect")
 
 
 def aten_reflection_pad1d_backward(
@@ -1412,7 +1438,7 @@ def aten_reflection_pad2d(self: TTensor, padding: INT64) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     zero = op.Constant(value_ints=[0])
     # [0] * (rank * 2 - len(padding))
-    rank = op.Size(op.Shape(self))
+    rank = Rank(self)
     zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
     zeros = op.Expand(zero, zero_count)
     # list(padding[:]) + [0] * (dim * 2 - len(padding))
@@ -1491,7 +1517,7 @@ def aten_replication_pad2d(self: TTensor, padding: INT64) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     zero = op.Constant(value_ints=[0])
     # [0] * (rank * 2 - len(padding))
-    rank = op.Size(op.Shape(self))
+    rank = Rank(self)
     zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
     zeros = op.Expand(zero, zero_count)
     # list(padding[:]) + [0] * (dim * 2 - len(padding))
@@ -1527,7 +1553,7 @@ def aten_replication_pad3d(self: TTensor, padding: INT64) -> TTensor:
     neg_1 = op.Constant(value_ints=[-1])
     zero = op.Constant(value_ints=[0])
     # [0] * (rank * 2 - len(padding))
-    rank = op.Size(op.Shape(self))
+    rank = Rank(self)
     zero_count = op.Reshape(op.Sub(op.Mul(rank, 2), op.Size(padding)), neg_1)
     zeros = op.Expand(zero, zero_count)
     # list(padding[:]) + [0] * (dim * 2 - len(padding))
@@ -1670,6 +1696,73 @@ def aten_scaled_dot_product_attention(
 
     return _aten_scaled_dot_product_attention_float_mask_onnx(
         query, key, value, attn_mask, scale, dropout_p
+    )
+
+
+@torch_op("aten::_scaled_dot_product_flash_attention", private=True)
+def _aten_scaled_dot_product_flash_attention_fillin_empty_outputs(
+    query: TFloat,
+) -> Tuple[FLOAT, INT64, INT64, FLOAT]:
+    query_first_three_dims = op.Slice(
+        op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[3])
+    )
+    logsumexp = op.Expand(0.0, query_first_three_dims)
+    # TODO: Eliminate `make_tensor` usage when ORT supports empty tensor.
+    empty_tensor_int = op.Cast(
+        op.ConstantOfShape(
+            op.Constant(value=onnx.helper.make_tensor("Empty_INTS", INT64.dtype, [0], []))
+        ),
+        to=INT64.dtype,
+    )
+    empty_tensor_float = op.ConstantOfShape(
+        op.Constant(value=onnx.helper.make_tensor("Empty_FLOATS", INT64.dtype, [0], []))
+    )
+    empty_int = op.Constant(value_int=0)
+
+    return logsumexp, empty_tensor_int, empty_int, empty_tensor_float
+
+
+@torch_op("aten::_scaled_dot_product_flash_attention", trace_only=True)
+def aten_scaled_dot_product_flash_attention(
+    query: TFloat,
+    key: TFloat,
+    value: TFloat,
+    dropout_p: float = 0.0,
+    is_causal: bool = False,
+    return_debug_mask: bool = False,  # pylint: disable=unused-argument
+    scale: Optional[float] = None,
+) -> Tuple[TFloat, FLOAT, INT64, INT64, INT64, INT64, INT64, INT64, FLOAT]:
+    """_scaled_dot_product_flash_attention(Tensor query, Tensor key, Tensor value, float dropout_p=0.0, bool is_causal=False, bool return_debug_mask=False, *, float? scale=None) -> (Tensor output, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, int max_q, int max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
+
+    One of the implementations of scaled_dot_product_attention.
+    Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+
+    NOTE: Currently, there are three implementations of nn.scaled_dot_product_attention in PyTorch due to optimization.
+    However, it's the same implementation from ONNX perspective.
+
+    """
+    result = aten_scaled_dot_product_attention(
+        query, key, value, dropout_p=dropout_p, is_causal=is_causal, scale=scale
+    )
+
+    # The followings are not comsumed by the graph.
+    (
+        logsumexp,
+        empty_tensor_int,
+        empty_int,
+        empty_tensor_float,
+    ) = _aten_scaled_dot_product_flash_attention_fillin_empty_outputs(query)
+
+    return (
+        result,
+        logsumexp,
+        empty_tensor_int,
+        empty_tensor_int,
+        empty_int,
+        empty_int,
+        empty_tensor_int,
+        empty_tensor_int,
+        empty_tensor_float,
     )
 
 
@@ -1966,10 +2059,13 @@ def aten_soft_margin_loss_backward(
     raise NotImplementedError()
 
 
-def aten_softplus(self: TensorType, beta: float = 1.0, threshold: float = 20.0) -> TensorType:
+@torch_op("aten::softplus")
+def aten_softplus(self: TFloat, beta: float = 1.0, threshold: float = 20.0) -> TFloat:
     """softplus(Tensor self, Scalar beta=1, Scalar threshold=20) -> Tensor"""
 
-    raise NotImplementedError()
+    self_scaled = self * beta
+    softplus = op.Softplus(self_scaled) / beta
+    return op.Where(self_scaled > threshold, self, softplus)
 
 
 def aten_softplus_backward(

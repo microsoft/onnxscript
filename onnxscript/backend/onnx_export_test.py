@@ -11,11 +11,14 @@ import re
 import unittest
 from typing import Pattern
 
+import onnx
 import onnxruntime as ort
 import parameterized
 from onnxruntime.capi import onnxruntime_pybind11_state
 
 import onnxscript
+import onnxscript.testing
+import onnxscript.values
 from onnxscript.backend import onnx_backend, onnx_export
 from onnxscript.tests.models import type_double
 
@@ -89,7 +92,7 @@ SKIP_TESTS = (
 
 
 def load_function(obj):
-    return ort.InferenceSession(obj.SerializeToString())
+    return ort.InferenceSession(obj.SerializeToString(), providers=("CPUExecutionProvider",))
 
 
 def run_function(obj, *inputs):
@@ -102,14 +105,12 @@ def run_function(obj, *inputs):
 
 
 def extract_functions(name: str, content: str, test_folder: pathlib.Path):
-    """Write the content into a file and import all OnnxFunctions from it."""
     if not test_folder.exists():
         test_folder.mkdir(exist_ok=True, parents=True)
         init = test_folder / "__init__.py"
         init.touch(exist_ok=True)
     file = test_folder / f"{name}.py"
     file.write_text(content, encoding="utf-8")
-
     import_name = f"onnxscript.tests.{test_folder.parts[-1]}.{name}"
     try:
         mod = importlib.import_module(import_name)
@@ -131,7 +132,54 @@ def exec_main(f, *inputs):
 
 
 class TestOnnxBackEnd(unittest.TestCase):
-    test_folder = pathlib.Path(__file__).parent.parent / "tests" / "onnx_backend_test_code"
+    root_folder = pathlib.Path(__file__).parent.parent
+    test_folder = root_folder / "tests" / "onnx_backend_test_code"
+    temp_folder = root_folder / "tests" / "export"
+
+    def _proto_to_os_and_back(self, proto: onnxscript.FunctionProto, **export_options):
+        """Convert a proto to onnxscript code and convert it back to a proto."""
+        code = onnx_export.export2python(proto, **export_options)
+        map = extract_functions(proto.name, code, TestOnnxBackEnd.temp_folder)
+        return map[proto.name]
+
+    def _round_trip_check(self, script_function, **export_options):
+        proto = script_function.to_function_proto()
+        code = onnx_export.export2python(proto, **export_options)
+        map = extract_functions(proto.name, code, TestOnnxBackEnd.temp_folder)
+        result_proto = map[proto.name]
+        onnxscript.testing.assert_isomorphic(proto, result_proto)
+
+    def test_attr_ref(self):
+        """Test functions using attribute-parameters."""
+        op = onnxscript.opset17
+
+        @onnxscript.script()
+        def fun_with_attr_param(X, dtype: int):
+            return op.Cast(X, to=dtype)
+
+        self._round_trip_check(fun_with_attr_param)
+
+    def test_double_attr_val_promotion(self):
+        op = onnxscript.opset17
+
+        @onnxscript.script()
+        def fun_with_double_attr_promotion(X, dtype: int):
+            Y = op.Add(X, dtype)
+            Z = op.Add(Y, dtype)
+            return Z
+
+        self._round_trip_check(fun_with_double_attr_promotion)
+
+    def test_qualified_domain(self):
+        """Test use of qualified domain name."""
+        op = onnxscript.opset17
+        custom_opset = onnxscript.values.Opset("my.domain.com", 1)
+
+        @onnxscript.script(custom_opset)
+        def twice(X):
+            return op.Add(X, X)
+
+        self._round_trip_check(twice)
 
     def test_export2python(self):
         proto = type_double.double_abs_subgraph.to_model_proto()
@@ -220,11 +268,13 @@ class TestOnnxBackEnd(unittest.TestCase):
                 )
 
         try:
-            session = ort.InferenceSession(proto.SerializeToString())
+            session = ort.InferenceSession(
+                proto.SerializeToString(), providers=("CPUExecutionProvider",)
+            )
         except Exception as e:
             raise AssertionError(
                 f"Unable to load onnx for test {backend_test.name!r}.\n"
-                f"{onnxscript.proto2text(proto)}\n"
+                f"{onnx.printer.to_text(proto)}\n"
                 f"-----\n"
                 f"{backend_test.onnx_model}"
             ) from e
@@ -249,7 +299,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             except Exception as e:
                 raise AssertionError(
                     f"Unable to run test {backend_test.name!r} after conversion.\n"
-                    f"{onnxscript.proto2text(proto)}"
+                    f"{onnx.printer.to_text(proto)}"
                 ) from e
 
         backend_test.run(_load_function, _run_function)

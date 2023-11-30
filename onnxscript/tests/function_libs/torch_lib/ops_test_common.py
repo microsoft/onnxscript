@@ -161,6 +161,10 @@ def add_decorate_info(
     ops_mapping = {(info.name, info.variant_test_name): info for info in all_opinfos}
     for decorate_meta in skip_or_xfails:
         opinfo = ops_mapping.get((decorate_meta.op_name, decorate_meta.variant_name))
+        if opinfo is None and not decorate_meta.enabled_if:
+            # If the OpInfo doesn't exist and it is not enabled, we skip the OpInfo
+            # because it could be an OpInfo that is in torch-nightly but not older versions.
+            continue
         assert (
             opinfo is not None
         ), f"Couldn't find OpInfo for {decorate_meta}. Did you need to specify variant_name?"
@@ -355,7 +359,7 @@ def _format_model_and_input_information(onnx_model, inputs):
         f"Inputs:\n"
         f"{pprint.pformat(inputs)}\n"
         f"Model:\n"
-        f"{onnxscript.proto2text(onnx_model)}"
+        f"{onnx.printer.to_text(onnx_model)}"
     )
 
 
@@ -460,7 +464,8 @@ def graph_executor(
                 input.value = arg
                 onnxscript_args.append(input)
                 ort_inputs[input_name] = arg
-            elif isinstance(arg, Sequence):
+            elif isinstance(arg, (list, tuple)):
+                # str is also a sequence but we do not want to treat it as a tensor
                 sequence_input = []
                 for j, subarg in enumerate(arg):
                     if isinstance(subarg, np.ndarray):
@@ -521,7 +526,7 @@ def graph_executor(
             onnx.checker.check_model(onnx_model, full_check=True)
         except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
             raise AssertionError(
-                f"ONNX model is invalid. Model:\n{onnxscript.proto2text(onnx_model)}"
+                f"ONNX model is invalid. Model:\n{onnx.printer.to_text(onnx_model)}"
             ) from e
 
         try:

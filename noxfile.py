@@ -11,9 +11,9 @@ nox.options.error_on_missing_interpreters = False
 
 COMMON_TEST_DEPENDENCIES = (
     "jinja2",
-    "numpy==1.23.5",
+    "numpy==1.24.4",
     "typing_extensions",
-    "beartype",
+    "beartype!=0.16.0",
     "types-PyYAML",
     "expecttest",
     "hypothesis",
@@ -26,9 +26,9 @@ COMMON_TEST_DEPENDENCIES = (
     "pytest!=7.1.0",
     "pyyaml",
 )
-ONNX = "onnx==1.14.0"
-ONNX_RUNTIME = "onnxruntime==1.15.0"
-PYTORCH = "torch==2.0.1"
+ONNX = "onnx==1.14.1"
+ONNX_RUNTIME = "onnxruntime==1.16.1"
+PYTORCH = "torch==2.1.0"
 ONNX_RUNTIME_NIGHTLY_DEPENDENCIES = (
     "flatbuffers",
     "coloredlogs",
@@ -95,3 +95,20 @@ def test_ort_nightly(session):
     session.install(".", "--no-deps")
     session.run("pip", "list")
     session.run("pytest", "onnxscript", *session.posargs)
+
+
+@nox.session(tags=["test-experimental-torchlib-tracing"])
+def test_experimental_torchlib_tracing(session):
+    """Test TorchLib with the experimental TORCHLIB_EXPERIMENTAL_PREFER_TRACING flag on."""
+    session.install(
+        *COMMON_TEST_DEPENDENCIES, PYTORCH, ONNX, *ONNX_RUNTIME_NIGHTLY_DEPENDENCIES
+    )
+    session.install("-r", "requirements/ci/requirements-ort-nightly.txt")
+    session.install(".", "--no-deps")
+    session.run("pip", "list")
+    session.run(
+        "pytest",
+        "onnxscript/tests/function_libs/torch_lib/ops_test.py",
+        *session.posargs,
+        env={"TORCHLIB_EXPERIMENTAL_PREFER_TRACING": "1"},
+    )
