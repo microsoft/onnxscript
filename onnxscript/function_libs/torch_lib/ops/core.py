@@ -14,7 +14,6 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
-import onnxscript
 from onnxscript import (
     BFLOAT16,
     BOOL,
@@ -31,6 +30,7 @@ from onnxscript import (
     UINT64,
     graph,
 )
+from onnxscript.function_libs.torch_lib._custom_opsets.microsoft_opset import microsoft_opset
 from onnxscript.function_libs.torch_lib.ops import common as common_ops
 from onnxscript.function_libs.torch_lib.registration import torch_op
 from onnxscript.function_libs.torch_lib.tensor_typing import (
@@ -56,7 +56,6 @@ _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
 IsScalar = common_ops.IsScalar
 Rank = common_ops.Rank
-microsoft_opset = onnxscript.values.Opset("com.microsoft", 1)
 
 
 @torch_op("aten::_local_scalar_dense")
