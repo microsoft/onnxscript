@@ -58,7 +58,7 @@ from .onnx_types import (
 
 # isort: on
 
-from ._internal.utils import external_tensor, proto2text
+from ._internal.utils import external_tensor
 from .values import OnnxFunction, TracedOnnxFunction
 
 try:
@@ -73,7 +73,6 @@ __all__ = [
     "OnnxFunction",
     "TracedOnnxFunction",
     "proto2python",
-    "proto2text",
     "external_tensor",
     "graph",
     "BFLOAT16",
