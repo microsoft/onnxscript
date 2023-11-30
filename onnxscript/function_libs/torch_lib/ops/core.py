@@ -6933,27 +6933,27 @@ def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) ->
     if self_rank == 1:
         return self
 
+    if self.shape[0] == 0:  # empty tensor
+        return self
+
     self_real = op.Slice(self, [0], [1], axes=[-1])
     self_imag = op.Slice(self, [1], [2], axes=[-1])
-    elif self.shape[0] == 0:  # empty tensor
-        return self
+    if not dims:
+        # assert isinstance(shifts, int)
+        shift_real = _aten_roll_shift_no_dim_onnx(self_real, shifts)
+        shift_imag = _aten_roll_shift_no_dim_onnx(self_imag, shifts)
+
+        result = op.Concat(shift_real, shift_imag, axis=-1)
+
     else:
-        if not dims:
-            # assert isinstance(shifts, int)
-            shift_real = _aten_roll_shift_no_dim_onnx(self_real, shifts)
-            shift_imag = _aten_roll_shift_no_dim_onnx(self_imag, shifts)
+        # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
+        for i, dim in enumerate(dims):
+            shift = op.Gather(shifts, i, axis=0)
+            self_real = _aten_roll_shift_and_dim_onnx(self_real, shift, dim)
+            self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shift, dim)
 
-            result = op.Concat(shift_real, shift_imag, axis=-1)
-
-        else:
-            # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
-            for i, dim in enumerate(dims):
-                shift = op.Gather(shifts, i, axis=0)
-                self_real = _aten_roll_shift_and_dim_onnx(self_real, shift, dim)
-                self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shift, dim)
-
-            result = op.Concat(self_real, self_imag, axis=-1)
-        return result
+        result = op.Concat(self_real, self_imag, axis=-1)
+    return result
 
 
 @torch_op("aten::roll", private=True)
