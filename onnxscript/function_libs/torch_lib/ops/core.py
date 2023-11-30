@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
+import onnxscript
 from onnxscript import (
     BFLOAT16,
     BOOL,
@@ -55,6 +56,7 @@ _INT64_MIN = -9223372036854775808
 _MATH_PI = math.pi
 IsScalar = common_ops.IsScalar
 Rank = common_ops.Rank
+microsoft_opset = onnxscript.values.Opset("com.microsoft", 1)
 
 
 @torch_op("aten::_local_scalar_dense")
@@ -4167,10 +4169,11 @@ def aten_int_repr(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
+@torch_op("aten::inverse")
 def aten_inverse(self: TensorType) -> TensorType:
     """inverse(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return microsoft_opset.Inv(self)
 
 
 def aten_is_coalesced(self: TensorType) -> bool:
