@@ -6947,9 +6947,8 @@ def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) ->
 
         else:
             # assert len(shifts) == len(dims), but shifts is a tensor, dims is a list
-            for i in range(len(shifts)):  # pylint: disable=consider-using-enumerate
+            for i, dim in enumerate(dims):
                 shift = op.Gather(shifts, i, axis=0)
-                dim = dims[i]
                 self_real = _aten_roll_shift_and_dim_onnx(self_real, shift, dim)
                 self_imag = _aten_roll_shift_and_dim_onnx(self_imag, shift, dim)
 
