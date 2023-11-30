@@ -6930,7 +6930,7 @@ def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) ->
     """roll(Tensor self, int[1] shifts, int[1] dims=[]) -> Tensor"""
 
     self_rank = len(self.shape)
-    if self_rank == 0:
+    if self_rank == 1:
         return self
 
     self_real = op.Slice(self, [0], [1], axes=[-1])
@@ -8429,7 +8429,7 @@ def _aten_var_mean_dim_onnx(
     return var, mean
 
 
-@torch_op("aten::var", private=True)
+@torch_op("aten::var", private=True, traceable=True)
 def _aten_var_onnx(self: TReal, correction: float, keepdim: bool = False) -> TReal:
     mean = op.ReduceMean(self, keepdims=keepdim)
     sub_mean = op.Sub(self, mean)
@@ -8446,7 +8446,7 @@ def _aten_var_onnx(self: TReal, correction: float, keepdim: bool = False) -> TRe
     return var
 
 
-@torch_op("aten::var.dim", private=True)
+@torch_op("aten::var.dim", private=True, traceable=True)
 def _aten_var_dim_onnx(
     self: TReal, dim: INT64, correction: float, keepdim: bool = False
 ) -> TReal:
