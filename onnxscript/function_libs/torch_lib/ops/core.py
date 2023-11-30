@@ -6936,7 +6936,7 @@ def aten_roll_complex(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) ->
     elif self.shape[0] == 0:  # empty tensor
         return self
     else:
-        if isinstance(dims, tuple) and len(dims) == 0:  # Empty list
+        if not dims:
             # assert isinstance(shifts, int)
             shift_real = _aten_roll_shift_no_dim_onnx(self_real, shifts)
             shift_imag = _aten_roll_shift_no_dim_onnx(self_imag, shifts)
@@ -8303,7 +8303,6 @@ def aten_var(self: TReal, unbiased: Optional[bool] = True) -> TReal:
     # Assume bool(True) and int(1) are same in ONNX, so pass "unbiased" directly as "correction"
     # If not this case, should be explicitly set correction value according to unbiased value
     return _aten_var_onnx(self, correction=float(unbiased), keepdim=False)
-    # return float(unbiased)
 
 
 @torch_op("aten::var.dim", trace_only=True)
