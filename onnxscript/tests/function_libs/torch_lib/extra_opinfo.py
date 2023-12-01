@@ -9,7 +9,11 @@ from typing import Any, List
 
 import torch
 from torch import testing as torch_testing
-from torch.testing._internal import common_dtype, common_methods_invocations
+from torch.testing._internal import (
+    common_device_type,
+    common_dtype,
+    common_methods_invocations,
+)
 from torch.testing._internal.opinfo import core as opinfo_core
 
 S = 5
@@ -1298,7 +1302,7 @@ def sample_inputs__softmax(
         yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
 
 
-def sample_inputs_scaled_dot_product_flash_attention(
+def sample_inputs__scaled_dot_product_flash_attention(
     op_info, device, dtype, requires_grad, **kwargs
 ):
     del op_info
@@ -1338,6 +1342,41 @@ def sample_inputs_scaled_dot_product_flash_attention(
             dropout_p=0.0,
         )
     )
+
+    yield from samples
+
+
+def sample_inputs__scaled_dot_product_efficient_attention(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info
+    del kwargs
+
+    make = opinfo_core.partial(
+        opinfo_core.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    batch, seq_q, seq_kv, num_heads, head_dim = 4, 3, 6, 4, 8
+
+    dim_4_q_shape = (batch, num_heads, seq_q, head_dim)
+    dim_4_kv_shape = (batch, num_heads, seq_kv, head_dim)
+
+    qkv_shapes = [(dim_4_q_shape, dim_4_kv_shape)]
+    samples = []
+    for qkv_shape, is_causal, dropout_p, compute_log_sumexp in opinfo_core.product(
+        qkv_shapes, [True, False], [0.0], [True, False]
+    ):
+        shape_q, shape_kv = qkv_shape
+        samples.append(
+            opinfo_core.SampleInput(
+                make(shape_q),
+                make(shape_kv),
+                make(shape_kv),
+                attn_bias=None,
+                is_causal=is_causal,
+                dropout_p=dropout_p,
+                compute_log_sumexp=compute_log_sumexp,
+            )
+        )
 
     yield from samples
 
@@ -1765,11 +1804,26 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         # NOTE: Different from aten::scaled_dot_product_attention, this op doesn't support
         #       dim<=3 input.
-        sample_inputs_func=sample_inputs_scaled_dot_product_flash_attention,
+        sample_inputs_func=sample_inputs__scaled_dot_product_flash_attention,
         supports_out=False,
         supports_forward_ad=False,
         supports_fwgrad_bwgrad=True,
         check_batched_forward_grad=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._scaled_dot_product_efficient_attention",
+        aten_name="_scaled_dot_product_efficient_attention",
+        # only support CUDA
+        dtypes=common_dtype.empty_types(),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.bfloat16),
+        # NOTE: Different from aten::scaled_dot_product_attention, this op doesn't support
+        #       dim<=3 input.
+        sample_inputs_func=sample_inputs__scaled_dot_product_efficient_attention,
+        supports_out=False,
+        supports_forward_ad=False,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
+        decorators=[common_device_type.onlyCUDA],
     ),
     opinfo_core.OpInfo(
         "ops.aten._native_batch_norm_legit",

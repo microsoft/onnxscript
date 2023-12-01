@@ -406,11 +406,11 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
 
 
 common_device_type.instantiate_device_type_tests(
-    TestOutputConsistencyEager, globals(), only_for="cpu"
+    TestOutputConsistencyEager, globals(), only_for=["cpu", "cuda"]
 )
 
 common_device_type.instantiate_device_type_tests(
-    TestOutputConsistencyFullGraph, globals(), only_for="cpu"
+    TestOutputConsistencyFullGraph, globals(), only_for=["cpu", "cuda"]
 )
 
 if __name__ == "__main__":
