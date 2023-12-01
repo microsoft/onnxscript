@@ -368,13 +368,26 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         ) = param_manipulation.separate_input_attributes_from_arguments(
             param_schemas, args, kwargs, fill_defaults=True, allow_extra_kwargs=True
         )
-        name_to_schema = {param.name: param for param in param_schemas}
+
+        # Cast attributes to the correct type based on function signature
+        op_schema = function.op_schema
+        assert op_schema is not None
         for name, value in attributes.items():
-            param = name_to_schema[name]
-            # Cast int to float if needed
-            if param.type in {float, "float"}:
-                # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
+            attribute = op_schema.attributes[name]
+            if attribute.type == onnx.defs.OpSchema.AttrType.FLOAT:
+                # Cast int to float if the attribute is FLOAT
                 attributes[name] = float(value)
+
+            # In PyTorch, an attribute annotated as `int[1]?` accepts an integer
+            # or a sequence. When the attribute is an integer, it is treated as
+            # a single element sequence. ONNX requires an attribute to either be
+            # an integer or a sequence. So we promote the value to a sequence here.
+            if attribute.type == onnx.defs.OpSchema.AttrType.INTS and isinstance(value, int):
+                attributes[name] = (value,)
+            if attribute.type == onnx.defs.OpSchema.AttrType.FLOATS and isinstance(
+                value, float
+            ):
+                attributes[name] = (value,)
         return self._graph.add_function_call(function, inputs, attributes)
 
 

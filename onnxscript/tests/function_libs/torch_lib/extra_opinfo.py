@@ -285,6 +285,29 @@ def sample_inputs__fft_r2c(self, device, dtype, requires_grad=False, **_):
             )
 
 
+def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
+
+    for normalization in (0, 1, 2):
+        # 1-D
+        yield opinfo_core.SampleInput(
+            oned_tensor(), dim=(0,), normalization=normalization, last_dim_size=12
+        )
+        # N-D
+        for dim in [
+            (0,),
+            (1,),
+            (2,),
+            (1, 2),
+            (0, 1),
+            (0, 1, 2),
+        ]:
+            yield opinfo_core.SampleInput(
+                nd_tensor(), dim=dim, normalization=normalization, last_dim_size=6
+            )
+
+
 def sample_inputs_layer_norm(op_info, device, dtype, requires_grad, **kwargs):
     del op_info  # unused
     del kwargs
@@ -1443,6 +1466,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="_fft_c2c",
         dtypes=common_dtype.complex_types(),
         sample_inputs_func=sample_inputs__fft_c2c,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._fft_c2r",
+        aten_name="_fft_c2r",
+        dtypes=common_dtype.complex_types(),
+        sample_inputs_func=sample_inputs__fft_c2r,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
