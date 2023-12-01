@@ -256,11 +256,18 @@ class Exporter:
 
         return new_renamer
 
+    # def _push_output_remapping(self, inner_scope_vars: Sequence[onnx.ValueInfoProto], outer_scope_names: Sequence[str]) -> None:
+    #     """Pushes a new name-remapping scope."""
+    #     inner_scope_names = [x.name for x in inner_scope_vars]
+    #     assert len(outer_scope_names) == len(inner_scope_names)
+    #     target_names = [self._translate_onnx_var(x) for x in inner_scope_names]
+    #     self._name_remappings.append(dict(zip(inner_scope_names, target_names)))
+
     def _push_name_remapping(self, inner_scope_vars: Sequence[onnx.ValueInfoProto], outer_scope_names: Sequence[str]) -> None:
         """Pushes a new name-remapping scope."""
         inner_scope_names = [x.name for x in inner_scope_vars]
         assert len(outer_scope_names) == len(inner_scope_names)
-        target_names = [self._translate_onnx_var(x) for x in inner_scope_names]
+        target_names = [self._translate_onnx_var(x) for x in outer_scope_names]
         self._name_remappings.append(dict(zip(inner_scope_names, target_names)))
 
     def _translate_onnx_var(self, var):
@@ -307,6 +314,7 @@ class Exporter:
 
     def _translate_graph_body(self, graph, opsets, indent=0):
         """Translates a GraphProto into python."""
+        self._name_remappings.append({})
         code = []
         sindent = _SINGLE_INDENT * indent
         if hasattr(graph, "initializer"):
@@ -329,6 +337,7 @@ class Exporter:
         #         code.append(
         #             f"{sindent}{self._translate_onnx_var(to)} = {self._translate_onnx_var(fr.name)}"
         #         )
+        self._name_remappings.pop()
         final = "\n".join(code)
         return final
 
@@ -430,7 +439,6 @@ class Exporter:
             if use_loop_cond:
                 rows.append(f"{sindent}{self._translate_onnx_var(cond)} = True")
 
-        # v_initial = node.input[2]
         rows = []
         if n_iter and not use_loop_cond:
             rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
@@ -448,15 +456,15 @@ class Exporter:
         self._push_name_remapping(body.output, [cond] + node.input[2:])
         rows.append(
             self._translate_graph_body(
-                body, opsets, indent=indent + 1, output_names=[cond] + node.input[2:]
+                body, opsets, indent=indent + 1
             )
         )
         self._name_remappings.pop()
+        for out_name, in_name in zip(node.output, node.input[2:]):
+            self._name_remappings[-1][out_name] = in_name
+
         # TODO: This doesn't handle scan-outputs yet.
-        # rows.extend(
-        #     f"{sindent}{self._translate_onnx_var(to)} = {self._translate_onnx_var(frm)}"
-        #     for to, frm in zip(node.output, node.input[2:])
-        # )
+
         return "\n".join(rows)
 
     def _python_make_node_scan(self, node, opsets, indent=0):
