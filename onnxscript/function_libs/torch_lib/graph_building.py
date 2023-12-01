@@ -377,6 +377,11 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
             if attribute.type == onnx.defs.OpSchema.AttrType.FLOAT:
                 # Cast int to float if the attribute is FLOAT
                 attributes[name] = float(value)
+
+            # In PyTorch, an attribute annotated as `int[1]?` accepts an integer
+            # or a sequence. When the attribute is an integer, it is treated as
+            # a single element sequence. ONNX requires an attribute to either be
+            # an integer or a sequence. So we promote the value to a sequence here.
             if attribute.type == onnx.defs.OpSchema.AttrType.INTS and isinstance(value, int):
                 attributes[name] = (value,)
             if attribute.type == onnx.defs.OpSchema.AttrType.FLOATS and isinstance(
