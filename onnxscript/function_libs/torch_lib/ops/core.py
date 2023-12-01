@@ -8305,7 +8305,7 @@ def aten_var_dim(
 ) -> TReal:
     """var(Tensor self, int[1]? dim, bool unbiased=True, bool keepdim=False) -> Tensor"""
 
-    return _aten_var_dim_onnx(self, dim=dim, correction=float(unbiased), keepdim=keepdim)
+    return _aten_var_dim_onnx(self, dims=dim, correction=float(unbiased), keepdim=keepdim)
 
 
 @torch_op("aten::var.correction", trace_only=True)
@@ -8324,7 +8324,7 @@ def aten_var_correction(
     if dim is None:
         var = _aten_var_onnx(self, correction=correction, keepdim=keepdim)
     else:
-        var = _aten_var_dim_onnx(self, dim=dim, correction=correction, keepdim=keepdim)
+        var = _aten_var_dim_onnx(self, dims=dim, correction=correction, keepdim=keepdim)
     return var
 
 
