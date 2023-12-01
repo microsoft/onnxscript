@@ -318,7 +318,7 @@ class TestOutputConsistencyEager(unittest.TestCase):
     @ops_test_common.add_decorate_info(
         ops_test_data.OPS_DB,
         "TestOutputConsistencyEager",
-        "test_output_match_opinfo_",
+        "test_complex_output_match_opinfo_",
         skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
     )
     @common_device_type.ops(  # type: ignore[misc]
@@ -380,7 +380,7 @@ class TestOutputConsistencyFullGraph(unittest.TestCase):
     @ops_test_common.add_decorate_info(
         ops_test_data.OPS_DB,
         "TestOutputConsistencyFullGraph",
-        "test_output_match_opinfo_",
+        "test_complex_output_match_opinfo_",
         skip_or_xfails=ops_test_data.EXPECTED_SKIPS_OR_FAILS,
     )
     @common_device_type.ops(  # type: ignore[misc]
