@@ -607,10 +607,12 @@ class Exporter:
         add_line(f"def {fun_name}{fun_sig}")
         if funproto.doc_string:
             add_line(f'    """{funproto.doc_string}"""')
+        self._name_remappings.append({})
         for node in funproto.node:
             add_line(self._python_make_node(node, opsets, indent=1))
         return_values = ", ".join(self._translate_onnx_var(x) for x in funproto.output)
         add_line(f"    return {return_values}")
+        self._name_remappings.pop()
         return "\n".join(result)
 
     def _translate_graph(self, model: onnx.ModelProto, function_name: Optional[str]) -> str:
