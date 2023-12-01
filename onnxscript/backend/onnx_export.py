@@ -14,6 +14,8 @@ from onnx.helper import make_node
 import onnxscript.onnx_types
 import onnxscript.type_annotation
 
+_SINGLE_INDENT = "    "
+
 kwlist = {
     "False",
     "None",
@@ -228,6 +230,9 @@ class Exporter:
         self.constants: dict[str, str] = {}
         self._attr_renaming: dict[str, str | None] = {}  # For current function.
         self._names_used: set[str] = set()  # For current function.
+        # _name_remappings: used to undo the SSA-renaming in ONNX control-flow ops.
+        # We map the multiple SSA-variants back to the same Python variable name.
+        self._name_remappings: list[dict[str, str]] = []
 
     def _handle_attrname_conflict(self, renamer):
         """Add ref-attr-name-conflict handling logic to renaming function."""
@@ -251,10 +256,22 @@ class Exporter:
 
         return new_renamer
 
+    def _push_name_remapping(self, inner_scope_vars: Sequence[onnx.ValueInfoProto], outer_scope_names: Sequence[str]) -> None:
+        """Pushes a new name-remapping scope."""
+        inner_scope_names = [x.name for x in inner_scope_vars]
+        assert len(outer_scope_names) == len(inner_scope_names)
+        target_names = [self._translate_onnx_var(x) for x in inner_scope_names]
+        self._name_remappings.append(dict(zip(inner_scope_names, target_names)))
+
     def _translate_onnx_var(self, var):
         """Converts an ONNX variable name to a python variable name."""
+        if isinstance(var, ValueInfoProto):
+            var = var.name
         if var == "":
             return "None"
+        for scope in reversed(self._name_remappings):
+            if var in scope:
+                return scope[var]
         return self._rename_variable(var)
 
     def _translate_onnx_var_ref(self, var):
@@ -288,10 +305,10 @@ class Exporter:
             return f"{opset}.{name}"
         return name
 
-    def _python_make_node_graph(self, graph, opsets, indent=0, output_names=None):
+    def _translate_graph_body(self, graph, opsets, indent=0):
         """Translates a GraphProto into python."""
         code = []
-        sindent = "    " * indent
+        sindent = _SINGLE_INDENT * indent
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
                 node = make_node(
@@ -307,13 +324,17 @@ class Exporter:
             pynode = self._python_make_node(node, opsets, indent=indent)
             if pynode:
                 code.append(pynode)
-        if output_names is not None:
-            for fr, to in zip(graph.output, output_names):
-                code.append(
-                    f"{sindent}{self._translate_onnx_var(to)} = {self._translate_onnx_var(fr.name)}"
-                )
+        # if output_names is not None:
+        #     for fr, to in zip(graph.output, output_names):
+        #         code.append(
+        #             f"{sindent}{self._translate_onnx_var(to)} = {self._translate_onnx_var(fr.name)}"
+        #         )
         final = "\n".join(code)
         return final
+
+    # def _translate_sub_graph(self, graph, opsets, indent=0, output_names):
+    #     self._push_name_remapping(graph.output, output_names)
+
 
     def _python_make_node_make_attribute_str(self, node):
         attributes = []
@@ -357,7 +378,7 @@ class Exporter:
 
     def _python_make_node_if(self, node, opsets, indent=0):
         """Translates a node If into python."""
-        sindent = "    " * indent
+        sindent = _SINGLE_INDENT * indent
         code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
@@ -368,15 +389,19 @@ class Exporter:
             else_branch, then_branch = atts[0].g, atts[1].g
         else:
             else_branch, then_branch = atts[1].g, atts[0].g
+        self._push_name_remapping(then_branch.output, node.output)
         code.append(
-            self._python_make_node_graph(
-                then_branch, opsets, indent=indent + 1, output_names=node.output
+            self._translate_graph_body(
+                then_branch, opsets, indent=indent + 1
             )
         )
+        self._name_remappings.pop()
+
         code.append(f"{sindent}else:")
+        self._push_name_remapping(else_branch.output, node.output)
         code.append(
-            self._python_make_node_graph(
-                else_branch, opsets, indent=indent + 1, output_names=node.output
+            self._translate_graph_body(
+                else_branch, opsets, indent=indent + 1
             )
         )
         return "\n".join(code)
@@ -384,7 +409,7 @@ class Exporter:
     def _python_make_node_loop(self, node, opsets, indent=0):
         """Translates a node Loop into python."""
         body = node.attribute[0].g
-        sindent = "    " * indent
+        sindent = _SINGLE_INDENT * indent
         n_iter = self._translate_onnx_var(node.input[0])
 
 
@@ -420,16 +445,18 @@ class Exporter:
                 f"Unable to export loop type {node.op_type!r} into python because "
                 "there is no stop condition."
             )
+        self._push_name_remapping(body.output, [cond] + node.input[2:])
         rows.append(
-            self._python_make_node_graph(
+            self._translate_graph_body(
                 body, opsets, indent=indent + 1, output_names=[cond] + node.input[2:]
             )
         )
+        self._name_remappings.pop()
         # TODO: This doesn't handle scan-outputs yet.
-        rows.extend(
-            f"{sindent}{self._translate_onnx_var(to)} = {self._translate_onnx_var(frm)}"
-            for to, frm in zip(node.output, node.input[2:])
-        )
+        # rows.extend(
+        #     f"{sindent}{self._translate_onnx_var(to)} = {self._translate_onnx_var(frm)}"
+        #     for to, frm in zip(node.output, node.input[2:])
+        # )
         return "\n".join(rows)
 
     def _python_make_node_scan(self, node, opsets, indent=0):
@@ -474,7 +501,7 @@ class Exporter:
             "GreaterOrEqual": ">=",
             "LessOrEqual": "<=",
         }
-        sindent = "    " * indent
+        sindent = _SINGLE_INDENT * indent
         if self.use_operators and node.op_type in ops:
             return (
                 f"{sindent}{self._translate_onnx_var(node.output[0])} = "
@@ -596,7 +623,7 @@ class Exporter:
         doc = graph.doc_string
         if doc:
             add(f'    """{doc}"""')
-        add(self._python_make_node_graph(graph, opsets, indent=1))
+        add(self._translate_graph_body(graph, opsets, indent=1))
         return_values = ", ".join(self._translate_onnx_var(x) for x in graph.output)
         add(f"    return {return_values}")
         return "\n".join(result)
