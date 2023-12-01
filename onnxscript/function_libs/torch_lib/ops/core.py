@@ -8389,6 +8389,7 @@ def aten_var_mean_dim(
 @torch_op("aten::var_mean.correction", trace_only=True)
 def aten_var_mean_correction(
     self: TReal,
+    # FIXME(justinchuby): Make dim Optional[Sequence[int]]
     dim: Optional[int] = None,
     correction: Optional[float] = None,
     keepdim: bool = False,
