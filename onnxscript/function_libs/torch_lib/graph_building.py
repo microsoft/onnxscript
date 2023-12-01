@@ -374,7 +374,6 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         assert op_schema is not None
         for name, value in attributes.items():
             attribute = op_schema.attributes[name]
-            # Cast int to float if needed
             if attribute.type == onnx.defs.OpSchema.AttrType.FLOAT:
                 # Cast int to float if the attribute is FLOAT
                 attributes[name] = float(value)
