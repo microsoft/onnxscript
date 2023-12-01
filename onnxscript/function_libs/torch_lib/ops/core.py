@@ -2386,10 +2386,11 @@ def aten_data(self: TensorType) -> TensorType:
     raise NotImplementedError()
 
 
-def aten_deg2rad(self: TensorType) -> TensorType:
+@torch_op("aten::deg2rad", traceable=True)
+def aten_deg2rad(self: TFloat) -> TFloat:
     """deg2rad(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Mul(self, op.CastLike(_MATH_PI / 180.0, self))
 
 
 def aten_dense_dim(self: TensorType) -> int:
@@ -6576,10 +6577,11 @@ def aten_quantized_rnn_tanh_cell(
     raise NotImplementedError()
 
 
-def aten_rad2deg(self: TensorType) -> TensorType:
+@torch_op("aten::rad2deg", traceable=True)
+def aten_rad2deg(self: TFloat) -> TFloat:
     """rad2deg(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Mul(self, op.CastLike(180.0 / _MATH_PI, self))
 
 
 @torch_op("aten::rand")
