@@ -2156,15 +2156,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "var_mean",
         core_ops.aten_var_mean,
         trace_only=True,
-    )
-    .xfail(
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    )
-    .skip(
-        variant_name="unbiased",
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    )
-    .xfail(
+    ).xfail(
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
         reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
@@ -2185,11 +2177,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "var_mean_correction",
         core_ops.aten_var_mean_correction,
         trace_only=True,
-    )
-    .xfail(
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    )
-    .skip(
+    ).skip(
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
