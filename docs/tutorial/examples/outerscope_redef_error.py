@@ -1,5 +1,5 @@
+from onnxscript import graph, script
 from onnxscript import opset15 as op
-from onnxscript import script
 
 try:
 

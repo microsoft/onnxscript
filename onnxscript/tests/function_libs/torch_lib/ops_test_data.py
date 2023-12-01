@@ -46,6 +46,7 @@ from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
 from onnxscript._internal import version_utils
+from onnxscript.function_libs.torch_lib import _flags
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
@@ -556,7 +557,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "addr",
         core_ops.aten_addr,
-        tolerance={torch.float16: (1e-3, 3e-3)},
+        tolerance={torch.float16: (3e-3, 4e-3)},
     ),
     TorchLibOpInfo(
         "amax",
@@ -875,6 +876,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linspace",
         core_ops.aten_linspace,
         trace_only=True,
+        tolerance={torch.float16: (2e-2, 2e-3)},
     )
     .xfail(
         dtypes=(torch.int64, torch.int32),
@@ -882,17 +884,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         variant_name="tensor_overload",
-        dtypes=(torch.int64, torch.int32, torch.float16),
+        dtypes=(torch.int64, torch.int32),
         reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
         enabled_if=not version_utils.torch_older_than("2.2"),
-    )
-    .xfail(
-        dtypes=(torch.float16,),
-        reason="op 'Range' doesn't support float16.",
-    )
-    .skip(
-        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
-        reason="aten::linspace with steps=1 is not supported by its definition.",
     ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
@@ -990,6 +984,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="reduction_with_dim",
         reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
     )
     .xfail(
         matcher=lambda sample: len(sample.args) == 0
@@ -1194,6 +1189,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ).skip(
         matcher=lambda sample: "weight" in sample.kwargs,
         reason="this Aten overload doesn't accept weight as kwargs",
+    ),
+    TorchLibOpInfo(
+        "ops.aten.reflection_pad1d",
+        nn_ops.aten_reflection_pad1d,
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="Torch not implement reflection_pad1d for int64.",
     ),
     TorchLibOpInfo(
         "nn.functional.reflection_pad2d",
@@ -1751,6 +1753,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="reduction_with_dim",
         reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
     )
     .xfail(
         matcher=lambda sample: len(sample.args) == 0
@@ -2066,6 +2069,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         input_wrangler=_roll_input_wrangler,
     ),
     TorchLibOpInfo(
+        "roll",
+        core_ops.aten_roll_complex,
+        input_wrangler=_roll_input_wrangler,
+        trace_only=True,
+        complex=True,
+    ),
+    TorchLibOpInfo(
         "scatter_reduce",
         core_ops.aten_scatter_reduce,
         input_wrangler=_scatter_reduce_input_wrangler,
@@ -2172,6 +2182,36 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
     ),
+    TorchLibOpInfo(
+        "var",
+        core_ops.aten_var,
+        trace_only=True,
+    ).xfail(
+        # kwargs must be empty
+        matcher=lambda sample: len(sample.kwargs) > 0,
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
+    ),
+    TorchLibOpInfo(
+        "var_dim",
+        core_ops.aten_var_dim,
+        trace_only=True,
+    ).xfail(
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None
+        ),
+        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
+    ),
+    TorchLibOpInfo(
+        "var_correction",
+        core_ops.aten_var_correction,
+        trace_only=True,
+    ).skip(
+        # Don't accept input[1]=bool and 'correction' must be in kwargs
+        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
+        reason="this Aten overload only support when correction attribute exists",
+    ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
 )
 
@@ -2269,6 +2309,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softma
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "var", ("var_dim", "var_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 
