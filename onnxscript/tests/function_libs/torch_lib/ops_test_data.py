@@ -467,6 +467,17 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         complex=True,
     ),
     TorchLibOpInfo(
+        "ops.aten._fft_c2r",  # Custom from extra_opinfo
+        fft_ops.aten__fft_c2r,
+        tolerance={torch.complex64: (3e-3, 1.8e-4)},
+        trace_only=True,
+        complex=True,
+    )
+    .xfail(
+        dtypes=(torch.complex64,),
+        reason="fixme: the result is wrong: https://github.com/microsoft/onnxscript/pull/926",
+    ),
+    TorchLibOpInfo(
         "ops.aten._fft_r2c",  # Custom from extra_opinfo
         fft_ops.aten__fft_r2c,
         tolerance={torch.float64: (2e-6, 2e-6), torch.float32: (3e-2, 3e-4)},
