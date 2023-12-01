@@ -9,7 +9,11 @@ from typing import Any, List
 
 import torch
 from torch import testing as torch_testing
-from torch.testing._internal import common_dtype, common_methods_invocations
+from torch.testing._internal import (
+    common_device_type,
+    common_dtype,
+    common_methods_invocations,
+)
 from torch.testing._internal.opinfo import core as opinfo_core
 
 S = 5
@@ -1779,7 +1783,9 @@ OP_DB: List[opinfo_core.OpInfo] = [
     opinfo_core.OpInfo(
         "ops.aten._scaled_dot_product_efficient_attention",
         aten_name="_scaled_dot_product_efficient_attention",
-        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        # only support CUDA
+        dtypes=common_dtype.empty_types(),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.bfloat16),
         # NOTE: Different from aten::scaled_dot_product_attention, this op doesn't support
         #       dim<=3 input.
         sample_inputs_func=sample_inputs__scaled_dot_product_efficient_attention,
@@ -1787,6 +1793,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_forward_ad=False,
         supports_fwgrad_bwgrad=True,
         check_batched_forward_grad=False,
+        decorators=[common_device_type.onlyCUDA],
     ),
     opinfo_core.OpInfo(
         "ops.aten._native_batch_norm_legit",

@@ -1773,22 +1773,21 @@ def _aten_scaled_dot_product_efficient_attention_fillin_empty_outputs(
 ) -> Tuple[FLOAT, INT64]:
     """_scaled_dot_product_efficient_attention(Tensor query, Tensor key, Tensor value, Tensor? attn_bias, bool compute_log_sumexp, float dropout_p=0.0, bool is_causal=False, *, float? scale=None) -> (Tensor output, Tensor log_sumexp, Tensor philox_seed, Tensor philox_offset)"""
 
-    query_first_dims = op.Slice(
-        op.Shape(query), op.Constant(value_ints=[0]), op.Constant(value_ints=[1])
-    )
-    query_second_dims = op.Slice(
-        op.Shape(query), op.Constant(value_ints=[1]), op.Constant(value_ints=[2])
-    )
-    num_heads = op.Slice(
-        op.Shape(query), op.Constant(value_ints=[-1]), op.Constant(value_ints=[-2])
-    )
+    query = op.Transpose(query, perm=[0, 2, 1, 3])
+    query_shape = op.Shape(query)
+    query_first_dims = query_shape[:1]
+    query_second_dims = query_shape[1:2]
+    num_heads = query_shape[-2:-1]
 
     if compute_log_sumexp:
-        logsumexp_dim = op.Ceil(query_second_dims / 32) * 32
+        logsumexp_dim = op.Cast(
+            op.Ceil(op.Cast(query_second_dims, to=FLOAT.dtype) / 32.0) * 32.0, to=INT64.dtype
+        )
+        logsum_exp = op.Expand(
+            0.0, op.Concat(query_first_dims, num_heads, logsumexp_dim, axis=0)
+        )
     else:
-        logsumexp_dim = 0
-
-    logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, logsumexp_dim, axis=0))
+        logsum_exp = op.Expand(0.0, op.Concat(query_first_dims, num_heads, [0], axis=0))
 
     # See Note [Seed and Offset]:
     empty_tensor_int = op.Cast(
