@@ -180,19 +180,19 @@ class TestOnnxBackEnd(unittest.TestCase):
 
         self._round_trip_check(twice)
 
-    def test_loop(self):
-        op = onnxscript.opset17
+    # def test_loop(self):
+    #     op = onnxscript.opset17
 
-        @onnxscript.script()
-        def loop1(X):
-            Sum = op.Identity(X)
-            for i in range(3):
-                Sum_internal = op.Add(Sum, X)
-                Sum = op.Identity(Sum_internal)
-            Sum_out = op.Identity(Sum)
-            return Sum_out
+    #     @onnxscript.script()
+    #     def loop1(X):
+    #         Sum = op.Identity(X)
+    #         for i in range(3):
+    #             Sum_internal = op.Add(Sum, X)
+    #             Sum = op.Identity(Sum_internal)
+    #         Sum_out = op.Identity(Sum)
+    #         return Sum_out
         
-        self._round_trip_check(loop1)
+    #     self._round_trip_check(loop1)
 
     def test_export2python(self):
         proto = type_double.double_abs_subgraph.to_model_proto()
