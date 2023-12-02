@@ -256,19 +256,12 @@ class Exporter:
 
         return new_renamer
 
-    # def _push_output_remapping(self, inner_scope_vars: Sequence[onnx.ValueInfoProto], outer_scope_names: Sequence[str]) -> None:
-    #     """Pushes a new name-remapping scope."""
-    #     inner_scope_names = [x.name for x in inner_scope_vars]
-    #     assert len(outer_scope_names) == len(inner_scope_names)
-    #     target_names = [self._translate_onnx_var(x) for x in inner_scope_names]
-    #     self._name_remappings.append(dict(zip(inner_scope_names, target_names)))
-
-    def _push_name_remapping(self, inner_scope_vars: Sequence[onnx.ValueInfoProto], outer_scope_names: Sequence[str]) -> None:
+    def _bind_formals(self, formals: Sequence[onnx.ValueInfoProto], actuals: Sequence[str]) -> None:
         """Pushes a new name-remapping scope."""
-        inner_scope_names = [x.name for x in inner_scope_vars]
-        assert len(outer_scope_names) == len(inner_scope_names)
-        target_names = [self._translate_onnx_var(x) for x in outer_scope_names]
-        self._name_remappings.append(dict(zip(inner_scope_names, target_names)))
+        formal_names = [x.name for x in formals]
+        assert len(actuals) == len(formal_names)
+        target_names = [self._translate_onnx_var(x) for x in actuals]
+        self._name_remappings[-1].update(dict(zip(formal_names, target_names)))
 
     def _translate_onnx_var(self, var):
         """Converts an ONNX variable name to a python variable name."""
@@ -312,9 +305,11 @@ class Exporter:
             return f"{opset}.{name}"
         return name
 
-    def _translate_graph_body(self, graph, opsets, indent=0):
+    def _translate_graph_body(self, graph, opsets, indent=0, formals=None, actuals=None):
         """Translates a GraphProto into python."""
         self._name_remappings.append({})
+        if formals is not None and actuals is not None:
+            self._bind_formals(formals, actuals)
         code = []
         sindent = _SINGLE_INDENT * indent
         if hasattr(graph, "initializer"):
@@ -332,17 +327,13 @@ class Exporter:
             pynode = self._python_make_node(node, opsets, indent=indent)
             if pynode:
                 code.append(pynode)
-        # if output_names is not None:
-        #     for fr, to in zip(graph.output, output_names):
-        #         code.append(
-        #             f"{sindent}{self._translate_onnx_var(to)} = {self._translate_onnx_var(fr.name)}"
-        #         )
+
         self._name_remappings.pop()
         final = "\n".join(code)
         return final
 
     # def _translate_sub_graph(self, graph, opsets, indent=0, output_names):
-    #     self._push_name_remapping(graph.output, output_names)
+    #     self._bind_formals(graph.output, output_names)
 
 
     def _python_make_node_make_attribute_str(self, node):
@@ -398,19 +389,17 @@ class Exporter:
             else_branch, then_branch = atts[0].g, atts[1].g
         else:
             else_branch, then_branch = atts[1].g, atts[0].g
-        self._push_name_remapping(then_branch.output, node.output)
+
         code.append(
             self._translate_graph_body(
-                then_branch, opsets, indent=indent + 1
+                then_branch, opsets, indent=indent + 1, formals=then_branch.output, actuals=node.output
             )
         )
-        self._name_remappings.pop()
 
         code.append(f"{sindent}else:")
-        self._push_name_remapping(else_branch.output, node.output)
         code.append(
             self._translate_graph_body(
-                else_branch, opsets, indent=indent + 1
+                else_branch, opsets, indent=indent + 1, formals=else_branch.output, actuals=node.output
             )
         )
         return "\n".join(code)
@@ -420,7 +409,6 @@ class Exporter:
         body = node.attribute[0].g
         sindent = _SINGLE_INDENT * indent
         n_iter = self._translate_onnx_var(node.input[0])
-
 
         use_loop_cond = True
         cond_in = body.input[1].name
@@ -453,13 +441,23 @@ class Exporter:
                 f"Unable to export loop type {node.op_type!r} into python because "
                 "there is no stop condition."
             )
-        self._push_name_remapping(body.output, [cond] + node.input[2:])
+        # Node inputs: optional max-trip-count, condition, initial values (of dependencies)
+        # Node outputs: final values (of dependencies), scan-outputs
+        # Body inputs: iteration-count, condition, input values (of dependencies)
+        # Body outputs: condition, output values (of dependencies), scan-outputs
+
+        num_dependencies = len(node.input) - 2
+        formal_ins = body.input[1:]
+        formal_outs = body.output[:num_dependencies+1]
+        actual_ins = [cond] + node.input[2:]
+        # actual_outs = [cond] + node.input[2:]
         rows.append(
             self._translate_graph_body(
-                body, opsets, indent=indent + 1
+                body, opsets, indent=indent + 1, formals=formal_ins + formal_outs,
+                actuals=actual_ins + actual_ins
             )
         )
-        self._name_remappings.pop()
+
         for out_name, in_name in zip(node.output, node.input[2:]):
             self._name_remappings[-1][out_name] = in_name
 
