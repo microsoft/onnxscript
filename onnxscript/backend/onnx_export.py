@@ -256,8 +256,13 @@ class Exporter:
 
         return new_renamer
 
-    def _bind_formals(self, formals: Sequence[onnx.ValueInfoProto], actuals: Sequence[str]) -> None:
-        """Pushes a new name-remapping scope."""
+    def _bind_formals(
+        self, formals: Sequence[onnx.ValueInfoProto], actuals: Sequence[str]
+    ) -> None:
+        """Binds each formal to the corresponding actual.
+        This is used to translate control-flow constructs (If and Loop) to undo
+        the SSA-renaming done by ONNX.
+        """
         formal_names = [x.name for x in formals]
         assert len(actuals) == len(formal_names)
         target_names = [self._translate_onnx_var(x) for x in actuals]
@@ -306,12 +311,13 @@ class Exporter:
         return name
 
     def _translate_graph_body(self, graph, opsets, indent=0, formals=None, actuals=None):
-        """Translates a GraphProto into python."""
+        """Translates a graph body into python.
+        The graph may be the main graph (of a model) or a subgraph (of a Loop or If node).
+        """
         self._name_remappings.append({})
         if formals is not None and actuals is not None:
             self._bind_formals(formals, actuals)
         code = []
-        sindent = _SINGLE_INDENT * indent
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
                 node = make_node(
@@ -331,10 +337,6 @@ class Exporter:
         self._name_remappings.pop()
         final = "\n".join(code)
         return final
-
-    # def _translate_sub_graph(self, graph, opsets, indent=0, output_names):
-    #     self._bind_formals(graph.output, output_names)
-
 
     def _python_make_node_make_attribute_str(self, node):
         attributes = []
@@ -392,14 +394,22 @@ class Exporter:
 
         code.append(
             self._translate_graph_body(
-                then_branch, opsets, indent=indent + 1, formals=then_branch.output, actuals=node.output
+                then_branch,
+                opsets,
+                indent=indent + 1,
+                formals=then_branch.output,
+                actuals=node.output,
             )
         )
 
         code.append(f"{sindent}else:")
         code.append(
             self._translate_graph_body(
-                else_branch, opsets, indent=indent + 1, formals=else_branch.output, actuals=node.output
+                else_branch,
+                opsets,
+                indent=indent + 1,
+                formals=else_branch.output,
+                actuals=node.output,
             )
         )
         return "\n".join(code)
@@ -408,6 +418,7 @@ class Exporter:
         """Translates a node Loop into python."""
         body = node.attribute[0].g
         sindent = _SINGLE_INDENT * indent
+        rows = []
         n_iter = self._translate_onnx_var(node.input[0])
 
         use_loop_cond = True
@@ -415,7 +426,12 @@ class Exporter:
         cond_out = body.output[0].name
         for n in body.node:
             if len(n.output) == 1 and n.output[0] == cond_out:
-                if n.domain in {"", "ai.onnx"} and n.op_type == "Identity" and len(n.input) == 1 and n.input[0] == cond_in:
+                if (
+                    n.domain in {"", "ai.onnx"}
+                    and n.op_type == "Identity"
+                    and len(n.input) == 1
+                    and n.input[0] == cond_in
+                ):
                     use_loop_cond = False
                     break
 
@@ -427,7 +443,6 @@ class Exporter:
             if use_loop_cond:
                 rows.append(f"{sindent}{self._translate_onnx_var(cond)} = True")
 
-        rows = []
         if n_iter and not use_loop_cond:
             rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
         elif not n_iter and use_loop_cond:
@@ -448,16 +463,20 @@ class Exporter:
 
         num_dependencies = len(node.input) - 2
         formal_ins = body.input[1:]
-        formal_outs = body.output[:num_dependencies+1]
+        formal_outs = body.output[: num_dependencies + 1]
         actual_ins = [cond] + node.input[2:]
-        # actual_outs = [cond] + node.input[2:]
+        # Both formal_ins and formal_outs are renamed to use the same names as actual_ins.
         rows.append(
             self._translate_graph_body(
-                body, opsets, indent=indent + 1, formals=formal_ins + formal_outs,
-                actuals=actual_ins + actual_ins
+                body,
+                opsets,
+                indent=indent + 1,
+                formals=formal_ins + formal_outs,
+                actuals=actual_ins + actual_ins,
             )
         )
 
+        # The actual-outs are renamed to use the same names as actual-ins.
         for out_name, in_name in zip(node.output, node.input[2:]):
             self._name_remappings[-1][out_name] = in_name
 
@@ -468,8 +487,6 @@ class Exporter:
     def _python_make_node_scan(self, node, opsets, indent=0):
         """Translates a node Scan into python."""
         raise NotImplementedError()
-
-
 
     def _python_make_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):
