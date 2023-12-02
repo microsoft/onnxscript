@@ -190,6 +190,10 @@ class _Matcher:
 
     def same_value(self, var1, var2):
         """Match two variables (strings)."""
+        if var1 == "":
+            return var2 == ""
+        if var2 == "":
+            return False
         if var1 not in self.defmap1 or var2 not in self.defmap2:
             # If one of the variables is in current scope, or if there is no outer scope, fail
             if (var1 in self.defmap1) or (var2 in self.defmap2) or (self.outer_scope is None):
