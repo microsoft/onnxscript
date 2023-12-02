@@ -526,13 +526,17 @@ class Exporter:
             else:
                 output_names.append(self._translate_onnx_var(o))
 
+        input_names = [self._translate_onnx_var_ref(x) for x in node.input]
+        if node.op_type == "Identity" and len(node.input) == 1 and len(node.output) == 1:
+            if output_names[0] == input_names[0]:
+                return ""
         text = [
             sindent,
             ", ".join(output_names),
             " = ",
             callee_name,
             "(",
-            ", ".join(map(self._translate_onnx_var_ref, node.input)),
+            ", ".join(input_names),
             attributes_str,
             ")",
         ]
