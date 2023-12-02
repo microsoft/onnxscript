@@ -294,6 +294,29 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         return self._graph
 
     def eval(self, schema, inputs, attributes):
+        if _flags.EXPERIMENTAL_PREFER_TRACING:
+            if schema.name == "CastLike":
+                assert len(inputs) == 2
+                # Skip CastLike if the input and output types are the same
+                src_input = inputs[0]
+                target_input = inputs[1]
+                dtypes_available = (
+                    isinstance(src_input, TorchScriptTensor)
+                    and isinstance(target_input, TorchScriptTensor)
+                    and src_input.dtype is not None
+                    and target_input.dtype is not None
+                )
+                if dtypes_available:
+                    if src_input.dtype == target_input.dtype:
+                        # Same type. No cast needed
+                        return src_input
+                    else:
+                        # Create a Cast node
+                        return self._graph.add_op_call(
+                            onnx.defs.get_schema("Cast"),
+                            (src_input,),
+                            {"to": target_input.onnx_dtype},
+                        )
         return self._graph.add_op_call(schema, inputs, attributes)
 
     @runtime_typing.checked
@@ -303,6 +326,40 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         args: Sequence[ValidArgumentType],
         kwargs: Mapping[str, ValidArgumentType],
     ):
+        if _flags.EXPERIMENTAL_PREFER_TRACING:
+            # Special cases for handling IsScalar and Rank
+            if function.name == "IsScalar":
+                if len(args) != 1:
+                    raise TypeError(
+                        f"Expected 1 positional argument for function '{function}', got {len(args)}."
+                    )
+                if isinstance(args[0], TorchScriptTensor):
+                    if args[0].rank is not None:
+                        return args[0].rank == 0
+                    else:
+                        # Fall to call add_function_call
+                        pass
+                else:
+                    # Python constants are scalars
+                    return True
+            if function.name == "Rank":
+                if len(args) != 1:
+                    raise TypeError(
+                        f"Expected 1 positional argument for function '{function}', got {len(args)}."
+                    )
+                if isinstance(args[0], TorchScriptTensor):
+                    if args[0].rank is not None:
+                        return args[0].rank
+                    else:
+                        # Fall to call add_function_call
+                        pass
+                else:
+                    # Python constants are scalars
+                    return 0
+            elif function.experimental_traceable:
+                # Trace the function call instead of adding the function as a node
+                return function.function(*args, **kwargs)
+
         # args/kwargs are TorchScriptTensor/python built-in based
         param_schemas = function.param_schemas()
         (
@@ -311,13 +368,26 @@ class TorchScriptTracingEvaluator(evaluator.Evaluator):
         ) = param_manipulation.separate_input_attributes_from_arguments(
             param_schemas, args, kwargs, fill_defaults=True, allow_extra_kwargs=True
         )
-        name_to_schema = {param.name: param for param in param_schemas}
+
+        # Cast attributes to the correct type based on function signature
+        op_schema = function.op_schema
+        assert op_schema is not None
         for name, value in attributes.items():
-            param = name_to_schema[name]
-            # Cast int to float if needed
-            if param.type in {float, "float"}:
-                # FIXME(justinchuby): Create invariant on the type of param.type to simplify this
+            attribute = op_schema.attributes[name]
+            if attribute.type == onnx.defs.OpSchema.AttrType.FLOAT:
+                # Cast int to float if the attribute is FLOAT
                 attributes[name] = float(value)
+
+            # In PyTorch, an attribute annotated as `int[1]?` accepts an integer
+            # or a sequence. When the attribute is an integer, it is treated as
+            # a single element sequence. ONNX requires an attribute to either be
+            # an integer or a sequence. So we promote the value to a sequence here.
+            if attribute.type == onnx.defs.OpSchema.AttrType.INTS and isinstance(value, int):
+                attributes[name] = (value,)
+            if attribute.type == onnx.defs.OpSchema.AttrType.FLOATS and isinstance(
+                value, float
+            ):
+                attributes[name] = (value,)
         return self._graph.add_function_call(function, inputs, attributes)
 
 
@@ -972,7 +1042,7 @@ class TorchScriptGraph:
             warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
             logging.debug(
                 "ONNX model:\n%s\n\nTorchScript graph:\n%s",
-                onnxscript.proto2text(onnx_model),
+                onnx.printer.to_text(onnx_model),
                 self.torch_graph,
             )
         return onnx_model

@@ -12,9 +12,8 @@ The example below illustrates this. We first define an *onnxscript* function:
 """
 import numpy as np
 
-from onnxscript import FLOAT
+from onnxscript import FLOAT, script
 from onnxscript import opset15 as op
-from onnxscript import script
 
 
 @script()

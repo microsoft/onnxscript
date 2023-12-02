@@ -65,9 +65,8 @@ pytest onnxscript
 import onnx
 
 # We use ONNX opset 15 to define the function below.
-from onnxscript import FLOAT
+from onnxscript import FLOAT, script
 from onnxscript import opset15 as op
-from onnxscript import script
 
 
 # We use the script decorator to indicate that

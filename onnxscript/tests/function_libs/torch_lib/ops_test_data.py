@@ -46,6 +46,7 @@ from torch.testing._internal.opinfo import definitions as opinfo_definitions
 from typing_extensions import Self
 
 from onnxscript._internal import version_utils
+from onnxscript.function_libs.torch_lib import _flags
 from onnxscript.function_libs.torch_lib.ops import core as core_ops
 from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
@@ -466,6 +467,22 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         complex=True,
     ),
     TorchLibOpInfo(
+        "ops.aten._fft_c2r",  # Custom from extra_opinfo
+        fft_ops.aten__fft_c2r,
+        tolerance={torch.complex64: (3e-3, 1.8e-4)},
+        trace_only=True,
+        complex=True,
+    ).xfail(
+        dtypes=(torch.complex64,),
+        reason="fixme: the result is wrong: https://github.com/microsoft/onnxscript/pull/926",
+    ),
+    TorchLibOpInfo(
+        "ops.aten._fft_r2c",  # Custom from extra_opinfo
+        fft_ops.aten__fft_r2c,
+        tolerance={torch.float64: (2e-6, 2e-6), torch.float32: (3e-2, 3e-4)},
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
         "ops.aten._local_scalar_dense",
         core_ops.aten__local_scalar_dense,
     ),
@@ -550,7 +567,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "addr",
         core_ops.aten_addr,
-        tolerance={torch.float16: (1e-3, 3e-3)},
+        tolerance={torch.float16: (3e-3, 4e-3)},
     ),
     TorchLibOpInfo(
         "amax",
@@ -738,6 +755,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("cos", core_ops.aten_cos),
     TorchLibOpInfo("cosh", core_ops.aten_cosh),
     TorchLibOpInfo("cross", core_ops.aten_cross, tolerance={torch.float16: (6e-3, 3e-3)}),
+    TorchLibOpInfo("deg2rad", core_ops.aten_deg2rad),
     # TorchLibOpInfo("detach", core_ops.aten_detach),  # detach is not in OP-TEST-DB
     TorchLibOpInfo("diagonal", core_ops.aten_diagonal, trace_only=True),
     TorchLibOpInfo("diagonal_bool", core_ops.aten_diagonal_bool, trace_only=True),
@@ -869,6 +887,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "linspace",
         core_ops.aten_linspace,
         trace_only=True,
+        tolerance={torch.float16: (2e-2, 2e-3)},
     )
     .xfail(
         dtypes=(torch.int64, torch.int32),
@@ -876,17 +895,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         variant_name="tensor_overload",
-        dtypes=(torch.int64, torch.int32, torch.float16),
+        dtypes=(torch.int64, torch.int32),
         reason="fixme: Results do not match with PyTorch. https://github.com/microsoft/onnxscript/issues/854",
         enabled_if=not version_utils.torch_older_than("2.2"),
-    )
-    .xfail(
-        dtypes=(torch.float16,),
-        reason="op 'Range' doesn't support float16.",
-    )
-    .skip(
-        matcher=lambda sample: len(sample.args) > 1 and sample.args[1] == 1,
-        reason="aten::linspace with steps=1 is not supported by its definition.",
     ),
     TorchLibOpInfo("log", core_ops.aten_log),
     TorchLibOpInfo("le", core_ops.aten_le),
@@ -984,6 +995,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="reduction_with_dim",
         reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
     )
     .xfail(
         matcher=lambda sample: len(sample.args) == 0
@@ -1190,6 +1202,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload doesn't accept weight as kwargs",
     ),
     TorchLibOpInfo(
+        "ops.aten.reflection_pad1d",
+        nn_ops.aten_reflection_pad1d,
+    ).xfail(
+        dtypes=(torch.int64,),
+        reason="Torch not implement reflection_pad1d for int64.",
+    ),
+    TorchLibOpInfo(
         "nn.functional.reflection_pad2d",
         nn_ops.aten_reflection_pad2d,
         input_wrangler=_reflection_pad2d_input_wrangler,
@@ -1335,6 +1354,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten.randn_like_dtype", core_ops.aten_randn_like_dtype, nondeterministic=True
     ),
+    TorchLibOpInfo("rad2deg", core_ops.aten_rad2deg),
     TorchLibOpInfo("reciprocal", core_ops.aten_reciprocal),
     TorchLibOpInfo(
         "remainder",
@@ -1745,6 +1765,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         variant_name="reduction_with_dim",
         reason="fixme: ORT Graph attribute inferencing failed https://github.com/onnx/onnx/issues/4986",
         test_class_name="TestOutputConsistencyFullGraph",
+        enabled_if=not _flags.EXPERIMENTAL_PREFER_TRACING,
     )
     .xfail(
         matcher=lambda sample: len(sample.args) == 0
@@ -1997,14 +2018,32 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "ops.aten._scaled_dot_product_flash_attention",
-        nn_ops.aten_scaled_dot_product_flash_attention,
+        nn_ops.aten__scaled_dot_product_flash_attention,
         trace_only=True,
         tolerance={torch.float32: (3e-4, 1.5e-5)},
         # Output[0] is OK, but other outputs just have the same shape with zero values
         nondeterministic=True,
+        compare_shape_only_for_output=(1, 2, 3, 4, 5, 6, 7, 8),
     ).skip(
         enabled_if=version_utils.torch_older_than("2.1"),
         reason="The operator is not supported in older version.",
+    ),
+    TorchLibOpInfo(
+        "ops.aten._scaled_dot_product_efficient_attention",
+        nn_ops.aten__scaled_dot_product_efficient_attention,
+        trace_only=True,
+        tolerance={torch.float32: (3e-4, 1.5e-5)},
+        # Output[0] is OK, but other outputs just have the same shape with zero values
+        nondeterministic=True,
+        compare_shape_only_for_output=(1, 2, 3),
+    )
+    .skip(
+        enabled_if=version_utils.torch_older_than("2.1"),
+        reason="The operator is not supported in older version.",
+    )
+    .skip(
+        enabled_if=not torch.cuda.is_available(),
+        reason="_scaled_dot_product_efficient_attention only supports CUDA",
     ),
     TorchLibOpInfo(
         "nn.functional.scaled_dot_product_attention_bool_mask",
@@ -2058,6 +2097,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_roll,
         trace_only=True,
         input_wrangler=_roll_input_wrangler,
+    ),
+    TorchLibOpInfo(
+        "roll",
+        core_ops.aten_roll_complex,
+        input_wrangler=_roll_input_wrangler,
+        trace_only=True,
+        complex=True,
     ),
     TorchLibOpInfo(
         "scatter_reduce",
@@ -2128,15 +2174,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "var_mean",
         core_ops.aten_var_mean,
         trace_only=True,
-    )
-    .xfail(
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    )
-    .skip(
-        variant_name="unbiased",
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    )
-    .xfail(
+    ).xfail(
         # kwargs is empty
         matcher=lambda sample: len(sample.kwargs) > 0,
         reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
@@ -2157,11 +2195,37 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "var_mean_correction",
         core_ops.aten_var_mean_correction,
         trace_only=True,
-    )
-    .xfail(
-        reason="fixme: Inferred shape and existing shape differ in rank",
-    )
-    .skip(
+    ).skip(
+        # Don't accept input[1]=bool and 'correction' must be in kwargs
+        matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
+        reason="this Aten overload only support when correction attribute exists",
+    ),
+    TorchLibOpInfo(
+        "var",
+        core_ops.aten_var,
+        trace_only=True,
+    ).xfail(
+        # kwargs must be empty
+        matcher=lambda sample: len(sample.kwargs) > 0,
+        reason="this Aten overload only support input[0]=tensor and input[1]=bool as input without any kwargs",
+    ),
+    TorchLibOpInfo(
+        "var_dim",
+        core_ops.aten_var_dim,
+        trace_only=True,
+    ).xfail(
+        # kwargs["dim"] must exist, kwargs["correction"] must not exist
+        matcher=lambda sample: not (
+            sample.kwargs.get("dim", None) is not None
+            and sample.kwargs.get("correction", None) is None
+        ),
+        reason="this Aten overload only support with 'dim' argument and without 'correction' argument",
+    ),
+    TorchLibOpInfo(
+        "var_correction",
+        core_ops.aten_var_correction,
+        trace_only=True,
+    ).skip(
         # Don't accept input[1]=bool and 'correction' must be in kwargs
         matcher=lambda sample: len(sample.args) > 0 or "correction" not in sample.kwargs,
         reason="this Aten overload only support when correction attribute exists",
@@ -2263,6 +2327,7 @@ ops_test_common.duplicate_opinfo(OPS_DB, "ops.aten._softmax", ("ops.aten._softma
 ops_test_common.duplicate_opinfo(OPS_DB, "round", ("round_decimals",))
 ops_test_common.duplicate_opinfo(OPS_DB, "squeeze", ("squeeze_dim",))
 ops_test_common.duplicate_opinfo(OPS_DB, "var_mean", ("var_mean_dim", "var_mean_correction"))
+ops_test_common.duplicate_opinfo(OPS_DB, "var", ("var_dim", "var_correction"))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_complex", ("view_as_complex_copy",))
 ops_test_common.duplicate_opinfo(OPS_DB, "view_as_real", ("view_as_real_copy",))
 

@@ -11,6 +11,7 @@ import re
 import unittest
 from typing import Pattern
 
+import onnx
 import onnxruntime as ort
 import parameterized
 from onnxruntime.capi import onnxruntime_pybind11_state
@@ -287,7 +288,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         except Exception as e:
             raise AssertionError(
                 f"Unable to load onnx for test {backend_test.name!r}.\n"
-                f"{onnxscript.proto2text(proto)}\n"
+                f"{onnx.printer.to_text(proto)}\n"
                 f"-----\n"
                 f"{backend_test.onnx_model}"
             ) from e
@@ -312,7 +313,7 @@ class TestOnnxBackEnd(unittest.TestCase):
             except Exception as e:
                 raise AssertionError(
                     f"Unable to run test {backend_test.name!r} after conversion.\n"
-                    f"{onnxscript.proto2text(proto)}"
+                    f"{onnx.printer.to_text(proto)}"
                 ) from e
 
         backend_test.run(_load_function, _run_function)

@@ -368,6 +368,10 @@ def _onnxscript_to_numpy_value(v):
         return v.value
     if isinstance(v, list):
         return [_onnxscript_to_numpy_value(x) for x in v]
+    if isinstance(v, tuple):
+        if len(v) > 0 and type(v[0]) is int:  # noqa: E721  # pylint: disable=unidiomatic-typecheck
+            return np.array(v, dtype=np.int64)
+        return np.array(v)
     if v is None:
         # Treated as a static-optional value.
         # Dynamic optional None not yet supported.
@@ -480,7 +484,7 @@ def _call_ort(
         raise EagerModeError(
             f"Unable to create onnxruntime InferenceSession "
             f"for executing {schema.domain}.{schema.name} op "
-            f"with onnx model\n{utils.proto2text(model)}"
+            f"with onnx model\n{onnx.printer.to_text(model)}"
         ) from e
 
     try:

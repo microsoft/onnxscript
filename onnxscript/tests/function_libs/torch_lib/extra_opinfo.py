@@ -9,7 +9,11 @@ from typing import Any, List
 
 import torch
 from torch import testing as torch_testing
-from torch.testing._internal import common_dtype, common_methods_invocations
+from torch.testing._internal import (
+    common_device_type,
+    common_dtype,
+    common_methods_invocations,
+)
 from torch.testing._internal.opinfo import core as opinfo_core
 
 S = 5
@@ -190,21 +194,20 @@ def sample_inputs_convolution(op_info, device, dtype, requires_grad, **kwargs):
         )
 
 
-def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
-    del self  # Unused
+def _prepare_data_for_fft_ops(device, dtype, requires_grad=False):
     # Adapted from https://github.com/pytorch/pytorch/blob/01069ad4be449f376cf88a56d842b8eb50f6e9b6/torch/testing/_internal/opinfo/core.py#L2448C1-L2541C79
     is_fp16_or_chalf = dtype in (torch.complex32, torch.half)
     if not is_fp16_or_chalf:
-        nd_tensor = functools.partial(
+        oned_tensor = functools.partial(
             opinfo_core.make_tensor,
-            (S, S + 1, S + 2),
+            (31,),
             device=device,
             dtype=dtype,
             requires_grad=requires_grad,
         )
-        oned_tensor = functools.partial(
+        nd_tensor = functools.partial(
             opinfo_core.make_tensor,
-            (31,),
+            (S, S + 1, S + 2),
             device=device,
             dtype=dtype,
             requires_grad=requires_grad,
@@ -214,15 +217,6 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
         high = None
         shapes = ((2, 8, 9), (33,))
 
-        nd_tensor = functools.partial(
-            opinfo_core.make_tensor,
-            shapes[0],
-            device=device,
-            low=low,
-            high=high,
-            dtype=dtype,
-            requires_grad=requires_grad,
-        )
         oned_tensor = functools.partial(
             opinfo_core.make_tensor,
             shapes[1],
@@ -232,6 +226,22 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
             dtype=dtype,
             requires_grad=requires_grad,
         )
+        nd_tensor = functools.partial(
+            opinfo_core.make_tensor,
+            shapes[0],
+            device=device,
+            low=low,
+            high=high,
+            dtype=dtype,
+            requires_grad=requires_grad,
+        )
+
+    return oned_tensor, nd_tensor
+
+
+def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
 
     for normalization, forward in itertools.product((0, 1, 2), (True, False)):
         # 1-D
@@ -249,6 +259,52 @@ def sample_inputs__fft_c2c(self, device, dtype, requires_grad=False, **_):
         ]:
             yield opinfo_core.SampleInput(
                 nd_tensor(), dim=dim, normalization=normalization, forward=forward
+            )
+
+
+def sample_inputs__fft_r2c(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
+
+    for normalization, one_sided in itertools.product((0, 1, 2), (True, True)):
+        # 1-D
+        yield opinfo_core.SampleInput(
+            oned_tensor(), dim=(0,), normalization=normalization, onesided=one_sided
+        )
+        # N-D
+        for dim in [
+            (0,),
+            (1,),
+            (2,),
+            (1, 2),
+            (0, 1),
+            (0, 1, 2),
+        ]:
+            yield opinfo_core.SampleInput(
+                nd_tensor(), dim=dim, normalization=normalization, onesided=one_sided
+            )
+
+
+def sample_inputs__fft_c2r(self, device, dtype, requires_grad=False, **_):
+    del self  # Unused
+    oned_tensor, nd_tensor = _prepare_data_for_fft_ops(device, dtype, requires_grad)
+
+    for normalization in (0, 1, 2):
+        # 1-D
+        yield opinfo_core.SampleInput(
+            oned_tensor(), dim=(0,), normalization=normalization, last_dim_size=12
+        )
+        # N-D
+        for dim in [
+            (0,),
+            (1,),
+            (2,),
+            (1, 2),
+            (0, 1),
+            (0, 1, 2),
+        ]:
+            yield opinfo_core.SampleInput(
+                nd_tensor(), dim=dim, normalization=normalization, last_dim_size=6
             )
 
 
@@ -1246,7 +1302,7 @@ def sample_inputs__softmax(
         yield opinfo_core.SampleInput(make_arg(shape), args=dim, kwargs=kwargs)
 
 
-def sample_inputs_scaled_dot_product_flash_attention(
+def sample_inputs__scaled_dot_product_flash_attention(
     op_info, device, dtype, requires_grad, **kwargs
 ):
     del op_info
@@ -1286,6 +1342,41 @@ def sample_inputs_scaled_dot_product_flash_attention(
             dropout_p=0.0,
         )
     )
+
+    yield from samples
+
+
+def sample_inputs__scaled_dot_product_efficient_attention(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    del op_info
+    del kwargs
+
+    make = opinfo_core.partial(
+        opinfo_core.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+    batch, seq_q, seq_kv, num_heads, head_dim = 4, 3, 6, 4, 8
+
+    dim_4_q_shape = (batch, num_heads, seq_q, head_dim)
+    dim_4_kv_shape = (batch, num_heads, seq_kv, head_dim)
+
+    qkv_shapes = [(dim_4_q_shape, dim_4_kv_shape)]
+    samples = []
+    for qkv_shape, is_causal, dropout_p, compute_log_sumexp in opinfo_core.product(
+        qkv_shapes, [True, False], [0.0], [True, False]
+    ):
+        shape_q, shape_kv = qkv_shape
+        samples.append(
+            opinfo_core.SampleInput(
+                make(shape_q),
+                make(shape_kv),
+                make(shape_kv),
+                attn_bias=None,
+                is_causal=is_causal,
+                dropout_p=dropout_p,
+                compute_log_sumexp=compute_log_sumexp,
+            )
+        )
 
     yield from samples
 
@@ -1336,6 +1427,25 @@ def sample_inputs__native_batch_norm_legit_no_stats(
             )
 
 
+def sample_inputs_reflection_pad1d(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
+    cases: tuple = (  # ignore
+        ((2, 3), (1, 2)),
+        ((4, 5), (0, 1)),
+        ((6, 7), (1, 1)),
+        ((8, 9), (1, 0)),
+    )
+
+    make_inp = opinfo_core.partial(
+        torch.testing.make_tensor, device=device, dtype=dtype, requires_grad=requires_grad
+    )
+
+    for shape, pad in cases:
+        yield opinfo_core.SampleInput(make_inp(shape), args=(pad,))
+
+
 # NOTE: How to create an OpInfo:
 # 1. Create a function that generates sample inputs for the op.
 #    This function should yield SampleInputs.
@@ -1356,6 +1466,20 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="_fft_c2c",
         dtypes=common_dtype.complex_types(),
         sample_inputs_func=sample_inputs__fft_c2c,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._fft_c2r",
+        aten_name="_fft_c2r",
+        dtypes=common_dtype.complex_types(),
+        sample_inputs_func=sample_inputs__fft_c2r,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._fft_r2c",
+        aten_name="_fft_r2c",
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs__fft_r2c,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -1405,6 +1529,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="convolution",
         dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
         sample_inputs_func=sample_inputs_convolution,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.reflection_pad1d",
+        aten_name="ops.aten.reflection_pad1d",
+        dtypes=common_dtype.floating_and_complex_types_and(torch.int64, torch.bfloat16),
+        sample_inputs_func=sample_inputs_reflection_pad1d,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
@@ -1673,11 +1804,26 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         # NOTE: Different from aten::scaled_dot_product_attention, this op doesn't support
         #       dim<=3 input.
-        sample_inputs_func=sample_inputs_scaled_dot_product_flash_attention,
+        sample_inputs_func=sample_inputs__scaled_dot_product_flash_attention,
         supports_out=False,
         supports_forward_ad=False,
         supports_fwgrad_bwgrad=True,
         check_batched_forward_grad=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten._scaled_dot_product_efficient_attention",
+        aten_name="_scaled_dot_product_efficient_attention",
+        # only support CUDA
+        dtypes=common_dtype.empty_types(),
+        dtypesIfCUDA=common_dtype.floating_types_and(torch.bfloat16),
+        # NOTE: Different from aten::scaled_dot_product_attention, this op doesn't support
+        #       dim<=3 input.
+        sample_inputs_func=sample_inputs__scaled_dot_product_efficient_attention,
+        supports_out=False,
+        supports_forward_ad=False,
+        supports_fwgrad_bwgrad=True,
+        check_batched_forward_grad=False,
+        decorators=[common_device_type.onlyCUDA],
     ),
     opinfo_core.OpInfo(
         "ops.aten._native_batch_norm_legit",
