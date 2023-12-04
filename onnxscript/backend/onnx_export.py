@@ -326,11 +326,11 @@ class Exporter:
                     [self._translate_onnx_var(init.name)],  # type: ignore[list-item]
                     value=init,
                 )
-                code.append(self._python_make_node(node, opsets, indent=indent))
+                code.append(self._translate_node(node, opsets, indent=indent))
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
             raise NotImplementedError("Unable to convert sparse_initilizer into python.")
         for node in graph.node:
-            pynode = self._python_make_node(node, opsets, indent=indent)
+            pynode = self._translate_node(node, opsets, indent=indent)
             if pynode:
                 code.append(pynode)
 
@@ -338,7 +338,7 @@ class Exporter:
         final = "\n".join(code)
         return final
 
-    def _python_make_node_make_attribute_str(self, node):
+    def _translate_attributes(self, node):
         attributes = []
         for at in node.attribute:
             if _is_attribute_ref(at):
@@ -378,7 +378,7 @@ class Exporter:
 
         return ", ".join(f"{k}={v}" for k, v in attributes)
 
-    def _python_make_node_if(self, node, opsets, indent=0):
+    def _translate_if(self, node, opsets, indent=0):
         """Translates a node If into python."""
         sindent = _SINGLE_INDENT * indent
         code = [f"{sindent}if {node.input[0]}:"]
@@ -414,7 +414,7 @@ class Exporter:
         )
         return "\n".join(code)
 
-    def _python_make_node_loop(self, node, opsets, indent=0):
+    def _translate_loop(self, node, opsets, indent=0):
         """Translates a node Loop into python."""
         body = node.attribute[0].g
         sindent = _SINGLE_INDENT * indent
@@ -456,7 +456,7 @@ class Exporter:
                 f"Unable to export loop type {node.op_type!r} into python because "
                 "there is no stop condition."
             )
-        # Node inputs: optional max-trip-count, condition, initial values (of dependencies)
+        # Node inputs: optional max-trip-count, optional condition, initial values (of dependencies)
         # Node outputs: final values (of dependencies), scan-outputs
         # Body inputs: iteration-count, condition, input values (of dependencies)
         # Body outputs: condition, output values (of dependencies), scan-outputs
@@ -484,11 +484,11 @@ class Exporter:
 
         return "\n".join(rows)
 
-    def _python_make_node_scan(self, node, opsets, indent=0):
+    def _translate_scan(self, node, opsets, indent=0):
         """Translates a node Scan into python."""
         raise NotImplementedError()
 
-    def _python_make_node(self, onnx_node, opsets, indent=0):
+    def _translate_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):
             node = onnx_node["onnx_node"]
         else:
@@ -501,11 +501,11 @@ class Exporter:
         if node.op_type in {"If", "Loop", "Scan"}:
             # If, Loop, Scan
             if node.op_type == "If":
-                return self._python_make_node_if(node, opsets, indent=indent)
+                return self._translate_if(node, opsets, indent=indent)
             if node.op_type == "Loop":
-                return self._python_make_node_loop(node, opsets, indent=indent)
+                return self._translate_loop(node, opsets, indent=indent)
             if node.op_type == "Scan":
-                return self._python_make_node_scan(node, opsets, indent=indent)
+                return self._translate_scan(node, opsets, indent=indent)
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         if any(hasattr(att, "g") and att.g and att.g.ByteSize() > 0 for att in node.attribute):
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
@@ -533,7 +533,7 @@ class Exporter:
         callee_name = self._make_callee_name(
             node.domain, opsets[node.domain], node.op_type, node=True
         )
-        attributes_str = self._python_make_node_make_attribute_str(node)
+        attributes_str = self._translate_attributes(node)
         if len(node.input) > 0 and len(attributes_str) > 0:
             attributes_str = f", {attributes_str}"
         output_names: list[Any] = []
@@ -628,7 +628,7 @@ class Exporter:
             add_line(f'    """{funproto.doc_string}"""')
         self._name_remappings.append({})
         for node in funproto.node:
-            add_line(self._python_make_node(node, opsets, indent=1))
+            add_line(self._translate_node(node, opsets, indent=1))
         return_values = ", ".join(self._translate_onnx_var(x) for x in funproto.output)
         add_line(f"    return {return_values}")
         self._name_remappings.pop()
