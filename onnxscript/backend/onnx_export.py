@@ -213,12 +213,15 @@ def _names_used_in_function(fun: FunctionProto) -> set[str]:
     _update_names_used_in_function(names, fun)
     return names
 
-def _has_input(node: onnx.NodeProto, index: int) -> bool:
+
+def has_input(node: onnx.NodeProto, index: int) -> bool:
     """Returns True iff the node has an input at given index."""
     return index < len(node.input) and node.input[index] != ""
 
+
 def is_onnx_op(node: onnx.NodeProto, op_type: str) -> bool:
     return node.op_type == op_type and node.domain in {"", "ai.onnx"}
+
 
 def _is_used_in_graph_body(name: str, graph: GraphProto) -> bool:
     """Returns True iff the given name is used in the graph body."""
@@ -227,6 +230,7 @@ def _is_used_in_graph_body(name: str, graph: GraphProto) -> bool:
     for node in graph.node:
         _update_names_used_in_node(names, node)
     return name in names
+
 
 def _cond_is_used_in_loop_body(graph: GraphProto) -> bool:
     """Returns True iff loop requires a condition."""
@@ -243,6 +247,7 @@ def _cond_is_used_in_loop_body(graph: GraphProto) -> bool:
         if (cond_in in names) or (cond_out in names):
             return True
     return False
+
 
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
@@ -286,18 +291,6 @@ class Exporter:
 
         return new_renamer
 
-    def _bind_formals(
-        self, formals: Sequence[onnx.ValueInfoProto], actuals: Sequence[str]
-    ) -> None:
-        """Binds each formal to the corresponding actual.
-        This is used to translate control-flow constructs (If and Loop) to undo
-        the SSA-renaming done by ONNX.
-        """
-        formal_names = [x.name for x in formals]
-        assert len(actuals) == len(formal_names)
-        target_names = [self._translate_onnx_var(x) for x in actuals]
-        self._name_remappings[-1].update(dict(zip(formal_names, target_names)))
-
     def _translate_onnx_var(self, var):
         """Converts an ONNX variable name to a python variable name."""
         if isinstance(var, ValueInfoProto):
@@ -340,13 +333,10 @@ class Exporter:
             return f"{opset}.{name}"
         return name
 
-    def _translate_graph_body(self, graph, opsets, indent=0, formals=None, actuals=None):
+    def _translate_graph_body(self, graph, opsets, indent=0):
         """Translates a graph body into python.
         The graph may be the main graph (of a model) or a subgraph (of a Loop or If node).
         """
-        # self._name_remappings.append({})
-        # if formals is not None and actuals is not None:
-        #     self._bind_formals(formals, actuals)
         code = []
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
@@ -364,7 +354,6 @@ class Exporter:
             if pynode:
                 code.append(pynode)
 
-        # self._name_remappings.pop()
         final = "\n".join(code)
         return final
 
@@ -427,11 +416,9 @@ class Exporter:
                 then_branch,
                 opsets,
                 indent=indent + 1,
-                formals=then_branch.output,
-                actuals=node.output,
             )
         )
-        code.extend(self._emit_assign(node.output, then_branch.output, indent+1))
+        code.extend(self._emit_assign(node.output, then_branch.output, indent + 1))
 
         code.append(f"{sindent}else:")
         code.append(
@@ -439,11 +426,9 @@ class Exporter:
                 else_branch,
                 opsets,
                 indent=indent + 1,
-                formals=else_branch.output,
-                actuals=node.output,
             )
         )
-        code.extend(self._emit_assign(node.output, else_branch.output, indent+1))
+        code.extend(self._emit_assign(node.output, else_branch.output, indent + 1))
         return "\n".join(code)
 
     def _emit_assign(self, lhs, rhs, indent):
@@ -451,13 +436,16 @@ class Exporter:
             if isinstance(x, ValueInfoProto):
                 x = x.name
             return self._translate_onnx_var(x)
+
         sindent = _SINGLE_INDENT * indent
+
         def assign(l, r):
             return f"{sindent}{to_var(l)} = {to_var(r)}"
+
         if isinstance(lhs, (str, ValueInfoProto)):
             return [assign(lhs, rhs)]
         return [assign(l, r) for l, r in zip(lhs, rhs)]
-    
+
     def _translate_loop(self, node, opsets, indent=0):
         """Translates a node Loop into python."""
         body = node.attribute[0].g
@@ -469,8 +457,8 @@ class Exporter:
         # Body inputs: iteration-count, condition, input values (of dependencies)
         # Body outputs: condition, output values (of dependencies), scan-outputs
 
-        onnx_iter_var = body.input[0].name        
-        if _has_input(node, 0):
+        onnx_iter_var = body.input[0].name
+        if has_input(node, 0):
             use_iter_var = True
             n_iter = self._translate_onnx_var(node.input[0])
         else:
@@ -482,7 +470,7 @@ class Exporter:
         cond_out = body.output[0].name
         py_cond = self._translate_onnx_var(cond_in)
         use_loop_cond = True  # TODO
-        if _has_input(node, 1):
+        if has_input(node, 1):
             rows.extend(self._emit_assign(cond_in, node.input[1], indent))
         else:
             use_loop_cond = _cond_is_used_in_loop_body(body)
@@ -492,13 +480,15 @@ class Exporter:
         actual_ins = node.input[2:]
         formal_ins = body.input[2:]
         formal_outs = body.output[1 : num_state_vars + 1]
-        actual_outs = node.output[0 : num_state_vars]
+        actual_outs = node.output[0:num_state_vars]
 
         rows.extend(self._emit_assign(formal_ins, actual_ins, indent))
 
         if use_iter_var and not use_loop_cond:
             rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
-            # TODO: a simple hack to eliminate generation of "cond_out = cond_in"
+            # The following is a hacky way to suppress the generation of
+            # "cond_out = cond_in", which ONNX forces for a FOR loop.
+            # TODO: a cleaner solution for this.
             self._name_remappings[-1][cond_out] = self._translate_onnx_var(cond_in)
         elif not use_iter_var and use_loop_cond:
             rows.append(f"{sindent}while {py_cond}:")
@@ -512,19 +502,17 @@ class Exporter:
                 f"Unable to export loop type {node.op_type!r} into python because "
                 "there is no stop condition."
             )
-        
+
         rows.append(
             self._translate_graph_body(
                 body,
                 opsets,
                 indent=indent + 1,
-                formals=formal_ins + formal_outs,
-                actuals=actual_ins + actual_ins,
             )
         )
         if use_loop_cond:
-            rows.extend(self._emit_assign(cond_in, cond_out, indent+1))
-        rows.extend(self._emit_assign(formal_ins, formal_outs, indent+1))
+            rows.extend(self._emit_assign(cond_in, cond_out, indent + 1))
+        rows.extend(self._emit_assign(formal_ins, formal_outs, indent + 1))
         rows.extend(self._emit_assign(actual_outs, formal_ins, indent))
 
         # TODO: This doesn't handle scan-outputs yet.
@@ -591,6 +579,9 @@ class Exporter:
                 output_names.append(self._translate_onnx_var(o))
 
         input_names = [self._translate_onnx_var_ref(x) for x in node.input]
+
+        # Suppress generation of redundant copy: used to suppress "cond_out = cond_in"
+        # from an ONNX FOR loop, which can cause problems in python.
         if node.op_type == "Identity" and len(node.input) == 1 and len(node.output) == 1:
             if output_names[0] == input_names[0]:
                 return ""
