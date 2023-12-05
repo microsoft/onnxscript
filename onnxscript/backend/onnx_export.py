@@ -425,7 +425,11 @@ class Exporter:
                 x = x.name
             return self._translate_onnx_var(x)
         sindent = _SINGLE_INDENT * indent
-        return [f"{sindent}{to_var(l)} = {to_var(r)}" for l, r in zip(lhs, rhs)]
+        def assign(l, r):
+            return f"{sindent}{to_var(l)} = {to_var(r)}"
+        if isinstance(lhs, (str, ValueInfoProto)):
+            return [assign(lhs, rhs)]
+        return [assign(l, r) for l, r in zip(lhs, rhs)]
     
     def _translate_loop(self, node, opsets, indent=0):
         """Translates a node Loop into python."""
@@ -442,34 +446,32 @@ class Exporter:
             n_iter = self._translate_onnx_var(node.input[0])
         else:
             n_iter = None
-
-        if _has_input(node, 1):
-            cond = node.input[1]
-            py_cond = self._translate_onnx_var(cond)
-        else:
-            cond = cond_in
-            py_cond = self._translate_onnx_var(cond)
-            rows.append(f"{sindent}{py_cond} = True")
-
-        num_state_vars = max(len(node.input) - 2, 0)
+        iter_var = self._translate_onnx_var(body.input[0].name)
 
         cond_in = body.input[1].name
         cond_out = body.output[0].name
-        actual_ins = [cond] + node.input[2:]
-        formal_ins = body.input[1:]
-        formal_outs = body.output[0 : num_state_vars + 1]
+        py_cond = self._translate_onnx_var(cond_in)
+        if _has_input(node, 1):
+            rows.extend(self._emit_assign(cond_in, node.input[1], indent))
+        else:
+            rows.append(f"{sindent}{py_cond} = True")
+
+        num_state_vars = max(len(node.input) - 2, 0)
+        actual_ins = node.input[2:]
+        formal_ins = body.input[2:]
+        formal_outs = body.output[1 : num_state_vars + 1]
         actual_outs = node.output[0 : num_state_vars]
 
         rows.extend(self._emit_assign(formal_ins, actual_ins, indent))
 
         use_loop_cond = True  # TODO
         if n_iter and not use_loop_cond:
-            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
         elif not n_iter and use_loop_cond:
-            rows.append(f"{sindent}while {cond}:")
+            rows.append(f"{sindent}while {py_cond}:")
         elif n_iter and use_loop_cond:
-            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
-            rows.append(f"{sindent}{_SINGLE_INDENT}if not {cond}:")
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
+            rows.append(f"{sindent}{_SINGLE_INDENT}if not {py_cond}:")
             rows.append(f"{sindent}{_SINGLE_INDENT * 2}break")
         else:
             raise RuntimeError(
@@ -486,7 +488,7 @@ class Exporter:
                 actuals=actual_ins + actual_ins,
             )
         )
-        rows.extend(self._emit_assign(formal_ins, formal_outs, indent+1))
+        rows.extend(self._emit_assign(formal_ins + [cond_in], formal_outs + [cond_out], indent+1))
         rows.extend(self._emit_assign(actual_outs, formal_ins, indent))
 
         # TODO: This doesn't handle scan-outputs yet.
