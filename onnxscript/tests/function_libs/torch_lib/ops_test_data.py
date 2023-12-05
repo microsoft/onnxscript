@@ -1233,9 +1233,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "ops.aten.replication_pad1d",
         nn_ops.aten_replication_pad1d,
-    ).xfail(
-        dtypes=(torch.int64,),
-        reason="Torch not implement reflection_pad1d for int64.",
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad2d",
