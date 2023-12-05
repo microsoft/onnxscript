@@ -1231,6 +1231,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     TorchLibOpInfo(
+        "ops.aten.replication_pad1d",
+        nn_ops.aten_replication_pad1d,
+    ),
+    TorchLibOpInfo(
         "nn.functional.replication_pad2d",
         nn_ops.aten_replication_pad2d,
         input_wrangler=_replication_pad2d_input_wrangler,
