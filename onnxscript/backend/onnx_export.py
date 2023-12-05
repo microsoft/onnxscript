@@ -213,6 +213,9 @@ def _names_used_in_function(fun: FunctionProto) -> set[str]:
     _update_names_used_in_function(names, fun)
     return names
 
+def _has_input(node: onnx.NodeProto, index: int) -> bool:
+    """Returns True iff the node has an input at given index."""
+    return index < len(node.input) and node.input[index] != ""
 
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
@@ -314,9 +317,9 @@ class Exporter:
         """Translates a graph body into python.
         The graph may be the main graph (of a model) or a subgraph (of a Loop or If node).
         """
-        self._name_remappings.append({})
-        if formals is not None and actuals is not None:
-            self._bind_formals(formals, actuals)
+        # self._name_remappings.append({})
+        # if formals is not None and actuals is not None:
+        #     self._bind_formals(formals, actuals)
         code = []
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
@@ -334,7 +337,7 @@ class Exporter:
             if pynode:
                 code.append(pynode)
 
-        self._name_remappings.pop()
+        # self._name_remappings.pop()
         final = "\n".join(code)
         return final
 
@@ -401,6 +404,7 @@ class Exporter:
                 actuals=node.output,
             )
         )
+        code.extend(self._emit_assign(node.output, then_branch.output, indent+1))
 
         code.append(f"{sindent}else:")
         code.append(
@@ -412,60 +416,67 @@ class Exporter:
                 actuals=node.output,
             )
         )
+        code.extend(self._emit_assign(node.output, else_branch.output, indent+1))
         return "\n".join(code)
 
+    def _emit_assign(self, lhs, rhs, indent):
+        def to_var(x):
+            if isinstance(x, ValueInfoProto):
+                x = x.name
+            return self._translate_onnx_var(x)
+        sindent = _SINGLE_INDENT * indent
+        return [f"{sindent}{to_var(l)} = {to_var(r)}" for l, r in zip(lhs, rhs)]
+    
     def _translate_loop(self, node, opsets, indent=0):
         """Translates a node Loop into python."""
         body = node.attribute[0].g
         sindent = _SINGLE_INDENT * indent
         rows = []
-        n_iter = self._translate_onnx_var(node.input[0])
 
-        use_loop_cond = True
+        # Node inputs: optional max-trip-count, optional condition, initial values (of dependencies)
+        # Node outputs: final values (of dependencies), scan-outputs
+        # Body inputs: iteration-count, condition, input values (of dependencies)
+        # Body outputs: condition, output values (of dependencies), scan-outputs
+
+        if _has_input(node, 0):
+            n_iter = self._translate_onnx_var(node.input[0])
+        else:
+            n_iter = None
+
+        if _has_input(node, 1):
+            cond = node.input[1]
+            py_cond = self._translate_onnx_var(cond)
+        else:
+            cond = cond_in
+            py_cond = self._translate_onnx_var(cond)
+            rows.append(f"{sindent}{py_cond} = True")
+
+        num_state_vars = max(len(node.input) - 2, 0)
+
         cond_in = body.input[1].name
         cond_out = body.output[0].name
-        for n in body.node:
-            if len(n.output) == 1 and n.output[0] == cond_out:
-                if (
-                    n.domain in {"", "ai.onnx"}
-                    and n.op_type == "Identity"
-                    and len(n.input) == 1
-                    and n.input[0] == cond_in
-                ):
-                    use_loop_cond = False
-                    break
+        actual_ins = [cond] + node.input[2:]
+        formal_ins = body.input[1:]
+        formal_outs = body.output[0 : num_state_vars + 1]
+        actual_outs = node.output[0 : num_state_vars]
 
-        if len(node.input) > 1 and node.input[1] != "":
-            cond = self._translate_onnx_var(node.input[1])
-        else:
-            # Generate a new variable for the condition:
-            cond = cond_out  # TODO: clean this up
-            if use_loop_cond:
-                rows.append(f"{sindent}{self._translate_onnx_var(cond)} = True")
+        rows.extend(self._emit_assign(formal_ins, actual_ins, indent))
 
+        use_loop_cond = True  # TODO
         if n_iter and not use_loop_cond:
             rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
         elif not n_iter and use_loop_cond:
             rows.append(f"{sindent}while {cond}:")
         elif n_iter and use_loop_cond:
             rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
-            rows.append(f"{sindent}    if not {cond}:")
-            rows.append(f"{sindent}        break")
+            rows.append(f"{sindent}{_SINGLE_INDENT}if not {cond}:")
+            rows.append(f"{sindent}{_SINGLE_INDENT * 2}break")
         else:
             raise RuntimeError(
                 f"Unable to export loop type {node.op_type!r} into python because "
                 "there is no stop condition."
             )
-        # Node inputs: optional max-trip-count, optional condition, initial values (of dependencies)
-        # Node outputs: final values (of dependencies), scan-outputs
-        # Body inputs: iteration-count, condition, input values (of dependencies)
-        # Body outputs: condition, output values (of dependencies), scan-outputs
-
-        num_dependencies = len(node.input) - 2
-        formal_ins = body.input[1:]
-        formal_outs = body.output[: num_dependencies + 1]
-        actual_ins = [cond] + node.input[2:]
-        # Both formal_ins and formal_outs are renamed to use the same names as actual_ins.
+        
         rows.append(
             self._translate_graph_body(
                 body,
@@ -475,10 +486,8 @@ class Exporter:
                 actuals=actual_ins + actual_ins,
             )
         )
-
-        # The actual-outs are renamed to use the same names as actual-ins.
-        for out_name, in_name in zip(node.output, node.input[2:]):
-            self._name_remappings[-1][out_name] = in_name
+        rows.extend(self._emit_assign(formal_ins, formal_outs, indent+1))
+        rows.extend(self._emit_assign(actual_outs, formal_ins, indent))
 
         # TODO: This doesn't handle scan-outputs yet.
 
