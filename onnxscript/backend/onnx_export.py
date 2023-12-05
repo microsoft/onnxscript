@@ -217,6 +217,33 @@ def _has_input(node: onnx.NodeProto, index: int) -> bool:
     """Returns True iff the node has an input at given index."""
     return index < len(node.input) and node.input[index] != ""
 
+def is_onnx_op(node: onnx.NodeProto, op_type: str) -> bool:
+    return node.op_type == op_type and node.domain in {"", "ai.onnx"}
+
+def _is_used_in_graph_body(name: str, graph: GraphProto) -> bool:
+    """Returns True iff the given name is used in the graph body."""
+    # TODO: This is an approximation.
+    names: set[str] = set()
+    for node in graph.node:
+        _update_names_used_in_node(names, node)
+    return name in names
+
+def _cond_is_used_in_loop_body(graph: GraphProto) -> bool:
+    """Returns True iff loop requires a condition."""
+    cond_in = graph.input[1].name
+    cond_out = graph.output[0].name
+    for node in graph.node:
+        # Ignore "cond_out = Identity(cond_in)" node
+        if is_onnx_op(node, "Identity") and len(node.input) == 1 and len(node.output) == 1:
+            if node.input[0] == cond_in and node.output[0] == cond_out:
+                continue
+        names: set[str] = set()
+        # TODO: The following is an approximation-based check
+        _update_names_used_in_node(names, node)
+        if (cond_in in names) or (cond_out in names):
+            return True
+    return False
+
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
 
@@ -442,19 +469,24 @@ class Exporter:
         # Body inputs: iteration-count, condition, input values (of dependencies)
         # Body outputs: condition, output values (of dependencies), scan-outputs
 
+        onnx_iter_var = body.input[0].name        
         if _has_input(node, 0):
+            use_iter_var = True
             n_iter = self._translate_onnx_var(node.input[0])
         else:
+            use_iter_var = _is_used_in_graph_body(onnx_iter_var, body)
             n_iter = None
-        iter_var = self._translate_onnx_var(body.input[0].name)
+        iter_var = self._translate_onnx_var(onnx_iter_var)
 
         cond_in = body.input[1].name
         cond_out = body.output[0].name
         py_cond = self._translate_onnx_var(cond_in)
+        use_loop_cond = True  # TODO
         if _has_input(node, 1):
             rows.extend(self._emit_assign(cond_in, node.input[1], indent))
         else:
-            rows.append(f"{sindent}{py_cond} = True")
+            use_loop_cond = _cond_is_used_in_loop_body(body)
+            # rows.append(f"{sindent}{py_cond} = True")
 
         num_state_vars = max(len(node.input) - 2, 0)
         actual_ins = node.input[2:]
@@ -464,12 +496,14 @@ class Exporter:
 
         rows.extend(self._emit_assign(formal_ins, actual_ins, indent))
 
-        use_loop_cond = True  # TODO
-        if n_iter and not use_loop_cond:
+        if use_iter_var and not use_loop_cond:
             rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
-        elif not n_iter and use_loop_cond:
+            # TODO: a simple hack to eliminate generation of "cond_out = cond_in"
+            self._name_remappings[-1][cond_out] = self._translate_onnx_var(cond_in)
+        elif not use_iter_var and use_loop_cond:
             rows.append(f"{sindent}while {py_cond}:")
-        elif n_iter and use_loop_cond:
+        elif use_iter_var and use_loop_cond:
+            # TODO: This needs fixing
             rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
             rows.append(f"{sindent}{_SINGLE_INDENT}if not {py_cond}:")
             rows.append(f"{sindent}{_SINGLE_INDENT * 2}break")
@@ -488,7 +522,9 @@ class Exporter:
                 actuals=actual_ins + actual_ins,
             )
         )
-        rows.extend(self._emit_assign(formal_ins + [cond_in], formal_outs + [cond_out], indent+1))
+        if use_loop_cond:
+            rows.extend(self._emit_assign(cond_in, cond_out, indent+1))
+        rows.extend(self._emit_assign(formal_ins, formal_outs, indent+1))
         rows.extend(self._emit_assign(actual_outs, formal_ins, indent))
 
         # TODO: This doesn't handle scan-outputs yet.
