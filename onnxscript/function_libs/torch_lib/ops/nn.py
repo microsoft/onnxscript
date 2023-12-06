@@ -1496,10 +1496,18 @@ def aten_relu6(self: TReal) -> TReal:
     return op.Min(op.Relu(self), six)
 
 
+@torch_op("aten::replication_pad1d")
 def aten_replication_pad1d(self: TensorType, padding: INT64) -> TensorType:
     """replication_pad1d(Tensor self, SymInt[2] padding) -> Tensor"""
 
-    raise NotImplementedError()
+    # assert len(padding) == 2
+    # Input of padding argument should be [x,y], need change to onnx format [0, x, 0, y]
+    start = op.Slice(padding, [0], [1], axes=[0])
+    end = op.Slice(padding, [1], [2], axes=[0])
+    padding_onnx = op.Concat(
+        op.Constant(value_ints=[0]), start, op.Constant(value_ints=[0]), end, axis=0
+    )
+    return op.Pad(self, padding_onnx, mode="edge")
 
 
 def aten_replication_pad1d_backward(
@@ -1908,8 +1916,8 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
 
     # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
     # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
-    query_scaled = op.Mul(query, op.Sqrt(scale))
-    key_transposed_scaled = op.Mul(key_transposed, op.Sqrt(scale))
+    query_scaled = op.Mul(query, op.CastLike(op.Sqrt(scale), query))
+    key_transposed_scaled = op.Mul(key_transposed, op.CastLike(op.Sqrt(scale), key_transposed))
     attn_weight = op.Softmax(
         op.MatMul(query_scaled, key_transposed_scaled),
         axis=-1,
