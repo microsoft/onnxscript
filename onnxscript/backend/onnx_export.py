@@ -444,7 +444,7 @@ class Exporter:
 
         if isinstance(lhs, (str, ValueInfoProto)):
             return [assign(lhs, rhs)]
-        return [assign(l, r) for l, r in zip(lhs, rhs)]
+        return [assign(x, y) for x, y in zip(lhs, rhs)]
 
     def _translate_loop(self, node, opsets, indent=0):
         """Translates a node Loop into python."""
