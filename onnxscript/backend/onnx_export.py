@@ -96,8 +96,8 @@ def _cleanup_variable_name(name: ValueInfoProto | str) -> str:
         name = f"__{name}"
 
     def rename_char(char):
-        """Replace invalid character by double underscore."""
-        return char if (char.isalnum() or (char == "_")) else "__"
+        """Replace invalid character by underscore."""
+        return char if (char.isalnum() or (char == "_")) else "_"
 
     return "".join([rename_char(c) for c in name])
 
