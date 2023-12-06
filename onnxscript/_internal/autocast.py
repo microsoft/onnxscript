@@ -160,7 +160,7 @@ def cast_pyvalue_to_os_tensor(pyvalue, dtype=None):
 def cast_inputs(
     get_type_info: Callable[[Any], Any],
     cast: Callable[[Any, Any], Any],
-    op_schema: OpSchema,
+    op_schema: OpSchema | None,
     args,
 ) -> tuple[Any, ...]:
     """Uses schema specification to support a limited form of auto-casting.
