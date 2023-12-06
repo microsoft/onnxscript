@@ -439,8 +439,8 @@ class Exporter:
 
         sindent = _SINGLE_INDENT * indent
 
-        def assign(l, r):
-            return f"{sindent}{to_var(l)} = {to_var(r)}"
+        def assign(lhs_var: str, rhs_var: str):
+            return f"{sindent}{to_var(lhs_var)} = {to_var(rhs_var)}"
 
         if isinstance(lhs, (str, ValueInfoProto)):
             return [assign(lhs, rhs)]

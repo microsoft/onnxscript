@@ -187,7 +187,7 @@ class TestOnnxBackEnd(unittest.TestCase):
         @onnxscript.script()
         def loop1(X, N):
             Sum = op.Identity(X)
-            for i in range(N):
+            for _ in range(N):
                 Sum = op.Add(Sum, X)
             return Sum
 
