@@ -70,6 +70,33 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
             yield opinfo_core.SampleInput(t, kwargs={"p": p})
 
 
+def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kwargs):
+    N, C = 2, 3
+    D = 4
+    S = 3
+    L = 5
+
+    align_corners_options = (True, False, None)
+    rank = 2
+
+    def shape(size, rank, with_batch_channel=True):
+        if with_batch_channel:
+            return tuple([N, C] + ([size] * rank))
+        return tuple([size] * rank)
+
+    make_arg = functools.partial(torch_testing.make_tensor, device=device, dtype=dtype,
+                       requires_grad=requires_grad, low=-1, high=1)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), True)
+
+    # for align_corners in align_corners_options:
+    #     yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), None, align_corners)
+    #     yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), None, align_corners)
+    #     for recompute_scale_factor in [False, True]:
+    #         yield opinfo_core.SampleInput(make_arg(shape(D, rank)), None, 1.7, align_corners, recompute_scale_factor=recompute_scale_factor)
+    #         yield opinfo_core.SampleInput(make_arg(shape(D, rank)), None, 0.6, align_corners, recompute_scale_factor=recompute_scale_factor)
+
+
+
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     # input_shape, output_size, kernal, dilation, padding, stride
@@ -1495,6 +1522,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="bernoulli.p",
         dtypes=common_dtype.all_types(),
         sample_inputs_func=sample_inputs_bernoulli_p_deterministic,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.upsample_bicubic2d",
+        aten_name="upsample_bicubic2d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_bicubic2d,
         supports_out=False,
     ),
     opinfo_core.OpInfo(
