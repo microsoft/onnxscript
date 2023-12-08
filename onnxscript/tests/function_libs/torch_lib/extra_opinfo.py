@@ -71,6 +71,9 @@ def sample_inputs_bernoulli_p_deterministic(op_info, device, dtype, requires_gra
 
 
 def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+
     N, C = 2, 3
     D = 4
     S = 3
@@ -92,14 +95,31 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
         low=-1,
         high=1
     )
-    #yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), True)
+
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), True)
 
     for align_corners in align_corners_options:
-        yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), align_corners)
-        yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(L, rank, False), align_corners)
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners
+        )
         for recompute_scale_factor in [False, True]:
-            yield opinfo_core.SampleInput(make_arg(shape(D, rank)), None, 1.7, align_corners, recompute_scale_factor=recompute_scale_factor)
-            yield opinfo_core.SampleInput(make_arg(shape(D, rank)), None, 0.6, align_corners, recompute_scale_factor=recompute_scale_factor)
+            yield opinfo_core.SampleInput(
+                make_arg(shape(D, rank)),
+                None,
+                1.7,
+                align_corners,
+                recompute_scale_factor=recompute_scale_factor
+            )
+            yield opinfo_core.SampleInput(
+                make_arg(shape(D, rank)),
+                None,
+                0.6,
+                align_corners,
+                recompute_scale_factor=recompute_scale_factor
+            )
 
 
 
