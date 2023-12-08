@@ -122,7 +122,6 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
             )
 
 
-
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     # input_shape, output_size, kernal, dilation, padding, stride
