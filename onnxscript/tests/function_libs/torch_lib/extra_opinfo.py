@@ -76,7 +76,7 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
 
     N, C = 2, 3
     D = 4
-    S = 3
+    SS = 3
     L = 5
 
     align_corners_options = (True, False, None)
@@ -93,10 +93,10 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
         dtype=dtype,
         requires_grad=requires_grad,
         low=-1,
-        high=1
+        high=1,
     )
 
-    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(S, rank, False), True)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
 
     for align_corners in align_corners_options:
         yield opinfo_core.SampleInput(
@@ -111,14 +111,14 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
                 None,
                 1.7,
                 align_corners,
-                recompute_scale_factor=recompute_scale_factor
+                recompute_scale_factor=recompute_scale_factor,
             )
             yield opinfo_core.SampleInput(
                 make_arg(shape(D, rank)),
                 None,
                 0.6,
                 align_corners,
-                recompute_scale_factor=recompute_scale_factor
+                recompute_scale_factor=recompute_scale_factor,
             )
 
 
