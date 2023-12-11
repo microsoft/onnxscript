@@ -2440,6 +2440,11 @@ def aten_diagonal(self: TReal, offset: int = 0, dim1: int = 0, dim2: int = 1) ->
     # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
     # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
     # [0,1,2] -> [0,1,2] when dim1=1 and dim2=2
+    if dim1 < 0:
+        dim1 = dim1 + len(self.shape)
+    if dim2 < 0:
+        dim2 = dim2 + len(self.shape)
+
     self_rank = len(self.shape)
     perm = list(range(self_rank))
     perm.remove(dim1)
@@ -2514,6 +2519,11 @@ def aten_diagonal_bool(self: BOOL, offset: int = 0, dim1: int = 0, dim2: int = 1
     # [0,1,2] -> [2,0,1] when dim1=0 and dim2=1
     # [0,1,2] -> [1,0,2] when dim1=0 and dim2=2
     # [0,1,2] -> [0,1,2] when dim1=1 and dim2=2
+    if dim1 < 0:
+        dim1 = dim1 + len(self.shape)
+    if dim2 < 0:
+        dim2 = dim2 + len(self.shape)
+
     self_rank = len(self.shape)
     perm = list(range(self_rank))
     perm.remove(dim1)
