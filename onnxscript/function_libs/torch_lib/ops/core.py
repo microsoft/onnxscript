@@ -2849,7 +2849,7 @@ def _aten_embedding_bag_onnx(
 
     # Assume indices is shape(5,2) reshape to (10,), offsets=[0,2,3], include_last_offset = False
     # [0,2,3] -> [0:2], [2:3], [3:10]
-    num_bag = op.Reshape(op.Size(offsets), neg_1)  # 3 bags, means 10 is the last index
+    num_bag = op.Size(offsets)  # 3 bags, means 10 is the last index
     if op.Equal(include_last_offset, True):
         num_bag = num_bag - 1  # 2 bags, means 3 is the last index
     else:
@@ -2860,12 +2860,13 @@ def _aten_embedding_bag_onnx(
     # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
     result = op.SequenceEmpty()
 
-    index_tensor = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
+    index_tensor = op.Constant(value_int=0)  # Used for iterator
     cond = index_tensor < num_bag
     # Process each bag
     while cond:
-        start = op.Slice(offsets, index_tensor, index_tensor + 1)
-        end = op.Slice(offsets, index_tensor + 1, index_tensor + 2)
+        slice_index = op.Reshape(index_tensor, neg_1)
+        start = op.Slice(offsets, slice_index, slice_index + 1)
+        end = op.Slice(offsets, slice_index + 1, slice_index + 2)
         # row_result should be 0, need to generate (1,N) shape tensor with 0 values
         if start == end:
             row_result = op.Expand(
@@ -2989,7 +2990,7 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
     # FIXME: https://github.com/microsoft/onnxruntime/issues/16846
     result = op.SequenceEmpty()
 
-    num_bag = op.Reshape(op.Size(offsets), neg_1)
+    num_bag = op.Size(offsets)
     idx_size = op.Reshape(op.Size(indices), neg_1)
 
     if op.Equal(include_last_offset, True):
@@ -3002,7 +3003,7 @@ def _aten_embedding_bag_1d_padding_idx_onnx(
         offsets = op.Concat(offsets, idx_size, axis=0)
 
     # Process each bag
-    i = op.Reshape(op.Constant(value_int=0), neg_1)  # Used for iterator
+    i = op.Constant(value_int=0)  # Used for iterator
     cond_1 = i < num_bag
     while cond_1:
         start_pos = op.Gather(offsets, i)
@@ -8174,12 +8175,12 @@ def _aten_unfold_onnx(
     self: TTensor, dim: int, size: int, step: int, target_end: int, perm: Sequence[int]
 ) -> TTensor:
     dims = op.Reshape(op.Constant(value_int=dim), op.Constant(value_ints=[-1]))
-    # FIXME: the dtype for this function cannot work, default to float
+    # FIXME(justinchuby): obtain the dtype for SequenceEmpty, currently it assumes float
     seq_result = op.SequenceEmpty()
-    i = op.Constant(value_ints=[0])
+    i = op.Constant(value_int=0)
     cond = i < target_end
     while cond:  # because for loop cannot work here, so use while loop
-        starts = i * step  # starts is [0, step, step*2, step*3, ...]
+        starts = op.Reshape(i * step, [-1])  # starts is [0, step, step*2, step*3, ...]
         ends = starts + size  # ends is [0+size, step+size, step*2+size, step*3+size, ...]
         slice_result = op.Slice(self, starts, ends, dims)
         # sequence only support float32
