@@ -5555,13 +5555,15 @@ def aten_native_batch_norm(
     """native_batch_norm(Tensor input, Tensor? weight, Tensor? bias, Tensor? running_mean, Tensor? running_var, bool training, float momentum, float eps) -> (Tensor, Tensor, Tensor)"""
 
     if weight is None:  # Set to 1.0 as default
-        weight = op.CastLike(
-            op.Expand(op.Constant(value_floats=[1.0]), op.Shape(input, start=1, end=2)), input
+        weight = op.Expand(
+            op.CastLike(op.Constant(value_floats=[1.0]), input),
+            op.Shape(input, start=1, end=2),
         )
 
     if bias is None:  # Set to 0.0 as default
-        bias = op.CastLike(
-            op.Expand(op.Constant(value_floats=[0.0]), op.Shape(input, start=1, end=2)), input
+        bias = op.Expand(
+            op.CastLike(op.Constant(value_floats=[0.0]), input),
+            op.Shape(input, start=1, end=2),
         )
 
     axes = list(range(len(input.shape)))
@@ -5613,6 +5615,8 @@ def _aten_native_batch_norm_training_onnx(
         training_mode=training,
     )
     # Compute var and rstd
+    # Mean, var, and rstd computation and results are expected to be
+    # in higher precision when inputs are float16.
     upcast_input = op.Cast(input, to=FLOAT.dtype)
     mean = op.ReduceMean(upcast_input, axes)
     input_sub_mean = op.Sub(upcast_input, mean)
@@ -5729,6 +5733,8 @@ def _aten__native_batch_norm_training_functional_onnx(
         training_mode=training,
     )
     # Compute var and rstd
+    # Mean, var, and rstd computation and results are expected to be
+    # in higher precision when inputs are float16.
     upcast_input = op.Cast(input, to=FLOAT.dtype)
     mean = op.ReduceMean(upcast_input, axes)
     input_sub_mean = op.Sub(upcast_input, mean)
