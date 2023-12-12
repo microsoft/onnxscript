@@ -596,10 +596,11 @@ def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> Te
     raise NotImplementedError()
 
 
-def aten_hardsigmoid(self: TensorType) -> TensorType:
+@torch_op("aten::hardsigmoid")
+def aten_hardsigmoid(self: TFloat) -> TFloat:
     """hardsigmoid(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.HardSigmoid(self, alpha=1 / 6, beta=1 / 2)
 
 
 def aten_hardsigmoid_backward(grad_output: TensorType, self: TensorType) -> TensorType:
@@ -608,10 +609,11 @@ def aten_hardsigmoid_backward(grad_output: TensorType, self: TensorType) -> Tens
     raise NotImplementedError()
 
 
-def aten_hardswish(self: TensorType) -> TensorType:
+@torch_op("aten::hardswish")
+def aten_hardswish(self: TFloat) -> TFloat:
     """hardswish(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.HardSwish(self)
 
 
 def aten_hardswish_backward(grad_output: TensorType, self: TensorType) -> TensorType:

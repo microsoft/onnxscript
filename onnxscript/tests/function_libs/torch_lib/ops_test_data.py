@@ -1177,6 +1177,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
     ),
+    TorchLibOpInfo("nn.functional.hardsigmoid", nn_ops.aten_hardsigmoid),
+    TorchLibOpInfo("nn.functional.hardswish", nn_ops.aten_hardswish),
     TorchLibOpInfo("nn.functional.hardtanh", nn_ops.aten_hardtanh),
     TorchLibOpInfo("nn.functional.leaky_relu", nn_ops.aten_leaky_relu),
     TorchLibOpInfo(
