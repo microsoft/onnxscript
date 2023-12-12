@@ -284,7 +284,8 @@ class Op(OpLike):
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
         if self._op_schema is None:
-            logging.debug(
+            logger = logging.getLogger("onnxscript")
+            logger.debug(
                 "An OpSchema was not provided for Op '%s' and "
                 "there is not one found in opset '%s'.",
                 opname,
