@@ -181,6 +181,18 @@ class TestOnnxBackEnd(unittest.TestCase):
 
         self._round_trip_check(twice)
 
+    def test_loop(self):
+        op = onnxscript.opset17
+
+        @onnxscript.script()
+        def loop1(X, N):
+            Sum = op.Identity(X)
+            for _ in range(N):
+                Sum = op.Add(Sum, X)
+            return Sum
+
+        self._round_trip_check(loop1)
+
     def test_export2python(self):
         proto = type_double.double_abs_subgraph.to_model_proto()
         code = onnx_export.export2python(proto, rename=True, use_operators=True)

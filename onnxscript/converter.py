@@ -1163,6 +1163,7 @@ class Converter:
             o_cond_var = self.generate_unique_name("cond_in")
             i_cond_var = o_cond_var
             cond_while = None
+            o_loop_condition = ""  # No condition for a for loop.
         elif isinstance(loop_stmt, ast.While):
             test = loop_stmt.test
             if not isinstance(test, ast.Name):
@@ -1176,6 +1177,7 @@ class Converter:
             i_cond_var = test.id
             cond_while = test.id
             o_cond_var = None
+            o_loop_condition = self._translate_name_expr(test)
             # we need to go through all the instructions to see
             # which instruction defines the condition test.id
         else:
@@ -1188,8 +1190,7 @@ class Converter:
         outputs = list(loop_state_vars | scan_outputs)
 
         # loop-condition:
-        o_true = self._emit_const(True, "true", self._source_of(loop_stmt))
-        # o_loop_bound = self._emit_const(3, "loop_bound")
+        # o_loop_condition = self._emit_const(True, "true", self._source_of(loop_stmt))
 
         # build loop_body
         self._enter_scope("loop_body", loop_stmt)
@@ -1295,7 +1296,7 @@ class Converter:
                 self._current_fn, ov, typeinfo, self._source_of(loop_stmt)
             )
         body = self._exit_scope()
-        inputs = [o_loop_bound, o_true] + [
+        inputs = [o_loop_bound, o_loop_condition] + [
             self._py_var_to_onnx_var(pv, self._source_of(loop_stmt)).name
             for pv in loop_state_vars
         ]
