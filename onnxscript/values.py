@@ -108,7 +108,6 @@ class Opset:
 
     def add_function_def(self, fun):
         if fun.name in self.function_defs:
-            logger = logging.getLogger("onnxscript")
             logger.warning("%s: Already defined.", fun.name)
         self.function_defs[fun.name] = fun
 
