@@ -46,6 +46,8 @@ _ATTRIBUTE_TYPE_TO_PYTHON_TYPE = {
 # A special value to indicate that the default value is not specified
 _EmptyDefault = object()
 
+logger = logging.getLogger(__name__)
+
 
 class Opset:
     """Represents an ONNX Opset, which consists of a domain name, a version.
@@ -284,7 +286,6 @@ class Op(OpLike):
         self._param_schemas: Optional[tuple[ParamSchema, ...]] = None
 
         if self._op_schema is None:
-            logger = logging.getLogger("onnxscript")
             logger.debug(
                 "An OpSchema was not provided for Op '%s' and "
                 "there is not one found in opset '%s'.",
