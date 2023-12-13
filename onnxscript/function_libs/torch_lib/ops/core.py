@@ -6916,7 +6916,7 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
         return self
     else:
         # NOTE: In pytorch, default value of dims is an empty list.
-        if isinstance(dims, Sequence) and len(dims) == 0:  # Empty sequence
+        if len(dims) == 0:  # Empty sequence
             # assert isinstance(shifts, int)
             return _aten_roll_shift_no_dim_onnx(self, shifts)
         else:
