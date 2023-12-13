@@ -6915,7 +6915,7 @@ def aten_roll(self: TTensor, shifts: INT64, dims: Sequence[int] = ()) -> TTensor
     elif self.shape[0] == 0:  # empty tensor
         return self
     else:
-        if isinstance(dims, tuple) and len(dims) == 0:  # Empty list
+        if isinstance(dims, (tuple, list)) and len(dims) == 0:  # Empty list
             # assert isinstance(shifts, int)
             return _aten_roll_shift_no_dim_onnx(self, shifts)
         else:
