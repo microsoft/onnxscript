@@ -1028,12 +1028,4 @@ class TorchScriptGraph:
                 common_ops.common_opset.domain, common_ops.common_opset.version
             )
         )
-
-        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
-            warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
-            logging.debug(
-                "ONNX model:\n%s\n\nTorchScript graph:\n%s",
-                onnx.printer.to_text(onnx_model),
-                self.torch_graph,
-            )
         return onnx_model
