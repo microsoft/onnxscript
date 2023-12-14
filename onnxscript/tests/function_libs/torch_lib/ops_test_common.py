@@ -507,8 +507,11 @@ def graph_executor(
         for output, symbolic_output in zip(outputs, symbolic_outputs):
             if isinstance(output, Sequence):
                 # Output is a sequence, set the type correctly to ListType
-                symbolic_output.dtype = output[0].dtype
-                symbolic_output.symbolic_value().setType(torch.ListType.ofTensors())
+                if output:
+                    jit_type = torch.ListType.ofTensors().with_dtype(output[0].dtype)
+                else:
+                    jit_type = torch.ListType.ofTensors()
+                symbolic_output.symbolic_value().setType(jit_type)
                 continue
             output = (
                 output
@@ -521,7 +524,7 @@ def graph_executor(
         onnxscript_graph.register_outputs(symbolic_outputs)
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
-        onnx_model = onnx.shape_inference.infer_shapes(onnx_model, data_prop=True)
+        # onnx_model = onnx.shape_inference.infer_shapes(onnx_model, data_prop=True)
         # Make sure the model is valid
         try:
             onnx.checker.check_model(onnx_model, full_check=True)
