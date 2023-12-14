@@ -521,6 +521,7 @@ def graph_executor(
         onnxscript_graph.register_outputs(symbolic_outputs)
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
+        onnx_model = onnx.shape_inference.infer_shapes(onnx_model, data_prop=True)
         # Make sure the model is valid
         try:
             onnx.checker.check_model(onnx_model, full_check=True)
