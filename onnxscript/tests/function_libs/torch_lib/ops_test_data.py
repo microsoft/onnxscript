@@ -1241,9 +1241,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.replication_pad2d",
         nn_ops.aten_replication_pad2d,
         input_wrangler=_replication_pad2d_input_wrangler,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
         reason="this Aten overload need args[1] == 'replicate' for pad mode",
+    )
+    .xfail(
+        variant_name="replicate_negative",
+        enabled_if=not version_utils.torch_older_than("2.2"),
+        reason="fixme: negative padding is not implemented yet",
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad3d",
