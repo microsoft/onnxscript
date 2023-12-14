@@ -106,7 +106,7 @@ def aten_special_erfc(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
 def aten_special_erfcx(self: TFloatOrBFloat16) -> TFloatOrBFloat16:
     """special_erfcx(Tensor self) -> Tensor"""
 
-    return op.Mul(op.Exp(op.Pow(self, 2)), op.Erf(self))
+    return op.Mul(op.Exp(op.Pow(self, 2)), op.Sub(1, op.Erf(self)))
 
 
 def aten_special_erfinv(self: TensorType) -> TensorType:

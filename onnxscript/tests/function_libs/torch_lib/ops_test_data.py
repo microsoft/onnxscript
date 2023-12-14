@@ -59,7 +59,6 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 # Append extra op_db into the op database for testing
 OPS_DB.extend(opinfo_definitions.signal.op_db)
-OPS_DB.extend(opinfo_definitions.special.op_db)
 OPS_DB.extend(extra_opinfo.OP_DB)
 
 
@@ -815,7 +814,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
     ),
-    # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
+    TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
+        reason="fixme: The implementation is numerical unstable: https://github.com/microsoft/onnxscript/issues/1223"
+    ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
