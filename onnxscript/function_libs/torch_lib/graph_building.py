@@ -1,11 +1,9 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
 
-import logging
 import os
 import tempfile
 import typing
-import warnings
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
