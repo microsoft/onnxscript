@@ -17,6 +17,7 @@ VERSION_FILE = ROOT_DIR / "VERSION"
 version = VERSION_FILE.read_text().strip()
 
 project_urls = {
+    "Homepage": "https://onnxscript.ai/",
     "Repository": "https://github.com/microsoft/onnxscript",
 }
 if os.environ.get("ONNX_SCRIPT_RELEASE") != "1":
@@ -32,4 +33,4 @@ if os.environ.get("ONNX_SCRIPT_RELEASE") != "1":
         ] = f"https://github.com/microsoft/onnxscript/tree/{commit_hash_cmd.stdout.decode('utf-8').strip()}"
 
 # NOTE: Do not include other metadata in setup.py. Put it in pyproject.toml.
-setuptools.setup(version=version, project_urls=project_urls, url="https://onnxscript.ai/")
+setuptools.setup(version=version, project_urls=project_urls)
