@@ -506,9 +506,8 @@ def graph_executor(
         # We need to set the size of the output tensors for the ONNX model to be valid
         for output, symbolic_output in zip(outputs, symbolic_outputs):
             if isinstance(output, Sequence):
-                # Output is a sequence, set the type correctly to ListType
-                symbolic_output.dtype = output[0].dtype
-                symbolic_output.symbolic_value().setType(torch.ListType.ofTensors())
+                # Output is a sequence, skip setting the type and leave it
+                # for ONNX shape_inference to handle
                 continue
             output = (
                 output
@@ -521,6 +520,7 @@ def graph_executor(
         onnxscript_graph.register_outputs(symbolic_outputs)
 
         onnx_model = onnxscript_graph.to_model_proto(TEST_OPSET_VERSION)
+        onnx_model = onnx.shape_inference.infer_shapes(onnx_model, data_prop=True)
         # Make sure the model is valid
         try:
             onnx.checker.check_model(onnx_model, full_check=True)

@@ -1429,6 +1429,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
     TorchLibOpInfo("sin", core_ops.aten_sin),
+    TorchLibOpInfo(
+        "sinc", special_ops.aten_special_sinc, tolerance={torch.float16: (1e-2, 6e-4)}
+    ),
     TorchLibOpInfo("sinh", core_ops.aten_sinh),
     TorchLibOpInfo(
         "softmax",
