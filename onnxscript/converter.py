@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-# --------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 from __future__ import annotations
 
 import ast
@@ -1209,7 +1209,7 @@ class Converter:
         self.ir_builder.add_input(
             self._current_fn,
             i_cond_var,
-            onnx_types.BOOL,
+            onnx_types.BOOL[...],
             self._source_of(loop_stmt),
         )
 
@@ -1278,7 +1278,7 @@ class Converter:
         self.ir_builder.add_output(
             self._current_fn,
             o_cond_out,
-            onnx_types.BOOL,
+            onnx_types.BOOL[...],
             self._source_of(loop_stmt),
         )
         for pv in loop_state_vars:
