@@ -1,11 +1,9 @@
 """Graph building functions for torchscript graph backend."""
 from __future__ import annotations
 
-import logging
 import os
 import tempfile
 import typing
-import warnings
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -1028,21 +1026,4 @@ class TorchScriptGraph:
                 common_ops.common_opset.domain, common_ops.common_opset.version
             )
         )
-
-        try:
-            if not cache_model_to_disk:
-                # Only check the model if it is in memory.
-                # Otherwise the checker and shape_inference will fail because
-                # we cannot serialize the model.
-                onnx_model = onnx.shape_inference.infer_shapes(
-                    onnx_model, check_type=True, strict_mode=False, data_prop=True
-                )
-                onnx.checker.check_model(onnx_model, full_check=True)
-        except (onnx.checker.ValidationError, onnx.shape_inference.InferenceError) as e:
-            warnings.warn(f"ONNX model is invalid: {e}", stacklevel=1)
-            logging.debug(
-                "ONNX model:\n%s\n\nTorchScript graph:\n%s",
-                onnx.printer.to_text(onnx_model),
-                self.torch_graph,
-            )
         return onnx_model
