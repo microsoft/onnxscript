@@ -77,13 +77,13 @@ jobs:
         uses: codecov/codecov-action@v3
       - name: Upload Test Results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Test Results (${{ matrix.name }}-${{ matrix.os }})
           path: pytest.xml
       - name: Upload torchlib error reports
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Error reports (${{ matrix.name }}-${{ matrix.os }})
           path: error_reports
