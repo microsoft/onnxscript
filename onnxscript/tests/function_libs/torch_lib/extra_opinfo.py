@@ -79,7 +79,7 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
     SS = 3
     L = 5
 
-    align_corners_options = (True, False, None)
+    align_corners_options = (True, False)
     rank = 2
 
     def shape(size, rank, with_batch_channel=True):
@@ -103,23 +103,20 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
             make_arg(shape(D, rank)), shape(S, rank, False), align_corners
         )
         yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)), shape(L, rank, False), align_corners
+            make_arg(shape(D, rank)), shape(L, rank, False), align_corners,
         )
-        for recompute_scale_factor in [False, True]:
-            yield opinfo_core.SampleInput(
-                make_arg(shape(D, rank)),
-                None,
-                1.7,
-                align_corners,
-                recompute_scale_factor=recompute_scale_factor,
-            )
-            yield opinfo_core.SampleInput(
-                make_arg(shape(D, rank)),
-                None,
-                0.6,
-                align_corners,
-                recompute_scale_factor=recompute_scale_factor,
-            )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            None,  # output_size
+            align_corners,
+            [1.7, 1.7],  # scaler
+        )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            None,  # if this is None, the scalar must be list
+            align_corners,
+            [0.6, 0.6],
+        )
 
 
 def sample_inputs_col2im(op_info, device, dtype, requires_grad, **kwargs):

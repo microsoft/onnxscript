@@ -2197,17 +2197,17 @@ def aten_upsample_bicubic2d(
     self: TensorType,
     output_size: INT64,
     align_corners: bool,
-    scales_h: Optional[float] = None,
-    scales_w: Optional[float] = None,
+    scales: FLOAT = None,
 ) -> TensorType:
+
+    """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
     """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+    """upsample_bicubic2d.out(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None, *, Tensor(a!) out) -> Tensor(a!)"""
 
     if output_size is not None:
-        result = _aten_upsample_output_size(self, output_size, "cubic")
+        result = _aten_upsample_output_size(self, output_size, align_corners, "cubic")
     else:
-        assert scales_h is not None
-        assert scales_h == scales_w
-        result = _aten_upsample_scales(self, scales_h, scales_w, "cubic")
+        result = _aten_upsample_scales(self, scales[0], scales[1], align_corners, "cubic")
     return result
 
 
@@ -2215,6 +2215,7 @@ def aten_upsample_bicubic2d(
 def _aten_upsample_output_size(
     self: TReal,
     output_size: INT64,
+    align_corners: bool,
     str_mode: str,
 ) -> TReal:
     self_shape = op.Shape(self)
@@ -2222,7 +2223,24 @@ def _aten_upsample_output_size(
     ends = op.Constant(value_ints=[2])
     batch_channel = op.Slice(self_shape, starts, ends)
     output_size = op.Concat(batch_channel, output_size, axis=0)
-    return op.Resize(
+    # if align_corners:
+    #     result = op.Resize(
+    #         self,
+    #         None,
+    #         None,
+    #         output_size,
+    #         mode=str_mode,
+    #         coordinate_transformation_mode="align_corners",
+    #     )
+    # else:
+    #     result = op.Resize(
+    #         self,
+    #         None,
+    #         None,
+    #         output_size,
+    #         mode=str_mode,
+    #     )
+    result = op.Resize(
         self,
         None,
         None,
@@ -2231,12 +2249,15 @@ def _aten_upsample_output_size(
         coordinate_transformation_mode="align_corners",
     )
 
+    return result
+
 
 @torch_op("aten::upsample_bicubic2d", private=True)
 def _aten_upsample_scales(
     self: TReal,
     scales_h: float,
     scales_w: float,
+    align_corners: bool,
     str_mode: str,
 ) -> TReal:
     neg_1 = op.Constant(value_ints=[-1])
@@ -2246,14 +2267,24 @@ def _aten_upsample_scales(
         op.Reshape(op.Constant(value_float=scales_w), neg_1),
         axis=0,
     )
-    return op.Resize(
-        self,
-        None,
-        scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
-        None,
-        mode=str_mode,
-        coordinate_transformation_mode="align_corners",
-    )
+    if align_corners:
+        result = op.Resize(
+            self,
+            None,
+            scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
+            None,
+            mode=str_mode,
+            coordinate_transformation_mode="align_corners",
+        )
+    else:
+        result = op.Resize(
+            self,
+            None,
+            scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
+            None,
+            mode=str_mode,
+        )
+    return result
 
 
 def aten_upsample_bicubic2d_backward(
