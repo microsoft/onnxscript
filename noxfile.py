@@ -15,7 +15,7 @@ COMMON_TEST_DEPENDENCIES = (
     "typing_extensions",
     "beartype!=0.16.0",
     "types-PyYAML",
-    "expecttest",
+    "expecttest==0.1.6",
     "hypothesis",
     "packaging",
     "parameterized",

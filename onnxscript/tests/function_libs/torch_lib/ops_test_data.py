@@ -722,6 +722,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1222,16 +1223,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu",
         nn_ops.aten_relu,
-    ).xfail(
+    )
+    .xfail(
         dtypes=(torch.int64,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "nn.functional.relu6",
         nn_ops.aten_relu6,
-    ).xfail(
+    )
+    .xfail(
         dtypes=(torch.int64,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "ops.aten.replication_pad1d",
@@ -1470,6 +1485,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1482,11 +1498,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
         variant_name="list_args",
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1563,6 +1581,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
