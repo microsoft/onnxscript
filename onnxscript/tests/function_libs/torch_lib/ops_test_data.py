@@ -1223,14 +1223,14 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu",
         nn_ops.aten_relu,
-    ).xfail(
+    ).skip(
         dtypes=(torch.int64,),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
     TorchLibOpInfo(
         "nn.functional.relu6",
         nn_ops.aten_relu6,
-    ).xfail(
+    ).skip(
         dtypes=(torch.int64,),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
     ),
