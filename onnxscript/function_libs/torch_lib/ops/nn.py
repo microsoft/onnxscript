@@ -2228,31 +2228,24 @@ def _aten_upsample_output_size(
     ends = op.Constant(value_ints=[2])
     batch_channel = op.Slice(self_shape, starts, ends)
     output_size = op.Concat(batch_channel, output_size, axis=0)
-    # if align_corners:
-    #     result = op.Resize(
-    #         self,
-    #         None,
-    #         None,
-    #         output_size,
-    #         mode=str_mode,
-    #         coordinate_transformation_mode="align_corners",
-    #     )
-    # else:
-    #     result = op.Resize(
-    #         self,
-    #         None,
-    #         None,
-    #         output_size,
-    #         mode=str_mode,
-    #     )
-    result = op.Resize(
-        self,
-        None,
-        None,
-        output_size,
-        mode=str_mode,
-        coordinate_transformation_mode="align_corners",
-    )
+    if align_corners:
+        result = op.Resize(
+            self,
+            None,
+            None,
+            output_size,
+            mode=str_mode,
+            coordinate_transformation_mode="align_corners",
+        )
+    else:
+        result = op.Resize(
+            self,
+            None,
+            None,
+            output_size,
+            mode=str_mode,
+            coordinate_transformation_mode="pytorch_half_pixel",
+        )
 
     return result
 
@@ -2288,6 +2281,7 @@ def _aten_upsample_scales(
             scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
             None,
             mode=str_mode,
+            coordinate_transformation_mode="pytorch_half_pixel",
         )
     return result
 
