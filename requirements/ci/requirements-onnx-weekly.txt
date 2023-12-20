@@ -1,1 +1,1 @@
-onnx-weekly==1.16.0.dev20231218
+onnx-weekly==1.16.0.dev20231211

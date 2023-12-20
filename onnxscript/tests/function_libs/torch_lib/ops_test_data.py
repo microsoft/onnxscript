@@ -722,6 +722,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1470,6 +1471,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1482,11 +1484,13 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
         variant_name="list_args",
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT failed to produce the correct argument type: https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
@@ -1563,6 +1567,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     )
     .xfail(
         dtypes=(torch.float16,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: SplitToSequence op inference failed. https://github.com/microsoft/onnxruntime/issues/16006",
     )
     .xfail(
