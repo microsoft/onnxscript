@@ -17,7 +17,7 @@ sphinx>=6
 beartype!=0.16.0
 
 # Testing
-expecttest
+expecttest==0.1.6
 hypothesis
 parameterized
 pytest-cov
