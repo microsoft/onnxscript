@@ -1223,16 +1223,30 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.relu",
         nn_ops.aten_relu,
-    ).skip(
+    )
+    .xfail(
         dtypes=(torch.int64,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "nn.functional.relu6",
         nn_ops.aten_relu6,
-    ).skip(
+    )
+    .xfail(
         dtypes=(torch.int64,),
+        enabled_if=version_utils.onnxruntime_older_than("1.17"),
         reason="fixme: ORT did not implement Relu for int64. https://github.com/microsoft/onnxruntime/issues/16654",
+    )
+    .xfail(
+        dtypes=(torch.int64,),
+        test_class_name="TestOutputConsistencyEager",
+        reason="fixme: ORT fails with 'Could not find an implementation for Relu(14) node'",
     ),
     TorchLibOpInfo(
         "ops.aten.replication_pad1d",
