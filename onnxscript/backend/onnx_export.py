@@ -14,6 +14,8 @@ from onnx.helper import make_node
 import onnxscript.onnx_types
 import onnxscript.type_annotation
 
+_SINGLE_INDENT = "    "
+
 kwlist = {
     "False",
     "None",
@@ -75,20 +77,18 @@ def _get_const_repr(const_node):
     return None
 
 
-def _cleanup_variable_name(name: ValueInfoProto | str) -> Optional[str]:
+def _cleanup_variable_name(name: ValueInfoProto | str) -> str:
     """Converts given name into a valid python variable names.
     Handles names that clash with python keywords and common issues seen in ONNX models:
     * Identifiers like "5" (that do not start with an alpha character)
     * Identifiers that contain a dot like "layers.0.foo"
     This is a simple heuristic, and doesn't guarantee it avoids name-clashes.
-    Empty names, which are special in ONNX, are not renamed. A None is returned.
     """
     if isinstance(name, ValueInfoProto):
         # Handle graph/function input/output uniformly
         name = name.name
     assert isinstance(name, str)
-    if name == "":
-        return None
+    assert name != ""
     if name in kwlist:
         return f"r_{name}"
     first = name[0]
@@ -96,8 +96,8 @@ def _cleanup_variable_name(name: ValueInfoProto | str) -> Optional[str]:
         name = f"__{name}"
 
     def rename_char(char):
-        """Replace invalid character by double underscore."""
-        return char if (char.isalnum() or (char == "_")) else "__"
+        """Replace invalid character by underscore."""
+        return char if (char.isalnum() or (char == "_")) else "_"
 
     return "".join([rename_char(c) for c in name])
 
@@ -214,6 +214,41 @@ def _names_used_in_function(fun: FunctionProto) -> set[str]:
     return names
 
 
+def has_input(node: onnx.NodeProto, index: int) -> bool:
+    """Returns True iff the node has an input at given index."""
+    return index < len(node.input) and node.input[index] != ""
+
+
+def is_onnx_op(node: onnx.NodeProto, op_type: str) -> bool:
+    return node.op_type == op_type and node.domain in {"", "ai.onnx"}
+
+
+def _is_used_in_graph_body(name: str, graph: GraphProto) -> bool:
+    """Returns True iff the given name is used in the graph body."""
+    # TODO: This is an approximation.
+    names: set[str] = set()
+    for node in graph.node:
+        _update_names_used_in_node(names, node)
+    return name in names
+
+
+def _cond_is_used_in_loop_body(graph: GraphProto) -> bool:
+    """Returns True iff loop requires a condition."""
+    cond_in = graph.input[1].name
+    cond_out = graph.output[0].name
+    for node in graph.node:
+        # Ignore "cond_out = Identity(cond_in)" node
+        if is_onnx_op(node, "Identity") and len(node.input) == 1 and len(node.output) == 1:
+            if node.input[0] == cond_in and node.output[0] == cond_out:
+                continue
+        names: set[str] = set()
+        # TODO: The following is an approximation-based check
+        _update_names_used_in_node(names, node)
+        if (cond_in in names) or (cond_out in names):
+            return True
+    return False
+
+
 class Exporter:
     """Class used for recursive traversal of Proto structures."""
 
@@ -230,6 +265,9 @@ class Exporter:
         self.constants: dict[str, str] = {}
         self._attr_renaming: dict[str, str | None] = {}  # For current function.
         self._names_used: set[str] = set()  # For current function.
+        # _name_remappings: used to undo the SSA-renaming in ONNX control-flow ops.
+        # We map the multiple SSA-variants back to the same Python variable name.
+        self._name_remappings: list[dict[str, str]] = []
 
     def _handle_attrname_conflict(self, renamer):
         """Add ref-attr-name-conflict handling logic to renaming function."""
@@ -253,9 +291,23 @@ class Exporter:
 
         return new_renamer
 
-    def _rename_variable_s(self, name):
-        """Renames all names equal to a python keyword."""
-        return str(self._rename_variable(name))
+    def _translate_onnx_var(self, var):
+        """Converts an ONNX variable name to a python variable name."""
+        if isinstance(var, ValueInfoProto):
+            var = var.name
+        if var == "":
+            return "None"
+        for scope in reversed(self._name_remappings):
+            if var in scope:
+                return scope[var]
+        return self._rename_variable(var)
+
+    def _translate_onnx_var_ref(self, var):
+        """Translates a reference to an ONNX variable (a r-value)"""
+        if var in self.constants:
+            return self.constants[var]
+
+        return self._translate_onnx_var(var)
 
     def _rename_domain(self, domain: str) -> str:
         if domain in {"", "ai.onnx"}:
@@ -265,10 +317,10 @@ class Exporter:
     def _make_opset_name(self, domain, version):
         return f"{self._rename_domain(domain)}{version}"
 
-    def _python_make_node_name(self, domain, version, name, node=False):
-        name = _cleanup_variable_name(
-            name
-        )  # TODO: Is this a typo? Is it supposed to be self._rename_variable(name)?
+    def _make_callee_name(self, domain, version, name, node=False):
+        """Generate name to be used for called op/function in a node or for a generated script function."""
+        # TODO: Avoid name-conflict between function-names and value-names
+        name = _cleanup_variable_name(name)
         if node:
             if version is None:
                 version = 1
@@ -281,34 +333,31 @@ class Exporter:
             return f"{opset}.{name}"
         return name
 
-    def _python_make_node_graph(self, graph, opsets, indent=0, output_names=None):
-        """Translates a GraphProto into python."""
+    def _translate_graph_body(self, graph, opsets, indent=0):
+        """Translates a graph body into python.
+        The graph may be the main graph (of a model) or a subgraph (of a Loop or If node).
+        """
         code = []
-        sindent = "    " * indent
         if hasattr(graph, "initializer"):
             for init in graph.initializer:
                 node = make_node(
                     "Constant",
                     [],
-                    [self._rename_variable(init.name)],  # type: ignore[list-item]
+                    [self._translate_onnx_var(init.name)],  # type: ignore[list-item]
                     value=init,
                 )
-                code.append(self._python_make_node(node, opsets, indent=indent))
+                code.append(self._translate_node(node, opsets, indent=indent))
         if hasattr(graph, "sparse_initializer") and len(graph.sparse_initializer) > 0:
             raise NotImplementedError("Unable to convert sparse_initilizer into python.")
         for node in graph.node:
-            pynode = self._python_make_node(node, opsets, indent=indent)
+            pynode = self._translate_node(node, opsets, indent=indent)
             if pynode:
                 code.append(pynode)
-        if output_names is not None:
-            for fr, to in zip(graph.output, output_names):
-                code.append(
-                    f"{sindent}{self._rename_variable(to)} = {self._rename_variable(fr.name)}"
-                )
+
         final = "\n".join(code)
         return final
 
-    def _python_make_node_make_attribute_str(self, node):
+    def _translate_attributes(self, node):
         attributes = []
         for at in node.attribute:
             if _is_attribute_ref(at):
@@ -348,9 +397,9 @@ class Exporter:
 
         return ", ".join(f"{k}={v}" for k, v in attributes)
 
-    def _python_make_node_if(self, node, opsets, indent=0):
+    def _translate_if(self, node, opsets, indent=0):
         """Translates a node If into python."""
-        sindent = "    " * indent
+        sindent = _SINGLE_INDENT * indent
         code = [f"{sindent}if {node.input[0]}:"]
         if len(node.attribute) != 2:
             raise RuntimeError(
@@ -361,58 +410,120 @@ class Exporter:
             else_branch, then_branch = atts[0].g, atts[1].g
         else:
             else_branch, then_branch = atts[1].g, atts[0].g
+
         code.append(
-            self._python_make_node_graph(
-                then_branch, opsets, indent=indent + 1, output_names=node.output
+            self._translate_graph_body(
+                then_branch,
+                opsets,
+                indent=indent + 1,
             )
         )
+        code.extend(self._emit_assign(node.output, then_branch.output, indent + 1))
+
         code.append(f"{sindent}else:")
         code.append(
-            self._python_make_node_graph(
-                else_branch, opsets, indent=indent + 1, output_names=node.output
+            self._translate_graph_body(
+                else_branch,
+                opsets,
+                indent=indent + 1,
             )
         )
+        code.extend(self._emit_assign(node.output, else_branch.output, indent + 1))
         return "\n".join(code)
 
-    def _python_make_node_loop(self, node, opsets, indent=0):
+    def _emit_assign(self, lhs, rhs, indent):
+        def to_var(x):
+            if isinstance(x, ValueInfoProto):
+                x = x.name
+            return self._translate_onnx_var(x)
+
+        sindent = _SINGLE_INDENT * indent
+
+        def assign(lhs_var: str, rhs_var: str):
+            return f"{sindent}{to_var(lhs_var)} = {to_var(rhs_var)}"
+
+        if isinstance(lhs, (str, ValueInfoProto)):
+            return [assign(lhs, rhs)]
+        return [assign(x, y) for x, y in zip(lhs, rhs)]
+
+    def _translate_loop(self, node, opsets, indent=0):
         """Translates a node Loop into python."""
         body = node.attribute[0].g
-        sindent = "    " * indent
-        n_iter = self._rename_variable(node.input[0])
-        cond = self._rename_variable(node.input[1])
-        # v_initial = node.input[2]
+        sindent = _SINGLE_INDENT * indent
         rows = []
-        if n_iter and not cond:
-            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
-        elif not n_iter and cond:
-            rows.append(f"{sindent}while {cond}:")
-        elif n_iter and cond:
-            rows.append(f"{sindent}for {body.input[0].name} in range({n_iter}):")
-            rows.append(f"{sindent}    if not {cond}:")
-            rows.append(f"{sindent}        break")
+
+        # Node inputs: optional max-trip-count, optional condition, initial values (of dependencies)
+        # Node outputs: final values (of dependencies), scan-outputs
+        # Body inputs: iteration-count, condition, input values (of dependencies)
+        # Body outputs: condition, output values (of dependencies), scan-outputs
+
+        onnx_iter_var = body.input[0].name
+        if has_input(node, 0):
+            use_iter_var = True
+            n_iter = self._translate_onnx_var(node.input[0])
+        else:
+            use_iter_var = _is_used_in_graph_body(onnx_iter_var, body)
+            n_iter = None
+        iter_var = self._translate_onnx_var(onnx_iter_var)
+
+        cond_in = body.input[1].name
+        cond_out = body.output[0].name
+        py_cond = self._translate_onnx_var(cond_in)
+        use_loop_cond = True  # TODO
+        if has_input(node, 1):
+            rows.extend(self._emit_assign(cond_in, node.input[1], indent))
+        else:
+            use_loop_cond = _cond_is_used_in_loop_body(body)
+            # rows.append(f"{sindent}{py_cond} = True")
+
+        num_state_vars = max(len(node.input) - 2, 0)
+        actual_ins = node.input[2:]
+        formal_ins = body.input[2:]
+        formal_outs = body.output[1 : num_state_vars + 1]
+        actual_outs = node.output[0:num_state_vars]
+
+        rows.extend(self._emit_assign(formal_ins, actual_ins, indent))
+
+        if use_iter_var and not use_loop_cond:
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
+            # The following is a hacky way to suppress the generation of
+            # "cond_out = cond_in", which ONNX forces for a FOR loop.
+            # TODO: a cleaner solution for this.
+            self._name_remappings[-1][cond_out] = self._translate_onnx_var(cond_in)
+        elif not use_iter_var and use_loop_cond:
+            rows.append(f"{sindent}while {py_cond}:")
+        elif use_iter_var and use_loop_cond:
+            # TODO: This needs fixing
+            rows.append(f"{sindent}for {iter_var} in range({n_iter}):")
+            rows.append(f"{sindent}{_SINGLE_INDENT}if not {py_cond}:")
+            rows.append(f"{sindent}{_SINGLE_INDENT * 2}break")
         else:
             raise RuntimeError(
                 f"Unable to export loop type {node.op_type!r} into python because "
                 "there is no stop condition."
             )
+
         rows.append(
-            self._python_make_node_graph(
-                body, opsets, indent=indent + 1, output_names=node.output
+            self._translate_graph_body(
+                body,
+                opsets,
+                indent=indent + 1,
             )
         )
+        if use_loop_cond:
+            rows.extend(self._emit_assign(cond_in, cond_out, indent + 1))
+        rows.extend(self._emit_assign(formal_ins, formal_outs, indent + 1))
+        rows.extend(self._emit_assign(actual_outs, formal_ins, indent))
+
+        # TODO: This doesn't handle scan-outputs yet.
+
         return "\n".join(rows)
 
-    def _python_make_node_scan(self, node, opsets, indent=0):
+    def _translate_scan(self, node, opsets, indent=0):
         """Translates a node Scan into python."""
         raise NotImplementedError()
 
-    def _lookup(self, var):
-        if var in self.constants:
-            return self.constants[var]
-
-        return self._rename_variable_s(var)
-
-    def _python_make_node(self, onnx_node, opsets, indent=0):
+    def _translate_node(self, onnx_node, opsets, indent=0):
         if isinstance(onnx_node, dict):
             node = onnx_node["onnx_node"]
         else:
@@ -425,11 +536,11 @@ class Exporter:
         if node.op_type in {"If", "Loop", "Scan"}:
             # If, Loop, Scan
             if node.op_type == "If":
-                return self._python_make_node_if(node, opsets, indent=indent)
+                return self._translate_if(node, opsets, indent=indent)
             if node.op_type == "Loop":
-                return self._python_make_node_loop(node, opsets, indent=indent)
+                return self._translate_loop(node, opsets, indent=indent)
             if node.op_type == "Scan":
-                return self._python_make_node_scan(node, opsets, indent=indent)
+                return self._translate_scan(node, opsets, indent=indent)
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
         if any(hasattr(att, "g") and att.g and att.g.ByteSize() > 0 for att in node.attribute):
             raise RuntimeError(f"Unable to export node type {node.op_type!r} into python.")
@@ -448,16 +559,16 @@ class Exporter:
             "GreaterOrEqual": ">=",
             "LessOrEqual": "<=",
         }
-        sindent = "    " * indent
+        sindent = _SINGLE_INDENT * indent
         if self.use_operators and node.op_type in ops:
             return (
-                f"{sindent}{self._rename_variable(node.output[0])} = "
-                f"{(f' {ops[node.op_type]} ').join(map(self._lookup, node.input))}"
+                f"{sindent}{self._translate_onnx_var(node.output[0])} = "
+                f"{(f' {ops[node.op_type]} ').join(map(self._translate_onnx_var_ref, node.input))}"
             )
-        name = self._python_make_node_name(
+        callee_name = self._make_callee_name(
             node.domain, opsets[node.domain], node.op_type, node=True
         )
-        attributes_str = self._python_make_node_make_attribute_str(node)
+        attributes_str = self._translate_attributes(node)
         if len(node.input) > 0 and len(attributes_str) > 0:
             attributes_str = f", {attributes_str}"
         output_names: list[Any] = []
@@ -465,15 +576,22 @@ class Exporter:
             if o in ("", None):
                 output_names.append(f"_{i}")
             else:
-                output_names.append(self._rename_variable(o))
+                output_names.append(self._translate_onnx_var(o))
 
+        input_names = [self._translate_onnx_var_ref(x) for x in node.input]
+
+        # Suppress generation of redundant copy: used to suppress "cond_out = cond_in"
+        # from an ONNX FOR loop, which can cause problems in python.
+        if node.op_type == "Identity" and len(node.input) == 1 and len(node.output) == 1:
+            if output_names[0] == input_names[0]:
+                return ""
         text = [
             sindent,
             ", ".join(output_names),
             " = ",
-            name,
+            callee_name,
             "(",
-            ", ".join(map(self._lookup, node.input)),
+            ", ".join(input_names),
             attributes_str,
             ")",
         ]
@@ -516,7 +634,7 @@ class Exporter:
             typerep = onnxscript.type_annotation.onnx_attr_type_to_onnxscript_repr(type)
             return f"{attr_name}: {typerep}"
 
-        inputs = [self._rename_variable(x) for x in funproto.input]
+        inputs = [self._translate_onnx_var(x) for x in funproto.input]
         attrs = [attr_sig(x) for x in funproto.attribute]
         input_and_attrs = ", ".join(inputs + attrs)  # type: ignore[arg-type]
         if len(funproto.attribute_proto) > 0:
@@ -532,7 +650,7 @@ class Exporter:
             opsets[imported.domain] = imported.version
         self._attr_renaming = {}
         used_proto_names = _names_used_in_function(funproto)
-        renamed_names_used = [self._rename_variable(x) for x in used_proto_names]
+        renamed_names_used = [self._translate_onnx_var(x) for x in used_proto_names]
         self._names_used = set(renamed_names_used)
         result = []
 
@@ -541,15 +659,17 @@ class Exporter:
 
         opset_name = self._make_opset_name(funproto.domain, 1)
         add_line(f"@script({opset_name})")
-        fun_name = self._python_make_node_name(funproto.domain, 1, funproto.name)
+        fun_name = self._make_callee_name(funproto.domain, 1, funproto.name)
         fun_sig = self._translate_function_signature(funproto)
         add_line(f"def {fun_name}{fun_sig}")
         if funproto.doc_string:
             add_line(f'    """{funproto.doc_string}"""')
+        self._name_remappings.append({})
         for node in funproto.node:
-            add_line(self._python_make_node(node, opsets, indent=1))
-        return_values = ", ".join(self._rename_variable(x) for x in funproto.output)
+            add_line(self._translate_node(node, opsets, indent=1))
+        return_values = ", ".join(self._translate_onnx_var(x) for x in funproto.output)
         add_line(f"    return {return_values}")
+        self._name_remappings.pop()
         return "\n".join(result)
 
     def _translate_graph(self, model: onnx.ModelProto, function_name: Optional[str]) -> str:
@@ -570,8 +690,8 @@ class Exporter:
         doc = graph.doc_string
         if doc:
             add(f'    """{doc}"""')
-        add(self._python_make_node_graph(graph, opsets, indent=1))
-        return_values = ", ".join(self._rename_variable(x) for x in graph.output)
+        add(self._translate_graph_body(graph, opsets, indent=1))
+        return_values = ", ".join(self._translate_onnx_var(x) for x in graph.output)
         add(f"    return {return_values}")
         return "\n".join(result)
 

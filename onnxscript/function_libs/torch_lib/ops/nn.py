@@ -596,10 +596,11 @@ def aten_glu_jvp(glu: TensorType, x: TensorType, dx: TensorType, dim: int) -> Te
     raise NotImplementedError()
 
 
-def aten_hardsigmoid(self: TensorType) -> TensorType:
+@torch_op("aten::hardsigmoid")
+def aten_hardsigmoid(self: TFloat) -> TFloat:
     """hardsigmoid(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.HardSigmoid(self, alpha=1 / 6, beta=1 / 2)
 
 
 def aten_hardsigmoid_backward(grad_output: TensorType, self: TensorType) -> TensorType:
@@ -608,10 +609,11 @@ def aten_hardsigmoid_backward(grad_output: TensorType, self: TensorType) -> Tens
     raise NotImplementedError()
 
 
-def aten_hardswish(self: TensorType) -> TensorType:
+@torch_op("aten::hardswish")
+def aten_hardswish(self: TFloat) -> TFloat:
     """hardswish(Tensor self) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.HardSwish(self)
 
 
 def aten_hardswish_backward(grad_output: TensorType, self: TensorType) -> TensorType:
@@ -1642,6 +1644,7 @@ def _causal_attention_mask(query: TFloat, key: TFloat) -> TFloat:
     attn_mask = op.Trilu(attn_mask, upper=0)
     # The causal mask has 0s in the lower triangle and -inf in the upper triangle.
     attn_mask = op.Where(op.Equal(attn_mask, 0.0), op.Constant(value_float=-float("inf")), 0.0)
+    attn_mask = op.CastLike(attn_mask, query)
     return attn_mask
 
 
@@ -1693,6 +1696,7 @@ def aten_scaled_dot_product_attention(
     # Reference: https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
     if scale is None:
         scale = _attention_scale(query)
+    scale = op.CastLike(scale, query)
 
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
@@ -1873,6 +1877,7 @@ def aten_scaled_dot_product_attention_bool_mask(
 
     if scale is None:
         scale = _attention_scale(query)
+    scale = op.CastLike(scale, query)
 
     if is_causal:
         attn_mask = _causal_attention_mask(query, key)
@@ -1896,7 +1901,7 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
     query: TFloat,
     key: TFloat,
     value: TFloat,
-    scale: FLOAT,
+    scale: TFloat,
     dropout_p: float,
 ) -> TFloat:
     # Swap the last two axes of key
@@ -1916,7 +1921,7 @@ def _aten_scaled_dot_product_attention_no_mask_onnx(
 
     # https://github.com/pytorch/pytorch/blob/12da0c70378b5be9135c6fda62a9863bce4a4818/aten/src/ATen/native/transformers/attention.cpp#L653
     # Scale q, k before matmul for stability see https://tinyurl.com/sudb9s96 for math
-    query_scaled = op.Mul(query, op.CastLike(op.Sqrt(scale), query))
+    query_scaled = op.Mul(query, op.Sqrt(scale))
     key_transposed_scaled = op.Mul(key_transposed, op.CastLike(op.Sqrt(scale), key_transposed))
     attn_weight = op.Softmax(
         op.MatMul(query_scaled, key_transposed_scaled),
@@ -1932,7 +1937,7 @@ def _aten_scaled_dot_product_attention_bool_mask_onnx(
     key: TFloat,
     value: TFloat,
     attn_mask: BOOL,
-    scale: FLOAT,
+    scale: TFloat,
     dropout_p: float,
 ) -> TFloat:
     # Swap the last two axes of key

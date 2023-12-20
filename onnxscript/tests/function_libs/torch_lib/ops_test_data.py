@@ -59,7 +59,6 @@ OPS_DB = copy.deepcopy(common_methods_invocations.op_db)
 
 # Append extra op_db into the op database for testing
 OPS_DB.extend(opinfo_definitions.signal.op_db)
-OPS_DB.extend(opinfo_definitions.special.op_db)
 OPS_DB.extend(extra_opinfo.OP_DB)
 
 
@@ -815,7 +814,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "erfc", special_ops.aten_special_erfc, tolerance={torch.float16: (1e-2, 2e-4)}
     ),
-    # TorchLibOpInfo("erfcx", special_ops.aten_special_erfcx),  # not in OPS_DB
+    TorchLibOpInfo("special.erfcx", special_ops.aten_special_erfcx).xfail(
+        reason="fixme: The implementation is numerically unstable: https://github.com/microsoft/onnxscript/issues/1223"
+    ),
     TorchLibOpInfo("fill", core_ops.aten_fill),
     TorchLibOpInfo("flip", core_ops.aten_flip, input_wrangler=_flip_input_wrangler),
     TorchLibOpInfo("floor", core_ops.aten_floor),
@@ -1177,6 +1178,8 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         core_ops.aten_embedding,
         input_wrangler=_embedding_input_wrangler,
     ),
+    TorchLibOpInfo("nn.functional.hardsigmoid", nn_ops.aten_hardsigmoid),
+    TorchLibOpInfo("nn.functional.hardswish", nn_ops.aten_hardswish),
     TorchLibOpInfo("nn.functional.hardtanh", nn_ops.aten_hardtanh),
     TorchLibOpInfo("nn.functional.leaky_relu", nn_ops.aten_leaky_relu),
     TorchLibOpInfo(
@@ -1238,9 +1241,15 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.replication_pad2d",
         nn_ops.aten_replication_pad2d,
         input_wrangler=_replication_pad2d_input_wrangler,
-    ).skip(
+    )
+    .skip(
         matcher=lambda sample: not (len(sample.args) > 1 and sample.args[1] == "replicate"),
         reason="this Aten overload need args[1] == 'replicate' for pad mode",
+    )
+    .xfail(
+        variant_name="replicate_negative",
+        enabled_if=not version_utils.torch_older_than("2.2"),
+        reason="fixme: negative padding is not implemented yet",
     ),
     TorchLibOpInfo(
         "nn.functional.replication_pad3d",
@@ -1420,6 +1429,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo("sigmoid", core_ops.aten_sigmoid),
     TorchLibOpInfo("sign", core_ops.aten_sign),
     TorchLibOpInfo("sin", core_ops.aten_sin),
+    TorchLibOpInfo(
+        "sinc", special_ops.aten_special_sinc, tolerance={torch.float16: (1e-2, 6e-4)}
+    ),
     TorchLibOpInfo("sinh", core_ops.aten_sinh),
     TorchLibOpInfo(
         "softmax",
