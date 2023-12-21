@@ -715,6 +715,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
         reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
     ),
+    TorchLibOpInfo("cat", core_ops.aten_cat_complex, trace_only=True, complex=True).skip(
+        matcher=lambda sample: sample.input[0].equal(torch.tensor([])),
+        reason="fixme: ORT aborts with zero-dim tensors. https://github.com/microsoft/onnxruntime/issues/16619",
+    ),
     TorchLibOpInfo("ceil", core_ops.aten_ceil),
     TorchLibOpInfo(
         "chunk",
@@ -1428,6 +1432,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         complex=True,
     ),
     TorchLibOpInfo(
+        "scalar_tensor",
+        core_ops.aten_scalar_tensor_complex,
+        input_wrangler=_scalar_tensor_input_wrangler,
+        trace_only=True,
+        complex=True,
+    ).skip(
+        matcher=lambda sample: not isinstance(sample.input, torch.Tensor),
+        reason="this Aten overload only support complex input (real representation)",
+    ),
+    TorchLibOpInfo(
         "scatter_add",
         core_ops.aten_scatter_add,
     )
@@ -1541,6 +1555,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support one tensor as input by design",
     ),
     TorchLibOpInfo("stack", core_ops.aten_stack),
+    TorchLibOpInfo("stack", core_ops.aten_stack_complex, complex=True, trace_only=True),
     TorchLibOpInfo("sub", core_ops.aten_sub),
     TorchLibOpInfo("sub", core_ops.aten_sub_complex, complex=True, trace_only=True),
     # TorchLibOpInfo("sym_size", core_ops.aten_sym_size),  # no test case in OPS_DB
