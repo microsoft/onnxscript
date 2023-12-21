@@ -1407,7 +1407,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "scalar_tensor",
-        core_ops.aten_scalar_tensor,
+        core_ops.aten_scalar_tensor,  # aten_scalar_tensor_complex supports complex input
         input_wrangler=_scalar_tensor_input_wrangler,
         trace_only=True,
         complex=True,
