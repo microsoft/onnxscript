@@ -2205,8 +2205,8 @@ def aten_upsample_bicubic2d(
     scales: FLOAT = None,
 ) -> TensorType:
     """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
-    """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
-    """upsample_bicubic2d.out(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None, *, Tensor(a!) out) -> Tensor(a!)"""
+    """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""  # pylint: disable=pointless-string-statement
+    """upsample_bicubic2d.out(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None, *, Tensor(a!) out) -> Tensor(a!)"""  # pylint: disable=pointless-string-statement
 
     if output_size is not None:
         result = _aten_upsample_output_size(self, output_size, align_corners, "cubic")

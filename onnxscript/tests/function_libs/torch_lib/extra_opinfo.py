@@ -100,10 +100,7 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
 
     for align_corners in align_corners_options:
         yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            shape(S, rank, False),
-            align_corners
-        )
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners)
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
             shape(L, rank, False),
