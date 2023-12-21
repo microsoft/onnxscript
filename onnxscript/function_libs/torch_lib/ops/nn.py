@@ -2199,11 +2199,11 @@ def aten_unflatten_dense_tensors(
 
 @torch_op("aten::upsample_bicubic2d", trace_only=True)
 def aten_upsample_bicubic2d(
-    self: TensorType,
+    self: TReal,
     output_size: INT64,
     align_corners: bool,
-    scales: FLOAT = None,
-) -> TensorType:
+    scales: TFloat = None,
+) -> TReal:
     """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
     """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""  # pylint: disable=pointless-string-statement
     """upsample_bicubic2d.out(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None, *, Tensor(a!) out) -> Tensor(a!)"""  # pylint: disable=pointless-string-statement
@@ -2211,7 +2211,7 @@ def aten_upsample_bicubic2d(
     if output_size is not None:
         result = _aten_upsample_output_size(self, output_size, align_corners, "cubic")
     else:
-        result = _aten_upsample_scales(self, scales[0], scales[1], align_corners, "cubic")
+        result = _aten_upsample_scales(self, scales, align_corners, "cubic")
     return result
 
 
@@ -2252,18 +2252,12 @@ def _aten_upsample_output_size(
 @torch_op("aten::upsample_bicubic2d", private=True)
 def _aten_upsample_scales(
     self: TReal,
-    scales_h: float,
-    scales_w: float,
+    scales: TFloat,
     align_corners: bool,
     str_mode: str,
 ) -> TReal:
-    neg_1 = op.Constant(value_ints=[-1])
-    scales = op.Concat(
-        op.Constant(value_floats=[1.0, 1.0]),
-        op.Reshape(op.Constant(value_float=scales_h), neg_1),
-        op.Reshape(op.Constant(value_float=scales_w), neg_1),
-        axis=0,
-    )
+    scales = op.Cast(scales, to=FLOAT.dtype)
+    scales = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scales, axis=0)
     if align_corners:
         result = op.Resize(
             self,

@@ -111,13 +111,13 @@ def sample_inputs_upsample_bicubic2d(op_info, device, dtype, requires_grad, **kw
             make_arg(shape(D, rank)),
             None,  # output_size
             align_corners,
-            [1.7, 1.7],  # scaler
+            (1.7, 1.7),  # scaler
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
             None,  # if this is None, the scalar must be list
             align_corners,
-            [0.6, 0.6],
+            (0.6, 0.6),
         )
 
 
