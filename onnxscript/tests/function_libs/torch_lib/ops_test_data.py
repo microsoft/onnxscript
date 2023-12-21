@@ -1426,20 +1426,16 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     ),
     TorchLibOpInfo(
         "scalar_tensor",
-        core_ops.aten_scalar_tensor,  # aten_scalar_tensor_complex supports complex input
+        core_ops.aten_scalar_tensor,
         input_wrangler=_scalar_tensor_input_wrangler,
         trace_only=True,
         complex=True,
     ),
     TorchLibOpInfo(
-        "scalar_tensor",
+        "ops.aten.scalar_tensor",
         core_ops.aten_scalar_tensor_complex,
-        input_wrangler=_scalar_tensor_input_wrangler,
         trace_only=True,
         complex=True,
-    ).skip(
-        matcher=lambda sample: not isinstance(sample.input, torch.Tensor),
-        reason="this Aten overload only support complex input (real representation)",
     ),
     TorchLibOpInfo(
         "scatter_add",

@@ -20,6 +20,20 @@ S = 5
 M = 10
 
 
+def sample_inputs_scalar_tensor(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    del kwargs
+    del device
+    del requires_grad
+    # Not including a scalar tensor in vals because meta tests start failing due to
+    # lack of meta support for _local_scalar_dense
+    # torch.tensor(2, device=device)
+    vals = (-5j, 0j, 1j)
+
+    for item in vals:
+        yield opinfo_core.SampleInput(item, dtype=dtype)
+
+
 def sample_inputs_bernoulli_p(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
 
@@ -1879,6 +1893,14 @@ OP_DB: List[opinfo_core.OpInfo] = [
         aten_name="max_pool3d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_max_pool3d_with_indices,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "ops.aten.scalar_tensor",
+        aten_name="scalar_tensor",
+        dtypes=common_dtype.complex_types(),
+        sample_inputs_func=sample_inputs_scalar_tensor,
+        supports_autograd=False,
         supports_out=False,
     ),
 ]
