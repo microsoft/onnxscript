@@ -7110,10 +7110,14 @@ def aten_scalar_tensor_complex(
     # On the other hand, when the input is originally in real, aten_scalar_tensor is used.
     # is invoked.
     if dtype == COMPLEX128.dtype:
-        s = op.Cast(s, to=DOUBLE.dtype)
+        result = op.Cast(s, to=DOUBLE.dtype)
     elif dtype == COMPLEX64.dtype:
-        s = op.Cast(s, to=FLOAT.dtype)
-    return s
+        result = op.Cast(s, to=FLOAT.dtype)
+    else:
+        # NOTE: No-op for non-complex dtype
+        # It's potentially a bug if it comes here with no-op.
+        result = s
+    return result
 
 
 @torch_op("aten::scalar_tensor", trace_only=True)
