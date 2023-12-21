@@ -7106,8 +7106,8 @@ def aten_scalar_tensor_complex(
     s: Union[FLOAT, DOUBLE], dtype: int = COMPLEX64.dtype
 ) -> RealType:
     """scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"""
-    # NOTE: When the input is originally in complex, this function is invoked,
-    # on the other hand, when the input is originally in real, aten_scalar_tensor
+    # NOTE: When the input is originally in complex, this function is invoked.
+    # On the other hand, when the input is originally in real, aten_scalar_tensor is used.
     # is invoked.
     if dtype == COMPLEX128.dtype:
         s = op.Cast(s, to=DOUBLE.dtype)
