@@ -2301,12 +2301,13 @@ def aten_upsample_bilinear2d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_linear1d", trace_only=True)
 def aten_upsample_linear1d(
     self: TensorType, output_size: INT64, align_corners: bool, scales: Optional[float] = None
 ) -> TensorType:
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return self
 
 
 def aten_upsample_linear1d_backward(

@@ -2123,6 +2123,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         trace_only=True,
     ),
     TorchLibOpInfo(
+        "ops.aten.upsample_linear1d",
+        nn_ops.aten_upsample_linear1d,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
         "nn.functional.upsample_nearest2d",
         nn_ops.aten_upsample_nearest2d,
         input_wrangler=_upsample_input_wrangler,
