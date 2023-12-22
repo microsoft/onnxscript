@@ -1875,6 +1875,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
+        "ops.aten.upsample_linear1d",
+        aten_name="upsample_linear1d",
+        dtypes=common_dtype.floating_types_and(torch.bfloat16),
+        sample_inputs_func=sample_inputs_upsample_linear1d,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
         "nn.functional.max_pool1d_with_indices",
         aten_name="max_pool1d_with_indices",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
