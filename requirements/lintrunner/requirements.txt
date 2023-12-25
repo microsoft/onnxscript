@@ -3,7 +3,7 @@ lintrunner-adapters>=0.8.0
 # RUFF, RUFF-FIX
 ruff==0.1.8
 # MYPY
-mypy==1.7.1
+mypy==1.8.0
 types-PyYAML==6.0.12.11
 # PYLINT
 pylint==2.17.6
