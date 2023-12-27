@@ -263,6 +263,8 @@ def convert_tensor_to_numpy(input: Any) -> Any:
             # from complex to real representation
             input = torch.view_as_real(input)
         return input.detach().cpu().numpy()
+    if isinstance(input, complex):
+        return torch.view_as_real(torch.tensor(input)).detach().cpu().numpy()
     if isinstance(input, (tuple, list)):
         if len(input) == 0:
             return np.array((), dtype=np.int64)
