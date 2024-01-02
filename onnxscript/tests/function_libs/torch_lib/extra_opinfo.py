@@ -1418,7 +1418,7 @@ def sample_inputs_upsample_linear1d(op_info, device, dtype, requires_grad, **kwa
     SS = 3
     L = 5
 
-    align_corners_options = (True,) # False)
+    align_corners_options = (True, False)
     rank = 1
 
     def shape(size, rank, with_batch_channel=True):

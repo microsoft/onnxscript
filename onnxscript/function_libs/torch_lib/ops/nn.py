@@ -2314,7 +2314,6 @@ def aten_upsample_linear1d(
 def _aten_upsample_linear1d_onnx(
     self: TReal, output_size: INT64, align_corners: bool
 ) -> TReal:
-
     # assert output_size is not None:
     self_shape = op.Shape(self)
     batch_channel = self_shape[:2]  # type: ignore[index]
