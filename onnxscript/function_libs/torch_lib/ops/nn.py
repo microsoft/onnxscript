@@ -2202,7 +2202,7 @@ def aten_upsample_bicubic2d(
     self: TReal,
     output_size: INT64,
     align_corners: bool,
-    scales_factors: Optional[TFloat] = None,
+    scale_factors: Optional[TFloat] = None,
 ) -> TReal:
     """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor
        upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
@@ -2210,7 +2210,7 @@ def aten_upsample_bicubic2d(
     if output_size is not None:
         result = _aten_upsample_output_size(self, output_size, align_corners, "cubic")
     else:
-        result = _aten_upsample_scales(self, scales, align_corners, "cubic")
+        result = _aten_upsample_scales(self, scale_factors, align_corners, "cubic")
     return result
 
 
@@ -2251,17 +2251,17 @@ def _aten_upsample_output_size(
 @torch_op("aten::upsample_bicubic2d", private=True)
 def _aten_upsample_scales(
     self: TReal,
-    scales: TFloat,
+    scale_factors: TFloat,
     align_corners: bool,
     str_mode: str,
 ) -> TReal:
-    scales = op.Cast(scales, to=FLOAT.dtype)
-    scales = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scales, axis=0)
+    scale_factors = op.Cast(scale_factors, to=FLOAT.dtype)
+    scale_factors = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scale_factors, axis=0)
     if align_corners:
         result = op.Resize(
             self,
             None,
-            scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
+            scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
             None,
             mode=str_mode,
             coordinate_transformation_mode="align_corners",
@@ -2270,7 +2270,7 @@ def _aten_upsample_scales(
         result = op.Resize(
             self,
             None,
-            scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
+            scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
             None,
             mode=str_mode,
             coordinate_transformation_mode="pytorch_half_pixel",
