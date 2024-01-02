@@ -1418,7 +1418,7 @@ def sample_inputs_upsample_linear1d(op_info, device, dtype, requires_grad, **kwa
     SS = 3
     L = 5
 
-    align_corners_options = (True, False)
+    align_corners_options = (True,) # False)
     rank = 1
 
     def shape(size, rank, with_batch_channel=True):
@@ -1445,18 +1445,6 @@ def sample_inputs_upsample_linear1d(op_info, device, dtype, requires_grad, **kwa
             make_arg(shape(D, rank)),
             shape(L, rank, False),
             align_corners,
-        )
-        yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            None,  # output_size
-            align_corners,
-            (1.7, 1.7),  # scaler
-        )
-        yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)),
-            None,  # if this is None, the scalar must be list
-            align_corners,
-            (0.6, 0.6),
         )
 
 

@@ -2303,11 +2303,41 @@ def aten_upsample_bilinear2d_backward(
 
 @torch_op("aten::upsample_linear1d", trace_only=True)
 def aten_upsample_linear1d(
-    self: TensorType, output_size: INT64, align_corners: bool, scales: Optional[float] = None
-) -> TensorType:
+    self: TReal, output_size: INT64, align_corners: bool, scales: Optional[float] = None
+) -> TReal:
     """upsample_linear1d(Tensor self, SymInt[1] output_size, bool align_corners, float? scales=None) -> Tensor"""
+    del scales  # aten function ignore the `scales` argument
+    return _aten_upsample_linear1d_onnx(self, output_size, align_corners)
 
-    return self
+
+@torch_op("aten::upsample_linear1d", private=True)
+def _aten_upsample_linear1d_onnx(
+    self: TReal, output_size: INT64, align_corners: bool
+) -> TReal:
+
+    # assert output_size is not None:
+    self_shape = op.Shape(self)
+    batch_channel = self_shape[:2]  # type: ignore[index]
+    output_size = op.Concat(batch_channel, output_size, axis=0)
+    if align_corners:
+        result = op.Resize(
+            self,
+            None,
+            None,
+            output_size,
+            mode="linear",
+            coordinate_transformation_mode="align_corners",
+        )
+    else:
+        result = op.Resize(
+            self,
+            None,
+            None,
+            output_size,
+            mode="linear",
+            coordinate_transformation_mode="pytorch_half_pixel",
+        )
+    return result
 
 
 def aten_upsample_linear1d_backward(
