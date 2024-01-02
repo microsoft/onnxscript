@@ -2197,15 +2197,15 @@ def aten_unflatten_dense_tensors(
     raise NotImplementedError()
 
 
-@torch_op("aten::upsample_bicubic2d", trace_only=True)
+@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bicubic2d.vec"), trace_only=True)
 def aten_upsample_bicubic2d(
     self: TReal,
     output_size: INT64,
     align_corners: bool,
-    scales: TFloat = None,
+    scales_factors: Optional[TFloat] = None,
 ) -> TReal:
-    """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
-    """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""  # pylint: disable=pointless-string-statement
+    """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor
+       upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
     if output_size is not None:
         result = _aten_upsample_output_size(self, output_size, align_corners, "cubic")
