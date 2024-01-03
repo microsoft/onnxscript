@@ -2386,7 +2386,7 @@ def _aten_upsample_linear1d_onnx(
 ) -> TReal:
     # assert output_size is not None:
     self_shape = op.Shape(self)
-    batch_channel = self_shape[:2]  # type: ignore[index]
+    batch_channel = self_shape[:2]
     output_size = op.Concat(batch_channel, output_size, axis=0)
     if align_corners:
         result = op.Resize(
