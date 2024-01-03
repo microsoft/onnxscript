@@ -2197,16 +2197,86 @@ def aten_unflatten_dense_tensors(
     raise NotImplementedError()
 
 
+@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bicubic2d.vec"), trace_only=True)
 def aten_upsample_bicubic2d(
-    self: TensorType,
+    self: TReal,
     output_size: INT64,
     align_corners: bool,
-    scales_h: Optional[float] = None,
-    scales_w: Optional[float] = None,
-) -> TensorType:
-    """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+    scale_factors: Optional[TFloat] = None,
+) -> TReal:
+    """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor
+    upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor
+    """
 
-    raise NotImplementedError()
+    if output_size is not None:
+        result = _aten_upsample_output_size(self, output_size, align_corners, "cubic")
+    else:
+        result = _aten_upsample_scales(self, scale_factors, align_corners, "cubic")
+    return result
+
+
+@torch_op("aten::upsample_bicubic2d", private=True)
+def _aten_upsample_output_size(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    str_mode: str,
+) -> TReal:
+    self_shape = op.Shape(self)
+    starts = op.Constant(value_ints=[0])
+    ends = op.Constant(value_ints=[2])
+    batch_channel = op.Slice(self_shape, starts, ends)
+    output_size = op.Concat(batch_channel, output_size, axis=0)
+    if align_corners:
+        result = op.Resize(
+            self,
+            None,
+            None,
+            output_size,
+            mode=str_mode,
+            coordinate_transformation_mode="align_corners",
+        )
+    else:
+        result = op.Resize(
+            self,
+            None,
+            None,
+            output_size,
+            mode=str_mode,
+            coordinate_transformation_mode="pytorch_half_pixel",
+        )
+
+    return result
+
+
+@torch_op("aten::upsample_bicubic2d", private=True)
+def _aten_upsample_scales(
+    self: TReal,
+    scale_factors: TFloat,
+    align_corners: bool,
+    str_mode: str,
+) -> TReal:
+    scale_factors = op.Cast(scale_factors, to=FLOAT.dtype)
+    scale_factors = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scale_factors, axis=0)
+    if align_corners:
+        result = op.Resize(
+            self,
+            None,
+            scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
+            None,
+            mode=str_mode,
+            coordinate_transformation_mode="align_corners",
+        )
+    else:
+        result = op.Resize(
+            self,
+            None,
+            scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
+            None,
+            mode=str_mode,
+            coordinate_transformation_mode="pytorch_half_pixel",
+        )
+    return result
 
 
 def aten_upsample_bicubic2d_backward(
