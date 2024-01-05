@@ -439,17 +439,6 @@ def _upsample_input_wrangler(
     return args, kwargs
 
 
-def _upsample_nearest1d_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # if "scale_factor" in kwargs:
-    #     del kwargs["scale_factor"]
-    # if "size" in kwargs:
-    #     kwargs["output_size"] = kwargs["size"]
-    #     del kwargs["size"]
-    return args, kwargs
-
-
 def _unflatten_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -2141,7 +2130,6 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
     TorchLibOpInfo(
         "nn.functional.upsample_nearest1d",
         nn_ops.aten_upsample_nearest1d,
-        input_wrangler=_upsample_nearest1d_input_wrangler,
         trace_only=True,
     ).skip(
         # size parameter must be existed
