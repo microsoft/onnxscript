@@ -2143,6 +2143,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_upsample_nearest1d,
         input_wrangler=_upsample_nearest1d_input_wrangler,
         trace_only=True,
+    ).skip(
+        # size parameter must be existed
+        matcher=lambda sample: sample.kwargs.get("size", None) is None,
+        reason="aten_upsample_nearest1d takes size as input",
     ),
     TorchLibOpInfo(
         "nn.functional.upsample_nearest2d",

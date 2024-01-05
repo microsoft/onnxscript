@@ -2396,22 +2396,7 @@ def aten_upsample_nearest1d(
     self: TReal, size: INT64, scale_factor: Optional[float] = None
 ) -> TReal:
     """upsample_nearest1d(Tensor self, SymInt[1] output_size, float? scales=None) -> Tensor"""
-    if size is not None:
-        result = _aten_upsample_nearest2d_onnx(self, size)
-    else:
-        result = _aten_upsample_nearest1d_scales_onnx(self, scale_factor)
-    return result
-
-
-@torch_op("aten::upsample_nearest1d", private=True)
-def _aten_upsample_nearest1d_scales_onnx(
-    self: TReal, output_size: INT64
-) -> TReal:
-
-    self_shape = op.Shape(self)
-    batch_channel = self_shape[:2]
-    output_size = op.Concat(batch_channel, output_size, axis=0)
-    return op.Resize(self, None, None, output_size, mode="nearest", coordinate_transformation_mode="pytorch_half_pixel", nearest_mode="floor")
+    return _aten_upsample_nearest2d_onnx(self, size)
 
 
 def aten_upsample_nearest1d_backward(
