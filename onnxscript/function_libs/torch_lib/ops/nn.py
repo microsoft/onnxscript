@@ -2461,16 +2461,17 @@ def aten_upsample_nearest2d_backward(
     raise NotImplementedError()
 
 
+@torch_op("aten::upsample_nearest3d", trace_only=True)
 def aten_upsample_nearest3d(
-    self: TensorType,
-    output_size: INT64,
+    self: TReal,
+    size: INT64,
     scales_d: Optional[float] = None,
     scales_h: Optional[float] = None,
     scales_w: Optional[float] = None,
-) -> TensorType:
+) -> TReal:
     """upsample_nearest3d(Tensor self, SymInt[3] output_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    raise NotImplementedError()
+    return op.Identity(self)
 
 
 def aten_upsample_nearest3d_backward(

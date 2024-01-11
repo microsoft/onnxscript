@@ -2151,6 +2151,11 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         matcher=lambda sample: "scale_factor" in sample.kwargs,
         reason="fixme: the scale_factor tests",
     ),
+    TorchLibOpInfo(
+        "nn.functional.upsample_nearest3d",
+        nn_ops.aten_upsample_nearest3d,
+        trace_only=True,
+    ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo(
         "roll",
