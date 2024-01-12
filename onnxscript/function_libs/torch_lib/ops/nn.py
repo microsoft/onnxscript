@@ -2318,9 +2318,9 @@ def aten_upsample_bilinear2d_vec(
     align_corners: bool = True,
     scale_factors: Optional[Sequence[float]] = None,
 ) -> TReal:
-    return aten_upsample_bilinear2d(
-        self, output_size, scale_factors[0], scale_factors[1], align_corners
-    )
+    scales_h = scale_factors[0] if scale_factors is not None else None
+    scales_w = scale_factors[1] if scale_factors is not None else None
+    return aten_upsample_bilinear2d(self, output_size, scales_h, scales_w, align_corners)
 
 
 @torch_op("aten::upsample_bilinear2d", private=True)
