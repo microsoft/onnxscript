@@ -427,6 +427,18 @@ def _upsample_bilinear2d_input_wrangler(
     return args, kwargs
 
 
+def _upsample_bilinear2d_vec_input_wrangler(
+    args: list[Any], kwargs: dict[str, Any]
+) -> tuple[list[Any], dict[str, Any]]:
+    if "size" in kwargs:
+        args.append(np.array(kwargs["size"], dtype=np.int64))
+        del kwargs["size"]  # promote tensor type kwargs to args
+    if "scale_factor" in kwargs:
+        kwargs["scale_factors"] = [kwargs["scale_factor"]] * 2
+        del kwargs["scale_factor"]  # adapt the function signature
+    return args, kwargs
+
+
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
@@ -2120,6 +2132,12 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.upsample_bilinear2d",
         nn_ops.aten_upsample_bilinear2d,
         input_wrangler=_upsample_bilinear2d_input_wrangler,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "nn.functional.upsample_bilinear2d",
+        nn_ops.aten_upsample_bilinear2d_vec,
+        input_wrangler=_upsample_bilinear2d_vec_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
