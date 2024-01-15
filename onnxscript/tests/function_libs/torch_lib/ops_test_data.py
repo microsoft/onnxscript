@@ -2155,6 +2155,10 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "nn.functional.upsample_nearest3d",
         nn_ops.aten_upsample_nearest3d,
         trace_only=True,
+    ).skip(
+        # Shape should be [N, C, H, W]
+        matcher=lambda sample: len(sample.input.shape) != 2 + 3,
+        reason="only test on 2d inputs",
     ),
     TorchLibOpInfo("ones_like", core_ops.aten_ones_like, trace_only=True),
     TorchLibOpInfo(

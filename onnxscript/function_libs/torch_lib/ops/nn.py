@@ -2433,7 +2433,9 @@ def _aten_upsample_nearest2d_onnx(
     size: INT64,
 ) -> TReal:
     self_shape = op.Shape(self)
-    batch_channel = self_shape[:2]  # type: ignore[index]
+    starts = op.Constant(value_ints=[0])
+    ends = op.Constant(value_ints=[2])
+    batch_channel = op.Slice(self_shape, starts, ends)
     output_size = op.Concat(batch_channel, size, axis=0)
 
     return op.Resize(
@@ -2471,7 +2473,8 @@ def aten_upsample_nearest3d(
 ) -> TReal:
     """upsample_nearest3d(Tensor self, SymInt[3] output_size, float? scales_d=None, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    return op.Identity(self)
+    return _aten_upsample_nearest2d_onnx(self, size)
+
 
 
 def aten_upsample_nearest3d_backward(
