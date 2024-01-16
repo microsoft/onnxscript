@@ -52,6 +52,7 @@ from onnxscript.function_libs.torch_lib.ops import fft as fft_ops
 from onnxscript.function_libs.torch_lib.ops import linalg as linalg_ops
 from onnxscript.function_libs.torch_lib.ops import nn as nn_ops
 from onnxscript.function_libs.torch_lib.ops import special as special_ops
+from onnxscript.function_libs.torch_lib.ops import vision as vision_ops
 from onnxscript.tests.function_libs.torch_lib import extra_opinfo, ops_test_common
 
 # Create a copy of the op_db to modify
@@ -2326,6 +2327,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         reason="this Aten overload only support when correction attribute exists",
     ),
     TorchLibOpInfo("zeros_like", core_ops.aten_zeros_like, trace_only=True),
+    TorchLibOpInfo("torchvision.ops.nms", vision_ops.torchvision_nms),
 )
 
 ops_test_common.duplicate_opinfo(OPS_DB, "all", ("all_dim", "all_dims"))
