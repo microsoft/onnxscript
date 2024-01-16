@@ -417,9 +417,21 @@ def _sum_input_wrangler(
 def _upsample_bilinear2d_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
+    # Wrangler for the signature difference between
+    #   'nn.functional.upsample_bilinear'
+    # and
+    #   'aten::upsample_bilinear2d'
+    # https://pytorch.org/docs/stable/generated/torch.nn.functional.upsample_bilinear.html
     if "size" in kwargs:
         args.append(np.array(kwargs["size"], dtype=np.int64))
         del kwargs["size"]  # promote tensor type kwargs to args
+    else:
+        args.append(None)
+    if "align_corners" in kwargs:
+        args.append(kwargs["align_corners"])
+        del kwargs["align_corners"]
+    else:
+        args.append(True)  # Fill in the default value
     if "scale_factor" in kwargs:
         kwargs["scales_h"] = kwargs["scale_factor"]
         kwargs["scales_w"] = kwargs["scale_factor"]
@@ -430,12 +442,26 @@ def _upsample_bilinear2d_input_wrangler(
 def _upsample_bilinear2d_vec_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
+    # Wrangler for the signature difference between
+    #   'nn.functional.upsample_bilinear'
+    # and
+    #   'aten::upsample_bilinear2d.vec'
+    # https://pytorch.org/docs/stable/generated/torch.nn.functional.upsample_bilinear.html
     if "size" in kwargs:
         args.append(np.array(kwargs["size"], dtype=np.int64))
         del kwargs["size"]  # promote tensor type kwargs to args
+    else:
+        args.append(None)
+    if "align_corners" in kwargs:
+        args.append(kwargs["align_corners"])
+        del kwargs["align_corners"]
+    else:
+        args.append(True)  # Fill in the default value
     if "scale_factor" in kwargs:
-        kwargs["scale_factors"] = [kwargs["scale_factor"]] * 2
-        del kwargs["scale_factor"]  # adapt the function signature
+        args.append([kwargs["scale_factor"]] * 2)
+        del kwargs["scale_factor"]  # promote tensor type kwargs to args
+    else:
+        args.append(None)
     return args, kwargs
 
 
