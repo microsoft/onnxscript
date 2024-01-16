@@ -2302,12 +2302,17 @@ def aten_upsample_bilinear2d(
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
+    coordinate_transformation_mode = "align_corners" if align_corners else "pytorch_half_pixel"
     if output_size is not None:
-        result = _aten_upsample_bilinear2d_output_size(self, output_size)
+        result = _aten_upsample_bilinear2d_output_size(
+            self, output_size, coordinate_transformation_mode
+        )
     else:
         assert scales_h is not None
         assert scales_h == scales_w, f"scale_h({scales_h}) != scale_w({scales_w})"
-        result = _aten_upsample_bilinear2d_scales(self, scales_h, scales_w)
+        result = _aten_upsample_bilinear2d_scales(
+            self, scales_h, scales_w, coordinate_transformation_mode
+        )
     return result
 
 
@@ -2327,6 +2332,7 @@ def aten_upsample_bilinear2d_vec(
 def _aten_upsample_bilinear2d_output_size(
     self: TReal,
     output_size: INT64,
+    coordinate_transformation_mode: str,
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
@@ -2341,7 +2347,8 @@ def _aten_upsample_bilinear2d_output_size(
         None,
         output_size,
         mode="linear",
-        coordinate_transformation_mode="align_corners",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        nearest_mode="floor",
     )
 
 
@@ -2350,6 +2357,7 @@ def _aten_upsample_bilinear2d_scales(
     self: TReal,
     scales_h: float,
     scales_w: float,
+    coordinate_transformation_mode: str,
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
@@ -2366,7 +2374,8 @@ def _aten_upsample_bilinear2d_scales(
         scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
         None,
         mode="linear",
-        coordinate_transformation_mode="align_corners",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        nearest_mode="floor",
     )
 
 
