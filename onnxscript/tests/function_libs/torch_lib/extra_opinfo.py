@@ -1000,14 +1000,20 @@ def sample_inputs__native_batch_norm_legit_no_stats(
 
 def sample_inputs_non_max_suppression(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
+    del kwargs
     boxes = torch.tensor(
         [
             [0.0, 0.0, 10.0, 10.0],
             [10.0, 10.0, 20.0, 20.0],
             [32.0, 32.0, 40.0, 52.0],
-        ]
+        ],
+        device=device,
+        dtype=dtype,
+        requires_grad=requires_grad,
     )
-    scores = torch.tensor([0.8, 0.4, 0.6])
+    scores = torch.tensor(
+        [0.8, 0.4, 0.6], device=device, dtype=dtype, requires_grad=requires_grad
+    )
 
     for iou_threshold in (0.3, 0.5, 0.7, 0.9):
         yield opinfo_core.SampleInput(boxes, args=(scores, iou_threshold))
