@@ -1004,9 +1004,10 @@ def sample_inputs_non_max_suppression(op_info, device, dtype, requires_grad, **k
         [
             [0.0, 0.0, 10.0, 10.0],
             [10.0, 10.0, 20.0, 20.0],
+            [32.0, 32.0, 40.0, 52.0],
         ]
     )
-    scores = torch.tensor([0.8, 0.4])
+    scores = torch.tensor([0.8, 0.4, 0.6])
 
     for iou_threshold in (0.3, 0.5, 0.7, 0.9):
         yield opinfo_core.SampleInput(boxes, args=(scores, iou_threshold))
