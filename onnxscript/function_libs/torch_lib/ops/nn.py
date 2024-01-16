@@ -2323,7 +2323,7 @@ def aten_upsample_bilinear2d_vec(
     align_corners: bool,
     scale_factors: Optional[Sequence[float]],
 ) -> TReal:
-    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+    """upsample_bilinear2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
     scales_h = scale_factors[0] if scale_factors is not None else None
     scales_w = scale_factors[1] if scale_factors is not None else None
     return aten_upsample_bilinear2d(self, output_size, align_corners, scales_h, scales_w)
