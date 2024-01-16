@@ -8,6 +8,7 @@ import itertools
 from typing import Any, List
 
 import torch
+import torchvision
 from torch import testing as torch_testing
 from torch.testing._internal import (
     common_device_type,
@@ -997,6 +998,20 @@ def sample_inputs__native_batch_norm_legit_no_stats(
             )
 
 
+def sample_inputs_non_max_suppression(op_info, device, dtype, requires_grad, **kwargs):
+    del op_info
+    boxes = torch.tensor(
+        [
+            [0.0, 0.0, 10.0, 10.0],
+            [10.0, 10.0, 20.0, 20.0],
+        ]
+    )
+    scores = torch.tensor([0.8, 0.4])
+
+    for iou_threshold in (0.3, 0.5, 0.7, 0.9):
+        yield opinfo_core.SampleInput(boxes, args=(scores, iou_threshold))
+
+
 def sample_inputs_normal_tensor_float(op_info, device, dtype, requires_grad, **kwargs):
     del op_info
     del requires_grad
@@ -1959,6 +1974,13 @@ OP_DB: List[opinfo_core.OpInfo] = [
         dtypes=common_dtype.complex_types(),
         sample_inputs_func=sample_inputs_scalar_tensor,
         supports_autograd=False,
+        supports_out=False,
+    ),
+    opinfo_core.OpInfo(
+        "torchvision.ops.nms",
+        op=torchvision.ops.nms,
+        dtypes=common_dtype.floating_types(),
+        sample_inputs_func=sample_inputs_non_max_suppression,
         supports_out=False,
     ),
 ]
