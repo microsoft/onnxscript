@@ -2109,7 +2109,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_upsample_bilinear2d,
         trace_only=True,
     ).skip(
-        matcher=lambda sample: sample.kwargs.get("align_corners") is False,
+        matcher=lambda sample: sample.args[1] is False,
         reason="fixme: align_corners=False output mismatch",
     ),
     TorchLibOpInfo(
@@ -2122,7 +2122,7 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         nn_ops.aten_upsample_bicubic2d,
         trace_only=True,
     ).skip(
-        matcher=lambda sample: sample.kwargs.get("align_corners") is False,
+        matcher=lambda sample: sample.args[1] is False,
         reason="fixme: align_corners=False output mismatch",
     ),
     TorchLibOpInfo(
