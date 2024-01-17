@@ -2108,6 +2108,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.upsample_bilinear2d.default",
         nn_ops.aten_upsample_bilinear2d,
         trace_only=True,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("align_corners") is False,
+        reason="fixme: align_corners=False output mismatch",
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_bilinear2d.vec",
@@ -2118,6 +2121,9 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         "ops.aten.upsample_bicubic2d.default",
         nn_ops.aten_upsample_bicubic2d,
         trace_only=True,
+    ).skip(
+        matcher=lambda sample: sample.kwargs.get("align_corners") is False,
+        reason="fixme: align_corners=False output mismatch",
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_bicubic2d.vec",

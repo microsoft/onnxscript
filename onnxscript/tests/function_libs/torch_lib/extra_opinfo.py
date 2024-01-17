@@ -1461,22 +1461,22 @@ def sample_inputs_upsample_2d(op_info, device, dtype, requires_grad, **kwargs):
 
     for align_corners in align_corners_options:
         yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)), shape(S, rank, False), align_corners
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners=align_corners
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
             shape(L, rank, False),
-            align_corners,
+            align_corners=align_corners,
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            args=(shape(L, rank, False), align_corners),
-            kwargs=dict(scales_h=0.6, scales_w=4.2),
+            args=(shape(L, rank, False),),
+            kwargs=dict(align_corners=align_corners, scales_h=0.6, scales_w=4.2),
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            args=(shape(L, rank, False), align_corners),
-            kwargs=dict(scales_h=4.2, scales_w=0.6),
+            args=(shape(L, rank, False),),
+            kwargs=dict(align_corners=align_corners, scales_h=4.2, scales_w=0.6),
         )
 
 
