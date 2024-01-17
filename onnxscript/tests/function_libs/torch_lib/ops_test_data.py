@@ -415,7 +415,7 @@ def _sum_input_wrangler(
     return args, kwargs
 
 
-def _upsample_bilinear2d_input_wrangler(
+def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Wrangler for the signature difference between
@@ -440,7 +440,7 @@ def _upsample_bilinear2d_input_wrangler(
     return args, kwargs
 
 
-def _upsample_bilinear2d_vec_input_wrangler(
+def _upsample_vec_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
     # Wrangler for the signature difference between
@@ -2156,20 +2156,27 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_bilinear2d",
+        "ops.aten.upsample_bilinear2d",
         nn_ops.aten_upsample_bilinear2d,
-        input_wrangler=_upsample_bilinear2d_input_wrangler,
+        input_wrangler=_upsample_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "nn.functional.upsample_bilinear2d",
+        "ops.aten.upsample_bilinear2d.vec",
         nn_ops.aten_upsample_bilinear2d_vec,
-        input_wrangler=_upsample_bilinear2d_vec_input_wrangler,
+        input_wrangler=_upsample_vec_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_bicubic2d",
         nn_ops.aten_upsample_bicubic2d,
+        input_wrangler=_upsample_input_wrangler,
+        trace_only=True,
+    ),
+    TorchLibOpInfo(
+        "ops.aten.upsample_bicubic2d.vec",
+        nn_ops.aten_upsample_bicubic2d_vec,
+        input_wrangler=_upsample_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
@@ -2402,11 +2409,6 @@ ops_test_common.duplicate_opinfo(
     OPS_DB,
     "nn.functional.celu",
     ("nn.functional.celu_type_promoted",),
-)
-ops_test_common.duplicate_opinfo(
-    OPS_DB,
-    "nn.functional.upsample_bilinear",
-    ("nn.functional.upsample_bilinear2d",),
 )
 ops_test_common.duplicate_opinfo(
     OPS_DB,
