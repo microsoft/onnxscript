@@ -2197,86 +2197,98 @@ def aten_unflatten_dense_tensors(
     raise NotImplementedError()
 
 
-@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bicubic2d.vec"), trace_only=True)
-def aten_upsample_bicubic2d(
-    self: TReal,
-    output_size: INT64,
-    align_corners: bool,
-    scale_factors: Optional[TFloat] = None,
-) -> TReal:
-    """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor
-    upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor
-    """
-
-    if output_size is not None:
-        result = _aten_upsample_output_size(self, output_size, align_corners, "cubic")
-    else:
-        result = _aten_upsample_scales(self, scale_factors, align_corners, "cubic")
-    return result
+def _get_upsample_align_corners_mode(align_corners: bool) -> str:
+    return "align_corners" if align_corners else "pytorch_half_pixel"
 
 
-@torch_op("aten::upsample_bicubic2d", private=True)
+@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bilinear2d"), private=True)
 def _aten_upsample_output_size(
     self: TReal,
     output_size: INT64,
-    align_corners: bool,
-    str_mode: str,
+    mode: str,
+    coordinate_transformation_mode: str,
 ) -> TReal:
     self_shape = op.Shape(self)
     starts = op.Constant(value_ints=[0])
     ends = op.Constant(value_ints=[2])
     batch_channel = op.Slice(self_shape, starts, ends)
     output_size = op.Concat(batch_channel, output_size, axis=0)
-    if align_corners:
-        result = op.Resize(
-            self,
-            None,
-            None,
-            output_size,
-            mode=str_mode,
-            coordinate_transformation_mode="align_corners",
-        )
-    else:
-        result = op.Resize(
-            self,
-            None,
-            None,
-            output_size,
-            mode=str_mode,
-            coordinate_transformation_mode="pytorch_half_pixel",
-        )
-
-    return result
+    return op.Resize(
+        self,
+        None,
+        None,
+        output_size,
+        mode=mode,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        nearest_mode="floor",
+    )
 
 
-@torch_op("aten::upsample_bicubic2d", private=True)
+@torch_op(("aten::upsample_bicubic2d", "aten::upsample_bilinear2d"), private=True)
 def _aten_upsample_scales(
     self: TReal,
     scale_factors: TFloat,
-    align_corners: bool,
-    str_mode: str,
+    mode: str,
+    coordinate_transformation_mode: str,
 ) -> TReal:
     scale_factors = op.Cast(scale_factors, to=FLOAT.dtype)
     scale_factors = op.Concat(op.Constant(value_floats=[1.0, 1.0]), scale_factors, axis=0)
-    if align_corners:
-        result = op.Resize(
+    return op.Resize(
+        self,
+        None,
+        scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
+        None,
+        mode=mode,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        nearest_mode="floor",
+    )
+
+
+@torch_op("aten::upsample_bicubic2d", trace_only=True)
+def aten_upsample_bicubic2d(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scales_h: Optional[float] = None,
+    scales_w: Optional[float] = None,
+) -> TReal:
+    """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
+
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scales_h is not None:
+        assert scales_w is not None
+
+        result = _aten_upsample_scales(
             self,
-            None,
-            scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
-            None,
-            mode=str_mode,
-            coordinate_transformation_mode="align_corners",
+            [scales_h, scales_w],
+            align_corners=align_corners,
+            mode="cubic",
+            coordinate_transformation_mode=coordinate_transformation_mode,
         )
     else:
-        result = op.Resize(
+        result = _aten_upsample_output_size(
             self,
-            None,
-            scale_factors,  # format should be: [1.0, 1.0, scale_h, scale_w]
-            None,
-            mode=str_mode,
-            coordinate_transformation_mode="pytorch_half_pixel",
+            output_size,
+            align_corners=align_corners,
+            mode="cubic",
+            coordinate_transformation_mode=coordinate_transformation_mode,
         )
+
     return result
+
+
+@torch_op("aten::upsample_bicubic2d.vec", trace_only=True)
+def aten_upsample_bicubic2d_vec(
+    self: TReal,
+    output_size: INT64,
+    align_corners: bool,
+    scale_factors: Optional[Sequence[float]] = None,
+) -> TReal:
+    """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
+
+    scales_h = scale_factors[0] if scale_factors is not None else None
+    scales_w = scale_factors[1] if scale_factors is not None else None
+    return aten_upsample_bicubic2d(self, output_size, align_corners, scales_h, scales_w)
 
 
 def aten_upsample_bicubic2d_backward(
@@ -2302,16 +2314,22 @@ def aten_upsample_bilinear2d(
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
-    coordinate_transformation_mode = "align_corners" if align_corners else "pytorch_half_pixel"
-    if output_size is not None:
-        result = _aten_upsample_bilinear2d_output_size(
-            self, output_size, coordinate_transformation_mode
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scales_h is not None:
+        assert scales_w is not None
+
+        result = _aten_upsample_scales(
+            self,
+            [scales_h, scales_w],
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            mode="linear",
         )
     else:
-        assert scales_h is not None
-        assert scales_h == scales_w, f"scale_h({scales_h}) != scale_w({scales_w})"
-        result = _aten_upsample_bilinear2d_scales(
-            self, scales_h, scales_w, coordinate_transformation_mode
+        result = _aten_upsample_output_size(
+            self,
+            output_size,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            mode="linear",
         )
     return result
 
@@ -2327,57 +2345,6 @@ def aten_upsample_bilinear2d_vec(
     scales_h = scale_factors[0] if scale_factors is not None else None
     scales_w = scale_factors[1] if scale_factors is not None else None
     return aten_upsample_bilinear2d(self, output_size, align_corners, scales_h, scales_w)
-
-
-@torch_op("aten::upsample_bilinear2d", private=True)
-def _aten_upsample_bilinear2d_output_size(
-    self: TReal,
-    output_size: INT64,
-    coordinate_transformation_mode: str,
-) -> TReal:
-    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
-
-    self_shape = op.Shape(self)
-    starts = op.Constant(value_ints=[0])
-    ends = op.Constant(value_ints=[2])
-    batch_channel = op.Slice(self_shape, starts, ends)
-    output_size = op.Concat(batch_channel, output_size, axis=0)
-    return op.Resize(
-        self,
-        None,
-        None,
-        output_size,
-        mode="linear",
-        coordinate_transformation_mode=coordinate_transformation_mode,
-        nearest_mode="floor",
-    )
-
-
-@torch_op("aten::upsample_bilinear2d", private=True)
-def _aten_upsample_bilinear2d_scales(
-    self: TReal,
-    scales_h: float,
-    scales_w: float,
-    coordinate_transformation_mode: str,
-) -> TReal:
-    """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
-
-    neg_1 = op.Constant(value_ints=[-1])
-    scales = op.Concat(
-        op.Constant(value_floats=[1.0, 1.0]),
-        op.Reshape(op.Constant(value_float=scales_h), neg_1),
-        op.Reshape(op.Constant(value_float=scales_w), neg_1),
-        axis=0,
-    )
-    return op.Resize(
-        self,
-        None,
-        scales,  # format should be: [1.0, 1.0, scale_h, scale_w]
-        None,
-        mode="linear",
-        coordinate_transformation_mode=coordinate_transformation_mode,
-        nearest_mode="floor",
-    )
 
 
 def aten_upsample_bilinear2d_backward(
