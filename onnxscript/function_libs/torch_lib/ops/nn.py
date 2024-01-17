@@ -2254,27 +2254,14 @@ def aten_upsample_bicubic2d(
 ) -> TReal:
     """upsample_bicubic2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
+    # Based on experimentation, scales_h and scales_w are always ignored in PyTorch
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
-    if scales_h is not None:
-        assert scales_w is not None
-
-        result = _aten_upsample_scales(
-            self,
-            [scales_h, scales_w],
-            align_corners=align_corners,
-            mode="cubic",
-            coordinate_transformation_mode=coordinate_transformation_mode,
-        )
-    else:
-        result = _aten_upsample_output_size(
-            self,
-            output_size,
-            align_corners=align_corners,
-            mode="cubic",
-            coordinate_transformation_mode=coordinate_transformation_mode,
-        )
-
-    return result
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        mode="cubic",
+        coordinate_transformation_mode=coordinate_transformation_mode,
+    )
 
 
 @torch_op("aten::upsample_bicubic2d.vec", trace_only=True)
@@ -2282,13 +2269,27 @@ def aten_upsample_bicubic2d_vec(
     self: TReal,
     output_size: INT64,
     align_corners: bool,
-    scale_factors: Optional[Sequence[float]] = None,
+    scale_factors: Optional[Sequence[float]],
 ) -> TReal:
     """upsample_bicubic2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
 
-    scales_h = scale_factors[0] if scale_factors is not None else None
-    scales_w = scale_factors[1] if scale_factors is not None else None
-    return aten_upsample_bicubic2d(self, output_size, align_corners, scales_h, scales_w)
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scale_factors is not None:
+        result = _aten_upsample_scales(
+            self,
+            op.Constant(value_floats=scale_factors),
+            mode="cubic",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    else:
+        result = _aten_upsample_output_size(
+            self,
+            output_size,
+            mode="cubic",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+
+    return result
 
 
 def aten_upsample_bicubic2d_backward(
@@ -2314,24 +2315,14 @@ def aten_upsample_bilinear2d(
 ) -> TReal:
     """upsample_bilinear2d(Tensor self, SymInt[2] output_size, bool align_corners, float? scales_h=None, float? scales_w=None) -> Tensor"""
 
+    # Based on experimentation, scales_h and scales_w are always ignored in PyTorch
     coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
-    if scales_h is not None:
-        assert scales_w is not None
-
-        result = _aten_upsample_scales(
-            self,
-            [scales_h, scales_w],
-            coordinate_transformation_mode=coordinate_transformation_mode,
-            mode="linear",
-        )
-    else:
-        result = _aten_upsample_output_size(
-            self,
-            output_size,
-            coordinate_transformation_mode=coordinate_transformation_mode,
-            mode="linear",
-        )
-    return result
+    return _aten_upsample_output_size(
+        self,
+        output_size,
+        coordinate_transformation_mode=coordinate_transformation_mode,
+        mode="linear",
+    )
 
 
 @torch_op("aten::upsample_bilinear2d.vec", trace_only=True)
@@ -2342,9 +2333,24 @@ def aten_upsample_bilinear2d_vec(
     scale_factors: Optional[Sequence[float]],
 ) -> TReal:
     """upsample_bilinear2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor"""
-    scales_h = scale_factors[0] if scale_factors is not None else None
-    scales_w = scale_factors[1] if scale_factors is not None else None
-    return aten_upsample_bilinear2d(self, output_size, align_corners, scales_h, scales_w)
+
+    coordinate_transformation_mode = _get_upsample_align_corners_mode(align_corners)
+    if scale_factors is not None:
+        result = _aten_upsample_scales(
+            self,
+            op.Constant(value_floats=scale_factors),
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+    else:
+        result = _aten_upsample_output_size(
+            self,
+            output_size,
+            mode="linear",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+
+    return result
 
 
 def aten_upsample_bilinear2d_backward(

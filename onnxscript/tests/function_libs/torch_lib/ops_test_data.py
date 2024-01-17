@@ -418,57 +418,6 @@ def _sum_input_wrangler(
 def _upsample_input_wrangler(
     args: list[Any], kwargs: dict[str, Any]
 ) -> tuple[list[Any], dict[str, Any]]:
-    # Wrangler for the signature difference between
-    #   'nn.functional.upsample_bilinear'
-    # and
-    #   'aten::upsample_bilinear2d'
-    # https://pytorch.org/docs/stable/generated/torch.nn.functional.upsample_bilinear.html
-    if "size" in kwargs:
-        args.append(np.array(kwargs["size"], dtype=np.int64))
-        del kwargs["size"]  # promote tensor type kwargs to args
-    else:
-        args.append(None)
-    if "align_corners" in kwargs:
-        args.append(kwargs["align_corners"])
-        del kwargs["align_corners"]
-    else:
-        args.append(True)  # Fill in the default value
-    if "scale_factor" in kwargs:
-        kwargs["scales_h"] = kwargs["scale_factor"]
-        kwargs["scales_w"] = kwargs["scale_factor"]
-        del kwargs["scale_factor"]  # adapt the function signature
-    return args, kwargs
-
-
-def _upsample_vec_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
-    # Wrangler for the signature difference between
-    #   'nn.functional.upsample_bilinear'
-    # and
-    #   'aten::upsample_bilinear2d.vec'
-    # https://pytorch.org/docs/stable/generated/torch.nn.functional.upsample_bilinear.html
-    if "size" in kwargs:
-        args.append(np.array(kwargs["size"], dtype=np.int64))
-        del kwargs["size"]  # promote tensor type kwargs to args
-    else:
-        args.append(None)
-    if "align_corners" in kwargs:
-        args.append(kwargs["align_corners"])
-        del kwargs["align_corners"]
-    else:
-        args.append(True)  # Fill in the default value
-    if "scale_factor" in kwargs:
-        args.append([kwargs["scale_factor"]] * 2)
-        del kwargs["scale_factor"]  # promote tensor type kwargs to args
-    else:
-        args.append(None)
-    return args, kwargs
-
-
-def _upsample_input_wrangler(
-    args: list[Any], kwargs: dict[str, Any]
-) -> tuple[list[Any], dict[str, Any]]:
     if "scale_factor" in kwargs:
         kwargs["scales_h"] = kwargs["scale_factor"]
         kwargs["scales_w"] = kwargs["scale_factor"]
@@ -2156,27 +2105,23 @@ TESTED_TORCHLIB_OPS: tuple[TorchLibOpInfo, ...] = (
         test_class_name="TestOutputConsistencyEager",
     ),
     TorchLibOpInfo(
-        "ops.aten.upsample_bilinear2d",
+        "ops.aten.upsample_bilinear2d.default",
         nn_ops.aten_upsample_bilinear2d,
-        input_wrangler=_upsample_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_bilinear2d.vec",
         nn_ops.aten_upsample_bilinear2d_vec,
-        input_wrangler=_upsample_vec_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
-        "ops.aten.upsample_bicubic2d",
+        "ops.aten.upsample_bicubic2d.default",
         nn_ops.aten_upsample_bicubic2d,
-        input_wrangler=_upsample_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(
         "ops.aten.upsample_bicubic2d.vec",
         nn_ops.aten_upsample_bicubic2d_vec,
-        input_wrangler=_upsample_input_wrangler,
         trace_only=True,
     ),
     TorchLibOpInfo(

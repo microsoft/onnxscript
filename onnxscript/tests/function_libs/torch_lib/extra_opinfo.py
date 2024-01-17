@@ -1470,15 +1470,13 @@ def sample_inputs_upsample_2d(op_info, device, dtype, requires_grad, **kwargs):
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            None,  # output_size
-            align_corners,
-            1.7, 1.7,  # scaler
+            args=(shape(L, rank, False), align_corners),
+            kwargs=dict(scales_h=0.6, scales_w=4.2),
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            None,  # if this is None, the scalar must be list
-            align_corners,
-            0.6, 0.6,
+            args=(shape(L, rank, False), align_corners),
+            kwargs=dict(scales_h=4.2, scales_w=0.6),
         )
 
 
@@ -1508,29 +1506,43 @@ def sample_inputs_upsample_2d_vec(op_info, device, dtype, requires_grad, **kwarg
         high=1,
     )
 
-    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True)
+    yield opinfo_core.SampleInput(make_arg(shape(D, rank)), shape(SS, rank, False), True, None)
 
     for align_corners in align_corners_options:
         yield opinfo_core.SampleInput(
-            make_arg(shape(D, rank)), shape(S, rank, False), align_corners
+            make_arg(shape(D, rank)), shape(S, rank, False), align_corners, None
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
             shape(L, rank, False),
             align_corners,
+            None,
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            None,  # output_size
-            align_corners,
-            (1.7, 1.7),  # scaler
+            args=(
+                None,  # output_size
+                align_corners,
+            ),
+            kwargs=dict(scale_factors=(1.7, 1.7)),
         )
         yield opinfo_core.SampleInput(
             make_arg(shape(D, rank)),
-            None,  # if this is None, the scalar must be list
-            align_corners,
-            (0.6, 0.6),
+            args=(
+                None,  # if this is None, the scalar must be list
+                align_corners,
+            ),
+            kwargs=dict(scale_factors=(0.6, 0.6)),
         )
+        yield opinfo_core.SampleInput(
+            make_arg(shape(D, rank)),
+            args=(
+                None,  # if this is None, the scalar must be list
+                align_corners,
+            ),
+            kwargs=dict(scale_factors=(0.6, 4.2)),
+        )
+
 
 class _TestParamsMaxPoolEmptyStrideBase:
     # Adapted from https://github.com/pytorch/pytorch/blob/d6d55f8590eab05d2536756fb4efcfb2d07eb81a/torch/testing/_internal/common_methods_invocations.py#L3203
@@ -1998,7 +2010,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.upsample_bicubic2d",
+        "ops.aten.upsample_bicubic2d.default",
         aten_name="upsample_bicubic2d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_2d,
@@ -2012,7 +2024,7 @@ OP_DB: List[opinfo_core.OpInfo] = [
         supports_out=False,
     ),
     opinfo_core.OpInfo(
-        "ops.aten.upsample_bilinear2d",
+        "ops.aten.upsample_bilinear2d.default",
         aten_name="upsample_bilinear2d",
         dtypes=common_dtype.floating_types_and(torch.bfloat16),
         sample_inputs_func=sample_inputs_upsample_2d,
